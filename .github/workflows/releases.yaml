@@ -1,0 +1,85 @@
+---
+name: Release
+
+# Do this on every push
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux-release:
+    name: Build release for Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Build
+      uses: docker://konstin2/maturin:latest
+      with:
+        entrypoint: /bin/bash
+        args: .github/workflows/build.sh
+
+    - name: Upload tarball
+      uses: actions/upload-artifact@v2
+      with:
+        name: linux.tar.gz
+        path: "*.tar.gz"
+        if-no-files-found: error
+
+  build-macos-release:
+    name: Build release for MacOS
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Build
+      run: .github/workflows/build.sh
+
+    - name: Upload tarball
+      uses: actions/upload-artifact@v2
+      with:
+        name: macos.tar.gz
+        path: "*.tar.gz"
+        if-no-files-found: error
+
+  create-release:
+    name: Create a new release
+    runs-on: ubuntu-latest
+    needs: [build-linux-release, build-macos-release]
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: linux.tar.gz
+
+      - name: Download MacOS artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: macos.tar.gz
+
+      - name: Provide new release asset
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            *.tar.gz
