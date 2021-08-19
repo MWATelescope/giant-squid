@@ -3,7 +3,7 @@
 <div class="bg-gray-dark" align="center" style="background-color:#24292e">
 <br/>
 <a href="https://docs.rs/crate/mwa_giant_squid"><img src="https://docs.rs/mwa_giant_squid/badge.svg" alt="docs"></a>
-<img src="https://github.com/MWATelescope/giant-squid/workflows/Tests/badge.svg" alt="Tests">
+<img src="https://github.com/MWATelescope/giant-squid/workflows/Cross-platform%20tests/badge.svg" alt="Cross-platform%20tests">
 </div>
 
 An alternative MWA ASVO client. See the [MWA ASVO
