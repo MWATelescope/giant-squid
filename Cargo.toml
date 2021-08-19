@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Christopher H. Jordan <christopherjordan87@gmail.com>"]
 edition = "2018"
 license = "MPL-2.0"

@@ -12,7 +12,7 @@ pub mod types;
 
 use std::collections::BTreeMap;
 use std::env::var;
-use std::fs::File;
+use std::fs::{create_dir, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
 
@@ -209,19 +209,25 @@ impl AsvoClient {
                 // Stream-unzip the response.
                 debug!("Attempting to unzip stream");
                 while let Ok(Some(z)) = read_zipfile_from_stream(&mut tee) {
-                    debug!("Stream unzipping file {}", z.name());
-                    let mut out_file = File::create(z.name())?;
-                    let mut file_buf = BufReader::with_capacity(buffer_size, z);
+                    debug!("Zip file entry: {}", z.name());
+                    if z.is_file() {
+                        debug!("Stream unzipping file {}", z.name());
+                        let mut out_file = File::create(z.name())?;
+                        let mut file_buf = BufReader::with_capacity(buffer_size, z);
 
-                    loop {
-                        let buffer = file_buf.fill_buf()?;
-                        out_file.write_all(buffer)?;
+                        loop {
+                            let buffer = file_buf.fill_buf()?;
+                            out_file.write_all(buffer)?;
 
-                        let length = buffer.len();
-                        file_buf.consume(length);
-                        if length == 0 {
-                            break;
+                            let length = buffer.len();
+                            file_buf.consume(length);
+                            if length == 0 {
+                                break;
+                            }
                         }
+                    } else if z.is_dir() {
+                        debug!("Creating directory {}", z.name());
+                        create_dir(z.name())?;
                     }
                 }
             }
