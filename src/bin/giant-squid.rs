@@ -343,7 +343,7 @@ fn main() -> Result<(), anyhow::Error> {
             // Get the user parameters and set any defaults that the user has not set.
             let params = {
                 let mut params = match &parameters {
-                    Some(s) => parse_key_value_pairs(&s)?,
+                    Some(s) => parse_key_value_pairs(s)?,
                     None => BTreeMap::new(),
                 };
                 for (&key, &value) in DEFAULT_CONVERSION_PARAMETERS.iter() {

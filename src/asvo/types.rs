@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * ASVO data types.
-*/
+//! ASVO data types.
 
 use std::collections::BTreeMap;
 
@@ -163,11 +161,11 @@ impl std::fmt::Display for AsvoJobType {
             f,
             "{}",
             match self {
-                Self::Conversion => "Conversion",
-                Self::DownloadVisibilities => "Download Visibilities",
-                Self::DownloadMetadata => "Download Metadata",
-                Self::DownloadVoltage => "Download Voltage",
-                Self::CancelJob => "Cancel Job",
+                AsvoJobType::Conversion => "Conversion",
+                AsvoJobType::DownloadVisibilities => "Download Visibilities",
+                AsvoJobType::DownloadMetadata => "Download Metadata",
+                AsvoJobType::DownloadVoltage => "Download Voltage",
+                AsvoJobType::CancelJob => "Cancel Job",
             }
         )
     }
@@ -179,12 +177,12 @@ impl std::fmt::Display for AsvoJobState {
             f,
             "{}",
             match self {
-                Self::Queued => "Queued".to_string(),
-                Self::Processing => "Processing".to_string(),
-                Self::Ready => "Ready".to_string(),
-                Self::Error(e) => format!("Error: {}", e),
-                Self::Expired => "Expired".to_string(),
-                Self::Cancelled => "Cancelled".to_string(),
+                AsvoJobState::Queued => "Queued".to_string(),
+                AsvoJobState::Processing => "Processing".to_string(),
+                AsvoJobState::Ready => "Ready".to_string(),
+                AsvoJobState::Error(e) => format!("Error: {}", e),
+                AsvoJobState::Expired => "Expired".to_string(),
+                AsvoJobState::Cancelled => "Cancelled".to_string(),
             },
         )
     }

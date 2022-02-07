@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Code to interface with the MWA ASVO.
-*/
+//! Code to interface with the MWA ASVO.
 
 mod asvo_serde;
 pub mod error;
@@ -52,7 +50,7 @@ pub struct AsvoClient(Client);
 impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO.
     /// Uses the `MWA_ASVO_API_KEY` environment variable for login.
-    pub fn new() -> Result<Self, AsvoError> {
+    pub fn new() -> Result<AsvoClient, AsvoError> {
         let api_key = var("MWA_ASVO_API_KEY").map_err(|_| AsvoError::MissingAuthKey)?;
 
         // Interfacing with the ASVO server requires specifying the client
@@ -71,7 +69,7 @@ impl AsvoClient {
             .basic_auth(&client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
-            Ok(Self(client))
+            Ok(AsvoClient(client))
         } else {
             Err(AsvoError::BadStatus {
                 code: response.status(),

@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Code to parse the insane json format returned by the ASVO.
-*/
+//! Code to parse the insane json format returned by the ASVO.
 
 use std::collections::HashMap;
 
@@ -28,7 +26,7 @@ pub(super) fn parse_asvo_json(json: &str) -> Result<AsvoJobVec, serde_json::erro
 
 #[derive(Deserialize, Debug)]
 struct DummyJobParams {
-    download_type: Option<String>,
+    _download_type: Option<String>,
     // The JSON decoding requires this to be a string, but it should always be a
     // 10-digit int.
     obs_id: String,
@@ -119,7 +117,7 @@ mod tests {
     #[test]
     fn test_json_job_submit_response_parse() {
         let json = "{\"job_id\": 308874, \"new\": false}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
             AsvoSubmitJobResponse::JobID {
@@ -133,7 +131,7 @@ mod tests {
     #[test]
     fn test_json_job_submit_response_bad_parse() {
         let json = "{\"error_code\": 0, \"error\": \"Download Type: Expected not None\"}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
             AsvoSubmitJobResponse::ErrorWithCode {
@@ -147,7 +145,7 @@ mod tests {
     #[test]
     fn test_json_job_submit_response_bad_parse2() {
         let json = "{\"error\": \"Permission denied\"}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
             AsvoSubmitJobResponse::GenericError {
