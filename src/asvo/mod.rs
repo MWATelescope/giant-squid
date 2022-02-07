@@ -5,8 +5,12 @@
 //! Code to interface with the MWA ASVO.
 
 mod asvo_serde;
-pub mod error;
-pub mod types;
+mod error;
+mod types;
+
+use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
+pub use error::AsvoError;
+pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
 
 use std::collections::BTreeMap;
 use std::env::var;
@@ -20,12 +24,9 @@ use sha1::{Digest, Sha1};
 use zip::read::read_zipfile_from_stream;
 
 use crate::obsid::Obsid;
-use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
-pub use error::AsvoError;
-pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec};
 
 /// The address of the MWA ASVO.
-const ASVO_ADDRESS: &str = "https://asvo.mwatelescope.org:8778";
+const ASVO_ADDRESS: &str = "https://asvo.mwatelescope.org:443";
 
 lazy_static::lazy_static! {
     /// Default parameters for conversion jobs. Generate a measurement set with
@@ -35,17 +36,21 @@ lazy_static::lazy_static! {
     pub static ref DEFAULT_CONVERSION_PARAMETERS: BTreeMap<&'static str, &'static str> = {
         let mut m = BTreeMap::new();
         m.insert("download_type" , "conversion");
-        m.insert("conversion"    , "ms");
-        m.insert("timeres"       , "4");
-        m.insert("freqres"       , "40");
-        m.insert("edgewidth"     , "160");
+        m.insert("preprocessor"  , "cotter");
+        m.insert("conversion"    , "uvfits");
+        m.insert("freqres"       , "80");
+        m.insert("edgewidth"     , "80");
         m.insert("allowmissing"  , "true");
         m.insert("flagdcchannels", "true");
+        m.insert("noflagautos"   , "true");
         m
     };
 }
 
-pub struct AsvoClient(Client);
+pub struct AsvoClient {
+    /// The `reqwest` [Client] used to interface with the ASVO web service.
+    client: Client,
+}
 
 impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO.
@@ -57,19 +62,21 @@ impl AsvoClient {
         // version. As this is not the manta-ray-client, we need to lie here.
         // Use a user-specified value if available, or the hard-coded one here.
         let client_version =
-            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.0".to_string());
+            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.1".to_string());
         // Connect and return the cookie jar.
         debug!("Connecting to ASVO...");
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
+            .danger_accept_invalid_certs(true) // Required for the ASVO.
             .build()?;
         let response = client
-            .post(&format!("{}/api/login", ASVO_ADDRESS))
+            .post(&format!("{}/api/api_login", ASVO_ADDRESS))
             .basic_auth(&client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
-            Ok(AsvoClient(client))
+            debug!("Successfully authenticaed with ASVO");
+            Ok(AsvoClient { client })
         } else {
             Err(AsvoError::BadStatus {
                 code: response.status(),
@@ -82,7 +89,7 @@ impl AsvoClient {
         debug!("Retrieving job statuses from the ASVO...");
         // Send a GET request to the ASVO.
         let response = self
-            .0
+            .client
             .get(&format!("{}/api/get_jobs", ASVO_ADDRESS))
             .send()?;
         if !response.status().is_success() {
@@ -178,7 +185,7 @@ impl AsvoClient {
         for f in files {
             debug!("Downloading file {}", f.file_name);
             let response = self
-                .0
+                .client
                 .get(&format!("{}/api/download", ASVO_ADDRESS))
                 .query(&[
                     ("job_id", format!("{}", job.jobid)),
@@ -274,11 +281,21 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(&self, obsid: Obsid, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+    pub fn submit_vis(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        expiry_days: u8,
+    ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting a vis job to ASVO");
+
         let obsid_str = format!("{}", obsid);
-        form.insert("obs_id", obsid_str.as_str());
+        let d_str = format!("{}", delivery);
         let e_str = format!("{}", expiry_days);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
+        form.insert("delivery", &d_str);
         form.insert("expiry_days", &e_str);
         form.insert("download_type", "vis");
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
@@ -288,13 +305,18 @@ impl AsvoClient {
     pub fn submit_conv(
         &self,
         obsid: Obsid,
+        delivery: Delivery,
         expiry_days: u8,
         parameters: &BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+        debug!("Submitting a conversion job to ASVO");
+
         let obsid_str = format!("{}", obsid);
-        form.insert("obs_id", obsid_str.as_str());
+        let d_str = format!("{}", delivery);
         let e_str = format!("{}", expiry_days);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
         form.insert("expiry_days", &e_str);
         for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
             form.insert(k, v);
@@ -306,16 +328,29 @@ impl AsvoClient {
         for (&k, &v) in parameters.iter() {
             form.insert(k, v);
         }
+        // Insert the CLI delivery last. This ensures that if the user
+        // incorrectly specified it as part of the `parameters`, it is ignored.
+        form.insert("delivery", &d_str);
 
         self.submit_asvo_job(&AsvoJobType::Conversion, form)
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(&self, obsid: Obsid, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+    pub fn submit_meta(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        expiry_days: u8,
+    ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting a metafits job to ASVO");
+
         let obsid_str = format!("{}", obsid);
-        form.insert("obs_id", obsid_str.as_str());
+        let d_str = format!("{}", delivery);
         let e_str = format!("{}", expiry_days);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
+        form.insert("delivery", &d_str);
         form.insert("expiry_days", &e_str);
         form.insert("download_type", "vis_meta");
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
@@ -327,6 +362,7 @@ impl AsvoClient {
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting an ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
@@ -335,7 +371,7 @@ impl AsvoClient {
 
         // Send a POST request to the ASVO.
         let response = self
-            .0
+            .client
             .post(&format!("{}/api/{}", ASVO_ADDRESS, api_path))
             .form(&form)
             .send()?;
@@ -348,18 +384,36 @@ impl AsvoClient {
         let response_text = response.text()?;
         match serde_json::from_str(&response_text) {
             Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(job_id),
-            // This shouldn't be reachable, because a non-200 code is issued
-            // with it too.
+
             Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
                 Err(AsvoError::BadRequest {
                     code: error_code,
                     message: error,
                 })
             }
-            Ok(AsvoSubmitJobResponse::GenericError { error }) => Err(AsvoError::BadRequest {
-                code: 666,
-                message: error,
-            }),
+
+            Ok(AsvoSubmitJobResponse::GenericError { error }) => match error.as_str() {
+                // If the server comes back with the error "already queued,
+                // processing or complete", proceed like it wasn't an error.
+                "Job already queued, processing or complete." => {
+                    let jobs = self.get_jobs()?;
+                    // This approach is flawed; the first job ID with the
+                    // same obsid as that submitted by this function is
+                    // returned, but it's not necessarily the right job ID.
+                    let j = jobs
+                        .0
+                        .iter()
+                        .find(|j| j.obsid == form["obs_id"].parse().unwrap())
+                        .unwrap();
+                    Ok(j.jobid)
+                }
+
+                _ => Err(AsvoError::BadRequest {
+                    code: 666,
+                    message: error,
+                }),
+            },
+
             Err(e) => Err(AsvoError::BadJson(e)),
         }
     }

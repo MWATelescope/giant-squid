@@ -6,10 +6,11 @@
 
 use std::collections::BTreeMap;
 
+use log::warn;
 use prettytable::{cell, row, Cell, Row, Table};
 use serde::Serialize;
 
-use crate::obsid::Obsid;
+use crate::{obsid::Obsid, AsvoError};
 
 /// All of the available types of ASVO jobs.
 #[derive(Serialize, PartialEq, Debug, Clone)]
@@ -198,6 +199,54 @@ impl std::fmt::Display for AsvoJob {
             type=self.jtype,
             state=self.state,
             files=self.files,
+        )
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum Delivery {
+    /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
+    /// anywhere.
+    Acacia,
+
+    /// Deliver the ASVO job to the /astro filesystem at the Pawsey
+    /// Supercomputing Centre.
+    Astro,
+}
+
+impl Delivery {
+    pub fn validate<S: AsRef<str>>(d: Option<S>) -> Result<Delivery, AsvoError> {
+        match (d, std::env::var("GIANT_SQUID_DELIVERY")) {
+            (Some(d), _) => match d.as_ref() {
+                "acacia" => Ok(Delivery::Acacia),
+                "astro" => Ok(Delivery::Astro),
+                d => Err(AsvoError::InvalidDelivery(d.to_string())),
+            },
+            (None, Ok(d)) => match d.as_str() {
+                "acacia" => Ok(Delivery::Acacia),
+                "astro" => Ok(Delivery::Astro),
+                d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
+            },
+            (None, Err(std::env::VarError::NotPresent)) => {
+                warn!("Using 'acacia' for ASVO delivery");
+                Ok(Delivery::Acacia)
+            }
+            (None, Err(std::env::VarError::NotUnicode(_))) => {
+                Err(AsvoError::InvalidDeliveryEnvUnicode)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Delivery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Delivery::Acacia => "acacia",
+                Delivery::Astro => "astro",
+            }
         )
     }
 }

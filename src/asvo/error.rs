@@ -12,6 +12,20 @@ use crate::obsid::Obsid;
 
 #[derive(Error, Debug)]
 pub enum AsvoError {
+    /// The specified delivery argument was wrong.
+    #[error("The supplied delivery argument ({0}) was neither 'acacia' nor 'astro'")]
+    InvalidDelivery(String),
+
+    /// The delivery argument in GIANT_SQUID_DELIVERY was wrong.
+    #[error(
+        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia' nor 'astro'"
+    )]
+    InvalidDeliveryEnv(String),
+
+    /// GIANT_SQUID_DELIVERY has invalid unicode.
+    #[error("No delivery argument was given and GIANT_SQUID_DELIVERY contains invalid unicode")]
+    InvalidDeliveryEnvUnicode,
+
     /// User's MWA_ASVO_API_KEY environment variable is not defined.
     #[error("MWA_ASVO_API_KEY is not defined.")]
     MissingAuthKey,
