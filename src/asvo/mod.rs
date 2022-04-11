@@ -375,15 +375,22 @@ impl AsvoClient {
             .post(&format!("{}/api/{}", ASVO_ADDRESS, api_path))
             .form(&form)
             .send()?;
-        if !response.status().is_success() {
+        let job_response: Result<AsvoSubmitJobResponse, _> = if response.status() {
+            response.text().and_then(|t| serde_json::from_str(&t))
+        } else if response.status() == 400 {
+            // Right now, the ASVO kicks out 400 if the job has already been
+            // submitted. Check the response text if this is the case, and if so
+            // don't propogate an error.
+            let t = response.text()?;
+            match serde_json::from_str(&response_text)
+        } else {
             return Err(AsvoError::BadStatus {
                 code: response.status(),
                 message: response.text()?,
             });
-        }
-        let response_text = response.text()?;
+        };
         match serde_json::from_str(&response_text) {
-            Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(job_id),
+            Ok(AsvoSubmitJobResponse::JobID { job_id }) => Ok(job_id),
 
             Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
                 Err(AsvoError::BadRequest {

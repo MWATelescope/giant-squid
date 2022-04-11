@@ -33,8 +33,12 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Parser, Debug)]
-#[clap(author, about = ABOUT)]
+#[clap(name = "giant-squid", version, author, about = ABOUT)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[clap(global_setting(AppSettings::DisableHelpSubcommand))]
+#[clap(global_setting(AppSettings::InferLongArgs))]
+#[clap(global_setting(AppSettings::InferSubcommands))]
+#[clap(global_setting(AppSettings::PropagateVersion))]
 enum Args {
     /// List ASVO jobs
     #[clap(alias = "l")]
