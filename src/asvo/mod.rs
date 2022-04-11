@@ -279,13 +279,17 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
         let mut form = BTreeMap::new();
+
         let obsid_str = format!("{}", obsid);
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
+
+        let delivery_str = format!("{}", delivery);
+        form.insert("delivery", &delivery_str);
+
         form.insert("download_type", "vis");
+
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
 
@@ -294,14 +298,16 @@ impl AsvoClient {
         &self,
         obsid: Obsid,
         delivery: Delivery,
-        expiry_days: u8,
         parameters: &BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
         let mut form = BTreeMap::new();
+
         let obsid_str = format!("{}", obsid);
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
+
+        let delivery_str = format!("{}", delivery);
+        form.insert("delivery", &delivery_str);
+
         for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
             form.insert(k, v);
         }
@@ -317,12 +323,15 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
         let mut form = BTreeMap::new();
+
         let obsid_str = format!("{}", obsid);
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
+        
+        let delivery_str = format!("{}", delivery);
+        form.insert("delivery", &delivery_str);
+
         form.insert("download_type", "vis_meta");
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }
