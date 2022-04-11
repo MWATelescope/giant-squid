@@ -10,6 +10,7 @@ use clap::{AppSettings, Parser};
 use log::{debug, info};
 use simplelog::*;
 
+use types::Delivery;
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
 
