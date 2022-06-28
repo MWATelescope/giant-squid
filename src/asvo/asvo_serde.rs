@@ -32,11 +32,40 @@ struct DummyJobParams {
     obs_id: String,
 }
 
-#[derive(Deserialize, Debug)]
+// #[derive(Deserialize, Debug)]
+// struct DummyAcaciaProduct {
+//     url: String,
+//     file_size: u64,
+//     sha1: String,
+// }
+
+// #[derive(Deserialize, Debug)]
+// struct DummyAstroProduct {
+//     file_path: String,
+//     file_size: u64,
+// }
+
+// #[derive(Deserialize, Debug)]
+// enum DummyProduct {
+//     DummyAcaciaProduct,
+//     DummyAstroProduct
+// }
+
+#[derive(Deserialize, Debug, Clone)]
+enum DummyDelivery {
+    #[serde(rename = "acacia")]
+    Acacia,
+    #[serde(rename = "astro")]
+    Astro,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 struct DummyProduct {
-    file_name: String,
-    file_size: u64,
-    sha1: String,
+    r#type: String,
+    url: Option<String>,
+    path: Option<String>,
+    size: u64,
+    sha1: Option<String>
 }
 
 #[derive(Deserialize, Debug)]
@@ -59,14 +88,32 @@ impl DummyJob {
         let new_files = self.row.product.map(|hm| {
             let mut file_array = vec![];
             for dumb_product in &hm["files"] {
+                // match dumb_product.r#type {
+                //     "acacia" => {
+                        
+                //     },
+                //     "astro" => {
+
+                //     }
+                // }
+                // file_array.push(AsvoFilesArray {
+                //     r#type: dumb_product.r#type.clone(),
+                //     url: dumb_product.url.clone(),
+                //     size: dumb_product.size.clone(),
+                //     path: dumb_product.path.clone(),
+                //     sha1: dumb_product.sha1.clone(),
+                // })
                 file_array.push(AsvoFilesArray {
-                    file_name: dumb_product.file_name.clone(),
-                    file_size: dumb_product.file_size,
+                    r#type: dumb_product.r#type.clone(),
+                    url: dumb_product.url.clone(),
+                    size: dumb_product.size.clone(),
+                    path: dumb_product.path.clone(),
                     sha1: dumb_product.sha1.clone(),
                 })
             }
             file_array
         });
+
         AsvoJob {
             obsid: Obsid::validate(self.row.job_params.obs_id.parse().unwrap()).unwrap(),
             jobid: self.row.id,
@@ -106,12 +153,13 @@ mod tests {
 
     #[test]
     fn test_json_job_listing_parse() {
-        let json = "[\"{\\\"action\\\": \\\"INSERT\\\", \\\"table\\\": \\\"jobs\\\", \\\"row\\\": {\\\"job_type\\\": 1, \\\"job_state\\\": 2, \\\"user_id\\\": 92, \\\"job_params\\\": {\\\"download_type\\\": \\\"vis\\\", \\\"obs_id\\\": \\\"1065880128\\\"}, \\\"error_code\\\": null, \\\"error_text\\\": null, \\\"created\\\": \\\"2020-08-20T04:17:24.075207\\\", \\\"modified\\\": \\\"2020-08-20T04:29:40.020931\\\", \\\"expiry_date\\\": \\\"2020-08-27T04:29:39.822127\\\", \\\"product\\\": {\\\"files\\\": [[\\\"1065880128_vis.zip\\\", 44658597858, \\\"f561aa665fd6367c05a89f7e2931b60c289348de\\\"]]}, \\\"storage_id\\\": 3, \\\"id\\\": 306792}}\"]";
+        //let json = "[\"{\\\"action\\\": \\\"INSERT\\\", \\\"table\\\": \\\"jobs\\\", \\\"row\\\": {\\\"job_type\\\": 1, \\\"job_state\\\": 2, \\\"user_id\\\": 92, \\\"job_params\\\": {\\\"download_type\\\": \\\"vis\\\", \\\"obs_id\\\": \\\"1065880128\\\"}, \\\"error_code\\\": null, \\\"error_text\\\": null, \\\"created\\\": \\\"2020-08-20T04:17:24.075207\\\", \\\"modified\\\": \\\"2020-08-20T04:29:40.020931\\\", \\\"expiry_date\\\": \\\"2020-08-27T04:29:39.822127\\\", \\\"product\\\": {\\\"files\\\": [[\\\"1065880128_vis.zip\\\", 44658597858, \\\"f561aa665fd6367c05a89f7e2931b60c289348de\\\"]]}, \\\"storage_id\\\": 3, \\\"id\\\": 306792}}\"]";
+        let json = "[{action: \"INSERT\",table: \"jobs\",row: {job_type: 1,job_state: 2,user_id: 1064,job_params: {delivery: \"acacia\",download_type: \"vis\",job_type: \"download\",obs_id: \"1291313408\",priority: 11,user_pawsey_group: \"mwaops\"},error_code: null,error_text: null,created: \"2022-04-05T03:57:46.380827\",started: \"2022-04-06T05:51:13.457888\",completed: \"2022-04-06T05:51:33.127713\",product: {files: [{type: \"acacia\",url: \"https://ingest.pawsey.org.au/dev-mwa-asvo/1291313408_253631_vis.tar?AWSAccessKeyId=0f61c75cd1184e5abc76500d71758927&Signature=pN90xjd6KBOh9qgdGy45TjPqJOo%3D&Expires=1651816292\",size: 1320591360,sha1: \"25fa53deb331951b54be03dcc5017ab58a1a0cd0\"}]},id: 253631}}]";
         let result = parse_asvo_json(json);
-        assert!(result.is_ok());
+        //assert!(result.is_ok());
         let jobs = result.unwrap();
         assert_eq!(jobs.0.len(), 1);
-        assert_eq!(jobs.0[0].jobid, 306792);
+        assert_eq!(jobs.0[0].jobid, 253631);
     }
 
     #[test]

@@ -33,15 +33,34 @@ pub enum AsvoJobState {
     Cancelled,
 }
 
-/// A single file provided by an ASVO job.
-#[derive(Serialize, PartialEq, Debug)]
+// #[derive(Serialize, PartialEq, Debug)]
+// struct AsvoAcaciaArray {
+//     pub url: String,
+//     pub file_size: u64,
+//     pub sha1: String,
+// }
+
+// #[derive(Serialize, PartialEq, Debug)]
+// struct AsvoAstroArray {
+//     pub file_path: String,
+//     pub file_size: u64,
+// }
+
+// #[derive(Serialize, PartialEq, Debug)]
+// pub enum AsvoFilesArray {
+//     AsvoAcaciaArray,
+//     AsvoAstroArray
+// }
+
+
+// A single file provided by an ASVO job.
+#[derive(Serialize, PartialEq, Debug, Clone)]
 pub struct AsvoFilesArray {
-    #[serde(rename = "fileName")]
-    pub file_name: String,
-    #[serde(rename = "fileSize")]
-    pub file_size: u64,
-    #[serde(rename = "fileHash")]
-    pub sha1: String,
+    pub r#type: String,
+    pub url: Option<String>,
+    pub path: Option<String>,
+    pub size: u64,
+    pub sha1: Option<String>
 }
 
 /// A simple type alias. Not using a newtype, because that would produce
@@ -64,6 +83,7 @@ pub struct AsvoJob {
 /// A vector of ASVO jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
+#[derive(Debug)]
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
@@ -106,7 +126,7 @@ impl AsvoJobVec {
                             Some(v) => {
                                 let mut size = 0;
                                 for f in v {
-                                    size += f.file_size;
+                                    size += f.size;
                                 }
                                 bytesize::ByteSize(size).to_string_as(true)
                             }
@@ -203,7 +223,7 @@ impl std::fmt::Display for AsvoJob {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Serialize, PartialEq, Debug, Clone, Copy)]
 pub enum Delivery {
     /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
     /// anywhere.

@@ -170,7 +170,7 @@ impl AsvoClient {
             }
         };
 
-        let total_bytes = files.iter().map(|f| f.file_size).sum();
+        let total_bytes = files.iter().map(|f| f.size).sum();
         info!(
             "Downloading ASVO job ID {} (obsid: {}, type: {}, {})",
             job.jobid,
@@ -181,13 +181,13 @@ impl AsvoClient {
         let start_time = Instant::now();
         // Download each file.
         for f in files {
-            debug!("Downloading file {}", f.file_name);
+            debug!("Downloading file {}", f.url.as_ref().unwrap());
             let response = self
                 .client
                 .get(&format!("{}/api/download", self.asvo_address))
                 .query(&[
                     ("job_id", format!("{}", job.jobid)),
-                    ("file_name", f.file_name.clone()),
+                    ("url", f.url.as_ref().unwrap().clone()),
                 ])
                 .send()?;
             let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
@@ -195,7 +195,7 @@ impl AsvoClient {
             if keep_zip {
                 // Simply dump the response to the appropriate file name. Use a
                 // buffer to avoid doing frequent writes.
-                let mut out_file = File::create(&f.file_name)?;
+                let mut out_file = File::create(&f.url.as_ref().unwrap())?;
                 let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
 
                 loop {
@@ -244,16 +244,16 @@ impl AsvoClient {
             }
 
             if hash {
-                debug!("Upstream hash: {}", &f.sha1);
+                debug!("Upstream hash: {}", &f.sha1.as_ref().unwrap());
                 let (_, hasher) = tee.into_inner();
                 let hash = format!("{:x}", hasher.finalize());
                 debug!("Our hash: {}", &hash);
-                if !hash.eq_ignore_ascii_case(&f.sha1) {
+                if !hash.eq_ignore_ascii_case(&f.sha1.as_ref().unwrap()) {
                     return Err(AsvoError::HashMismatch {
                         jobid: job.jobid,
-                        file: f.file_name.clone(),
+                        file: f.url.as_ref().unwrap().clone(),
                         calculated_hash: hash,
-                        expected_hash: f.sha1.clone(),
+                        expected_hash: f.sha1.as_ref().unwrap().clone(),
                     });
                 }
             }
