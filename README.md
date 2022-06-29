@@ -15,48 +15,55 @@ just a library; the `giant-squid` executable acts as an alternative to the
 [manta-ray-client](https://github.com/ICRAR/manta-ray-client) and may better
 suit users for a few reasons:
 
-1) By default, `giant-squid` *stream unzips* the downloads from ASVO. In other
+1. By default, `giant-squid` _stream unzips_ the downloads from ASVO. In other
    words, rather than downloading a potentially large (> 100 GiB!) zip file and
    then unzipping it yourself (thereby occupying double the space of the
    original zip and performing a very expensive IO operation), it is possible to
    get the files without performing an unzip.
 
-2) `giant-squid` does not require a CSV file to submit jobs; this is instead
+2. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
 
-3) For any commands that accept obsids or job IDs, it is possible use text files
+3. For any commands that accept obsids or job IDs, it is possible use text files
    instead. These files are unpacked as if you had typed them out manually, and
    each entry of the text file(s) are checked for validity (all ints and all
    10-digits long); any exceptions are reported and the command fails.
 
-4) One can ask `giant-squid` to print their ASVO queue as JSON; this makes
+4. One can ask `giant-squid` to print their ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
 ## Usage
+
 ### Print help text
+
 ```bash
 giant-squid -h
 ```
 
 This also applies to all of the subcommands, e.g.
+
 ```bash
 giant-squid download -h
 ```
 
 ### Print the `giant-squid` version
-``` bash
+
+```bash
 giant-squid --version
 giant-squid -V
 ```
+
 (Useful if things are changing over time!)
 
 ### List ASVO jobs
+
 ```bash
 giant-squid list
 giant-squid l
 ```
 
 ### List ASVO jobs in JSON
+
 ```bash
 # Any of the following work.
 giant-squid list --json
@@ -65,12 +72,14 @@ giant-squid l -j
 ```
 
 Example output:
+
 ```bash
 giant-squid list -j
 {"325430":{"obsid":1090528304,"jobId":325430,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528304_vis.zip","fileSize":10762878689,"fileHash":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}]},"325431":{"obsid":1090528432,"jobId":325431,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528432_vis.zip","fileSize":10762875021,"fileHash":"9d9c3c0f56a2bb4e851aa63cdfb79095b29c66c9"}]}}
 ```
 
 `jobType` is allowed to be any of:
+
 - `Conversion`
 - `DownloadVisibilities`
 - `DownloadMetadata`
@@ -78,6 +87,7 @@ giant-squid list -j
 - `CancelJob`
 
 `jobState` is allowed to be any of:
+
 - `Queued`
 - `Processing`
 - `Ready`
@@ -86,6 +96,7 @@ giant-squid list -j
 - `Cancelled`
 
 Example reading this in Python:
+
 ```bash
 $ giant-squid list -j > /tmp/asvo.json
 $ ipython
@@ -104,7 +115,9 @@ Out[3]: dict_keys(['216087', '216241', '217628'])
 ```
 
 ### Download ASVO jobs
+
 To download job ID 12345:
+
 ```bash
 giant-squid download 12345
 # or
@@ -112,6 +125,7 @@ giant-squid d 12345
 ```
 
 To download obsid 1065880128:
+
 ```bash
 giant-squid download 1065880128
 # or
@@ -134,11 +148,14 @@ by this action appears to be negligible, but I made this option non-default as
 it shouldn't be a problem anyway.
 
 ### Submit ASVO jobs
+
 #### Visibility downloads
+
 A "visibility download job" refers to a job which provides a zip containing
 gpubox files, a metafits file and cotter flags for a single obsid.
 
 To submit a visibility download job for the obsid 1065880128:
+
 ```bash
 giant-squid submit-vis 1065880128
 # or
@@ -156,7 +173,9 @@ associated with your account! Use the `--expire-days` option (short version
 `-e`).
 
 #### Conversion downloads
+
 To submit a conversion job for obsid 1065880128:
+
 ```bash
 giant-squid submit-conv 1065880128
 # or
@@ -166,12 +185,14 @@ giant-squid sc 1065880128
 Text files containing obsids may be used too.
 
 The default conversion options can be found by running the help text:
+
 ```bash
 giant-squid submit-conv -h
 ```
 
 To change the default conversion options and/or specify more options, specify
 comma-separated key-value pairs like so:
+
 ```bash
 giant-squid submit-conv 1065880128 -p timeres=0.5,freqres=10
 ```
@@ -180,6 +201,7 @@ If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`). More
 messages (including what `giant-squid` uses for the conversion options) can be
 accessed with `-v` (or `--verbose`). e.g.
+
 ```bash
 $ giant-squid submit-conv 1065880128 -nv -p timeres=0.5,freqres=10
 20:40:24 [INFO] Would have submitted 1 obsids for conversion, using these parameters:
@@ -192,10 +214,12 @@ associated with your account! Use the `--expire-days` option (short version
 `-e`).
 
 #### Metadata downloads
+
 A "metadata download job" refers to a job which provides a zip containing a
 metafits file and cotter flags for a single obsid.
 
 To submit a visibility download job for the obsid 1065880128:
+
 ```bash
 giant-squid submit-meta 1065880128
 # or
@@ -213,6 +237,7 @@ associated with your account! Use the `--expire-days` option (short version
 `-e`).
 
 ## Download performance
+
 By default, when downloading, `giant-squid` will store 100 MiB of the download
 in memory before writing to disk. This is friendlier on disks (especially those
 belonging to supercomputers!), and can make downloads faster.
@@ -228,7 +253,9 @@ giant-squid download 12345
 would use 50 MiB of memory to cache the download before writing.
 
 ## Installation
+
 ### Pre-compiled
+
 Have a look at the [GitHub releases
 page](https://github.com/MWATelescope/giant-squid/releases).
 
@@ -258,7 +285,16 @@ page](https://github.com/MWATelescope/giant-squid/releases).
   - This destination can be configured with the `CARGO_HOME` environment
     variable.
 
+## Docker
+
+You can run giant-squid using docker
+
+```bash
+docker run mwatelescope/giant-squid:latest -h
+```
+
 ## Other
+
 The Haskell code is still available on chj's
 [GitLab](https://gitlab.com/chjordan/giant-squid). Switching to Rust means that
 the code is more efficient and the code is easier to read (sorry Haskell. I love
