@@ -62,7 +62,7 @@ impl AsvoClient {
         // version. As this is not the manta-ray-client, we need to lie here.
         // Use a user-specified value if available, or the hard-coded one here.
         let client_version =
-            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.1".to_string());
+            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.2".to_string());
         // Connect and return the cookie jar.
         debug!("Connecting to ASVO...");
         let client = ClientBuilder::new()
@@ -172,7 +172,7 @@ impl AsvoClient {
             }
         };
 
-        let total_bytes = files.iter().map(|f| f.file_size).sum();
+        let total_bytes = files.iter().map(|f| f.size).sum();
         info!(
             "Downloading ASVO job ID {} (obsid: {}, type: {}, {})",
             job.jobid,
@@ -183,21 +183,23 @@ impl AsvoClient {
         let start_time = Instant::now();
         // Download each file.
         for f in files {
-            debug!("Downloading file {}", f.file_name);
+            if f.r#type != "acacia" {
+                todo!("implement other types");
+            }
+            debug!("Downloading file {:?}", f.url);
             let response = self
                 .client
-                .get(&format!("{}/api/download", ASVO_ADDRESS))
-                .query(&[
-                    ("job_id", format!("{}", job.jobid)),
-                    ("file_name", f.file_name.clone()),
-                ])
+                .get(f.url.as_ref().unwrap())
                 .send()?;
+            let url = reqwest::Url::parse(&f.url.as_ref().unwrap()).unwrap();
+            let out_path = url.path_segments().unwrap().last().unwrap().clone();
             let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             if keep_zip {
                 // Simply dump the response to the appropriate file name. Use a
                 // buffer to avoid doing frequent writes.
-                let mut out_file = File::create(&f.file_name)?;
+
+                let mut out_file = File::create(out_path)?;
                 let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
 
                 loop {
@@ -246,17 +248,24 @@ impl AsvoClient {
             }
 
             if hash {
-                debug!("Upstream hash: {}", &f.sha1);
-                let (_, hasher) = tee.into_inner();
-                let hash = format!("{:x}", hasher.finalize());
-                debug!("Our hash: {}", &hash);
-                if !hash.eq_ignore_ascii_case(&f.sha1) {
-                    return Err(AsvoError::HashMismatch {
-                        jobid: job.jobid,
-                        file: f.file_name.clone(),
-                        calculated_hash: hash,
-                        expected_hash: f.sha1.clone(),
-                    });
+                match &f.sha1 {
+                    Some(sha) => {
+                        debug!("Upstream hash: {}", sha);
+                        let (_, hasher) = tee.into_inner();
+                        let hash = format!("{:x}", hasher.finalize());
+                        debug!("Our hash: {}", &hash);
+                        if !hash.eq_ignore_ascii_case(&f.sha1.as_ref().unwrap()) {
+                            return Err(AsvoError::HashMismatch {
+                                jobid: job.jobid,
+                                file: f.url.as_ref().unwrap().clone(),
+                                calculated_hash: hash,
+                                expected_hash: f.sha1.as_ref().unwrap().clone(),
+                            });
+                        }
+                    },
+                    _ => {
+                        panic!("Product does not include a hash to compare.")
+                    }
                 }
             }
         }

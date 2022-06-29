@@ -36,12 +36,16 @@ pub enum AsvoJobState {
 /// A single file provided by an ASVO job.
 #[derive(Serialize, PartialEq, Debug)]
 pub struct AsvoFilesArray {
-    #[serde(rename = "fileName")]
-    pub file_name: String,
+    #[serde(rename = "jobType")]
+    pub r#type: String,
+    #[serde(rename = "fileUrl")]
+    pub url: Option<String>,
+    #[serde(rename = "filePath")]
+    pub path: Option<String>,
     #[serde(rename = "fileSize")]
-    pub file_size: u64,
+    pub size: u64,
     #[serde(rename = "fileHash")]
-    pub sha1: String,
+    pub sha1: Option<String>,
 }
 
 /// A simple type alias. Not using a newtype, because that would produce
@@ -106,7 +110,7 @@ impl AsvoJobVec {
                             Some(v) => {
                                 let mut size = 0;
                                 for f in v {
-                                    size += f.file_size;
+                                    size += f.size;
                                 }
                                 bytesize::ByteSize(size).to_string_as(true)
                             }
