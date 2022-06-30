@@ -102,7 +102,7 @@ impl DummyJob {
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(untagged)]
 pub(super) enum AsvoSubmitJobResponse {
-    JobID { job_id: AsvoJobID, new: bool },
+    JobID { job_id: AsvoJobID },
     ErrorWithCode { error_code: u32, error: String },
     GenericError { error: String },
 }
@@ -123,14 +123,11 @@ mod tests {
 
     #[test]
     fn test_json_job_submit_response_parse() {
-        let json = "{\"job_id\": 308874, \"new\": false}";
+        let json = "{\"job_id\": 308874}";
         let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
-            AsvoSubmitJobResponse::JobID {
-                job_id: 308874,
-                new: false
-            },
+            AsvoSubmitJobResponse::JobID { job_id: 308874 },
             decoded.unwrap()
         );
     }

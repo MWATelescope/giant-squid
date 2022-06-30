@@ -423,7 +423,10 @@ impl AsvoClient {
                 }),
             },
 
-            Err(e) => Err(AsvoError::BadJson(e)),
+            Err(e) => {
+                debug!("bad response: {}", response_text);
+                Err(AsvoError::BadJson(e))
+            }
         }
     }
 }
