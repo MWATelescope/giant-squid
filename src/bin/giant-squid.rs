@@ -180,6 +180,20 @@ enum Args {
         #[clap(name = "OBSID")]
         obsids: Vec<String>,
     },
+
+    /// Wait for ASVO jobs to complete
+    #[clap(alias = "w")]
+    Wait {
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[clap(short, long, parse(from_occurrences))]
+        verbosity: u8,
+
+        /// The jobs to wait for. Files containing jobs are also
+        /// accepted.
+        #[clap(name = "JOB")]
+        jobs: Vec<String>,
+    },
 }
 
 fn init_logger(level: u8) {
@@ -193,6 +207,11 @@ fn init_logger(level: u8) {
 
 /// Wait for all of the specified job IDs to become ready, then exit.
 fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError> {
+    info!("Waiting for {} jobs to be ready...", jobids.len());
+    let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
+    // Offer the ASVO a kindness by waiting a few seconds, so
+    // that the user's queue is hopefully current.
+    std::thread::sleep(Duration::from_secs(5));
     loop {
         // Get the current state of all jobs. By converting to a map, we avoid
         // quadratic complexity below. Probably not a big deal, but why not?
@@ -207,8 +226,7 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
             };
             // Handle the job's state. If it's ready, there's nothing to do. If
             // the job is simply queued or in processing, we can say that we're
-            // not ready yet; exit early. All other possibilities are handled
-            // drastically.
+            // not ready yet. All other possibilities are handled drastically.
             match &job.state {
                 AsvoJobState::Ready => (),
                 AsvoJobState::Error(e) => {
@@ -222,8 +240,14 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
                 AsvoJobState::Cancelled => return Err(AsvoError::Cancelled(*j)),
                 AsvoJobState::Queued | AsvoJobState::Processing => {
                     any_not_ready = true;
-                    break;
                 }
+            }
+            // log if there was a change in state.
+            match last_state.insert(*j, job.state.clone()) {
+                Some(last_state) if last_state != job.state => {
+                    info!("Job {} is {}", j, &job.state);
+                }
+                _ => (),
             }
         }
         // Our lock variable is set if we broke out of the loop.
@@ -329,10 +353,6 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for visibility download.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
                     wait_loop(client, jobids)?;
@@ -396,10 +416,6 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for conversion.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
                     wait_loop(client, jobids)?;
@@ -447,15 +463,23 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for metadata download.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
                     wait_loop(client, jobids)?;
                 }
             }
+        }
+
+        Args::Wait { verbosity, jobs } => {
+            let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
+            if parsed_jobids.is_empty() {
+                bail!("No obsids specified!");
+            }
+            init_logger(verbosity);
+            let client = AsvoClient::new()?;
+            // Endlessly loop over the newly-supplied job IDs until
+            // they're all ready.
+            wait_loop(client, parsed_jobids)?;
         }
     }
 
