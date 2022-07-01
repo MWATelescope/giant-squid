@@ -75,7 +75,7 @@ impl AsvoClient {
             .basic_auth(&client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
-            debug!("Successfully authenticaed with ASVO");
+            debug!("Successfully authenticated with ASVO");
             Ok(AsvoClient { client })
         } else {
             Err(AsvoError::BadStatus {
@@ -183,26 +183,26 @@ impl AsvoClient {
         let start_time = Instant::now();
         // Download each file.
         for f in files {
-            let url = match (f.r#type.as_str(), f.url.as_ref()) {
+            let url = match (f.r#type.as_str(), f.url.as_deref()) {
                 ("acacia", Some(url)) => {
                     debug!("Downloading file {:?}", f.url);
-                    url.clone()
+                    url
+                }
+                ("acacia", None) => {
+                    return Err(AsvoError::NoUrl {
+                        file: f.path.clone(),
+                    })
                 }
                 // TODO: other file types
-                _ => String::new(),
+                _ => todo!(),
             };
-            if url.is_empty() {
-                return Err(AsvoError::NoUrl {
-                    file: serde_json::to_string(f).unwrap(),
-                });
-            }
             debug!("Downloading file {:?}", &url);
 
             // parse out path from url
-            let url_obj = reqwest::Url::parse(&url).unwrap();
+            let url_obj = reqwest::Url::parse(url).unwrap();
             let out_path = url_obj.path_segments().unwrap().last().unwrap();
 
-            let response = self.client.get(url.clone()).send()?;
+            let response = self.client.get(url).send()?;
             let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             if keep_tar {
@@ -244,12 +244,12 @@ impl AsvoClient {
                         let (_, hasher) = tee.into_inner();
                         let hash = format!("{:x}", hasher.finalize());
                         debug!("Our hash: {}", &hash);
-                        if !hash.eq_ignore_ascii_case(f.sha1.as_ref().unwrap()) {
+                        if !hash.eq_ignore_ascii_case(sha) {
                             return Err(AsvoError::HashMismatch {
                                 jobid: job.jobid,
-                                file: f.url.as_ref().unwrap().clone(),
+                                file: url.to_string(),
                                 calculated_hash: hash,
-                                expected_hash: f.sha1.as_ref().unwrap().clone(),
+                                expected_hash: sha.to_string(),
                             });
                         }
                     }

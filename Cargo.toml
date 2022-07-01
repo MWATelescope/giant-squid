@@ -19,7 +19,7 @@ name = "giant-squid"
 required-features = ["bin"]
 
 [profile.release]
-lto = true
+lto = "thin"
 opt-level = 'z'  # Optimize for size.
 panic = 'abort'
 

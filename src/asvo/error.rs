@@ -116,6 +116,6 @@ pub enum AsvoError {
     InvalidJobType { str: String },
 
     // Error determining url for file in job
-    #[error("Could not determine url for file {file}")]
-    NoUrl { file: String },
+    #[error("Could not determine url for file {file:?}")]
+    NoUrl { file: Option<String> },
 }
