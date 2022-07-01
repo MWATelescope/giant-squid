@@ -13,8 +13,9 @@ pub use error::AsvoError;
 pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
 
 use std::collections::BTreeMap;
-use std::env::var;
-use std::fs::File;
+use std::env::{var, current_dir};
+use std::fs::{File, rename};
+use std::path::Path;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
 
@@ -183,80 +184,108 @@ impl AsvoClient {
         let start_time = Instant::now();
         // Download each file.
         for f in files {
-            let url = match (f.r#type.as_str(), f.url.as_deref()) {
-                ("acacia", Some(url)) => {
-                    debug!("Downloading file {:?}", f.url);
-                    url
-                }
-                ("acacia", None) => {
-                    return Err(AsvoError::NoUrl {
-                        file: f.path.clone(),
-                    })
-                }
-                // TODO: other file types
-                _ => todo!(),
-            };
-            debug!("Downloading file {:?}", &url);
 
-            // parse out path from url
-            let url_obj = reqwest::Url::parse(url).unwrap();
-            let out_path = url_obj.path_segments().unwrap().last().unwrap();
+            match f.r#type.as_str() {
+                "acacia" => {
+                    match f.url.as_deref() {
+                        Some(url) => {
+                            debug!("Downloading file {:?}", f.url);
+                            let url = url;
 
-            let response = self.client.get(url).send()?;
-            let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+                            debug!("Downloading file {:?}", &url);
 
-            if keep_tar {
-                // Simply dump the response to the appropriate file name. Use a
-                // buffer to avoid doing frequent writes.
+                            // parse out path from url
+                            let url_obj = reqwest::Url::parse(url).unwrap();
+                            let out_path = url_obj.path_segments().unwrap().last().unwrap();
 
-                let mut out_file = File::create(out_path)?;
-                let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
+                            let response = self.client.get(url).send()?;
+                            let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-                loop {
-                    let buffer = file_buf.fill_buf()?;
-                    out_file.write_all(buffer)?;
+                            if keep_tar {
+                                // Simply dump the response to the appropriate file name. Use a
+                                // buffer to avoid doing frequent writes.
+                
+                                let mut out_file = File::create(out_path)?;
+                                let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
+                
+                                loop {
+                                    let buffer = file_buf.fill_buf()?;
+                                    out_file.write_all(buffer)?;
+                
+                                    let length = buffer.len();
+                                    file_buf.consume(length);
+                                    if length == 0 {
+                                        break;
+                                    }
+                                }
+                            } else {
+                                // Stream-untar the response.
+                                debug!("Attempting to untar stream");
+                                let mut tar = Archive::new(&mut tee);
+                                tar.unpack(".")?;
+                            }
+                            
+                            // If we were told to hash the download, compare our hash against
+                            // the upstream hash. Stream untarring may not read all of the
+                            // bytes; read the tee to the end.
+                            {
+                                let mut final_bytes = vec![];
+                                tee.read_to_end(&mut final_bytes)?;
+                            }
 
-                    let length = buffer.len();
-                    file_buf.consume(length);
-                    if length == 0 {
-                        break;
-                    }
-                }
-            } else {
-                // Stream-untar the response.
-                debug!("Attempting to untar stream");
-                let mut tar = Archive::new(&mut tee);
-                tar.unpack(".")?;
-            }
-
-            // If we were told to hash the download, compare our hash against
-            // the upstream hash. Stream untarring may not read all of the
-            // bytes; read the tee to the end.
-            {
-                let mut final_bytes = vec![];
-                tee.read_to_end(&mut final_bytes)?;
-            }
-
-            if hash {
-                match &f.sha1 {
-                    Some(sha) => {
-                        debug!("Upstream hash: {}", sha);
-                        let (_, hasher) = tee.into_inner();
-                        let hash = format!("{:x}", hasher.finalize());
-                        debug!("Our hash: {}", &hash);
-                        if !hash.eq_ignore_ascii_case(sha) {
-                            return Err(AsvoError::HashMismatch {
-                                jobid: job.jobid,
-                                file: url.to_string(),
-                                calculated_hash: hash,
-                                expected_hash: sha.to_string(),
-                            });
+                            if hash {
+                                match &f.sha1 {
+                                    Some(sha) => {
+                                        debug!("Upstream hash: {}", sha);
+                                        let (_, hasher) = tee.into_inner();
+                                        let hash = format!("{:x}", hasher.finalize());
+                                        debug!("Our hash: {}", &hash);
+                                        if !hash.eq_ignore_ascii_case(sha) {
+                                            return Err(AsvoError::HashMismatch {
+                                                jobid: job.jobid,
+                                                file: url.to_string(),
+                                                calculated_hash: hash,
+                                                expected_hash: sha.to_string(),
+                                            });
+                                        }
+                                    }
+                                    _ => {
+                                        panic!("Product does not include a hash to compare.")
+                                    }
+                                }
+                            }
+                        },
+                        None => {
+                            return Err(AsvoError::NoUrl {
+                                job_id: job.jobid,
+                            })
                         }
                     }
-                    _ => {
-                        panic!("Product does not include a hash to compare.")
+                },
+                "astro" => {
+                    match f.path.as_deref() {
+                        Some(path) => {
+                            let path_obj = Path::new(path);
+                            let folder_name = path_obj.components().last().unwrap().as_os_str().to_str().unwrap();
+
+                            if !Path::exists(path_obj) {
+                                info!("Files for Astro Job {} are not reachable from the current host.", job.jobid)
+                            } else {
+                                info!("Files for Astro Job {} are reachable from the current host. Copying to current directory.", job.jobid);
+
+                                let mut current_path = current_dir()?;
+                                current_path.push(folder_name);
+                                rename(path, current_path)?;
+                            }
+                        },
+                        None => {
+                            return Err(AsvoError::NoPath {
+                                job_id: job.jobid,
+                            })
+                        }
                     }
-                }
+                },
+                _ => panic!("Unsuppored file type found")
             }
         }
 

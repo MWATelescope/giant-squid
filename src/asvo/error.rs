@@ -115,7 +115,11 @@ pub enum AsvoError {
     #[error("Could not parse job type from str: {str}")]
     InvalidJobType { str: String },
 
-    // Error determining url for file in job
-    #[error("Could not determine url for file {file:?}")]
-    NoUrl { file: Option<String> },
+    // Error determining url for Acacia job
+    #[error("Could not determine url for job {job_id:?}")]
+    NoUrl { job_id: u32 },
+
+    // Error determining path for Astro job
+    #[error("Could not determine path for job {job_id:?}")]
+    NoPath { job_id: u32 },
 }
