@@ -14,14 +14,14 @@ pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJ
 
 use std::collections::BTreeMap;
 use std::env::var;
-use std::fs::{create_dir, File};
+use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
 
 use log::{debug, info};
 use reqwest::blocking::{Client, ClientBuilder};
 use sha1::{Digest, Sha1};
-use zip::read::read_zipfile_from_stream;
+use tar::Archive;
 
 use crate::obsid::Obsid;
 
@@ -107,7 +107,7 @@ impl AsvoClient {
     pub fn download_job(
         &self,
         jobid: AsvoJobID,
-        keep_zip: bool,
+        keep_tar: bool,
         hash: bool,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
@@ -116,7 +116,7 @@ impl AsvoClient {
         jobs.0.retain(|j| j.jobid == jobid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
-            1 => self.download(&jobs.0[0], keep_zip, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash),
             // Hopefully there's never multiples of the same ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
@@ -129,7 +129,7 @@ impl AsvoClient {
     pub fn download_obsid(
         &self,
         obsid: Obsid,
-        keep_zip: bool,
+        keep_tar: bool,
         hash: bool,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
@@ -139,13 +139,13 @@ impl AsvoClient {
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoObsid(obsid)),
-            1 => self.download(&jobs.0[0], keep_zip, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash),
             _ => Err(AsvoError::TooManyObsids(obsid)),
         }
     }
 
     /// Private function to actually do the work.
-    fn download(&self, job: &AsvoJob, keep_zip: bool, hash: bool) -> Result<(), AsvoError> {
+    fn download(&self, job: &AsvoJob, keep_tar: bool, hash: bool) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
         let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
             Ok(s) => s.parse()?,
@@ -205,7 +205,7 @@ impl AsvoClient {
             let response = self.client.get(url.clone()).send()?;
             let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-            if keep_zip {
+            if keep_tar {
                 // Simply dump the response to the appropriate file name. Use a
                 // buffer to avoid doing frequent writes.
 
@@ -223,34 +223,14 @@ impl AsvoClient {
                     }
                 }
             } else {
-                // Stream-unzip the response.
-                debug!("Attempting to unzip stream");
-                while let Ok(Some(z)) = read_zipfile_from_stream(&mut tee) {
-                    debug!("Zip file entry: {}", z.name());
-                    if z.is_file() {
-                        debug!("Stream unzipping file {}", z.name());
-                        let mut out_file = File::create(z.name())?;
-                        let mut file_buf = BufReader::with_capacity(buffer_size, z);
-
-                        loop {
-                            let buffer = file_buf.fill_buf()?;
-                            out_file.write_all(buffer)?;
-
-                            let length = buffer.len();
-                            file_buf.consume(length);
-                            if length == 0 {
-                                break;
-                            }
-                        }
-                    } else if z.is_dir() {
-                        debug!("Creating directory {}", z.name());
-                        create_dir(z.name())?;
-                    }
-                }
+                // Stream-untar the response.
+                debug!("Attempting to untar stream");
+                let mut tar = Archive::new(&mut tee);
+                tar.unpack(".")?;
             }
 
             // If we were told to hash the download, compare our hash against
-            // the upstream hash. Stream unzipping does not read all of the
+            // the upstream hash. Stream untarring may not read all of the
             // bytes; read the tee to the end.
             {
                 let mut final_bytes = vec![];
