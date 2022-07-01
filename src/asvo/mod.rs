@@ -183,16 +183,26 @@ impl AsvoClient {
         let start_time = Instant::now();
         // Download each file.
         for f in files {
-            if f.r#type != "acacia" {
-                todo!("implement other types");
+            let url = match (f.r#type.as_str(), f.url.as_ref()) {
+                ("acacia", Some(url)) => {
+                    debug!("Downloading file {:?}", f.url);
+                    url.clone()
+                }
+                // TODO: other file types
+                _ => String::new(),
+            };
+            if url.is_empty() {
+                return Err(AsvoError::NoUrl {
+                    file: serde_json::to_string(f).unwrap(),
+                });
             }
-            debug!("Downloading file {:?}", f.url);
-            let response = self
-                .client
-                .get(f.url.as_ref().unwrap())
-                .send()?;
-            let url = reqwest::Url::parse(&f.url.as_ref().unwrap()).unwrap();
-            let out_path = url.path_segments().unwrap().last().unwrap().clone();
+            debug!("Downloading file {:?}", &url);
+
+            // parse out path from url
+            let url_obj = reqwest::Url::parse(&url).unwrap();
+            let out_path = url_obj.path_segments().unwrap().last().unwrap();
+
+            let response = self.client.get(url.clone()).send()?;
             let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             if keep_zip {
@@ -254,7 +264,7 @@ impl AsvoClient {
                         let (_, hasher) = tee.into_inner();
                         let hash = format!("{:x}", hasher.finalize());
                         debug!("Our hash: {}", &hash);
-                        if !hash.eq_ignore_ascii_case(&f.sha1.as_ref().unwrap()) {
+                        if !hash.eq_ignore_ascii_case(f.sha1.as_ref().unwrap()) {
                             return Err(AsvoError::HashMismatch {
                                 jobid: job.jobid,
                                 file: f.url.as_ref().unwrap().clone(),
@@ -262,7 +272,7 @@ impl AsvoClient {
                                 expected_hash: f.sha1.as_ref().unwrap().clone(),
                             });
                         }
-                    },
+                    }
                     _ => {
                         panic!("Product does not include a hash to compare.")
                     }

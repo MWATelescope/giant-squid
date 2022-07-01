@@ -4,7 +4,7 @@
 
 //! Code to parse the insane json format returned by the ASVO.
 
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use serde::Deserialize;
 
@@ -15,9 +15,7 @@ pub(super) fn parse_asvo_json(json: &str) -> Result<AsvoJobVec, serde_json::erro
     let strings: Vec<DummyJob> = serde_json::from_str(json)?;
     let vec = strings
         .into_iter()
-        .map(|dj| {
-            dj.convert_to_real_job()
-        })
+        .map(|dj| dj.convert_to_real_job())
         .collect::<Vec<AsvoJob>>();
     Ok(AsvoJobVec(vec))
 }
@@ -30,7 +28,7 @@ struct DummyJobParams {
     obs_id: String, // The JSON decoding requires this to be a string, but it should always be a 10-digit int.
     job_type: String,
     priority: i8,
-    user_pawsey_group: Option<String>
+    user_pawsey_group: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -42,7 +40,6 @@ struct DummyProduct {
     size: u64,
     sha1: Option<String>,
 }
-
 
 #[derive(Deserialize, Debug)]
 struct DummyRow {
@@ -115,7 +112,11 @@ mod tests {
     fn test_json_job_listing_parse() {
         let json = "[{\"action\": \"INSERT\", \"table\": \"jobs\", \"row\": {\"job_type\": 1, \"job_state\": 2, \"user_id\": 1065, \"job_params\": {\"delivery\": \"acacia\", \"download_type\": \"vis\", \"job_type\": \"download\", \"obs_id\": \"1339896408\", \"priority\": 1, \"user_pawsey_group\": \"mwaops\"}, \"error_code\": null, \"error_text\": null, \"created\": \"2022-06-22T01:56:38.635146\", \"started\": \"2022-06-22T01:57:09.093927\", \"completed\": \"2022-06-22T01:57:24.693448\", \"product\": {\"files\": [{\"type\": \"acacia\", \"url\": \"https://ingest.pawsey.org.au/mwa-asvo/1339896408_575929_vis.tar?AWSAccessKeyId=0f61c75cd1184e5abc76500d71758927&Signature=XwoaCna8vNmMEBXcFji2boZ5yjk%3D&Expires=1656467844\", \"size\": 931112960, \"sha1\": \"12b0933ff3985c82a7303d8e57fa7157fe88353e\"}]}, \"id\": 575929}}]";
         let result = parse_asvo_json(json);
-        assert!(result.is_ok(), "result is not ok: {:?}", result.err().unwrap());
+        assert!(
+            result.is_ok(),
+            "result is not ok: {:?}",
+            result.err().unwrap()
+        );
         let jobs = result.unwrap();
         assert_eq!(jobs.0.len(), 1);
         assert_eq!(jobs.0[0].jobid, 575929);
