@@ -47,6 +47,22 @@ enum Args {
         /// information.
         #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
+
+        /// show only jobs matching the provided states, case insensitive.
+        /// Options: queued, processing, ready, error, expired, cancelled.
+        #[clap(long, name = "STATE")]
+        states: Vec<AsvoJobState>,
+
+        /// filter job list by type, case insensitive with underscores. Options:
+        /// conversion, download_visibilities, download_metadata,
+        /// download_voltage or cancel_job
+        #[clap(long, name = "TYPE")]
+        types: Vec<AsvoJobType>,
+
+        /// job IDs or obsids to filter by. Files containing job IDs or
+        /// obsids are also accepted.
+        #[clap(name = "JOBID_OR_OBSID")]
+        jobids_or_obsids: Vec<String>,
     },
 
     /// Download an ASVO job
@@ -181,9 +197,13 @@ enum Args {
         obsids: Vec<String>,
     },
 
-    /// Wait for ASVO jobs to complete
+    /// Wait for ASVO jobs to complete, return the urls
     #[clap(alias = "w")]
     Wait {
+        /// Print the jobs as a simple JSON after waiting
+        #[clap(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[clap(short, long, parse(from_occurrences))]
@@ -206,7 +226,7 @@ fn init_logger(level: u8) {
 }
 
 /// Wait for all of the specified job IDs to become ready, then exit.
-fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError> {
+fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError> {
     info!("Waiting for {} jobs to be ready...", jobids.len());
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
     // Offer the ASVO a kindness by waiting a few seconds, so
@@ -218,7 +238,7 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
         let jobs = client.get_jobs()?.into_map();
         let mut any_not_ready = false;
         // Iterate over all supplied job IDs.
-        for j in &jobids {
+        for j in jobids {
             // Find the relevant job in the queue.
             let job = match jobs.0.get(j) {
                 None => return Err(AsvoError::NoAsvoJob(*j)),
@@ -264,11 +284,39 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
 
 fn main() -> Result<(), anyhow::Error> {
     match Args::parse() {
-        Args::List { verbosity, json } => {
+        Args::List {
+            verbosity,
+            json,
+            jobids_or_obsids,
+            states,
+            types: job_types,
+        } => {
             init_logger(verbosity);
 
+            let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
             let client = AsvoClient::new()?;
-            let jobs = client.get_jobs()?;
+            let mut jobs = client.get_jobs()?;
+            match (jobids, obsids) {
+                (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
+                    bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
+                }
+                (jobids, _) if !jobids.is_empty() => {
+                    jobs = jobs.retain(|j| jobids.contains(&j.jobid))
+                }
+                (_, obsids) if !obsids.is_empty() => {
+                    jobs = jobs.retain(|j| obsids.contains(&j.obsid))
+                }
+                _ => (),
+            };
+
+            if !job_types.is_empty() {
+                jobs = jobs.retain(|j| job_types.contains(&j.jtype))
+            }
+
+            if !states.is_empty() {
+                jobs = jobs.retain(|j| states.contains(&j.state));
+            }
+
             if json {
                 println!("{}", jobs.json()?);
             } else {
@@ -355,7 +403,7 @@ fn main() -> Result<(), anyhow::Error> {
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -418,7 +466,7 @@ fn main() -> Result<(), anyhow::Error> {
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -465,12 +513,16 @@ fn main() -> Result<(), anyhow::Error> {
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
 
-        Args::Wait { verbosity, jobs } => {
+        Args::Wait {
+            verbosity,
+            jobs,
+            json,
+        } => {
             let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
             if parsed_jobids.is_empty() {
                 bail!("No obsids specified!");
@@ -479,7 +531,18 @@ fn main() -> Result<(), anyhow::Error> {
             let client = AsvoClient::new()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
-            wait_loop(client, parsed_jobids)?;
+            wait_loop(&client, &parsed_jobids)?;
+
+            let mut jobs = client.get_jobs()?;
+            if !parsed_jobids.is_empty() {
+                jobs = jobs.retain(|j| parsed_jobids.contains(&j.jobid));
+            }
+
+            if json {
+                println!("{}", jobs.json()?);
+            } else {
+                jobs.list();
+            }
         }
     }
 

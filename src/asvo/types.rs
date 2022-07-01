@@ -4,7 +4,7 @@
 
 //! ASVO data types.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
 use log::warn;
 use prettytable::{cell, row, Cell, Row, Table};
@@ -22,6 +22,21 @@ pub enum AsvoJobType {
     CancelJob,
 }
 
+impl FromStr for AsvoJobType {
+    type Err = AsvoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "conversion" => Ok(AsvoJobType::Conversion),
+            "download_visibilities" => Ok(AsvoJobType::DownloadVisibilities),
+            "download_metadata" => Ok(AsvoJobType::DownloadMetadata),
+            "download_voltage" => Ok(AsvoJobType::DownloadVoltage),
+            "cancel_job" => Ok(AsvoJobType::CancelJob),
+            _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
+        }
+    }
+}
+
 /// All of states an ASVO job may be in.
 #[derive(Serialize, PartialEq, Debug, Clone)]
 pub enum AsvoJobState {
@@ -31,6 +46,22 @@ pub enum AsvoJobState {
     Error(String),
     Expired,
     Cancelled,
+}
+
+impl FromStr for AsvoJobState {
+    type Err = AsvoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "queued" => Ok(AsvoJobState::Queued),
+            "processing" => Ok(AsvoJobState::Processing),
+            "ready" => Ok(AsvoJobState::Ready),
+            "error" => Ok(AsvoJobState::Error(String::new())),
+            "expired" => Ok(AsvoJobState::Expired),
+            "cancelled" => Ok(AsvoJobState::Cancelled),
+            _ => Err(AsvoError::InvalidJobState { str: s.to_string() }),
+        }
+    }
 }
 
 /// A single file provided by an ASVO job.
@@ -139,6 +170,14 @@ impl AsvoJobVec {
     /// method!
     pub fn into_map(self) -> AsvoJobMap {
         AsvoJobMap::from(self)
+    }
+
+    /// filter out any jobs that don't match jobids
+    pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
+        // if we wanted to use a nightly:
+        // self.0.drain_filter(|j| predicate);
+        self.0.retain(predicate);
+        self
     }
 }
 

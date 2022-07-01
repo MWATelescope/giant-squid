@@ -103,7 +103,19 @@ pub enum AsvoError {
     #[error("{0}")]
     Parse(#[from] std::num::ParseIntError),
 
+    /// Job state parsing error
+    #[error("Could not parse job state from str: {str}")]
+    InvalidJobState { str: String },
+
     /// An IO error.
     #[error("{0}")]
     IO(#[from] std::io::Error),
+
+    /// Job type parsing error
+    #[error("Could not parse job type from str: {str}")]
+    InvalidJobType { str: String },
+
+    // Error determining url for file in job
+    #[error("Could not determine url for file {file}")]
+    NoUrl { file: String },
 }
