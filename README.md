@@ -15,11 +15,11 @@ just a library; the `giant-squid` executable acts as an alternative to the
 [manta-ray-client](https://github.com/ICRAR/manta-ray-client) and may better
 suit users for a few reasons:
 
-1. By default, `giant-squid` _stream unzips_ the downloads from ASVO. In other
-   words, rather than downloading a potentially large (> 100 GiB!) zip file and
-   then unzipping it yourself (thereby occupying double the space of the
-   original zip and performing a very expensive IO operation), it is possible to
-   get the files without performing an unzip.
+1. By default, `giant-squid` _stream untars_ the downloads from ASVO. In other
+   words, rather than downloading a potentially large (> 100 GiB!) tar file and
+   then untarring it yourself (thereby occupying double the space of the
+   original tar and performing a very expensive IO operation), it is possible to
+   get the files without performing an untar.
 
 2. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
@@ -147,6 +147,12 @@ download, give a `--hash` to the `download` command. The additional computation
 by this action appears to be negligible, but I made this option non-default as
 it shouldn't be a problem anyway.
 
+Jobs which were submitted with the /astro data delivery option behave differently
+than jobs submitted with the acacia data delivery option. When attempting to download
+an /astro job, if the path of the job (eg /astro/mwaops/asvo/12345) is reachable from
+the current host, it will be moved to the current working directory. Otherwise, it will
+be skipped.
+
 ### Submit ASVO jobs
 
 #### Visibility downloads
@@ -167,10 +173,10 @@ Text files containing obsids may be used too.
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
-It's possible to have ASVO jobs expire sooner than the default 7 days; useful
-when you are processing many jobs, as there is a limit to how many can be
-associated with your account! Use the `--expire-days` option (short version
-`-e`).
+You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
+or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
+that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
+a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
 
 #### Conversion downloads
 
@@ -208,10 +214,10 @@ $ giant-squid submit-conv 1065880128 -nv -p timeres=0.5,freqres=10
 {"allowmissing": "true", "conversion": "ms", "download_type": "conversion", "edgewidth": "160", "flagdcchannels": "true", "freqres": "10", "timeres": "0.5"}
 ```
 
-It's possible to have ASVO jobs expire sooner than the default 7 days; useful
-when you are processing many jobs, as there is a limit to how many can be
-associated with your account! Use the `--expire-days` option (short version
-`-e`).
+You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
+or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
+that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
+a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
 
 #### Metadata downloads
 
@@ -231,10 +237,10 @@ Text files containing obsids may be used too.
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
-It's possible to have ASVO jobs expire sooner than the default 7 days; useful
-when you are processing many jobs, as there is a limit to how many can be
-associated with your account! Use the `--expire-days` option (short version
-`-e`).
+You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
+or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
+that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
+a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
 
 ## Download performance
 
