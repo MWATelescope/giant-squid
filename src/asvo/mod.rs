@@ -312,19 +312,16 @@ impl AsvoClient {
     pub fn submit_vis(
         &self,
         obsid: Obsid,
-        delivery: Delivery,
-        expiry_days: u8,
+        delivery: Delivery
     ) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a vis job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
-        let e_str = format!("{}", expiry_days);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
-        form.insert("expiry_days", &e_str);
         form.insert("download_type", "vis");
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
@@ -334,18 +331,15 @@ impl AsvoClient {
         &self,
         obsid: Obsid,
         delivery: Delivery,
-        expiry_days: u8,
         parameters: &BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a conversion job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
-        let e_str = format!("{}", expiry_days);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
-        form.insert("expiry_days", &e_str);
         for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
             form.insert(k, v);
         }
@@ -368,18 +362,15 @@ impl AsvoClient {
         &self,
         obsid: Obsid,
         delivery: Delivery,
-        expiry_days: u8,
     ) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a metafits job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
-        let e_str = format!("{}", expiry_days);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
-        form.insert("expiry_days", &e_str);
         form.insert("download_type", "vis_meta");
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }

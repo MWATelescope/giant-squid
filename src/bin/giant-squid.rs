@@ -101,10 +101,6 @@ enum Args {
         #[clap(short, long)]
         delivery: Option<String>,
 
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[clap(short, long, default_value = "7")]
-        expiry_days: u8,
-
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -138,10 +134,6 @@ enum Args {
         #[clap(short, long)]
         delivery: Option<String>,
 
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[clap(short, long, default_value = "7")]
-        expiry_days: u8,
-
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -171,10 +163,6 @@ enum Args {
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
-
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[clap(short, long, default_value = "7")]
-        expiry_days: u8,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -363,7 +351,6 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::SubmitVis {
             delivery,
-            expiry_days,
             wait,
             dry_run,
             verbosity,
@@ -394,7 +381,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_vis(o, delivery, expiry_days)?;
+                    let j = client.submit_vis(o, delivery)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -411,7 +398,6 @@ fn main() -> Result<(), anyhow::Error> {
         Args::SubmitConv {
             parameters,
             delivery,
-            expiry_days,
             wait,
             dry_run,
             verbosity,
@@ -457,7 +443,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, delivery, expiry_days, &params)?;
+                    let j = client.submit_conv(o, delivery, &params)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -473,7 +459,6 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::SubmitMeta {
             delivery,
-            expiry_days,
             wait,
             dry_run,
             verbosity,
@@ -504,7 +489,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_meta(o, delivery, expiry_days)?;
+                    let j = client.submit_meta(o, delivery)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
