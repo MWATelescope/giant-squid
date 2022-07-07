@@ -122,4 +122,8 @@ pub enum AsvoError {
     // Error determining path for Astro job
     #[error("Could not determine path for job {job_id:?}")]
     NoPath { job_id: u32 },
+
+    // Error determining path for Astro job
+    #[error("Invalid file type for job {job_id:?}")]
+    InvalidFileType { job_id: u32 },
 }

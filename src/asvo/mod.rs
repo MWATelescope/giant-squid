@@ -182,11 +182,12 @@ impl AsvoClient {
             bytesize::ByteSize(total_bytes).to_string_as(true)
         );
         let start_time = Instant::now();
+
         // Download each file.
         for f in files {
 
-            match f.r#type.as_str() {
-                "acacia" => {
+            match f.r#type {
+                Delivery::Acacia => {
                     match f.url.as_deref() {
                         Some(url) => {
                             debug!("Downloading file {:?}", f.url);
@@ -254,6 +255,21 @@ impl AsvoClient {
                                     }
                                 }
                             }
+
+                            info!(
+                                "Completed download in {} (average rate: {}/s)",
+                                if start_time.elapsed().as_secs() > 60 {
+                                    format!(
+                                        "{}min{:.2}s",
+                                        start_time.elapsed().as_secs() / 60,
+                                        (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
+                                    )
+                                } else {
+                                    format!("{}s", start_time.elapsed().as_millis() as f64 / 1e3)
+                                },
+                                bytesize::ByteSize((total_bytes as u128 * 1000 / start_time.elapsed().as_millis()) as u64)
+                                    .to_string_as(true)
+                            );
                         },
                         None => {
                             return Err(AsvoError::NoUrl {
@@ -262,14 +278,15 @@ impl AsvoClient {
                         }
                     }
                 },
-                "astro" => {
-                    match f.path.as_deref() {
+                Delivery::Astro => {
+                    match &f.path {
                         Some(path) => {
-                            let path_obj = Path::new(path);
+                            //If it's an /astro job, and the files are reachable from the current host, move them into the current working directory
+                            let path_obj = Path::new(&path);
                             let folder_name = path_obj.components().last().unwrap().as_os_str().to_str().unwrap();
 
                             if !Path::exists(path_obj) {
-                                info!("Files for Astro Job {} are not reachable from the current host.", job.jobid)
+                                info!("Files for Astro Job {} are not reachable from the current host.", job.jobid);
                             } else {
                                 info!("Files for Astro Job {} are reachable from the current host. Copying to current directory.", job.jobid);
 
@@ -284,26 +301,9 @@ impl AsvoClient {
                             })
                         }
                     }
-                },
-                _ => panic!("Unsuppored file type found")
+                }
             }
         }
-
-        let d = Instant::now() - start_time;
-        info!(
-            "Completed download in {} (average rate: {}/s)",
-            if d.as_secs() > 60 {
-                format!(
-                    "{}min{:.2}s",
-                    d.as_secs() / 60,
-                    (d.as_millis() as f64 / 1e3) % 60.0
-                )
-            } else {
-                format!("{}s", d.as_millis() as f64 / 1e3)
-            },
-            bytesize::ByteSize((total_bytes as u128 * 1000 / d.as_millis()) as u64)
-                .to_string_as(true)
-        );
 
         Ok(())
     }

@@ -68,7 +68,7 @@ impl FromStr for AsvoJobState {
 #[derive(Serialize, PartialEq, Debug)]
 pub struct AsvoFilesArray {
     #[serde(rename = "jobType")]
-    pub r#type: String,
+    pub r#type: Delivery,
     #[serde(rename = "fileUrl")]
     pub url: Option<String>,
     #[serde(rename = "filePath")]
@@ -246,7 +246,7 @@ impl std::fmt::Display for AsvoJob {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize)]
 pub enum Delivery {
     /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
     /// anywhere.
