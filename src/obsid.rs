@@ -2,38 +2,44 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Code to handle obsids.
-*/
+//! Code to handle obsids.
 
 use std::num::ParseIntError;
+use std::str::FromStr;
 
 use serde::Serialize;
 use thiserror::Error;
 
 /// A newtype representing an MWA observation ID ("obsid"). Using this type
-/// instead of a `u64` ensures that things work correctly at compile time.
+/// instead of a [u64] ensures that things work correctly at compile time.
 #[derive(Serialize, PartialEq, Clone, Copy)]
 pub struct Obsid(u64);
 
 impl Obsid {
-    /// Given a `u64`, return it as an MWA `Obsid` if it is valid.
-    pub fn validate(o: u64) -> Result<Self, ObsidError> {
+    /// Given a [u64], return it as an MWA [Obsid] if it is valid.
+    pub fn validate(o: u64) -> Result<Obsid, ObsidError> {
         // Valid obsids are between 1e9 and 1e10.
         if o >= 1e9 as u64 && o < 1e10 as u64 {
-            Ok(Self(o))
+            Ok(Obsid(o))
         } else {
             Err(ObsidError::WrongNumDigits(o))
         }
     }
 
     /// Convert a string of whitespace-delimited (e.g. spaces, tabs, newlines)
-    /// integers to a `Vec<Obsid>`. If any of the integers are invalid as
+    /// integers to a [Vec<Obsid>]. If any of the integers are invalid as
     /// obsids, an error is returned.
-    pub fn from_string(s: &str) -> Result<Vec<Self>, ObsidError> {
-        s.split_whitespace()
-            .map(|i| Self::validate(i.parse()?))
-            .collect()
+    pub fn from_string(s: &str) -> Result<Vec<Obsid>, ObsidError> {
+        s.split_whitespace().map(|i| i.parse()).collect()
+    }
+}
+
+impl FromStr for Obsid {
+    type Err = ObsidError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let int: u64 = s.parse()?;
+        Obsid::validate(int)
     }
 }
 

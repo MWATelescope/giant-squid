@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Small helper utility functions.
-*/
+//! Small helper utility functions.
 
 use std::collections::BTreeMap;
 use std::io::BufRead;
@@ -84,7 +82,7 @@ pub fn parse_many_jobids_or_obsids(
     let mut jobids = vec![];
     let mut obsids = vec![];
     for s in strings {
-        match parse_jobid_or_obsid(&s) {
+        match parse_jobid_or_obsid(s) {
             Some(ObsidOrJobID::O(obsid)) => obsids.push(obsid),
             Some(ObsidOrJobID::J(jobid)) => jobids.push(jobid),
             // Could not parse the string as an int; assume it is a
@@ -101,7 +99,7 @@ pub fn parse_many_jobids_or_obsids(
 }
 
 /// Parse a string of key-value pairs (e.g. "timeres=0.5,freqres=10") into a
-/// `BTreeMap`.
+/// [BTreeMap].
 pub fn parse_key_value_pairs(s: &str) -> Result<BTreeMap<&str, &str>, ParseError> {
     let mut map = BTreeMap::new();
     for pair in s.split(',') {

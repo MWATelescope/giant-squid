@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Errors when interfacing with the MWA ASVO.
-*/
+//! Errors when interfacing with the MWA ASVO.
 
 use reqwest::StatusCode;
 use thiserror::Error;
@@ -14,6 +12,20 @@ use crate::obsid::Obsid;
 
 #[derive(Error, Debug)]
 pub enum AsvoError {
+    /// The specified delivery argument was wrong.
+    #[error("The supplied delivery argument ({0}) was neither 'acacia' nor 'astro'")]
+    InvalidDelivery(String),
+
+    /// The delivery argument in GIANT_SQUID_DELIVERY was wrong.
+    #[error(
+        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia' nor 'astro'"
+    )]
+    InvalidDeliveryEnv(String),
+
+    /// GIANT_SQUID_DELIVERY has invalid unicode.
+    #[error("No delivery argument was given and GIANT_SQUID_DELIVERY contains invalid unicode")]
+    InvalidDeliveryEnvUnicode,
+
     /// User's MWA_ASVO_API_KEY environment variable is not defined.
     #[error("MWA_ASVO_API_KEY is not defined.")]
     MissingAuthKey,
@@ -91,7 +103,27 @@ pub enum AsvoError {
     #[error("{0}")]
     Parse(#[from] std::num::ParseIntError),
 
+    /// Job state parsing error
+    #[error("Could not parse job state from str: {str}")]
+    InvalidJobState { str: String },
+
     /// An IO error.
     #[error("{0}")]
     IO(#[from] std::io::Error),
+
+    /// Job type parsing error
+    #[error("Could not parse job type from str: {str}")]
+    InvalidJobType { str: String },
+
+    // Error determining url for Acacia job
+    #[error("Could not determine url for job {job_id:?}")]
+    NoUrl { job_id: u32 },
+
+    // Error determining path for Astro job
+    #[error("Could not determine path for job {job_id:?}")]
+    NoPath { job_id: u32 },
+
+    // Error determining path for Astro job
+    #[error("Invalid file type for job {job_id:?}")]
+    InvalidFileType { job_id: u32 },
 }

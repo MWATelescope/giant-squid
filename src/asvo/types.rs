@@ -2,16 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * ASVO data types.
-*/
+//! ASVO data types.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, str::FromStr};
 
+use log::warn;
 use prettytable::{cell, row, Cell, Row, Table};
 use serde::Serialize;
 
-use crate::obsid::Obsid;
+use crate::{obsid::Obsid, AsvoError};
 
 /// All of the available types of ASVO jobs.
 #[derive(Serialize, PartialEq, Debug, Clone)]
@@ -21,6 +20,21 @@ pub enum AsvoJobType {
     DownloadMetadata,
     DownloadVoltage,
     CancelJob,
+}
+
+impl FromStr for AsvoJobType {
+    type Err = AsvoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "conversion" => Ok(AsvoJobType::Conversion),
+            "download_visibilities" => Ok(AsvoJobType::DownloadVisibilities),
+            "download_metadata" => Ok(AsvoJobType::DownloadMetadata),
+            "download_voltage" => Ok(AsvoJobType::DownloadVoltage),
+            "cancel_job" => Ok(AsvoJobType::CancelJob),
+            _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
+        }
+    }
 }
 
 /// All of states an ASVO job may be in.
@@ -34,15 +48,35 @@ pub enum AsvoJobState {
     Cancelled,
 }
 
+impl FromStr for AsvoJobState {
+    type Err = AsvoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "queued" => Ok(AsvoJobState::Queued),
+            "processing" => Ok(AsvoJobState::Processing),
+            "ready" => Ok(AsvoJobState::Ready),
+            "error" => Ok(AsvoJobState::Error(String::new())),
+            "expired" => Ok(AsvoJobState::Expired),
+            "cancelled" => Ok(AsvoJobState::Cancelled),
+            _ => Err(AsvoError::InvalidJobState { str: s.to_string() }),
+        }
+    }
+}
+
 /// A single file provided by an ASVO job.
 #[derive(Serialize, PartialEq, Debug)]
 pub struct AsvoFilesArray {
-    #[serde(rename = "fileName")]
-    pub file_name: String,
+    #[serde(rename = "jobType")]
+    pub r#type: Delivery,
+    #[serde(rename = "fileUrl")]
+    pub url: Option<String>,
+    #[serde(rename = "filePath")]
+    pub path: Option<String>,
     #[serde(rename = "fileSize")]
-    pub file_size: u64,
+    pub size: u64,
     #[serde(rename = "fileHash")]
-    pub sha1: String,
+    pub sha1: Option<String>,
 }
 
 /// A simple type alias. Not using a newtype, because that would produce
@@ -107,7 +141,7 @@ impl AsvoJobVec {
                             Some(v) => {
                                 let mut size = 0;
                                 for f in v {
-                                    size += f.file_size;
+                                    size += f.size;
                                 }
                                 bytesize::ByteSize(size).to_string_as(true)
                             }
@@ -137,6 +171,14 @@ impl AsvoJobVec {
     pub fn into_map(self) -> AsvoJobMap {
         AsvoJobMap::from(self)
     }
+
+    /// filter out any jobs that don't match jobids
+    pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
+        // if we wanted to use a nightly:
+        // self.0.drain_filter(|j| predicate);
+        self.0.retain(predicate);
+        self
+    }
 }
 
 /// A `BTreeMap` of ASVO job IDs against their jobs. Useful for efficiently
@@ -163,11 +205,11 @@ impl std::fmt::Display for AsvoJobType {
             f,
             "{}",
             match self {
-                Self::Conversion => "Conversion",
-                Self::DownloadVisibilities => "Download Visibilities",
-                Self::DownloadMetadata => "Download Metadata",
-                Self::DownloadVoltage => "Download Voltage",
-                Self::CancelJob => "Cancel Job",
+                AsvoJobType::Conversion => "Conversion",
+                AsvoJobType::DownloadVisibilities => "Download Visibilities",
+                AsvoJobType::DownloadMetadata => "Download Metadata",
+                AsvoJobType::DownloadVoltage => "Download Voltage",
+                AsvoJobType::CancelJob => "Cancel Job",
             }
         )
     }
@@ -179,12 +221,12 @@ impl std::fmt::Display for AsvoJobState {
             f,
             "{}",
             match self {
-                Self::Queued => "Queued".to_string(),
-                Self::Processing => "Processing".to_string(),
-                Self::Ready => "Ready".to_string(),
-                Self::Error(e) => format!("Error: {}", e),
-                Self::Expired => "Expired".to_string(),
-                Self::Cancelled => "Cancelled".to_string(),
+                AsvoJobState::Queued => "Queued".to_string(),
+                AsvoJobState::Processing => "Processing".to_string(),
+                AsvoJobState::Ready => "Ready".to_string(),
+                AsvoJobState::Error(e) => format!("Error: {}", e),
+                AsvoJobState::Expired => "Expired".to_string(),
+                AsvoJobState::Cancelled => "Cancelled".to_string(),
             },
         )
     }
@@ -200,6 +242,54 @@ impl std::fmt::Display for AsvoJob {
             type=self.jtype,
             state=self.state,
             files=self.files,
+        )
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Serialize)]
+pub enum Delivery {
+    /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
+    /// anywhere.
+    Acacia,
+
+    /// Deliver the ASVO job to the /astro filesystem at the Pawsey
+    /// Supercomputing Centre.
+    Astro,
+}
+
+impl Delivery {
+    pub fn validate<S: AsRef<str>>(d: Option<S>) -> Result<Delivery, AsvoError> {
+        match (d, std::env::var("GIANT_SQUID_DELIVERY")) {
+            (Some(d), _) => match d.as_ref() {
+                "acacia" => Ok(Delivery::Acacia),
+                "astro" => Ok(Delivery::Astro),
+                d => Err(AsvoError::InvalidDelivery(d.to_string())),
+            },
+            (None, Ok(d)) => match d.as_str() {
+                "acacia" => Ok(Delivery::Acacia),
+                "astro" => Ok(Delivery::Astro),
+                d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
+            },
+            (None, Err(std::env::VarError::NotPresent)) => {
+                warn!("Using 'acacia' for ASVO delivery");
+                Ok(Delivery::Acacia)
+            }
+            (None, Err(std::env::VarError::NotUnicode(_))) => {
+                Err(AsvoError::InvalidDeliveryEnvUnicode)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Delivery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Delivery::Acacia => "acacia",
+                Delivery::Astro => "astro",
+            }
         )
     }
 }
