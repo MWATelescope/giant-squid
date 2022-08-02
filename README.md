@@ -139,6 +139,29 @@ giant-squid list \
    1234567890 1234567891
 ```
 
+### Example: manual hash validation with Bash and jq
+
+This example demonstrates how it is possible to stream the output of `giant-squid list -j` into
+[`jq`](https://stedolan.github.io/jq/). This is the equivalent of what `giant-squid download` does,
+but with the extra overhead of storing the tar to disk (`-k`).
+
+```bash
+set -eux
+giant-squid list -j --types download_visibilities --states ready \
+  | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv' \
+  | tee ready.tsv
+while read -r jobid url size hash; do
+   # note: it's a good idea to check you have enough disk space here using $size.
+   wget $url -O ${jobid}.tar --progress=dot:giga --wait=60 --random-wait
+   sha1=$(sha1sum ${jobid}.tar | cut -d' ' -f1)
+   if [ "\$sha1" != "\$hash" ]; then
+      echo "Download failed, hash mismatch. Expected $hash, got $sha1"
+      exit 1
+   fi
+   tar -xf ${jobid}.tar
+do < ready.tsv
+```
+
 ### Download ASVO jobs
 
 To download job ID 12345:
