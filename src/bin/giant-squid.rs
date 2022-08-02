@@ -50,13 +50,13 @@ enum Args {
 
         /// show only jobs matching the provided states, case insensitive.
         /// Options: queued, processing, ready, error, expired, cancelled.
-        #[clap(long, name = "STATE")]
+        #[clap(long, name = "STATE", value_delimiter = ',')]
         states: Vec<AsvoJobState>,
 
         /// filter job list by type, case insensitive with underscores. Options:
         /// conversion, download_visibilities, download_metadata,
         /// download_voltage or cancel_job
-        #[clap(long, name = "TYPE")]
+        #[clap(long, name = "TYPE", value_delimiter = ',')]
         types: Vec<AsvoJobType>,
 
         /// job IDs or obsids to filter by. Files containing job IDs or
