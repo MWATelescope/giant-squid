@@ -36,8 +36,7 @@ lazy_static::lazy_static! {
     /// centre channel of each coarse band.
     pub static ref DEFAULT_CONVERSION_PARAMETERS: BTreeMap<&'static str, &'static str> = {
         let mut m = BTreeMap::new();
-        m.insert("download_type" , "conversion");
-        m.insert("preprocessor"  , "cotter");
+        m.insert("preprocessor"  , "birli");
         m.insert("conversion"    , "uvfits");
         m.insert("freqres"       , "80");
         m.insert("edgewidth"     , "80");
@@ -436,6 +435,78 @@ impl AsvoClient {
             Err(e) => {
                 debug!("bad response: {}", response_text);
                 Err(AsvoError::BadJson(e))
+            }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::{AsvoClient, Obsid};
+    use crate::{Delivery};
+    use crate::{AsvoError};
+
+    #[test]
+    fn test_create_asvo_client() {
+        let client = AsvoClient::new();
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_get_jobs() {
+        let client = AsvoClient::new();
+        let jobs = client.unwrap().get_jobs();
+        assert!(jobs.is_ok());
+    }
+
+    #[test]
+    fn test_submit_download() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+
+        let vis_job = client.submit_vis(obs_id, delivery);
+        match vis_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code: _, message: _ } => (),
+                    _ => panic!("Unexpected error has occured.")
+                }
+            }
+        }
+
+        let meta_job = client.submit_meta(obs_id, delivery);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code: _, message: _ } => (),
+                    _ => panic!("Unexpected error has occured.")
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_submit_conv() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+
+        let job_params = BTreeMap::new();
+
+        let conv_job = client.submit_conv(obs_id, delivery, &job_params);
+        match conv_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                    _ => panic!("Unexpected error has occured.")
+                }
             }
         }
     }
