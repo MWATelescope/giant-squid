@@ -12,6 +12,15 @@ use serde::Serialize;
 
 use crate::{obsid::Obsid, AsvoError};
 
+/// Sanitize a string to lowercase, and ascii 'a'-'z' only.
+///
+/// Used to sanitize user input for ASVO identifiers.
+fn _sanitize_identifier(s: &str) -> String {
+    let mut sanitized = s.to_lowercase();
+    sanitized.retain(|c| 'a' <= c && c <= 'z');
+    sanitized
+}
+
 /// All of the available types of ASVO jobs.
 #[derive(Serialize, PartialEq, Debug, Clone)]
 pub enum AsvoJobType {
@@ -26,12 +35,12 @@ impl FromStr for AsvoJobType {
     type Err = AsvoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match _sanitize_identifier(s).as_str() {
             "conversion" => Ok(AsvoJobType::Conversion),
-            "download_visibilities" => Ok(AsvoJobType::DownloadVisibilities),
-            "download_metadata" => Ok(AsvoJobType::DownloadMetadata),
-            "download_voltage" => Ok(AsvoJobType::DownloadVoltage),
-            "cancel_job" => Ok(AsvoJobType::CancelJob),
+            "downloadvisibilities" => Ok(AsvoJobType::DownloadVisibilities),
+            "downloadmetadata" => Ok(AsvoJobType::DownloadMetadata),
+            "downloadvoltage" => Ok(AsvoJobType::DownloadVoltage),
+            "canceljob" => Ok(AsvoJobType::CancelJob),
             _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
         }
     }
@@ -52,7 +61,7 @@ impl FromStr for AsvoJobState {
     type Err = AsvoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
+        match _sanitize_identifier(s).as_str() {
             "queued" => Ok(AsvoJobState::Queued),
             "processing" => Ok(AsvoJobState::Processing),
             "ready" => Ok(AsvoJobState::Ready),
@@ -291,5 +300,24 @@ impl std::fmt::Display for Delivery {
                 Delivery::Astro => "astro",
             }
         )
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asvo_job_state_fromstr() {
+        assert!(matches!(AsvoJobState::from_str("__Q_u_e_u_e_D__"), Ok(AsvoJobState::Queued)));
+        assert!(matches!(AsvoJobState::from_str("invalid job state"), Err(AsvoError::InvalidJobState{..})));
+    }
+
+    #[test]
+    fn test_asvo_job_type_fromstr() {
+        assert!(matches!(AsvoJobType::from_str("DownloadVisibilities"), Ok(AsvoJobType::DownloadVisibilities)));
+        assert!(matches!(AsvoJobType::from_str("download_visibilities"), Ok(AsvoJobType::DownloadVisibilities)));
+        assert!(matches!(AsvoJobType::from_str("invalid job type"), Err(AsvoError::InvalidJobType{..})));
     }
 }

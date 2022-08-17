@@ -189,9 +189,6 @@ impl AsvoClient {
                 Delivery::Acacia => {
                     match f.url.as_deref() {
                         Some(url) => {
-                            debug!("Downloading file {:?}", f.url);
-                            let url = url;
-
                             debug!("Downloading file {:?}", &url);
 
                             // parse out path from url
@@ -204,14 +201,14 @@ impl AsvoClient {
                             if keep_tar {
                                 // Simply dump the response to the appropriate file name. Use a
                                 // buffer to avoid doing frequent writes.
-                
+
                                 let mut out_file = File::create(out_path)?;
                                 let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
-                
+
                                 loop {
                                     let buffer = file_buf.fill_buf()?;
                                     out_file.write_all(buffer)?;
-                
+
                                     let length = buffer.len();
                                     file_buf.consume(length);
                                     if length == 0 {
@@ -224,7 +221,7 @@ impl AsvoClient {
                                 let mut tar = Archive::new(&mut tee);
                                 tar.unpack(".")?;
                             }
-                            
+
                             // If we were told to hash the download, compare our hash against
                             // the upstream hash. Stream untarring may not read all of the
                             // bytes; read the tee to the end.

@@ -64,8 +64,9 @@ giant-squid l
 
 ### List ASVO jobs in JSON
 
+the following commands are equivalent:
+
 ```bash
-# Any of the following work.
 giant-squid list --json
 giant-squid list -j
 giant-squid l -j
@@ -112,6 +113,53 @@ In [2]: with open("/tmp/asvo.json", "r") as h:
 
 In [3]: q.keys()
 Out[3]: dict_keys(['216087', '216241', '217628'])
+```
+
+### Filter ASVO job listing
+
+`giant-squid list` takes an optional list of identifiers that can be used to filter the job listing,
+these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
+
+Additionally, the `--states` and `--types` options can be used to further filter the output.
+
+These both taks a comma-separated, case-insensitive list of values from the `jobType` and
+`jobState` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
+`kebab-case`, `snake_case`, or even `SPoNgeBOb-CAse`
+
+example: show only jobs that match both of the following conditions:
+
+- obsid is `1234567890` or `1234567891`
+- jobType is `DownloadVisibilities`, `DownloadMetadata` or `CancelJob`
+- jobState is `Processing` or `Queued`
+
+```bash
+giant-squid list \
+   --types dOwNlOaD__vIsIbIlItIeS,download-metadata,CANCELJOB \
+   --states pRoCeSsInG,__Q_u_e_u_e_D__ \
+   1234567890 1234567891
+```
+
+### Example: manual hash validation with Bash and jq
+
+This example demonstrates how it is possible to stream the output of `giant-squid list -j` into
+[`jq`](https://stedolan.github.io/jq/). This is the equivalent of what `giant-squid download` does,
+but with the extra overhead of storing the tar to disk (`-k`).
+
+```bash
+set -eux
+giant-squid list -j --types download_visibilities --states ready \
+  | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv' \
+  | tee ready.tsv
+while read -r jobid url size hash; do
+   # note: it's a good idea to check you have enough disk space here using $size.
+   wget $url -O ${jobid}.tar --progress=dot:giga --wait=60 --random-wait
+   sha1=$(sha1sum ${jobid}.tar | cut -d' ' -f1)
+   if [ "\$sha1" != "\$hash" ]; then
+      echo "Download failed, hash mismatch. Expected $hash, got $sha1"
+      exit 1
+   fi
+   tar -xf ${jobid}.tar
+do < ready.tsv
 ```
 
 ### Download ASVO jobs
