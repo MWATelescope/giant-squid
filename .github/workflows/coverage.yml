@@ -9,6 +9,9 @@ on:
       - "**"
   pull_request:
 
+env:
+  MWA_ASVO_API_KEY: ${{ secrets.MWA_ASVO_API_KEY }}
+
 name: Generate Coverage report
 
 jobs:
