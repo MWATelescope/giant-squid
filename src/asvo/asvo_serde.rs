@@ -61,11 +61,12 @@ impl DummyJob {
         let new_files = self.row.product.map(|hm| {
             let mut file_array = vec![];
             for dumb_product in &hm["files"] {
+                let file_type = dumb_product.r#type.as_str();
                 file_array.push(AsvoFilesArray {
-                    r#type: match dumb_product.r#type.as_str() {
+                    r#type: match file_type {
                         "acacia" => Delivery::Acacia,
                         "astro" => Delivery::Astro,
-                        _ => panic!("Unsupported file type found.")
+                        _ => panic!("Unsupported file type found: {}", file_type)
                     },
                     url: dumb_product.url.clone(),
                     path: dumb_product.r#path.clone(),
