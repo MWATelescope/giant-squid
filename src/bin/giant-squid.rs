@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::bail;
+use clap::{AppSettings, Parser};
 use log::{debug, info};
 use simplelog::*;
-use structopt::{clap::AppSettings, StructOpt};
 
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -19,7 +19,7 @@ MWA ASVO: https://asvo.mwatelescope.org"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The cotter parameters used. If any of the default parameters are not overwritten, then they remain. Default: ".to_string();
+        let mut s = "The Birli/cotter parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
         for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
             s.push_str(k);
             s.push('=');
@@ -32,136 +32,175 @@ lazy_static::lazy_static! {
     };
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(author, about=ABOUT,
-    global_settings = &[AppSettings::ColoredHelp,
-                        AppSettings::DeriveDisplayOrder])]
-enum Opts {
+#[derive(Parser, Debug)]
+#[clap(author, about = ABOUT)]
+#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+enum Args {
     /// List ASVO jobs
-    #[structopt(alias = "l")]
+    #[clap(alias = "l")]
     List {
         /// Print the jobs as a simple JSON
-        #[structopt(short, long)]
+        #[clap(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[structopt(short, long, parse(from_occurrences))]
+        #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
+
+        /// show only jobs matching the provided states, case insensitive.
+        /// Options: queued, processing, ready, error, expired, cancelled.
+        #[clap(long, name = "STATE", value_delimiter = ',')]
+        states: Vec<AsvoJobState>,
+
+        /// filter job list by type, case insensitive with underscores. Options:
+        /// conversion, download_visibilities, download_metadata,
+        /// download_voltage or cancel_job
+        #[clap(long, name = "TYPE", value_delimiter = ',')]
+        types: Vec<AsvoJobType>,
+
+        /// job IDs or obsids to filter by. Files containing job IDs or
+        /// obsids are also accepted.
+        #[clap(name = "JOBID_OR_OBSID")]
+        jobids_or_obsids: Vec<String>,
     },
 
     /// Download an ASVO job
-    #[structopt(alias = "d")]
+    #[clap(alias = "d")]
     Download {
         /// Don't unzip the contents from the ASVO.
-        #[structopt(short, long)]
+        #[clap(short, long)]
         keep_zip: bool,
 
         /// Verify the downloaded contents against the upstream hash.
-        #[structopt(long)]
+        #[clap(long)]
         hash: bool,
 
         /// Don't actually download; print information on what would've happened
         /// instead.
-        #[structopt(short = "n", long)]
+        #[clap(short = 'n', long)]
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[structopt(short, long, parse(from_occurrences))]
+        #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
 
         /// The job IDs or obsids to be downloaded. Files containing job IDs or
         /// obsids are also accepted.
-        #[structopt(name = "JOBID_OR_OBSID")]
+        #[clap(name = "JOBID_OR_OBSID")]
         jobids_or_obsids: Vec<String>,
     },
 
     /// Submit ASVO jobs to download MWA raw visibilities
-    #[structopt(alias = "sv")]
+    #[clap(alias = "sv")]
     SubmitVis {
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[structopt(short, long, default_value = "7")]
-        expiry_days: u8,
+        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// this can be overridden with the environment variable
+        /// GIANT_SQUID_DELIVERY.
+        #[clap(short, long)]
+        delivery: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[structopt(short, long)]
+        #[clap(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[structopt(short = "n", long)]
+        #[clap(short = 'n', long)]
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[structopt(short, long, parse(from_occurrences))]
+        #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[structopt(name = "OBSID")]
+        #[clap(name = "OBSID")]
         obsids: Vec<String>,
     },
 
     /// Submit ASVO conversion jobs
-    #[structopt(alias = "sc")]
+    #[clap(alias = "sc")]
     SubmitConv {
-        #[structopt(short, long, help=&DEFAULT_CONVERSION_PARAMETERS_TEXT)]
+        #[clap(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
         parameters: Option<String>,
 
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[structopt(short, long, default_value = "7")]
-        expiry_days: u8,
+        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// this can be overridden with the environment variable
+        /// GIANT_SQUID_DELIVERY.
+        #[clap(short, long)]
+        delivery: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[structopt(short, long)]
+        #[clap(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[structopt(short = "n", long)]
+        #[clap(short = 'n', long)]
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[structopt(short, long, parse(from_occurrences))]
+        #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[structopt(name = "OBSID")]
+        #[clap(name = "OBSID")]
         obsids: Vec<String>,
     },
 
     /// Submit ASVO jobs to download MWA metadata (metafits and cotter flags)
-    #[structopt(alias = "sm")]
+    #[clap(alias = "sm")]
     SubmitMeta {
-        /// Tell the ASVO to let jobs expire after this many days.
-        #[structopt(short, long, default_value = "7")]
-        expiry_days: u8,
+        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// this can be overridden with the environment variable
+        /// GIANT_SQUID_DELIVERY.
+        #[clap(short, long)]
+        delivery: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[structopt(short, long)]
+        #[clap(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[structopt(short = "n", long)]
+        #[clap(short = 'n', long)]
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[structopt(short, long, parse(from_occurrences))]
+        #[clap(short, long, parse(from_occurrences))]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[structopt(name = "OBSID")]
+        #[clap(name = "OBSID")]
         obsids: Vec<String>,
+    },
+
+    /// Wait for ASVO jobs to complete, return the urls
+    #[clap(alias = "w")]
+    Wait {
+        /// Print the jobs as a simple JSON after waiting
+        #[clap(short, long)]
+        json: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[clap(short, long, parse(from_occurrences))]
+        verbosity: u8,
+
+        /// The jobs to wait for. Files containing jobs are also
+        /// accepted.
+        #[clap(name = "JOB")]
+        jobs: Vec<String>,
     },
 }
 
@@ -175,14 +214,19 @@ fn init_logger(level: u8) {
 }
 
 /// Wait for all of the specified job IDs to become ready, then exit.
-fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError> {
+fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError> {
+    info!("Waiting for {} jobs to be ready...", jobids.len());
+    let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
+    // Offer the ASVO a kindness by waiting a few seconds, so
+    // that the user's queue is hopefully current.
+    std::thread::sleep(Duration::from_secs(5));
     loop {
         // Get the current state of all jobs. By converting to a map, we avoid
         // quadratic complexity below. Probably not a big deal, but why not?
         let jobs = client.get_jobs()?.into_map();
         let mut any_not_ready = false;
         // Iterate over all supplied job IDs.
-        for j in &jobids {
+        for j in jobids {
             // Find the relevant job in the queue.
             let job = match jobs.0.get(j) {
                 None => return Err(AsvoError::NoAsvoJob(*j)),
@@ -190,8 +234,7 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
             };
             // Handle the job's state. If it's ready, there's nothing to do. If
             // the job is simply queued or in processing, we can say that we're
-            // not ready yet; exit early. All other possibilities are handled
-            // drastically.
+            // not ready yet. All other possibilities are handled drastically.
             match &job.state {
                 AsvoJobState::Ready => (),
                 AsvoJobState::Error(e) => {
@@ -205,8 +248,14 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
                 AsvoJobState::Cancelled => return Err(AsvoError::Cancelled(*j)),
                 AsvoJobState::Queued | AsvoJobState::Processing => {
                     any_not_ready = true;
-                    break;
                 }
+            }
+            // log if there was a change in state.
+            match last_state.insert(*j, job.state.clone()) {
+                Some(last_state) if last_state != job.state => {
+                    info!("Job {} is {}", j, &job.state);
+                }
+                _ => (),
             }
         }
         // Our lock variable is set if we broke out of the loop.
@@ -222,12 +271,45 @@ fn wait_loop(client: AsvoClient, jobids: Vec<AsvoJobID>) -> Result<(), AsvoError
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    match Opts::from_args() {
-        Opts::List { verbosity, json } => {
+    match Args::parse() {
+        Args::List {
+            verbosity,
+            json,
+            jobids_or_obsids,
+            states,
+            types: job_types,
+        } => {
             init_logger(verbosity);
 
+            let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
             let client = AsvoClient::new()?;
-            let jobs = client.get_jobs()?;
+            let mut jobs = client.get_jobs()?;
+            match (jobids, obsids) {
+                (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
+                    bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
+                }
+                (jobids, _) if !jobids.is_empty() => {
+                    jobs = jobs.retain(|j| jobids.contains(&j.jobid))
+                }
+                (_, obsids) if !obsids.is_empty() => {
+                    jobs = jobs.retain(|j| obsids.contains(&j.obsid))
+                }
+                _ => (),
+            };
+
+            if !job_types.is_empty() {
+                jobs = jobs.retain(|j| job_types.contains(&j.jtype))
+            }
+
+            if !states.is_empty() {
+                jobs = jobs.retain(|j|
+                    states.iter().any(|s|
+                        // this allows comparison with AsvoJobState::Error(..)
+                        std::mem::discriminant(s) == std::mem::discriminant(&j.state)
+                    )
+                );
+            }
+
             if json {
                 println!("{}", jobs.json()?);
             } else {
@@ -235,7 +317,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
 
-        Opts::Download {
+        Args::Download {
             keep_zip,
             hash,
             dry_run,
@@ -272,8 +354,8 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
 
-        Opts::SubmitVis {
-            expiry_days,
+        Args::SubmitVis {
+            delivery,
             wait,
             dry_run,
             verbosity,
@@ -291,6 +373,9 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("No obsids specified!");
             }
             init_logger(verbosity);
+
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
 
             if dry_run {
                 info!(
@@ -301,27 +386,23 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_vis(o, expiry_days)?;
+                    let j = client.submit_vis(o, delivery)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
                 info!("Submitted {} obsids for visibility download.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
 
-        Opts::SubmitConv {
+        Args::SubmitConv {
             parameters,
-            expiry_days,
+            delivery,
             wait,
             dry_run,
             verbosity,
@@ -340,10 +421,13 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
+
             // Get the user parameters and set any defaults that the user has not set.
             let params = {
                 let mut params = match &parameters {
-                    Some(s) => parse_key_value_pairs(&s)?,
+                    Some(s) => parse_key_value_pairs(s)?,
                     None => BTreeMap::new(),
                 };
                 for (&key, &value) in DEFAULT_CONVERSION_PARAMETERS.iter() {
@@ -364,26 +448,22 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, expiry_days, &params)?;
+                    let j = client.submit_conv(o, delivery, &params)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
                 info!("Submitted {} obsids for conversion.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
 
-        Opts::SubmitMeta {
-            expiry_days,
+        Args::SubmitMeta {
+            delivery,
             wait,
             dry_run,
             verbosity,
@@ -402,6 +482,9 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
+
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for metadata download.",
@@ -411,21 +494,44 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_meta(o, expiry_days)?;
+                    let j = client.submit_meta(o, delivery)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
                 info!("Submitted {} obsids for metadata download.", obsids.len());
 
                 if wait {
-                    info!("Waiting for jobs to be ready...");
-                    // Offer the ASVO a kindness by waiting a few seconds, so
-                    // that the user's queue is hopefully current.
-                    std::thread::sleep(Duration::from_secs(5));
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
-                    wait_loop(client, jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
+            }
+        }
+
+        Args::Wait {
+            verbosity,
+            jobs,
+            json,
+        } => {
+            let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
+            if parsed_jobids.is_empty() {
+                bail!("No obsids specified!");
+            }
+            init_logger(verbosity);
+            let client = AsvoClient::new()?;
+            // Endlessly loop over the newly-supplied job IDs until
+            // they're all ready.
+            wait_loop(&client, &parsed_jobids)?;
+
+            let mut jobs = client.get_jobs()?;
+            if !parsed_jobids.is_empty() {
+                jobs = jobs.retain(|j| parsed_jobids.contains(&j.jobid));
+            }
+
+            if json {
+                println!("{}", jobs.json()?);
+            } else {
+                jobs.list();
             }
         }
     }

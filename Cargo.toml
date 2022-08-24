@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Christopher H. Jordan <christopherjordan87@gmail.com>"]
 edition = "2018"
 license = "MPL-2.0"
@@ -12,31 +12,33 @@ exclude = [".github/*"]
 
 [features]
 default = ["bin"]
-bin = ["anyhow", "simplelog", "structopt"]
+bin = ["anyhow", "clap", "simplelog"]
 
 [[bin]]
 name = "giant-squid"
 required-features = ["bin"]
 
 [profile.release]
-lto = true
+lto = "thin"
 opt-level = 'z'  # Optimize for size.
 panic = 'abort'
 
 [dependencies]
-bytesize = "1.0.*"
-lazy_static = "1.4.*"
-log = "0.4.*"
-prettytable-rs = "0.8.*"
-reqwest = { version = "0.11.*", default-features = false, features = ["blocking", "cookies", "rustls-tls"] }
-serde = { version = "1.0.*", features = ["derive"] }
-serde_json = "1.0.*"
-sha-1 = "0.9.*"
-tee_readwrite = "0.1.*"
-thiserror = "1.0.*"
-zip = "0.5.*"
+bytesize = "1.1.0"
+lazy_static = "1.4.0"
+log = "0.4.0"
+prettytable-rs = "0.8.0"
+reqwest = { version = "0.11.9", default-features = false, features = ["blocking", "cookies", "rustls-tls"] }
+serde = { version = "1.0.0", features = ["derive"] }
+serde_json = "1.0.0"
+sha-1 = "0.10.0"
+tar = "0.4.38"
+tee_readwrite = "0.1.0"
+thiserror = "1.0.0"
 
 # Dependencies only for the binary.
-anyhow = { version = "1.0.43", optional = true }
-simplelog = { version = "0.10.0", optional = true }
-structopt = { version = "0.3.22", optional = true }
+anyhow = { version = "1.0.53", optional = true }
+clap = { version = "3.0.14", features = ["derive"], optional = true }
+simplelog = { version = "0.11.2", optional = true }
+reqwest-retry = "0.1.5"
+backoff = "0.4.0"

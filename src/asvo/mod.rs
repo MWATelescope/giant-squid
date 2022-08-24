@@ -2,32 +2,35 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Code to interface with the MWA ASVO.
-*/
+//! Code to interface with the MWA ASVO.
 
 mod asvo_serde;
-pub mod error;
-pub mod types;
+mod error;
+mod types;
+
+use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
+pub use error::AsvoError;
+pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
 
 use std::collections::BTreeMap;
-use std::env::var;
-use std::fs::{create_dir, File};
+use std::env::{var, current_dir};
+use std::fs::{File, rename};
+use std::path::Path;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::time::Instant;
 
 use log::{debug, info};
 use reqwest::blocking::{Client, ClientBuilder};
+use backoff::{retry, ExponentialBackoff, Error};
 use sha1::{Digest, Sha1};
-use zip::read::read_zipfile_from_stream;
+use tar::Archive;
 
 use crate::obsid::Obsid;
-use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
-pub use error::AsvoError;
-pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec};
+
+use self::types::AsvoFilesArray;
 
 /// The address of the MWA ASVO.
-const ASVO_ADDRESS: &str = "https://asvo.mwatelescope.org:8778";
+const ASVO_ADDRESS: &str = "https://asvo.mwatelescope.org:443";
 
 lazy_static::lazy_static! {
     /// Default parameters for conversion jobs. Generate a measurement set with
@@ -36,42 +39,47 @@ lazy_static::lazy_static! {
     /// centre channel of each coarse band.
     pub static ref DEFAULT_CONVERSION_PARAMETERS: BTreeMap<&'static str, &'static str> = {
         let mut m = BTreeMap::new();
-        m.insert("download_type" , "conversion");
-        m.insert("conversion"    , "ms");
-        m.insert("timeres"       , "4");
-        m.insert("freqres"       , "40");
-        m.insert("edgewidth"     , "160");
+        m.insert("preprocessor"  , "birli");
+        m.insert("conversion"    , "uvfits");
+        m.insert("freqres"       , "80");
+        m.insert("edgewidth"     , "80");
         m.insert("allowmissing"  , "true");
         m.insert("flagdcchannels", "true");
+        m.insert("noflagautos"   , "true");
         m
     };
 }
 
-pub struct AsvoClient(Client);
+pub struct AsvoClient {
+    /// The `reqwest` [Client] used to interface with the ASVO web service.
+    client: Client,
+}
 
 impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO.
     /// Uses the `MWA_ASVO_API_KEY` environment variable for login.
-    pub fn new() -> Result<Self, AsvoError> {
+    pub fn new() -> Result<AsvoClient, AsvoError> {
         let api_key = var("MWA_ASVO_API_KEY").map_err(|_| AsvoError::MissingAuthKey)?;
 
         // Interfacing with the ASVO server requires specifying the client
         // version. As this is not the manta-ray-client, we need to lie here.
         // Use a user-specified value if available, or the hard-coded one here.
         let client_version =
-            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.0".to_string());
+            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.2".to_string());
         // Connect and return the cookie jar.
         debug!("Connecting to ASVO...");
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
+            .danger_accept_invalid_certs(true) // Required for the ASVO.
             .build()?;
         let response = client
-            .post(&format!("{}/api/login", ASVO_ADDRESS))
+            .post(&format!("{}/api/api_login", ASVO_ADDRESS))
             .basic_auth(&client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
-            Ok(Self(client))
+            debug!("Successfully authenticated with ASVO");
+            Ok(AsvoClient { client })
         } else {
             Err(AsvoError::BadStatus {
                 code: response.status(),
@@ -84,7 +92,7 @@ impl AsvoClient {
         debug!("Retrieving job statuses from the ASVO...");
         // Send a GET request to the ASVO.
         let response = self
-            .0
+            .client
             .get(&format!("{}/api/get_jobs", ASVO_ADDRESS))
             .send()?;
         if !response.status().is_success() {
@@ -102,7 +110,7 @@ impl AsvoClient {
     pub fn download_job(
         &self,
         jobid: AsvoJobID,
-        keep_zip: bool,
+        keep_tar: bool,
         hash: bool,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
@@ -111,7 +119,7 @@ impl AsvoClient {
         jobs.0.retain(|j| j.jobid == jobid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
-            1 => self.download(&jobs.0[0], keep_zip, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash),
             // Hopefully there's never multiples of the same ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
@@ -124,7 +132,7 @@ impl AsvoClient {
     pub fn download_obsid(
         &self,
         obsid: Obsid,
-        keep_zip: bool,
+        keep_tar: bool,
         hash: bool,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
@@ -134,20 +142,13 @@ impl AsvoClient {
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoObsid(obsid)),
-            1 => self.download(&jobs.0[0], keep_zip, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash),
             _ => Err(AsvoError::TooManyObsids(obsid)),
         }
     }
 
     /// Private function to actually do the work.
-    fn download(&self, job: &AsvoJob, keep_zip: bool, hash: bool) -> Result<(), AsvoError> {
-        // How big should our in-memory download buffer be [MiB]?
-        let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
-            Ok(s) => s.parse()?,
-            Err(_) => 100, // 100 MiB by default.
-        } * 1024
-            * 1024;
-
+    fn download(&self, job: &AsvoJob, keep_tar: bool, hash: bool) -> Result<(), AsvoError> {
         // Is the job ready to download?
         if job.state != AsvoJobState::Ready {
             return Err(AsvoError::NotReady {
@@ -167,7 +168,7 @@ impl AsvoClient {
             }
         };
 
-        let total_bytes = files.iter().map(|f| f.file_size).sum();
+        let total_bytes = files.iter().map(|f| f.size).sum();
         info!(
             "Downloading ASVO job ID {} (obsid: {}, type: {}, {})",
             job.jobid,
@@ -176,112 +177,162 @@ impl AsvoClient {
             bytesize::ByteSize(total_bytes).to_string_as(true)
         );
         let start_time = Instant::now();
+
         // Download each file.
         for f in files {
-            debug!("Downloading file {}", f.file_name);
-            let response = self
-                .0
-                .get(&format!("{}/api/download", ASVO_ADDRESS))
-                .query(&[
-                    ("job_id", format!("{}", job.jobid)),
-                    ("file_name", f.file_name.clone()),
-                ])
-                .send()?;
-            let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-            if keep_zip {
-                // Simply dump the response to the appropriate file name. Use a
-                // buffer to avoid doing frequent writes.
-                let mut out_file = File::create(&f.file_name)?;
-                let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
+            match f.r#type {
+                Delivery::Acacia => {
+                    match f.url.as_deref() {
+                        Some(url) => {
+                            debug!("Downloading file {:?}", &url);
 
-                loop {
-                    let buffer = file_buf.fill_buf()?;
-                    out_file.write_all(buffer)?;
+                            let op = || {
+                                self.try_download(url, keep_tar, hash, f, job).map_err(Error::transient)
+                            };
 
-                    let length = buffer.len();
-                    file_buf.consume(length);
-                    if length == 0 {
-                        break;
-                    }
-                }
-            } else {
-                // Stream-unzip the response.
-                debug!("Attempting to unzip stream");
-                while let Ok(Some(z)) = read_zipfile_from_stream(&mut tee) {
-                    debug!("Zip file entry: {}", z.name());
-                    if z.is_file() {
-                        debug!("Stream unzipping file {}", z.name());
-                        let mut out_file = File::create(z.name())?;
-                        let mut file_buf = BufReader::with_capacity(buffer_size, z);
+                            let _ = retry(ExponentialBackoff::default(), op);
 
-                        loop {
-                            let buffer = file_buf.fill_buf()?;
-                            out_file.write_all(buffer)?;
-
-                            let length = buffer.len();
-                            file_buf.consume(length);
-                            if length == 0 {
-                                break;
-                            }
+                            info!(
+                                "Completed download in {} (average rate: {}/s)",
+                                if start_time.elapsed().as_secs() > 60 {
+                                    format!(
+                                        "{}min{:.2}s",
+                                        start_time.elapsed().as_secs() / 60,
+                                        (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
+                                    )
+                                } else {
+                                    format!("{}s", start_time.elapsed().as_millis() as f64 / 1e3)
+                                },
+                                bytesize::ByteSize((total_bytes as u128 * 1000 / start_time.elapsed().as_millis()) as u64)
+                                    .to_string_as(true)
+                            );
+                        },
+                        None => {
+                            return Err(AsvoError::NoUrl {
+                                job_id: job.jobid,
+                            })
                         }
-                    } else if z.is_dir() {
-                        debug!("Creating directory {}", z.name());
-                        create_dir(z.name())?;
                     }
-                }
-            }
+                },
+                Delivery::Astro => {
+                    match &f.path {
+                        Some(path) => {
+                            //If it's an /astro job, and the files are reachable from the current host, move them into the current working directory
+                            let path_obj = Path::new(&path);
+                            let folder_name = path_obj.components().last().unwrap().as_os_str().to_str().unwrap();
 
-            // If we were told to hash the download, compare our hash against
-            // the upstream hash. Stream unzipping does not read all of the
-            // bytes; read the tee to the end.
-            {
-                let mut final_bytes = vec![];
-                tee.read_to_end(&mut final_bytes)?;
-            }
+                            if !Path::exists(path_obj) {
+                                info!("Files for Astro Job {} are not reachable from the current host.", job.jobid);
+                            } else {
+                                info!("Files for Astro Job {} are reachable from the current host. Copying to current directory.", job.jobid);
 
-            if hash {
-                debug!("Upstream hash: {}", &f.sha1);
-                let (_, hasher) = tee.into_inner();
-                let hash = format!("{:x}", hasher.finalize());
-                debug!("Our hash: {}", &hash);
-                if !hash.eq_ignore_ascii_case(&f.sha1) {
-                    return Err(AsvoError::HashMismatch {
-                        jobid: job.jobid,
-                        file: f.file_name.clone(),
-                        calculated_hash: hash,
-                        expected_hash: f.sha1.clone(),
-                    });
+                                let mut current_path = current_dir()?;
+                                current_path.push(folder_name);
+                                rename(path, current_path)?;
+                            }
+                        },
+                        None => {
+                            return Err(AsvoError::NoPath {
+                                job_id: job.jobid,
+                            })
+                        }
+                    }
                 }
             }
         }
 
-        let d = Instant::now() - start_time;
-        info!(
-            "Completed download in {} (average rate: {}/s)",
-            if d.as_secs() > 60 {
-                format!(
-                    "{}min{:.2}s",
-                    d.as_secs() / 60,
-                    (d.as_millis() as f64 / 1e3) % 60.0
-                )
-            } else {
-                format!("{}s", d.as_millis() as f64 / 1e3)
-            },
-            bytesize::ByteSize((total_bytes as u128 * 1000 / d.as_millis()) as u64)
-                .to_string_as(true)
-        );
+        Ok(())
+    }
+
+    pub fn try_download(&self, url: &str, keep_tar: bool, hash: bool, f: &AsvoFilesArray, job: &AsvoJob) -> Result<(), AsvoError> {
+        // How big should our in-memory download buffer be [MiB]?
+        let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
+            Ok(s) => s.parse()?,
+            Err(_) => 100, // 100 MiB by default.
+        } * 1024
+            * 1024;
+
+        // parse out path from url
+        let url_obj = reqwest::Url::parse(url).unwrap();
+        let out_path = url_obj.path_segments().unwrap().last().unwrap();
+        
+        let response = self.client.get(url).send()?;
+
+        let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+
+        if keep_tar {
+            // Simply dump the response to the appropriate file name. Use a
+            // buffer to avoid doing frequent writes.
+
+            let mut out_file = File::create(out_path)?;
+            let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
+
+            loop {
+                let buffer = file_buf.fill_buf()?;
+                out_file.write_all(buffer)?;
+
+                let length = buffer.len();
+                file_buf.consume(length);
+                if length == 0 {
+                    break;
+                }
+            }
+        } else {
+            // Stream-untar the response.
+            debug!("Attempting to untar stream");
+            let mut tar = Archive::new(&mut tee);
+
+            tar.unpack(".")?;
+        }
+
+        // If we were told to hash the download, compare our hash against
+        // the upstream hash. Stream untarring may not read all of the
+        // bytes; read the tee to the end.
+        {
+            let mut final_bytes = vec![];
+            tee.read_to_end(&mut final_bytes)?;
+        }
+
+        if hash {
+            match &f.sha1 {
+                Some(sha) => {
+                    debug!("Upstream hash: {}", sha);
+                    let (_, hasher) = tee.into_inner();
+                    let hash = format!("{:x}", hasher.finalize());
+                    debug!("Our hash: {}", &hash);
+                    if !hash.eq_ignore_ascii_case(sha) {
+                        return Err(AsvoError::HashMismatch {
+                            jobid: job.jobid,
+                            file: url.to_string(),
+                            calculated_hash: hash,
+                            expected_hash: sha.to_string(),
+                        });
+                    }
+                }
+                _ => {
+                    panic!("Product does not include a hash to compare.")
+                }
+            }
+        }
 
         Ok(())
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(&self, obsid: Obsid, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+    pub fn submit_vis(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery
+    ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting a vis job to ASVO");
+
         let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+
+        let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
+        form.insert("delivery", &d_str);
         form.insert("download_type", "vis");
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
@@ -290,14 +341,16 @@ impl AsvoClient {
     pub fn submit_conv(
         &self,
         obsid: Obsid,
-        expiry_days: u8,
+        delivery: Delivery,
         parameters: &BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+        debug!("Submitting a conversion job to ASVO");
+
         let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+
+        let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
         for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
             form.insert(k, v);
         }
@@ -308,17 +361,27 @@ impl AsvoClient {
         for (&k, &v) in parameters.iter() {
             form.insert(k, v);
         }
+        // Insert the CLI delivery last. This ensures that if the user
+        // incorrectly specified it as part of the `parameters`, it is ignored.
+        form.insert("delivery", &d_str);
 
         self.submit_asvo_job(&AsvoJobType::Conversion, form)
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(&self, obsid: Obsid, expiry_days: u8) -> Result<AsvoJobID, AsvoError> {
-        let mut form = BTreeMap::new();
+    pub fn submit_meta(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+    ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting a metafits job to ASVO");
+
         let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+
+        let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
-        let e_str = format!("{}", expiry_days);
-        form.insert("expiry_days", &e_str);
+        form.insert("delivery", &d_str);
         form.insert("download_type", "vis_meta");
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }
@@ -329,6 +392,7 @@ impl AsvoClient {
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting an ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
@@ -337,7 +401,7 @@ impl AsvoClient {
 
         // Send a POST request to the ASVO.
         let response = self
-            .0
+            .client
             .post(&format!("{}/api/{}", ASVO_ADDRESS, api_path))
             .form(&form)
             .send()?;
@@ -350,19 +414,112 @@ impl AsvoClient {
         let response_text = response.text()?;
         match serde_json::from_str(&response_text) {
             Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(job_id),
-            // This shouldn't be reachable, because a non-200 code is issued
-            // with it too.
+
             Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
                 Err(AsvoError::BadRequest {
                     code: error_code,
                     message: error,
                 })
             }
-            Ok(AsvoSubmitJobResponse::GenericError { error }) => Err(AsvoError::BadRequest {
-                code: 666,
-                message: error,
-            }),
-            Err(e) => Err(AsvoError::BadJson(e)),
+
+            Ok(AsvoSubmitJobResponse::GenericError { error }) => match error.as_str() {
+                // If the server comes back with the error "already queued,
+                // processing or complete", proceed like it wasn't an error.
+                "Job already queued, processing or complete." => {
+                    let jobs = self.get_jobs()?;
+                    // This approach is flawed; the first job ID with the
+                    // same obsid as that submitted by this function is
+                    // returned, but it's not necessarily the right job ID.
+                    let j = jobs
+                        .0
+                        .iter()
+                        .find(|j| j.obsid == form["obs_id"].parse().unwrap())
+                        .unwrap();
+                    Ok(j.jobid)
+                }
+
+                _ => Err(AsvoError::BadRequest {
+                    code: 666,
+                    message: error,
+                }),
+            },
+
+            Err(e) => {
+                debug!("bad response: {}", response_text);
+                Err(AsvoError::BadJson(e))
+            }
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use crate::{AsvoClient, Obsid};
+    use crate::{Delivery};
+    use crate::{AsvoError};
+
+    #[test]
+    fn test_create_asvo_client() {
+        let client = AsvoClient::new();
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_get_jobs() {
+        let client = AsvoClient::new();
+        let jobs = client.unwrap().get_jobs();
+        assert!(jobs.is_ok());
+    }
+
+    #[test]
+    fn test_submit_download() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+
+        let vis_job = client.submit_vis(obs_id, delivery);
+        match vis_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code: _, message: _ } => (),
+                    _ => panic!("Unexpected error has occured.")
+                }
+            }
+        }
+
+        let meta_job = client.submit_meta(obs_id, delivery);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code: _, message: _ } => (),
+                    _ => panic!("Unexpected error has occured.")
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_submit_conv() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+
+        let job_params = BTreeMap::new();
+
+        let conv_job = client.submit_conv(obs_id, delivery, &job_params);
+        match conv_job {
+            Ok(_) => (),
+            Err(error) => {
+                match error {
+                    AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                    _ => panic!("Unexpected error has occured.")
+                }
+            }
         }
     }
 }

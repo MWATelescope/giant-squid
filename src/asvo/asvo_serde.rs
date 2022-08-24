@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-/*!
- * Code to parse the insane json format returned by the ASVO.
-*/
+//! Code to parse the insane json format returned by the ASVO.
 
 use std::collections::HashMap;
 
@@ -14,31 +12,33 @@ use super::types::*;
 use crate::obsid::Obsid;
 
 pub(super) fn parse_asvo_json(json: &str) -> Result<AsvoJobVec, serde_json::error::Error> {
-    // For some reason, the jobs are stored as strings.
-    let strings: Vec<String> = serde_json::from_str(json)?;
+    let strings: Vec<DummyJob> = serde_json::from_str(json)?;
     let vec = strings
         .into_iter()
-        .map(|s| {
-            let dj: Result<DummyJob, _> = serde_json::from_str(&s);
-            dj.map(|j| j.convert_to_real_job())
-        })
-        .collect::<Result<Vec<AsvoJob>, _>>();
-    vec.map(AsvoJobVec)
+        .map(|dj| dj.convert_to_real_job())
+        .collect::<Vec<AsvoJob>>();
+    Ok(AsvoJobVec(vec))
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct DummyJobParams {
+    delivery: String,
     download_type: Option<String>,
-    // The JSON decoding requires this to be a string, but it should always be a
-    // 10-digit int.
-    obs_id: String,
+    obs_id: String, // The JSON decoding requires this to be a string, but it should always be a 10-digit int.
+    job_type: String,
+    priority: i8,
+    user_pawsey_group: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct DummyProduct {
-    file_name: String,
-    file_size: u64,
-    sha1: String,
+    r#type: String,
+    url: Option<String>,
+    path: Option<String>,
+    size: u64,
+    sha1: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -61,9 +61,16 @@ impl DummyJob {
         let new_files = self.row.product.map(|hm| {
             let mut file_array = vec![];
             for dumb_product in &hm["files"] {
+                let file_type = dumb_product.r#type.as_str();
                 file_array.push(AsvoFilesArray {
-                    file_name: dumb_product.file_name.clone(),
-                    file_size: dumb_product.file_size,
+                    r#type: match file_type {
+                        "acacia" => Delivery::Acacia,
+                        "astro" => Delivery::Astro,
+                        _ => panic!("Unsupported file type found: {}", file_type)
+                    },
+                    url: dumb_product.url.clone(),
+                    path: dumb_product.r#path.clone(),
+                    size: dumb_product.size,
                     sha1: dumb_product.sha1.clone(),
                 })
             }
@@ -97,7 +104,7 @@ impl DummyJob {
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(untagged)]
 pub(super) enum AsvoSubmitJobResponse {
-    JobID { job_id: AsvoJobID, new: bool },
+    JobID { job_id: AsvoJobID },
     ErrorWithCode { error_code: u32, error: String },
     GenericError { error: String },
 }
@@ -108,24 +115,25 @@ mod tests {
 
     #[test]
     fn test_json_job_listing_parse() {
-        let json = "[\"{\\\"action\\\": \\\"INSERT\\\", \\\"table\\\": \\\"jobs\\\", \\\"row\\\": {\\\"job_type\\\": 1, \\\"job_state\\\": 2, \\\"user_id\\\": 92, \\\"job_params\\\": {\\\"download_type\\\": \\\"vis\\\", \\\"obs_id\\\": \\\"1065880128\\\"}, \\\"error_code\\\": null, \\\"error_text\\\": null, \\\"created\\\": \\\"2020-08-20T04:17:24.075207\\\", \\\"modified\\\": \\\"2020-08-20T04:29:40.020931\\\", \\\"expiry_date\\\": \\\"2020-08-27T04:29:39.822127\\\", \\\"product\\\": {\\\"files\\\": [[\\\"1065880128_vis.zip\\\", 44658597858, \\\"f561aa665fd6367c05a89f7e2931b60c289348de\\\"]]}, \\\"storage_id\\\": 3, \\\"id\\\": 306792}}\"]";
+        let json = "[{\"action\": \"INSERT\", \"table\": \"jobs\", \"row\": {\"job_type\": 1, \"job_state\": 2, \"user_id\": 1065, \"job_params\": {\"delivery\": \"acacia\", \"download_type\": \"vis\", \"job_type\": \"download\", \"obs_id\": \"1339896408\", \"priority\": 1, \"user_pawsey_group\": \"mwaops\"}, \"error_code\": null, \"error_text\": null, \"created\": \"2022-06-22T01:56:38.635146\", \"started\": \"2022-06-22T01:57:09.093927\", \"completed\": \"2022-06-22T01:57:24.693448\", \"product\": {\"files\": [{\"type\": \"acacia\", \"url\": \"https://ingest.pawsey.org.au/mwa-asvo/1339896408_575929_vis.tar?AWSAccessKeyId=0f61c75cd1184e5abc76500d71758927&Signature=XwoaCna8vNmMEBXcFji2boZ5yjk%3D&Expires=1656467844\", \"size\": 931112960, \"sha1\": \"12b0933ff3985c82a7303d8e57fa7157fe88353e\"}]}, \"id\": 575929}}]";
         let result = parse_asvo_json(json);
-        assert!(result.is_ok());
+        assert!(
+            result.is_ok(),
+            "result is not ok: {:?}",
+            result.err().unwrap()
+        );
         let jobs = result.unwrap();
         assert_eq!(jobs.0.len(), 1);
-        assert_eq!(jobs.0[0].jobid, 306792);
+        assert_eq!(jobs.0[0].jobid, 575929);
     }
 
     #[test]
     fn test_json_job_submit_response_parse() {
-        let json = "{\"job_id\": 308874, \"new\": false}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let json = "{\"job_id\": 308874}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
-            AsvoSubmitJobResponse::JobID {
-                job_id: 308874,
-                new: false
-            },
+            AsvoSubmitJobResponse::JobID { job_id: 308874 },
             decoded.unwrap()
         );
     }
@@ -133,7 +141,7 @@ mod tests {
     #[test]
     fn test_json_job_submit_response_bad_parse() {
         let json = "{\"error_code\": 0, \"error\": \"Download Type: Expected not None\"}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
             AsvoSubmitJobResponse::ErrorWithCode {
@@ -147,7 +155,7 @@ mod tests {
     #[test]
     fn test_json_job_submit_response_bad_parse2() {
         let json = "{\"error\": \"Permission denied\"}";
-        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(&json);
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());
         assert_eq!(
             AsvoSubmitJobResponse::GenericError {

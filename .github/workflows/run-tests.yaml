@@ -6,6 +6,7 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
+  MWA_ASVO_API_KEY: ${{ secrets.MWA_ASVO_API_KEY }}
 
 jobs:
   test:

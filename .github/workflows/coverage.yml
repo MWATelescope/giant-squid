@@ -1,0 +1,36 @@
+# Based on https://github.com/actions-rs/meta/blob/master/recipes/quickstart.md
+
+# Do this on every push, but don't double up on tags
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - "**"
+  pull_request:
+
+env:
+  MWA_ASVO_API_KEY: ${{ secrets.MWA_ASVO_API_KEY }}
+
+name: Generate Coverage report
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    container: mwatelescope/giant-squid:latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Generate test lcov coverage into coverage/ dir
+        run: |
+          mkdir -p coverage
+          /opt/cargo/bin/cargo llvm-cov --all --lcov --output-path coverage/coverage.lcov
+          # this uses the result of the previous run to generate a text summary
+          /opt/cargo/bin/cargo llvm-cov --no-run
+      - name: Upload reports to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
