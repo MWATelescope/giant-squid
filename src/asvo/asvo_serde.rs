@@ -27,7 +27,7 @@ struct DummyJobParams {
     download_type: Option<String>,
     obs_id: String, // The JSON decoding requires this to be a string, but it should always be a 10-digit int.
     job_type: String,
-    priority: i8,
+    priority: u16,
     user_pawsey_group: Option<String>,
 }
 
