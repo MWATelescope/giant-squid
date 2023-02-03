@@ -39,13 +39,9 @@ lazy_static::lazy_static! {
     /// centre channel of each coarse band.
     pub static ref DEFAULT_CONVERSION_PARAMETERS: BTreeMap<&'static str, &'static str> = {
         let mut m = BTreeMap::new();
-        m.insert("preprocessor"  , "birli");
-        m.insert("conversion"    , "uvfits");
-        m.insert("freqres"       , "80");
-        m.insert("edgewidth"     , "80");
-        m.insert("allowmissing"  , "true");
-        m.insert("flagdcchannels", "true");
-        m.insert("noflagautos"   , "true");
+        m.insert("output",  "uvfits");
+        m.insert("avg_freq_res",    "80");
+        m.insert("flag_edge_width", "80");
         m
     };
 }

@@ -98,7 +98,7 @@ pub fn parse_many_jobids_or_obsids(
     Ok((jobids, obsids))
 }
 
-/// Parse a string of key-value pairs (e.g. "timeres=0.5,freqres=10") into a
+/// Parse a string of key-value pairs (e.g. "avg_time_res=0.5,avg_freq_res=10") into a
 /// [BTreeMap].
 pub fn parse_key_value_pairs(s: &str) -> Result<BTreeMap<&str, &str>, ParseError> {
     let mut map = BTreeMap::new();
@@ -152,32 +152,32 @@ mod tests {
 
     #[test]
     fn parse_map_simple() {
-        let result = parse_key_value_pairs("timeres=0.5,freqres=10");
+        let result = parse_key_value_pairs("avg_time_res=0.5,avg_freq_res=10");
         assert!(result.is_ok());
         let map = result.unwrap();
-        assert_eq!(map.get("timeres"), Some(&"0.5"));
-        assert_eq!(map.get("freqres"), Some(&"10"));
+        assert_eq!(map.get("avg_time_res"), Some(&"0.5"));
+        assert_eq!(map.get("avg_freq_res"), Some(&"10"));
     }
 
     #[test]
     fn parse_map_complex() {
         let result = parse_key_value_pairs(
-            r#"timeres=0.5 ,
+            r#"avg_time_res=0.5 ,
 
-freqres = 10 "#,
+            avg_freq_res = 10 "#,
         );
         assert!(result.is_ok());
         let map = result.unwrap();
-        assert_eq!(map.get("timeres"), Some(&"0.5"));
-        assert_eq!(map.get("freqres"), Some(&"10"));
+        assert_eq!(map.get("avg_time_res"), Some(&"0.5"));
+        assert_eq!(map.get("avg_freq_res"), Some(&"10"));
     }
 
     #[test]
     fn bad_parse_map() {
-        let result = parse_key_value_pairs("timeres=0.5=1,freqres=10");
+        let result = parse_key_value_pairs("avg_time_res=0.5=1,avg_freq_res=10");
         assert!(result.is_err());
 
-        let result = parse_key_value_pairs("timeres=0.5,freqres");
+        let result = parse_key_value_pairs("avg_time_res=0.5,avg_freq_res");
         assert!(result.is_err());
     }
 }

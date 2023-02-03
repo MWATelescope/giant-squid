@@ -248,7 +248,7 @@ To change the default conversion options and/or specify more options, specify
 comma-separated key-value pairs like so:
 
 ```bash
-giant-squid submit-conv 1065880128 -p timeres=0.5,freqres=10
+giant-squid submit-conv 1065880128 -p avg_time_res=0.5,avg_freq_res=10
 ```
 
 If you want to check that your command works without actually submitting the
@@ -257,9 +257,9 @@ messages (including what `giant-squid` uses for the conversion options) can be
 accessed with `-v` (or `--verbose`). e.g.
 
 ```bash
-$ giant-squid submit-conv 1065880128 -nv -p timeres=0.5,freqres=10
+$ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 20:40:24 [INFO] Would have submitted 1 obsids for conversion, using these parameters:
-{"allowmissing": "true", "conversion": "ms", "download_type": "conversion", "edgewidth": "160", "flagdcchannels": "true", "freqres": "10", "timeres": "0.5"}
+{"output": "uvfits", "job_type": "conversion", "flag_edge_width": "160", "avg_freq_res": "10", "avg_time_res": "0.5"}
 ```
 
 You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
