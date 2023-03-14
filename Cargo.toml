@@ -46,4 +46,5 @@ anyhow = { version = "1.0.53", optional = true }
 clap = { version = "3.0.14", features = ["derive"], optional = true }
 simplelog = { version = "0.11.2", optional = true }
 reqwest-retry = { version = "0.1.5", optional = true }
+# transative dependency of reqwest-retry, newer versions use features which are unstable in cargo 1.63
 task-local-extensions = { version = "=0.1.2", optional = true }

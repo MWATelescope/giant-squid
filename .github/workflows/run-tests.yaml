@@ -15,7 +15,10 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        toolchain: [stable, "1.63"]
+        toolchain: [stable]
+        include:
+          - os: ubuntu-latest
+            toolchain: "1.63"
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
