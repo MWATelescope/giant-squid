@@ -7,9 +7,13 @@ set -eux
 cp .github/workflows/releases-readme.md README.md
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # I don't know why, but I need to reinstall Rust. Probably something to do with
-    # GitHub overriding env variables.
-    curl https://sh.rustup.rs -sSf | sh -s -- -y
+    source /root/.cargo/env
+    # 1.63 is the newest rustc version that can use glibc >= 2.11, and we use it
+    # because newer versions require glibc >= 2.17 (which this container
+    # deliberately doesn't have; we want maximum compatibility, so we use an old
+    # glibc).
+    rustup install 1.63 --no-self-update
+    rustup default 1.63
 
     # Build a release for each x86_64 microarchitecture level. v4 can't be
     # compiled on GitHub for some reason.
