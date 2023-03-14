@@ -16,7 +16,7 @@ exclude = [".github/*"]
 
 [features]
 default = ["bin"]
-bin = ["anyhow", "clap", "simplelog"]
+bin = ["anyhow", "clap", "simplelog", "reqwest-retry", "task-local-extensions"]
 
 [[bin]]
 name = "giant-squid"
@@ -39,10 +39,11 @@ sha-1 = "0.10.0"
 tar = "0.4.38"
 tee_readwrite = "0.1.0"
 thiserror = "1.0.0"
+backoff = "0.4.0"
 
 # Dependencies only for the binary.
 anyhow = { version = "1.0.53", optional = true }
 clap = { version = "3.0.14", features = ["derive"], optional = true }
 simplelog = { version = "0.11.2", optional = true }
-reqwest-retry = "0.1.5"
-backoff = "0.4.0"
+reqwest-retry = { version = "0.1.5", optional = true }
+task-local-extensions = { version = "=0.1.2", optional = true }
