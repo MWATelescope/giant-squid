@@ -66,7 +66,7 @@ impl DummyJob {
                     r#type: match file_type {
                         "acacia" => Delivery::Acacia,
                         "astro" => Delivery::Astro,
-                        _ => panic!("Unsupported file type found: {}", file_type)
+                        _ => panic!("Unsupported file type found: {}", file_type),
                     },
                     url: dumb_product.url.clone(),
                     path: dumb_product.r#path.clone(),

@@ -7,7 +7,7 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use log::warn;
-use prettytable::{cell, row, Cell, Row, Table};
+use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 
 use crate::{obsid::Obsid, AsvoError};
@@ -303,21 +303,35 @@ impl std::fmt::Display for Delivery {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_asvo_job_state_fromstr() {
-        assert!(matches!(AsvoJobState::from_str("__Q_u_e_u_e_D__"), Ok(AsvoJobState::Queued)));
-        assert!(matches!(AsvoJobState::from_str("invalid job state"), Err(AsvoError::InvalidJobState{..})));
+        assert!(matches!(
+            AsvoJobState::from_str("__Q_u_e_u_e_D__"),
+            Ok(AsvoJobState::Queued)
+        ));
+        assert!(matches!(
+            AsvoJobState::from_str("invalid job state"),
+            Err(AsvoError::InvalidJobState { .. })
+        ));
     }
 
     #[test]
     fn test_asvo_job_type_fromstr() {
-        assert!(matches!(AsvoJobType::from_str("DownloadVisibilities"), Ok(AsvoJobType::DownloadVisibilities)));
-        assert!(matches!(AsvoJobType::from_str("download_visibilities"), Ok(AsvoJobType::DownloadVisibilities)));
-        assert!(matches!(AsvoJobType::from_str("invalid job type"), Err(AsvoError::InvalidJobType{..})));
+        assert!(matches!(
+            AsvoJobType::from_str("DownloadVisibilities"),
+            Ok(AsvoJobType::DownloadVisibilities)
+        ));
+        assert!(matches!(
+            AsvoJobType::from_str("download_visibilities"),
+            Ok(AsvoJobType::DownloadVisibilities)
+        ));
+        assert!(matches!(
+            AsvoJobType::from_str("invalid job type"),
+            Err(AsvoError::InvalidJobType { .. })
+        ));
     }
 }

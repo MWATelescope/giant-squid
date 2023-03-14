@@ -13,15 +13,15 @@ pub use error::AsvoError;
 pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
 
 use std::collections::BTreeMap;
-use std::env::{var, current_dir};
-use std::fs::{File, rename};
-use std::path::Path;
+use std::env::{current_dir, var};
+use std::fs::{rename, File};
 use std::io::{BufRead, BufReader, Read, Write};
+use std::path::Path;
 use std::time::Instant;
 
+use backoff::{retry, Error, ExponentialBackoff};
 use log::{debug, info};
 use reqwest::blocking::{Client, ClientBuilder};
-use backoff::{retry, ExponentialBackoff, Error};
 use sha1::{Digest, Sha1};
 use tar::Archive;
 
@@ -176,47 +176,50 @@ impl AsvoClient {
 
         // Download each file.
         for f in files {
-
             match f.r#type {
-                Delivery::Acacia => {
-                    match f.url.as_deref() {
-                        Some(url) => {
-                            debug!("Downloading file {:?}", &url);
+                Delivery::Acacia => match f.url.as_deref() {
+                    Some(url) => {
+                        debug!("Downloading file {:?}", &url);
 
-                            let op = || {
-                                self.try_download(url, keep_tar, hash, f, job).map_err(Error::transient)
-                            };
+                        let op = || {
+                            self.try_download(url, keep_tar, hash, f, job)
+                                .map_err(Error::transient)
+                        };
 
-                            let _ = retry(ExponentialBackoff::default(), op);
+                        let _ = retry(ExponentialBackoff::default(), op);
 
-                            info!(
-                                "Completed download in {} (average rate: {}/s)",
-                                if start_time.elapsed().as_secs() > 60 {
-                                    format!(
-                                        "{}min{:.2}s",
-                                        start_time.elapsed().as_secs() / 60,
-                                        (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
-                                    )
-                                } else {
-                                    format!("{}s", start_time.elapsed().as_millis() as f64 / 1e3)
-                                },
-                                bytesize::ByteSize((total_bytes as u128 * 1000 / start_time.elapsed().as_millis()) as u64)
-                                    .to_string_as(true)
-                            );
-                        },
-                        None => {
-                            return Err(AsvoError::NoUrl {
-                                job_id: job.jobid,
-                            })
-                        }
+                        info!(
+                            "Completed download in {} (average rate: {}/s)",
+                            if start_time.elapsed().as_secs() > 60 {
+                                format!(
+                                    "{}min{:.2}s",
+                                    start_time.elapsed().as_secs() / 60,
+                                    (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
+                                )
+                            } else {
+                                format!("{}s", start_time.elapsed().as_millis() as f64 / 1e3)
+                            },
+                            bytesize::ByteSize(
+                                (total_bytes as u128 * 1000 / start_time.elapsed().as_millis())
+                                    as u64
+                            )
+                            .to_string_as(true)
+                        );
                     }
+                    None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
                 Delivery::Astro => {
                     match &f.path {
                         Some(path) => {
                             //If it's an /astro job, and the files are reachable from the current host, move them into the current working directory
                             let path_obj = Path::new(&path);
-                            let folder_name = path_obj.components().last().unwrap().as_os_str().to_str().unwrap();
+                            let folder_name = path_obj
+                                .components()
+                                .last()
+                                .unwrap()
+                                .as_os_str()
+                                .to_str()
+                                .unwrap();
 
                             if !Path::exists(path_obj) {
                                 info!("Files for Astro Job {} are not reachable from the current host.", job.jobid);
@@ -227,12 +230,8 @@ impl AsvoClient {
                                 current_path.push(folder_name);
                                 rename(path, current_path)?;
                             }
-                        },
-                        None => {
-                            return Err(AsvoError::NoPath {
-                                job_id: job.jobid,
-                            })
                         }
+                        None => return Err(AsvoError::NoPath { job_id: job.jobid }),
                     }
                 }
             }
@@ -241,7 +240,14 @@ impl AsvoClient {
         Ok(())
     }
 
-    pub fn try_download(&self, url: &str, keep_tar: bool, hash: bool, f: &AsvoFilesArray, job: &AsvoJob) -> Result<(), AsvoError> {
+    pub fn try_download(
+        &self,
+        url: &str,
+        keep_tar: bool,
+        hash: bool,
+        f: &AsvoFilesArray,
+        job: &AsvoJob,
+    ) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
         let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
             Ok(s) => s.parse()?,
@@ -252,7 +258,7 @@ impl AsvoClient {
         // parse out path from url
         let url_obj = reqwest::Url::parse(url).unwrap();
         let out_path = url_obj.path_segments().unwrap().last().unwrap();
-        
+
         let response = self.client.get(url).send()?;
 
         let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
@@ -316,11 +322,7 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(
-        &self,
-        obsid: Obsid,
-        delivery: Delivery
-    ) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a vis job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -365,11 +367,7 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(
-        &self,
-        obsid: Obsid,
-        delivery: Delivery,
-    ) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a metafits job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -448,14 +446,13 @@ impl AsvoClient {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
+    use crate::AsvoError;
+    use crate::Delivery;
     use crate::{AsvoClient, Obsid};
-    use crate::{Delivery};
-    use crate::{AsvoError};
 
     #[test]
     fn test_create_asvo_client() {
@@ -479,23 +476,25 @@ mod tests {
         let vis_job = client.submit_vis(obs_id, delivery);
         match vis_job {
             Ok(_) => (),
-            Err(error) => {
-                match error {
-                    AsvoError::BadStatus { code: _, message: _ } => (),
-                    _ => panic!("Unexpected error has occured.")
-                }
-            }
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
         }
 
         let meta_job = client.submit_meta(obs_id, delivery);
         match meta_job {
             Ok(_) => (),
-            Err(error) => {
-                match error {
-                    AsvoError::BadStatus { code: _, message: _ } => (),
-                    _ => panic!("Unexpected error has occured.")
-                }
-            }
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
         }
     }
 
@@ -510,12 +509,10 @@ mod tests {
         let conv_job = client.submit_conv(obs_id, delivery, &job_params);
         match conv_job {
             Ok(_) => (),
-            Err(error) => {
-                match error {
-                    AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
-                    _ => panic!("Unexpected error has occured.")
-                }
-            }
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
         }
     }
 }

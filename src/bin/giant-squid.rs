@@ -302,12 +302,11 @@ fn main() -> Result<(), anyhow::Error> {
             }
 
             if !states.is_empty() {
-                jobs = jobs.retain(|j|
+                jobs = jobs.retain(|j| {
                     states.iter().any(|s|
                         // this allows comparison with AsvoJobState::Error(..)
-                        std::mem::discriminant(s) == std::mem::discriminant(&j.state)
-                    )
-                );
+                        std::mem::discriminant(s) == std::mem::discriminant(&j.state))
+                });
             }
 
             if json {
