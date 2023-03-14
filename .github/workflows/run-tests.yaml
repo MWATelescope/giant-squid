@@ -10,11 +10,12 @@ env:
 
 jobs:
   test:
-    name: Test ${{ matrix.os }}
+    name: Test ${{ matrix.os }} toolchain ${{ matrix.toolchain }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        toolchain: [stable, "1.63"]
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
@@ -25,7 +26,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: ${{ matrix.toolchain }}
         override: true
 
     - name: Run tests
