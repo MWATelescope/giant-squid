@@ -22,12 +22,15 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install stable toolchain
+    - name: Install toolchain ${{ matrix.toolchain }}
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: ${{ matrix.toolchain }}
         override: true
+
+    - name: Run tests (no default feautures)
+      run: cargo test --no-default-features
 
     - name: Run tests
       run: cargo test
