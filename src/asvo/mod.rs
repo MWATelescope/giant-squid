@@ -183,10 +183,23 @@ impl AsvoClient {
 
                         let op = || {
                             self.try_download(url, keep_tar, hash, f, job)
-                                .map_err(Error::transient)
+                                .map_err(|e| {
+                                    match &e {
+                                        &AsvoError::IO(_) => Error::permanent(e),
+                                        _ => Error::transient(e),
+                                    }
+                                })
                         };
 
-                        let _ = retry(ExponentialBackoff::default(), op);
+                        let result = retry(ExponentialBackoff::default(), op);
+                        if let Err(err) = result {
+                            match err {
+                                Error::Permanent(asvo_err) => {
+                                    return Err(asvo_err)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
 
                         info!(
                             "Completed download in {} (average rate: {}/s)",
