@@ -1,8 +1,15 @@
 ---
 name: Cross-platform tests
 
-# Do this on every push
-on: [push, pull_request]
+# Do this on every push, except tags
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - "**"
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -33,7 +40,7 @@ jobs:
         override: true
 
     - name: Run tests (no default feautures)
-      run: cargo test --no-default-features
+      run: cargo test --no-default-features --locked
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --locked
