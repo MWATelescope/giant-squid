@@ -783,7 +783,7 @@ dependencies = [
 
 [[package]]
 name = "mwa_giant_squid"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "anyhow",
  "backoff",
@@ -802,7 +802,7 @@ dependencies = [
  "task-local-extensions",
  "tee_readwrite",
  "thiserror",
- "time 0.3.20",
+ "time 0.1.45",
  "time-core",
 ]
 
