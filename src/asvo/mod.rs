@@ -191,14 +191,8 @@ impl AsvoClient {
                                 })
                         };
 
-                        let result = retry(ExponentialBackoff::default(), op);
-                        if let Err(err) = result {
-                            match err {
-                                Error::Permanent(asvo_err) => {
-                                    return Err(asvo_err)
-                                }
-                                _ => unreachable!(),
-                            }
+                        if let Err(Error::Permanent(err)) = retry(ExponentialBackoff::default(), op) {
+                            return Err(err);
                         }
 
                         info!(
@@ -270,7 +264,7 @@ impl AsvoClient {
 
         // parse out path from url
         let url_obj = reqwest::Url::parse(url).unwrap();
-        let out_path = url_obj.path_segments().unwrap().last().unwrap();
+        let out_path = Path::new(url_obj.path_segments().unwrap().last().unwrap());
 
         let response = self.client.get(url).send()?;
 
@@ -279,6 +273,8 @@ impl AsvoClient {
         if keep_tar {
             // Simply dump the response to the appropriate file name. Use a
             // buffer to avoid doing frequent writes.
+
+            info!("Writing archive to {:?}", out_path);
 
             let mut out_file = File::create(out_path)?;
             let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
@@ -295,10 +291,11 @@ impl AsvoClient {
             }
         } else {
             // Stream-untar the response.
-            debug!("Attempting to untar stream");
+            let unpack_path = Path::new(".");
+            info!("Untarring to {:?}", unpack_path);
             let mut tar = Archive::new(&mut tee);
 
-            tar.unpack(".")?;
+            tar.unpack(unpack_path)?;
         }
 
         // If we were told to hash the download, compare our hash against
