@@ -1,8 +1,15 @@
 ---
 name: Cross-platform tests
 
-# Do this on every push
-on: [push, pull_request]
+# Do this on every push, except tags
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - "**"
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,22 +25,27 @@ jobs:
         toolchain: [stable]
         include:
           - os: ubuntu-latest
-            toolchain: "1.63"
+            toolchain: "msrv"
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
       with:
         fetch-depth: 0
 
+    - name: Get MSRV
+      if: matrix.toolchain == 'msrv'
+      run:
+        echo "MSRV=$(grep -m1 'rust-version' Cargo.toml | sed 's|.*\"\(.*\)\"|\1|')" >> "$GITHUB_ENV"
+
     - name: Install toolchain ${{ matrix.toolchain }}
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: ${{ matrix.toolchain }}
+        toolchain: ${{ matrix.toolchain == 'msrv' && env.MSRV || matrix.toolchain }}
         override: true
 
     - name: Run tests (no default feautures)
-      run: cargo test --no-default-features
+      run: cargo test --no-default-features --locked
 
     - name: Run tests
-      run: cargo test
+      run: cargo test --locked
