@@ -72,8 +72,12 @@ enum Args {
         #[clap(short, long)]
         keep_zip: bool,
 
-        /// Verify the downloaded contents against the upstream hash.
+        /// Don't verify the downloaded contents against the upstream hash.
         #[clap(long)]
+        skip_hash: bool,
+
+        // Does nothing: hash check is enabled by default. This is for backwards compatibility
+        #[clap(long, hidden = true)]
         hash: bool,
 
         /// Don't actually download; print information on what would've happened
@@ -318,10 +322,11 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::Download {
             keep_zip,
-            hash,
+            skip_hash,
             dry_run,
             verbosity,
             jobids_or_obsids,
+            ..
         } => {
             if jobids_or_obsids.is_empty() {
                 bail!("No jobs specified!");
@@ -329,7 +334,7 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
-
+            let hash = !skip_hash;
             if dry_run {
                 if !jobids.is_empty() {
                     debug!("Parsed job IDs: {:#?}", jobids);
@@ -338,9 +343,11 @@ fn main() -> Result<(), anyhow::Error> {
                     debug!("Parsed obsids: {:#?}", obsids);
                 }
                 info!(
-                    "Parsed {} jobids and {} obsids for download.",
+                    "Parsed {} jobids and {} obsids for download. keep_zip={:?}, hash={:?}",
                     jobids.len(),
                     obsids.len(),
+                    keep_zip,
+                    hash,
                 );
             } else {
                 let client = AsvoClient::new()?;

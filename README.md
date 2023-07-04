@@ -19,7 +19,7 @@ suit users for a few reasons:
    words, rather than downloading a potentially large (> 100 GiB!) tar file and
    then untarring it yourself (thereby occupying double the space of the
    original tar and performing a very expensive IO operation), it is possible to
-   get the files without performing an untar.
+   get the files without performing an untar using `--keep-zip`
 
 2. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
@@ -31,6 +31,9 @@ suit users for a few reasons:
 
 4. One can ask `giant-squid` to print their ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
+
+5. By default, `giant-squid` will validate the hash of the archive. You can skip 
+   this check with `--skip-hash`
 
 ## Usage
 
@@ -190,10 +193,8 @@ Text files containing job IDs or obsids may be used too.
 By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
 (or `--keep-zip`).
 
-The MWA ASVO provides a SHA-1 of its downloads. To verify the integrity of your
-download, give a `--hash` to the `download` command. The additional computation
-by this action appears to be negligible, but I made this option non-default as
-it shouldn't be a problem anyway.
+The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity 
+of your download by default. Give a `--skip-hash` to the `download` command to skip.
 
 Jobs which were submitted with the /astro data delivery option behave differently
 than jobs submitted with the acacia data delivery option. When attempting to download
