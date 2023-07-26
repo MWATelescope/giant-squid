@@ -183,15 +183,14 @@ impl AsvoClient {
 
                         let op = || {
                             self.try_download(url, keep_tar, hash, f, job)
-                                .map_err(|e| {
-                                    match &e {
-                                        &AsvoError::IO(_) => Error::permanent(e),
-                                        _ => Error::transient(e),
-                                    }
+                                .map_err(|e| match &e {
+                                    &AsvoError::IO(_) => Error::permanent(e),
+                                    _ => Error::transient(e),
                                 })
                         };
 
-                        if let Err(Error::Permanent(err)) = retry(ExponentialBackoff::default(), op) {
+                        if let Err(Error::Permanent(err)) = retry(ExponentialBackoff::default(), op)
+                        {
                             return Err(err);
                         }
 
@@ -345,6 +344,30 @@ impl AsvoClient {
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
 
+    /// Submit an ASVO job for voltage download.
+    pub fn submit_volt(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        offset: i32,
+        duration: i32,
+    ) -> Result<AsvoJobID, AsvoError> {
+        debug!("Submitting a voltage job to ASVO");
+
+        let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+        let offset_str: String = format!("{}", offset);
+        let duration_str: String = format!("{}", duration);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
+        form.insert("delivery", &d_str);
+        form.insert("offset", &offset_str);
+        form.insert("duration", &duration_str);
+        form.insert("download_type", "volt");
+        self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
+    }
+
     /// Submit an ASVO job for conversion.
     pub fn submit_conv(
         &self,
@@ -400,6 +423,7 @@ impl AsvoClient {
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
+            AsvoJobType::DownloadVoltage => "voltage_job",
             jt => return Err(AsvoError::UnsupportedType(jt.clone())),
         };
 
@@ -518,6 +542,26 @@ mod tests {
 
         let conv_job = client.submit_conv(obs_id, delivery, &job_params);
         match conv_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_volt() {
+        let client = AsvoClient::new().unwrap();
+        // NOTE: this obs_id is a voltage observation, however for this test to pass,
+        // You must have your pawsey_group set in your MWA ASVO profile to mwaops or mwavcs (contact an Admin to have this done).
+        let obs_id = Obsid::validate(1290094336).unwrap();
+        let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1290094336
+        let duration: i32 = 1; // This will attempt to get data up to GPS TIME: 1290094336
+        let delivery = Delivery::Astro;
+
+        let volt_job = client.submit_volt(obs_id, delivery, offset, duration);
+        match volt_job {
             Ok(_) => (),
             Err(error) => match error {
                 AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),

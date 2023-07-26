@@ -32,7 +32,7 @@ suit users for a few reasons:
 4. One can ask `giant-squid` to print their ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
-5. By default, `giant-squid` will validate the hash of the archive. You can skip 
+5. By default, `giant-squid` will validate the hash of the archive. You can skip
    this check with `--skip-hash`
 
 ## Usage
@@ -193,7 +193,7 @@ Text files containing job IDs or obsids may be used too.
 By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
 (or `--keep-zip`).
 
-The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity 
+The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
 
 Jobs which were submitted with the /astro data delivery option behave differently
@@ -290,6 +290,28 @@ You can choose whether to have your files tarred up and uploaded to Pawsey's Aca
 or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
 that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
 a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
+
+#### Voltage downloads
+
+A "voltage download job" refers to a job which provides the raw voltages for one or more obsids.
+
+To submit a voltage download job for the obsid 1065880128:
+
+```bash
+giant-squid submit-volt --delivery astro --offset 0 --duration 8 1065880128
+# or
+giant-squid sv -d astro -o 0 -u 8 1065880128
+```
+
+Text files containing obsids may be used too.
+
+If you want to check that your command works without actually submitting the
+obsids, then you can use the `--dry-run` option (short version `-n`).
+
+Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
+download, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
+set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /astro filesystem. To submit
+a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro or pass `-d astro`.
 
 ## Download performance
 
