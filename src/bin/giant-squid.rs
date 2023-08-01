@@ -189,6 +189,43 @@ enum Args {
         obsids: Vec<String>,
     },
 
+    /// Submit ASVO jobs to download MWA voltages
+    #[clap(alias = "sv")]
+    SubmitVolt {
+        /// Tell the ASVO where to deliver the job. The only valid value for a voltage
+        /// job is "astro".
+        #[clap(short, long)]
+        delivery: Option<String>,
+
+        /// The offset in seconds from the start GPS time of the observation.
+        #[clap(short, long)]
+        offset: i32,
+
+        /// The duration (in seconds) to download.
+        #[clap(short = 'u', long)]
+        duration: i32,
+
+        /// Do not exit giant-squid until the specified obsids are ready for
+        /// download.
+        #[clap(short, long)]
+        wait: bool,
+
+        /// Don't actually submit; print information on what would've happened
+        /// instead.
+        #[clap(short = 'n', long)]
+        dry_run: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[clap(short, long, parse(from_occurrences))]
+        verbosity: u8,
+
+        /// The obsids to be submitted. Files containing obsids are also
+        /// accepted.
+        #[clap(name = "OBSID")]
+        obsids: Vec<String>,
+    },
+
     /// Wait for ASVO jobs to complete, return the urls
     #[clap(alias = "w")]
     Wait {
@@ -505,6 +542,54 @@ fn main() -> Result<(), anyhow::Error> {
                     jobids.push(j);
                 }
                 info!("Submitted {} obsids for metadata download.", obsids.len());
+
+                if wait {
+                    // Endlessly loop over the newly-supplied job IDs until
+                    // they're all ready.
+                    wait_loop(&client, &jobids)?;
+                }
+            }
+        }
+
+        Args::SubmitVolt {
+            delivery,
+            offset,
+            duration,
+            wait,
+            dry_run,
+            verbosity,
+            obsids,
+        } => {
+            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            // There shouldn't be any job IDs here.
+            if !parsed_jobids.is_empty() {
+                bail!(
+                    "Expected only obsids, but found these exceptions: {:?}",
+                    parsed_jobids
+                );
+            }
+            if parsed_obsids.is_empty() {
+                bail!("No obsids specified!");
+            }
+            init_logger(verbosity);
+
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
+
+            if dry_run {
+                info!(
+                    "Would have submitted {} obsids for voltage download.",
+                    obsids.len()
+                );
+            } else {
+                let client = AsvoClient::new()?;
+                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                for o in parsed_obsids {
+                    let j = client.submit_volt(o, delivery, offset, duration)?;
+                    info!("Submitted {} as ASVO job ID {}", o, j);
+                    jobids.push(j);
+                }
+                info!("Submitted {} obsids for voltage download.", obsids.len());
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
