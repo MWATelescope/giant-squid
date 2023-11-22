@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 - 2023-11-22
+
+* supports specifying the MWA ASVO webserver address via environment variable `MWA_ASVO_HOST` (default is asvo.mwatelescope.org)
+* supports use of `scratch` delivery option (in addition to `acacia` and `astro`)
+* added `delivery` column to the `list` output
+* updated many dependencies to more recent versions
+
 ## 0.7.0 - 2023-07-26
 
 * support submission of voltage download jobs

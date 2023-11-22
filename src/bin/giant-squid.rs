@@ -19,7 +19,7 @@ MWA ASVO: https://asvo.mwatelescope.org"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The Birli/cotter parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
+        let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
         for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
             s.push_str(k);
             s.push('=');
@@ -33,7 +33,7 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Parser, Debug)]
-#[clap(author, about = ABOUT)]
+#[clap(author, about = ABOUT, version)]
 #[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Args {
     /// List ASVO jobs
@@ -246,7 +246,10 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new().set_time_to_local(true).build();
+    let config = ConfigBuilder::new()
+        .set_time_offset_to_local()
+        .expect("Unable to set log time offset to your timezone")
+        .build();
     match level {
         0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
         1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
