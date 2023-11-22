@@ -51,5 +51,5 @@ reqwest-retry = { version = "0.2.*", optional = true }
 # transative dependency of reqwest-retry, newer versions use features which are unstable in cargo 1.63
 task-local-extensions = { version = "=0.1.4", optional = true }
 # transative dependency of reqwest-retry which has msrv 1.65
-time = { version = "0.3.22", optional = true }
+time = { version = "<0.3.22", optional = true }
 time-core = { version = "0.1.2", optional = true }
