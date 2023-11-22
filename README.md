@@ -196,9 +196,9 @@ By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
 The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
 
-Jobs which were submitted with the /astro data delivery option behave differently
+Jobs which were submitted with the /astro or /scratch data delivery option behave differently
 than jobs submitted with the acacia data delivery option. When attempting to download
-an /astro job, if the path of the job (eg /astro/mwaops/asvo/12345) is reachable from
+an /astro job or /scratch job, if the path of the job (eg /astro/mwaops/asvo/12345) is reachable from
 the current host, it will be moved to the current working directory. Otherwise, it will
 be skipped.
 
@@ -223,9 +223,10 @@ If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
 You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
+or you can request that the files be left on Pawsey's /astro or /scratch filesystem. The second option requires
 that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
-a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
+a job with the /astro or /scratch delivery option, set the environment variable GIANT_SQUID_DELIVERY=astro|scratch.
+Alternatively specify `-d astro|scratch|acacia`.
 
 #### Conversion downloads
 

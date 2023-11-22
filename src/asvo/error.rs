@@ -13,12 +13,12 @@ use crate::obsid::Obsid;
 #[derive(Error, Debug)]
 pub enum AsvoError {
     /// The specified delivery argument was wrong.
-    #[error("The supplied delivery argument ({0}) was neither 'acacia' nor 'astro'")]
+    #[error("The supplied delivery argument ({0}) was neither 'acacia', 'astro' or 'scratch'")]
     InvalidDelivery(String),
 
     /// The delivery argument in GIANT_SQUID_DELIVERY was wrong.
     #[error(
-        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia' nor 'astro'"
+        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia', 'astro' or 'scratch'"
     )]
     InvalidDeliveryEnv(String),
 

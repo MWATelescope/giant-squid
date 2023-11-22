@@ -17,7 +17,7 @@ use crate::{obsid::Obsid, AsvoError};
 /// Used to sanitize user input for ASVO identifiers.
 fn _sanitize_identifier(s: &str) -> String {
     let mut sanitized = s.to_lowercase();
-    sanitized.retain(|c| 'a' <= c && c <= 'z');
+    sanitized.retain(|c| c.is_ascii_lowercase());
     sanitized
 }
 
@@ -74,7 +74,7 @@ impl FromStr for AsvoJobState {
 }
 
 /// A single file provided by an ASVO job.
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Debug, Clone)]
 pub struct AsvoFilesArray {
     #[serde(rename = "jobType")]
     pub r#type: Delivery,
@@ -123,7 +123,8 @@ impl AsvoJobVec {
                 "Obsid",
                 "Job Type",
                 "Job State",
-                "File Size"
+                "File Size",
+                "Delivery"
             ]);
             for j in self.0 {
                 table.add_row(Row::new(vec![
@@ -145,7 +146,7 @@ impl AsvoJobVec {
                         AsvoJobState::Cancelled => "Fr",
                     }),
                     Cell::new(
-                        match j.files {
+                        match &j.files {
                             None => "".to_string(),
                             Some(v) => {
                                 let mut size = 0;
@@ -154,6 +155,13 @@ impl AsvoJobVec {
                                 }
                                 bytesize::ByteSize(size).to_string_as(true)
                             }
+                        }
+                        .as_str(),
+                    ),
+                    Cell::new(
+                        match j.files {
+                            None => "".to_string(),
+                            Some(v) => v.first().unwrap().r#type.to_string(),
                         }
                         .as_str(),
                     ),
@@ -264,6 +272,10 @@ pub enum Delivery {
     /// Deliver the ASVO job to the /astro filesystem at the Pawsey
     /// Supercomputing Centre.
     Astro,
+
+    /// Deliver the ASVO job to the /scratch filesystem at the Pawsey
+    /// Supercomputing Centre.
+    Scratch,
 }
 
 impl Delivery {
@@ -272,11 +284,13 @@ impl Delivery {
             (Some(d), _) => match d.as_ref() {
                 "acacia" => Ok(Delivery::Acacia),
                 "astro" => Ok(Delivery::Astro),
+                "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDelivery(d.to_string())),
             },
             (None, Ok(d)) => match d.as_str() {
                 "acacia" => Ok(Delivery::Acacia),
                 "astro" => Ok(Delivery::Astro),
+                "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
             },
             (None, Err(std::env::VarError::NotPresent)) => {
@@ -298,6 +312,7 @@ impl std::fmt::Display for Delivery {
             match self {
                 Delivery::Acacia => "acacia",
                 Delivery::Astro => "astro",
+                Delivery::Scratch => "scratch",
             }
         )
     }

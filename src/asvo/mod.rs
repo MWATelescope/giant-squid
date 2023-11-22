@@ -29,8 +29,12 @@ use crate::obsid::Obsid;
 
 use self::types::AsvoFilesArray;
 
-/// The address of the MWA ASVO.
-const ASVO_ADDRESS: &str = "https://asvo.mwatelescope.org:443";
+pub fn get_asvo_server_address() -> String {
+    format!(
+        "https://{}",
+        std::env::var("MWA_ASVO_HOST").unwrap_or(String::from("asvo.mwatelescope.org:443"))
+    )
+}
 
 lazy_static::lazy_static! {
     /// Default parameters for conversion jobs. Generate a measurement set with
@@ -70,8 +74,8 @@ impl AsvoClient {
             .danger_accept_invalid_certs(true) // Required for the ASVO.
             .build()?;
         let response = client
-            .post(&format!("{}/api/api_login", ASVO_ADDRESS))
-            .basic_auth(&client_version, Some(&api_key))
+            .post(format!("{}/api/api_login", get_asvo_server_address()))
+            .basic_auth(client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
             debug!("Successfully authenticated with ASVO");
@@ -89,7 +93,7 @@ impl AsvoClient {
         // Send a GET request to the ASVO.
         let response = self
             .client
-            .get(&format!("{}/api/get_jobs", ASVO_ADDRESS))
+            .get(format!("{}/api/get_jobs", get_asvo_server_address()))
             .send()?;
         if !response.status().is_success() {
             return Err(AsvoError::BadStatus {
@@ -214,10 +218,10 @@ impl AsvoClient {
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
-                Delivery::Astro => {
+                Delivery::Astro | Delivery::Scratch => {
                     match &f.path {
                         Some(path) => {
-                            //If it's an /astro job, and the files are reachable from the current host, move them into the current working directory
+                            //If it's an /astro or /scratch job, and the files are reachable from the current host, move them into the current working directory
                             let path_obj = Path::new(&path);
                             let folder_name = path_obj
                                 .components()
@@ -228,9 +232,12 @@ impl AsvoClient {
                                 .unwrap();
 
                             if !Path::exists(path_obj) {
-                                info!("Files for Astro Job {} are not reachable from the current host.", job.jobid);
+                                info!(
+                                    "Files for Job {} are not reachable from the current host.",
+                                    job.jobid
+                                );
                             } else {
-                                info!("Files for Astro Job {} are reachable from the current host. Copying to current directory.", job.jobid);
+                                info!("Files for Job {} are reachable from the current host. Copying to current directory.", job.jobid);
 
                                 let mut current_path = current_dir()?;
                                 current_path.push(folder_name);
@@ -430,7 +437,7 @@ impl AsvoClient {
         // Send a POST request to the ASVO.
         let response = self
             .client
-            .post(&format!("{}/api/{}", ASVO_ADDRESS, api_path))
+            .post(format!("{}/api/{}", get_asvo_server_address(), api_path))
             .form(&form)
             .send()?;
         if !response.status().is_success() {
