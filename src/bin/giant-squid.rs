@@ -246,10 +246,7 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new()
-        .set_time_offset_to_local()
-        .expect("Unable to set log time offset to your timezone")
-        .build();
+    let config = ConfigBuilder::new().set_time_to_local(true).build();
     match level {
         0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
         1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
