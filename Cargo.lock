@@ -1809,10 +1809,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "web-sys"
-version = "0.3.65"
+name = "webpki"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5db499c5f66323272151db0e666cd34f78617522fb0c1604d31a27c50c206a85"
+checksum = "07ecc0cd7cac091bf682ec5efa18b1cff79d617b84181f38b3951dbe135f607f"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
