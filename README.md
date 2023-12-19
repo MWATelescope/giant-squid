@@ -6,8 +6,16 @@
 <img src="https://github.com/MWATelescope/giant-squid/workflows/Cross-platform%20tests/badge.svg" alt="Cross-platform%20tests">
 </div>
 
-An alternative MWA ASVO client. See the [MWA ASVO
-page](https://asvo.mwatelescope.org/) for more info.
+An alternative [MWA ASVO](https://asvo.mwatelescope.org/) client. For general help on using 
+the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access).
+
+---
+NOTE FOR HPC USERS
+
+Please read [this wiki article](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/65405030/MWA+ASVO+Use+with+HPC+Systems) 
+if you are running giant-squid on HPC systemns.
+
+---
 
 `giant-squid` was originally created as a library to do MWA ASVO related tasks
 in the Haskell programming language (now available in Rust). However, it's not
