@@ -13,7 +13,7 @@ the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/w
 NOTE FOR HPC USERS
 
 Please read [this wiki article](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/65405030/MWA+ASVO+Use+with+HPC+Systems) 
-if you are running giant-squid on HPC systemns.
+if you are running giant-squid on HPC systems.
 
 ---
 
