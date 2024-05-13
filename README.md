@@ -1,7 +1,7 @@
 # giant-squid
 
 ![Tests](https://github.com/MWATelescope/giant-squid/workflows/Cross-platform%20tests/badge.svg)
-![Code Coverage](https://github.com/MWATelescope/giant-squid/workflows/coverage/badge.svg)
+[![Code Coverage](https://github.com/MWATelescope/giant-squid/actions/workflows/coverage.yml/badge.svg)](https://github.com/MWATelescope/giant-squid/actions/workflows/coverage.yml)
 [![codecov](https://codecov.io/gh/MWATelescope/giant-squid/branch/main/graph/badge.svg)](https://app.codecov.io/gh/MWATelescope/giant-squid/)
 [![Crates.io](https://img.shields.io/crates/v/mwa_giant_squid)](https://crates.io/crates/mwa_giant_squid)
 ![Crates.io](https://img.shields.io/crates/d/mwa_giant_squid)
