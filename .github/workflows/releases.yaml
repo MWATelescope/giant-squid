@@ -91,20 +91,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-linux-release, build-macos-13-release, build-macos-14-release]
     steps:
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux.tar.gz
-
-      - name: Download MacOS 13 x86_64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: macos13.tar.gz
-
-      - name: Download MacOS 14 arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: macos14.tar.gz
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4        
 
       - name: Provide new release asset
         uses: "marvinpinto/action-automatic-releases@latest"
