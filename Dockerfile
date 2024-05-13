@@ -28,10 +28,8 @@ RUN mkdir -m755 /opt/rust /opt/cargo
 ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo PATH=/opt/cargo/bin:$PATH
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
-# set minimal rust version here to use a newer stable version
-ARG CACHEBUST=1.61
 # install latest stable rust toolchian, with llvm-tools-preview (for coverage)
-RUN rustup toolchain install stable --component llvm-tools-preview
+RUN rustup toolchain install 1.70 --component llvm-tools-preview
 # Get cargo make, llvm-cov
 RUN /opt/cargo/bin/cargo install --force cargo-llvm-cov
 

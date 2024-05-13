@@ -32,7 +32,7 @@ use self::types::AsvoFilesArray;
 pub fn get_asvo_server_address() -> String {
     format!(
         "https://{}",
-        std::env::var("MWA_ASVO_HOST").unwrap_or(String::from("asvo.mwatelescope.org:443"))
+        std::env::var("MWA_ASVO_HOST").unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
     )
 }
 
@@ -338,16 +338,18 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery, allow_resubmit: bool) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a vis job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
         form.insert("download_type", "vis");
+        form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
 
@@ -357,7 +359,9 @@ impl AsvoClient {
         obsid: Obsid,
         delivery: Delivery,
         offset: i32,
-        duration: i32,
+        duration: i32,                
+        allow_resubmit: bool,
+
     ) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a voltage job to ASVO");
 
@@ -365,6 +369,7 @@ impl AsvoClient {
         let d_str = format!("{}", delivery);
         let offset_str: String = format!("{}", offset);
         let duration_str: String = format!("{}", duration);
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);        
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
@@ -372,6 +377,7 @@ impl AsvoClient {
         form.insert("offset", &offset_str);
         form.insert("duration", &duration_str);
         form.insert("download_type", "volt");
+        form.insert("allow_resubmit", &allow_resubmit_str);        
         self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
     }
 
@@ -381,11 +387,13 @@ impl AsvoClient {
         obsid: Obsid,
         delivery: Delivery,
         parameters: &BTreeMap<&str, &str>,
+        allow_resubmit: bool,
     ) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a conversion job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);        
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
@@ -402,21 +410,24 @@ impl AsvoClient {
         // Insert the CLI delivery last. This ensures that if the user
         // incorrectly specified it as part of the `parameters`, it is ignored.
         form.insert("delivery", &d_str);
+        form.insert("allow_resubmit", &allow_resubmit_str);
 
         self.submit_asvo_job(&AsvoJobType::Conversion, form)
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery, allow_resubmit: bool) -> Result<AsvoJobID, AsvoError> {
         debug!("Submitting a metafits job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
-
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
+        
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
         form.insert("download_type", "vis_meta");
+        form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }
 
@@ -513,8 +524,9 @@ mod tests {
         let client = AsvoClient::new().unwrap();
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Acacia;
+        let allow_resubmit: bool=false;
 
-        let vis_job = client.submit_vis(obs_id, delivery);
+        let vis_job = client.submit_vis(obs_id, delivery, allow_resubmit);
         match vis_job {
             Ok(_) => (),
             Err(error) => match error {
@@ -526,7 +538,7 @@ mod tests {
             },
         }
 
-        let meta_job = client.submit_meta(obs_id, delivery);
+        let meta_job = client.submit_meta(obs_id, delivery, true);
         match meta_job {
             Ok(_) => (),
             Err(error) => match error {
@@ -544,10 +556,10 @@ mod tests {
         let client = AsvoClient::new().unwrap();
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Acacia;
-
         let job_params = BTreeMap::new();
+        let allow_resubmit: bool = false;
 
-        let conv_job = client.submit_conv(obs_id, delivery, &job_params);
+        let conv_job = client.submit_conv(obs_id, delivery, &job_params, allow_resubmit);
         match conv_job {
             Ok(_) => (),
             Err(error) => match error {
@@ -566,8 +578,9 @@ mod tests {
         let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1290094336
         let duration: i32 = 1; // This will attempt to get data up to GPS TIME: 1290094336
         let delivery = Delivery::Astro;
+        let allow_resubmit: bool = false;
 
-        let volt_job = client.submit_volt(obs_id, delivery, offset, duration);
+        let volt_job = client.submit_volt(obs_id, delivery, offset, duration, allow_resubmit);
         match volt_job {
             Ok(_) => (),
             Err(error) => match error {

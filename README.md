@@ -1,10 +1,13 @@
 # giant-squid
 
-<div class="bg-gray-dark" align="center" style="background-color:#24292e">
-<br/>
-<a href="https://docs.rs/crate/mwa_giant_squid"><img src="https://docs.rs/mwa_giant_squid/badge.svg" alt="docs"></a>
-<img src="https://github.com/MWATelescope/giant-squid/workflows/Cross-platform%20tests/badge.svg" alt="Cross-platform%20tests">
-</div>
+![Tests](https://github.com/MWATelescope/giant-squid/workflows/Cross-platform%20tests/badge.svg)
+![Code Coverage](https://github.com/MWATelescope/giant-squid/workflows/Code%20Coverage/badge.svg)
+[![codecov](https://codecov.io/gh/MWATelescope/giant-squid/branch/main/graph/badge.svg)](https://app.codecov.io/gh/MWATelescope/giant-squid/)
+[![Crates.io](https://img.shields.io/crates/v/mwa_giant_squid)](https://crates.io/crates/mwa_giant_squid)
+![Crates.io](https://img.shields.io/crates/d/mwa_giant_squid)
+![Crates.io](https://img.shields.io/crates/l/mwa_giant_squid)
+[![docs](https://docs.rs/mwa_giant_squid/badge.svg)](https://docs.rs/crate/mwa_giant_squid/latest)
+[![Rust Report Card](https://rust-reportcard.xuri.me/badge/github.com/MWATelescope/mwa_giant_squid)](https://rust-reportcard.xuri.me/report/github.com/MWATelescope/mwa_giant_squid)
 
 An alternative [MWA ASVO](https://asvo.mwatelescope.org/) client. For general help on using 
 the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access).
@@ -321,6 +324,10 @@ Unlike other jobs, you cannot choose to have your files tarred up and uploaded t
 download, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /astro filesystem. To submit
 a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro or pass `-d astro`.
+
+#### Resubmitting jobs
+
+By default, the MWA ASVO server will not allow you to submit a new job which is has the exact same settings/parameters as an existing job in your queue (except errored jobs). You can, however override this behaviour by specifying `--allow-resubmit` (short version `-r`) on any job submission.
 
 ## Download performance
 

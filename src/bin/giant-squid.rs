@@ -115,6 +115,11 @@ enum Args {
         #[clap(short = 'n', long)]
         dry_run: bool,
 
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[clap(short = 'r', long, default_value = "false")]
+        allow_resubmit: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[clap(short, long, parse(from_occurrences))]
@@ -148,6 +153,11 @@ enum Args {
         #[clap(short = 'n', long)]
         dry_run: bool,
 
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[clap(short = 'r', long, default_value = "false")]
+        allow_resubmit: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[clap(short, long, parse(from_occurrences))]
@@ -177,6 +187,11 @@ enum Args {
         /// instead.
         #[clap(short = 'n', long)]
         dry_run: bool,
+
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[clap(short = 'r', long, default_value = "false")]
+        allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
@@ -215,6 +230,11 @@ enum Args {
         #[clap(short = 'n', long)]
         dry_run: bool,
 
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[clap(short = 'r', long, default_value = "false")]
+        allow_resubmit: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[clap(short, long, parse(from_occurrences))]
@@ -246,7 +266,7 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new().set_time_to_local(true).build();
+    let config = ConfigBuilder::new().set_time_offset_to_local().expect("Unable to set time offset to local in SimpleLogger").build();    
     match level {
         0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
         1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
@@ -401,6 +421,7 @@ fn main() -> Result<(), anyhow::Error> {
             delivery,
             wait,
             dry_run,
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -429,7 +450,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_vis(o, delivery)?;
+                    let j = client.submit_vis(o, delivery, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -448,6 +469,7 @@ fn main() -> Result<(), anyhow::Error> {
             delivery,
             wait,
             dry_run,
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -491,7 +513,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, delivery, &params)?;
+                    let j = client.submit_conv(o, delivery, &params, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -509,6 +531,7 @@ fn main() -> Result<(), anyhow::Error> {
             delivery,
             wait,
             dry_run,
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -537,7 +560,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_meta(o, delivery)?;
+                    let j = client.submit_meta(o, delivery, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -557,6 +580,7 @@ fn main() -> Result<(), anyhow::Error> {
             duration,
             wait,
             dry_run,
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -585,7 +609,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_volt(o, delivery, offset, duration)?;
+                    let j = client.submit_volt(o, delivery, offset, duration, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }

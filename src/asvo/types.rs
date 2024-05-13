@@ -22,7 +22,7 @@ fn _sanitize_identifier(s: &str) -> String {
 }
 
 /// All of the available types of ASVO jobs.
-#[derive(Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub enum AsvoJobType {
     Conversion,
     DownloadVisibilities,
@@ -47,7 +47,7 @@ impl FromStr for AsvoJobType {
 }
 
 /// All of states an ASVO job may be in.
-#[derive(Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub enum AsvoJobState {
     Queued,
     Processing,
@@ -74,7 +74,7 @@ impl FromStr for AsvoJobState {
 }
 
 /// A single file provided by an ASVO job.
-#[derive(Serialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoFilesArray {
     #[serde(rename = "jobType")]
     pub r#type: Delivery,
@@ -93,7 +93,7 @@ pub struct AsvoFilesArray {
 pub type AsvoJobID = u32;
 
 /// All of the metadata associated with an ASVO job.
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Eq, Debug)]
 pub struct AsvoJob {
     pub obsid: Obsid,
     #[serde(rename = "jobId")]
@@ -202,7 +202,7 @@ impl AsvoJobVec {
 /// isolating specific jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
-#[derive(Serialize, PartialEq, Debug)]
+#[derive(Serialize, PartialEq, Eq, Debug)]
 pub struct AsvoJobMap(pub BTreeMap<AsvoJobID, AsvoJob>);
 
 impl From<AsvoJobVec> for AsvoJobMap {
@@ -263,7 +263,7 @@ impl std::fmt::Display for AsvoJob {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum Delivery {
     /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
     /// anywhere.
