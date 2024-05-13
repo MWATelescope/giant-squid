@@ -8,12 +8,9 @@ cp .github/workflows/releases-readme.md README.md
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     source /root/.cargo/env
-    # 1.63 is the newest rustc version that can use glibc >= 2.11, and we use it
-    # because newer versions require glibc >= 2.17 (which this container
-    # deliberately doesn't have; we want maximum compatibility, so we use an old
-    # glibc).
-    rustup install 1.63 --no-self-update
-    rustup default 1.63
+    
+    rustup install 1.70 --no-self-update
+    rustup default 1.70
 
     # Build a release for each x86_64 microarchitecture level. v4 can't be
     # compiled on GitHub for some reason.
@@ -32,6 +29,8 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
     cargo build --release
 
     mv target/release/giant-squid .
-    tar -acvf giant-squid-$(git describe --tags)-MacOSX.tar.gz \
-        LICENSE README.md giant-squid
+    
+    # HOSTYPE should by x86_64 or arm64
+    tar -acvf giant-squid-$(git describe --tags)-MacOS-${HOSTTYPE}.tar.gz \
+    LICENSE README.md giant-squid    
 fi

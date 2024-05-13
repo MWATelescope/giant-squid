@@ -12,7 +12,7 @@ use thiserror::Error;
 
 /// A newtype representing an MWA observation ID ("obsid"). Using this type
 /// instead of a [u64] ensures that things work correctly at compile time.
-#[derive(Serialize, PartialEq, Clone, Copy)]
+#[derive(Serialize, PartialEq, Eq, Clone, Copy)]
 pub struct Obsid(u64);
 
 impl Obsid {

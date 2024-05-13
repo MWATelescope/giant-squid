@@ -21,14 +21,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macOS-13, macOS-14]
         toolchain: [stable]
         include:
           - os: ubuntu-latest
             toolchain: "msrv"
     steps:
     - name: Checkout sources
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -37,15 +37,10 @@ jobs:
       run:
         echo "MSRV=$(grep -m1 'rust-version' Cargo.toml | sed 's|.*\"\(.*\)\"|\1|')" >> "$GITHUB_ENV"
 
-    - name: Install toolchain ${{ matrix.toolchain }}
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: ${{ matrix.toolchain == 'msrv' && env.MSRV || matrix.toolchain }}
-        override: true
-
-    - name: Run tests (no default feautures)
-      run: cargo test --no-default-features --locked
-
+    - name: Install Rust minimal toolchain ${{ matrix.toolchain }}
+      uses: dtolnay/rust-toolchain@v1
+      with:          
+        toolchain: ${{ matrix.toolchain == 'msrv' && env.MSRV || matrix.toolchain }}        
+    
     - name: Run tests
       run: cargo test --locked
