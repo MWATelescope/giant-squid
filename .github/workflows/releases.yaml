@@ -91,15 +91,34 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-linux-release, build-macos-13-release, build-macos-14-release]
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:          
-          merge-multiple: true
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          gh release create "$tag" \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
+              --generate-notes *.tar.gz
 
-      - name: Provide new release asset
-        uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          prerelease: false
-          files: |
-            *.tar.gz
+  create-rust-release:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    needs: [create-release]    
+    steps:
+        - name: Checkout sources
+          uses: actions/checkout@v4
+
+        - name: Install stable, minimal toolchain
+          uses: dtolnay/rust-toolchain@v1
+          with:
+            toolchain: stable        
+
+        - name: Run tests on latest stable rust
+          run: cargo build --release
+
+        - uses: katyo/publish-crates@v2
+          with:
+              registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+              args: --no-verify
