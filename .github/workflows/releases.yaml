@@ -90,7 +90,12 @@ jobs:
     name: Create a new release
     runs-on: ubuntu-latest
     needs: [build-linux-release, build-macos-13-release, build-macos-14-release]
-    steps:
+    steps:      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:          
+          merge-multiple: true
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
