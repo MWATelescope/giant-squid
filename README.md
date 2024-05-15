@@ -7,15 +7,14 @@
 ![Crates.io](https://img.shields.io/crates/d/mwa_giant_squid)
 ![Crates.io](https://img.shields.io/crates/l/mwa_giant_squid)
 [![docs](https://docs.rs/mwa_giant_squid/badge.svg)](https://docs.rs/crate/mwa_giant_squid/latest)
-[![Rust Report Card](https://rust-reportcard.xuri.me/badge/github.com/MWATelescope/mwa_giant_squid)](https://rust-reportcard.xuri.me/report/github.com/MWATelescope/mwa_giant_squid)
 
-An alternative [MWA ASVO](https://asvo.mwatelescope.org/) client. For general help on using 
+An alternative [MWA ASVO](https://asvo.mwatelescope.org/) client. For general help on using
 the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access).
 
 ---
 NOTE FOR HPC USERS
 
-Please read [this wiki article](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/65405030/MWA+ASVO+Use+with+HPC+Systems) 
+Please read [this wiki article](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/65405030/MWA+ASVO+Use+with+HPC+Systems)
 if you are running giant-squid on HPC systems.
 
 ---
@@ -178,7 +177,7 @@ do < ready.tsv
 
 ### Download ASVO jobs
 
-To download job ID 12345:
+To download job ID 12345 to your current directory '.':
 
 ```bash
 giant-squid download 12345
@@ -186,7 +185,7 @@ giant-squid download 12345
 giant-squid d 12345
 ```
 
-To download obsid 1065880128:
+To download obsid 1065880128 to your current directory '.':
 
 ```bash
 giant-squid download 1065880128
@@ -200,6 +199,17 @@ serves up more than a billion jobs, you have permission to be upset with me. The
 same applies if this code is still being used in the year 2296.)
 
 Text files containing job IDs or obsids may be used too.
+
+You can specify the directory to download to by providing the `download_dir` parameter
+to the `download` subcommand. Ommitting this will default to your current dir `.`.
+
+To download obsid 1065880128 to your `/tmp` directory:
+
+```bash
+giant-squid download --download-dir /tmp 1065880128
+# or
+giant-squid d -d /tmp 1065880128
+```
 
 By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
 (or `--keep-zip`).

@@ -68,6 +68,10 @@ enum Args {
     /// Download an ASVO job
     #[clap(alias = "d")]
     Download {
+        /// Which dir should downloads be written to.
+        #[clap(short, long, default_value=".")]
+        download_dir: String,
+        
         /// Don't unzip the contents from the ASVO.
         #[clap(short, long)]
         keep_zip: bool,
@@ -383,6 +387,7 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             verbosity,
             jobids_or_obsids,
+            download_dir,
             ..
         } => {
             if jobids_or_obsids.is_empty() {
@@ -409,10 +414,10 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 for j in jobids {
-                    client.download_job(j, keep_zip, hash)?;
+                    client.download_job(j, keep_zip, hash, &download_dir)?;
                 }
                 for o in obsids {
-                    client.download_obsid(o, keep_zip, hash)?;
+                    client.download_obsid(o, keep_zip, hash, &download_dir)?;
                 }
             }
         }

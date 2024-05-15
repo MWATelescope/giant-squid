@@ -112,6 +112,7 @@ impl AsvoClient {
         jobid: AsvoJobID,
         keep_tar: bool,
         hash: bool,
+        download_dir: &str
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download job {}", jobid);
@@ -119,7 +120,7 @@ impl AsvoClient {
         jobs.0.retain(|j| j.jobid == jobid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir),
             // Hopefully there's never multiples of the same ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
@@ -134,6 +135,7 @@ impl AsvoClient {
         obsid: Obsid,
         keep_tar: bool,
         hash: bool,
+        download_dir: &str
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download obsid {}", obsid);
@@ -142,13 +144,13 @@ impl AsvoClient {
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoObsid(obsid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash),
+            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir),
             _ => Err(AsvoError::TooManyObsids(obsid)),
         }
     }
 
     /// Private function to actually do the work.
-    fn download(&self, job: &AsvoJob, keep_tar: bool, hash: bool) -> Result<(), AsvoError> {
+    fn download(&self, job: &AsvoJob, keep_tar: bool, hash: bool, download_dir: &str) -> Result<(), AsvoError> {
         // Is the job ready to download?
         if job.state != AsvoJobState::Ready {
             return Err(AsvoError::NotReady {
@@ -186,7 +188,7 @@ impl AsvoClient {
                         debug!("Downloading file {:?}", &url);
 
                         let op = || {
-                            self.try_download(url, keep_tar, hash, f, job)
+                            self.try_download(url, keep_tar, hash, f, job, download_dir)
                                 .map_err(|e| match &e {
                                     &AsvoError::IO(_) => Error::permanent(e),
                                     _ => Error::transient(e),
@@ -260,6 +262,7 @@ impl AsvoClient {
         hash: bool,
         f: &AsvoFilesArray,
         job: &AsvoJob,
+        download_dir: &str
     ) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
         let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
@@ -297,7 +300,7 @@ impl AsvoClient {
             }
         } else {
             // Stream-untar the response.
-            let unpack_path = Path::new(".");
+            let unpack_path = Path::new(download_dir);
             info!("Untarring to {:?}", unpack_path);
             let mut tar = Archive::new(&mut tee);
 
