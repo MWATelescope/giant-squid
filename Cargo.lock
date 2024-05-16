@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "mwa_giant_squid"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "anyhow",
  "backoff",

@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.1 - 2024-05-13
+## 1.0.2 - 2024-05-16
+
+* BUGFIX- allow-resubmit was being passed as True regardless of the command line argument (or omission of) used.
+
+## 1.0.1 - 2024-05-15
 
 * Added new command line option `--download-dir` when using the `download` subcommand so you can specify the directory to download files. It defaults to `.`, if ommitted, which was the hardcoed default in previous releases of giant-squid.
 

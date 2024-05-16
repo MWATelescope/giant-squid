@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::bail;
-use clap::{AppSettings, Parser};
+use clap::{AppSettings, Parser, ArgAction};
 use log::{debug, info};
 use simplelog::*;
 
@@ -121,7 +121,7 @@ enum Args {
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, default_value = "false")]
+        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -159,7 +159,7 @@ enum Args {
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, default_value = "false")]
+        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -194,7 +194,7 @@ enum Args {
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, default_value = "false")]
+        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -236,7 +236,7 @@ enum Args {
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, default_value = "false")]
+        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -430,6 +430,8 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obsids,
         } => {
+            init_logger(verbosity);            
+            
             let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
             // There shouldn't be any job IDs here.
             if !parsed_jobids.is_empty() {
@@ -441,8 +443,7 @@ fn main() -> Result<(), anyhow::Error> {
             if parsed_obsids.is_empty() {
                 bail!("No obsids specified!");
             }
-            init_logger(verbosity);
-
+            
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
