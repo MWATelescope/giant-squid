@@ -303,7 +303,7 @@ impl AsvoClient {
             let unpack_path = Path::new(download_dir);
             info!("Untarring to {:?}", unpack_path);
             let mut tar = Archive::new(&mut tee);
-
+            tar.set_preserve_mtime(false);            
             tar.unpack(unpack_path)?;
         }
 
