@@ -109,6 +109,11 @@ enum Args {
         #[clap(short, long)]
         delivery: Option<String>,
 
+        /// Tell the ASVO to deliver the data in a particular format.
+        /// NOTE: this option does not apply if delivery = "acacia"
+        #[clap(short, long)]
+        delivery_format: Option<String>,
+
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -147,6 +152,11 @@ enum Args {
         #[clap(short, long)]
         delivery: Option<String>,
 
+        /// Tell the ASVO to deliver the data in a particular format.
+        /// NOTE: this option does not apply if delivery = "acacia"
+        #[clap(short, long)]
+        delivery_format: Option<String>,
+
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -182,6 +192,11 @@ enum Args {
         #[clap(short, long)]
         delivery: Option<String>,
 
+        /// Tell the ASVO to deliver the data in a particular format.
+        /// NOTE: this option does not apply if delivery = "acacia".
+        #[clap(short, long)]
+        delivery_format: Option<String>,
+
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -212,7 +227,7 @@ enum Args {
     #[clap(alias = "sv")]
     SubmitVolt {
         /// Tell the ASVO where to deliver the job. The only valid value for a voltage
-        /// job is "astro".
+        /// job is "scratch".
         #[clap(short, long)]
         delivery: Option<String>,
 
@@ -423,10 +438,11 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitVis {
-            delivery,            
+            delivery,
+            delivery_format,
             wait,
             dry_run,
-            allow_resubmit,            
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -447,6 +463,9 @@ fn main() -> Result<(), anyhow::Error> {
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
+            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
+
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for visibility download.",
@@ -456,7 +475,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_vis(o, delivery, allow_resubmit)?;
+                    let j = client.submit_vis(o, delivery, delivery_format, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -473,6 +492,7 @@ fn main() -> Result<(), anyhow::Error> {
         Args::SubmitConv {
             parameters,
             delivery,
+            delivery_format,
             wait,
             dry_run,
             allow_resubmit,
@@ -494,6 +514,9 @@ fn main() -> Result<(), anyhow::Error> {
 
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
+
+            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
 
             // Get the user parameters and set any defaults that the user has not set.
             let params = {
@@ -519,7 +542,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, delivery, &params, allow_resubmit)?;
+                    let j = client.submit_conv(o, delivery, delivery_format, &params, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -535,6 +558,7 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::SubmitMeta {
             delivery,
+            delivery_format,
             wait,
             dry_run,
             allow_resubmit,
@@ -557,6 +581,9 @@ fn main() -> Result<(), anyhow::Error> {
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
+            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
+
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for metadata download.",
@@ -566,7 +593,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_meta(o, delivery, allow_resubmit)?;
+                    let j = client.submit_meta(o, delivery, delivery_format, allow_resubmit)?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }

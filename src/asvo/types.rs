@@ -311,6 +311,45 @@ impl std::fmt::Display for Delivery {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
+pub enum DeliveryFormat {
+    /// Tar - tar up all files. Only relevant for non-voltage scratch jobs    
+    Tar    
+}
+
+impl DeliveryFormat {
+    pub fn validate<S: AsRef<str>>(d: Option<S>) -> Result<Option<DeliveryFormat>, AsvoError> {
+        match (d, std::env::var("GIANT_SQUID_DELIVERY_FORMAT")) {
+            (Some(d), _) => match d.as_ref() {
+                "tar" => Ok(Some(DeliveryFormat::Tar)),
+                d => Err(AsvoError::InvalidDeliveryFormat(d.to_string())),
+            },
+            (None, Ok(d)) => match d.as_str() {
+                "tar" => Ok(Some(DeliveryFormat::Tar)),                                
+                d => Err(AsvoError::InvalidDeliveryFormatEnv(d.to_string())),
+            },
+            (None, Err(std::env::VarError::NotPresent)) => {                
+                Ok(None)
+            }
+            (None, Err(std::env::VarError::NotUnicode(_))) => {
+                Err(AsvoError::InvalidDeliveryFormatEnvUnicode)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for DeliveryFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                DeliveryFormat::Tar => "acacia",                                
+            }
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
