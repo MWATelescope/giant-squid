@@ -220,7 +220,7 @@ impl AsvoClient {
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
-                Delivery::Astro | Delivery::Scratch => {
+                Delivery::Scratch => {
                     match &f.path {
                         Some(path) => {
                             //If it's an /astro or /scratch job, and the files are reachable from the current host, move them into the current working directory
@@ -580,7 +580,7 @@ mod tests {
         let obs_id = Obsid::validate(1290094336).unwrap();
         let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1290094336
         let duration: i32 = 1; // This will attempt to get data up to GPS TIME: 1290094336
-        let delivery = Delivery::Astro;
+        let delivery = Delivery::Scratch;
         let allow_resubmit: bool = false;
 
         let volt_job = client.submit_volt(obs_id, delivery, offset, duration, allow_resubmit);

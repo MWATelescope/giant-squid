@@ -122,7 +122,7 @@ enum Args {
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
         #[clap(short = 'r', long, action=ArgAction::SetTrue)]
-        allow_resubmit: bool,
+        allow_resubmit: bool,        
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
@@ -423,10 +423,10 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitVis {
-            delivery,
+            delivery,            
             wait,
             dry_run,
-            allow_resubmit,
+            allow_resubmit,            
             verbosity,
             obsids,
         } => {

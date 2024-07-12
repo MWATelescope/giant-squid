@@ -65,7 +65,6 @@ impl DummyJob {
                 file_array.push(AsvoFilesArray {
                     r#type: match file_type {
                         "acacia" => Delivery::Acacia,
-                        "astro" => Delivery::Astro,
                         "scratch" => Delivery::Scratch,
                         _ => panic!("Unsupported file type found: {}", file_type),
                     },

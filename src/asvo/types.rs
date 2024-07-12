@@ -267,11 +267,7 @@ impl std::fmt::Display for AsvoJob {
 pub enum Delivery {
     /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
     /// anywhere.
-    Acacia,
-
-    /// Deliver the ASVO job to the /astro filesystem at the Pawsey
-    /// Supercomputing Centre.
-    Astro,
+    Acacia,    
 
     /// Deliver the ASVO job to the /scratch filesystem at the Pawsey
     /// Supercomputing Centre.
@@ -283,13 +279,11 @@ impl Delivery {
         match (d, std::env::var("GIANT_SQUID_DELIVERY")) {
             (Some(d), _) => match d.as_ref() {
                 "acacia" => Ok(Delivery::Acacia),
-                "astro" => Ok(Delivery::Astro),
                 "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDelivery(d.to_string())),
             },
             (None, Ok(d)) => match d.as_str() {
-                "acacia" => Ok(Delivery::Acacia),
-                "astro" => Ok(Delivery::Astro),
+                "acacia" => Ok(Delivery::Acacia),                
                 "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
             },
@@ -310,8 +304,7 @@ impl std::fmt::Display for Delivery {
             f,
             "{}",
             match self {
-                Delivery::Acacia => "acacia",
-                Delivery::Astro => "astro",
+                Delivery::Acacia => "acacia",                
                 Delivery::Scratch => "scratch",
             }
         )
