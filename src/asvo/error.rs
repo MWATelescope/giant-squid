@@ -31,13 +31,13 @@ pub enum AsvoError {
     InvalidDeliveryFormat(String),
 
     /// The delivery format argument in GIANT_SQUID_DELIVERY_FORMAT was wrong.
-    #[error(
-        "The delivery argument in GIANT_SQUID_DELIVERY_FORMAT ({0}) was not 'tar'"
-    )]
+    #[error("The delivery argument in GIANT_SQUID_DELIVERY_FORMAT ({0}) was not 'tar'")]
     InvalidDeliveryFormatEnv(String),
 
     /// GIANT_SQUID_DELIVERY_FORMAT has invalid unicode.
-    #[error("No delivery argument was given and GIANT_SQUID_DELIVERY_FORMAT contains invalid unicode")]
+    #[error(
+        "No delivery argument was given and GIANT_SQUID_DELIVERY_FORMAT contains invalid unicode"
+    )]
     InvalidDeliveryFormatEnvUnicode,
 
     /// User's MWA_ASVO_API_KEY environment variable is not defined.

@@ -267,7 +267,7 @@ impl std::fmt::Display for AsvoJob {
 pub enum Delivery {
     /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
     /// anywhere.
-    Acacia,    
+    Acacia,
 
     /// Deliver the ASVO job to the /scratch filesystem at the Pawsey
     /// Supercomputing Centre.
@@ -283,7 +283,7 @@ impl Delivery {
                 d => Err(AsvoError::InvalidDelivery(d.to_string())),
             },
             (None, Ok(d)) => match d.as_str() {
-                "acacia" => Ok(Delivery::Acacia),                
+                "acacia" => Ok(Delivery::Acacia),
                 "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
             },
@@ -304,7 +304,7 @@ impl std::fmt::Display for Delivery {
             f,
             "{}",
             match self {
-                Delivery::Acacia => "acacia",                
+                Delivery::Acacia => "acacia",
                 Delivery::Scratch => "scratch",
             }
         )
@@ -314,7 +314,7 @@ impl std::fmt::Display for Delivery {
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 pub enum DeliveryFormat {
     /// Tar - tar up all files. Only relevant for non-voltage scratch jobs    
-    Tar    
+    Tar,
 }
 
 impl DeliveryFormat {
@@ -325,12 +325,10 @@ impl DeliveryFormat {
                 d => Err(AsvoError::InvalidDeliveryFormat(d.to_string())),
             },
             (None, Ok(d)) => match d.as_str() {
-                "tar" => Ok(Some(DeliveryFormat::Tar)),                                
+                "tar" => Ok(Some(DeliveryFormat::Tar)),
                 d => Err(AsvoError::InvalidDeliveryFormatEnv(d.to_string())),
             },
-            (None, Err(std::env::VarError::NotPresent)) => {                
-                Ok(None)
-            }
+            (None, Err(std::env::VarError::NotPresent)) => Ok(None),
             (None, Err(std::env::VarError::NotUnicode(_))) => {
                 Err(AsvoError::InvalidDeliveryFormatEnvUnicode)
             }
@@ -344,7 +342,7 @@ impl std::fmt::Display for DeliveryFormat {
             f,
             "{}",
             match self {
-                DeliveryFormat::Tar => "acacia",                                
+                DeliveryFormat::Tar => "acacia",
             }
         )
     }

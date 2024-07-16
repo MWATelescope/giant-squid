@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::bail;
-use clap::{AppSettings, Parser, ArgAction};
+use clap::{AppSettings, ArgAction, Parser};
 use log::{debug, info};
 use simplelog::*;
 
@@ -69,9 +69,9 @@ enum Args {
     #[clap(alias = "d")]
     Download {
         /// Which dir should downloads be written to.
-        #[clap(short, long, default_value=".")]
+        #[clap(short, long, default_value = ".")]
         download_dir: String,
-        
+
         /// Don't unzip the contents from the ASVO.
         #[clap(short, long)]
         keep_zip: bool,
@@ -127,7 +127,7 @@ enum Args {
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
         #[clap(short = 'r', long, action=ArgAction::SetTrue)]
-        allow_resubmit: bool,        
+        allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
@@ -285,7 +285,10 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new().set_time_offset_to_local().expect("Unable to set time offset to local in SimpleLogger").build();    
+    let config = ConfigBuilder::new()
+        .set_time_offset_to_local()
+        .expect("Unable to set time offset to local in SimpleLogger")
+        .build();
     match level {
         0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
         1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
@@ -446,8 +449,8 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obsids,
         } => {
-            init_logger(verbosity);            
-            
+            init_logger(verbosity);
+
             let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
             // There shouldn't be any job IDs here.
             if !parsed_jobids.is_empty() {
@@ -459,11 +462,12 @@ fn main() -> Result<(), anyhow::Error> {
             if parsed_obsids.is_empty() {
                 bail!("No obsids specified!");
             }
-            
+
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
-            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
             debug!("Using {:#?} for delivery format", delivery_format);
 
             if dry_run {
@@ -515,7 +519,8 @@ fn main() -> Result<(), anyhow::Error> {
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
-            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
             debug!("Using {:#?} for delivery format", delivery_format);
 
             // Get the user parameters and set any defaults that the user has not set.
@@ -542,7 +547,13 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, delivery, delivery_format, &params, allow_resubmit)?;
+                    let j = client.submit_conv(
+                        o,
+                        delivery,
+                        delivery_format,
+                        &params,
+                        allow_resubmit,
+                    )?;
                     info!("Submitted {} as ASVO job ID {}", o, j);
                     jobids.push(j);
                 }
@@ -581,7 +592,8 @@ fn main() -> Result<(), anyhow::Error> {
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
-            let delivery_format: Option<DeliveryFormat> = DeliveryFormat::validate(delivery_format)?;
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
             debug!("Using {:#?} for delivery format", delivery_format);
 
             if dry_run {
