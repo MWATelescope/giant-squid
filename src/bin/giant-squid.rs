@@ -481,12 +481,24 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
                     let j = client.submit_vis(o, delivery, delivery_format, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for visibility download.", obsids.len());
+                info!(
+                    "Submitted {} obsids for visibility download.",
+                    submitted_count
+                );
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -549,6 +561,8 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
                     let j = client.submit_conv(
                         o,
@@ -557,10 +571,17 @@ fn main() -> Result<(), anyhow::Error> {
                         &params,
                         allow_resubmit,
                     )?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for conversion.", obsids.len());
+                info!("Submitted {} obsids for conversion.", submitted_count);
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -607,12 +628,23 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+
+                let mut submitted_count = 0;
                 for o in parsed_obsids {
                     let j = client.submit_meta(o, delivery, delivery_format, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for metadata download.", obsids.len());
+                info!(
+                    "Submitted {} obsids for metadata download.",
+                    submitted_count
+                );
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -656,12 +688,21 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
                     let j = client.submit_volt(o, delivery, offset, duration, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for voltage download.", obsids.len());
+                info!("Submitted {} obsids for voltage download.", submitted_count);
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until

@@ -22,7 +22,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use backoff::{retry, Error, ExponentialBackoff};
-use log::{debug, info};
+use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use sha1::{Digest, Sha1};
 use tar::Archive;
@@ -356,7 +356,7 @@ impl AsvoClient {
         delivery: Delivery,
         delivery_format: Option<DeliveryFormat>,
         allow_resubmit: bool,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a vis job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -386,7 +386,7 @@ impl AsvoClient {
         offset: i32,
         duration: i32,
         allow_resubmit: bool,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a voltage job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -413,7 +413,7 @@ impl AsvoClient {
         delivery_format: Option<DeliveryFormat>,
         parameters: &BTreeMap<&str, &str>,
         allow_resubmit: bool,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a conversion job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -454,7 +454,7 @@ impl AsvoClient {
         delivery: Delivery,
         delivery_format: Option<DeliveryFormat>,
         allow_resubmit: bool,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a metafits job to ASVO");
 
         let obsid_str = format!("{}", obsid);
@@ -477,11 +477,15 @@ impl AsvoClient {
     }
 
     /// This low-level function actually submits jobs to the ASVO.
+    /// The return can either be:
+    /// Ok(Some(jobid)) - this is when a new job is submitted
+    /// Ok(None) - this is when an existing job is resubmitted
+    /// Err() - this is when we hit an error
     fn submit_asvo_job(
         &self,
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting an ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
@@ -496,47 +500,60 @@ impl AsvoClient {
             .post(format!("{}/api/{}", get_asvo_server_address(), api_path))
             .form(&form)
             .send()?;
-        if !response.status().is_success() {
-            return Err(AsvoError::BadStatus {
-                code: response.status(),
-                message: response.text()?,
-            });
-        }
-        let response_text = response.text()?;
-        match serde_json::from_str(&response_text) {
-            Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(job_id),
 
-            Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
-                Err(AsvoError::BadRequest {
-                    code: error_code,
-                    message: error,
-                })
+        let code = response.status().as_u16();
+        let response_text = &response.text()?;
+        if code != 200 && code < 400 && code > 499 {
+            // Show the http code when it's not something we can handle
+            warn!("http code: {} response: {}", code, &response_text)
+        };
+        match serde_json::from_str(response_text) {
+            Ok(AsvoSubmitJobResponse::JobIDWithError {
+                error,
+                error_code,
+                job_id,
+                ..
+            }) => {
+                if error_code == 2 {
+                    // error code 2 == job already exists
+                    warn!("{}. Job Id: {}", error.as_str(), job_id);
+                    Ok(None)
+                } else {
+                    Err(AsvoError::BadRequest {
+                        code: error_code,
+                        message: error,
+                    })
+                }
             }
 
-            Ok(AsvoSubmitJobResponse::GenericError { error }) => match error.as_str() {
-                // If the server comes back with the error "already queued,
-                // processing or complete", proceed like it wasn't an error.
-                "Job already queued, processing or complete." => {
-                    let jobs = self.get_jobs()?;
-                    // This approach is flawed; the first job ID with the
-                    // same obsid as that submitted by this function is
-                    // returned, but it's not necessarily the right job ID.
-                    let j = jobs
-                        .0
-                        .iter()
-                        .find(|j| j.obsid == form["obs_id"].parse().unwrap())
-                        .unwrap();
-                    Ok(j.jobid)
-                }
+            Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(Some(job_id)),
 
-                _ => Err(AsvoError::BadRequest {
-                    code: 666,
-                    message: error,
-                }),
-            },
+            Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
+                // Crazy code here as MWA ASVO API does not have good error codes (yet!)
+                // 0 == invalid input (most of the time!)
+                if error_code == 0
+                    && (error.as_str()
+                        == "Unable to submit job. Observation has no files to download."
+                        || (error.as_str().starts_with("Observation ")
+                            && error.as_str().ends_with(" does not exist")))
+                {
+                    error!("{}", error.as_str());
+                    Ok(None)
+                } else {
+                    Err(AsvoError::BadRequest {
+                        code: error_code,
+                        message: error,
+                    })
+                }
+            }
+
+            Ok(AsvoSubmitJobResponse::GenericError { error }) => Err(AsvoError::BadRequest {
+                code: 999,
+                message: error,
+            }),
 
             Err(e) => {
-                debug!("bad response: {}", response_text);
+                warn!("bad response: {}", response_text);
                 Err(AsvoError::BadJson(e))
             }
         }
