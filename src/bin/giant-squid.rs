@@ -103,15 +103,16 @@ enum Args {
     /// Submit ASVO jobs to download MWA raw visibilities
     #[clap(alias = "sv")]
     SubmitVis {
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
 
-        /// Tell the ASVO to deliver the data in a particular format.
-        /// NOTE: this option does not apply if delivery = "acacia"
-        #[clap(short, long)]
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -146,15 +147,16 @@ enum Args {
         #[clap(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
         parameters: Option<String>,
 
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
 
-        /// Tell the ASVO to deliver the data in a particular format.
-        /// NOTE: this option does not apply if delivery = "acacia"
-        #[clap(short, long)]
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -186,15 +188,16 @@ enum Args {
     /// Submit ASVO jobs to download MWA metadata (metafits and cotter flags)
     #[clap(alias = "sm")]
     SubmitMeta {
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
 
-        /// Tell the ASVO to deliver the data in a particular format.
-        /// NOTE: this option does not apply if delivery = "acacia".
-        #[clap(short, long)]
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for

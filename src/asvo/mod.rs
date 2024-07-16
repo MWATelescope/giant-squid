@@ -566,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_download() {
+    fn test_submit_vis() {
         let client = AsvoClient::new().unwrap();
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Acacia;
@@ -575,18 +575,6 @@ mod tests {
 
         let vis_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
         match vis_job {
-            Ok(_) => (),
-            Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
-            },
-        }
-
-        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, true);
-        match meta_job {
             Ok(_) => (),
             Err(error) => match error {
                 AsvoError::BadStatus {
@@ -618,6 +606,94 @@ mod tests {
             Ok(_) => (),
             Err(error) => match error {
                 AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_meta() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+        let delivery_format: Option<DeliveryFormat> = None;
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_vis_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let allow_resubmit: bool = false;
+
+        let vis_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
+        match vis_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_conv_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let job_params = BTreeMap::new();
+        let allow_resubmit: bool = false;
+
+        let conv_job = client.submit_conv(
+            obs_id,
+            delivery,
+            delivery_format,
+            &job_params,
+            allow_resubmit,
+        );
+        match conv_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_meta_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
                 _ => panic!("Unexpected error has occured."),
             },
         }
