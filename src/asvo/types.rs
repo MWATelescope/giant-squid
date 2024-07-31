@@ -342,7 +342,7 @@ impl std::fmt::Display for DeliveryFormat {
             f,
             "{}",
             match self {
-                DeliveryFormat::Tar => "acacia",
+                DeliveryFormat::Tar => "tar",
             }
         )
     }
