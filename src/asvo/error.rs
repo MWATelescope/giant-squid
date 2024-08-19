@@ -13,18 +13,32 @@ use crate::obsid::Obsid;
 #[derive(Error, Debug)]
 pub enum AsvoError {
     /// The specified delivery argument was wrong.
-    #[error("The supplied delivery argument ({0}) was neither 'acacia', 'astro' or 'scratch'")]
+    #[error("The supplied delivery argument ({0}) was neither 'acacia' nor 'scratch'")]
     InvalidDelivery(String),
 
     /// The delivery argument in GIANT_SQUID_DELIVERY was wrong.
     #[error(
-        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia', 'astro' or 'scratch'"
+        "The delivery argument in GIANT_SQUID_DELIVERY ({0}) was neither 'acacia' nor 'scratch'"
     )]
     InvalidDeliveryEnv(String),
 
     /// GIANT_SQUID_DELIVERY has invalid unicode.
     #[error("No delivery argument was given and GIANT_SQUID_DELIVERY contains invalid unicode")]
     InvalidDeliveryEnvUnicode,
+
+    /// The specified delivery format argument was wrong.
+    #[error("The supplied delivery format argument ({0}) was not 'tar'")]
+    InvalidDeliveryFormat(String),
+
+    /// The delivery format argument in GIANT_SQUID_DELIVERY_FORMAT was wrong.
+    #[error("The delivery argument in GIANT_SQUID_DELIVERY_FORMAT ({0}) was not 'tar'")]
+    InvalidDeliveryFormatEnv(String),
+
+    /// GIANT_SQUID_DELIVERY_FORMAT has invalid unicode.
+    #[error(
+        "No delivery argument was given and GIANT_SQUID_DELIVERY_FORMAT contains invalid unicode"
+    )]
+    InvalidDeliveryFormatEnvUnicode,
 
     /// User's MWA_ASVO_API_KEY environment variable is not defined.
     #[error("MWA_ASVO_API_KEY is not defined.")]

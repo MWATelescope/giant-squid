@@ -65,9 +65,8 @@ impl DummyJob {
                 file_array.push(AsvoFilesArray {
                     r#type: match file_type {
                         "acacia" => Delivery::Acacia,
-                        "astro" => Delivery::Astro,
                         "scratch" => Delivery::Scratch,
-                        _ => panic!("Unsupported file type found: {}", file_type),
+                        _ => panic!("Unsupported delivery type found: {}", file_type),
                     },
                     url: dumb_product.url.clone(),
                     path: dumb_product.r#path.clone(),
@@ -102,12 +101,27 @@ impl DummyJob {
     }
 }
 
+/// When defining serde structs remember order matters!
+/// Put the most specific matches first, then less
+/// specific last!
 #[derive(Deserialize, PartialEq, Debug)]
 #[serde(untagged)]
 pub(super) enum AsvoSubmitJobResponse {
-    JobID { job_id: AsvoJobID },
-    ErrorWithCode { error_code: u32, error: String },
-    GenericError { error: String },
+    JobIDWithError {
+        error: String,
+        error_code: u32,
+        job_id: AsvoJobID,
+    },
+    JobID {
+        job_id: AsvoJobID,
+    },
+    ErrorWithCode {
+        error_code: u32,
+        error: String,
+    },
+    GenericError {
+        error: String,
+    },
 }
 
 #[cfg(test)]
@@ -161,6 +175,81 @@ mod tests {
         assert_eq!(
             AsvoSubmitJobResponse::GenericError {
                 error: "Permission denied".to_string(),
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_job_already_q_p_c_parse() {
+        let json = "{\"error\": \"Job already queued, processing or complete\", \"error_code\": 2, \"job_id\": 10001822}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::JobIDWithError {
+                error_code: 2,
+                error: "Job already queued, processing or complete".to_string(),
+                job_id: 10001822
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_job_already_q_p_parse() {
+        let json = "{\"error\": \"Job already queued or processing.\", \"error_code\": 2, \"job_id\": 10001822}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::JobIDWithError {
+                error_code: 2,
+                error: "Job already queued or processing.".to_string(),
+                job_id: 10001822
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_full_or_partial_outage1() {
+        let json = "{\"error\": \"Your job cannot be submitted as there is a full outage in progress.\", \"error_code\": 0}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::ErrorWithCode {
+                error_code: 0,
+                error: "Your job cannot be submitted as there is a full outage in progress."
+                    .to_string(),
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_full_or_partial_outage2() {
+        let json = "{\"error\": \"Your job cannot be submitted as there is a partial outage, please use a delivery location other than acacia.\", \"error_code\": 0}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::ErrorWithCode {
+                error_code: 0,
+                error: "Your job cannot be submitted as there is a partial outage, please use a delivery location other than acacia."
+                    .to_string(),
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_full_or_partial_outage3() {
+        let json = "{\"error\": \"Your job cannot be submitted as the staging server is down and also acacia is unavailable!\", \"error_code\": 0}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::ErrorWithCode {
+                error_code: 0,
+                error: "Your job cannot be submitted as the staging server is down and also acacia is unavailable!"
+                    .to_string(),
             },
             decoded.unwrap()
         );

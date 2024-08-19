@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::bail;
-use clap::{AppSettings, Parser, ArgAction};
+use clap::{AppSettings, ArgAction, Parser};
 use log::{debug, info};
 use simplelog::*;
 
@@ -69,9 +69,9 @@ enum Args {
     #[clap(alias = "d")]
     Download {
         /// Which dir should downloads be written to.
-        #[clap(short, long, default_value=".")]
+        #[clap(short, long, default_value = ".")]
         download_dir: String,
-        
+
         /// Don't unzip the contents from the ASVO.
         #[clap(short, long)]
         keep_zip: bool,
@@ -103,11 +103,17 @@ enum Args {
     /// Submit ASVO jobs to download MWA raw visibilities
     #[clap(alias = "sv")]
     SubmitVis {
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
+        delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -141,11 +147,17 @@ enum Args {
         #[clap(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
         parameters: Option<String>,
 
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
+        delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -176,11 +188,17 @@ enum Args {
     /// Submit ASVO jobs to download MWA metadata (metafits and cotter flags)
     #[clap(alias = "sm")]
     SubmitMeta {
-        /// Tell the ASVO where to deliver the job. The default is "acacia", but
+        /// Tell MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
         #[clap(short, long)]
         delivery: Option<String>,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[clap(short = 'f', long)]
+        delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -212,7 +230,7 @@ enum Args {
     #[clap(alias = "sv")]
     SubmitVolt {
         /// Tell the ASVO where to deliver the job. The only valid value for a voltage
-        /// job is "astro".
+        /// job is "scratch".
         #[clap(short, long)]
         delivery: Option<String>,
 
@@ -223,6 +241,14 @@ enum Args {
         /// The duration (in seconds) to download.
         #[clap(short = 'u', long)]
         duration: i32,
+
+        /// The 'from' receiver channel number (0-255)
+        #[clap(short = 'f', long)]
+        from_channel: Option<i32>,
+
+        /// The 'to' receiver channel number (0-255)
+        #[clap(short = 't', long)]
+        to_channel: Option<i32>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -270,7 +296,10 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new().set_time_offset_to_local().expect("Unable to set time offset to local in SimpleLogger").build();    
+    let config = ConfigBuilder::new()
+        .set_time_offset_to_local()
+        .expect("Unable to set time offset to local in SimpleLogger")
+        .build();
     match level {
         0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
         1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
@@ -424,14 +453,15 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::SubmitVis {
             delivery,
+            delivery_format,
             wait,
             dry_run,
             allow_resubmit,
             verbosity,
             obsids,
         } => {
-            init_logger(verbosity);            
-            
+            init_logger(verbosity);
+
             let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
             // There shouldn't be any job IDs here.
             if !parsed_jobids.is_empty() {
@@ -443,9 +473,13 @@ fn main() -> Result<(), anyhow::Error> {
             if parsed_obsids.is_empty() {
                 bail!("No obsids specified!");
             }
-            
+
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
+
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
 
             if dry_run {
                 info!(
@@ -455,12 +489,24 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
-                    let j = client.submit_vis(o, delivery, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+                    let j = client.submit_vis(o, delivery, delivery_format, allow_resubmit)?;
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for visibility download.", obsids.len());
+                info!(
+                    "Submitted {} obsids for visibility download.",
+                    submitted_count
+                );
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -473,6 +519,7 @@ fn main() -> Result<(), anyhow::Error> {
         Args::SubmitConv {
             parameters,
             delivery,
+            delivery_format,
             wait,
             dry_run,
             allow_resubmit,
@@ -494,6 +541,10 @@ fn main() -> Result<(), anyhow::Error> {
 
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
+
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
 
             // Get the user parameters and set any defaults that the user has not set.
             let params = {
@@ -518,12 +569,27 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
-                    let j = client.submit_conv(o, delivery, &params, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+                    let j = client.submit_conv(
+                        o,
+                        delivery,
+                        delivery_format,
+                        &params,
+                        allow_resubmit,
+                    )?;
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for conversion.", obsids.len());
+                info!("Submitted {} obsids for conversion.", submitted_count);
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -535,6 +601,7 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::SubmitMeta {
             delivery,
+            delivery_format,
             wait,
             dry_run,
             allow_resubmit,
@@ -557,6 +624,10 @@ fn main() -> Result<(), anyhow::Error> {
             let delivery = Delivery::validate(delivery)?;
             debug!("Using {} for delivery", delivery);
 
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
+
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for metadata download.",
@@ -565,12 +636,23 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+
+                let mut submitted_count = 0;
                 for o in parsed_obsids {
-                    let j = client.submit_meta(o, delivery, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+                    let j = client.submit_meta(o, delivery, delivery_format, allow_resubmit)?;
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for metadata download.", obsids.len());
+                info!(
+                    "Submitted {} obsids for metadata download.",
+                    submitted_count
+                );
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -584,6 +666,8 @@ fn main() -> Result<(), anyhow::Error> {
             delivery,
             offset,
             duration,
+            from_channel,
+            to_channel,
             wait,
             dry_run,
             allow_resubmit,
@@ -614,12 +698,29 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
+
                 for o in parsed_obsids {
-                    let j = client.submit_volt(o, delivery, offset, duration, allow_resubmit)?;
-                    info!("Submitted {} as ASVO job ID {}", o, j);
-                    jobids.push(j);
+                    let j = client.submit_volt(
+                        o,
+                        delivery,
+                        offset,
+                        duration,
+                        from_channel,
+                        to_channel,
+                        allow_resubmit,
+                    )?;
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
                 }
-                info!("Submitted {} obsids for voltage download.", obsids.len());
+                info!("Submitted {} obsids for voltage download.", submitted_count);
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until

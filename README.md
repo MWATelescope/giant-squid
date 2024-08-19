@@ -25,7 +25,7 @@ just a library; the `giant-squid` executable acts as an alternative to the
 [manta-ray-client](https://github.com/ICRAR/manta-ray-client) and may better
 suit users for a few reasons:
 
-1. By default, `giant-squid` _stream untars_ the downloads from ASVO. In other
+1. By default, `giant-squid` _stream untars_ the downloads from MWA ASVO. In other
    words, rather than downloading a potentially large (> 100 GiB!) tar file and
    then untarring it yourself (thereby occupying double the space of the
    original tar and performing a very expensive IO operation), it is possible to
@@ -39,7 +39,7 @@ suit users for a few reasons:
    each entry of the text file(s) are checked for validity (all ints and all
    10-digits long); any exceptions are reported and the command fails.
 
-4. One can ask `giant-squid` to print their ASVO queue as JSON; this makes
+4. One can ask `giant-squid` to print their MWA ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
 5. By default, `giant-squid` will validate the hash of the archive. You can skip
@@ -68,14 +68,14 @@ giant-squid -V
 
 (Useful if things are changing over time!)
 
-### List ASVO jobs
+### List MWA ASVO jobs
 
 ```bash
 giant-squid list
 giant-squid l
 ```
 
-### List ASVO jobs in JSON
+### List MWA ASVO jobs in JSON
 
 the following commands are equivalent:
 
@@ -128,7 +128,7 @@ In [3]: q.keys()
 Out[3]: dict_keys(['216087', '216241', '217628'])
 ```
 
-### Filter ASVO job listing
+### Filter MWA ASVO job listing
 
 `giant-squid list` takes an optional list of identifiers that can be used to filter the job listing,
 these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
@@ -175,7 +175,7 @@ while read -r jobid url size hash; do
 do < ready.tsv
 ```
 
-### Download ASVO jobs
+### Download MWA ASVO jobs
 
 To download job ID 12345 to your current directory '.':
 
@@ -194,7 +194,7 @@ giant-squid d 1065880128
 ```
 
 (`giant-squid` differentiates between job IDs and obsids by the length of the
-number specified; 10-digit numbers are treated as obsids. If the ASVO ever
+number specified; 10-digit numbers are treated as obsids. If the MWA ASVO ever
 serves up more than a billion jobs, you have permission to be upset with me. The
 same applies if this code is still being used in the year 2296.)
 
@@ -217,13 +217,13 @@ By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
 The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
 
-Jobs which were submitted with the /astro or /scratch data delivery option behave differently
+Jobs which were submitted with the /scratch data delivery option behave differently
 than jobs submitted with the acacia data delivery option. When attempting to download
-an /astro job or /scratch job, if the path of the job (eg /astro/mwaops/asvo/12345) is reachable from
+a /scratch job, if the path of the job (eg /scratch/mwaops/asvo/12345) is reachable from
 the current host, it will be moved to the current working directory. Otherwise, it will
 be skipped.
 
-### Submit ASVO jobs
+### Submit MWA ASVO jobs
 
 #### Visibility downloads
 
@@ -244,10 +244,13 @@ If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
 You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /astro or /scratch filesystem. The second option requires
-that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
-a job with the /astro or /scratch delivery option, set the environment variable GIANT_SQUID_DELIVERY=astro|scratch.
-Alternatively specify `-d astro|scratch|acacia`.
+or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
+that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
+a job with the /scratch delivery option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
+Alternatively specify `-d scratch|acacia`.
+
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
 
 #### Conversion downloads
 
@@ -286,9 +289,12 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 ```
 
 You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
-that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
-a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
+or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
+that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
+a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
+
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
 
 #### Metadata downloads
 
@@ -309,9 +315,12 @@ If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
 You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /astro filesystem. The second option requires
-that your Pawsey group be set in your ASVO account, please contact an admin to request this. To submit
-a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro.
+or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
+that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
+a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
+
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
 
 #### Voltage downloads
 
@@ -320,9 +329,9 @@ A "voltage download job" refers to a job which provides the raw voltages for one
 To submit a voltage download job for the obsid 1065880128:
 
 ```bash
-giant-squid submit-volt --delivery astro --offset 0 --duration 8 1065880128
+giant-squid submit-volt --delivery scratch --offset 0 --duration 8 1065880128
 # or
-giant-squid sv -d astro -o 0 -u 8 1065880128
+giant-squid sv -d scratch -o 0 -u 8 1065880128
 ```
 
 Text files containing obsids may be used too.
@@ -330,10 +339,14 @@ Text files containing obsids may be used too.
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
 
+For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from_channel` and `--to_channel` to restrict the job to
+only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
+will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
+
 Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
 download, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
-set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /astro filesystem. To submit
-a job with the /astro option, set the environment variable GIANT_SQUID_DELIVERY=astro or pass `-d astro`.
+set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
+a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch or pass `-d scratch`.
 
 #### Resubmitting jobs
 

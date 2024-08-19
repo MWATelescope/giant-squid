@@ -10,7 +10,9 @@ mod types;
 
 use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
 pub use error::AsvoError;
-pub use types::{AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
+pub use types::{
+    AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DeliveryFormat,
+};
 
 use std::collections::BTreeMap;
 use std::env::{current_dir, var};
@@ -20,7 +22,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use backoff::{retry, Error, ExponentialBackoff};
-use log::{debug, info};
+use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use sha1::{Digest, Sha1};
 use tar::Archive;
@@ -32,7 +34,8 @@ use self::types::AsvoFilesArray;
 pub fn get_asvo_server_address() -> String {
     format!(
         "https://{}",
-        std::env::var("MWA_ASVO_HOST").unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
+        std::env::var("MWA_ASVO_HOST")
+            .unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
     )
 }
 
@@ -112,7 +115,7 @@ impl AsvoClient {
         jobid: AsvoJobID,
         keep_tar: bool,
         hash: bool,
-        download_dir: &str
+        download_dir: &str,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download job {}", jobid);
@@ -135,7 +138,7 @@ impl AsvoClient {
         obsid: Obsid,
         keep_tar: bool,
         hash: bool,
-        download_dir: &str
+        download_dir: &str,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download obsid {}", obsid);
@@ -150,7 +153,13 @@ impl AsvoClient {
     }
 
     /// Private function to actually do the work.
-    fn download(&self, job: &AsvoJob, keep_tar: bool, hash: bool, download_dir: &str) -> Result<(), AsvoError> {
+    fn download(
+        &self,
+        job: &AsvoJob,
+        keep_tar: bool,
+        hash: bool,
+        download_dir: &str,
+    ) -> Result<(), AsvoError> {
         // Is the job ready to download?
         if job.state != AsvoJobState::Ready {
             return Err(AsvoError::NotReady {
@@ -220,10 +229,10 @@ impl AsvoClient {
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
-                Delivery::Astro | Delivery::Scratch => {
+                Delivery::Scratch => {
                     match &f.path {
                         Some(path) => {
-                            //If it's an /astro or /scratch job, and the files are reachable from the current host, move them into the current working directory
+                            //If it's a /scratch job, and the files are reachable from the current host, move them into the current working directory
                             let path_obj = Path::new(&path);
                             let folder_name = path_obj
                                 .components()
@@ -262,7 +271,7 @@ impl AsvoClient {
         hash: bool,
         f: &AsvoFilesArray,
         job: &AsvoJob,
-        download_dir: &str
+        download_dir: &str,
     ) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
         let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
@@ -303,7 +312,7 @@ impl AsvoClient {
             let unpack_path = Path::new(download_dir);
             info!("Untarring to {:?}", unpack_path);
             let mut tar = Archive::new(&mut tee);
-            tar.set_preserve_mtime(false);            
+            tar.set_preserve_mtime(false);
             tar.unpack(unpack_path)?;
         }
 
@@ -341,46 +350,80 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for visibility download.
-    pub fn submit_vis(&self, obsid: Obsid, delivery: Delivery, allow_resubmit: bool) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_vis(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        delivery_format: Option<DeliveryFormat>,
+        allow_resubmit: bool,
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a vis job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
+        let df_str: String;
         let allow_resubmit_str: String = format!("{}", allow_resubmit);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
+
+        if delivery_format.is_some() {
+            df_str = format!("{}", delivery_format.unwrap());
+            form.insert("delivery_format", &df_str);
+        }
+
         form.insert("download_type", "vis");
         form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
     }
 
     /// Submit an ASVO job for voltage download.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_volt(
         &self,
         obsid: Obsid,
         delivery: Delivery,
         offset: i32,
-        duration: i32,                
+        duration: i32,
+        from_channel: Option<i32>,
+        to_channel: Option<i32>,
         allow_resubmit: bool,
-
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a voltage job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
         let offset_str: String = format!("{}", offset);
         let duration_str: String = format!("{}", duration);
-        let allow_resubmit_str: String = format!("{}", allow_resubmit);        
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
+        let channel_range_str: String =
+            format!("{}", from_channel.is_some() || to_channel.is_some());
+        let from_channel_str: String;
+        let to_channel_str: String;
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
         form.insert("offset", &offset_str);
         form.insert("duration", &duration_str);
+
+        if from_channel.is_some() || to_channel.is_some() {
+            form.insert("channel_range", &channel_range_str);
+        }
+
+        if from_channel.is_some() {
+            from_channel_str = format!("{}", from_channel.unwrap());
+            form.insert("from_channel", &from_channel_str);
+        }
+
+        if to_channel.is_some() {
+            to_channel_str = format!("{}", to_channel.unwrap());
+            form.insert("to_channel", &to_channel_str);
+        }
+
         form.insert("download_type", "volt");
-        form.insert("allow_resubmit", &allow_resubmit_str);        
+        form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
     }
 
@@ -389,14 +432,16 @@ impl AsvoClient {
         &self,
         obsid: Obsid,
         delivery: Delivery,
+        delivery_format: Option<DeliveryFormat>,
         parameters: &BTreeMap<&str, &str>,
         allow_resubmit: bool,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a conversion job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
-        let allow_resubmit_str: String = format!("{}", allow_resubmit);        
+        let df_str: String;
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
@@ -413,33 +458,56 @@ impl AsvoClient {
         // Insert the CLI delivery last. This ensures that if the user
         // incorrectly specified it as part of the `parameters`, it is ignored.
         form.insert("delivery", &d_str);
+
+        if delivery_format.is_some() {
+            df_str = format!("{}", delivery_format.unwrap());
+            form.insert("delivery_format", &df_str);
+        }
+
         form.insert("allow_resubmit", &allow_resubmit_str);
 
         self.submit_asvo_job(&AsvoJobType::Conversion, form)
     }
 
     /// Submit an ASVO job for metadata download.
-    pub fn submit_meta(&self, obsid: Obsid, delivery: Delivery, allow_resubmit: bool) -> Result<AsvoJobID, AsvoError> {
+    pub fn submit_meta(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        delivery_format: Option<DeliveryFormat>,
+        allow_resubmit: bool,
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a metafits job to ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
+        let df_str: String;
         let allow_resubmit_str: String = format!("{}", allow_resubmit);
-        
+
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
+
+        if delivery_format.is_some() {
+            df_str = format!("{}", delivery_format.unwrap());
+            form.insert("delivery_format", &df_str);
+        }
+
         form.insert("download_type", "vis_meta");
         form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }
 
     /// This low-level function actually submits jobs to the ASVO.
+    /// The return can either be:
+    /// Ok(Some(jobid)) - this is when a new job is submitted
+    /// Ok(None) - this is when an existing job is resubmitted
+    /// Err() - this is when we hit an error
     fn submit_asvo_job(
         &self,
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
-    ) -> Result<AsvoJobID, AsvoError> {
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting an ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
@@ -454,47 +522,60 @@ impl AsvoClient {
             .post(format!("{}/api/{}", get_asvo_server_address(), api_path))
             .form(&form)
             .send()?;
-        if !response.status().is_success() {
-            return Err(AsvoError::BadStatus {
-                code: response.status(),
-                message: response.text()?,
-            });
-        }
-        let response_text = response.text()?;
-        match serde_json::from_str(&response_text) {
-            Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(job_id),
 
-            Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
-                Err(AsvoError::BadRequest {
-                    code: error_code,
-                    message: error,
-                })
+        let code = response.status().as_u16();
+        let response_text = &response.text()?;
+        if code != 200 && code < 400 && code > 499 {
+            // Show the http code when it's not something we can handle
+            warn!("http code: {} response: {}", code, &response_text)
+        };
+        match serde_json::from_str(response_text) {
+            Ok(AsvoSubmitJobResponse::JobIDWithError {
+                error,
+                error_code,
+                job_id,
+                ..
+            }) => {
+                if error_code == 2 {
+                    // error code 2 == job already exists
+                    warn!("{}. Job Id: {}", error.as_str(), job_id);
+                    Ok(None)
+                } else {
+                    Err(AsvoError::BadRequest {
+                        code: error_code,
+                        message: error,
+                    })
+                }
             }
 
-            Ok(AsvoSubmitJobResponse::GenericError { error }) => match error.as_str() {
-                // If the server comes back with the error "already queued,
-                // processing or complete", proceed like it wasn't an error.
-                "Job already queued, processing or complete." => {
-                    let jobs = self.get_jobs()?;
-                    // This approach is flawed; the first job ID with the
-                    // same obsid as that submitted by this function is
-                    // returned, but it's not necessarily the right job ID.
-                    let j = jobs
-                        .0
-                        .iter()
-                        .find(|j| j.obsid == form["obs_id"].parse().unwrap())
-                        .unwrap();
-                    Ok(j.jobid)
-                }
+            Ok(AsvoSubmitJobResponse::JobID { job_id, .. }) => Ok(Some(job_id)),
 
-                _ => Err(AsvoError::BadRequest {
-                    code: 666,
-                    message: error,
-                }),
-            },
+            Ok(AsvoSubmitJobResponse::ErrorWithCode { error_code, error }) => {
+                // Crazy code here as MWA ASVO API does not have good error codes (yet!)
+                // 0 == invalid input (most of the time!)
+                if error_code == 0
+                    && (error.as_str()
+                        == "Unable to submit job. Observation has no files to download."
+                        || (error.as_str().starts_with("Observation ")
+                            && error.as_str().ends_with(" does not exist")))
+                {
+                    error!("{}", error.as_str());
+                    Ok(None)
+                } else {
+                    Err(AsvoError::BadRequest {
+                        code: error_code,
+                        message: error,
+                    })
+                }
+            }
+
+            Ok(AsvoSubmitJobResponse::GenericError { error }) => Err(AsvoError::BadRequest {
+                code: 999,
+                message: error,
+            }),
 
             Err(e) => {
-                debug!("bad response: {}", response_text);
+                warn!("bad response: {}", response_text);
                 Err(AsvoError::BadJson(e))
             }
         }
@@ -507,6 +588,7 @@ mod tests {
 
     use crate::AsvoError;
     use crate::Delivery;
+    use crate::DeliveryFormat;
     use crate::{AsvoClient, Obsid};
 
     #[test]
@@ -523,26 +605,15 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_download() {
+    fn test_submit_vis() {
         let client = AsvoClient::new().unwrap();
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Acacia;
-        let allow_resubmit: bool=false;
+        let delivery_format: Option<DeliveryFormat> = None;
+        let allow_resubmit: bool = false;
 
-        let vis_job = client.submit_vis(obs_id, delivery, allow_resubmit);
+        let vis_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
         match vis_job {
-            Ok(_) => (),
-            Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
-            },
-        }
-
-        let meta_job = client.submit_meta(obs_id, delivery, true);
-        match meta_job {
             Ok(_) => (),
             Err(error) => match error {
                 AsvoError::BadStatus {
@@ -559,14 +630,109 @@ mod tests {
         let client = AsvoClient::new().unwrap();
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Acacia;
+        let delivery_format: Option<DeliveryFormat> = None;
         let job_params = BTreeMap::new();
         let allow_resubmit: bool = false;
 
-        let conv_job = client.submit_conv(obs_id, delivery, &job_params, allow_resubmit);
+        let conv_job = client.submit_conv(
+            obs_id,
+            delivery,
+            delivery_format,
+            &job_params,
+            allow_resubmit,
+        );
         match conv_job {
             Ok(_) => (),
             Err(error) => match error {
                 AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_meta() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Acacia;
+        let delivery_format: Option<DeliveryFormat> = None;
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_vis_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let allow_resubmit: bool = false;
+
+        let vis_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
+        match vis_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_conv_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let job_params = BTreeMap::new();
+        let allow_resubmit: bool = false;
+
+        let conv_job = client.submit_conv(
+            obs_id,
+            delivery,
+            delivery_format,
+            &job_params,
+            allow_resubmit,
+        );
+        match conv_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_meta_as_tar() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Scratch;
+        let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
                 _ => panic!("Unexpected error has occured."),
             },
         }
@@ -580,10 +746,51 @@ mod tests {
         let obs_id = Obsid::validate(1290094336).unwrap();
         let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1290094336
         let duration: i32 = 1; // This will attempt to get data up to GPS TIME: 1290094336
-        let delivery = Delivery::Astro;
+        let from_chan: Option<i32> = None;
+        let to_chan: Option<i32> = None;
+        let delivery = Delivery::Scratch;
         let allow_resubmit: bool = false;
 
-        let volt_job = client.submit_volt(obs_id, delivery, offset, duration, allow_resubmit);
+        let volt_job = client.submit_volt(
+            obs_id,
+            delivery,
+            offset,
+            duration,
+            from_chan,
+            to_chan,
+            allow_resubmit,
+        );
+        match volt_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_volt_range() {
+        let client = AsvoClient::new().unwrap();
+        // NOTE: this obs_id is a voltage observation, however for this test to pass,
+        // You must have your pawsey_group set in your MWA ASVO profile to mwaops or mwavcs (contact an Admin to have this done).
+        let obs_id = Obsid::validate(1370760960).unwrap();
+        let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1370760960
+        let duration: i32 = 8; // This will attempt to get data up to GPS TIME: 1370760968
+        let from_chan: Option<i32> = Some(109);
+        let to_chan: Option<i32> = Some(109);
+        let delivery = Delivery::Scratch;
+        let allow_resubmit: bool = false;
+
+        let volt_job = client.submit_volt(
+            obs_id,
+            delivery,
+            offset,
+            duration,
+            from_chan,
+            to_chan,
+            allow_resubmit,
+        );
         match volt_job {
             Ok(_) => (),
             Err(error) => match error {
