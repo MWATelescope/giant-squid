@@ -242,6 +242,14 @@ enum Args {
         #[clap(short = 'u', long)]
         duration: i32,
 
+        /// The 'from' receiver channel number (0-255)
+        #[clap(short = 'f', long)]
+        from_channel: Option<i32>,
+
+        /// The 'to' receiver channel number (0-255)
+        #[clap(short = 't', long)]
+        to_channel: Option<i32>,
+
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
         #[clap(short, long)]
@@ -658,6 +666,8 @@ fn main() -> Result<(), anyhow::Error> {
             delivery,
             offset,
             duration,
+            from_channel,
+            to_channel,
             wait,
             dry_run,
             allow_resubmit,
@@ -691,7 +701,15 @@ fn main() -> Result<(), anyhow::Error> {
                 let mut submitted_count = 0;
 
                 for o in parsed_obsids {
-                    let j = client.submit_volt(o, delivery, offset, duration, allow_resubmit)?;
+                    let j = client.submit_volt(
+                        o,
+                        delivery,
+                        offset,
+                        duration,
+                        from_channel,
+                        to_channel,
+                        allow_resubmit,
+                    )?;
 
                     if j.is_some() {
                         let jobid = j.unwrap();

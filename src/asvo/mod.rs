@@ -379,12 +379,15 @@ impl AsvoClient {
     }
 
     /// Submit an ASVO job for voltage download.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_volt(
         &self,
         obsid: Obsid,
         delivery: Delivery,
         offset: i32,
         duration: i32,
+        from_channel: Option<i32>,
+        to_channel: Option<i32>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting a voltage job to ASVO");
@@ -394,12 +397,31 @@ impl AsvoClient {
         let offset_str: String = format!("{}", offset);
         let duration_str: String = format!("{}", duration);
         let allow_resubmit_str: String = format!("{}", allow_resubmit);
+        let channel_range_str: String =
+            format!("{}", from_channel.is_some() || to_channel.is_some());
+        let from_channel_str: String;
+        let to_channel_str: String;
 
         let mut form = BTreeMap::new();
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
         form.insert("offset", &offset_str);
         form.insert("duration", &duration_str);
+
+        if from_channel.is_some() || to_channel.is_some() {
+            form.insert("channel_range", &channel_range_str);
+        }
+
+        if from_channel.is_some() {
+            from_channel_str = format!("{}", from_channel.unwrap());
+            form.insert("from_channel", &from_channel_str);
+        }
+
+        if to_channel.is_some() {
+            to_channel_str = format!("{}", to_channel.unwrap());
+            form.insert("to_channel", &to_channel_str);
+        }
+
         form.insert("download_type", "volt");
         form.insert("allow_resubmit", &allow_resubmit_str);
         self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
@@ -724,10 +746,51 @@ mod tests {
         let obs_id = Obsid::validate(1290094336).unwrap();
         let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1290094336
         let duration: i32 = 1; // This will attempt to get data up to GPS TIME: 1290094336
+        let from_chan: Option<i32> = None;
+        let to_chan: Option<i32> = None;
         let delivery = Delivery::Scratch;
         let allow_resubmit: bool = false;
 
-        let volt_job = client.submit_volt(obs_id, delivery, offset, duration, allow_resubmit);
+        let volt_job = client.submit_volt(
+            obs_id,
+            delivery,
+            offset,
+            duration,
+            from_chan,
+            to_chan,
+            allow_resubmit,
+        );
+        match volt_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_volt_range() {
+        let client = AsvoClient::new().unwrap();
+        // NOTE: this obs_id is a voltage observation, however for this test to pass,
+        // You must have your pawsey_group set in your MWA ASVO profile to mwaops or mwavcs (contact an Admin to have this done).
+        let obs_id = Obsid::validate(1370760960).unwrap();
+        let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1370760960
+        let duration: i32 = 8; // This will attempt to get data up to GPS TIME: 1370760968
+        let from_chan: Option<i32> = Some(109);
+        let to_chan: Option<i32> = Some(109);
+        let delivery = Delivery::Scratch;
+        let allow_resubmit: bool = false;
+
+        let volt_job = client.submit_volt(
+            obs_id,
+            delivery,
+            offset,
+            duration,
+            from_chan,
+            to_chan,
+            allow_resubmit,
+        );
         match volt_job {
             Ok(_) => (),
             Err(error) => match error {

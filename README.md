@@ -249,6 +249,9 @@ that your Pawsey group be set in your MWA ASVO account, please contact an admin 
 a job with the /scratch delivery option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
 Alternatively specify `-d scratch|acacia`.
 
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+
 #### Conversion downloads
 
 To submit a conversion job for obsid 1065880128:
@@ -290,6 +293,9 @@ or you can request that the files be left on Pawsey's /scratch filesystem. The s
 that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
 a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
 
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+
 #### Metadata downloads
 
 A "metadata download job" refers to a job which provides a zip containing a
@@ -313,6 +319,9 @@ or you can request that the files be left on Pawsey's /scratch filesystem. The s
 that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
 a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
 
+When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
+MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+
 #### Voltage downloads
 
 A "voltage download job" refers to a job which provides the raw voltages for one or more obsids.
@@ -329,6 +338,10 @@ Text files containing obsids may be used too.
 
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
+
+For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from_channel` and `--to_channel` to restrict the job to
+only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
+will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
 
 Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
 download, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
