@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.0 - 2024-10-08
+
+* Bumped MSRV to 1.80 in order to remove use of lazy_static crate.
+* Updated/migrated clap to v4.5.
+* Updated quinn-proto to latest to fix security vulnerability.
+* BUGFIX- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
+
 ## 1.1.0 - 2024-08-19
 
 * Add new option to `submit-vis`, `submit-conv` and `submit-meta`: `delivery-format`. Currently only `tar` is supported.

@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::bail;
-use clap::{AppSettings, ArgAction, Parser};
+use clap::{ArgAction, Parser};
 use log::{debug, info};
 use simplelog::*;
+use std::sync::LazyLock;
 
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -17,24 +18,22 @@ const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
-lazy_static::lazy_static! {
-    static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
-        for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
-            s.push_str(k);
-            s.push('=');
-            s.push_str(v);
-            if i != DEFAULT_CONVERSION_PARAMETERS.len() - 1 {
-                s.push_str(", ");
-            }
+static DEFAULT_CONVERSION_PARAMETERS_TEXT: LazyLock<String> = LazyLock::new(|| {
+    let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
+    for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
+        s.push_str(k);
+        s.push('=');
+        s.push_str(v);
+        if i != DEFAULT_CONVERSION_PARAMETERS.len() - 1 {
+            s.push_str(", ");
         }
-        s
-    };
-}
+    }
+    s
+});
 
 #[derive(Parser, Debug)]
 #[clap(author, about = ABOUT, version)]
-#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+//#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Args {
     /// List ASVO jobs
     #[clap(alias = "l")]
@@ -45,7 +44,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// show only jobs matching the provided states, case insensitive.
@@ -81,7 +80,7 @@ enum Args {
         skip_hash: bool,
 
         // Does nothing: hash check is enabled by default. This is for backwards compatibility
-        #[clap(long, hidden = true)]
+        #[clap(long, hide = true)]
         hash: bool,
 
         /// Don't actually download; print information on what would've happened
@@ -91,7 +90,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The job IDs or obsids to be downloaded. Files containing job IDs or
@@ -132,7 +131,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -176,7 +175,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -217,7 +216,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -227,7 +226,7 @@ enum Args {
     },
 
     /// Submit ASVO jobs to download MWA voltages
-    #[clap(alias = "sv")]
+    #[clap(alias = "st")]
     SubmitVolt {
         /// Tell the ASVO where to deliver the job. The only valid value for a voltage
         /// job is "scratch".
@@ -267,7 +266,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -285,7 +284,7 @@ enum Args {
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, parse(from_occurrences))]
+        #[clap(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The jobs to wait for. Files containing jobs are also
