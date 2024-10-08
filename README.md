@@ -53,7 +53,7 @@ suit users for a few reasons:
 giant-squid -h
 ```
 
-This also applies to all of the subcommands, e.g.
+This also applies to all of the commands, e.g.
 
 ```bash
 giant-squid download -h
@@ -201,7 +201,7 @@ same applies if this code is still being used in the year 2296.)
 Text files containing job IDs or obsids may be used too.
 
 You can specify the directory to download to by providing the `download_dir` parameter
-to the `download` subcommand. Ommitting this will default to your current dir `.`.
+to the `download` command. Ommitting this will default to your current dir `.`.
 
 To download obsid 1065880128 to your `/tmp` directory:
 

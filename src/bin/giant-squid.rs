@@ -32,264 +32,264 @@ static DEFAULT_CONVERSION_PARAMETERS_TEXT: LazyLock<String> = LazyLock::new(|| {
 });
 
 #[derive(Parser, Debug)]
-#[clap(author, about = ABOUT, version)]
-//#[clap(global_setting(AppSettings::DeriveDisplayOrder))]
+#[command(author, about = ABOUT, version)]
+//#[arg(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Args {
-    /// List ASVO jobs
-    #[clap(alias = "l")]
+    /// List your current and recent MWA ASVO jobs
+    #[command(alias = "l")]
     List {
         /// Print the jobs as a simple JSON
-        #[clap(short, long)]
+        #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// show only jobs matching the provided states, case insensitive.
         /// Options: queued, processing, ready, error, expired, cancelled.
-        #[clap(long, name = "STATE", value_delimiter = ',')]
+        #[arg(long, id = "STATE", value_delimiter = ',')]
         states: Vec<AsvoJobState>,
 
         /// filter job list by type, case insensitive with underscores. Options:
         /// conversion, download_visibilities, download_metadata,
         /// download_voltage or cancel_job
-        #[clap(long, name = "TYPE", value_delimiter = ',')]
+        #[arg(long, id = "TYPE", value_delimiter = ',')]
         types: Vec<AsvoJobType>,
 
         /// job IDs or obsids to filter by. Files containing job IDs or
         /// obsids are also accepted.
-        #[clap(name = "JOBID_OR_OBSID")]
+        #[arg(id = "JOBID_OR_OBSID")]
         jobids_or_obsids: Vec<String>,
     },
 
-    /// Download an ASVO job
-    #[clap(alias = "d")]
+    /// Download an MWA ASVO job
+    #[command(alias = "d")]
     Download {
         /// Which dir should downloads be written to.
-        #[clap(short, long, default_value = ".")]
+        #[arg(short, long, default_value = ".")]
         download_dir: String,
 
-        /// Don't unzip the contents from the ASVO.
-        #[clap(short, long)]
+        /// Don't unzip the contents of your download from the MWA ASVO.
+        #[arg(short, long)]
         keep_zip: bool,
 
         /// Don't verify the downloaded contents against the upstream hash.
-        #[clap(long)]
+        #[arg(long)]
         skip_hash: bool,
 
         // Does nothing: hash check is enabled by default. This is for backwards compatibility
-        #[clap(long, hide = true)]
+        #[arg(long, hide = true)]
         hash: bool,
 
         /// Don't actually download; print information on what would've happened
         /// instead.
-        #[clap(short = 'n', long)]
+        #[arg(short = 'n', long)]
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The job IDs or obsids to be downloaded. Files containing job IDs or
         /// obsids are also accepted.
-        #[clap(name = "JOBID_OR_OBSID")]
+        #[arg(id = "JOBID_OR_OBSID")]
         jobids_or_obsids: Vec<String>,
     },
 
-    /// Submit ASVO jobs to download MWA raw visibilities
-    #[clap(alias = "sv")]
+    /// Submit MWA ASVO jobs to download MWA raw visibilities
+    #[command(alias = "sv")]
     SubmitVis {
         /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
-        #[clap(short, long)]
+        #[arg(short, long)]
         delivery: Option<String>,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
         /// which is always `tar`
-        #[clap(short = 'f', long)]
+        #[arg(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[clap(short, long)]
+        #[arg(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[clap(short = 'n', long)]
+        #[arg(short = 'n', long)]
         dry_run: bool,
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[clap(name = "OBSID")]
+        #[arg(id = "OBSID")]
         obsids: Vec<String>,
     },
 
-    /// Submit ASVO conversion jobs
-    #[clap(alias = "sc")]
+    /// Submit MWA ASVO preprocessing/conversion jobs
+    #[command(alias = "sc")]
     SubmitConv {
-        #[clap(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
+        #[arg(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
         parameters: Option<String>,
 
         /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
-        #[clap(short, long)]
+        #[arg(short, long)]
         delivery: Option<String>,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
         /// which is always `tar`
-        #[clap(short = 'f', long)]
+        #[arg(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[clap(short, long)]
+        #[arg(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[clap(short = 'n', long)]
+        #[arg(short = 'n', long)]
         dry_run: bool,
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[clap(name = "OBSID")]
+        #[arg(id = "OBSID")]
         obsids: Vec<String>,
     },
 
-    /// Submit ASVO jobs to download MWA metadata (metafits and cotter flags)
-    #[clap(alias = "sm")]
+    /// Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and cotter flags (if available)
+    #[command(alias = "sm")]
     SubmitMeta {
         /// Tell MWA ASVO where to deliver the job. The default is "acacia", but
         /// this can be overridden with the environment variable
         /// GIANT_SQUID_DELIVERY.
-        #[clap(short, long)]
+        #[arg(short, long)]
         delivery: Option<String>,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
         /// which is always `tar`
-        #[clap(short = 'f', long)]
+        #[arg(short = 'f', long)]
         delivery_format: Option<String>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[clap(short, long)]
+        #[arg(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[clap(short = 'n', long)]
+        #[arg(short = 'n', long)]
         dry_run: bool,
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[clap(name = "OBSID")]
+        #[arg(id = "OBSID")]
         obsids: Vec<String>,
     },
 
-    /// Submit ASVO jobs to download MWA voltages
-    #[clap(alias = "st")]
+    /// Submit MWA ASVO jobs to download MWA voltages
+    #[command(alias = "st")]
     SubmitVolt {
-        /// Tell the ASVO where to deliver the job. The only valid value for a voltage
+        /// Tell the MWA ASVO where to deliver the job. The only valid value for a voltage
         /// job is "scratch".
-        #[clap(short, long)]
+        #[arg(short, long)]
         delivery: Option<String>,
 
         /// The offset in seconds from the start GPS time of the observation.
-        #[clap(short, long)]
+        #[arg(short, long)]
         offset: i32,
 
         /// The duration (in seconds) to download.
-        #[clap(short = 'u', long)]
+        #[arg(short = 'u', long)]
         duration: i32,
 
         /// The 'from' receiver channel number (0-255)
-        #[clap(short = 'f', long)]
+        #[arg(short = 'f', long)]
         from_channel: Option<i32>,
 
         /// The 'to' receiver channel number (0-255)
-        #[clap(short = 't', long)]
+        #[arg(short = 't', long)]
         to_channel: Option<i32>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
-        #[clap(short, long)]
+        #[arg(short, long)]
         wait: bool,
 
         /// Don't actually submit; print information on what would've happened
         /// instead.
-        #[clap(short = 'n', long)]
+        #[arg(short = 'n', long)]
         dry_run: bool,
 
         /// Allow resubmit- if exact same job params already in your queue
         /// allow submission anyway. Default: allow resubmit is False / not present
-        #[clap(short = 'r', long, action=ArgAction::SetTrue)]
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[clap(name = "OBSID")]
+        #[arg(id = "OBSID")]
         obsids: Vec<String>,
     },
 
-    /// Wait for ASVO jobs to complete, return the urls
-    #[clap(alias = "w")]
+    /// Wait for MWA ASVO jobs to complete, return the urls
+    #[command(alias = "w")]
     Wait {
         /// Print the jobs as a simple JSON after waiting
-        #[clap(short, long)]
+        #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
-        #[clap(short, long, action=ArgAction::Count)]
+        #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
         /// The jobs to wait for. Files containing jobs are also
         /// accepted.
-        #[clap(name = "JOB")]
+        #[arg(id = "JOB")]
         jobs: Vec<String>,
     },
 }
