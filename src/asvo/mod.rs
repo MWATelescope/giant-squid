@@ -53,7 +53,7 @@ pub static DEFAULT_CONVERSION_PARAMETERS: LazyLock<BTreeMap<&str, &str>> = LazyL
 });
 
 pub struct AsvoClient {
-    /// The `reqwest` [Client] used to interface with the ASVO web service.
+    /// The `reqwest` [Client] used to interface with the MWA ASVO web service.
     client: Client,
 }
 
@@ -69,7 +69,7 @@ impl AsvoClient {
         let client_version =
             var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.2".to_string());
         // Connect and return the cookie jar.
-        debug!("Connecting to ASVO...");
+        debug!("Connecting to MWA ASVO...");
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
@@ -80,7 +80,7 @@ impl AsvoClient {
             .basic_auth(client_version, Some(&api_key))
             .send()?;
         if response.status().is_success() {
-            debug!("Successfully authenticated with ASVO");
+            debug!("Successfully authenticated with MWA ASVO");
             Ok(AsvoClient { client })
         } else {
             Err(AsvoError::BadStatus {
@@ -91,7 +91,7 @@ impl AsvoClient {
     }
 
     pub fn get_jobs(&self) -> Result<AsvoJobVec, AsvoError> {
-        debug!("Retrieving job statuses from the ASVO...");
+        debug!("Retrieving job statuses from the MWA ASVO...");
         // Send a GET request to the ASVO.
         let response = self
             .client
@@ -108,7 +108,7 @@ impl AsvoClient {
         parse_asvo_json(&body).map_err(AsvoError::from)
     }
 
-    /// Download the specified ASVO job ID.
+    /// Download the specified MWA ASVO job ID.
     pub fn download_job(
         &self,
         jobid: AsvoJobID,
@@ -123,7 +123,7 @@ impl AsvoClient {
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
             1 => self.download(&jobs.0[0], keep_tar, hash, download_dir),
-            // Hopefully there's never multiples of the same ASVO job ID in a
+            // Hopefully there's never multiples of the same MWA ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
         }
@@ -141,7 +141,7 @@ impl AsvoClient {
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download obsid {}", obsid);
-        // Filter all ASVO jobs by obsid. If we don't have exactly one match, we
+        // Filter all MWA ASVO jobs by obsid. If we don't have exactly one match, we
         // have to bug out.
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
@@ -180,7 +180,7 @@ impl AsvoClient {
 
         let total_bytes = files.iter().map(|f| f.size).sum();
         info!(
-            "Downloading ASVO job ID {} (obsid: {}, type: {}, {})",
+            "Downloading MWA ASVO job ID {} (obsid: {}, type: {}, {})",
             job.jobid,
             job.obsid,
             job.jtype,
@@ -348,7 +348,7 @@ impl AsvoClient {
         Ok(())
     }
 
-    /// Submit an ASVO job for visibility download.
+    /// Submit an MWA ASVO job for visibility download.
     pub fn submit_vis(
         &self,
         obsid: Obsid,
@@ -356,7 +356,7 @@ impl AsvoClient {
         delivery_format: Option<DeliveryFormat>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
-        debug!("Submitting a vis job to ASVO");
+        debug!("Submitting a vis job to MWA ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
@@ -389,7 +389,7 @@ impl AsvoClient {
         to_channel: Option<i32>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
-        debug!("Submitting a voltage job to ASVO");
+        debug!("Submitting a voltage job to MWA ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
@@ -426,7 +426,7 @@ impl AsvoClient {
         self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
     }
 
-    /// Submit an ASVO job for conversion.
+    /// Submit an MWA ASVO job for conversion.
     pub fn submit_conv(
         &self,
         obsid: Obsid,
@@ -435,7 +435,7 @@ impl AsvoClient {
         parameters: &BTreeMap<&str, &str>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
-        debug!("Submitting a conversion job to ASVO");
+        debug!("Submitting a conversion job to MWA ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
@@ -468,7 +468,7 @@ impl AsvoClient {
         self.submit_asvo_job(&AsvoJobType::Conversion, form)
     }
 
-    /// Submit an ASVO job for metadata download.
+    /// Submit an MWA ASVO job for metadata download.
     pub fn submit_meta(
         &self,
         obsid: Obsid,
@@ -476,7 +476,7 @@ impl AsvoClient {
         delivery_format: Option<DeliveryFormat>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
-        debug!("Submitting a metafits job to ASVO");
+        debug!("Submitting a metafits job to MWA ASVO");
 
         let obsid_str = format!("{}", obsid);
         let d_str = format!("{}", delivery);
@@ -497,7 +497,7 @@ impl AsvoClient {
         self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
     }
 
-    /// This low-level function actually submits jobs to the ASVO.
+    /// This low-level function actually submits jobs to the MWA ASVO.
     /// The return can either be:
     /// Ok(Some(jobid)) - this is when a new job is submitted
     /// Ok(None) - this is when an existing job is resubmitted
@@ -507,7 +507,7 @@ impl AsvoClient {
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
-        debug!("Submitting an ASVO job");
+        debug!("Submitting an MWA ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
@@ -515,7 +515,7 @@ impl AsvoClient {
             jt => return Err(AsvoError::UnsupportedType(jt.clone())),
         };
 
-        // Send a POST request to the ASVO.
+        // Send a POST request to the MWA ASVO.
         let response = self
             .client
             .post(format!("{}/api/{}", get_asvo_server_address(), api_path))
