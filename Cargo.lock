@@ -767,6 +767,7 @@ dependencies = [
  "bytesize",
  "clap",
  "deranged",
+ "lazy_static",
  "log",
  "prettytable-rs",
  "reqwest",

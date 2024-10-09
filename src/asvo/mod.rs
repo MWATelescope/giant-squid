@@ -25,7 +25,6 @@ use backoff::{retry, Error, ExponentialBackoff};
 use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use sha1::{Digest, Sha1};
-use std::sync::LazyLock;
 use tar::Archive;
 
 use crate::obsid::Obsid;
@@ -40,17 +39,19 @@ pub fn get_asvo_server_address() -> String {
     )
 }
 
-pub static DEFAULT_CONVERSION_PARAMETERS: LazyLock<BTreeMap<&str, &str>> = LazyLock::new(|| {
-    // Default parameters for conversion jobs. Generate a measurement set with
-    // 4s time integration, 40kHz frequency channels, flag 160kHz from the
-    // edges of each coarse band, allow missing gpubox files and flag the
-    // centre channel of each coarse band.
-    let mut m = BTreeMap::new();
-    m.insert("output", "uvfits");
-    m.insert("avg_freq_res", "80");
-    m.insert("flag_edge_width", "80");
-    m
-});
+lazy_static::lazy_static! {
+    /// Default parameters for conversion jobs. Generate a measurement set with
+    /// 4s time integration, 40kHz frequency channels, flag 160kHz from the
+    /// edges of each coarse band, allow missing gpubox files and flag the
+    /// centre channel of each coarse band.
+    pub static ref DEFAULT_CONVERSION_PARAMETERS: BTreeMap<&'static str, &'static str> = {
+        let mut m = BTreeMap::new();
+        m.insert("output",  "uvfits");
+        m.insert("avg_freq_res",    "80");
+        m.insert("flag_edge_width", "80");
+        m
+    };
+}
 
 pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO web service.

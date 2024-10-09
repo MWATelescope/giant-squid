@@ -53,7 +53,7 @@ pub enum AsvoError {
     BadRequest { code: u32, message: String },
 
     /// Tried to download a job that doesn't exist.
-    #[error("ASVO job ID {0} wasn't found in your list of jobs.")]
+    #[error("MWA ASVO job ID {0} wasn't found in your list of jobs.")]
     NoAsvoJob(AsvoJobID),
 
     /// Tried to download an obsid that doesn't exist.
@@ -61,11 +61,11 @@ pub enum AsvoError {
     NoObsid(Obsid),
 
     /// Report to the caller that this job has expired.
-    #[error("ASVO job ID {0} has expired.")]
+    #[error("MWA ASVO job ID {0} has expired.")]
     Expired(AsvoJobID),
 
     /// Report to the caller that this job has been cancelled.
-    #[error("ASVO job ID {0} has been cancelled.")]
+    #[error("MWA ASVO job ID {0} has been cancelled.")]
     Cancelled(AsvoJobID),
 
     /// Tried to download an obsid, but it's associated with multiple jobs.
@@ -73,22 +73,24 @@ pub enum AsvoError {
     TooManyObsids(Obsid),
 
     /// Tried to download a job that wasn't ready.
-    #[error("ASVO job ID {jobid} isn't ready; current status: {state}")]
+    #[error("MWA ASVO job ID {jobid} isn't ready; current status: {state}")]
     NotReady {
         jobid: AsvoJobID,
         state: AsvoJobState,
     },
 
     /// Tried to download a job with an empty file product array.
-    #[error("ASVO job ID {0} doesn't have any files associated with it! This shouldn't happen.")]
+    #[error(
+        "MWA ASVO job ID {0} doesn't have any files associated with it! This shouldn't happen."
+    )]
     NoFiles(AsvoJobID),
 
     /// Tried to submit a job type that isn't supported.
-    #[error("Tried to submit an ASVO job with a type ({0}) that isn't supported.")]
+    #[error("Tried to submit an MWA ASVO job with a type ({0}) that isn't supported.")]
     UnsupportedType(AsvoJobType),
 
     /// ASVO SHA1 hash for a file didn't match our hash.
-    #[error("Hash mismatch for ASVO job ID {jobid} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
+    #[error("Hash mismatch for MWA ASVO job ID {jobid} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
     HashMismatch {
         jobid: AsvoJobID,
         file: String,
@@ -97,7 +99,7 @@ pub enum AsvoError {
     },
 
     /// Tried to download a job that has an error against it.
-    #[error("ASVO job ID {jobid} (obsid: {obsid}) has an error: {error}")]
+    #[error("MWA ASVO job ID {jobid} (obsid: {obsid}) has an error: {error}")]
     UpstreamError {
         jobid: AsvoJobID,
         obsid: Obsid,
@@ -106,7 +108,7 @@ pub enum AsvoError {
 
     /// Failed to deserialise the JSON from the body of the response from a
     /// "get_jobs" request.
-    #[error("Couldn't decode the JSON from the ASVO response: {0}")]
+    #[error("Couldn't decode the JSON from the MWA ASVO response: {0}")]
     BadJson(#[from] serde_json::error::Error),
 
     /// An error from the reqwest crate.

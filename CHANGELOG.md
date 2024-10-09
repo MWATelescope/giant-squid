@@ -8,10 +8,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 1.2.0 - 2024-10-08
 
-* Bumped MSRV to 1.80 in order to remove use of lazy_static crate.
 * Updated/migrated clap to v4.5.
 * Updated quinn-proto to latest to fix security vulnerability.
 * BUGFIX- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
+* Changed some console output references to "ASVO" to be "MWA ASVO".
 
 ## 1.1.0 - 2024-08-19
 

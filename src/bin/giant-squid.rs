@@ -9,7 +9,6 @@ use anyhow::bail;
 use clap::{ArgAction, Parser};
 use log::{debug, info};
 use simplelog::*;
-use std::sync::LazyLock;
 
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -18,18 +17,20 @@ const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
-static DEFAULT_CONVERSION_PARAMETERS_TEXT: LazyLock<String> = LazyLock::new(|| {
-    let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
-    for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
-        s.push_str(k);
-        s.push('=');
-        s.push_str(v);
-        if i != DEFAULT_CONVERSION_PARAMETERS.len() - 1 {
-            s.push_str(", ");
+lazy_static::lazy_static! {
+    static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
+        let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
+        for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
+            s.push_str(k);
+            s.push('=');
+            s.push_str(v);
+            if i != DEFAULT_CONVERSION_PARAMETERS.len() - 1 {
+                s.push_str(", ");
+            }
         }
-    }
-    s
-});
+        s
+    };
+}
 
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
