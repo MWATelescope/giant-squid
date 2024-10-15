@@ -8,8 +8,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## 1.2.0 - 2024-10-08
 
-* Updated/migrated clap to v4.5.
-* Updated quinn-proto to latest to fix security vulnerability.
+* Updated/migrated clap to v4.4.
+* Updated dependency quinn-proto to latest to fix security vulnerability.
 * BUGFIX- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
 * Changed some console output references to "ASVO" to be "MWA ASVO".
 
