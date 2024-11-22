@@ -580,6 +580,52 @@ impl AsvoClient {
             }
         }
     }
+
+    /// This low-level function actually cancels a job.
+    /// The return can either be:        
+    /// Ok(job_id) - this is when an existing job is successfully cancelled
+    /// Ok(None) - this is when it failed but it's ok to continue
+    /// Err() - this is when we hit an error
+    pub fn cancel_asvo_job(&self, job_id: u32) -> Result<Option<u32>, AsvoError> {
+        debug!("Cancelling an MWA ASVO job");
+
+        let mut form: BTreeMap<&str, &str> = BTreeMap::new();
+        let job_id_str = format!("{}", job_id);
+        form.insert("job_id", &job_id_str);
+
+        // Send a GET(?) request to the MWA ASVO.
+        // Should be POST!
+        let response = self
+            .client
+            .get(format!(
+                "{}/api/{}?job_id={}",
+                get_asvo_server_address(),
+                "cancel_job",
+                job_id
+            ))
+            .send()?;
+
+        let status_code = response.status();
+        let response_text = &response.text()?;
+        if status_code == 200 {
+            Ok(Some(job_id))
+        } else if status_code == 400 {
+            // Validation error
+            warn!("{}", &response_text);
+            Ok(None)
+        } else if status_code == 404 {
+            // Job id not found
+            warn!("Job Id: {} not found", job_id);
+            Ok(None)
+        } else {
+            // Show the http code when it's not something we can handle
+            warn!("http code: {} response: {}", status_code, &response_text);
+            return Err(AsvoError::BadStatus {
+                code: status_code,
+                message: response_text.to_string(),
+            });
+        }
+    }
 }
 
 #[cfg(test)]
@@ -669,6 +715,47 @@ mod tests {
                 _ => panic!("Unexpected error has occured."),
             },
         }
+    }
+
+    #[test]
+    fn test_cancel_job_not_found() {
+        let job_id = 1234;
+        let client = AsvoClient::new().unwrap();
+        let cancel_result = client.cancel_asvo_job(job_id);
+
+        assert!(cancel_result.is_ok_and(|j| j.is_none()))
+    }
+
+    #[test]
+    fn test_cancel_job_successful() {
+        let client = AsvoClient::new().unwrap();
+
+        // submit a new job (don't worry we will cancel it right away)
+        let obs_id = Obsid::validate(1416257384).unwrap();
+        let delivery = Delivery::Acacia;
+        let delivery_format: Option<DeliveryFormat> = None;
+        let allow_resubmit: bool = false;
+        let meta_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
+
+        let new_job_id: u32;
+
+        match meta_job {
+            Ok(job_id_or_none) => match job_id_or_none {
+                Some(j) => new_job_id = j,
+                None => panic!("Job submitted, but no jobid returned?"),
+            },
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: c,
+                    message: m,
+                } => panic!("Error has occurred: {} {}", c, m),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+
+        let cancel_result = client.cancel_asvo_job(new_job_id);
+
+        assert!(cancel_result.is_ok_and(|j| j.unwrap() == new_job_id))
     }
 
     #[test]

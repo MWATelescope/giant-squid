@@ -44,11 +44,11 @@ pub enum AsvoError {
     #[error("MWA_ASVO_API_KEY is not defined.")]
     MissingAuthKey,
 
-    /// The response had a status code other than 200.
+    /// The response had a status code other than "known" http status codes.
     #[error("The server responded with status code {code}, message:\n{message}")]
     BadStatus { code: StatusCode, message: String },
 
-    /// The response indicates a bad request.
+    /// The response indicates a bad request (400).
     #[error("The server responded with status code {code}, message:\n{message}")]
     BadRequest { code: u32, message: String },
 

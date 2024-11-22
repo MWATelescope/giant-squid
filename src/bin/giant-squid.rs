@@ -15,7 +15,7 @@ use mwa_giant_squid::*;
 
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
 Source:   https://github.com/MWATelescope/giant-squid
-MWA ASVO: https://asvo.mwatelescope.org"#;
+MWA ASVO:"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
@@ -289,6 +289,25 @@ enum Args {
         verbosity: u8,
 
         /// The jobs to wait for. Files containing jobs are also
+        /// accepted.
+        #[arg(id = "JOB")]
+        jobs: Vec<String>,
+    },
+
+    /// Cancel MWA ASVO job
+    #[command(alias = "c")]
+    Cancel {
+        /// Don't actually cancel; print information on what would've happened
+        /// instead.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[arg(short, long, action=ArgAction::Count)]
+        verbosity: u8,
+
+        /// The jobs to be cancelled. Files containing obsids are also
         /// accepted.
         #[arg(id = "JOB")]
         jobs: Vec<String>,
@@ -737,7 +756,7 @@ fn main() -> Result<(), anyhow::Error> {
         } => {
             let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
             if parsed_jobids.is_empty() {
-                bail!("No obsids specified!");
+                bail!("No jobids specified!");
             }
             init_logger(verbosity);
             let client = AsvoClient::new()?;
@@ -754,6 +773,42 @@ fn main() -> Result<(), anyhow::Error> {
                 println!("{}", jobs.json()?);
             } else {
                 jobs.list();
+            }
+        }
+
+        Args::Cancel {
+            dry_run,
+            verbosity,
+            jobs,
+        } => {
+            let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
+            if parsed_jobids.is_empty() {
+                bail!("No jobids specified!");
+            }
+            init_logger(verbosity);
+
+            if dry_run {
+                info!("Would have cancelled {} jobids.", parsed_jobids.len());
+            } else {
+                let client = AsvoClient::new()?;
+
+                let mut cancelled_count = 0;
+                for j in parsed_jobids {
+                    let result = client.cancel_asvo_job(j);
+
+                    if result.is_ok() {
+                        let success = result.unwrap();
+
+                        // Job was cancelled.
+                        // None means it was not cancelled but don't stop
+                        // processing the rest of the list
+                        if success.is_some() {
+                            info!("Cancelled ASVO job ID {}", j);
+                            cancelled_count += 1;
+                        }
+                    }
+                }
+                info!("Cancelled {} jobs.", cancelled_count);
             }
         }
     }
