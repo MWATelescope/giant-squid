@@ -6,14 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.2.0 - 2024-10-08
+## 1.2.0 - 2024-11-25
 
-* NEW FEATURE- added `cancel` command to allow cancellation of in progress jobs.
-* `submit-volt` command no longer defaults delivery to 'acacia' (it can only be 'scratch').
+### Added
+
+* Added `cancel` command to allow cancellation of in progress jobs. Pass one or more jobids to cancel.
+
+### Changed
+
+* MSRV bumped to 1.7.1 due to naughty sub-dependencies of reqwest.
+* Changed some console output references to "ASVO" to be "MWA ASVO".
+
+### Fixed
+
+* Fix- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
+* Fix- `submit-volt` command no longer defaults delivery to 'acacia' (it can only be 'scratch').
+
+### Security
+
 * Updated/migrated clap to v4.4.
 * Updated dependency quinn-proto to latest to fix security vulnerability.
-* BUGFIX- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
-* Changed some console output references to "ASVO" to be "MWA ASVO".
 
 ## 1.1.0 - 2024-08-19
 
