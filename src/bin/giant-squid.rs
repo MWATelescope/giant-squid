@@ -706,7 +706,13 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
-            let delivery = Delivery::validate(delivery)?;
+            // Default delivery for all jobs is acacia, except voltage
+            let volt_delivery = match delivery {
+                Some(d) => d,
+                None => "scratch".to_string(),
+            };
+
+            let delivery = Delivery::validate(Some(volt_delivery))?;
             debug!("Using {} for delivery", delivery);
 
             if dry_run {

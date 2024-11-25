@@ -288,7 +288,7 @@ impl Delivery {
                 d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
             },
             (None, Err(std::env::VarError::NotPresent)) => {
-                warn!("Using 'acacia' for ASVO delivery");
+                warn!("Using 'acacia' for MWA ASVO delivery");
                 Ok(Delivery::Acacia)
             }
             (None, Err(std::env::VarError::NotUnicode(_))) => {

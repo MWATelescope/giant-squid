@@ -15,7 +15,7 @@ pub use types::{
 };
 
 use std::collections::BTreeMap;
-use std::env::{current_dir, var};
+use std::env::{current_dir, var, VarError};
 use std::fs::{rename, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
@@ -31,11 +31,16 @@ use crate::obsid::Obsid;
 
 use self::types::AsvoFilesArray;
 
+// Returns a custom MWA ASVO host address (via a set env var)
+// or returns VarError::NotPresent error when not set
+pub fn get_asvo_server_address_env() -> Result<String, VarError> {
+    std::env::var("MWA_ASVO_HOST")
+}
+
 pub fn get_asvo_server_address() -> String {
     format!(
         "https://{}",
-        std::env::var("MWA_ASVO_HOST")
-            .unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
+        get_asvo_server_address_env().unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
     )
 }
 
@@ -70,7 +75,18 @@ impl AsvoClient {
         let client_version =
             var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.2".to_string());
         // Connect and return the cookie jar.
-        debug!("Connecting to MWA ASVO...");
+        // IF we are using a custom MWA ASVO host, then
+        // upgrade this debug message to a warn message
+        let custom_server_result = get_asvo_server_address_env();
+        if custom_server_result.is_ok() {
+            warn!(
+                "Connecting to MWA ASVO non-default host: {}...",
+                get_asvo_server_address()
+            );
+        } else {
+            debug!("Connecting to MWA ASVO...");
+        }
+
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
