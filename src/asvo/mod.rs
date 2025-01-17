@@ -21,13 +21,15 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::time::Instant;
 
+use crate::check_file_sha1_hash;
+use crate::obsid::Obsid;
 use backoff::{retry, Error, ExponentialBackoff};
 use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
+use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use sha1::{Digest, Sha1};
 use tar::Archive;
-
-use crate::obsid::Obsid;
+use tee_readwrite::TeeReader;
 
 use self::types::AsvoFilesArray;
 
@@ -226,7 +228,12 @@ impl AsvoClient {
                         }
 
                         info!(
-                            "Completed download in {} (average rate: {}/s)",
+                            "Completed download {} in {} (average rate: {}/s)",
+                            if hash {
+                                "and hash verification"
+                            } else {
+                                "without hash verification"
+                            },
                             if start_time.elapsed().as_secs() > 60 {
                                 format!(
                                     "{}min{:.2}s",
@@ -285,7 +292,7 @@ impl AsvoClient {
         url: &str,
         keep_tar: bool,
         hash: bool,
-        f: &AsvoFilesArray,
+        file_info: &AsvoFilesArray,
         job: &AsvoJob,
         download_dir: &str,
     ) -> Result<(), AsvoError> {
@@ -298,19 +305,73 @@ impl AsvoClient {
 
         // parse out path from url
         let url_obj = reqwest::Url::parse(url).unwrap();
-        let out_path = Path::new(url_obj.path_segments().unwrap().last().unwrap());
+        let out_path =
+            Path::new(&download_dir).join(url_obj.path_segments().unwrap().last().unwrap());
 
-        let response = self.client.get(url).send()?;
+        // Get mwa asvo hash
+        let mwa_asvo_hash = match &file_info.sha1 {
+            Some(h) => h,
+            None => panic!("MWA ASVO job {} does not have an Sha1 checksum! Please report this to asvo_support@mwatelescope.org", job.jobid),
+        };
 
-        let mut tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+        let response: reqwest::blocking::Response;
+        let mut tee: TeeReader<reqwest::blocking::Response, _>;
 
         if keep_tar {
+            let mut out_file = if out_path.try_exists()? {
+                // File already exists!
+                File::options().append(true).open(&out_path)?
+            } else {
+                File::create(&out_path)?
+            };
+
+            // Get the size of the file
+            let file_size_bytes: u64 = File::metadata(&out_file)?.len();
+
+            // If the file size matches the expected file size, skip downloading
+            // if the hash matches
+            if file_size_bytes == file_info.size {
+                // Now check the hash
+                match check_file_sha1_hash(&out_path, mwa_asvo_hash, job.jobid) {
+                    Ok(()) => {
+                        // We already have the file and it is the right size and matches
+                        // the hash, just get out of here!
+                        info!(
+                            "File exists, is the correct size and matches the checksum. Skipping file."
+                        );
+                        return Ok(());
+                    }
+                    Err(_) => {
+                        // Since the checksum didn't match, just truncate the file and start again
+                        warn!("File exists and is the correct size, but checksum does not match. Restarting download...");
+                        out_file = File::create(&out_path)?
+                    }
+                }
+            }
+
+            // If file_size_bytes != 0 then we are going to try and resume the download
+            // from where we left off. If file_size_bytes == 0 then we;ll start from the start!
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                RANGE,
+                HeaderValue::from_str(&format!(
+                    "Range: bytes={}-{}",
+                    file_size_bytes, file_info.size
+                ))
+                .unwrap(),
+            );
+
+            response = self.client.get(url).headers(headers).send()?;
+            tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+
             // Simply dump the response to the appropriate file name. Use a
             // buffer to avoid doing frequent writes.
+            if file_size_bytes > 0 {
+                info!("Resuming writing archive to {:?}", &out_path);
+            } else {
+                info!("Writing archive to {:?}", &out_path);
+            }
 
-            info!("Writing archive to {:?}", out_path);
-
-            let mut out_file = File::create(out_path)?;
             let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
 
             loop {
@@ -325,6 +386,9 @@ impl AsvoClient {
             }
         } else {
             // Stream-untar the response.
+            response = self.client.get(url).send()?;
+            tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+
             let unpack_path = Path::new(download_dir);
             info!("Untarring to {:?}", unpack_path);
             let mut tar = Archive::new(&mut tee);
@@ -341,24 +405,17 @@ impl AsvoClient {
         }
 
         if hash {
-            match &f.sha1 {
-                Some(sha) => {
-                    debug!("Upstream hash: {}", sha);
-                    let (_, hasher) = tee.into_inner();
-                    let hash = format!("{:x}", hasher.finalize());
-                    debug!("Our hash: {}", &hash);
-                    if !hash.eq_ignore_ascii_case(sha) {
-                        return Err(AsvoError::HashMismatch {
-                            jobid: job.jobid,
-                            file: url.to_string(),
-                            calculated_hash: hash,
-                            expected_hash: sha.to_string(),
-                        });
-                    }
-                }
-                _ => {
-                    panic!("Product does not include a hash to compare.")
-                }
+            debug!("MWA ASVO hash: {}", mwa_asvo_hash);
+            let (_, hasher) = tee.into_inner();
+            let hash = format!("{:x}", hasher.finalize());
+            debug!("Our hash: {}", &hash);
+            if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
+                return Err(AsvoError::HashMismatch {
+                    jobid: job.jobid,
+                    file: url.to_string(),
+                    calculated_hash: hash,
+                    expected_hash: mwa_asvo_hash.to_string(),
+                });
             }
         }
 

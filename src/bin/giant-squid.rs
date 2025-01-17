@@ -72,15 +72,15 @@ enum Args {
         #[arg(short, long, default_value = ".")]
         download_dir: String,
 
-        /// Don't unzip the contents of your download from the MWA ASVO.
-        #[arg(short, long)]
-        keep_zip: bool,
+        /// Don't untar the contents of your download from the MWA ASVO.
+        #[arg(short, long, visible_alias("keep-zip"))]
+        keep_tar: bool,
 
         /// Don't verify the downloaded contents against the upstream hash.
         #[arg(long)]
         skip_hash: bool,
 
-        // Does nothing: hash check is enabled by default. This is for backwards compatibility
+        // Does nothing: hash check is enabled by default. This is for backwards compatibility.
         #[arg(long, hide = true)]
         hash: bool,
 
@@ -430,7 +430,7 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::Download {
-            keep_zip,
+            keep_tar: keep_zip,
             skip_hash,
             dry_run,
             verbosity,

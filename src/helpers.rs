@@ -6,8 +6,10 @@
 
 use std::collections::BTreeMap;
 use std::io::BufRead;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::{fs, io};
 
+use sha1::{Digest, Sha1};
 use thiserror::Error;
 
 use crate::asvo::*;
@@ -146,9 +148,46 @@ pub enum ParseError {
     IO(#[from] std::io::Error),
 }
 
+/// Takes a filename, expected hash and a job id and returns
+/// Ok if the calculated hash matches the expected hash, otherwise
+/// returns an AsvoError::HashMismatch
+pub fn check_file_sha1_hash(
+    filename: &PathBuf,
+    expected_hash: &str,
+    job_id: u32,
+) -> Result<(), AsvoError> {
+    let mut file = fs::File::open(filename)?;
+    let mut hasher = Sha1::new();
+    io::copy(&mut file, &mut hasher)?;
+    let hash = format!("{:x}", hasher.finalize());
+
+    if hash.eq_ignore_ascii_case(expected_hash) {
+        Ok(())
+    } else {
+        Err(AsvoError::HashMismatch {
+            jobid: job_id,
+            file: filename.display().to_string(),
+            calculated_hash: hash,
+            expected_hash: expected_hash.to_string(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    // TODO
+    fn check_file_sha1_hash_ok() {
+        assert_eq!(0, 1);
+    }
+
+    #[test]
+    // TODO
+    fn check_file_sha1_hash_err() {
+        assert_eq!(0, 1);
+    }
 
     #[test]
     fn parse_map_simple() {

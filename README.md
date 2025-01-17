@@ -29,20 +29,26 @@ suit users for a few reasons:
    words, rather than downloading a potentially large (> 100 GiB!) tar file and
    then untarring it yourself (thereby occupying double the space of the
    original tar and performing a very expensive IO operation), it is possible to
-   get the files without performing an untar using `--keep-zip`
+   get the files without performing an untar using `--keep-tar`
 
-2. `giant-squid` does not require a CSV file to submit jobs; this is instead
+2. If `--keep-tar` is specified, then giant-squid will support resuming partial
+   downloads and continue where it left off if the download command is run after
+   a download was interrupted or failed. In addition, if the file to download
+   already exists and matches the expected file size and checksum, then
+   giant-squid will skip downloading the file again.
+
+3. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
 
-3. For any commands that accept obsids or job IDs, it is possible use text files
+4. For any commands that accept obsids or job IDs, it is possible use text files
    instead. These files are unpacked as if you had typed them out manually, and
    each entry of the text file(s) are checked for validity (all ints and all
    10-digits long); any exceptions are reported and the command fails.
 
-4. One can ask `giant-squid` to print their MWA ASVO queue as JSON; this makes
+5. One can ask `giant-squid` to print their MWA ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
-5. By default, `giant-squid` will validate the hash of the archive. You can skip
+6. By default, `giant-squid` will validate the hash of the archive. You can skip
    this check with `--skip-hash`
 
 ## Usage
