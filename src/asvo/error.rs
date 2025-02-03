@@ -115,6 +115,10 @@ pub enum AsvoError {
     #[error("{0}")]
     Reqwest(#[from] reqwest::Error),
 
+    /// An error from the anyhow crate.
+    #[error("{0}")]
+    Anyhow(#[from] anyhow::Error),
+
     /// A parse error.
     #[error("{0}")]
     Parse(#[from] std::num::ParseIntError),

@@ -128,7 +128,7 @@ impl AsvoClient {
     }
 
     /// Download the specified MWA ASVO job ID.
-    pub fn download_job(
+    pub fn download_jobid(
         &self,
         jobid: AsvoJobID,
         keep_tar: bool,

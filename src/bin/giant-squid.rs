@@ -10,6 +10,8 @@ use clap::{ArgAction, Parser};
 use log::{debug, info};
 use simplelog::*;
 
+use rayon::prelude::*;
+
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
 
@@ -30,6 +32,28 @@ lazy_static::lazy_static! {
         }
         s
     };
+}
+
+fn run_jobid_download(
+    jobid: AsvoJobID,
+    keep_zip: bool,
+    hash: bool,
+    download_dir: &str,
+) -> Result<AsvoClient, AsvoError> {
+    let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
+    client.download_jobid(jobid, keep_zip, hash, download_dir)?;
+    Ok(client)
+}
+
+fn run_obsid_download(
+    obsid: Obsid,
+    keep_zip: bool,
+    hash: bool,
+    download_dir: &str,
+) -> Result<AsvoClient, AsvoError> {
+    let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
+    client.download_obsid(obsid, keep_zip, hash, download_dir)?;
+    Ok(client)
 }
 
 #[derive(Parser, Debug)]
@@ -384,6 +408,11 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
 }
 
 fn main() -> Result<(), anyhow::Error> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build_global()
+        .unwrap();
+
     match Args::parse() {
         Args::List {
             verbosity,
@@ -460,13 +489,15 @@ fn main() -> Result<(), anyhow::Error> {
                     hash,
                 );
             } else {
-                let client = AsvoClient::new()?;
-                for j in jobids {
-                    client.download_job(j, keep_zip, hash, &download_dir)?;
-                }
-                for o in obsids {
-                    client.download_obsid(o, keep_zip, hash, &download_dir)?;
-                }
+                let jobids_result: Vec<Result<AsvoClient, AsvoError>> = jobids
+                    .par_iter()
+                    .map(|j| run_jobid_download(*j, keep_zip, hash, &download_dir))
+                    .collect();
+
+                let obsids_result: Vec<Result<AsvoClient, AsvoError>> = obsids
+                    .par_iter()
+                    .map(|o| run_obsid_download(*o, keep_zip, hash, &download_dir))
+                    .collect();
             }
         }
 
