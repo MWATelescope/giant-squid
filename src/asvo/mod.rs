@@ -24,6 +24,7 @@ use std::time::Instant;
 use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
 use backoff::{retry, Error, ExponentialBackoff};
+use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
@@ -134,6 +135,7 @@ impl AsvoClient {
         keep_tar: bool,
         hash: bool,
         download_dir: &str,
+        progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download job {}", jobid);
@@ -141,7 +143,7 @@ impl AsvoClient {
         jobs.0.retain(|j| j.jobid == jobid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir),
+            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir, progress_bar),
             // Hopefully there's never multiples of the same MWA ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
@@ -157,6 +159,7 @@ impl AsvoClient {
         keep_tar: bool,
         hash: bool,
         download_dir: &str,
+        progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download obsid {}", obsid);
@@ -165,7 +168,7 @@ impl AsvoClient {
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoObsid(obsid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir),
+            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir, progress_bar),
             _ => Err(AsvoError::TooManyObsids(obsid)),
         }
     }
@@ -177,6 +180,7 @@ impl AsvoClient {
         keep_tar: bool,
         hash: bool,
         download_dir: &str,
+        progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
         // Is the job ready to download?
         if job.state != AsvoJobState::Ready {
@@ -198,10 +202,12 @@ impl AsvoClient {
         };
 
         let total_bytes = files.iter().map(|f| f.size).sum();
+
+        let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid,);
+
         info!(
-            "Downloading MWA ASVO job ID {} (obsid: {}, type: {}, {})",
-            job.jobid,
-            job.obsid,
+            "{} Downloading (type: {}, {})",
+            log_prefix,
             job.jtype,
             bytesize::ByteSize(total_bytes).to_string_as(true)
         );
@@ -212,14 +218,23 @@ impl AsvoClient {
             match f.r#type {
                 Delivery::Acacia => match f.url.as_deref() {
                     Some(url) => {
-                        debug!("Downloading file {:?}", &url);
+                        info!("{} Downloading from url {}", log_prefix, &url);
 
                         let op = || {
-                            self.try_download(url, keep_tar, hash, f, job, download_dir)
-                                .map_err(|e| match &e {
-                                    &AsvoError::IO(_) => Error::permanent(e),
-                                    _ => Error::transient(e),
-                                })
+                            self.try_download(
+                                url,
+                                keep_tar,
+                                hash,
+                                f,
+                                job,
+                                download_dir,
+                                &log_prefix,
+                                progress_bar,
+                            )
+                            .map_err(|e| match &e {
+                                &AsvoError::IO(_) => Error::permanent(e),
+                                _ => Error::transient(e),
+                            })
                         };
 
                         if let Err(Error::Permanent(err)) = retry(ExponentialBackoff::default(), op)
@@ -228,7 +243,8 @@ impl AsvoClient {
                         }
 
                         info!(
-                            "Completed download {} in {} (average rate: {}/s)",
+                            "{} Completed download {} in {} (average rate: {}/s)",
+                            log_prefix,
                             if hash {
                                 "and hash verification"
                             } else {
@@ -266,12 +282,12 @@ impl AsvoClient {
                                 .unwrap();
 
                             if !Path::exists(path_obj) {
-                                info!(
-                                    "Files for Job {} are not reachable from the current host.",
-                                    job.jobid
+                                error!(
+                                    "{} Files for Job are not reachable from the current host.",
+                                    log_prefix
                                 );
                             } else {
-                                info!("Files for Job {} are reachable from the current host. Copying to current directory.", job.jobid);
+                                info!("{} Files for Job are reachable from the current host. Copying to current directory.", log_prefix);
 
                                 let mut current_path = current_dir()?;
                                 current_path.push(folder_name);
@@ -287,6 +303,7 @@ impl AsvoClient {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn try_download(
         &self,
         url: &str,
@@ -295,6 +312,8 @@ impl AsvoClient {
         file_info: &AsvoFilesArray,
         job: &AsvoJob,
         download_dir: &str,
+        log_prefix: &str,
+        progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
         let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
@@ -311,7 +330,7 @@ impl AsvoClient {
         // Get mwa asvo hash
         let mwa_asvo_hash = match &file_info.sha1 {
             Some(h) => h,
-            None => panic!("MWA ASVO job {} does not have an Sha1 checksum! Please report this to asvo_support@mwatelescope.org", job.jobid),
+            None => panic!("{} job does not have an Sha1 checksum! Please report this to asvo_support@mwatelescope.org", log_prefix),
         };
 
         let response: reqwest::blocking::Response;
@@ -337,17 +356,20 @@ impl AsvoClient {
                         // We already have the file and it is the right size and matches
                         // the hash, just get out of here!
                         info!(
-                            "File exists, is the correct size and matches the checksum. Skipping file."
+                            "{} File exists, is the correct size and matches the checksum. Skipping file.", log_prefix
                         );
                         return Ok(());
                     }
                     Err(_) => {
                         // Since the checksum didn't match, just truncate the file and start again
-                        warn!("File exists and is the correct size, but checksum does not match. Restarting download...");
+                        warn!("{} File exists and is the correct size, but checksum does not match. Restarting download...", log_prefix);
                         out_file = File::create(&out_path)?
                     }
                 }
             }
+
+            // Set the progress bar to be the number bytes left to download in the total file
+            progress_bar.set_length(file_info.size - file_size_bytes);
 
             // If file_size_bytes != 0 then we are going to try and resume the download
             // from where we left off. If file_size_bytes == 0 then we;ll start from the start!
@@ -367,9 +389,9 @@ impl AsvoClient {
             // Simply dump the response to the appropriate file name. Use a
             // buffer to avoid doing frequent writes.
             if file_size_bytes > 0 {
-                info!("Resuming writing archive to {:?}", &out_path);
+                info!("{} Resuming writing archive to {:?}", log_prefix, &out_path);
             } else {
-                info!("Writing archive to {:?}", &out_path);
+                info!("{} Writing archive to {:?}", log_prefix, &out_path);
             }
 
             let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
@@ -379,9 +401,15 @@ impl AsvoClient {
                 out_file.write_all(buffer)?;
 
                 let length = buffer.len();
+
                 file_buf.consume(length);
+
                 if length == 0 {
+                    progress_bar.finish();
                     break;
+                } else {
+                    // Increment progress bar
+                    progress_bar.inc(length.try_into().unwrap());
                 }
             }
         } else {
@@ -390,7 +418,7 @@ impl AsvoClient {
             tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             let unpack_path = Path::new(download_dir);
-            info!("Untarring to {:?}", unpack_path);
+            info!("{} Untarring to {:?}", log_prefix, unpack_path);
             let mut tar = Archive::new(&mut tee);
             tar.set_preserve_mtime(false);
             tar.unpack(unpack_path)?;
@@ -405,7 +433,7 @@ impl AsvoClient {
         }
 
         if hash {
-            debug!("MWA ASVO hash: {}", mwa_asvo_hash);
+            debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
             debug!("Our hash: {}", &hash);

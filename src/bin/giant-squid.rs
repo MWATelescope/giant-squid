@@ -12,12 +12,14 @@ use simplelog::*;
 
 use rayon::prelude::*;
 
+use indicatif::{ProgressBar, ProgressStyle};
+
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
 
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
 Source:   https://github.com/MWATelescope/giant-squid
-MWA ASVO:"#;
+MWA ASVO: https://asvo.mwatelescope.org"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
@@ -36,23 +38,25 @@ lazy_static::lazy_static! {
 
 fn run_jobid_download(
     jobid: AsvoJobID,
-    keep_zip: bool,
+    keep_tar: bool,
     hash: bool,
     download_dir: &str,
+    progress_bar: &ProgressBar,
 ) -> Result<AsvoClient, AsvoError> {
     let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_jobid(jobid, keep_zip, hash, download_dir)?;
+    client.download_jobid(jobid, keep_tar, hash, download_dir, progress_bar)?;
     Ok(client)
 }
 
 fn run_obsid_download(
     obsid: Obsid,
-    keep_zip: bool,
+    keep_tar: bool,
     hash: bool,
     download_dir: &str,
+    progress_bar: &ProgressBar,
 ) -> Result<AsvoClient, AsvoError> {
     let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_obsid(obsid, keep_zip, hash, download_dir)?;
+    client.download_obsid(obsid, keep_tar, hash, download_dir, progress_bar)?;
     Ok(client)
 }
 
@@ -96,9 +100,13 @@ enum Args {
         #[arg(short, long, default_value = ".")]
         download_dir: String,
 
-        /// Don't untar the contents of your download from the MWA ASVO.
+        /// Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off.
         #[arg(short, long, visible_alias("keep-zip"))]
         keep_tar: bool,
+
+        /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has
+        #[arg(short = 'c', long, default_value = "4")]
+        concurrent_downloads: usize,
 
         /// Don't verify the downloaded contents against the upstream hash.
         #[arg(long)]
@@ -408,11 +416,6 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(1)
-        .build_global()
-        .unwrap();
-
     match Args::parse() {
         Args::List {
             verbosity,
@@ -460,6 +463,7 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::Download {
             keep_tar: keep_zip,
+            concurrent_downloads,
             skip_hash,
             dry_run,
             verbosity,
@@ -471,6 +475,11 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("No jobs specified!");
             }
             init_logger(verbosity);
+
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(concurrent_downloads)
+                .build_global()
+                .unwrap();
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
             let hash = !skip_hash;
@@ -489,14 +498,23 @@ fn main() -> Result<(), anyhow::Error> {
                     hash,
                 );
             } else {
-                let jobids_result: Vec<Result<AsvoClient, AsvoError>> = jobids
+                let pb = ProgressBar::new(jobids_or_obsids.len().try_into().unwrap());
+                let sty = ProgressStyle::with_template(
+                    "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
+                )
+                .expect("Unable to create progress bar style");
+                pb.set_style(sty);
+
+                // Each download will report an error if there is one, so no need to do anything with
+                // the results (I think)
+                let _jobids_result: Vec<Result<AsvoClient, AsvoError>> = jobids
                     .par_iter()
-                    .map(|j| run_jobid_download(*j, keep_zip, hash, &download_dir))
+                    .map(|j| run_jobid_download(*j, keep_zip, hash, &download_dir, &pb))
                     .collect();
 
-                let obsids_result: Vec<Result<AsvoClient, AsvoError>> = obsids
+                let _obsids_result: Vec<Result<AsvoClient, AsvoError>> = obsids
                     .par_iter()
-                    .map(|o| run_obsid_download(*o, keep_zip, hash, &download_dir))
+                    .map(|o| run_obsid_download(*o, keep_zip, hash, &download_dir, &pb))
                     .collect();
             }
         }
