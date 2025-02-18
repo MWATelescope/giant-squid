@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macOS-13, macOS-14]
+        os: [ubuntu-latest, ubuntu-22.04-arm, macOS-13, macOS-14]
         toolchain: [stable]
         include:
           - os: ubuntu-latest
