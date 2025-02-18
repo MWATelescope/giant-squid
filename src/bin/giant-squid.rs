@@ -4,15 +4,17 @@
 
 use std::collections::BTreeMap;
 use std::time::Duration;
+use std::{thread, time};
 
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-use log::{debug, info};
+use log::{debug, error, info};
 use simplelog::*;
 
 use rayon::prelude::*;
 
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -36,27 +38,77 @@ lazy_static::lazy_static! {
     };
 }
 
+fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
+    let pb = multi_progress_bar.add(ProgressBar::new(0));
+
+    let sty = ProgressStyle::with_template(
+        "{spinner:.green} {msg} [{bar:60.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {elapsed_precise}, eta: {eta})",
+    )
+    .expect("Unable to create progress bar style");
+    pb.set_style(sty);
+
+    pb
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_jobid_download(
     jobid: AsvoJobID,
     keep_tar: bool,
+    no_resume: bool,
     hash: bool,
     download_dir: &str,
-    progress_bar: &ProgressBar,
+    multi_progress_bar: &MultiProgress,
+    download_number: usize,
+    download_count: usize,
 ) -> Result<AsvoClient, AsvoError> {
+    // Add a small delay to hopefully have the downloads start in order
+    // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
+    thread::sleep(time::Duration::from_millis(100));
+
+    let pb = create_progress_bar(multi_progress_bar);
+
     let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_jobid(jobid, keep_tar, hash, download_dir, progress_bar)?;
+    client.download_jobid(
+        jobid,
+        keep_tar,
+        no_resume,
+        hash,
+        download_dir,
+        &pb,
+        download_number,
+        download_count,
+    )?;
     Ok(client)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_obsid_download(
     obsid: Obsid,
     keep_tar: bool,
+    no_resume: bool,
     hash: bool,
     download_dir: &str,
-    progress_bar: &ProgressBar,
+    multi_progress_bar: &MultiProgress,
+    download_number: usize,
+    download_count: usize,
 ) -> Result<AsvoClient, AsvoError> {
+    // Add a small delay to hopefully have the downloads start in order
+    // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
+    thread::sleep(time::Duration::from_millis(100));
+
+    let pb = create_progress_bar(multi_progress_bar);
+
     let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_obsid(obsid, keep_tar, hash, download_dir, progress_bar)?;
+    client.download_obsid(
+        obsid,
+        keep_tar,
+        no_resume,
+        hash,
+        download_dir,
+        &pb,
+        download_number,
+        download_count,
+    )?;
     Ok(client)
 }
 
@@ -103,6 +155,10 @@ enum Args {
         /// Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off.
         #[arg(short, long, visible_alias("keep-zip"))]
         keep_tar: bool,
+
+        /// Do not attempt to resume a partial download. Leave the partial file alone.
+        #[arg(short = 'r', long)]
+        no_resume: bool,
 
         /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has
         #[arg(short = 'c', long, default_value = "4")]
@@ -347,15 +403,34 @@ enum Args {
 }
 
 fn init_logger(level: u8) {
-    let config = ConfigBuilder::new()
+    let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
         .expect("Unable to set time offset to local in SimpleLogger")
         .build();
     match level {
-        0 => SimpleLogger::init(LevelFilter::Info, config).unwrap(),
-        1 => SimpleLogger::init(LevelFilter::Debug, config).unwrap(),
-        _ => SimpleLogger::init(LevelFilter::Trace, config).unwrap(),
+        0 => SimpleLogger::init(LevelFilter::Info, log_config).unwrap(),
+        1 => SimpleLogger::init(LevelFilter::Debug, log_config).unwrap(),
+        _ => SimpleLogger::init(LevelFilter::Trace, log_config).unwrap(),
     };
+}
+
+fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgress) {
+    let log_config = ConfigBuilder::new()
+        .set_time_offset_to_local()
+        .expect("Unable to set time offset to local in SimpleLogger")
+        .build();
+
+    let filter = match level {
+        0 => LevelFilter::Info,
+        1 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
+    };
+
+    let log = SimpleLogger::new(filter, log_config);
+
+    LogWrapper::new(multiprogressbar.clone(), log)
+        .try_init()
+        .unwrap();
 }
 
 /// Wait for all of the specified job IDs to become ready, then exit.
@@ -463,6 +538,7 @@ fn main() -> Result<(), anyhow::Error> {
 
         Args::Download {
             keep_tar: keep_zip,
+            no_resume,
             concurrent_downloads,
             skip_hash,
             dry_run,
@@ -474,7 +550,13 @@ fn main() -> Result<(), anyhow::Error> {
             if jobids_or_obsids.is_empty() {
                 bail!("No jobs specified!");
             }
-            init_logger(verbosity);
+
+            // Create progress bar capable of multiple downloads
+            let mpb = MultiProgress::new();
+
+            // Init the logger- special case as we need to use LogWrapper to ensure log
+            // messages don't mess up the progress bars!
+            init_logger_with_progressbar_support(verbosity, &mpb);
 
             rayon::ThreadPoolBuilder::new()
                 .num_threads(concurrent_downloads)
@@ -498,24 +580,54 @@ fn main() -> Result<(), anyhow::Error> {
                     hash,
                 );
             } else {
-                let pb = ProgressBar::new(jobids_or_obsids.len().try_into().unwrap());
-                let sty = ProgressStyle::with_template(
-                    "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})",
-                )
-                .expect("Unable to create progress bar style");
-                pb.set_style(sty);
-
                 // Each download will report an error if there is one, so no need to do anything with
                 // the results (I think)
-                let _jobids_result: Vec<Result<AsvoClient, AsvoError>> = jobids
+                let t: usize = jobids.len() + obsids.len();
+
+                let mut jobids_results: Vec<Result<AsvoClient, AsvoError>> = jobids
                     .par_iter()
-                    .map(|j| run_jobid_download(*j, keep_zip, hash, &download_dir, &pb))
+                    .enumerate()
+                    .map(|(c, j)| {
+                        run_jobid_download(
+                            *j,
+                            keep_zip,
+                            no_resume,
+                            hash,
+                            &download_dir,
+                            &mpb,
+                            c + 1,
+                            t,
+                        )
+                    })
                     .collect();
 
-                let _obsids_result: Vec<Result<AsvoClient, AsvoError>> = obsids
+                let mut obsids_results: Vec<Result<AsvoClient, AsvoError>> = obsids
                     .par_iter()
-                    .map(|o| run_obsid_download(*o, keep_zip, hash, &download_dir, &pb))
+                    .enumerate()
+                    .map(|(c, o)| {
+                        run_obsid_download(
+                            *o,
+                            keep_zip,
+                            no_resume,
+                            hash,
+                            &download_dir,
+                            &mpb,
+                            c + 1,
+                            t,
+                        )
+                    })
                     .collect();
+
+                // Combine both sets of results
+                // Filter for only Errors
+                // Report each error
+                for job_result in jobids_results
+                    .iter_mut()
+                    .chain(obsids_results.iter_mut())
+                    .filter(|o| o.is_err())
+                {
+                    error!("{}", job_result.as_mut().unwrap_err().to_string());
+                }
             }
         }
 

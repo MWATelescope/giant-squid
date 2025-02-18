@@ -3,7 +3,6 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Errors when interfacing with the MWA ASVO.
-
 use reqwest::StatusCode;
 use thiserror::Error;
 

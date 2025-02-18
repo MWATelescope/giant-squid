@@ -18,14 +18,14 @@ use std::collections::BTreeMap;
 use std::env::{current_dir, var, VarError};
 use std::fs::{rename, File};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
-use std::time::Instant;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
 use backoff::{retry, Error, ExponentialBackoff};
 use indicatif::ProgressBar;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use sha1::{Digest, Sha1};
@@ -61,6 +61,7 @@ lazy_static::lazy_static! {
     };
 }
 
+#[derive(Debug)]
 pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO web service.
     client: Client,
@@ -129,13 +130,17 @@ impl AsvoClient {
     }
 
     /// Download the specified MWA ASVO job ID.
+    #[allow(clippy::too_many_arguments)]
     pub fn download_jobid(
         &self,
         jobid: AsvoJobID,
         keep_tar: bool,
+        no_resume: bool,
         hash: bool,
         download_dir: &str,
         progress_bar: &ProgressBar,
+        download_number: usize,
+        download_count: usize,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download job {}", jobid);
@@ -143,7 +148,16 @@ impl AsvoClient {
         jobs.0.retain(|j| j.jobid == jobid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoAsvoJob(jobid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir, progress_bar),
+            1 => self.download(
+                &jobs.0[0],
+                keep_tar,
+                no_resume,
+                hash,
+                download_dir,
+                progress_bar,
+                download_number,
+                download_count,
+            ),
             // Hopefully there's never multiples of the same MWA ASVO job ID in a
             // user's job listing...
             _ => unreachable!(),
@@ -153,13 +167,17 @@ impl AsvoClient {
     /// Download the job associated with an obsid. If more than one job is
     /// associated with the obsid, we must abort, because we don't know which
     /// job to download.
+    #[allow(clippy::too_many_arguments)]
     pub fn download_obsid(
         &self,
         obsid: Obsid,
         keep_tar: bool,
+        no_resume: bool,
         hash: bool,
         download_dir: &str,
         progress_bar: &ProgressBar,
+        download_number: usize,
+        download_count: usize,
     ) -> Result<(), AsvoError> {
         let mut jobs = self.get_jobs()?;
         debug!("Attempting to download obsid {}", obsid);
@@ -168,19 +186,32 @@ impl AsvoClient {
         jobs.0.retain(|j| j.obsid == obsid);
         match jobs.0.len() {
             0 => Err(AsvoError::NoObsid(obsid)),
-            1 => self.download(&jobs.0[0], keep_tar, hash, download_dir, progress_bar),
+            1 => self.download(
+                &jobs.0[0],
+                keep_tar,
+                no_resume,
+                hash,
+                download_dir,
+                progress_bar,
+                download_number,
+                download_count,
+            ),
             _ => Err(AsvoError::TooManyObsids(obsid)),
         }
     }
 
     /// Private function to actually do the work.
+    #[allow(clippy::too_many_arguments)]
     fn download(
         &self,
         job: &AsvoJob,
         keep_tar: bool,
+        no_resume: bool,
         hash: bool,
         download_dir: &str,
         progress_bar: &ProgressBar,
+        download_number: usize,
+        download_count: usize,
     ) -> Result<(), AsvoError> {
         // Is the job ready to download?
         if job.state != AsvoJobState::Ready {
@@ -201,16 +232,11 @@ impl AsvoClient {
             }
         };
 
-        let total_bytes = files.iter().map(|f| f.size).sum();
-
-        let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid,);
-
-        info!(
-            "{} Downloading (type: {}, {})",
-            log_prefix,
-            job.jtype,
-            bytesize::ByteSize(total_bytes).to_string_as(true)
+        let log_prefix = format!(
+            "Job ID {} (obsid: {}) [{}/{}]:",
+            job.jobid, job.obsid, download_number, download_count
         );
+
         let start_time = Instant::now();
 
         // Download each file.
@@ -218,21 +244,28 @@ impl AsvoClient {
             match f.r#type {
                 Delivery::Acacia => match f.url.as_deref() {
                     Some(url) => {
-                        info!("{} Downloading from url {}", log_prefix, &url);
+                        debug!("{} Downloading from url {}", log_prefix, &url);
+
+                        // parse out path from url
+                        let url_obj = reqwest::Url::parse(url).unwrap();
+                        let out_path = Path::new(&download_dir)
+                            .join(url_obj.path_segments().unwrap().last().unwrap());
 
                         let op = || {
                             self.try_download(
                                 url,
                                 keep_tar,
+                                no_resume,
                                 hash,
                                 f,
                                 job,
                                 download_dir,
+                                &out_path,
                                 &log_prefix,
                                 progress_bar,
                             )
                             .map_err(|e| match &e {
-                                &AsvoError::IO(_) => Error::permanent(e),
+                                AsvoError::IO(_) => Error::permanent(e),
                                 _ => Error::transient(e),
                             })
                         };
@@ -243,27 +276,18 @@ impl AsvoClient {
                         }
 
                         info!(
-                            "{} Completed download {} in {} (average rate: {}/s)",
+                            "{} Completed {:?} in {}",
                             log_prefix,
-                            if hash {
-                                "and hash verification"
-                            } else {
-                                "without hash verification"
-                            },
+                            &out_path,
                             if start_time.elapsed().as_secs() > 60 {
                                 format!(
-                                    "{}min{:.2}s",
+                                    "{} min {:.2} s",
                                     start_time.elapsed().as_secs() / 60,
                                     (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
                                 )
                             } else {
-                                format!("{}s", start_time.elapsed().as_millis() as f64 / 1e3)
+                                format!("{} s", start_time.elapsed().as_millis() as f64 / 1e3)
                             },
-                            bytesize::ByteSize(
-                                (total_bytes as u128 * 1000 / start_time.elapsed().as_millis())
-                                    as u64
-                            )
-                            .to_string_as(true)
                         );
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
@@ -308,10 +332,12 @@ impl AsvoClient {
         &self,
         url: &str,
         keep_tar: bool,
+        no_resume: bool,
         hash: bool,
         file_info: &AsvoFilesArray,
         job: &AsvoJob,
         download_dir: &str,
+        out_path: &PathBuf,
         log_prefix: &str,
         progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
@@ -322,54 +348,87 @@ impl AsvoClient {
         } * 1024
             * 1024;
 
-        // parse out path from url
-        let url_obj = reqwest::Url::parse(url).unwrap();
-        let out_path =
-            Path::new(&download_dir).join(url_obj.path_segments().unwrap().last().unwrap());
-
         // Get mwa asvo hash
         let mwa_asvo_hash = match &file_info.sha1 {
             Some(h) => h,
-            None => panic!("{} job does not have an Sha1 checksum! Please report this to asvo_support@mwatelescope.org", log_prefix),
+            None => panic!("{} job does not have an Sha1 hash! Please report this to asvo_support@mwatelescope.org", log_prefix),
         };
 
         let response: reqwest::blocking::Response;
         let mut tee: TeeReader<reqwest::blocking::Response, _>;
 
+        info!(
+            "{} Download starting (type: {}, {})...",
+            log_prefix,
+            job.jtype,
+            bytesize::ByteSize(file_info.size).to_string_as(true),
+        );
+
         if keep_tar {
-            let mut out_file = if out_path.try_exists()? {
+            let file_size_bytes: u64;
+            let mut out_file: File;
+
+            if out_path.try_exists()? {
                 // File already exists!
-                File::options().append(true).open(&out_path)?
-            } else {
-                File::create(&out_path)?
-            };
 
-            // Get the size of the file
-            let file_size_bytes: u64 = File::metadata(&out_file)?.len();
+                if no_resume {
+                    out_file = File::open(out_path)?;
+                } else {
+                    out_file = File::options().append(true).open(out_path)?
+                }
 
-            // If the file size matches the expected file size, skip downloading
-            // if the hash matches
-            if file_size_bytes == file_info.size {
-                // Now check the hash
-                match check_file_sha1_hash(&out_path, mwa_asvo_hash, job.jobid) {
-                    Ok(()) => {
-                        // We already have the file and it is the right size and matches
-                        // the hash, just get out of here!
-                        info!(
-                            "{} File exists, is the correct size and matches the checksum. Skipping file.", log_prefix
-                        );
-                        return Ok(());
-                    }
-                    Err(_) => {
-                        // Since the checksum didn't match, just truncate the file and start again
-                        warn!("{} File exists and is the correct size, but checksum does not match. Restarting download...", log_prefix);
-                        out_file = File::create(&out_path)?
+                // Get the size of the file
+                file_size_bytes = File::metadata(&out_file)?.len();
+
+                if no_resume && file_size_bytes < file_info.size {
+                    warn!(
+                        "{} Partial file {:?} exists, but --no-resume was set. Skipping file.",
+                        log_prefix, out_path
+                    );
+                    return Ok(());
+                }
+
+                // If the file size matches the expected file size, skip downloading
+                // if the hash matches
+                if file_size_bytes == file_info.size {
+                    info!(
+                        "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
+                        log_prefix, &out_path
+                    );
+                    // Now check the hash
+                    match check_file_sha1_hash(out_path, mwa_asvo_hash, job.jobid) {
+                        Ok(()) => {
+                            // We already have the file and it is the right size and matches
+                            // the hash, just get out of here!
+                            progress_bar.finish_and_clear();
+                            info!(
+                                "{} File exists, is the correct size and matches the MWA ASVO provided hash. Skipping file.", log_prefix
+                            );
+                            return Ok(());
+                        }
+                        Err(_) => {
+                            // Since the hash didn't match, just truncate the file and start again
+                            if no_resume {
+                                warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Leaving file as is, since --no-resume was set.", log_prefix);
+                                return Ok(());
+                            } else {
+                                warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Restarting download...", log_prefix);
+                                out_file = File::create(out_path)?
+                            }
+                        }
                     }
                 }
+            } else {
+                file_size_bytes = 0;
+                out_file = File::create(out_path)?;
             }
 
-            // Set the progress bar to be the number bytes left to download in the total file
-            progress_bar.set_length(file_info.size - file_size_bytes);
+            // Set the progress bar to be the number bytes in the file
+            progress_bar.enable_steady_tick(Duration::from_millis(500));
+            progress_bar.set_length(file_info.size);
+            progress_bar.set_position(file_size_bytes);
+            progress_bar.reset_eta();
+            progress_bar.set_message(log_prefix.to_string());
 
             // If file_size_bytes != 0 then we are going to try and resume the download
             // from where we left off. If file_size_bytes == 0 then we;ll start from the start!
@@ -388,11 +447,16 @@ impl AsvoClient {
 
             // Simply dump the response to the appropriate file name. Use a
             // buffer to avoid doing frequent writes.
-            if file_size_bytes > 0 {
-                info!("{} Resuming writing archive to {:?}", log_prefix, &out_path);
-            } else {
-                info!("{} Writing archive to {:?}", log_prefix, &out_path);
-            }
+            info!(
+                "{} {} tar archive {:?}...",
+                log_prefix,
+                if file_size_bytes > 0 {
+                    "Resuming download of"
+                } else {
+                    "Downloading"
+                },
+                &out_path,
+            );
 
             let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
 
@@ -405,7 +469,6 @@ impl AsvoClient {
                 file_buf.consume(length);
 
                 if length == 0 {
-                    progress_bar.finish();
                     break;
                 } else {
                     // Increment progress bar
@@ -430,9 +493,16 @@ impl AsvoClient {
         {
             let mut final_bytes = vec![];
             tee.read_to_end(&mut final_bytes)?;
+            trace!("{} Read final bytes: {}", log_prefix, final_bytes.len());
         }
 
+        progress_bar.finish_and_clear();
+
         if hash {
+            info!(
+                "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
+                log_prefix, &out_path
+            );
             debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
@@ -445,6 +515,8 @@ impl AsvoClient {
                     expected_hash: mwa_asvo_hash.to_string(),
                 });
             }
+
+            info!("{} File matches the MWA ASVO provided hash.", log_prefix);
         }
 
         Ok(())

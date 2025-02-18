@@ -11,9 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * New feature: download resume!
   * If you are downloading from MWA ASVO using giant-squid and pass the `-k` / `--keep-tar` option (meaning giant-squid will just download the tar file and not try to stream untar it) then giant-squid will now check to see if the target file is already partially downloaded. If it is, it will attempt to resume from where it left off. If the file exists and matches the expected size and the checksum matches it will skip the file. NOTE: due to the way the `stream untar` feature works (the default when you don't pass `-k` to the download command), resume is not yet supported.
+  * You can disable the resume feature by adding the `-n` / `--no-resume` argument to the `download` command.
+    * If an existing partial file does exist with the `--no-resume` flag, giant-squid will abort the download and leave the file alone.
 * New feature: concurrent downloads!
   * There is now a new argument for the `download` command called `--concurrent-downloads` / `-c`. It defaults to 4, and specifies how many jobs can be downloaded concurrently. Generally a setting of 2-4 is ideal. Setting `--concurrent-downloads` to 0 will set the number of concurrent downloads to the number of CPU cores on your system. Setting `--concurrent-downloads` to 1 is the equivalent of downloading the jobs one by one.
 * Added `cancel` command to allow cancellation of in progress jobs. Pass one or more jobids to cancel.
+* Added Linux Arm64 builds to releases.
 
 ### Changed
 
