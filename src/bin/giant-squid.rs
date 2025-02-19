@@ -129,7 +129,7 @@ enum Args {
         verbosity: u8,
 
         /// show only jobs matching the provided states, case insensitive.
-        /// Options: queued, processing, ready, error, expired, cancelled.
+        /// Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
         #[arg(long, id = "STATE", value_delimiter = ',')]
         states: Vec<AsvoJobState>,
 
@@ -138,6 +138,10 @@ enum Args {
         /// download_voltage or cancel_job
         #[arg(long, id = "TYPE", value_delimiter = ',')]
         types: Vec<AsvoJobType>,
+
+        /// Disables colouring of output. Useful when you have a non-black terminal background for example
+        #[arg(short, long)]
+        no_colour: bool,
 
         /// job IDs or obsids to filter by. Files containing job IDs or
         /// obsids are also accepted.
@@ -376,6 +380,10 @@ enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
+        /// Disables colouring of output. Useful when you have a non-black terminal background for example
+        #[arg(short, long)]
+        no_colour: bool,
+
         /// The jobs to wait for. Files containing jobs are also
         /// accepted.
         #[arg(id = "JOB")]
@@ -439,7 +447,7 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
     // Offer the ASVO a kindness by waiting a few seconds, so
     // that the user's queue is hopefully current.
-    std::thread::sleep(Duration::from_secs(5));
+    std::thread::sleep(Duration::from_secs(1));
     loop {
         // Get the current state of all jobs. By converting to a map, we avoid
         // quadratic complexity below. Probably not a big deal, but why not?
@@ -453,8 +461,8 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
                 Some(job) => job,
             };
             // Handle the job's state. If it's ready, there's nothing to do. If
-            // the job is simply queued or in processing, we can say that we're
-            // not ready yet. All other possibilities are handled drastically.
+            // the job is simply queued or in processing (or other intermediate states),
+            // we can say that we're not ready yet. All other possibilities are handled drastically.
             match &job.state {
                 AsvoJobState::Ready => (),
                 AsvoJobState::Error(e) => {
@@ -466,16 +474,19 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
                 }
                 AsvoJobState::Expired => return Err(AsvoError::Expired(*j)),
                 AsvoJobState::Cancelled => return Err(AsvoError::Cancelled(*j)),
-                AsvoJobState::Queued | AsvoJobState::Processing => {
+                _ => {
+                    // For all other states
                     any_not_ready = true;
                 }
             }
             // log if there was a change in state.
+            let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
             match last_state.insert(*j, job.state.clone()) {
                 Some(last_state) if last_state != job.state => {
-                    info!("Job {} is {}", j, &job.state);
+                    info!("{} is {}", log_prefix, &job.state);
                 }
-                _ => (),
+                Some(_) => (), // State did not change from last_state
+                None => info!("{} is {}", log_prefix, &job.state), // First time just report current state
             }
         }
         // Our lock variable is set if we broke out of the loop.
@@ -486,7 +497,7 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
             break;
         }
     }
-    info!("All {} ASVO jobs are ready for download.", jobids.len());
+    info!("All {} MWA ASVO jobs are ready for download.", jobids.len());
     Ok(())
 }
 
@@ -497,6 +508,7 @@ fn main() -> Result<(), anyhow::Error> {
             json,
             jobids_or_obsids,
             states,
+            no_colour,
             types: job_types,
         } => {
             init_logger(verbosity);
@@ -532,7 +544,7 @@ fn main() -> Result<(), anyhow::Error> {
             if json {
                 println!("{}", jobs.json()?);
             } else {
-                jobs.list();
+                jobs.list(no_colour);
             }
         }
 
@@ -920,6 +932,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             jobs,
             json,
+            no_colour,
         } => {
             let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
             if parsed_jobids.is_empty() {
@@ -939,7 +952,7 @@ fn main() -> Result<(), anyhow::Error> {
             if json {
                 println!("{}", jobs.json()?);
             } else {
-                jobs.list();
+                jobs.list(no_colour);
             }
         }
 

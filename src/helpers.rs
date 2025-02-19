@@ -173,6 +173,43 @@ pub fn check_file_sha1_hash(
     }
 }
 
+pub fn get_job_type_table_style(job_type: AsvoJobType, no_colour: bool) -> String {
+    if no_colour {
+        "".to_string()
+    } else {
+        match job_type {
+            AsvoJobType::Conversion => "Fb",
+            AsvoJobType::DownloadVisibilities => "Fb",
+            AsvoJobType::DownloadMetadata => "Fy",
+            AsvoJobType::DownloadVoltage => "Fm",
+            AsvoJobType::CancelJob => "Fr",
+        }
+        .to_string()
+    }
+}
+
+pub fn get_job_state_table_style(job_state: AsvoJobState, no_colour: bool) -> String {
+    if no_colour {
+        "".to_string()
+    } else {
+        match job_state {
+            AsvoJobState::Queued => "Fw",
+            AsvoJobState::WaitCal => "Fm",
+            AsvoJobState::Staging => "Fm",
+            AsvoJobState::Staged => "Fm",
+            AsvoJobState::Downloading => "Fm",
+            AsvoJobState::Preprocessing => "Fm",
+            AsvoJobState::Imaging => "Fm",
+            AsvoJobState::Delivering => "Fm",
+            AsvoJobState::Ready => "Fg",
+            AsvoJobState::Error(_) => "Fr",
+            AsvoJobState::Expired => "Fr",
+            AsvoJobState::Cancelled => "Fr",
+        }
+        .to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

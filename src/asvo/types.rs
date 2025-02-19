@@ -10,7 +10,7 @@ use log::warn;
 use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 
-use crate::{obsid::Obsid, AsvoError};
+use crate::{get_job_state_table_style, get_job_type_table_style, obsid::Obsid, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
 ///
@@ -29,6 +29,16 @@ pub enum AsvoJobType {
     DownloadMetadata,
     DownloadVoltage,
     CancelJob,
+}
+
+impl AsvoJobType {
+    pub fn prettytable_colour(no_colour: bool) -> String {
+        if no_colour {
+            "".to_string()
+        } else {
+            "Fr".to_string()
+        }
+    }
 }
 
 impl FromStr for AsvoJobType {
@@ -50,8 +60,14 @@ impl FromStr for AsvoJobType {
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub enum AsvoJobState {
     Queued,
-    Processing,
-    Ready,
+    WaitCal,
+    Staging,
+    Staged,
+    Downloading,
+    Preprocessing,
+    Imaging,
+    Delivering,
+    Ready, // aka Completed
     Error(String),
     Expired,
     Cancelled,
@@ -63,7 +79,13 @@ impl FromStr for AsvoJobState {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match _sanitize_identifier(s).as_str() {
             "queued" => Ok(AsvoJobState::Queued),
-            "processing" => Ok(AsvoJobState::Processing),
+            "waitcal" => Ok(AsvoJobState::WaitCal),
+            "staging" => Ok(AsvoJobState::Staging),
+            "staged" => Ok(AsvoJobState::Staged),
+            "downloading" => Ok(AsvoJobState::Downloading),
+            "preprocessing" => Ok(AsvoJobState::Preprocessing),
+            "imaging" => Ok(AsvoJobState::Imaging),
+            "delivering" => Ok(AsvoJobState::Delivering),
             "ready" => Ok(AsvoJobState::Ready),
             "error" => Ok(AsvoJobState::Error(String::new())),
             "expired" => Ok(AsvoJobState::Expired),
@@ -112,12 +134,14 @@ pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
     /// Render a slice of `AsvoJob` in a pretty-printed table.
-    pub fn list(self) {
+    /// If no_colour = True then don't colour the output
+    pub fn list(self, no_colour: bool) {
         if self.0.is_empty() {
             println!("You have no jobs.");
         } else {
             let mut table = Table::new();
             table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+
             table.set_titles(row![
                 b => "Job ID",
                 "Obsid",
@@ -126,25 +150,15 @@ impl AsvoJobVec {
                 "File Size",
                 "Delivery"
             ]);
+
             for j in self.0 {
                 table.add_row(Row::new(vec![
                     Cell::new(j.jobid.to_string().as_str()),
                     Cell::new(j.obsid.to_string().as_str()),
-                    Cell::new(j.jtype.to_string().as_str()).style_spec(match j.jtype {
-                        AsvoJobType::Conversion => "Fb",
-                        AsvoJobType::DownloadVisibilities => "Fb",
-                        AsvoJobType::DownloadMetadata => "Fy",
-                        AsvoJobType::DownloadVoltage => "Fm",
-                        AsvoJobType::CancelJob => "Fr",
-                    }),
-                    Cell::new(j.state.to_string().as_str()).style_spec(match j.state {
-                        AsvoJobState::Queued => "Fm",
-                        AsvoJobState::Processing => "Fb",
-                        AsvoJobState::Ready => "Fg",
-                        AsvoJobState::Error(_) => "Fr",
-                        AsvoJobState::Expired => "Fr",
-                        AsvoJobState::Cancelled => "Fr",
-                    }),
+                    Cell::new(j.jtype.to_string().as_str())
+                        .style_spec(&get_job_type_table_style(j.jtype, no_colour)),
+                    Cell::new(j.state.to_string().as_str())
+                        .style_spec(&get_job_state_table_style(j.state, no_colour)),
                     Cell::new(
                         match &j.files {
                             None => "".to_string(),
@@ -167,6 +181,7 @@ impl AsvoJobVec {
                     ),
                 ]));
             }
+
             table.printstd();
         }
     }
@@ -239,7 +254,13 @@ impl std::fmt::Display for AsvoJobState {
             "{}",
             match self {
                 AsvoJobState::Queued => "Queued".to_string(),
-                AsvoJobState::Processing => "Processing".to_string(),
+                AsvoJobState::WaitCal => "Waiting for calibration solution".to_string(),
+                AsvoJobState::Staging => "Staging".to_string(),
+                AsvoJobState::Staged => "Staged".to_string(),
+                AsvoJobState::Downloading => "Retrieving from archive".to_string(),
+                AsvoJobState::Preprocessing => "Preprocessing".to_string(),
+                AsvoJobState::Imaging => "Imaging".to_string(),
+                AsvoJobState::Delivering => "Delivering".to_string(),
                 AsvoJobState::Ready => "Ready".to_string(),
                 AsvoJobState::Error(e) => format!("Error: {}", e),
                 AsvoJobState::Expired => "Expired".to_string(),

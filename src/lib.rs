@@ -12,3 +12,8 @@ pub mod obsid;
 pub use asvo::*;
 pub use helpers::*;
 pub use obsid::Obsid;
+
+// Include the generated-file as a separate module
+pub mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}

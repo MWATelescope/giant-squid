@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "1.2.0"
+version = "2.0.0"
 authors = [
     "Christopher H. Jordan <christopherjordan87@gmail.com>",
     "Harrison Barlow <harrison.barlow@curtin.edu.au>",
@@ -59,3 +59,6 @@ time-core = { version = "~0.1", optional = true }
 
 [dev-dependencies]
 tempfile = "3.17"
+
+[build-dependencies]
+built = "~0.7"

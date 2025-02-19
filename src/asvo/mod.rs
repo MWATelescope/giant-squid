@@ -75,9 +75,8 @@ impl AsvoClient {
 
         // Interfacing with the ASVO server requires specifying the client
         // version. As this is not the manta-ray-client, we need to lie here.
-        // Use a user-specified value if available, or the hard-coded one here.
-        let client_version =
-            var("MWA_ASVO_VERSION").unwrap_or_else(|_| "mantaray-clientv1.2".to_string());
+        ///let client_version = format!("mantaray-clientv{}", built_info::PKG_VERSION);
+        let client_version = "mantaray-clientv1.2";
         // Connect and return the cookie jar.
         // IF we are using a custom MWA ASVO host, then
         // upgrade this debug message to a warn message

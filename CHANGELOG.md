@@ -5,9 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.0 - 2025-03-??
+
+### BREAKING CHANGES in 2.0.0
+
+* MWA ASVO jobs states have changed. Please see [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access) for more information.
+
+### Added in 2.0.0
+
+* You can disable colour coding of the output of `giant-squid list` by passing `--no-colour`. Useful if you have a non-back terminal background for example.
+
 ## 1.2.0 - 2025-02-18
 
-### Added
+### Added in 1.2.0
 
 * New feature: download resume!
   * If you are downloading from MWA ASVO using giant-squid and pass the `-k` / `--keep-tar` option (meaning giant-squid will just download the tar file and not try to stream untar it) then giant-squid will now check to see if the target file is already partially downloaded. If it is, it will attempt to resume from where it left off. If the file exists and matches the expected size and the checksum matches it will skip the file. NOTE: due to the way the `stream untar` feature works (the default when you don't pass `-k` to the download command), resume is not yet supported.
@@ -17,20 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * There is now a new argument for the `download` command called `--concurrent-downloads` / `-c`. It defaults to 4, and specifies how many jobs can be downloaded concurrently. Generally a setting of 2-4 is ideal. Setting `--concurrent-downloads` to 0 will set the number of concurrent downloads to the number of CPU cores on your system. Setting `--concurrent-downloads` to 1 is the equivalent of downloading the jobs one by one.
 * Added `cancel` command to allow cancellation of in progress jobs. Pass one or more jobids to cancel.
 
-### Changed
+### Changed in 1.2.0
 
 * MSRV bumped to 1.7.1 due to naughty sub-dependencies of reqwest.
 * The `-k` `--keep-zip` option of the `download` command has been renamed to `--keep-tar` since MWA ASVO has not served out `zip` files for some time, rather, it uses `tar` files.
   * The `--keep-zip` option will remain supported (and is just an alias for `--keep-tar`) for some time, although it is now depreacted and will be removed in a future release.
 * Changed some console output references to "ASVO" to be "MWA ASVO".
 
-### Fixed
+### Fixed in 1.2.0
 
 * Fix- when passing the `-k` (`--keep-zip` / `--keep-tar`) option to the `download` command, the `-d` / `--download-dir` argument was being ignored and defaulting to `.`. Downloading with `-k` now correctly uses the specified download directory.
 * Fix- the alias "sv" was assigned to both "submit-vis" and "submit-volt". "st" has now been assigned for "submit-volt" to avoid the duplication.
 * Fix- `submit-volt` command no longer defaults delivery to 'acacia' (it can only be 'scratch').
 
-### Security
+### Security fixes in 1.2.0
 
 * Updated/migrated clap to v4.4.
 * Updated dependency quinn-proto to latest to fix security vulnerability.
