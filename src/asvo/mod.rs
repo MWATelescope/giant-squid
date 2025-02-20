@@ -21,8 +21,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
+use crate::{built_info, check_file_sha1_hash};
 use backoff::{retry, Error, ExponentialBackoff};
 use indicatif::ProgressBar;
 use log::{debug, error, info, trace, warn};
@@ -74,9 +74,9 @@ impl AsvoClient {
         let api_key = var("MWA_ASVO_API_KEY").map_err(|_| AsvoError::MissingAuthKey)?;
 
         // Interfacing with the ASVO server requires specifying the client
-        // version. As this is not the manta-ray-client, we need to lie here.
-        ///let client_version = format!("mantaray-clientv{}", built_info::PKG_VERSION);
-        let client_version = "mantaray-clientv1.2";
+        // version.
+        let client_version = format!("mantaray-clientv{}", built_info::PKG_VERSION);
+
         // Connect and return the cookie jar.
         // IF we are using a custom MWA ASVO host, then
         // upgrade this debug message to a warn message
@@ -891,11 +891,11 @@ mod tests {
 
     #[test]
     fn test_cancel_job_not_found() {
-        let job_id = 1234;
+        let job_id = 0;
         let client = AsvoClient::new().unwrap();
         let cancel_result = client.cancel_asvo_job(job_id);
-
-        assert!(cancel_result.is_ok_and(|j| j.is_none()))
+        let new_jobid_or_none = cancel_result.unwrap();
+        assert!(new_jobid_or_none.is_none(), "{:?}", new_jobid_or_none);
     }
 
     #[test]
@@ -906,8 +906,15 @@ mod tests {
         let obs_id = Obsid::validate(1416257384).unwrap();
         let delivery = Delivery::Acacia;
         let delivery_format: Option<DeliveryFormat> = None;
-        let allow_resubmit: bool = false;
-        let meta_job = client.submit_vis(obs_id, delivery, delivery_format, allow_resubmit);
+        let allow_resubmit: bool = true;
+        let job_params = BTreeMap::new();
+        let meta_job = client.submit_conv(
+            obs_id,
+            delivery,
+            delivery_format,
+            &job_params,
+            allow_resubmit,
+        );
 
         let new_job_id: u32;
 
