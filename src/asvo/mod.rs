@@ -275,9 +275,8 @@ impl AsvoClient {
                         }
 
                         info!(
-                            "{} Completed {:?} in {}",
+                            "{} Completed in {}",
                             log_prefix,
-                            &out_path,
                             if start_time.elapsed().as_secs() > 60 {
                                 format!(
                                     "{} min {:.2} s",
@@ -356,8 +355,11 @@ impl AsvoClient {
         let response: reqwest::blocking::Response;
         let mut tee: TeeReader<reqwest::blocking::Response, _>;
 
+        // This updates the spinner twice per second
+        progress_bar.enable_steady_tick(Duration::from_millis(500));
+
         info!(
-            "{} Download starting (type: {}, {})...",
+            "{} Download starting (type: {}, {})",
             log_prefix,
             job.jtype,
             bytesize::ByteSize(file_info.size).to_string_as(true),
@@ -423,7 +425,6 @@ impl AsvoClient {
             }
 
             // Set the progress bar to be the number bytes in the file
-            progress_bar.enable_steady_tick(Duration::from_millis(500));
             progress_bar.set_length(file_info.size);
             progress_bar.set_position(file_size_bytes);
             progress_bar.reset_eta();
@@ -447,7 +448,7 @@ impl AsvoClient {
             // Simply dump the response to the appropriate file name. Use a
             // buffer to avoid doing frequent writes.
             info!(
-                "{} {} tar archive {:?}...",
+                "{} {} tar archive {:?}",
                 log_prefix,
                 if file_size_bytes > 0 {
                     "Resuming download of"
@@ -476,14 +477,59 @@ impl AsvoClient {
             }
         } else {
             // Stream-untar the response.
+            let unpack_path = Path::new(download_dir);
+            info!(
+                "{} Downloading and untarring to {}",
+                log_prefix,
+                unpack_path.display()
+            );
+
             response = self.client.get(url).send()?;
             tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-            let unpack_path = Path::new(download_dir);
-            info!("{} Untarring to {:?}", log_prefix, unpack_path);
             let mut tar = Archive::new(&mut tee);
             tar.set_preserve_mtime(false);
-            tar.unpack(unpack_path)?;
+
+            let tar_entries = tar.entries()?;
+
+            // Set progress max to be the full tar size (there is no compression
+            // so the extracted size will == the tar size)
+            progress_bar.set_length(file_info.size);
+            progress_bar.set_position(0);
+            progress_bar.reset_eta();
+            progress_bar.set_message(log_prefix.to_string());
+
+            // Loop through all files in the tar and unpack each one
+            for file in tar_entries {
+                let file = file.unwrap();
+                let out_filename = &file.path()?.to_path_buf();
+
+                // Ignore the "." tar entry
+                if out_filename != Path::new("./") {
+                    let mut file_buf = BufReader::with_capacity(buffer_size, file);
+                    let mut out_file = File::create(out_filename)?;
+
+                    loop {
+                        let buffer = file_buf.fill_buf()?;
+                        out_file.write_all(buffer)?;
+
+                        let length = buffer.len();
+
+                        file_buf.consume(length);
+
+                        if length == 0 {
+                            break;
+                        } else {
+                            // Increment progress bar
+                            progress_bar.inc(length.try_into().unwrap());
+                        }
+                    }
+                } else {
+                    debug!("Ignoring {}", out_filename.display());
+                }
+            }
+
+            //tar.unpack(unpack_path)?;
         }
 
         // If we were told to hash the download, compare our hash against
