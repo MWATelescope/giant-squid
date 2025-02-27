@@ -9,12 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### BREAKING CHANGES in 2.0.0
 
-* MWA ASVO jobs states have changed. Please see [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access) for more information.
-* Added progress bar support for downloading via the default "streaming untar" method (i.e. not passing --keep-tar to the `download` command).
+* MWA ASVO job states have changed. Please see [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access) for more information.
 
 ### Added in 2.0.0
 
 * You can disable colour coding of the output of `giant-squid list` by passing `--no-colour`. Useful if you have a non-back terminal background for example.
+* Added progress bar support for downloading via the default "streaming untar" method (i.e. not passing --keep-tar to the `download` command).
 
 ## 1.2.0 - 2025-02-18
 
@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     * If an existing partial file does exist with the `--no-resume` flag, giant-squid will abort the download and leave the file alone.
 * New feature: concurrent downloads!
   * There is now a new argument for the `download` command called `--concurrent-downloads` / `-c`. It defaults to 4, and specifies how many jobs can be downloaded concurrently. Generally a setting of 2-4 is ideal. Setting `--concurrent-downloads` to 0 will set the number of concurrent downloads to the number of CPU cores on your system. Setting `--concurrent-downloads` to 1 is the equivalent of downloading the jobs one by one.
+* New feature: progress bars for (`--keep-tar`) downloads. The progress bar shows current download speed, time elapsed and ETA among other things.
 * Added `cancel` command to allow cancellation of in progress jobs. Pass one or more jobids to cancel.
 
 ### Changed in 1.2.0

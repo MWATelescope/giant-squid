@@ -275,8 +275,9 @@ impl AsvoClient {
                         }
 
                         info!(
-                            "{} Completed in {}",
+                            "{} Completed download of {} in {} ({}/s)",
                             log_prefix,
+                            bytesize::ByteSize(f.size).to_string_as(true),
                             if start_time.elapsed().as_secs() > 60 {
                                 format!(
                                     "{} min {:.2} s",
@@ -286,6 +287,8 @@ impl AsvoClient {
                             } else {
                                 format!("{} s", start_time.elapsed().as_millis() as f64 / 1e3)
                             },
+                            bytesize::ByteSize(f.size / start_time.elapsed().as_secs())
+                                .to_string_as(true)
                         );
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
