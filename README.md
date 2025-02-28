@@ -20,7 +20,7 @@ if you are running giant-squid on HPC systems.
 ---
 
 `giant-squid` was originally created as a library to do MWA ASVO related tasks
-in the Haskell programming language (now available in Rust). However, it's not
+in the Haskell programming language (it is now available in Rust). However, it's not
 just a library; the `giant-squid` executable acts as an alternative to the
 [manta-ray-client](https://github.com/ICRAR/manta-ray-client) and may better
 suit users for a few reasons:
@@ -45,7 +45,7 @@ suit users for a few reasons:
    each entry of the text file(s) are checked for validity (all ints and all
    10-digits long); any exceptions are reported and the command fails.
 
-5. One can ask `giant-squid` to print their MWA ASVO queue as JSON; this makes
+5. One can ask `giant-squid` to print your MWA ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
 6. By default, `giant-squid` will validate the hash of the archive. You can skip
@@ -109,7 +109,13 @@ giant-squid list -j
 `jobState` is allowed to be any of:
 
 - `Queued`
-- `Processing`
+- `WaitCal`
+- `Staging`
+- `Staged`
+- `Downloading`
+- `Preprocessing`
+- `Imaging`
+- `Delivering`
 - `Ready`
 - `Error: Text` (e.g. "Error: some error message")
 - `Expired`
@@ -149,12 +155,12 @@ example: show only jobs that match both of the following conditions:
 
 - obsid is `1234567890` or `1234567891`
 - jobType is `DownloadVisibilities`, `DownloadMetadata` or `CancelJob`
-- jobState is `Processing` or `Queued`
+- jobState is `Preprocessing` or `Queued`
 
 ```bash
 giant-squid list \
    --types dOwNlOaD__vIsIbIlItIeS,download-metadata,CANCELJOB \
-   --states pRoCeSsInG,__Q_u_e_u_e_D__ \
+   --states PrepRoCeSsInG,__Q_u_e_u_e_D__ \
    1234567890 1234567891
 ```
 
@@ -218,7 +224,7 @@ giant-squid d -d /tmp 1065880128
 ```
 
 By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
-(or `--keep-zip`).
+(or `--keep-tar`).
 
 The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
@@ -378,8 +384,7 @@ would use 50 MiB of memory to cache the download before writing.
 
 ### Pre-compiled
 
-Have a look at the [GitHub releases
-page](https://github.com/MWATelescope/giant-squid/releases).
+Have a look at the [GitHub releases page](https://github.com/MWATelescope/giant-squid/releases).
 
 ### Building from crates.io
 
