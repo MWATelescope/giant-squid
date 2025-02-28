@@ -45,6 +45,8 @@ tar = "~0.4"
 tee_readwrite = "~0.2"
 thiserror = "2.0"
 rayon = "1.10"
+zerofrom = "=0.1.5"
+litemap = "=0.7.4"
 
 # Dependencies only for the binary.
 anyhow = { version = "1.0", optional = true }

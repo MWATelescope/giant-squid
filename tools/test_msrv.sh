@@ -32,6 +32,8 @@ rm -rf target
 # Update dependencies
 echo "Updating cargo dependencies..."
 RUSTUP_TOOLCHAIN=${MIN_RUST} cargo update --verbose
+#RUSTUP_TOOLCHAIN=${MIN_RUST} cargo update -p zerofrom@0.1.6 --precise 0.1.5
+#RUSTUP_TOOLCHAIN=${MIN_RUST} cargo update -p litemap@0.7.5 --precise 0.7.4
 
 # Build and run rust tests
 echo "Building and running tests..."
