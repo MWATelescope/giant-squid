@@ -59,6 +59,10 @@ pub enum AsvoError {
     #[error("Obsid {0} wasn't found in your list of jobs.")]
     NoObsid(Obsid),
 
+    /// Tried to download an obsid where >1 jobs exist but none are ready.
+    #[error("No job for Obsid {0} is ready for download.")]
+    NoJobReadyForObsid(Obsid),
+
     /// Report to the caller that this job has expired.
     #[error("MWA ASVO job ID {0} has expired.")]
     Expired(AsvoJobID),
@@ -68,7 +72,9 @@ pub enum AsvoError {
     Cancelled(AsvoJobID),
 
     /// Tried to download an obsid, but it's associated with multiple jobs.
-    #[error("Obsid {0} is associated with multiple jobs; cannot continue due to ambiguity.")]
+    #[error(
+        "Obsid {0} is associated with multiple ready jobs; cannot continue due to ambiguity. Try specifying the JobID instead of the ObsId in this case."
+    )]
     TooManyObsids(Obsid),
 
     /// Tried to download a job that wasn't ready.

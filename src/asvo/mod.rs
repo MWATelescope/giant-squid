@@ -178,15 +178,29 @@ impl AsvoClient {
         download_number: usize,
         download_count: usize,
     ) -> Result<(), AsvoError> {
-        let mut jobs = self.get_jobs()?;
+        let mut all_jobs = self.get_jobs()?;
+
         debug!("Attempting to download obsid {}", obsid);
-        // Filter all MWA ASVO jobs by obsid. If we don't have exactly one match, we
-        // have to bug out.
-        jobs.0.retain(|j| j.obsid == obsid);
-        match jobs.0.len() {
-            0 => Err(AsvoError::NoObsid(obsid)),
+        // Filter all MWA ASVO jobs by obsid.
+        // If we don't have exactly one match for ready jobs, we
+        // have to bug out. Make a clone of all jobs so we can use
+        // it below, without needing to go back to the web server
+        let mut all_ready_jobs: AsvoJobVec = all_jobs.clone();
+
+        all_ready_jobs
+            .0
+            .retain(|j| j.obsid == obsid && j.state == AsvoJobState::Ready);
+        match all_ready_jobs.0.len() {
+            // zero can be- there ar NO jobs with that obsid or zero can be no jobs with that obsid that are ready. We need to distinguish this case!
+            0 => {
+                all_jobs.0.retain(|j| j.obsid == obsid);
+                match all_jobs.0.len() {
+                    0 => Err(AsvoError::NoObsid(obsid)),
+                    _ => Err(AsvoError::NoJobReadyForObsid(obsid)),
+                }
+            }
             1 => self.download(
-                &jobs.0[0],
+                &all_ready_jobs.0[0],
                 keep_tar,
                 no_resume,
                 hash,
@@ -510,7 +524,8 @@ impl AsvoClient {
                 // Ignore the "." tar entry
                 if out_filename != Path::new("./") {
                     let mut file_buf = BufReader::with_capacity(buffer_size, file);
-                    let mut out_file = File::create(out_filename)?;
+                    let out_full_filename = unpack_path.join(out_filename);
+                    let mut out_file = File::create(&out_full_filename)?;
 
                     loop {
                         let buffer = file_buf.fill_buf()?;
