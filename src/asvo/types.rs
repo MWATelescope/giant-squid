@@ -115,7 +115,7 @@ pub struct AsvoFilesArray {
 pub type AsvoJobID = u32;
 
 /// All of the metadata associated with an ASVO job.
-#[derive(Serialize, PartialEq, Eq, Debug)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoJob {
     pub obsid: Obsid,
     #[serde(rename = "jobId")]
@@ -130,6 +130,7 @@ pub struct AsvoJob {
 /// A vector of ASVO jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
+#[derive(Clone)]
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {

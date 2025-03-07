@@ -3,6 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::time::Duration;
 use std::{thread, time};
 
@@ -561,6 +562,14 @@ fn main() -> Result<(), anyhow::Error> {
         } => {
             if jobids_or_obsids.is_empty() {
                 bail!("No jobs specified!");
+            }
+
+            // Validate the download directory
+            if !Path::new(&download_dir).exists() {
+                bail!(
+                    "Download directory `{}` does not exist or is not accessible.",
+                    download_dir
+                );
             }
 
             // Create progress bar capable of multiple downloads
