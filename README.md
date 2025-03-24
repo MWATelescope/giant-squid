@@ -230,12 +230,73 @@ The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the in
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
 
 Jobs which were submitted with the /scratch data delivery option behave differently
-than jobs submitted with the acacia data delivery option. When attempting to download
+than jobs submitted with the other data delivery options. When attempting to download
 a /scratch job, if the path of the job (eg /scratch/mwaops/asvo/12345) is reachable from
 the current host, it will be moved to the current working directory. Otherwise, it will
 be skipped.
 
+#### Download performance: Concurrent Downloads
+
+By default, `giant-squid` will download 4 jobs concurrently (assuming you have specified 4 or more jobs to download).
+This can help throughput if you have a good Internet connection, otherwise you may set the value manually by specifying:
+`--concurrent-downloads N` or `-c N` where N is an integer equal or greater than 1.
+
+#### Download performance: Changing the buffer size
+
+By default, when downloading, `giant-squid` will store 100 MiB of the download
+in memory before writing to disk. This is friendlier on disks (especially those
+belonging to supercomputers!), and can make downloads faster.
+
+The amount of data to cache before writing can be tuned by setting
+`GIANT_SQUID_BUF_SIZE`. e.g.
+
+```bash
+export GIANT_SQUID_BUF_SIZE=50
+giant-squid download 12345
+```
+
+would use 50 MiB of memory to cache the download before writing.
+
+#### Resuming Interrupted Downloads
+
+- `giant-squid` will attempt to resume an existing/interrupted download when the download command includes the `--keep-tar` option.
+- Without the `--keep-tar` option, `giant-squid` _stream untars_ files (i.e. it downloads the tar from MWA ASVO and, in memory, untars files on the fly) which means it is not possible for `giant-squid` to be able to reliably resume an interrupted download.
+
 ### Submit MWA ASVO jobs
+
+#### A Note On Delivery Options
+
+Before submitting any MWA ASVO job, you will need to decide _where_ you want the data to be delivered. There are up to three options depending on your user profile.
+
+##### Delivery: Acacia (Default)
+
+- The default option for all job types except voltage downloads (`Voltage` jobs are not able to be delivered to Acacia due to their size).
+- Files are tarred up and uploaded to Pawsey's Acacia object store.
+- To submit a job with the Acacia delivery option specify `-d acacia` or `--delivery acacia` on any job submission command.
+- A URL which expires in 7 days is generated- allowing you to download the file via giant-squid, wget, curl, etc from anywhere in the world.
+
+##### Delivery: Pawsey Scratch Filesystem
+
+- You can request that your job's files be delivered to Pawsey's /scratch filesystem.
+- To submit a job with the scratch delivery option, specify `-d scratch` or `--delivery scratch` on any job submission command.
+- You can also optionally pass `delivery-format tar` to instruct MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+- This option is only available to users who have a Pawsey account with MWA group access and your `Pawsey Group` has been set in your MWA ASVO profile by an MWA ASVO administrator.
+  - Please contact support to request this.  
+- NOTE: all Pawsey users in the specified Pawsey Group can access your job's files. If you prefer to keep your data private to only you, you should choose the `acacia` delivery option as only you have the download URL.
+
+##### Delivery: Down Under Geosolutions (DUG) Filesystem
+
+- You can request that your job's files be delivered to DUG's filesystem.
+- You can also optionally pass `delivery-format tar` to instruct MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+- To submit a job with the DUG delivery option, specify `-d dug` or `--delivery dug` on any job submission command.
+- `Voltage` jobs are not able to be delivered to DUG currently.
+- This option is only open to users who have a Curtin University DUG account and your `DUG Group` has been set in your MWA ASVO profile by an MWA administrator.
+  - Please contact support to request this.
+- NOTE: all DUG users in the specified DUG Group can access your job's files. If you prefer to keep your data private to only you, you should choose the `acacia` delivery option as only you have the download URL.
+
+##### Changing Your Default Delivery Option
+
+- You can set the environment variable `GIANT_SQUID_DELIVERY`to `acacia`, `scratch` or `dug` if you don't want to keep specifying the delivery option on the command line.
 
 #### Visibility downloads
 
@@ -254,15 +315,6 @@ Text files containing obsids may be used too.
 
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
-
-You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
-that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
-a job with the /scratch delivery option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
-Alternatively specify `-d scratch|acacia`.
-
-When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
-MWA ASVO to deliver a tar of the files, rather than all of the individual files.
 
 #### Conversion downloads
 
@@ -300,14 +352,6 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 {"output": "uvfits", "job_type": "conversion", "flag_edge_width": "160", "avg_freq_res": "10", "avg_time_res": "0.5"}
 ```
 
-You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
-that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
-a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
-
-When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
-MWA ASVO to deliver a tar of the files, rather than all of the individual files.
-
 #### Metadata downloads
 
 A "metadata download job" refers to a job which provides a zip containing a
@@ -325,14 +369,6 @@ Text files containing obsids may be used too.
 
 If you want to check that your command works without actually submitting the
 obsids, then you can use the `--dry-run` option (short version `-n`).
-
-You can choose whether to have your files tarred up and uploaded to Pawsey's Acacia (default),
-or you can request that the files be left on Pawsey's /scratch filesystem. The second option requires
-that your Pawsey group be set in your MWA ASVO account, please contact an admin to request this. To submit
-a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch.
-
-When specifying scratch as the delivery, you can also optionally pass `delivery-format tar` to instruct
-MWA ASVO to deliver a tar of the files, rather than all of the individual files.
 
 #### Voltage downloads
 
@@ -356,29 +392,13 @@ only the receiver coarse channel range specified (inclusive). MWA receiver chann
 will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
 
 Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
-download, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
+download or DUG's filesystem, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
-a job with the /scratch option, set the environment variable GIANT_SQUID_DELIVERY=scratch or pass `-d scratch`.
+a job with the /scratch option, set the environment variable `GIANT_SQUID_DELIVERY=scratch` or pass `-d scratch` or `--delivery scratch`.
 
 #### Resubmitting jobs
 
 By default, the MWA ASVO server will not allow you to submit a new job which is has the exact same settings/parameters as an existing job in your queue (except errored jobs). You can, however override this behaviour by specifying `--allow-resubmit` (short version `-r`) on any job submission.
-
-## Download performance
-
-By default, when downloading, `giant-squid` will store 100 MiB of the download
-in memory before writing to disk. This is friendlier on disks (especially those
-belonging to supercomputers!), and can make downloads faster.
-
-The amount of data to cache before writing can be tuned by setting
-`GIANT_SQUID_BUF_SIZE`. e.g.
-
-```bash
-export GIANT_SQUID_BUF_SIZE=50
-giant-squid download 12345
-```
-
-would use 50 MiB of memory to cache the download before writing.
 
 ## Installation
 

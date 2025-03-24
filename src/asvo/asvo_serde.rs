@@ -65,6 +65,7 @@ impl DummyJob {
                 file_array.push(AsvoFilesArray {
                     r#type: match file_type {
                         "acacia" => Delivery::Acacia,
+                        "dug" => Delivery::Dug,
                         "scratch" => Delivery::Scratch,
                         _ => panic!("Unsupported delivery type found: {}", file_type),
                     },
@@ -248,6 +249,36 @@ mod tests {
 
     #[test]
     fn test_json_job_submit_response_full_or_partial_outage3() {
+        let json = "{\"error\": \"Your job cannot be submitted as there is a partial outage, please use a delivery location other than scratch.\", \"error_code\": 0}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::ErrorWithCode {
+                error_code: 0,
+                error: "Your job cannot be submitted as there is a partial outage, please use a delivery location other than scratch."
+                    .to_string(),
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_full_or_partial_outage4() {
+        let json = "{\"error\": \"Your job cannot be submitted as there is a partial outage, please use a delivery location other than dug.\", \"error_code\": 0}";
+        let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
+        assert!(decoded.is_ok());
+        assert_eq!(
+            AsvoSubmitJobResponse::ErrorWithCode {
+                error_code: 0,
+                error: "Your job cannot be submitted as there is a partial outage, please use a delivery location other than dug."
+                    .to_string(),
+            },
+            decoded.unwrap()
+        );
+    }
+
+    #[test]
+    fn test_json_job_submit_response_full_or_partial_outage5() {
         let json = "{\"error\": \"Your job cannot be submitted as the staging server is down and also acacia is unavailable!\", \"error_code\": 0}";
         let decoded = serde_json::from_str::<AsvoSubmitJobResponse>(json);
         assert!(decoded.is_ok());

@@ -196,9 +196,13 @@ enum Args {
     /// Submit MWA ASVO jobs to download MWA raw visibilities
     #[command(alias = "sv")]
     SubmitVis {
-        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
-        /// this can be overridden with the environment variable
-        /// GIANT_SQUID_DELIVERY.
+        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
+        /// provides a download URL which you can download with giant-squid, wget, etc.
+        /// Other options are: "dug" and "scratch", to deliver
+        /// data directly to a target filesystem, but these are only
+        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
         #[arg(short, long)]
         delivery: Option<String>,
 
@@ -240,9 +244,13 @@ enum Args {
         #[arg(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
         parameters: Option<String>,
 
-        /// Tell the MWA ASVO where to deliver the job. The default is "acacia", but
-        /// this can be overridden with the environment variable
-        /// GIANT_SQUID_DELIVERY.
+        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
+        /// provides a download URL which you can download with giant-squid, wget, etc.
+        /// Other options are: "dug" and "scratch", to deliver
+        /// data directly to a target filesystem, but these are only
+        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
         #[arg(short, long)]
         delivery: Option<String>,
 
@@ -281,9 +289,13 @@ enum Args {
     /// Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and cotter flags (if available)
     #[command(alias = "sm")]
     SubmitMeta {
-        /// Tell MWA ASVO where to deliver the job. The default is "acacia", but
-        /// this can be overridden with the environment variable
-        /// GIANT_SQUID_DELIVERY.
+        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
+        /// provides a download URL which you can download with giant-squid, wget, etc.
+        /// Other options are: "dug" and "scratch", to deliver
+        /// data directly to a target filesystem, but these are only
+        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
         #[arg(short, long)]
         delivery: Option<String>,
 
@@ -322,8 +334,11 @@ enum Args {
     /// Submit MWA ASVO jobs to download MWA voltages
     #[command(alias = "st")]
     SubmitVolt {
-        /// Tell the MWA ASVO where to deliver the job. The only valid value for a voltage
-        /// job is "scratch".
+        /// Tell MWA ASVO where to deliver the data. The only valid value for a voltage
+        /// job is "scratch", but this is only available when your MWA ASVO profile has the
+        /// "mwavcs" "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
         #[arg(short, long)]
         delivery: Option<String>,
 
@@ -446,7 +461,7 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
 fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError> {
     info!("Waiting for {} jobs to be ready...", jobids.len());
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
-    // Offer the ASVO a kindness by waiting a few seconds, so
+    // Offer the MWA ASVO a kindness by waiting a few seconds, so
     // that the user's queue is hopefully current.
     std::thread::sleep(Duration::from_secs(1));
     loop {
@@ -697,7 +712,7 @@ fn main() -> Result<(), anyhow::Error> {
 
                     if j.is_some() {
                         let jobid = j.unwrap();
-                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
                     }
@@ -783,7 +798,7 @@ fn main() -> Result<(), anyhow::Error> {
 
                     if j.is_some() {
                         let jobid = j.unwrap();
-                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
                     }
@@ -843,7 +858,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let j = client.submit_meta(o, delivery, delivery_format, allow_resubmit)?;
                     if j.is_some() {
                         let jobid = j.unwrap();
-                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
                     }
@@ -920,7 +935,7 @@ fn main() -> Result<(), anyhow::Error> {
 
                     if j.is_some() {
                         let jobid = j.unwrap();
-                        info!("Submitted {} as ASVO job ID {}", o, jobid);
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
                     }
@@ -992,7 +1007,7 @@ fn main() -> Result<(), anyhow::Error> {
                         // None means it was not cancelled but don't stop
                         // processing the rest of the list
                         if success.is_some() {
-                            info!("Cancelled ASVO job ID {}", j);
+                            info!("Cancelled MWA ASVO job ID {}", j);
                             cancelled_count += 1;
                         }
                     }

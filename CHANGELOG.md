@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.0 - 2025-03-24
+
+### Added in 2.1.0
+
+* New delivery option `dug`. For users with Curtin University DUG access, please contact MWA ASVO support if you would like the option of delivering data directly to DUG. See the README.md file for more info on delivery options.
+
+### Changed in 2.1.0
+
+* Added ObsID info to certain error messages when submitting jobs, so it is easier to know which ObsID failed to submit correctly.
+
 ## 2.0.1 - 2025-03-07
 
 ### Fixed in 2.0.1

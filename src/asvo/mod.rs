@@ -307,6 +307,12 @@ impl AsvoClient {
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
+                Delivery::Dug => {
+                    error!(
+                        "{} Files for Job are not reachable from the current host. You will find your job's files on the DUG filesystem.",
+                        log_prefix
+                    );
+                }
                 Delivery::Scratch => {
                     match &f.path {
                         Some(path) => {
@@ -322,7 +328,7 @@ impl AsvoClient {
 
                             if !Path::exists(path_obj) {
                                 error!(
-                                    "{} Files for Job are not reachable from the current host.",
+                                    "{} Files for Job are not reachable from the current host. You will find your jobs's files on the scratch filesystem at Pawsey.",
                                     log_prefix
                                 );
                             } else {
@@ -611,7 +617,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVisibilities, form)
     }
 
     /// Submit an ASVO job for voltage download.
@@ -660,7 +666,7 @@ impl AsvoClient {
 
         form.insert("download_type", "volt");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVoltage, form)
     }
 
     /// Submit an MWA ASVO job for conversion.
@@ -702,7 +708,7 @@ impl AsvoClient {
 
         form.insert("allow_resubmit", &allow_resubmit_str);
 
-        self.submit_asvo_job(&AsvoJobType::Conversion, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::Conversion, form)
     }
 
     /// Submit an MWA ASVO job for metadata download.
@@ -731,7 +737,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis_meta");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadMetadata, form)
     }
 
     /// This low-level function actually submits jobs to the MWA ASVO.
@@ -741,6 +747,7 @@ impl AsvoClient {
     /// Err() - this is when we hit an error
     fn submit_asvo_job(
         &self,
+        obsid: &Obsid,
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
@@ -774,7 +781,12 @@ impl AsvoClient {
             }) => {
                 if error_code == 2 {
                     // error code 2 == job already exists
-                    warn!("{}. Job Id: {}", error.as_str(), job_id);
+                    warn!(
+                        "{}. Job Id: {} ObsID: {}",
+                        error.as_str(),
+                        job_id,
+                        &obsid.to_string()
+                    );
                     Ok(None)
                 } else {
                     Err(AsvoError::BadRequest {
@@ -790,12 +802,18 @@ impl AsvoClient {
                 // Crazy code here as MWA ASVO API does not have good error codes (yet!)
                 // 0 == invalid input (most of the time!)
                 if error_code == 0
-                    && (error.as_str()
-                        == "Unable to submit job. Observation has no files to download."
+                    && (error
+                        .as_str()
+                        .starts_with("Unable to submit job. Observation")
                         || (error.as_str().starts_with("Observation ")
                             && error.as_str().ends_with(" does not exist")))
                 {
-                    error!("{}", error.as_str());
+                    // Some errors already have the obsid, so provide a different error if so
+                    if error.as_str().contains(&obsid.to_string()) {
+                        error!("{}", error.as_str());
+                    } else {
+                        error!("{} (ObsID: {})", error.as_str(), &obsid.to_string());
+                    }
                     Ok(None)
                 } else {
                     Err(AsvoError::BadRequest {
@@ -1053,6 +1071,27 @@ mod tests {
         let obs_id = Obsid::validate(1343457784).unwrap();
         let delivery = Delivery::Scratch;
         let delivery_format: Option<DeliveryFormat> = Some(DeliveryFormat::Tar);
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }
+
+    #[test]
+    fn test_submit_meta_to_dug() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Dug;
+        let delivery_format: Option<DeliveryFormat> = None;
         let allow_resubmit: bool = false;
 
         let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
