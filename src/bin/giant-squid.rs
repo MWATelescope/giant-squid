@@ -662,7 +662,7 @@ fn main() -> Result<(), anyhow::Error> {
                     .chain(obsids_results.iter_mut())
                     .filter(|o| o.is_err())
                 {
-                    error!("{}", job_result.as_mut().unwrap_err().to_string());
+                    error!("{}", job_result.as_mut().unwrap_err());
                 }
             }
         }

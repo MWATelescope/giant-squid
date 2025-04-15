@@ -25,7 +25,7 @@ use crate::obsid::Obsid;
 use crate::{built_info, check_file_sha1_hash};
 use backoff::{retry, Error, ExponentialBackoff};
 use indicatif::ProgressBar;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use sha1::{Digest, Sha1};
@@ -262,7 +262,7 @@ impl AsvoClient {
                         // parse out path from url
                         let url_obj = reqwest::Url::parse(url).unwrap();
                         let out_path = Path::new(&download_dir)
-                            .join(url_obj.path_segments().unwrap().last().unwrap());
+                            .join(url_obj.path_segments().unwrap().next_back().unwrap());
 
                         let op = || {
                             self.try_download(
@@ -320,7 +320,7 @@ impl AsvoClient {
                             let path_obj = Path::new(&path);
                             let folder_name = path_obj
                                 .components()
-                                .last()
+                                .next_back()
                                 .unwrap()
                                 .as_os_str()
                                 .to_str()
@@ -437,14 +437,36 @@ impl AsvoClient {
                                 return Ok(());
                             } else {
                                 warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Restarting download...", log_prefix);
-                                out_file = File::create(out_path)?
+
+                                let out_file_result = File::create(out_path);
+
+                                if out_file_result.is_err() {
+                                    error!(
+                                        "{} Error- cannot create file {:?}",
+                                        log_prefix,
+                                        out_path.display()
+                                    );
+                                }
+
+                                out_file = out_file_result?;
                             }
                         }
                     }
                 }
             } else {
                 file_size_bytes = 0;
-                out_file = File::create(out_path)?;
+
+                let out_file_result = File::create(out_path);
+
+                if out_file_result.is_err() {
+                    error!(
+                        "{} Error- cannot create file {:?}",
+                        log_prefix,
+                        out_path.display()
+                    );
+                }
+
+                out_file = out_file_result?;
             }
 
             // Set the progress bar to be the number bytes in the file
@@ -526,12 +548,27 @@ impl AsvoClient {
             for file in tar_entries {
                 let file = file.unwrap();
                 let out_filename = &file.path()?.to_path_buf();
+                let out_full_filename = unpack_path.join(out_filename);
 
                 // Ignore the "." tar entry
-                if out_filename != Path::new("./") {
+                if !out_filename.to_str().unwrap().ends_with("/") {
+                    debug!(
+                        "{} Writing file {}",
+                        log_prefix,
+                        out_full_filename.display()
+                    );
                     let mut file_buf = BufReader::with_capacity(buffer_size, file);
-                    let out_full_filename = unpack_path.join(out_filename);
-                    let mut out_file = File::create(&out_full_filename)?;
+                    let out_file_result = File::create(&out_full_filename);
+
+                    if out_file_result.is_err() {
+                        error!(
+                            "{} Error- cannot create file {:?}",
+                            log_prefix,
+                            out_full_filename.display()
+                        );
+                    }
+
+                    let mut out_file = out_file_result?;
 
                     loop {
                         let buffer = file_buf.fill_buf()?;
@@ -548,12 +585,26 @@ impl AsvoClient {
                             progress_bar.inc(length.try_into().unwrap());
                         }
                     }
+                } else if !out_full_filename.exists() {
+                    // Create the directory
+                    debug!("{} Creating directory {:?}", log_prefix, out_full_filename);
+                    let create_dir_result = std::fs::create_dir(&out_full_filename);
+                    if create_dir_result.is_err() {
+                        error!(
+                            "{} Error- cannot create directory {:?}",
+                            log_prefix,
+                            out_full_filename.display()
+                        );
+                        create_dir_result?;
+                    }
                 } else {
-                    debug!("Ignoring {}", out_filename.display());
+                    debug!(
+                        "{} Directory exists {}",
+                        log_prefix,
+                        out_full_filename.display()
+                    );
                 }
             }
-
-            //tar.unpack(unpack_path)?;
         }
 
         // If we were told to hash the download, compare our hash against
@@ -562,7 +613,7 @@ impl AsvoClient {
         {
             let mut final_bytes = vec![];
             tee.read_to_end(&mut final_bytes)?;
-            trace!("{} Read final bytes: {}", log_prefix, final_bytes.len());
+            debug!("{} Read final bytes: {}", log_prefix, final_bytes.len());
         }
 
         progress_bar.finish_and_clear();
@@ -575,7 +626,7 @@ impl AsvoClient {
             debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
-            debug!("Our hash: {}", &hash);
+            debug!("{} Our hash: {}", log_prefix, &hash);
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
                     jobid: job.jobid,
