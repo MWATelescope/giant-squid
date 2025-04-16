@@ -21,6 +21,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use self::types::AsvoFilesArray;
 use crate::obsid::Obsid;
 use crate::{built_info, check_file_sha1_hash};
 use backoff::{retry, Error, ExponentialBackoff};
@@ -31,8 +32,6 @@ use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use sha1::{Digest, Sha1};
 use tar::Archive;
 use tee_readwrite::TeeReader;
-
-use self::types::AsvoFilesArray;
 
 // Returns a custom MWA ASVO host address (via a set env var)
 // or returns VarError::NotPresent error when not set
@@ -936,6 +935,10 @@ impl AsvoClient {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::thread;
+    use std::time::Duration;
+
+    use rand::seq::IteratorRandom;
 
     use crate::AsvoError;
     use crate::Delivery;
@@ -1036,38 +1039,103 @@ mod tests {
         let client = AsvoClient::new().unwrap();
 
         // submit a new job (don't worry we will cancel it right away)
-        let obs_id = Obsid::validate(1416257384).unwrap();
-        let delivery = Delivery::Acacia;
-        let delivery_format: Option<DeliveryFormat> = None;
-        let allow_resubmit: bool = true;
-        let job_params = BTreeMap::new();
-        let meta_job = client.submit_conv(
-            obs_id,
-            delivery,
-            delivery_format,
-            &job_params,
-            allow_resubmit,
-        );
-
-        let new_job_id: u32;
-
-        match meta_job {
-            Ok(job_id_or_none) => match job_id_or_none {
-                Some(j) => new_job_id = j,
-                None => panic!("Job submitted, but no jobid returned?"),
-            },
-            Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: c,
-                    message: m,
-                } => panic!("Error has occurred: {} {}", c, m),
-                _ => panic!("Unexpected error has occured."),
-            },
+        //
+        // Due to potentially multiple test runs happening we need to randomise
+        // the job params a bit so we don't have a situation where the job submission
+        // fails because there is already an identical job running!
+        #[derive(Clone)]
+        struct Params<'a> {
+            obs_id: Obsid,
+            delivery: Delivery,
+            delivery_format: Option<DeliveryFormat>,
+            job_params: &'a BTreeMap<&'a str, &'a str>,
         }
 
-        let cancel_result = client.cancel_asvo_job(new_job_id);
+        // Populate the choices
 
-        assert!(cancel_result.is_ok_and(|j| j.unwrap() == new_job_id))
+        // Averaging options
+        let mut birli_10_0_5 = BTreeMap::new();
+        birli_10_0_5.insert("avg_freq_res", "10");
+        birli_10_0_5.insert("avg_time_res", "0.5");
+        birli_10_0_5.insert("flag_edge_width", "80");
+        let mut birli_20_1 = BTreeMap::new();
+        birli_20_1.insert("avg_freq_res", "20");
+        birli_20_1.insert("avg_time_res", "1");
+        birli_20_1.insert("flag_edge_width", "80");
+        let mut birli_40_1 = BTreeMap::new();
+        birli_40_1.insert("avg_freq_res", "40");
+        birli_40_1.insert("avg_time_res", "1");
+        birli_40_1.insert("flag_edge_width", "80");
+        let mut birli_40_2 = BTreeMap::new();
+        birli_40_2.insert("avg_freq_res", "40");
+        birli_40_2.insert("avg_time_res", "2");
+        birli_40_2.insert("flag_edge_width", "80");
+        let mut birli_80_2 = BTreeMap::new();
+        birli_80_2.insert("avg_freq_res", "80");
+        birli_80_2.insert("avg_time_res", "2");
+        birli_80_2.insert("flag_edge_width", "80");
+
+        let birli_options = [birli_10_0_5, birli_20_1, birli_40_1, birli_40_2, birli_80_2];
+
+        let obs_list = [
+            Obsid::validate(1416257384).unwrap(),
+            Obsid::validate(1416257328).unwrap(),
+            Obsid::validate(1416257272).unwrap(),
+            Obsid::validate(1416257216).unwrap(),
+            Obsid::validate(1416257160).unwrap(),
+        ];
+
+        let mut param_choices: Vec<Params> = Vec::new();
+
+        for o in obs_list.iter() {
+            for b in birli_options.iter() {
+                param_choices.push(Params {
+                    obs_id: *o,
+                    delivery: Delivery::Acacia,
+                    delivery_format: None,
+                    job_params: b,
+                });
+            }
+        }
+
+        let mut new_job_id: Option<u32> = None;
+
+        while new_job_id.is_none() {
+            // Pick random set of params
+            let p = &param_choices
+                .clone()
+                .into_iter()
+                .choose(&mut rand::rng())
+                .unwrap();
+
+            let job_to_cancel =
+                client.submit_conv(p.obs_id, p.delivery, p.delivery_format, p.job_params, true);
+
+            match job_to_cancel {
+                Ok(job_id_or_none) => {
+                    if let Some(j) = job_id_or_none {
+                        new_job_id = Some(j)
+                    }
+                }
+                Err(error) => match error {
+                    AsvoError::BadStatus {
+                        code: c,
+                        message: m,
+                    } => panic!("Error has occurred: {} {}", c, m),
+                    _ => panic!("Unexpected error has occured."),
+                },
+            }
+
+            // If this job exists, go again using new params, but also just wait a bit
+            thread::sleep(Duration::from_millis(5000));
+        }
+
+        let cancel_result = client.cancel_asvo_job(new_job_id.expect("No jobid was returned!"));
+
+        assert!(
+            cancel_result.is_ok_and(|j| j.expect("No jobid was returned from cancel")
+                == new_job_id.expect("No jobid was returned!"))
+        )
     }
 
     #[test]

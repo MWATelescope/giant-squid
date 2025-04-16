@@ -1072,6 +1072,7 @@ dependencies = [
  "litemap",
  "log",
  "prettytable-rs",
+ "rand 0.9.0",
  "rayon",
  "reqwest",
  "reqwest-retry",
