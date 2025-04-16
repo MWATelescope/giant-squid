@@ -1137,6 +1137,7 @@ mod tests {
         }
     }
 
+    /* TODO: uncomment once MWA ASVO server supports delivery to DUG
     #[test]
     fn test_submit_meta_to_dug() {
         let client = AsvoClient::new().unwrap();
@@ -1156,7 +1157,7 @@ mod tests {
                 _ => panic!("Unexpected error has occured."),
             },
         }
-    }
+    }*/
 
     #[test]
     fn test_submit_volt() {
