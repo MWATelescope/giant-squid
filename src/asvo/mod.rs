@@ -21,18 +21,17 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use self::types::AsvoFilesArray;
 use crate::obsid::Obsid;
 use crate::{built_info, check_file_sha1_hash};
 use backoff::{retry, Error, ExponentialBackoff};
 use indicatif::ProgressBar;
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use sha1::{Digest, Sha1};
 use tar::Archive;
 use tee_readwrite::TeeReader;
-
-use self::types::AsvoFilesArray;
 
 // Returns a custom MWA ASVO host address (via a set env var)
 // or returns VarError::NotPresent error when not set
@@ -262,7 +261,7 @@ impl AsvoClient {
                         // parse out path from url
                         let url_obj = reqwest::Url::parse(url).unwrap();
                         let out_path = Path::new(&download_dir)
-                            .join(url_obj.path_segments().unwrap().last().unwrap());
+                            .join(url_obj.path_segments().unwrap().next_back().unwrap());
 
                         let op = || {
                             self.try_download(
@@ -307,6 +306,12 @@ impl AsvoClient {
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
                 },
+                Delivery::Dug => {
+                    error!(
+                        "{} Files for Job are not reachable from the current host. You will find your job's files on the DUG filesystem.",
+                        log_prefix
+                    );
+                }
                 Delivery::Scratch => {
                     match &f.path {
                         Some(path) => {
@@ -314,7 +319,7 @@ impl AsvoClient {
                             let path_obj = Path::new(&path);
                             let folder_name = path_obj
                                 .components()
-                                .last()
+                                .next_back()
                                 .unwrap()
                                 .as_os_str()
                                 .to_str()
@@ -322,7 +327,7 @@ impl AsvoClient {
 
                             if !Path::exists(path_obj) {
                                 error!(
-                                    "{} Files for Job are not reachable from the current host.",
+                                    "{} Files for Job are not reachable from the current host. You will find your jobs's files on the scratch filesystem at Pawsey.",
                                     log_prefix
                                 );
                             } else {
@@ -431,14 +436,36 @@ impl AsvoClient {
                                 return Ok(());
                             } else {
                                 warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Restarting download...", log_prefix);
-                                out_file = File::create(out_path)?
+
+                                let out_file_result = File::create(out_path);
+
+                                if out_file_result.is_err() {
+                                    error!(
+                                        "{} Error- cannot create file {:?}",
+                                        log_prefix,
+                                        out_path.display()
+                                    );
+                                }
+
+                                out_file = out_file_result?;
                             }
                         }
                     }
                 }
             } else {
                 file_size_bytes = 0;
-                out_file = File::create(out_path)?;
+
+                let out_file_result = File::create(out_path);
+
+                if out_file_result.is_err() {
+                    error!(
+                        "{} Error- cannot create file {:?}",
+                        log_prefix,
+                        out_path.display()
+                    );
+                }
+
+                out_file = out_file_result?;
             }
 
             // Set the progress bar to be the number bytes in the file
@@ -520,12 +547,27 @@ impl AsvoClient {
             for file in tar_entries {
                 let file = file.unwrap();
                 let out_filename = &file.path()?.to_path_buf();
+                let out_full_filename = unpack_path.join(out_filename);
 
                 // Ignore the "." tar entry
-                if out_filename != Path::new("./") {
+                if !out_filename.to_str().unwrap().ends_with("/") {
+                    debug!(
+                        "{} Writing file {}",
+                        log_prefix,
+                        out_full_filename.display()
+                    );
                     let mut file_buf = BufReader::with_capacity(buffer_size, file);
-                    let out_full_filename = unpack_path.join(out_filename);
-                    let mut out_file = File::create(&out_full_filename)?;
+                    let out_file_result = File::create(&out_full_filename);
+
+                    if out_file_result.is_err() {
+                        error!(
+                            "{} Error- cannot create file {:?}",
+                            log_prefix,
+                            out_full_filename.display()
+                        );
+                    }
+
+                    let mut out_file = out_file_result?;
 
                     loop {
                         let buffer = file_buf.fill_buf()?;
@@ -542,12 +584,26 @@ impl AsvoClient {
                             progress_bar.inc(length.try_into().unwrap());
                         }
                     }
+                } else if !out_full_filename.exists() {
+                    // Create the directory
+                    debug!("{} Creating directory {:?}", log_prefix, out_full_filename);
+                    let create_dir_result = std::fs::create_dir(&out_full_filename);
+                    if create_dir_result.is_err() {
+                        error!(
+                            "{} Error- cannot create directory {:?}",
+                            log_prefix,
+                            out_full_filename.display()
+                        );
+                        create_dir_result?;
+                    }
                 } else {
-                    debug!("Ignoring {}", out_filename.display());
+                    debug!(
+                        "{} Directory exists {}",
+                        log_prefix,
+                        out_full_filename.display()
+                    );
                 }
             }
-
-            //tar.unpack(unpack_path)?;
         }
 
         // If we were told to hash the download, compare our hash against
@@ -556,7 +612,7 @@ impl AsvoClient {
         {
             let mut final_bytes = vec![];
             tee.read_to_end(&mut final_bytes)?;
-            trace!("{} Read final bytes: {}", log_prefix, final_bytes.len());
+            debug!("{} Read final bytes: {}", log_prefix, final_bytes.len());
         }
 
         progress_bar.finish_and_clear();
@@ -569,7 +625,7 @@ impl AsvoClient {
             debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
-            debug!("Our hash: {}", &hash);
+            debug!("{} Our hash: {}", log_prefix, &hash);
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
                     jobid: job.jobid,
@@ -611,7 +667,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadVisibilities, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVisibilities, form)
     }
 
     /// Submit an ASVO job for voltage download.
@@ -660,7 +716,7 @@ impl AsvoClient {
 
         form.insert("download_type", "volt");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadVoltage, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVoltage, form)
     }
 
     /// Submit an MWA ASVO job for conversion.
@@ -702,7 +758,7 @@ impl AsvoClient {
 
         form.insert("allow_resubmit", &allow_resubmit_str);
 
-        self.submit_asvo_job(&AsvoJobType::Conversion, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::Conversion, form)
     }
 
     /// Submit an MWA ASVO job for metadata download.
@@ -731,7 +787,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis_meta");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&AsvoJobType::DownloadMetadata, form)
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadMetadata, form)
     }
 
     /// This low-level function actually submits jobs to the MWA ASVO.
@@ -741,6 +797,7 @@ impl AsvoClient {
     /// Err() - this is when we hit an error
     fn submit_asvo_job(
         &self,
+        obsid: &Obsid,
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
@@ -774,7 +831,12 @@ impl AsvoClient {
             }) => {
                 if error_code == 2 {
                     // error code 2 == job already exists
-                    warn!("{}. Job Id: {}", error.as_str(), job_id);
+                    warn!(
+                        "{}. Job Id: {} ObsID: {}",
+                        error.as_str(),
+                        job_id,
+                        &obsid.to_string()
+                    );
                     Ok(None)
                 } else {
                     Err(AsvoError::BadRequest {
@@ -790,12 +852,18 @@ impl AsvoClient {
                 // Crazy code here as MWA ASVO API does not have good error codes (yet!)
                 // 0 == invalid input (most of the time!)
                 if error_code == 0
-                    && (error.as_str()
-                        == "Unable to submit job. Observation has no files to download."
+                    && (error
+                        .as_str()
+                        .starts_with("Unable to submit job. Observation")
                         || (error.as_str().starts_with("Observation ")
                             && error.as_str().ends_with(" does not exist")))
                 {
-                    error!("{}", error.as_str());
+                    // Some errors already have the obsid, so provide a different error if so
+                    if error.as_str().contains(&obsid.to_string()) {
+                        error!("{}", error.as_str());
+                    } else {
+                        error!("{} (ObsID: {})", error.as_str(), &obsid.to_string());
+                    }
                     Ok(None)
                 } else {
                     Err(AsvoError::BadRequest {
@@ -867,6 +935,10 @@ impl AsvoClient {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::thread;
+    use std::time::Duration;
+
+    use rand::seq::IteratorRandom;
 
     use crate::AsvoError;
     use crate::Delivery;
@@ -967,38 +1039,103 @@ mod tests {
         let client = AsvoClient::new().unwrap();
 
         // submit a new job (don't worry we will cancel it right away)
-        let obs_id = Obsid::validate(1416257384).unwrap();
-        let delivery = Delivery::Acacia;
-        let delivery_format: Option<DeliveryFormat> = None;
-        let allow_resubmit: bool = true;
-        let job_params = BTreeMap::new();
-        let meta_job = client.submit_conv(
-            obs_id,
-            delivery,
-            delivery_format,
-            &job_params,
-            allow_resubmit,
-        );
-
-        let new_job_id: u32;
-
-        match meta_job {
-            Ok(job_id_or_none) => match job_id_or_none {
-                Some(j) => new_job_id = j,
-                None => panic!("Job submitted, but no jobid returned?"),
-            },
-            Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: c,
-                    message: m,
-                } => panic!("Error has occurred: {} {}", c, m),
-                _ => panic!("Unexpected error has occured."),
-            },
+        //
+        // Due to potentially multiple test runs happening we need to randomise
+        // the job params a bit so we don't have a situation where the job submission
+        // fails because there is already an identical job running!
+        #[derive(Clone)]
+        struct Params<'a> {
+            obs_id: Obsid,
+            delivery: Delivery,
+            delivery_format: Option<DeliveryFormat>,
+            job_params: &'a BTreeMap<&'a str, &'a str>,
         }
 
-        let cancel_result = client.cancel_asvo_job(new_job_id);
+        // Populate the choices
 
-        assert!(cancel_result.is_ok_and(|j| j.unwrap() == new_job_id))
+        // Averaging options
+        let mut birli_10_0_5 = BTreeMap::new();
+        birli_10_0_5.insert("avg_freq_res", "10");
+        birli_10_0_5.insert("avg_time_res", "0.5");
+        birli_10_0_5.insert("flag_edge_width", "80");
+        let mut birli_20_1 = BTreeMap::new();
+        birli_20_1.insert("avg_freq_res", "20");
+        birli_20_1.insert("avg_time_res", "1");
+        birli_20_1.insert("flag_edge_width", "80");
+        let mut birli_40_1 = BTreeMap::new();
+        birli_40_1.insert("avg_freq_res", "40");
+        birli_40_1.insert("avg_time_res", "1");
+        birli_40_1.insert("flag_edge_width", "80");
+        let mut birli_40_2 = BTreeMap::new();
+        birli_40_2.insert("avg_freq_res", "40");
+        birli_40_2.insert("avg_time_res", "2");
+        birli_40_2.insert("flag_edge_width", "80");
+        let mut birli_80_2 = BTreeMap::new();
+        birli_80_2.insert("avg_freq_res", "80");
+        birli_80_2.insert("avg_time_res", "2");
+        birli_80_2.insert("flag_edge_width", "80");
+
+        let birli_options = [birli_10_0_5, birli_20_1, birli_40_1, birli_40_2, birli_80_2];
+
+        let obs_list = [
+            Obsid::validate(1416257384).unwrap(),
+            Obsid::validate(1416257328).unwrap(),
+            Obsid::validate(1416257272).unwrap(),
+            Obsid::validate(1416257216).unwrap(),
+            Obsid::validate(1416257160).unwrap(),
+        ];
+
+        let mut param_choices: Vec<Params> = Vec::new();
+
+        for o in obs_list.iter() {
+            for b in birli_options.iter() {
+                param_choices.push(Params {
+                    obs_id: *o,
+                    delivery: Delivery::Acacia,
+                    delivery_format: None,
+                    job_params: b,
+                });
+            }
+        }
+
+        let mut new_job_id: Option<u32> = None;
+
+        while new_job_id.is_none() {
+            // Pick random set of params
+            let p = &param_choices
+                .clone()
+                .into_iter()
+                .choose(&mut rand::rng())
+                .unwrap();
+
+            let job_to_cancel =
+                client.submit_conv(p.obs_id, p.delivery, p.delivery_format, p.job_params, true);
+
+            match job_to_cancel {
+                Ok(job_id_or_none) => {
+                    if let Some(j) = job_id_or_none {
+                        new_job_id = Some(j)
+                    }
+                }
+                Err(error) => match error {
+                    AsvoError::BadStatus {
+                        code: c,
+                        message: m,
+                    } => panic!("Error has occurred: {} {}", c, m),
+                    _ => panic!("Unexpected error has occured."),
+                },
+            }
+
+            // If this job exists, go again using new params, but also just wait a bit
+            thread::sleep(Duration::from_millis(5000));
+        }
+
+        let cancel_result = client.cancel_asvo_job(new_job_id.expect("No jobid was returned!"));
+
+        assert!(
+            cancel_result.is_ok_and(|j| j.expect("No jobid was returned from cancel")
+                == new_job_id.expect("No jobid was returned!"))
+        )
     }
 
     #[test]
@@ -1067,6 +1204,28 @@ mod tests {
             },
         }
     }
+
+    /* TODO: uncomment once MWA ASVO server supports delivery to DUG
+    #[test]
+    fn test_submit_meta_to_dug() {
+        let client = AsvoClient::new().unwrap();
+        let obs_id = Obsid::validate(1343457784).unwrap();
+        let delivery = Delivery::Dug;
+        let delivery_format: Option<DeliveryFormat> = None;
+        let allow_resubmit: bool = false;
+
+        let meta_job = client.submit_meta(obs_id, delivery, delivery_format, allow_resubmit);
+        match meta_job {
+            Ok(_) => (),
+            Err(error) => match error {
+                AsvoError::BadStatus {
+                    code: _,
+                    message: _,
+                } => (),
+                _ => panic!("Unexpected error has occured."),
+            },
+        }
+    }*/
 
     #[test]
     fn test_submit_volt() {

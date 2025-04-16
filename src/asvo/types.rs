@@ -291,6 +291,9 @@ pub enum Delivery {
     /// anywhere.
     Acacia,
 
+    /// Delivert the ASVO job to the filesystem on DUG (Curtin University's account)
+    Dug,
+
     /// Deliver the ASVO job to the /scratch filesystem at the Pawsey
     /// Supercomputing Centre.
     Scratch,
@@ -301,11 +304,13 @@ impl Delivery {
         match (d, std::env::var("GIANT_SQUID_DELIVERY")) {
             (Some(d), _) => match d.as_ref() {
                 "acacia" => Ok(Delivery::Acacia),
+                "dug" => Ok(Delivery::Dug),
                 "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDelivery(d.to_string())),
             },
             (None, Ok(d)) => match d.as_str() {
                 "acacia" => Ok(Delivery::Acacia),
+                "dug" => Ok(Delivery::Dug),
                 "scratch" => Ok(Delivery::Scratch),
                 d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
             },
@@ -327,6 +332,7 @@ impl std::fmt::Display for Delivery {
             "{}",
             match self {
                 Delivery::Acacia => "acacia",
+                Delivery::Dug => "dug",
                 Delivery::Scratch => "scratch",
             }
         )
@@ -399,6 +405,31 @@ mod tests {
         assert!(matches!(
             AsvoJobType::from_str("invalid job type"),
             Err(AsvoError::InvalidJobType { .. })
+        ));
+    }
+
+    #[test]
+    fn test_delivery_type_fromstr() {
+        assert!(matches!(
+            Delivery::validate(Some("acacia")),
+            Ok(Delivery::Acacia)
+        ));
+        assert!(matches!(
+            Delivery::validate(Some("ACACIA")),
+            Err(AsvoError::InvalidDelivery { .. })
+        ));
+        assert!(matches!(
+            Delivery::validate(Some("Acacia")),
+            Err(AsvoError::InvalidDelivery { .. })
+        ));
+        assert!(matches!(Delivery::validate(Some("dug")), Ok(Delivery::Dug)));
+        assert!(matches!(
+            Delivery::validate(Some("scratch")),
+            Ok(Delivery::Scratch)
+        ));
+        assert!(matches!(
+            Delivery::validate(Some("invalid delivery type")),
+            Err(AsvoError::InvalidDelivery { .. })
         ));
     }
 }

@@ -1,11 +1,11 @@
 [package]
 name = "mwa_giant_squid"
-version = "2.0.1"
+version = "2.1.0"
 authors = [
-    "Christopher H. Jordan <christopherjordan87@gmail.com>",
-    "Harrison Barlow <harrison.barlow@curtin.edu.au>",
-    "Dev Null <dev.null@curtin.edu.au>",
     "Greg Sleap <greg.sleap@curtin.edu.au>",
+    "Dev Null <dev.null@curtin.edu.au>",
+    "Christopher H. Jordan <christopherjordan87@gmail.com>",
+    "Harrison Barlow <harrison.barlow@curtin.edu.au>",    
 ]
 edition = "2021"
 rust-version = "1.71.1"
@@ -61,6 +61,7 @@ time-core = { version = "~0.1", optional = true }
 
 [dev-dependencies]
 tempfile = "3.17"
+rand = "0.9.0"
 
 [build-dependencies]
 built = "=0.7.6"
