@@ -197,6 +197,7 @@ pub fn get_job_state_table_style(job_state: AsvoJobState, no_colour: bool) -> St
             AsvoJobState::WaitCal => "Fm",
             AsvoJobState::Staging => "Fm",
             AsvoJobState::Staged => "Fm",
+            AsvoJobState::Preparing => "Fm",
             AsvoJobState::Downloading => "Fm",
             AsvoJobState::Preprocessing => "Fm",
             AsvoJobState::Imaging => "Fm",

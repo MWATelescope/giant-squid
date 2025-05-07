@@ -74,7 +74,7 @@ impl AsvoClient {
 
         // Interfacing with the ASVO server requires specifying the client
         // version.
-        let client_version = format!("mantaray-clientv{}", built_info::PKG_VERSION);
+        let client_version = format!("giant-squidv{}", built_info::PKG_VERSION);
 
         // Connect and return the cookie jar.
         // IF we are using a custom MWA ASVO host, then
