@@ -1,4 +1,4 @@
-FROM mwatelescope/mwalib:latest-python3.11-slim-bookworm
+FROM python:3.13-slim-bookworm AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
@@ -19,6 +19,17 @@ RUN apt-get update \
     apt-get -y autoremove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# # Get Rust
+ARG RUST_VERSION=stable
+ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo
+ENV PATH="${CARGO_HOME}/bin:${PATH}"
+RUN mkdir -m755 $RUSTUP_HOME $CARGO_HOME && ( \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | env RUSTUP_HOME=$RUSTUP_HOME CARGO_HOME=$CARGO_HOME sh -s -- -y \
+    --profile=minimal \
+    --component llvm-tools \
+    --default-toolchain=${RUST_VERSION} \
+    )
 
 ADD . /app
 WORKDIR /app
