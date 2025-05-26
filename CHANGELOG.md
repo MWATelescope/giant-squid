@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.2 - 2025-05-26
+
+### Fixed in 2.1.2
+
+* Fixed error "Unrecognised job_state! preparing".
+
+### Changed in 2.1.2
+
+* Docker image is no longer based on old mwalib image and will now use the latest Rust stable version when building.
+
 ## 2.1.1 - 2025-05-07
 
 ### Added in 2.1.1

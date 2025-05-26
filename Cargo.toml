@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "2.1.1"
+version = "2.1.2"
 authors = [
     "Greg Sleap <greg.sleap@curtin.edu.au>",
     "Dev Null <dev.null@curtin.edu.au>",

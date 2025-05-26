@@ -95,6 +95,7 @@ impl DummyJob {
                 "staged" => AsvoJobState::Staged,
                 "downloading" => AsvoJobState::Downloading,
                 "preprocessing" => AsvoJobState::Preprocessing,
+                "preparing" => AsvoJobState::Preparing,
                 "imaging" => AsvoJobState::Imaging,
                 "delivering" => AsvoJobState::Delivering,
                 "completed" => AsvoJobState::Ready,
