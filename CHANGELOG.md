@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fixed error "Unrecognised job_state! preparing".
 
+### Changed in 2.1.2
+
+* Docker image is no longer based on old mwalib image and will now use the latest Rust stable version when building.
+
 ## 2.1.1 - 2025-05-07
 
 ### Added in 2.1.1
