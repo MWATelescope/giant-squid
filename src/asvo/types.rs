@@ -84,6 +84,7 @@ impl FromStr for AsvoJobState {
             "staging" => Ok(AsvoJobState::Staging),
             "staged" => Ok(AsvoJobState::Staged),
             "downloading" => Ok(AsvoJobState::Downloading),
+            "preparing" => Ok(AsvoJobState::Preparing),
             "preprocessing" => Ok(AsvoJobState::Preprocessing),
             "imaging" => Ok(AsvoJobState::Imaging),
             "delivering" => Ok(AsvoJobState::Delivering),
