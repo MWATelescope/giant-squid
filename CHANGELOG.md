@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 2.1.3 - 2025-07-14
+## 2.2.0 - 2025-07-15
 
-### Fixed in 2.1.3
+### Changed in 2.2.0
 
-* Fixed build error due to two conflicting indicatif versions. Bumped indicatif from 0.17 -> 0.18
+* Bumped MSRV from 1.71.1 to 1.82, updated many old dependencies which required >1.71.1.
+
+### Fixed in 2.2.0
+
+* Fixed build error due to two conflicting indicatif versions.
 
 ## 2.1.2 - 2025-05-26
 

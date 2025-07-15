@@ -290,7 +290,7 @@ impl AsvoClient {
                         info!(
                             "{} Completed download of {} in {} ({}/s)",
                             log_prefix,
-                            bytesize::ByteSize(f.size).to_string_as(true),
+                            bytesize::ByteSize(f.size).display().iec().to_string(),
                             if start_time.elapsed().as_secs() > 60 {
                                 format!(
                                     "{} min {:.2} s",
@@ -301,7 +301,9 @@ impl AsvoClient {
                                 format!("{} s", start_time.elapsed().as_millis() as f64 / 1e3)
                             },
                             bytesize::ByteSize(f.size / start_time.elapsed().as_secs())
-                                .to_string_as(true)
+                                .display()
+                                .iec()
+                                .to_string()
                         );
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
@@ -384,7 +386,10 @@ impl AsvoClient {
             "{} Download starting (type: {}, {})",
             log_prefix,
             job.jtype,
-            bytesize::ByteSize(file_info.size).to_string_as(true),
+            bytesize::ByteSize(file_info.size)
+                .display()
+                .iec()
+                .to_string(),
         );
 
         if keep_tar {

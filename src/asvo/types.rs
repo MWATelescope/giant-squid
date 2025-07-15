@@ -170,7 +170,7 @@ impl AsvoJobVec {
                                 for f in v {
                                     size += f.size;
                                 }
-                                bytesize::ByteSize(size).to_string_as(true)
+                                bytesize::ByteSize(size).display().iec().to_string()
                             }
                         }
                         .as_str(),
