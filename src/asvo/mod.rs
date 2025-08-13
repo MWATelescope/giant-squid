@@ -40,10 +40,9 @@ pub fn get_asvo_server_address_env() -> Result<String, VarError> {
 }
 
 pub fn get_asvo_server_address() -> String {
-    format!(
-        "https://{}",
-        get_asvo_server_address_env().unwrap_or_else(|_| String::from("asvo.mwatelescope.org:443"))
-    )
+    get_asvo_server_address_env()
+        .unwrap_or_else(|_| String::from("https://asvo.mwatelescope.org:443"))
+        .to_string()
 }
 
 lazy_static::lazy_static! {
@@ -70,6 +69,9 @@ impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO.
     /// Uses the `MWA_ASVO_API_KEY` environment variable for login.
     pub fn new() -> Result<AsvoClient, AsvoError> {
+        static APP_USER_AGENT: &str =
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
+
         let api_key = var("MWA_ASVO_API_KEY").map_err(|_| AsvoError::MissingAuthKey)?;
 
         // Interfacing with the ASVO server requires specifying the client
@@ -86,13 +88,17 @@ impl AsvoClient {
                 get_asvo_server_address()
             );
         } else {
-            debug!("Connecting to MWA ASVO...");
+            debug!("Connecting to MWA ASVO... {}", get_asvo_server_address());
         }
+
+        debug!("User Agent string: {}", APP_USER_AGENT);
 
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
-            .danger_accept_invalid_certs(true) // Required for the ASVO.
+            .user_agent(APP_USER_AGENT)
+            .https_only(true)
+            .timeout(Duration::new(60, 0))
             .build()?;
         let response = client
             .post(format!("{}/api/api_login", get_asvo_server_address()))
