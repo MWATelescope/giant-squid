@@ -85,7 +85,7 @@ impl AsvoClient {
         let api_timeout_seconds: Option<u64> = match var(CONST_ENV_MWA_ASVO_API_TIMEOUT) {
             Ok(val) => match val.parse::<u64>() {
                 Ok(num) => {
-                    info!("API timeout overidden to {} seconds", num);
+                    debug!("API timeout overidden to {} seconds", num);
                     Some(num)
                 }
                 Err(e) => {
@@ -93,12 +93,8 @@ impl AsvoClient {
                     None
                 }
             },
-            Err(e) => {
+            Err(_) => {
                 // Env variable was not present, no worries
-                warn!(
-                    "Environment varibale {}: Error: {}",
-                    CONST_ENV_MWA_ASVO_API_TIMEOUT, e
-                );
                 None
             }
         };
@@ -127,9 +123,8 @@ impl AsvoClient {
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(true)
-            .timeout(Duration::new(
+            .timeout(Duration::from_secs(
                 api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
-                0,
             ))
             .build()?;
         let response = client
@@ -1306,9 +1301,9 @@ mod tests {
         let client = AsvoClient::new().unwrap();
         // NOTE: this obs_id is a voltage observation, however for this test to pass,
         // You must have your pawsey_group set in your MWA ASVO profile to mwaops or mwavcs (contact an Admin to have this done).
-        let obs_id = Obsid::validate(1370760960).unwrap();
-        let offset: i32 = 0; // This will attempt to get data from GPS TIME: 1370760960
-        let duration: i32 = 8; // This will attempt to get data up to GPS TIME: 1370760968
+        let obs_id = Obsid::validate(1384018160).unwrap();
+        let offset: i32 = 64; // This will attempt to get data from GPS TIME: 1384018224
+        let duration: i32 = 8; // This will attempt to get data up to GPS TIME: 1384018232
         let from_chan: Option<i32> = Some(109);
         let to_chan: Option<i32> = Some(109);
         let delivery = Delivery::Scratch;
