@@ -85,7 +85,10 @@ impl AsvoClient {
         let api_timeout_seconds: Option<u64> = match var(CONST_ENV_MWA_ASVO_API_TIMEOUT) {
             Ok(val) => match val.parse::<u64>() {
                 Ok(num) => {
-                    debug!("API timeout overidden to {} seconds", num);
+                    debug!(
+                        "{} timeout overidden to {} seconds",
+                        CONST_ENV_MWA_ASVO_API_TIMEOUT, num
+                    );
                     Some(num)
                 }
                 Err(e) => {
