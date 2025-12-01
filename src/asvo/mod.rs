@@ -33,15 +33,22 @@ use sha1::{Digest, Sha1};
 use tar::Archive;
 use tee_readwrite::TeeReader;
 
+const CONST_ENV_MWA_ASVO_HOST: &str = "MWA_ASVO_HOST";
+const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
+const CONST_ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
+const CONST_DEFAULT_MWA_ASVO_API_TIMEOUT: u64 = 60;
+const CONST_ENV_GIANT_SQUID_BUF_SIZE: &str = "GIANT_SQUID_BUF_SIZE";
+const CONST_DEFAULT_URL: &str = "https://asvo.mwatelescope.org:443";
+
 // Returns a custom MWA ASVO host address (via a set env var)
 // or returns VarError::NotPresent error when not set
 pub fn get_asvo_server_address_env() -> Result<String, VarError> {
-    std::env::var("MWA_ASVO_HOST")
+    std::env::var(CONST_ENV_MWA_ASVO_HOST)
 }
 
 pub fn get_asvo_server_address() -> String {
     get_asvo_server_address_env()
-        .unwrap_or_else(|_| String::from("https://asvo.mwatelescope.org:443"))
+        .unwrap_or_else(|_| String::from(CONST_DEFAULT_URL))
         .to_string()
 }
 
@@ -72,7 +79,29 @@ impl AsvoClient {
         static APP_USER_AGENT: &str =
             concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
-        let api_key = var("MWA_ASVO_API_KEY").map_err(|_| AsvoError::MissingAuthKey)?;
+        let api_key = var(CONST_ENV_MWA_ASVO_API_KEY).map_err(|_| AsvoError::MissingAuthKey)?;
+
+        // Parse the timeout env variable or use default
+        let api_timeout_seconds: Option<u64> = match var(CONST_ENV_MWA_ASVO_API_TIMEOUT) {
+            Ok(val) => match val.parse::<u64>() {
+                Ok(num) => {
+                    info!("API timeout overidden to {} seconds", num);
+                    Some(num)
+                }
+                Err(e) => {
+                    warn!("Environment variable {}='{}' is not valid, defaulting to {}. (It should be an integer number of seconds). Error: {}", CONST_ENV_MWA_ASVO_API_TIMEOUT, val, CONST_DEFAULT_MWA_ASVO_API_TIMEOUT,e);
+                    None
+                }
+            },
+            Err(e) => {
+                // Env variable was not present, no worries
+                warn!(
+                    "Environment varibale {}: Error: {}",
+                    CONST_ENV_MWA_ASVO_API_TIMEOUT, e
+                );
+                None
+            }
+        };
 
         // Interfacing with the ASVO server requires specifying the client
         // version.
@@ -98,7 +127,10 @@ impl AsvoClient {
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(true)
-            .timeout(Duration::new(60, 0))
+            .timeout(Duration::new(
+                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
+                0,
+            ))
             .build()?;
         let response = client
             .post(format!("{}/api/api_login", get_asvo_server_address()))
@@ -370,7 +402,7 @@ impl AsvoClient {
         progress_bar: &ProgressBar,
     ) -> Result<(), AsvoError> {
         // How big should our in-memory download buffer be [MiB]?
-        let buffer_size = match var("GIANT_SQUID_BUF_SIZE") {
+        let buffer_size = match var(CONST_ENV_GIANT_SQUID_BUF_SIZE) {
             Ok(s) => s.parse()?,
             Err(_) => 100, // 100 MiB by default.
         } * 1024

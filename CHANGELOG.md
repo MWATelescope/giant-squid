@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.3.1 - 2025-12-01
+
+### Changed in 2.3.1
+
+* You can now set the environment variable `MWA_ASVO_API_TIMEOUT` to adjust how long giant-squid will wait on API calls to the MWA ASVO server before timing out. The default value if the environment variable is not set or not present is 60 (seconds).
+
 ## 2.3.0 - 2025-08-05
 
 ### Fixed
