@@ -363,7 +363,7 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 |centre | Phase centre to use | 'phase' (use observation phase centre), 'pointing' (use pointing centre), 'custom' (use custom phase centre) | 'phase'
 |phase_centre_ra | If 'custom' phase centre, the right ascension  (in decimal degrees) of the new phase centre | 0-360 | omitted
 |phase_centre_dec | If 'custom' phase centre, the declination (in decimal degrees) of the new phase centre | -90.0 - +90.0  | omitted
-|apply_di_cal | Apply basic calibration solution (if available)| flag- specify it or omit it | 
+|apply_di_cal | Apply basic direction-independent calibration solution (if available)| flag- specify it or omit it | omitted (will not apply calibration)
 |no_geometric_delay | Do not correct geometric delays (only applicable if not already applied by correlator)| true or omit it | omitted (will correct geometric delays)
 |no_digital_gains | Do not correct the digital gains|true or omit it | omitted (will correct for digital gains)
 |no_flag_dc | Do not flag the DC channel | true or omit it| omitted (will flag DC channel)
