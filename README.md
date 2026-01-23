@@ -352,6 +352,23 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 {"output": "uvfits", "job_type": "conversion", "flag_edge_width": "160", "avg_freq_res": "10", "avg_time_res": "0.5"}
 ```
 
+##### Key/Value Pairs for Conversion Job -p / --parameter
+
+| key | Meaning | Values | Default |
+|---|---|---|---|
+|output | Output data format | 'ms', 'uvfits'| 'ms'
+|avg_time_res | Output time resolution in seconds (must be multiple of, or equal to, correlator time resolution) | 0.5 - 32.0 | omitted (will use correlator time resolution)
+|avg_freq_res | Output frequency resolution in kHz (must be multiple of, or equal to, correlator frequency resolution). if omitted  (will use correlator frequency resolution) | 0.4 - 1280.0 | 80.0
+|flag_edge_width | Width (in kHz) to flag at each coarse channel edge. Must be multiple of, or equal to, correlator frequency resolution. If omitted (will not flag edge channels) | 0.2 - 640.0 | 80.0
+|centre | Phase centre to use | 'phase' (use observation phase centre), 'pointing' (use pointing centre), 'custom' (use custom phase centre) | 'phase'
+|phase_centre_ra | If 'custom' phase centre, the right ascension  (in decimal degrees) of the new phase centre | 0-360 | omitted
+|phase_centre_dec | If 'custom' phase centre, the declination (in decimal degrees) of the new phase centre | -90.0 - +90.0  | omitted
+|apply_di_cal | Apply basic calibration solution (if available)| flag- specify it or omit it | 
+|no_geometric_delay | Do not correct geometric delays (only applicable if not already applied by correlator)| true or omit it | omitted (will correct geometric delays)
+|no_digital_gains | Do not correct the digital gains|true or omit it | omitted (will correct for digital gains)
+|no_flag_dc | Do not flag the DC channel | true or omit it| omitted (will flag DC channel)
+|no_passband_gains | Do not correct the passband gains |true or omit it | omitted (will correct passband gains)
+
 #### Metadata downloads
 
 A "metadata download job" refers to a job which provides a zip containing a
