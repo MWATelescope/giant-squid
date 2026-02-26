@@ -50,7 +50,7 @@ impl FromStr for AsvoJobType {
             "conversion" => Ok(AsvoJobType::Conversion),
             "downloadvisibilities" => Ok(AsvoJobType::DownloadVisibilities),
             "downloadmetadata" => Ok(AsvoJobType::DownloadMetadata),
-            "downloadvoltage" => Ok(AsvoJobType::DownloadVoltage),
+            "downloadvoltages" => Ok(AsvoJobType::DownloadVoltage),
             "downloadbeamformer" => Ok(AsvoJobType::DownloadBeamformer),
             "canceljob" => Ok(AsvoJobType::CancelJob),
             _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
