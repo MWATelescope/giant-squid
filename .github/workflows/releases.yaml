@@ -63,7 +63,7 @@ jobs:
 
   build-macos-x86_64-release:
     name: Build release for MacOS x86_64
-    runs-on: macos-13
+    runs-on: macos-15-intel
 
     steps:
     - name: Checkout sources
@@ -82,13 +82,13 @@ jobs:
     - name: Upload tarball
       uses: actions/upload-artifact@v4
       with:
-        name: macos13.tar.gz
+        name: macos15-intel.tar.gz
         path: "*.tar.gz"
         if-no-files-found: error
 
   build-macos-arm64-release:
     name: Build release for MacOS arm64
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
     - name: Checkout sources
@@ -107,7 +107,7 @@ jobs:
     - name: Upload tarball
       uses: actions/upload-artifact@v4
       with:
-        name: macos14.tar.gz
+        name: macos15-arm64.tar.gz
         path: "*.tar.gz"
         if-no-files-found: error
 
