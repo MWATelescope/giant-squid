@@ -336,10 +336,12 @@ impl AsvoClient {
                             } else {
                                 format!("{} s", start_time.elapsed().as_millis() as f64 / 1e3)
                             },
-                            bytesize::ByteSize(f.size / start_time.elapsed().as_secs())
-                                .display()
-                                .iec()
-                                .to_string()
+                            bytesize::ByteSize(
+                                f.size / start_time.elapsed().as_millis() as u64 * 1000
+                            )
+                            .display()
+                            .iec()
+                            .to_string()
                         );
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
@@ -831,6 +833,34 @@ impl AsvoClient {
         self.submit_asvo_job(&obsid, &AsvoJobType::DownloadMetadata, form)
     }
 
+    /// Submit an MWA ASVO job for beamformer download.
+    pub fn submit_beamformer(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        delivery_format: Option<DeliveryFormat>,
+        allow_resubmit: bool,
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
+        debug!("Submitting a beamformer job to MWA ASVO");
+
+        let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+        let df_str: String;
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
+        form.insert("delivery", &d_str);
+
+        if delivery_format.is_some() {
+            df_str = format!("{}", delivery_format.unwrap());
+            form.insert("delivery_format", &df_str);
+        }
+
+        form.insert("allow_resubmit", &allow_resubmit_str);
+        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadBeamformer, form)
+    }
+
     /// This low-level function actually submits jobs to the MWA ASVO.
     /// The return can either be:
     /// Ok(Some(jobid)) - this is when a new job is submitted
@@ -846,6 +876,7 @@ impl AsvoClient {
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
+            AsvoJobType::DownloadBeamformer => "beamformer_job",
             AsvoJobType::DownloadVoltage => "voltage_job",
             jt => return Err(AsvoError::UnsupportedType(jt.clone())),
         };

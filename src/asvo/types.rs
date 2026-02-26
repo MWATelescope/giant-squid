@@ -29,6 +29,7 @@ pub enum AsvoJobType {
     DownloadMetadata,
     DownloadVoltage,
     CancelJob,
+    DownloadBeamformer,
 }
 
 impl AsvoJobType {
@@ -50,6 +51,7 @@ impl FromStr for AsvoJobType {
             "downloadvisibilities" => Ok(AsvoJobType::DownloadVisibilities),
             "downloadmetadata" => Ok(AsvoJobType::DownloadMetadata),
             "downloadvoltage" => Ok(AsvoJobType::DownloadVoltage),
+            "downloadbeamformer" => Ok(AsvoJobType::DownloadBeamformer),
             "canceljob" => Ok(AsvoJobType::CancelJob),
             _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
         }
@@ -244,6 +246,7 @@ impl std::fmt::Display for AsvoJobType {
                 AsvoJobType::DownloadVisibilities => "Download Visibilities",
                 AsvoJobType::DownloadMetadata => "Download Metadata",
                 AsvoJobType::DownloadVoltage => "Download Voltage",
+                AsvoJobType::DownloadBeamformer => "Download Beamformer",
                 AsvoJobType::CancelJob => "Cancel Job",
             }
         )
@@ -404,6 +407,14 @@ mod tests {
         assert!(matches!(
             AsvoJobType::from_str("download_visibilities"),
             Ok(AsvoJobType::DownloadVisibilities)
+        ));
+        assert!(matches!(
+            AsvoJobType::from_str("download_voltages"),
+            Ok(AsvoJobType::DownloadVoltage)
+        ));
+        assert!(matches!(
+            AsvoJobType::from_str("download_beamformer"),
+            Ok(AsvoJobType::DownloadBeamformer)
         ));
         assert!(matches!(
             AsvoJobType::from_str("invalid job type"),

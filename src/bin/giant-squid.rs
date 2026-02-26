@@ -384,6 +384,51 @@ enum Args {
         obsids: Vec<String>,
     },
 
+    /// Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
+    #[command(alias = "sb")]
+    SubmitBf {
+        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
+        /// provides a download URL which you can download with giant-squid, wget, etc.
+        /// Other options are: "dug" and "scratch", to deliver
+        /// data directly to a target filesystem, but these are only
+        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
+        #[arg(short, long)]
+        delivery: Option<String>,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[arg(short = 'f', long)]
+        delivery_format: Option<String>,
+
+        /// Do not exit giant-squid until the specified obsids are ready for
+        /// download.
+        #[arg(short, long)]
+        wait: bool,
+
+        /// Don't actually submit; print information on what would've happened
+        /// instead.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
+        allow_resubmit: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[arg(short, long, action=ArgAction::Count)]
+        verbosity: u8,
+
+        /// The obsids to be submitted. Files containing obsids are also
+        /// accepted.
+        #[arg(id = "OBSID")]
+        obsids: Vec<String>,
+    },
+
     /// Wait for MWA ASVO jobs to complete, return the urls
     #[command(alias = "w")]
     Wait {
@@ -943,6 +988,70 @@ fn main() -> Result<(), anyhow::Error> {
                     // will have already provided user some feedback
                 }
                 info!("Submitted {} obsids for voltage download.", submitted_count);
+
+                if wait {
+                    // Endlessly loop over the newly-supplied job IDs until
+                    // they're all ready.
+                    wait_loop(&client, &jobids)?;
+                }
+            }
+        }
+
+        Args::SubmitBf {
+            delivery,
+            delivery_format,
+            wait,
+            dry_run,
+            allow_resubmit,
+            verbosity,
+            obsids,
+        } => {
+            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            // There shouldn't be any job IDs here.
+            if !parsed_jobids.is_empty() {
+                bail!(
+                    "Expected only obsids, but found these exceptions: {:?}",
+                    parsed_jobids
+                );
+            }
+            if parsed_obsids.is_empty() {
+                bail!("No obsids specified!");
+            }
+            init_logger(verbosity);
+
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
+
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
+
+            if dry_run {
+                info!(
+                    "Would have submitted {} obsids for metadata download.",
+                    obsids.len()
+                );
+            } else {
+                let client = AsvoClient::new()?;
+                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+
+                let mut submitted_count = 0;
+                for o in parsed_obsids {
+                    let j =
+                        client.submit_beamformer(o, delivery, delivery_format, allow_resubmit)?;
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
+                }
+                info!(
+                    "Submitted {} obsids for beamformer download.",
+                    submitted_count
+                );
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until

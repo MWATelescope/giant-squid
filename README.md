@@ -95,7 +95,7 @@ Example output:
 
 ```bash
 giant-squid list -j
-{"325430":{"obsid":1090528304,"jobId":325430,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528304_vis.zip","fileSize":10762878689,"fileHash":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}]},"325431":{"obsid":1090528432,"jobId":325431,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528432_vis.zip","fileSize":10762875021,"fileHash":"9d9c3c0f56a2bb4e851aa63cdfb79095b29c66c9"}]}}
+{"325430":{"obsid":1090528304,"jobId":325430,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528304_vis.tar","fileSize":10762878689,"fileHash":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}]},"325431":{"obsid":1090528432,"jobId":325431,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528432_vis.tar","fileSize":10762875021,"fileHash":"9d9c3c0f56a2bb4e851aa63cdfb79095b29c66c9"}]}}
 ```
 
 `jobType` is allowed to be any of:
@@ -105,6 +105,7 @@ giant-squid list -j
 - `DownloadMetadata`
 - `DownloadVoltage`
 - `CancelJob`
+- `DownloadBeamformer`
 
 `jobState` is allowed to be any of:
 
@@ -223,7 +224,7 @@ giant-squid download --download-dir /tmp 1065880128
 giant-squid d -d /tmp 1065880128
 ```
 
-By default, `giant-squid` will perform stream unzipping. Disable this with `-k`
+By default, `giant-squid` will perform stream untaring. Disable this with `-k`
 (or `--keep-tar`).
 
 The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
@@ -300,7 +301,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 
 #### Visibility downloads
 
-A "visibility download job" refers to a job which provides a zip containing
+A "visibility download job" refers to a job which provides a tar containing
 gpubox files, a metafits file and cotter flags for a single obsid.
 
 To submit a visibility download job for the obsid 1065880128:
@@ -371,7 +372,7 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 
 #### Metadata downloads
 
-A "metadata download job" refers to a job which provides a zip containing a
+A "metadata download job" refers to a job which provides a tar containing a
 metafits file and cotter flags for a single obsid.
 
 To submit a visibility download job for the obsid 1065880128:
@@ -412,6 +413,23 @@ Unlike other jobs, you cannot choose to have your files tarred up and uploaded t
 download or DUG's filesystem, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
 a job with the /scratch option, set the environment variable `GIANT_SQUID_DELIVERY=scratch` or pass `-d scratch` or `--delivery scratch`.
+
+#### Beamformer downloads
+
+A "beamformer download job" refers to a job which provides a tar containing beamformer files (generally VDIF and HDR for coherent beams and SIGPROC Filterbank for incoherent beams) for a single obsid.
+
+To submit a beamformer download job for the obsid 1065880128:
+
+```bash
+giant-squid submit-bf 1065880128
+# or
+giant-squid sb 1065880128
+```
+
+Text files containing obsids may be used too.
+
+If you want to check that your command works without actually submitting the
+obsids, then you can use the `--dry-run` option (short version `-n`).
 
 #### Resubmitting jobs
 

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+# 2.4.0 - 2025-02-26
+
+### Changed in 2.4.0
+
+* Bumped MSRV to 1.85.0 to help handle dependency creep.
+* Added support for downloading beamformer observation data from MWA ASVO using the `submit-bf` command (see `giant-squid submit-bf --help` or README.md for syntax).
+
 ## 2.3.1 - 2025-12-01
 
 ### Changed in 2.3.1
