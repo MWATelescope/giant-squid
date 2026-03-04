@@ -1042,11 +1042,18 @@ mod tests {
         match vis_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1070,8 +1077,18 @@ mod tests {
         match conv_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1088,11 +1105,18 @@ mod tests {
         match meta_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1171,8 +1195,8 @@ mod tests {
         }
 
         let mut new_job_id: Option<u32> = None;
-
-        while new_job_id.is_none() {
+        let mut attempt = 0;
+        while new_job_id.is_none() && attempt < 5 {
             // Pick random set of params
             let p = &param_choices
                 .clone()
@@ -1194,11 +1218,21 @@ mod tests {
                         code: c,
                         message: m,
                     } => panic!("Error has occurred: {} {}", c, m),
-                    _ => panic!("Unexpected error has occured."),
+                    _ => {
+                        if error.to_string().contains(
+                            "Your job cannot be submitted as there is a full outage in progress",
+                        ) {
+                            println!("Expected error occurred: {}", error);
+                            return;
+                        } else {
+                            panic!("Unexpected error has occured {}.", error);
+                        }
+                    }
                 },
             }
 
             // If this job exists, go again using new params, but also just wait a bit
+            attempt += 1;
             thread::sleep(Duration::from_millis(5000));
         }
 
@@ -1222,11 +1256,18 @@ mod tests {
         match vis_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1250,8 +1291,18 @@ mod tests {
         match conv_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1268,11 +1319,18 @@ mod tests {
         match meta_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus {
-                    code: _,
-                    message: _,
-                } => (),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1324,8 +1382,18 @@ mod tests {
         match volt_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
@@ -1355,8 +1423,18 @@ mod tests {
         match volt_job {
             Ok(_) => (),
             Err(error) => match error {
-                AsvoError::BadStatus { code, message: _ } => println!("Got return code {}", code),
-                _ => panic!("Unexpected error has occured."),
+                AsvoError::BadStatus { code, message } => {
+                    println!("Got return code {} with message: {}", code, message)
+                }
+                _ => {
+                    if error.to_string().contains(
+                        "Your job cannot be submitted as there is a full outage in progress",
+                    ) {
+                        println!("Expected error occurred: {}", error);
+                    } else {
+                        panic!("Unexpected error has occured {}.", error);
+                    }
+                }
             },
         }
     }
