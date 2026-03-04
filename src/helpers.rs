@@ -180,6 +180,7 @@ pub fn get_job_type_table_style(job_type: AsvoJobType, no_colour: bool) -> Strin
         match job_type {
             AsvoJobType::Conversion => "Fb",
             AsvoJobType::DownloadVisibilities => "Fb",
+            AsvoJobType::DownloadBeamformer => "Fb",
             AsvoJobType::DownloadMetadata => "Fy",
             AsvoJobType::DownloadVoltage => "Fm",
             AsvoJobType::CancelJob => "Fr",
