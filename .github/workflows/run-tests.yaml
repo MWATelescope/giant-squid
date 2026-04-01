@@ -1,5 +1,7 @@
 ---
 name: Cross-platform tests
+permissions:
+  contents: read
 
 # Do this on every push, except tags
 
