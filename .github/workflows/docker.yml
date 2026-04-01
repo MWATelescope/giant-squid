@@ -1,6 +1,8 @@
 on: [push, pull_request]
 
 name: Docker Multiplatform
+permissions:
+  contents: read
 
 env:
   REGISTRY_IMAGE: mwatelescope/giant-squid
