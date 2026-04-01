@@ -22,7 +22,7 @@ fn _sanitize_identifier(s: &str) -> String {
 }
 
 /// All of the available types of ASVO jobs.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum AsvoJobType {
     Conversion,
     DownloadVisibilities,
@@ -30,6 +30,8 @@ pub enum AsvoJobType {
     DownloadVoltage,
     CancelJob,
     DownloadBeamformer,
+    Imaging,
+    Unknown,
 }
 
 impl AsvoJobType {
@@ -53,7 +55,8 @@ impl FromStr for AsvoJobType {
             "downloadvoltages" => Ok(AsvoJobType::DownloadVoltage),
             "downloadbeamformer" => Ok(AsvoJobType::DownloadBeamformer),
             "canceljob" => Ok(AsvoJobType::CancelJob),
-            _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
+            "imaging" => Ok(AsvoJobType::Imaging),
+            _ => Ok(AsvoJobType::Unknown),
         }
     }
 }
@@ -156,6 +159,8 @@ impl AsvoJobVec {
                 "Delivery"
             ]);
 
+            let mut has_unknown_job_type: bool = false;
+
             for j in self.0 {
                 table.add_row(Row::new(vec![
                     Cell::new(j.jobid.to_string().as_str()),
@@ -185,9 +190,17 @@ impl AsvoJobVec {
                         .as_str(),
                     ),
                 ]));
+
+                // If has_unknown_job_type is already True, stay true. If False, but this job is unkown set to True.
+                has_unknown_job_type = (j.jtype == AsvoJobType::Unknown) | has_unknown_job_type;
             }
 
             table.printstd();
+
+            // if we had an unknown job type emit a warning
+            if has_unknown_job_type {
+                log::warn!("giant-squid needs to be updated: one of more of your jobs contains a job_type that is unknown to this version of giant-squid. Please update to the latest version.");
+            }
         }
     }
 
@@ -248,6 +261,8 @@ impl std::fmt::Display for AsvoJobType {
                 AsvoJobType::DownloadVoltage => "Download Voltage",
                 AsvoJobType::DownloadBeamformer => "Download Beamformer",
                 AsvoJobType::CancelJob => "Cancel Job",
+                AsvoJobType::Imaging => "Imaging",
+                AsvoJobType::Unknown => "Unknown",
             }
         )
     }
@@ -416,9 +431,15 @@ mod tests {
             AsvoJobType::from_str("download_beamformer"),
             Ok(AsvoJobType::DownloadBeamformer)
         ));
+
         assert!(matches!(
-            AsvoJobType::from_str("invalid job type"),
-            Err(AsvoError::InvalidJobType { .. })
+            AsvoJobType::from_str("imaging"),
+            Ok(AsvoJobType::Imaging)
+        ));
+
+        assert!(matches!(
+            AsvoJobType::from_str("Some unknown job type"),
+            Ok(AsvoJobType::Unknown)
         ));
     }
 

@@ -184,6 +184,8 @@ pub fn get_job_type_table_style(job_type: AsvoJobType, no_colour: bool) -> Strin
             AsvoJobType::DownloadMetadata => "Fy",
             AsvoJobType::DownloadVoltage => "Fm",
             AsvoJobType::CancelJob => "Fr",
+            AsvoJobType::Imaging => "Fb",
+            AsvoJobType::Unknown => "Fr",
         }
         .to_string()
     }

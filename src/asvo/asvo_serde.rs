@@ -87,7 +87,8 @@ impl DummyJob {
                 3 => AsvoJobType::DownloadVoltage,
                 4 => AsvoJobType::CancelJob,
                 5 => AsvoJobType::DownloadBeamformer,
-                _ => panic!("Unrecognised job_type!"),
+                6 => AsvoJobType::Imaging,
+                _ => AsvoJobType::Unknown,
             },
             state: match self.row.job_state.as_str() {
                 "queued" => AsvoJobState::Queued,

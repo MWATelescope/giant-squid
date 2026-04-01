@@ -804,6 +804,48 @@ impl AsvoClient {
         self.submit_asvo_job(&obsid, &AsvoJobType::Conversion, form)
     }
 
+    /// Submit an MWA ASVO job for conversion.
+    pub fn submit_img(
+        &self,
+        obsid: Obsid,
+        delivery: Delivery,
+        delivery_format: Option<DeliveryFormat>,
+        parameters: &BTreeMap<&str, &str>,
+        allow_resubmit: bool,
+    ) -> Result<Option<AsvoJobID>, AsvoError> {
+        debug!("Submitting an imaging job to MWA ASVO");
+
+        let obsid_str = format!("{}", obsid);
+        let d_str = format!("{}", delivery);
+        let df_str: String;
+        let allow_resubmit_str: String = format!("{}", allow_resubmit);
+
+        let mut form = BTreeMap::new();
+        form.insert("obs_id", obsid_str.as_str());
+        for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
+            form.insert(k, v);
+        }
+
+        // Add the user's conversion parameters. If the user has specified an
+        // option that is in common with the defaults, then it overrides the
+        // default.
+        for (&k, &v) in parameters.iter() {
+            form.insert(k, v);
+        }
+        // Insert the CLI delivery last. This ensures that if the user
+        // incorrectly specified it as part of the `parameters`, it is ignored.
+        form.insert("delivery", &d_str);
+
+        if delivery_format.is_some() {
+            df_str = format!("{}", delivery_format.unwrap());
+            form.insert("delivery_format", &df_str);
+        }
+
+        form.insert("allow_resubmit", &allow_resubmit_str);
+
+        self.submit_asvo_job(&obsid, &AsvoJobType::Imaging, form)
+    }
+
     /// Submit an MWA ASVO job for metadata download.
     pub fn submit_meta(
         &self,
@@ -875,6 +917,7 @@ impl AsvoClient {
         debug!("Submitting an MWA ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
+            AsvoJobType::Imaging => "imaging_job",
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
             AsvoJobType::DownloadBeamformer => "beamformer_job",
             AsvoJobType::DownloadVoltage => "voltage_job",
