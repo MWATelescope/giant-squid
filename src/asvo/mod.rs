@@ -323,25 +323,34 @@ impl AsvoClient {
                             return Err(err);
                         }
 
+                        let elapsed = start_time.elapsed();
+                        let elapsed_ms = elapsed.as_millis() as u64;
+
+                        let throughput_str = if elapsed_ms == 0 {
+                            "N/A".to_string()
+                        } else {
+                            bytesize::ByteSize(f.size * 1000 / elapsed_ms)
+                                .display()
+                                .iec()
+                                .to_string()
+                        };
+
+                        let duration_str = if elapsed.as_secs() > 60 {
+                            format!(
+                                "{} min {:.2} s",
+                                elapsed.as_secs() / 60,
+                                (elapsed.as_millis() as f64 / 1e3) % 60.0
+                            )
+                        } else {
+                            format!("{:.3} s", elapsed.as_millis() as f64 / 1e3)
+                        };
+
                         info!(
                             "{} Completed download of {} in {} ({}/s)",
                             log_prefix,
                             bytesize::ByteSize(f.size).display().iec().to_string(),
-                            if start_time.elapsed().as_secs() > 60 {
-                                format!(
-                                    "{} min {:.2} s",
-                                    start_time.elapsed().as_secs() / 60,
-                                    (start_time.elapsed().as_millis() as f64 / 1e3) % 60.0
-                                )
-                            } else {
-                                format!("{} s", start_time.elapsed().as_millis() as f64 / 1e3)
-                            },
-                            bytesize::ByteSize(
-                                f.size / start_time.elapsed().as_millis() as u64 * 1000
-                            )
-                            .display()
-                            .iec()
-                            .to_string()
+                            duration_str,
+                            throughput_str
                         );
                     }
                     None => return Err(AsvoError::NoUrl { job_id: job.jobid }),

@@ -106,6 +106,8 @@ giant-squid list -j
 - `DownloadVoltage`
 - `CancelJob`
 - `DownloadBeamformer`
+- `Imaging`
+- `Unknown`
 
 `jobState` is allowed to be any of:
 
@@ -369,6 +371,10 @@ $ giant-squid submit-conv 1065880128 -nv -p avg_time_res=0.5,avg_freq_res=10
 |no_digital_gains | Do not correct the digital gains|true or omit it | omitted (will correct for digital gains)
 |no_flag_dc | Do not flag the DC channel | true or omit it| omitted (will flag DC channel)
 |no_passband_gains | Do not correct the passband gains |true or omit it | omitted (will correct passband gains)
+
+#### Imaging Jobs
+
+TODO:
 
 #### Metadata downloads
 

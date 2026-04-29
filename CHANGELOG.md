@@ -9,10 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed in 2.5.0
 
-* Added support for imaging jobs.
+* Added support for imaging jobs and updated README.
 * Ensure giant-squid does not fail if it encounters a job type it doesn't know about. Instead emit a warning for the user to update their giant-squid client.
 * Added dependabot.yml to remove false positives (dependabot picking up vulns in packages which are not actually used, but are optional features of packages giant-squid does use).
 * Updated dependencies to mitigate several security vulnerabilities.
+
+### Fixed in 2.5.0
+
+* Fixed divide by zero error when downloading a very small file over a very fast link.
 
 # 2.4.0 - 2026-02-26
 
