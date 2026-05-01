@@ -4,11 +4,11 @@
 
 //! ASVO data types.
 
-use std::{collections::BTreeMap, str::FromStr};
-
+use clap::ValueEnum;
 use log::warn;
 use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
+use std::{collections::BTreeMap, str::FromStr};
 
 use crate::{get_job_state_table_style, get_job_type_table_style, obsid::Obsid, AsvoError};
 
@@ -191,8 +191,8 @@ impl AsvoJobVec {
                     ),
                 ]));
 
-                // If has_unknown_job_type is already True, stay true. If False, but this job is unkown set to True.
-                has_unknown_job_type = (j.jtype == AsvoJobType::Unknown) | has_unknown_job_type;
+                // If has_unknown_job_type is already True, stay true. If False, but this job is unknown set to True.
+                has_unknown_job_type |= j.jtype == AsvoJobType::Unknown;
             }
 
             table.printstd();
@@ -392,6 +392,35 @@ impl std::fmt::Display for DeliveryFormat {
             "{}",
             match self {
                 DeliveryFormat::Tar => "tar",
+            }
+        )
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, ValueEnum)]
+pub enum ImageJobOutputMode {
+    /// Deliver only the final image
+    #[value(name = "fits")]
+    Fits,
+
+    /// Deliver the final image plus auxiliary fits files
+    #[value(name = "all_fits")]
+    AllFits,
+
+    /// Deliver all fits files plus the CASA measurement set
+    #[value(name = "all_files")]
+    AllFiles,
+}
+
+impl std::fmt::Display for ImageJobOutputMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ImageJobOutputMode::Fits => "fits",
+                ImageJobOutputMode::AllFits => "all_fits",
+                ImageJobOutputMode::AllFiles => "all_files",
             }
         )
     }

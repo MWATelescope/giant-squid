@@ -8,10 +8,13 @@ mod asvo_serde;
 mod error;
 mod types;
 
+use crate::obsid::Obsid;
+use crate::{built_info, check_file_sha1_hash};
 use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
 pub use error::AsvoError;
 pub use types::{
-    AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DeliveryFormat,
+    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
+    Delivery, DeliveryFormat, ImageJobOutputMode,
 };
 
 use std::collections::BTreeMap;
@@ -21,9 +24,6 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use self::types::AsvoFilesArray;
-use crate::obsid::Obsid;
-use crate::{built_info, check_file_sha1_hash};
 use backoff::{retry, Error, ExponentialBackoff};
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
@@ -348,7 +348,7 @@ impl AsvoClient {
                         info!(
                             "{} Completed download of {} in {} ({}/s)",
                             log_prefix,
-                            bytesize::ByteSize(f.size).display().iec().to_string(),
+                            bytesize::ByteSize(f.size).display().iec(),
                             duration_str,
                             throughput_str
                         );
@@ -433,10 +433,7 @@ impl AsvoClient {
             "{} Download starting (type: {}, {})",
             log_prefix,
             job.jtype,
-            bytesize::ByteSize(file_info.size)
-                .display()
-                .iec()
-                .to_string(),
+            bytesize::ByteSize(file_info.size).display().iec(),
         );
 
         if keep_tar {
@@ -719,7 +716,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVisibilities, form)
+        self.submit_asvo_job(Some(&obsid), None, &AsvoJobType::DownloadVisibilities, form)
     }
 
     /// Submit an ASVO job for voltage download.
@@ -768,7 +765,7 @@ impl AsvoClient {
 
         form.insert("download_type", "volt");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadVoltage, form)
+        self.submit_asvo_job(Some(&obsid), None, &AsvoJobType::DownloadVoltage, form)
     }
 
     /// Submit an MWA ASVO job for conversion.
@@ -810,27 +807,47 @@ impl AsvoClient {
 
         form.insert("allow_resubmit", &allow_resubmit_str);
 
-        self.submit_asvo_job(&obsid, &AsvoJobType::Conversion, form)
+        self.submit_asvo_job(Some(&obsid), None, &AsvoJobType::Conversion, form)
     }
 
-    /// Submit an MWA ASVO job for conversion.
-    pub fn submit_img(
+    /// Submit an MWA ASVO job for imaging.
+    #[allow(clippy::too_many_arguments)]
+    pub fn submit_image(
         &self,
-        obsid: Obsid,
+        obsid: Option<Obsid>,
+        jobid: Option<AsvoJobID>,
         delivery: Delivery,
         delivery_format: Option<DeliveryFormat>,
+        imaging_output_mode: ImageJobOutputMode,
         parameters: &BTreeMap<&str, &str>,
         allow_resubmit: bool,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
         debug!("Submitting an imaging job to MWA ASVO");
 
-        let obsid_str = format!("{}", obsid);
+        let obsid_str = match obsid {
+            Some(oo) => format!("{}", oo),
+            None => String::from(""),
+        };
+
+        let jobid_str = match jobid {
+            Some(jj) => format!("{}", jj),
+            None => String::from(""),
+        };
+
         let d_str = format!("{}", delivery);
         let df_str: String;
         let allow_resubmit_str: String = format!("{}", allow_resubmit);
+        let imaging_output_mode_str: String = format!("{}", imaging_output_mode);
 
         let mut form = BTreeMap::new();
-        form.insert("obs_id", obsid_str.as_str());
+
+        if !obsid_str.is_empty() {
+            form.insert("obs_id", obsid_str.as_str());
+        }
+        if !jobid_str.is_empty() {
+            form.insert("source_job_id", jobid_str.as_str());
+        }
+
         for (&k, &v) in DEFAULT_CONVERSION_PARAMETERS.iter() {
             form.insert(k, v);
         }
@@ -841,9 +858,13 @@ impl AsvoClient {
         for (&k, &v) in parameters.iter() {
             form.insert(k, v);
         }
+
         // Insert the CLI delivery last. This ensures that if the user
         // incorrectly specified it as part of the `parameters`, it is ignored.
         form.insert("delivery", &d_str);
+
+        // imaging output mode
+        form.insert("output_mode", &imaging_output_mode_str);
 
         if delivery_format.is_some() {
             df_str = format!("{}", delivery_format.unwrap());
@@ -852,7 +873,7 @@ impl AsvoClient {
 
         form.insert("allow_resubmit", &allow_resubmit_str);
 
-        self.submit_asvo_job(&obsid, &AsvoJobType::Imaging, form)
+        self.submit_asvo_job(obsid.as_ref(), jobid.as_ref(), &AsvoJobType::Imaging, form)
     }
 
     /// Submit an MWA ASVO job for metadata download.
@@ -881,7 +902,7 @@ impl AsvoClient {
 
         form.insert("download_type", "vis_meta");
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadMetadata, form)
+        self.submit_asvo_job(Some(&obsid), None, &AsvoJobType::DownloadMetadata, form)
     }
 
     /// Submit an MWA ASVO job for beamformer download.
@@ -909,7 +930,7 @@ impl AsvoClient {
         }
 
         form.insert("allow_resubmit", &allow_resubmit_str);
-        self.submit_asvo_job(&obsid, &AsvoJobType::DownloadBeamformer, form)
+        self.submit_asvo_job(Some(&obsid), None, &AsvoJobType::DownloadBeamformer, form)
     }
 
     /// This low-level function actually submits jobs to the MWA ASVO.
@@ -919,7 +940,8 @@ impl AsvoClient {
     /// Err() - this is when we hit an error
     fn submit_asvo_job(
         &self,
-        obsid: &Obsid,
+        obsid: Option<&Obsid>,
+        jobid: Option<&AsvoJobID>,
         job_type: &AsvoJobType,
         form: BTreeMap<&str, &str>,
     ) -> Result<Option<AsvoJobID>, AsvoError> {
@@ -930,7 +952,7 @@ impl AsvoClient {
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
             AsvoJobType::DownloadBeamformer => "beamformer_job",
             AsvoJobType::DownloadVoltage => "voltage_job",
-            jt => return Err(AsvoError::UnsupportedType(jt.clone())),
+            jt => return Err(AsvoError::UnsupportedType(*jt)),
         };
 
         // Send a POST request to the MWA ASVO.
@@ -946,6 +968,14 @@ impl AsvoClient {
             // Show the http code when it's not something we can handle
             warn!("http code: {} response: {}", code, &response_text)
         };
+
+        // Imaging jobs can either have obsid OR jobid so lets determine that
+        // for any log messages
+        let (identifier_type, identifier) = match obsid.is_some() {
+            true => (String::from("ObsId"), obsid.unwrap().to_string()),
+            false => (String::from("JobId"), jobid.unwrap().to_string()),
+        };
+
         match serde_json::from_str(response_text) {
             Ok(AsvoSubmitJobResponse::JobIDWithError {
                 error,
@@ -956,10 +986,11 @@ impl AsvoClient {
                 if error_code == 2 {
                     // error code 2 == job already exists
                     warn!(
-                        "{}. Job Id: {} ObsID: {}",
+                        "{}. Job Id: {} {}: {}",
                         error.as_str(),
                         job_id,
-                        &obsid.to_string()
+                        identifier_type,
+                        identifier
                     );
                     Ok(None)
                 } else {
@@ -983,10 +1014,10 @@ impl AsvoClient {
                             && error.as_str().ends_with(" does not exist")))
                 {
                     // Some errors already have the obsid, so provide a different error if so
-                    if error.as_str().contains(&obsid.to_string()) {
+                    if error.as_str().contains(&identifier) {
                         error!("{}", error.as_str());
                     } else {
-                        error!("{} (ObsID: {})", error.as_str(), &obsid.to_string());
+                        error!("{} (ObsID: {})", error.as_str(), &identifier);
                     }
                     Ok(None)
                 } else {
@@ -1285,15 +1316,13 @@ mod tests {
 
             // If this job exists, go again using new params, but also just wait a bit
             attempt += 1;
-            thread::sleep(Duration::from_millis(5000));
+            thread::sleep(Duration::from_millis(2000));
         }
 
         let cancel_result = client.cancel_asvo_job(new_job_id.expect("No jobid was returned!"));
 
-        assert!(
-            cancel_result.is_ok_and(|j| j.expect("No jobid was returned from cancel")
-                == new_job_id.expect("No jobid was returned!"))
-        )
+        assert!(cancel_result.is_ok());
+        assert!(cancel_result.unwrap().unwrap() == new_job_id.unwrap());
     }
 
     #[test]
