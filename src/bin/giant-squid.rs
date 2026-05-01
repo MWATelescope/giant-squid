@@ -972,7 +972,8 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> =
                     Vec::with_capacity(parsed_obsids.len() + parsed_jobids.len());
-                let mut submitted_count = 0;
+                let mut raw_image_submitted_count = 0;
+                let mut conv_image_submitted_count = 0;
 
                 for o in parsed_obsids {
                     let j = client.submit_image(
@@ -989,17 +990,12 @@ fn main() -> Result<(), anyhow::Error> {
                         let jobid = j.unwrap();
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
-                        submitted_count += 1;
+                        raw_image_submitted_count += 1;
                     }
                     // for the none case- the "submit_asvo" function
                     // will have already provided user some feedback
                 }
-                info!(
-                    "Submitted {} obsids for imaging of raw visibilities.",
-                    submitted_count
-                );
 
-                submitted_count = 0;
                 for o in parsed_jobids {
                     let j = client.submit_image(
                         None,
@@ -1015,17 +1011,27 @@ fn main() -> Result<(), anyhow::Error> {
                         let jobid = j.unwrap();
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
-                        submitted_count += 1;
+                        conv_image_submitted_count += 1;
                     }
                     // for the none case- the "submit_asvo" function
                     // will have already provided user some feedback
                 }
-                info!(
-                    "Submitted {} jobids for imaging of existing conversion jobs.",
-                    submitted_count
-                );
 
-                if wait {
+                if raw_image_submitted_count > 0 {
+                    info!(
+                        "Submitted {} obsids for imaging of raw visibilities.",
+                        raw_image_submitted_count
+                    );
+                }
+                if conv_image_submitted_count > 0 {
+                    info!(
+                        "Submitted {} jobids for imaging of existing conversion jobs.",
+                        conv_image_submitted_count
+                    );
+                }
+                if raw_image_submitted_count + conv_image_submitted_count == 0 {
+                    info!("Submitted 0 obsids / jobids for imaging.");
+                } else if wait {
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
                     wait_loop(&client, &jobids)?;
