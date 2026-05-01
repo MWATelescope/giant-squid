@@ -250,7 +250,46 @@ An "imaging download job" takes raw visibilities or an existing completed conver
 The MWA ASVO imaging features uses the WSClean software by André Offringa to generated images from CASA measurement sets. For comprehensive documentation about WSClean, please see: [WSClean readthedocs](https://wsclean.readthedocs.io/).
 
 ```text
-TODO
+Submit MWA ASVO imaging jobs
+
+Usage: giant-squid submit-image [OPTIONS] [JOBID_OR_OBSID]...
+
+Arguments:
+  [JOBID_OR_OBSID]...
+          The job IDs or obsids to be downloaded. Files containing job IDs or obsids are also accepted. Specifying an obsid will preprocess the raw visibilities (so be sure to include conversion job parameters in your --parameters argument); specifying a job id wll attempt to image an already completed conversion job (if possible)
+
+Options:
+  -p, --parameters <PARAMETERS>
+          The imaging parameters to use. Specify as comma separated `key=value`. If you specify an ObsID you should include conversion job parameters in addition to imaging parameters. If you specify an existing JobID you only need to include the imaging parameters. Conversion Job and Imaging Job parameters reference can be found in the README.md file
+
+  -d, --delivery <DELIVERY>
+          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+
+  -f, --delivery-format <DELIVERY_FORMAT>
+          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
+
+  -o, --output-mode <OUTPUT_MODE>
+          Possible values:
+          - fits:      Deliver only the final image
+          - all_fits:  Deliver the final image plus auxiliary fits files
+          - all_files: Deliver all fits files plus the CASA measurement set
+
+          [default: fits]
+
+  -w, --wait
+          Do not exit giant-squid until the specified obsids are ready for download
+
+  -n, --dry-run
+          Don't actually submit; print information on what would've happened instead
+
+  -r, --allow-resubmit
+          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+
+  -v, --verbosity...
+          The verbosity of the program. The default is to print high-level information
+
+  -h, --help
+          Print help (see a summary with '-h')
 ```
 
 To submit an imaging download job for the obsid 1065880128, specify the obsid and any conversion parameters as well as imaging parameters:
@@ -276,7 +315,7 @@ In addition to the conversion job parameters [See: Conversion Downloads](#conver
 
 | key | Meaning | Values | Default |
 |---|---|---|---|
-|image_size | width and height in pixels of output image | One of 512, 1024, 2048, 3072, 4096 or 8192 | 3072
+|flag_edge_width | width and height in pixels of output image | One of 512, 1024, 2048, 3072, 4096 or 8192 | 3072
 |pixel_scale | Number of arcsecs per pixel | 10.0 - 120.0 | 20.0
 |weighting | Type of weighting to apply | One of natural, uniform, briggs | briggs
 |robust | Robustness parameter- only used if `weighting=briggs` | -2.0 to 2.0 | -0.5 

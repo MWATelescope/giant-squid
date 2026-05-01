@@ -948,7 +948,20 @@ impl AsvoClient {
         debug!("Submitting an MWA ASVO job");
         let api_path = match job_type {
             AsvoJobType::Conversion => "conversion_job",
-            AsvoJobType::Imaging => "imaging_job",
+            AsvoJobType::Imaging => {
+                // if we have an obsid then we are doing a raw->image job
+                // if we have a jobid then we are doing a preprocessed -> image job
+                if obsid.is_some() {
+                    "imaging_job"
+                } else if jobid.is_some() {
+                    "preprocessed_imaging_job"
+                } else {
+                    return Err(AsvoError::BadRequest {
+                        code: 1000,
+                        message: String::from("No obsid or jobid in call to submit_asvo_job(). Please contact support."),
+                    });
+                }
+            }
             AsvoJobType::DownloadVisibilities | AsvoJobType::DownloadMetadata => "download_vis_job",
             AsvoJobType::DownloadBeamformer => "beamformer_job",
             AsvoJobType::DownloadVoltage => "voltage_job",

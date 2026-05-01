@@ -26,7 +26,7 @@ MWA ASVO: https://asvo.mwatelescope.org"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The conversion job parameters used. Specify as comma separated `key=value`. If any of the default parameters are not overwritten, then they remain. Conversion Job parameters reference can be found in the REAME.md file. Default: ".to_string();
+        let mut s = "The conversion job parameters used. Specify as comma separated `key=value`. If any of the default parameters are not overwritten, then they remain. Conversion Job parameters reference can be found in the README.md file. Default: ".to_string();
         for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
             s.push_str(k);
             s.push('=');
@@ -291,7 +291,7 @@ enum Args {
         /// The imaging parameters to use. Specify as comma separated `key=value`. If you specify an ObsID you should include conversion
         /// job parameters in addition to imaging parameters. If you specify an existing JobID
         /// you only need to include the imaging parameters.
-        /// Conversion Job and Imaging Job parameters reference can be found in the REAME.md file.
+        /// Conversion Job and Imaging Job parameters reference can be found in the README.md file.
         #[arg(short, long)]
         parameters: Option<String>,
 
