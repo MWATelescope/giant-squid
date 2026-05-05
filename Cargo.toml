@@ -16,6 +16,10 @@ repository = "https://github.com/MWATelescope/giant-squid"
 homepage = "https://github.com/MWATelescope/giant-squid"
 exclude = [".github/*"]
 
+# When selecting dependency versions, it prefers versions whose own rust-version (MSRV) is compatible with yours, rather than always picking the newest release.
+# It still respects semver constraints as the primary filter — MSRV compatibility is the tiebreaker among eligible versions.
+resolver = "3"
+
 [features]
 default = ["bin"]
 bin = ["anyhow", "clap", "simplelog", "reqwest-retry", "task-local-extensions", "indicatif", "indicatif-log-bridge"]
@@ -58,16 +62,6 @@ simplelog = { version = "0.12", optional = true }
 task-local-extensions = { version = "0.1", optional = true }
 time = { version = "=0.3.45", optional = true }
 time-core = { version = "0.1", optional = true }
-
-# transitive dependencies which require a higher MSRV
-icu_collections = { version = "=2.1.0" }
-icu_locale_core = { version = "=2.1.0" }
-icu_normalizer = { version = "=2.1.0" }
-icu_normalizer_data = { version = "=2.1.0" }
-icu_properties = { version = "=2.1.0" }
-icu_properties_data = { version = "=2.1.0" }
-icu_provider = { version = "=2.1.0" }
-idna_adapter = { version = "=1.2.1" }
 
 [dev-dependencies]
 tempfile = "3.20"
