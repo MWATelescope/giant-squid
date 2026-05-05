@@ -315,7 +315,7 @@ In addition to the conversion job parameters [See: Conversion Downloads](#conver
 
 | key | Meaning | Values | Default |
 |---|---|---|---|
-|flag_edge_width | width and height in pixels of output image | One of 512, 1024, 2048, 3072, 4096 or 8192 | 3072
+|image_size | width and height in pixels of output image | One of 512, 1024, 2048, 3072, 4096 or 8192 | 3072
 |pixel_scale | Number of arcsecs per pixel | 10.0 - 120.0 | 20.0
 |weighting | Type of weighting to apply | One of natural, uniform, briggs | briggs
 |robust | Robustness parameter- only used if `weighting=briggs` | -2.0 to 2.0 | -0.5 
