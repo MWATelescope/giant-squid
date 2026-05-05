@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # quinn-proto is an optional transitive dependency of reqwest's http3 feature,
+      # which is not enabled in this project. Not vulnerable.
+      - dependency-name: "quinn-proto"

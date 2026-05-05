@@ -26,7 +26,7 @@ MWA ASVO: https://asvo.mwatelescope.org"#;
 
 lazy_static::lazy_static! {
     static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: ".to_string();
+        let mut s = "The conversion job parameters used. Specify as comma separated `key=value`. If any of the default parameters are not overwritten, then they remain. Conversion Job parameters reference can be found in the README.md file. Default: ".to_string();
         for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
             s.push_str(k);
             s.push('=');
@@ -115,7 +115,6 @@ fn run_obsid_download(
 
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
-//#[arg(global_setting(AppSettings::DeriveDisplayOrder))]
 enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]
@@ -286,7 +285,65 @@ enum Args {
         obsids: Vec<String>,
     },
 
-    /// Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and cotter flags (if available)
+    /// Submit MWA ASVO imaging jobs
+    #[command(alias = "si")]
+    SubmitImage {
+        /// The imaging parameters to use. Specify as comma separated `key=value`. If you specify an ObsID you should include conversion
+        /// job parameters in addition to imaging parameters. If you specify an existing JobID
+        /// you only need to include the imaging parameters.
+        /// Conversion Job and Imaging Job parameters reference can be found in the README.md file.
+        #[arg(short, long)]
+        parameters: Option<String>,
+
+        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
+        /// provides a download URL which you can download with giant-squid, wget, etc.
+        /// Other options are: "dug" and "scratch", to deliver
+        /// data directly to a target filesystem, but these are only
+        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
+        /// Please see README.md for more information on delivery options. The default can be
+        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
+        #[arg(short, long)]
+        delivery: Option<String>,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
+        /// which is always `tar`
+        #[arg(short = 'f', long)]
+        delivery_format: Option<String>,
+
+        #[arg(short = 'o', long, default_value_t = ImageJobOutputMode::Fits)]
+        output_mode: ImageJobOutputMode,
+
+        /// Do not exit giant-squid until the specified obsids are ready for
+        /// download.
+        #[arg(short, long)]
+        wait: bool,
+
+        /// Don't actually submit; print information on what would've happened
+        /// instead.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+
+        /// Allow resubmit- if exact same job params already in your queue
+        /// allow submission anyway. Default: allow resubmit is False / not present
+        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
+        allow_resubmit: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[arg(short, long, action=ArgAction::Count)]
+        verbosity: u8,
+
+        /// The job IDs or obsids to be downloaded. Files containing job IDs or
+        /// obsids are also accepted. Specifying an obsid will preprocess the
+        /// raw visibilities (so be sure to include conversion job parameters in
+        /// your --parameters argument); specifying a job id wll attempt to image
+        /// an already completed conversion job (if possible).
+        #[arg(id = "JOBID_OR_OBSID")]
+        jobids_or_obsids: Vec<String>,
+    },
+
+    /// Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and RFI flags (if available)
     #[command(alias = "sm")]
     SubmitMeta {
         /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
@@ -621,7 +678,7 @@ fn main() -> Result<(), anyhow::Error> {
             ..
         } => {
             if jobids_or_obsids.is_empty() {
-                bail!("No jobs specified!");
+                bail!("No jobs or obsids specified!");
             }
 
             // Validate the download directory
@@ -853,6 +910,128 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for conversion.", submitted_count);
 
                 if wait {
+                    // Endlessly loop over the newly-supplied job IDs until
+                    // they're all ready.
+                    wait_loop(&client, &jobids)?;
+                }
+            }
+        }
+
+        Args::SubmitImage {
+            parameters,
+            delivery,
+            delivery_format,
+            output_mode,
+            wait,
+            dry_run,
+            allow_resubmit,
+            verbosity,
+            jobids_or_obsids,
+        } => {
+            if jobids_or_obsids.is_empty() {
+                bail!("No jobs or obsids specified!");
+            }
+
+            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
+
+            init_logger(verbosity);
+
+            let delivery = Delivery::validate(delivery)?;
+            debug!("Using {} for delivery", delivery);
+
+            let delivery_format: Option<DeliveryFormat> =
+                DeliveryFormat::validate(delivery_format)?;
+            debug!("Using {:#?} for delivery format", delivery_format);
+
+            // Get the user parameters and set any defaults that the user has not set.
+            let params = {
+                let mut params = match &parameters {
+                    Some(s) => parse_key_value_pairs(s)?,
+                    None => BTreeMap::new(),
+                };
+                for (&key, &value) in DEFAULT_CONVERSION_PARAMETERS.iter() {
+                    if !params.contains_key(key) {
+                        params.insert(key, value);
+                    }
+                }
+                params
+            };
+
+            if dry_run {
+                info!(
+                    "Would have submitted {} obsids for imaging, using these parameters:\n{:?}",
+                    parsed_obsids.len(),
+                    params
+                );
+                info!(
+                    "Would have submitted {} existing conversion jobids for imaging, using these parameters:\n{:?}",
+                    parsed_jobids.len(),
+                    params
+                );
+            } else {
+                let client = AsvoClient::new()?;
+                let mut jobids: Vec<AsvoJobID> =
+                    Vec::with_capacity(parsed_obsids.len() + parsed_jobids.len());
+                let mut raw_image_submitted_count = 0;
+                let mut conv_image_submitted_count = 0;
+
+                for o in parsed_obsids {
+                    let j = client.submit_image(
+                        Some(o),
+                        None,
+                        delivery,
+                        delivery_format,
+                        output_mode,
+                        &params,
+                        allow_resubmit,
+                    )?;
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        raw_image_submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
+                }
+
+                for o in parsed_jobids {
+                    let j = client.submit_image(
+                        None,
+                        Some(o),
+                        delivery,
+                        delivery_format,
+                        output_mode,
+                        &params,
+                        allow_resubmit,
+                    )?;
+
+                    if j.is_some() {
+                        let jobid = j.unwrap();
+                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
+                        jobids.push(jobid);
+                        conv_image_submitted_count += 1;
+                    }
+                    // for the none case- the "submit_asvo" function
+                    // will have already provided user some feedback
+                }
+
+                if raw_image_submitted_count > 0 {
+                    info!(
+                        "Submitted {} obsids for imaging of raw visibilities.",
+                        raw_image_submitted_count
+                    );
+                }
+                if conv_image_submitted_count > 0 {
+                    info!(
+                        "Submitted {} jobids for imaging of existing conversion jobs.",
+                        conv_image_submitted_count
+                    );
+                }
+                if raw_image_submitted_count + conv_image_submitted_count == 0 {
+                    info!("Submitted 0 obsids / jobids for imaging.");
+                } else if wait {
                     // Endlessly loop over the newly-supplied job IDs until
                     // they're all ready.
                     wait_loop(&client, &jobids)?;

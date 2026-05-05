@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "2.4.0"
+version = "2.5.0"
 authors = [
     "Greg Sleap <greg.sleap@curtin.edu.au>",
     "Dev Null <dev.null@curtin.edu.au>",
@@ -15,6 +15,10 @@ description = "MWA ASVO command line client"
 repository = "https://github.com/MWATelescope/giant-squid"
 homepage = "https://github.com/MWATelescope/giant-squid"
 exclude = [".github/*"]
+
+# When selecting dependency versions, it prefers versions whose own rust-version (MSRV) is compatible with yours, rather than always picking the newest release.
+# It still respects semver constraints as the primary filter — MSRV compatibility is the tiebreaker among eligible versions.
+resolver = "3"
 
 [features]
 default = ["bin"]
@@ -65,3 +69,10 @@ rand = "0.10"
 
 [build-dependencies]
 built = "0.8"
+
+#[lints.clippy]
+#unwrap_used      = "warn"
+#expect_used      = "warn"
+#panic            = "warn"
+#indexing_slicing = "warn"
+#arithmetic_side_effects = "warn"
