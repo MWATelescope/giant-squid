@@ -314,13 +314,24 @@ impl AsvoClient {
                             )
                             .map_err(|e| match &e {
                                 AsvoError::IO(_) => Error::permanent(e),
+                                // if we get 404 we should not retry AND we should provide a nicer error message
+                                AsvoError::HttpError { status: 404, .. } => {
+                                    Error::permanent(AsvoError::Http404Error { job_id: job.jobid })
+                                }
+                                // If we get 401, 403 or 404 we should not retry
+                                AsvoError::HttpError {
+                                    status: 401 | 403, ..
+                                } => Error::permanent(e),
                                 _ => Error::transient(e),
                             })
                         };
 
-                        if let Err(Error::Permanent(err)) = retry(ExponentialBackoff::default(), op)
-                        {
-                            return Err(err);
+                        // This next if is a bit counterintuitive to read, but it means:
+                        // Run the operation with exponential backoff retrying on transient errors. If it ultimately fails with a permanent error, return that error to the caller.
+                        match retry(ExponentialBackoff::default(), op) {
+                            Ok(()) => {}
+                            Err(Error::Permanent(err)) => return Err(err),
+                            Err(Error::Transient { err, .. }) => return Err(err),
                         }
 
                         let elapsed = start_time.elapsed();
@@ -524,7 +535,7 @@ impl AsvoClient {
             progress_bar.set_message(log_prefix.to_string());
 
             // If file_size_bytes != 0 then we are going to try and resume the download
-            // from where we left off. If file_size_bytes == 0 then we;ll start from the start!
+            // from where we left off. If file_size_bytes == 0 then we'll start from the start!
             let mut headers = HeaderMap::new();
             headers.insert(
                 RANGE,
@@ -535,7 +546,23 @@ impl AsvoClient {
                 .unwrap(),
             );
 
-            response = self.client.get(url).headers(headers).send()?;
+            let raw_response = self.client.get(url).headers(headers).send()?;
+
+            // Check HTTP status before attempting to read the response body
+            let status = raw_response.status();
+            if !status.is_success() {
+                let body = raw_response.text().unwrap_or_default();
+                error!(
+                    "{} HTTP error {} downloading tar {:?}: {}",
+                    log_prefix, status, out_path, body
+                );
+                return Err(AsvoError::HttpError {
+                    status: status.as_u16(),
+                    message: body,
+                });
+            }
+
+            response = raw_response;
             tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             // Simply dump the response to the appropriate file name. Use a
@@ -577,7 +604,26 @@ impl AsvoClient {
                 unpack_path.display()
             );
 
-            response = self.client.get(url).send()?;
+            let raw_response = self.client.get(url).send()?;
+
+            // Check HTTP status before attempting to parse body as a tar archive
+            let status = raw_response.status();
+            if !status.is_success() {
+                let body = raw_response.text().unwrap_or_default();
+                error!(
+                    "{} HTTP error {} downloading and untarring to {}: {}",
+                    log_prefix,
+                    status,
+                    unpack_path.display(),
+                    body
+                );
+                return Err(AsvoError::HttpError {
+                    status: status.as_u16(),
+                    message: body,
+                });
+            }
+
+            response = raw_response;
             tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
             let mut tar = Archive::new(&mut tee);

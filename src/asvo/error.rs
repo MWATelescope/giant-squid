@@ -151,4 +151,12 @@ pub enum AsvoError {
     // file type error for job
     #[error("Invalid file type for job {job_id:?}")]
     InvalidFileType { job_id: u32 },
+
+    // HTTP error code when downloading
+    #[error("HTTP error {status} downloading file: {message}")]
+    HttpError { status: u16, message: String },
+
+    // HTTP 404 error code when downloading
+    #[error("The file for job {job_id:?} you are trying to download no longer exists. It may have expired or been removed. Please contact support if think this is in error")]
+    Http404Error { job_id: u32 },
 }
