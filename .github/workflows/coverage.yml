@@ -19,14 +19,13 @@ jobs:
     runs-on: ubuntu-latest    
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Install Rust, stable minimal toolchain
-        uses: dtolnay/rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:          
-          toolchain: stable
           components: llvm-tools
       
       - name: Install cargo-llvm-cov
@@ -40,6 +39,6 @@ jobs:
           # this uses the result of the previous run to generate a text summary
           cargo llvm-cov report
       - name: Upload reports to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

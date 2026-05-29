@@ -19,20 +19,18 @@ jobs:
 
     steps:
     - name: Checkout sources
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
     - name: Install Rust, stable minimal toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:          
-        toolchain: stable
+      uses: dtolnay/rust-toolchain@stable      
 
     - name: Build
       run: .github/workflows/build.sh
 
     - name: Upload tarball
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: linux_x86_64.tar.gz
         path: "*.tar.gz"
@@ -44,7 +42,7 @@ jobs:
 
   #   steps:
   #   - name: Checkout sources
-  #     uses: actions/checkout@v4
+  #     uses: actions/checkout@v6
   #     with:
   #       fetch-depth: 0
 
@@ -69,20 +67,18 @@ jobs:
 
     steps:
     - name: Checkout sources
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
     - name: Install Rust, stable minimal toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:          
-        toolchain: stable
+      uses: dtolnay/rust-toolchain@stable
 
     - name: Build
       run: .github/workflows/build.sh
 
     - name: Upload tarball
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: macos15-intel.tar.gz
         path: "*.tar.gz"
@@ -94,20 +90,18 @@ jobs:
 
     steps:
     - name: Checkout sources
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
     - name: Install Rust, stable minimal toolchain
-      uses: dtolnay/rust-toolchain@v1
-      with:          
-        toolchain: stable
+      uses: dtolnay/rust-toolchain@stable
 
     - name: Build
       run: .github/workflows/build.sh
 
     - name: Upload tarball
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: macos15-arm64.tar.gz
         path: "*.tar.gz"
@@ -121,7 +115,7 @@ jobs:
       contents: write
     steps:      
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:          
           merge-multiple: true
 
@@ -142,12 +136,10 @@ jobs:
     needs: [create-release]    
     steps:
         - name: Checkout sources
-          uses: actions/checkout@v4
+          uses: actions/checkout@v6
 
         - name: Install stable, minimal toolchain
-          uses: dtolnay/rust-toolchain@v1
-          with:
-            toolchain: stable        
+          uses: dtolnay/rust-toolchain@stable     
 
         - name: Run tests on latest stable rust
           run: cargo build --release
