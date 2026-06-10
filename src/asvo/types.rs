@@ -4,6 +4,7 @@
 
 //! ASVO data types.
 
+use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use log::warn;
 use prettytable::{row, Cell, Row, Table};
@@ -132,6 +133,7 @@ pub struct AsvoJob {
     #[serde(rename = "jobState")]
     pub state: AsvoJobState,
     pub files: Option<Vec<AsvoFilesArray>>,
+    pub completed: Option<DateTime<Utc>>,
 }
 
 /// A vector of ASVO jobs.
@@ -156,7 +158,8 @@ impl AsvoJobVec {
                 "Job Type",
                 "Job State",
                 "File Size",
-                "Delivery"
+                "Delivery",
+                "Completed"
             ]);
 
             let mut has_unknown_job_type: bool = false;
@@ -188,6 +191,12 @@ impl AsvoJobVec {
                             Some(v) => v.first().unwrap().r#type.to_string(),
                         }
                         .as_str(),
+                    ),
+                    Cell::new(
+                        j.completed
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                            .unwrap_or_default()
+                            .as_str(),
                     ),
                 ]));
 

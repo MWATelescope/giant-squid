@@ -196,7 +196,7 @@ pub fn get_job_state_table_style(job_state: AsvoJobState, no_colour: bool) -> St
         "".to_string()
     } else {
         match job_state {
-            AsvoJobState::Queued => "Fw",
+            AsvoJobState::Queued => "FW",
             AsvoJobState::WaitCal => "Fm",
             AsvoJobState::Staging => "Fm",
             AsvoJobState::Staged => "Fm",
@@ -207,7 +207,7 @@ pub fn get_job_state_table_style(job_state: AsvoJobState, no_colour: bool) -> St
             AsvoJobState::Delivering => "Fm",
             AsvoJobState::Ready => "Fg",
             AsvoJobState::Error(_) => "Fr",
-            AsvoJobState::Expired => "Fr",
+            AsvoJobState::Expired => "Fw",
             AsvoJobState::Cancelled => "Fr",
         }
         .to_string()

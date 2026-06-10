@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 
 use super::types::*;
@@ -49,6 +50,7 @@ struct DummyRow {
     job_params: DummyJobParams,
     error_text: Option<String>,
     product: Option<HashMap<String, Vec<DummyProduct>>>,
+    completed: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -77,6 +79,17 @@ impl DummyJob {
             }
             file_array
         });
+
+        println!("{:?}", self.row.completed);
+
+        // if there is a "completed" value, convert to a date/time
+        let completed_dt: Option<DateTime<Utc>> = self
+            .row
+            .completed
+            .as_deref()
+            .and_then(|s| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f").ok())
+            .map(|dt| dt.and_utc());
+
         AsvoJob {
             obsid: Obsid::validate(self.row.job_params.obs_id.parse().unwrap()).unwrap(),
             jobid: self.row.id,
@@ -107,6 +120,7 @@ impl DummyJob {
                 _ => panic!("Unrecognised job_state! {}", self.row.job_state.as_str()),
             },
             files: new_files,
+            completed: completed_dt,
         }
     }
 }

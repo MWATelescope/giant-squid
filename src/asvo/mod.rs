@@ -340,10 +340,12 @@ impl AsvoClient {
                         let throughput_str = if elapsed_ms == 0 {
                             "N/A".to_string()
                         } else {
-                            bytesize::ByteSize(f.size * 1000 / elapsed_ms)
-                                .display()
-                                .iec()
-                                .to_string()
+                            bytesize::ByteSize(
+                                (f.size * 1000).checked_div(elapsed_ms).unwrap_or_default(),
+                            )
+                            .display()
+                            .iec()
+                            .to_string()
                         };
 
                         let duration_str = if elapsed.as_secs() > 60 {
@@ -755,8 +757,8 @@ impl AsvoClient {
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
 
-        if delivery_format.is_some() {
-            df_str = format!("{}", delivery_format.unwrap());
+        if let Some(df) = delivery_format {
+            df_str = format!("{}", df);
             form.insert("delivery_format", &df_str);
         }
 
@@ -799,13 +801,13 @@ impl AsvoClient {
             form.insert("channel_range", &channel_range_str);
         }
 
-        if from_channel.is_some() {
-            from_channel_str = format!("{}", from_channel.unwrap());
+        if let Some(fc) = from_channel {
+            from_channel_str = format!("{}", fc);
             form.insert("from_channel", &from_channel_str);
         }
 
-        if to_channel.is_some() {
-            to_channel_str = format!("{}", to_channel.unwrap());
+        if let Some(tc) = to_channel {
+            to_channel_str = format!("{}", tc);
             form.insert("to_channel", &to_channel_str);
         }
 
@@ -846,8 +848,8 @@ impl AsvoClient {
         // incorrectly specified it as part of the `parameters`, it is ignored.
         form.insert("delivery", &d_str);
 
-        if delivery_format.is_some() {
-            df_str = format!("{}", delivery_format.unwrap());
+        if let Some(df) = delivery_format {
+            df_str = format!("{}", df);
             form.insert("delivery_format", &df_str);
         }
 
@@ -912,8 +914,8 @@ impl AsvoClient {
         // imaging output mode
         form.insert("output_mode", &imaging_output_mode_str);
 
-        if delivery_format.is_some() {
-            df_str = format!("{}", delivery_format.unwrap());
+        if let Some(df) = delivery_format {
+            df_str = format!("{}", df);
             form.insert("delivery_format", &df_str);
         }
 
@@ -941,8 +943,8 @@ impl AsvoClient {
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
 
-        if delivery_format.is_some() {
-            df_str = format!("{}", delivery_format.unwrap());
+        if let Some(df) = delivery_format {
+            df_str = format!("{}", df);
             form.insert("delivery_format", &df_str);
         }
 
@@ -970,8 +972,8 @@ impl AsvoClient {
         form.insert("obs_id", obsid_str.as_str());
         form.insert("delivery", &d_str);
 
-        if delivery_format.is_some() {
-            df_str = format!("{}", delivery_format.unwrap());
+        if let Some(df) = delivery_format {
+            df_str = format!("{}", df);
             form.insert("delivery_format", &df_str);
         }
 
@@ -1138,10 +1140,10 @@ impl AsvoClient {
         } else {
             // Show the http code when it's not something we can handle
             warn!("http code: {} response: {}", status_code, &response_text);
-            return Err(AsvoError::BadStatus {
+            Err(AsvoError::BadStatus {
                 code: status_code,
                 message: response_text.to_string(),
-            });
+            })
         }
     }
 }

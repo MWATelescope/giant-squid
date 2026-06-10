@@ -812,8 +812,7 @@ fn main() -> Result<(), anyhow::Error> {
                 for o in parsed_obsids {
                     let j = client.submit_vis(o, delivery, delivery_format, allow_resubmit)?;
 
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
@@ -898,8 +897,7 @@ fn main() -> Result<(), anyhow::Error> {
                         allow_resubmit,
                     )?;
 
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
@@ -986,8 +984,7 @@ fn main() -> Result<(), anyhow::Error> {
                         allow_resubmit,
                     )?;
 
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         raw_image_submitted_count += 1;
@@ -1007,8 +1004,7 @@ fn main() -> Result<(), anyhow::Error> {
                         allow_resubmit,
                     )?;
 
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         conv_image_submitted_count += 1;
@@ -1080,8 +1076,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let mut submitted_count = 0;
                 for o in parsed_obsids {
                     let j = client.submit_meta(o, delivery, delivery_format, allow_resubmit)?;
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
@@ -1157,8 +1152,7 @@ fn main() -> Result<(), anyhow::Error> {
                         allow_resubmit,
                     )?;
 
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
@@ -1218,8 +1212,7 @@ fn main() -> Result<(), anyhow::Error> {
                 for o in parsed_obsids {
                     let j =
                         client.submit_beamformer(o, delivery, delivery_format, allow_resubmit)?;
-                    if j.is_some() {
-                        let jobid = j.unwrap();
+                    if let Some(jobid) = j {
                         info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
                         jobids.push(jobid);
                         submitted_count += 1;
@@ -1288,16 +1281,12 @@ fn main() -> Result<(), anyhow::Error> {
                 for j in parsed_jobids {
                     let result = client.cancel_asvo_job(j);
 
-                    if result.is_ok() {
-                        let success = result.unwrap();
-
+                    if let Ok(Some(_)) = result {
                         // Job was cancelled.
                         // None means it was not cancelled but don't stop
                         // processing the rest of the list
-                        if success.is_some() {
-                            info!("Cancelled MWA ASVO job ID {}", j);
-                            cancelled_count += 1;
-                        }
+                        info!("Cancelled MWA ASVO job ID {}", j);
+                        cancelled_count += 1;
                     }
                 }
                 info!("Cancelled {} jobs.", cancelled_count);
