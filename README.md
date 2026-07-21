@@ -101,6 +101,15 @@ To obtain your API key:
 It is recommended to add the `export` line to your shell profile (e.g. `~/.bashrc` or
 `~/.bash_profile`) so it is set automatically in every session.
 
+### Session caching
+
+Behind the scenes, `giant-squid` exchanges your API key for a short-lived session (JWT access/refresh
+tokens) with the MWA ASVO. This session is cached at `$HOME/.mwa-asvo/tokens.json` (permissions `0600`)
+and reused across commands until it expires, so you won't see a fresh login on every invocation. This
+cache is shared with `manta-ray-client` (if you use it too), so logging in with either client makes a 
+valid session available to the other. You can safely delete this file at any time - `giant-squid` will 
+just log in again using your API key.
+
 ---
 
 ## Usage

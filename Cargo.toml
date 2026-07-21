@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "2.5.2"
+version = "2.6.0"
 authors = [
     "Greg Sleap <greg.sleap@curtin.edu.au>",
     "Dev Null <dev.null@curtin.edu.au>",
@@ -35,6 +35,7 @@ panic = 'abort'
 
 [dependencies]
 backoff = "0.4"
+base64 = "0.22"
 bytes = "1.10"
 bytesize = "2.0"
 chrono = { version = "0.4", features=["serde"]}
@@ -43,7 +44,7 @@ lazy_static = "1.5"
 litemap = "0.8"
 prettytable-rs = "0.10"
 rayon = "1.10"
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "charset", "form", "http2", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "charset", "form", "http2", "json", "rustls"] }
 reqwest_cookie_store = { version = "0.10", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -61,7 +62,7 @@ indicatif-log-bridge = {version = "0.2", optional = true}
 reqwest-retry = { version = "0.9", optional = true }
 simplelog = { version = "0.12", optional = true }
 task-local-extensions = { version = "0.1", optional = true }
-time = { version = "=0.3.45", optional = true }
+time = { version = "0.3.45", optional = true }
 time-core = { version = "0.1", optional = true }
 
 [dev-dependencies]

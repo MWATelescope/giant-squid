@@ -601,10 +601,10 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
             let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
             match last_state.insert(*j, job.state.clone()) {
                 Some(last_state) if last_state != job.state => {
-                    info!("{} is {}", log_prefix, &job.state);
+                    info!("{} is {}", log_prefix, job.state);
                 }
                 Some(_) => (), // State did not change from last_state
-                None => info!("{} is {}", log_prefix, &job.state), // First time just report current state
+                None => info!("{} is {}", log_prefix, job.state), // First time just report current state
             }
         }
         // Our lock variable is set if we broke out of the loop.

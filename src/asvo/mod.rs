@@ -6,12 +6,14 @@
 
 mod asvo_serde;
 mod error;
+mod token_store;
 mod types;
 
 use crate::obsid::Obsid;
 use crate::{built_info, check_file_sha1_hash};
 use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
 pub use error::AsvoError;
+pub use token_store::StoredTokens;
 pub use types::{
     AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
     Delivery, DeliveryFormat, ImageJobOutputMode,
@@ -25,6 +27,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use backoff::{retry, Error, ExponentialBackoff};
+use base64::Engine;
+use chrono::{DateTime, Utc};
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use reqwest::blocking::{Client, ClientBuilder};
@@ -72,9 +76,66 @@ pub struct AsvoClient {
     client: Client,
 }
 
+/// The shape of the JSON body returned by the MWA ASVO v2
+/// `/api_login`/`/refresh` endpoints. `user` is optional because it's
+/// confirmed present on login, but unconfirmed on refresh.
+#[derive(serde::Deserialize, Debug)]
+struct AsvoAuthResponse {
+    access_token: String,
+    refresh_token: String,
+    user: Option<AsvoAuthUser>,
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct AsvoAuthUser {
+    id: u64,
+    login: String,
+    email: String,
+}
+
+/// Decode a JWT's payload (without verifying its signature - we're only
+/// reading the `exp` claim to know when a token we've already been handed
+/// by the server will expire, not authenticating anything with it) and
+/// return its expiry as a UTC timestamp.
+fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoError> {
+    #[derive(serde::Deserialize)]
+    struct JwtExpClaim {
+        exp: i64,
+    }
+
+    let payload_b64 = token
+        .split('.')
+        .nth(1)
+        .ok_or_else(|| AsvoError::AuthenticationFailed {
+            message: "Malformed JWT returned by MWA ASVO: no payload segment".to_string(),
+        })?;
+
+    let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload_b64)
+        .map_err(|e| AsvoError::AuthenticationFailed {
+            message: format!("Could not base64-decode JWT payload from MWA ASVO: {}", e),
+        })?;
+
+    let claim: JwtExpClaim =
+        serde_json::from_slice(&payload_bytes).map_err(|e| AsvoError::AuthenticationFailed {
+            message: format!("Could not parse JWT payload JSON from MWA ASVO: {}", e),
+        })?;
+
+    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| AsvoError::AuthenticationFailed {
+        message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
+    })
+}
+
 impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO.
     /// Uses the `MWA_ASVO_API_KEY` environment variable for login.
+    ///
+    /// Authentication uses the MWA ASVO's JWT-based v2 login API. A cached
+    /// session (shared with mwa-cli, at `$HOME/.mwa-asvo/tokens.json`) is
+    /// reused if it's still valid, refreshed if only the access token has
+    /// expired, or a fresh login is performed otherwise. This is all
+    /// best-effort and silent: if caching isn't available or fails for any
+    /// reason, giant-squid just falls back to a fresh login, same as before.
     pub fn new() -> Result<AsvoClient, AsvoError> {
         static APP_USER_AGENT: &str =
             concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
@@ -121,28 +182,185 @@ impl AsvoClient {
 
         debug!("User Agent string: {}", APP_USER_AGENT);
 
+        // Figure out which access token we're going to use: a cached one
+        // (as-is, or refreshed), or a fresh login. Whichever path we take,
+        // we end up with a valid `StoredTokens` to authenticate with.
+        let tokens = Self::get_valid_tokens(&client_version, &api_key, api_timeout_seconds)?;
+
+        // Build the "real" client, with the access token attached as a
+        // default header on every request. We do this explicitly (rather
+        // than relying on the cookie jar alone) so that a session loaded
+        // from the cache behaves identically to one from a fresh login.
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            reqwest::header::COOKIE,
+            HeaderValue::from_str(&format!("mwa_access_token={}", tokens.access_token))
+                .map_err(|e| AsvoError::Anyhow(anyhow::anyhow!(e)))?,
+        );
+
         let client = ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(true)
+            .default_headers(headers)
             .timeout(Duration::from_secs(
                 api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
             ))
             .build()?;
-        let response = client
-            .post(format!("{}/api/api_login", get_asvo_server_address()))
-            .basic_auth(client_version, Some(&api_key))
-            .send()?;
-        if response.status().is_success() {
-            debug!("Successfully authenticated with MWA ASVO");
-            Ok(AsvoClient { client })
-        } else {
-            Err(AsvoError::BadStatus {
-                code: response.status(),
-                message: response.text()?,
-            })
+
+        Ok(AsvoClient { client })
+    }
+
+    /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
+    /// a still-valid cached session, a refreshed cached session, or a fresh
+    /// login. Successful refreshes and logins are cached to disk for next
+    /// time (best-effort; failure to cache is not fatal).
+    fn get_valid_tokens(
+        client_version: &str,
+        api_key: &str,
+        api_timeout_seconds: Option<u64>,
+    ) -> Result<StoredTokens, AsvoError> {
+        // A short-lived client, used only to perform the login/refresh call
+        // itself (it doesn't need the cookie jar or auth headers).
+        let auth_client = ClientBuilder::new()
+            .connection_verbose(true)
+            .user_agent(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
+            .https_only(true)
+            .timeout(Duration::from_secs(
+                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
+            ))
+            .build()?;
+
+        if let Some(cached) = token_store::load() {
+            if cached.is_access_valid() {
+                debug!("Reusing cached MWA ASVO session (shared with mwa-cli)");
+                return Ok(cached);
+            }
+
+            if cached.is_refresh_valid() {
+                debug!("Cached MWA ASVO access token expired; refreshing session");
+                match Self::refresh(&auth_client, &cached) {
+                    Ok(refreshed) => {
+                        token_store::save(&refreshed);
+                        return Ok(refreshed);
+                    }
+                    Err(e) => {
+                        // Refresh can fail legitimately (e.g. the refresh
+                        // token was already rotated by another process, or
+                        // by mwa-cli). Fall through to a fresh login rather
+                        // than treating this as fatal.
+                        debug!(
+                            "MWA ASVO session refresh failed, falling back to fresh login: {}",
+                            e
+                        );
+                    }
+                }
+            }
         }
+
+        debug!("Performing fresh MWA ASVO login");
+        let fresh = Self::login(&auth_client, client_version, api_key)?;
+        token_store::save(&fresh);
+        Ok(fresh)
+    }
+
+    /// Perform a fresh login against the MWA ASVO v2 API using the API key.
+    fn login(
+        auth_client: &Client,
+        client_version: &str,
+        api_key: &str,
+    ) -> Result<StoredTokens, AsvoError> {
+        #[derive(serde::Serialize)]
+        struct LoginRequest<'a> {
+            login: &'a str,
+            password: &'a str,
+        }
+
+        let response = auth_client
+            .post(format!("{}/api/v2/api_login", get_asvo_server_address()))
+            .json(&LoginRequest {
+                login: client_version,
+                password: api_key,
+            })
+            .send()?;
+
+        if !response.status().is_success() {
+            return Err(AsvoError::AuthenticationFailed {
+                message: response.text().unwrap_or_default(),
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 login response body: {}", body);
+        let auth: AsvoAuthResponse = serde_json::from_str(&body).map_err(AsvoError::BadJson)?;
+
+        let user = auth.user.ok_or_else(|| AsvoError::AuthenticationFailed {
+            message: "MWA ASVO login response did not include user info".to_string(),
+        })?;
+
+        Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, user)
+    }
+
+    /// Refresh an existing session against the MWA ASVO v2 API. If the
+    /// refresh response doesn't include user info (unconfirmed whether it
+    /// does), we fall back to the user info from the session we're
+    /// refreshing, since it's still the same account.
+    fn refresh(auth_client: &Client, previous: &StoredTokens) -> Result<StoredTokens, AsvoError> {
+        let response = auth_client
+            .post(format!("{}/api/v2/refresh", get_asvo_server_address()))
+            .header(
+                reqwest::header::COOKIE,
+                format!("mwa_refresh_token={}", previous.refresh_token),
+            )
+            .send()?;
+
+        if !response.status().is_success() {
+            return Err(AsvoError::AuthenticationFailed {
+                message: response.text().unwrap_or_default(),
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 refresh response body: {}", body);
+        let auth: AsvoAuthResponse = serde_json::from_str(&body).map_err(AsvoError::BadJson)?;
+
+        let user = match auth.user {
+            Some(u) => u,
+            None => AsvoAuthUser {
+                id: previous.user_id,
+                login: previous.user_login.clone(),
+                email: previous.user_email.clone(),
+            },
+        };
+
+        Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, user)
+    }
+
+    /// Build a `StoredTokens` from the pieces of an MWA ASVO v2 auth
+    /// response, decoding each JWT's `exp` claim to determine its expiry
+    /// (the API response doesn't provide expiry timestamps directly).
+    fn stored_tokens_from_auth(
+        access_token: String,
+        refresh_token: String,
+        user: AsvoAuthUser,
+    ) -> Result<StoredTokens, AsvoError> {
+        let access_expires_at = decode_jwt_exp(&access_token)?;
+        let refresh_expires_at = decode_jwt_exp(&refresh_token)?;
+
+        Ok(StoredTokens {
+            access_token,
+            refresh_token,
+            access_expires_at,
+            refresh_expires_at,
+            user_id: user.id,
+            user_login: user.login,
+            user_email: user.email,
+        })
     }
 
     pub fn get_jobs(&self) -> Result<AsvoJobVec, AsvoError> {
@@ -292,7 +510,7 @@ impl AsvoClient {
             match f.r#type {
                 Delivery::Acacia => match f.url.as_deref() {
                     Some(url) => {
-                        debug!("{} Downloading from url {}", log_prefix, &url);
+                        debug!("{} Downloading from url {}", log_prefix, url);
 
                         // parse out path from url
                         let url_obj = reqwest::Url::parse(url).unwrap();
@@ -478,7 +696,7 @@ impl AsvoClient {
                 if file_size_bytes == file_info.size {
                     info!(
                         "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-                        log_prefix, &out_path
+                        log_prefix, out_path
                     );
                     // Now check the hash
                     match check_file_sha1_hash(out_path, mwa_asvo_hash, job.jobid) {
@@ -577,7 +795,7 @@ impl AsvoClient {
                 } else {
                     "Downloading"
                 },
-                &out_path,
+                out_path,
             );
 
             let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
@@ -717,12 +935,12 @@ impl AsvoClient {
         if hash {
             info!(
                 "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-                log_prefix, &out_path
+                log_prefix, out_path
             );
             debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
-            debug!("{} Our hash: {}", log_prefix, &hash);
+            debug!("{} Our hash: {}", log_prefix, hash);
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
                     jobid: job.jobid,
@@ -1027,7 +1245,7 @@ impl AsvoClient {
         let response_text = &response.text()?;
         if code != 200 && code < 400 && code > 499 {
             // Show the http code when it's not something we can handle
-            warn!("http code: {} response: {}", code, &response_text)
+            warn!("http code: {} response: {}", code, response_text)
         };
 
         // Imaging jobs can either have obsid OR jobid so lets determine that
@@ -1078,7 +1296,7 @@ impl AsvoClient {
                     if error.as_str().contains(&identifier) {
                         error!("{}", error.as_str());
                     } else {
-                        error!("{} (ObsID: {})", error.as_str(), &identifier);
+                        error!("{} (ObsID: {})", error.as_str(), identifier);
                     }
                     Ok(None)
                 } else {
@@ -1131,7 +1349,7 @@ impl AsvoClient {
             Ok(Some(job_id))
         } else if status_code == 400 {
             // Validation error
-            warn!("{}", &response_text);
+            warn!("{}", response_text);
             Ok(None)
         } else if status_code == 404 {
             // Job id not found
@@ -1139,7 +1357,7 @@ impl AsvoClient {
             Ok(None)
         } else {
             // Show the http code when it's not something we can handle
-            warn!("http code: {} response: {}", status_code, &response_text);
+            warn!("http code: {} response: {}", status_code, response_text);
             Err(AsvoError::BadStatus {
                 code: status_code,
                 message: response_text.to_string(),

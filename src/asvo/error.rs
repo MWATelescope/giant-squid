@@ -47,6 +47,10 @@ pub enum AsvoError {
     #[error("The server responded with status code {code}, message:\n{message}")]
     BadStatus { code: StatusCode, message: String },
 
+    /// Login or token refresh against the MWA ASVO v2 API failed.
+    #[error("Authentication with MWA ASVO failed: {message}")]
+    AuthenticationFailed { message: String },
+
     /// The response indicates a bad request (400).
     #[error("The server responded with status code {code}, message:\n{message}")]
     BadRequest { code: u32, message: String },
