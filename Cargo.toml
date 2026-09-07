@@ -1,6 +1,6 @@
 [package]
 name = "mwa_giant_squid"
-version = "2.6.0"
+version = "3.0.0"
 authors = [
     "Greg Sleap <greg.sleap@curtin.edu.au>",
     "Dev Null <dev.null@curtin.edu.au>",
@@ -8,7 +8,7 @@ authors = [
     "Harrison Barlow <harrison.barlow@curtin.edu.au>",    
 ]
 edition = "2021"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 license = "MPL-2.0"
 readme = "README.md"
 description = "MWA ASVO command line client"
@@ -35,7 +35,7 @@ panic = 'abort'
 
 [dependencies]
 backoff = "0.4"
-base64 = "0.22"
+base64 = "0.23"
 bytes = "1.10"
 bytesize = "2.0"
 chrono = { version = "0.4", features=["serde"]}

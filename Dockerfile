@@ -1,40 +1,36 @@
-FROM python:3.13-slim-bookworm AS base
+# syntax=docker/dockerfile:1
 
-ENV DEBIAN_FRONTEND=noninteractive
+# ---------- builder ----------
+FROM dhi.io/rust:1-debian13-dev AS builder
+
 RUN apt-get update \
-    && apt-get install -y \
-    build-essential \
-    clang \
-    curl \
-    git \
-    jq \
-    lcov \
-    libssl-dev \
-    pkg-config \
-    unzip \
-    zip \
-    automake \
-    libtool \
-    && \
-    apt-get -y autoremove && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        clang \
+        git \
+        jq \
+        lcov \
+        unzip \
+        zip \
+        automake \
+        libtool \
+        ca-certificates \
+    && apt-get -y autoremove \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# # Get Rust
-ARG RUST_VERSION=stable
-ENV RUSTUP_HOME=/opt/rust CARGO_HOME=/opt/cargo
-ENV PATH="${CARGO_HOME}/bin:${PATH}"
-RUN mkdir -m755 $RUSTUP_HOME $CARGO_HOME && ( \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | env RUSTUP_HOME=$RUSTUP_HOME CARGO_HOME=$CARGO_HOME sh -s -- -y \
-    --profile=minimal \
-    --component llvm-tools \
-    --default-toolchain=${RUST_VERSION} \
-    )
-
-ADD . /app
 WORKDIR /app
+COPY . .
 
-RUN cargo install --path . --locked && \
-    cargo clean
+RUN cargo install --path . --locked
 
-ENTRYPOINT [ "/opt/cargo/bin/giant-squid" ]
+# ---------- runtime ----------
+FROM dhi.io/rust:1-debian13 AS runtime
+
+# Runtime DHI images have no package manager, so pull the CA bundle
+# from the builder rather than apt-installing it here.
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+COPY --from=builder /root/.cargo/bin/giant-squid /usr/local/bin/giant-squid
+
+ENTRYPOINT [ "/usr/local/bin/giant-squid" ]
