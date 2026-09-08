@@ -46,3 +46,25 @@ jobs:
     
     - name: Run tests
       run: cargo test --locked
+
+  openapi-drift-check:
+    name: Check openapi.rs matches openapi-schema.json
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Regenerate src/asvo/apiv2/openapi.rs
+      run: cargo build --features regen-openapi
+
+    - name: Fail if regeneration produced a diff
+      run: |
+        if ! git diff --exit-code -- src/asvo/apiv2/openapi.rs; then
+          echo "::error::src/asvo/apiv2/openapi.rs is out of date relative to openapi-schema.json. Run 'cargo build --features regen-openapi' locally and commit the result."
+          exit 1
+        fi
