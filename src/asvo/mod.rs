@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Code to interface with the MWA ASVO.
-
+mod apiv2;
 mod asvo_serde;
 mod error;
 #[cfg(test)]

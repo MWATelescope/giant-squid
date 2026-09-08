@@ -1,0 +1,1754 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "APIKeyResponse": {
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "title": "Api Key"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Created"
+        }
+      },
+      "type": "object",
+      "required": [
+        "api_key",
+        "created"
+      ],
+      "title": "APIKeyResponse",
+      "description": "Response model for the /new_api_key endpoint"
+    },
+    "ApiLoginRequest": {
+      "properties": {
+        "login": {
+          "type": "string",
+          "maxLength": 36,
+          "minLength": 1,
+          "title": "Login",
+          "description": "The name of the client app",
+          "examples": [
+            "manta-ray-clientv2.0.1",
+            "giant-squidv2.0.1"
+          ]
+        },
+        "password": {
+          "type": "string",
+          "title": "Password"
+        }
+      },
+      "type": "object",
+      "required": [
+        "login",
+        "password"
+      ],
+      "title": "ApiLoginRequest",
+      "description": "Request model for client app login endpoint (uses API key instead of username)"
+    },
+    "ApiLoginResponse": {
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "title": "Access Token",
+          "description": "JWT access token (also set in HTTP-only cookie)"
+        },
+        "refresh_token": {
+          "type": "string",
+          "title": "Refresh Token",
+          "description": "JWT refresh token (also set in HTTP-only cookie)"
+        },
+        "token_type": {
+          "type": "string",
+          "title": "Token Type",
+          "description": "Token type for Authorization header",
+          "default": "bearer"
+        },
+        "user": {
+          "$ref": "#/definitions/UserResponse"
+        }
+      },
+      "type": "object",
+      "required": [
+        "access_token",
+        "refresh_token",
+        "user"
+      ],
+      "title": "ApiLoginResponse",
+      "description": "Response model for login endpoint through other clients (CLIs, external services)",
+      "example": {
+        "access_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
+        "refresh_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer"
+      }
+    },
+    "AuthStatusResponse": {
+      "properties": {
+        "authenticated": {
+          "type": "boolean",
+          "title": "Authenticated"
+        }
+      },
+      "type": "object",
+      "required": [
+        "authenticated"
+      ],
+      "title": "AuthStatusResponse"
+    },
+    "BeamformerJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "type": "string",
+          "enum": [
+            "acacia",
+            "scratch",
+            "dug"
+          ],
+          "title": "Delivery",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "type": "string",
+          "enum": [
+            "tar",
+            "files"
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": [
+            "download",
+            "imaging",
+            "beamformer",
+            "cancel",
+            "voltage",
+            "conversion"
+          ],
+          "title": "Job Type",
+          "default": "download"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "MWAX_BEAMFORMER",
+                "MWAX_CORR_BF"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mode",
+          "default": "MWAX_BEAMFORMER"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
+      ],
+      "title": "BeamformerJobParams",
+      "description": "Parameters for beamformer job submission"
+    },
+    "ConversionJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "acacia",
+                "scratch"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivery",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "tar",
+                "files"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": [
+            "download",
+            "imaging",
+            "beamformer",
+            "cancel",
+            "voltage",
+            "conversion"
+          ],
+          "title": "Job Type",
+          "default": "download"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "ms",
+                "uvfits"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Output",
+          "default": "ms"
+        },
+        "avg_time_res": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Time Res",
+          "default": 2.0
+        },
+        "avg_freq_res": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 1280.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Freq Res",
+          "default": 40.0
+        },
+        "flag_edge_width": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 640.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Flag Edge Width",
+          "default": 80.0
+        },
+        "centre": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "phase",
+                "pointing",
+                "custom"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Centre",
+          "default": "phase"
+        },
+        "phase_centre_ra": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 359.999999,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phase Centre Ra"
+        },
+        "phase_centre_dec": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 90.0,
+              "minimum": -90.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Phase Centre Dec"
+        },
+        "apply_di_cal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Apply Di Cal",
+          "default": false
+        },
+        "no_geometry_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Geometry Delay",
+          "default": false
+        },
+        "no_digital_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Digital Gains",
+          "default": false
+        },
+        "no_flag_dc": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Flag Dc",
+          "default": false
+        },
+        "no_passband_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Passband Gains",
+          "default": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "phase_centre_ra",
+        "phase_centre_dec"
+      ],
+      "title": "ConversionJobParams",
+      "description": "Parameters for conversion job submission"
+    },
+    "DownloadJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "type": "string",
+          "enum": [
+            "acacia",
+            "scratch",
+            "dug"
+          ],
+          "title": "Delivery",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "type": "string",
+          "enum": [
+            "tar",
+            "files"
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": [
+            "download",
+            "imaging",
+            "beamformer",
+            "cancel",
+            "voltage",
+            "conversion"
+          ],
+          "title": "Job Type",
+          "default": "download"
+        },
+        "download_type": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "vis",
+                "meta"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Download Type",
+          "default": "vis"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
+      ],
+      "title": "DownloadJobParams",
+      "description": "Parameters for download job submission"
+    },
+    "ErrorResponse": {
+      "properties": {
+        "error_code": {
+          "type": "string",
+          "title": "Error Code",
+          "description": "machine readable error code"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "user friendly error message"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Detail",
+          "description": "Additional technical detail"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Suggestion",
+          "description": "Suggested resolution"
+        },
+        "field_errors": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/FieldError"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field Errors",
+          "description": "Field-specific validation errors"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Request Id",
+          "description": "Request ID for tracing"
+        }
+      },
+      "type": "object",
+      "required": [
+        "error_code",
+        "message"
+      ],
+      "title": "ErrorResponse",
+      "description": "Standard error response structure for all ASVO API endpoints",
+      "examples": [
+        {
+          "error_code": "JOB_NOT_FOUND",
+          "message": "Job 12345 not found",
+          "request_id": "abc-123-def-456",
+          "suggestion": "Please verify the job ID or check your job history"
+        },
+        {
+          "error_code": "VALID_MISSING_FIELD",
+          "field_errors": [
+            {
+              "field": "obs_id",
+              "message": "Observation ID is required"
+            },
+            {
+              "field": "email",
+              "message": "Invalid email format"
+            }
+          ],
+          "message": "Validation failed",
+          "request_id": "xyz-789-ghi-012",
+          "suggestion": "Please provide all required fields"
+        },
+        {
+          "error_code": "AUTH_REQUIRED",
+          "message": "Authentication required",
+          "request_id": "req-111-222-333",
+          "suggestion": "Please log in to continue"
+        }
+      ]
+    },
+    "FieldError": {
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Field",
+          "description": "Field name that failed valiation"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "Error message for this field"
+        }
+      },
+      "type": "object",
+      "required": [
+        "field",
+        "message"
+      ],
+      "title": "FieldError",
+      "description": "Field-specific validation error",
+      "example": {
+        "field": "obs_id",
+        "message": "Observation ID is required"
+      }
+    },
+    "HTTPValidationError": {
+      "properties": {
+        "detail": {
+          "items": {
+            "$ref": "#/definitions/ValidationError"
+          },
+          "type": "array",
+          "title": "Detail"
+        }
+      },
+      "type": "object",
+      "title": "HTTPValidationError"
+    },
+    "HealthResponse": {
+      "properties": {
+        "status": {
+          "type": "string",
+          "title": "Status"
+        },
+        "service": {
+          "type": "string",
+          "title": "Service"
+        },
+        "version": {
+          "type": "string",
+          "title": "Version"
+        },
+        "database": {
+          "type": "string",
+          "title": "Database"
+        }
+      },
+      "type": "object",
+      "required": [
+        "status",
+        "service",
+        "version",
+        "database"
+      ],
+      "title": "HealthResponse",
+      "description": "Health check response model",
+      "examples": [
+        {
+          "database": "connected",
+          "service": "fastapi_server",
+          "status": "ok",
+          "version": "1.0.0"
+        }
+      ]
+    },
+    "ImageSizes": {
+      "type": "integer",
+      "enum": [
+        512,
+        1024,
+        2048,
+        3072,
+        4096,
+        8192
+      ],
+      "title": "ImageSizes"
+    },
+    "ImagingJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "acacia",
+                "scratch"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivery",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "type": "string",
+          "enum": [
+            "tar",
+            "files"
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": [
+            "download",
+            "imaging",
+            "beamformer",
+            "cancel",
+            "voltage",
+            "conversion"
+          ],
+          "title": "Job Type",
+          "default": "download"
+        },
+        "source_job_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Job Id"
+        },
+        "apply_di_cal": {
+          "type": "boolean",
+          "title": "Apply Di Cal",
+          "default": true
+        },
+        "avg_time_res": {
+          "type": "number",
+          "minimum": 0.0,
+          "title": "Avg Time Res",
+          "default": 2.0
+        },
+        "avg_freq_res": {
+          "type": "number",
+          "maximum": 1280.0,
+          "minimum": 0.0,
+          "title": "Avg Freq Res",
+          "default": 40.0
+        },
+        "flag_edge_width": {
+          "type": "number",
+          "maximum": 640.0,
+          "minimum": 0.0,
+          "title": "Flag Edge Width",
+          "default": 80.0
+        },
+        "phase_center": {
+          "type": "string",
+          "enum": [
+            "phase",
+            "custom"
+          ],
+          "title": "Phase Center",
+          "default": "phase"
+        },
+        "custom_ra": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 359.999999,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Custom Ra"
+        },
+        "custom_dec": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 90.0,
+              "minimum": -90.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Custom Dec"
+        },
+        "image_size": {
+          "$ref": "#/definitions/ImageSizes",
+          "default": 3072
+        },
+        "pixel_scale": {
+          "type": "number",
+          "maximum": 120.0,
+          "minimum": 10.0,
+          "title": "Pixel Scale",
+          "default": 20
+        },
+        "weighting": {
+          "type": "string",
+          "enum": [
+            "briggs",
+            "uniform",
+            "natural"
+          ],
+          "title": "Weighting",
+          "default": "briggs"
+        },
+        "robust": {
+          "type": "number",
+          "maximum": 2.0,
+          "minimum": -2.0,
+          "title": "Robust",
+          "default": -0.5
+        },
+        "clean_iterations": {
+          "type": "integer",
+          "maximum": 1000000.0,
+          "title": "Clean Iterations",
+          "default": 100000
+        },
+        "abs_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Abs Threshold",
+          "default": 0.001
+        },
+        "clean_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Clean Threshold"
+        },
+        "auto_threshold": {
+          "type": "number",
+          "maximum": 5.0,
+          "minimum": 0.1,
+          "title": "Auto Threshold",
+          "default": 0.5
+        },
+        "nmiter": {
+          "type": "integer",
+          "maximum": 500.0,
+          "minimum": 1.0,
+          "title": "Nmiter",
+          "default": 10
+        },
+        "mgain": {
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.1,
+          "title": "Mgain",
+          "default": 0.8
+        },
+        "auto_mask": {
+          "type": "integer",
+          "maximum": 512.0,
+          "minimum": 2.0,
+          "title": "Auto Mask",
+          "default": 3
+        },
+        "apply_primary_beam": {
+          "type": "boolean",
+          "title": "Apply Primary Beam",
+          "default": true
+        },
+        "nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Nwlayers"
+        },
+        "wstack_nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Wstack Nwlayers"
+        },
+        "multiscale": {
+          "type": "boolean",
+          "title": "Multiscale",
+          "default": false
+        },
+        "uvw_min": {
+          "type": "number",
+          "maximum": 100.0,
+          "title": "Uvw Min",
+          "default": 75
+        },
+        "uvw_max": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 5000.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Uvw Max"
+        },
+        "join_polarizations": {
+          "type": "boolean",
+          "title": "Join Polarizations",
+          "default": false
+        },
+        "channels_out": {
+          "type": "integer",
+          "title": "Channels Out",
+          "default": 4
+        },
+        "join_channels": {
+          "type": "boolean",
+          "title": "Join Channels",
+          "default": true
+        },
+        "pol": {
+          "type": "string",
+          "title": "Pol",
+          "default": "XX,YY"
+        },
+        "output_mode": {
+          "type": "string",
+          "enum": [
+            "fits",
+            "all_fits",
+            "all_files"
+          ],
+          "title": "Output Mode",
+          "default": "fits"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
+      ],
+      "title": "ImagingJobParams",
+      "description": "Parameters for image job submission"
+    },
+    "JobDetailResponse": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "Id",
+          "description": "Unique job identifier"
+        },
+        "user_id": {
+          "type": "integer",
+          "title": "User Id",
+          "description": "ID of user who submitted the job"
+        },
+        "job_type": {
+          "type": "integer",
+          "title": "Job Type",
+          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
+        },
+        "job_state": {
+          "type": "string",
+          "title": "Job State",
+          "description": "Current job state: 0=Queued, 1=WaitCal 2=Staging, 3=Staged, 4=Downloading, 5=Preprocessing, 6=Delivering, 9=Completed, 10=Error, 11=Cancelled"
+        },
+        "job_params": {
+          "additionalProperties": true,
+          "type": "object",
+          "title": "Job Params",
+          "description": "Job parameters as JSON object (obs_id, delivery, processing options)"
+        },
+        "product": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Product",
+          "description": "Job output/results when completed (file listings, download links)"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Created",
+          "description": "Timestamp when job was created"
+        },
+        "started": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Started",
+          "description": "Timestamp of when the job began processing"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Completed",
+          "description": "Timestamp when job completed (null if still processing)"
+        },
+        "modified": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Modified",
+          "description": "Timestamp of when the job was last modified"
+        },
+        "error_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Text",
+          "description": "Error message if job failed (null if no error)"
+        },
+        "first_name": {
+          "type": "string",
+          "title": "First Name",
+          "description": "First name of user who submitted the job"
+        },
+        "last_name": {
+          "type": "string",
+          "title": "Last Name",
+          "description": "Last name of user who submitted the job"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "user_id",
+        "job_type",
+        "job_state",
+        "job_params",
+        "created",
+        "started",
+        "completed",
+        "modified",
+        "first_name",
+        "last_name"
+      ],
+      "title": "JobDetailResponse",
+      "description": "Complete job details response"
+    },
+    "JobsByUserRequest": {
+      "properties": {
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 30.0,
+              "exclusiveMinimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Days",
+          "description": "return the past x number of days when querying db",
+          "default": 30
+        },
+        "limit": {
+          "type": "integer",
+          "maximum": 500.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Limit",
+          "description": "maximum number of records to return",
+          "default": 100
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Offset",
+          "description": "the offset (used to paginate the query results)",
+          "default": 0
+        },
+        "job_state": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "queued",
+                "waitcal",
+                "staging",
+                "staged",
+                "preparing",
+                "downloading",
+                "preprocessing",
+                "imaging",
+                "delivering",
+                "completed",
+                "error",
+                "cancelled"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Job State",
+          "description": "the current state of the job"
+        },
+        "job_type": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Job Type",
+          "description": "a numeric representation of the job type: 0 = conversion, 1 = vis_download, 2 = meta_download, 3 = voltage, 4 = cancel, 5 = beamformer, 6 = imaging"
+        },
+        "date_from": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Date From",
+          "description": "The start date of the time window"
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Date To",
+          "description": "The end date of the time window"
+        },
+        "sort_by": {
+          "type": "string",
+          "title": "Sort By",
+          "description": "The column to sort the jobs by",
+          "default": "id"
+        }
+      },
+      "type": "object",
+      "title": "JobsByUserRequest",
+      "description": "Parameters for /job_history endpoint"
+    },
+    "JobsByUserResponse": {
+      "properties": {
+        "jobs": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array",
+          "title": "Jobs",
+          "description": "List of jobs pertaining to a specific user"
+        },
+        "total_count": {
+          "type": "integer",
+          "title": "Total Count",
+          "description": "The total number of jobs"
+        }
+      },
+      "type": "object",
+      "required": [
+        "jobs",
+        "total_count"
+      ],
+      "title": "JobsByUserResponse",
+      "description": "Parameters for /job_history endpoint"
+    },
+    "PiProjectDetails": {
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "title": "Project Id"
+        },
+        "short_name": {
+          "type": "string",
+          "title": "Short Name"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description"
+        }
+      },
+      "type": "object",
+      "required": [
+        "project_id",
+        "short_name",
+        "description"
+      ],
+      "title": "PiProjectDetails"
+    },
+    "ProjectPermission": {
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "title": "Project Id"
+        },
+        "short_name": {
+          "type": "string",
+          "title": "Short Name"
+        }
+      },
+      "type": "object",
+      "required": [
+        "project_id",
+        "short_name"
+      ],
+      "title": "ProjectPermission"
+    },
+    "ProjectPermissionsResponse": {
+      "properties": {
+        "projects": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/ProjectPermission"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Projects",
+          "description": "List of projects the user has access to"
+        }
+      },
+      "type": "object",
+      "required": [
+        "projects"
+      ],
+      "title": "ProjectPermissionsResponse"
+    },
+    "TokenResponse": {
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "title": "Access Token",
+          "description": "JWT access token (also set in HTTP-only cookie)"
+        },
+        "refresh_token": {
+          "type": "string",
+          "title": "Refresh Token",
+          "description": "JWT refresh token (also set in HTTP-only cookie)"
+        },
+        "token_type": {
+          "type": "string",
+          "title": "Token Type",
+          "description": "Token type for Authorization header",
+          "default": "bearer"
+        }
+      },
+      "type": "object",
+      "required": [
+        "access_token",
+        "refresh_token"
+      ],
+      "title": "TokenResponse",
+      "description": "Response model for token-issuing endpoints (login, refresh)",
+      "example": {
+        "access_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
+        "refresh_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
+        "token_type": "bearer"
+      }
+    },
+    "UserLoginRequest": {
+      "properties": {
+        "username": {
+          "type": "string",
+          "maxLength": 16,
+          "minLength": 1,
+          "title": "Username",
+          "description": "Username or email address",
+          "examples": [
+            "john_doe"
+          ]
+        },
+        "password": {
+          "type": "string",
+          "maxLength": 16,
+          "minLength": 1,
+          "title": "Password",
+          "description": "User password",
+          "examples": [
+            "securePassword123!"
+          ]
+        }
+      },
+      "type": "object",
+      "required": [
+        "username",
+        "password"
+      ],
+      "title": "UserLoginRequest",
+      "description": "Request model for login endpoint",
+      "example": {
+        "password": "securePassword123!",
+        "username": "john_doe"
+      }
+    },
+    "UserLogoutResponse": {
+      "properties": {
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "description": "success message",
+          "default": "Logged out successfully"
+        }
+      },
+      "type": "object",
+      "title": "UserLogoutResponse",
+      "description": "Response model for logout endpoint",
+      "example": {
+        "message": "Logged out successfully"
+      }
+    },
+    "UserProfile": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "Id"
+        },
+        "login": {
+          "type": "string",
+          "title": "Login"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "email"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Email"
+        },
+        "first_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Name"
+        },
+        "last_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Name"
+        },
+        "is_superuser": {
+          "type": "boolean",
+          "title": "Is Superuser",
+          "default": false
+        },
+        "pawsey_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pawsey Group"
+        },
+        "dug_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dug Group"
+        },
+        "provider_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Provider Id"
+        },
+        "created": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Created"
+        },
+        "disabled": {
+          "type": "boolean",
+          "title": "Disabled",
+          "default": true
+        },
+        "confirmed": {
+          "type": "boolean",
+          "title": "Confirmed",
+          "default": false
+        },
+        "mwa_member": {
+          "type": "boolean",
+          "title": "Mwa Member",
+          "default": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "login"
+      ],
+      "title": "UserProfile"
+    },
+    "UserProjectsPiResponse": {
+      "properties": {
+        "projects": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/PiProjectDetails"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Projects",
+          "description": "List of projects this user is a PI of"
+        }
+      },
+      "type": "object",
+      "required": [
+        "projects"
+      ],
+      "title": "UserProjectsPiResponse"
+    },
+    "UserResponse": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "title": "Id",
+          "description": "User ID"
+        },
+        "login": {
+          "type": "string",
+          "title": "Login",
+          "description": "username"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "Email",
+          "description": "user email address"
+        },
+        "is_superuser": {
+          "type": "boolean",
+          "title": "Is Superuser",
+          "description": "whether user has admin privileges"
+        },
+        "pawsey_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pawsey Group",
+          "description": "Pawsey group membership"
+        },
+        "dug_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dug Group",
+          "description": "DUG group membership"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "login",
+        "email",
+        "is_superuser"
+      ],
+      "title": "UserResponse",
+      "description": "Response model for user information",
+      "example": {
+        "email": "johndoe@example.com",
+        "id": 123,
+        "is_superuser": false,
+        "pawsey_group": "mwa_asvo"
+      }
+    },
+    "UserUpdateProfileRequest": {
+      "properties": {
+        "firstname": {
+          "type": "string",
+          "title": "Firstname"
+        },
+        "lastname": {
+          "type": "string",
+          "title": "Lastname"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email"
+        },
+        "affiliation": {
+          "type": "string",
+          "title": "Affiliation"
+        },
+        "orcid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Orcid"
+        },
+        "subscribed_to_status_emails": {
+          "type": "boolean",
+          "title": "Subscribed To Status Emails",
+          "default": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "firstname",
+        "lastname",
+        "email",
+        "affiliation",
+        "orcid"
+      ],
+      "title": "UserUpdateProfileRequest",
+      "description": "Request model for updating a user's profile"
+    },
+    "ValidationError": {
+      "properties": {
+        "loc": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array",
+          "title": "Location"
+        },
+        "msg": {
+          "type": "string",
+          "title": "Message"
+        },
+        "type": {
+          "type": "string",
+          "title": "Error Type"
+        },
+        "input": {
+          "title": "Input"
+        },
+        "ctx": {
+          "type": "object",
+          "title": "Context"
+        }
+      },
+      "type": "object",
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ],
+      "title": "ValidationError"
+    },
+    "VoltageJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "scratch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivery",
+          "default": "scratch"
+        },
+        "delivery_format": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "files"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "job_type": {
+          "type": "string",
+          "enum": [
+            "download",
+            "imaging",
+            "beamformer",
+            "cancel",
+            "voltage",
+            "conversion"
+          ],
+          "title": "Job Type",
+          "default": "download"
+        },
+        "offset": {
+          "type": "integer",
+          "maximum": 5400.0,
+          "minimum": 0.0,
+          "title": "Offset"
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Duration"
+        },
+        "channel_range": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channel Range",
+          "default": false
+        },
+        "from_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Channel"
+        },
+        "to_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Channel"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "offset",
+        "duration"
+      ],
+      "title": "VoltageJobParams",
+      "description": "Parameters for voltage job submission"
+    },
+    "WebSocketTokenResponse": {
+      "properties": {
+        "token": {
+          "type": "string",
+          "title": "Token",
+          "description": "JWT websocket token"
+        }
+      },
+      "type": "object",
+      "required": [
+        "token"
+      ],
+      "title": "WebSocketTokenResponse",
+      "description": "Response model for token-issuing endpoint (/v2/ws/jobs)",
+      "example": {
+        "token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+  }
+}
