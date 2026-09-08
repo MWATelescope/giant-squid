@@ -62,7 +62,7 @@ indicatif-log-bridge = {version = "0.2", optional = true}
 reqwest-retry = { version = "0.9", optional = true }
 simplelog = { version = "0.12", optional = true }
 task-local-extensions = { version = "0.1", optional = true }
-time = { version = "0.3.45", optional = true }
+time = { version = "0.3", optional = true }
 time-core = { version = "0.1", optional = true }
 
 [dev-dependencies]
