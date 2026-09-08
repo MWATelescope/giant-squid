@@ -143,6 +143,11 @@ enum Args {
         #[arg(short, long)]
         no_colour: bool,
 
+        /// Only fetch jobs from the past N days. If not given, fetches your
+        /// full job history.
+        #[arg(long)]
+        days: Option<i64>,
+
         /// job IDs or obsids to filter by. Files containing job IDs or
         /// obsids are also accepted.
         #[arg(id = "JOBID_OR_OBSID")]
@@ -627,13 +632,14 @@ fn main() -> Result<(), anyhow::Error> {
             jobids_or_obsids,
             states,
             no_colour,
+            days,
             types: job_types,
         } => {
             init_logger(verbosity);
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
-            let client = AsvoClient::new()?;
-            let mut jobs = client.get_jobs()?;
+            let client = AsvoClientv2::new()?;
+            let mut jobs = client.get_jobs(days)?;
             match (jobids, obsids) {
                 (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
                     bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")

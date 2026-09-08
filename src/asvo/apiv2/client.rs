@@ -14,6 +14,8 @@
 //! `crate::asvo` rather than being duplicated here.
 
 use std::env::var;
+use std::num::NonZeroU64;
+use std::str::FromStr;
 use std::time::Duration;
 
 use base64::Engine;
@@ -23,11 +25,18 @@ use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::token_store::{self, StoredTokens};
-use crate::asvo::{get_asvo_server_address, get_asvo_server_address_env};
+use crate::asvo::{
+    get_asvo_server_address, get_asvo_server_address_env, AsvoJob, AsvoJobID, AsvoJobState,
+    AsvoJobType, AsvoJobVec,
+};
 use crate::built_info;
+use crate::obsid::Obsid;
 
 use super::error::Apiv2Error;
-use super::openapi::{ApiLoginRequest, ApiLoginResponse, Login, TokenResponse, UserResponse};
+use super::openapi::{
+    ApiLoginRequest, ApiLoginResponse, ErrorResponse, JobDetailResponse, JobsByUserRequest,
+    JobsByUserResponse, Login, TokenResponse, UserResponse,
+};
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
 const CONST_ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
@@ -327,4 +336,181 @@ impl AsvoClientv2 {
             user_email,
         })
     }
+
+    /// Fetch the caller's MWA ASVO jobs via the v2 API, returning the same
+    /// `AsvoJobVec` the v1 client's `get_jobs` does, so the rest of
+    /// giant-squid (filtering, `--json`, table rendering) doesn't need to
+    /// change.
+    ///
+    /// `days` limits the results to the last N days if given. If `None`,
+    /// we explicitly send `days: null` to ask for the caller's full
+    /// history - ASSUMPTION: I haven't been able to confirm the server
+    /// treats a null `days` as "no limit" rather than falling back to its
+    /// own default (30) regardless; please check this against the real
+    /// server. Deliberately not filtering by job_state/job_type/date
+    /// server-side, since the API only supports a single value for each
+    /// and the existing CLI filtering (multi-value, by job ID/obsid) is
+    /// staying client-side unchanged.
+    ///
+    /// Individual jobs that can't be reliably converted (an obs_id we
+    /// can't find/parse in the untyped `job_params`, or a job_state we
+    /// don't recognise) are skipped with a warning logged, rather than
+    /// failing the whole listing - see `job_detail_to_asvo_job`.
+    pub fn get_jobs(&self, days: Option<i64>) -> Result<AsvoJobVec, Apiv2Error> {
+        const PAGE_SIZE: u64 = 100;
+
+        let mut all_jobs = Vec::new();
+        let mut offset: u64 = 0;
+
+        loop {
+            let request = JobsByUserRequest {
+                date_from: None,
+                date_to: None,
+                days,
+                job_state: None,
+                job_type: None,
+                limit: NonZeroU64::new(PAGE_SIZE).unwrap(),
+                offset,
+                sort_by: "id".to_string(),
+            };
+
+            // ASSUMPTION: guessing POST to /api/v2/job_history (matching
+            // the other v2 endpoints' POST+JSON convention, and the
+            // schema's doc comment naming this endpoint) since we don't
+            // have the real `paths` section to confirm the method or path.
+            let response = self
+                .client
+                .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
+                .json(&request)
+                .send()?;
+
+            if !response.status().is_success() {
+                let status = response.status();
+                let body = response.text().unwrap_or_default();
+                return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                    Ok(err) => Apiv2Error::ApiError {
+                        error_code: err.error_code,
+                        message: err.message,
+                        detail: err.detail,
+                        suggestion: err.suggestion,
+                    },
+                    Err(_) => Apiv2Error::BadStatus {
+                        code: status,
+                        message: body,
+                    },
+                });
+            }
+
+            let body = response.text()?;
+            debug!("MWA ASVO v2 get_jobs response body: {}", body);
+            let page: JobsByUserResponse = serde_json::from_str(&body)?;
+
+            let page_len = page.jobs.len() as u64;
+            for job_value in page.jobs {
+                // Hard error: this is a basic structural mismatch against
+                // the schema (an item that isn't even a JobDetailResponse
+                // shape), not a content-level ambiguity like the ones
+                // job_detail_to_asvo_job skips over individually.
+                let detail: JobDetailResponse =
+                    serde_json::from_value(serde_json::Value::Object(job_value))?;
+                if let Some(job) = job_detail_to_asvo_job(detail) {
+                    all_jobs.push(job);
+                }
+            }
+
+            offset += page_len;
+            let total_count = u64::try_from(page.total_count).unwrap_or(0);
+            if page_len == 0 || offset >= total_count {
+                break;
+            }
+        }
+
+        Ok(AsvoJobVec(all_jobs))
+    }
+}
+
+/// Best-effort conversion from the v2 API's `JobDetailResponse` into the
+/// existing `AsvoJob` domain type. Returns `None` (after logging a warning)
+/// if a job can't be reliably converted; callers should skip that job and
+/// continue rather than fail the whole listing.
+///
+/// - `job_type` codes we don't recognise become `AsvoJobType::Unknown`
+///   (existing forward-compat behaviour, never fails).
+/// - `job_state` is parsed via the existing `AsvoJobState::FromStr`.
+///   ASSUMPTION: `JobDetailResponse.job_state`'s doc comment describes it
+///   as a numeric code, but the field is typed `String` - I'm guessing
+///   it's actually the same string vocabulary as
+///   `JobsByUserRequestJobState` ("queued", "completed", etc), which is
+///   what `AsvoJobState::from_str` already parses. If that's wrong, jobs
+///   will be skipped with a warning naming the unrecognised value, rather
+///   than silently misrepresenting the job's state.
+/// - `obsid` is looked for at `job_params["obs_id"]` (an untyped JSON
+///   map). ASSUMPTION: guessing the key name and that it's a JSON number,
+///   by analogy with every other `obs_id` field in this schema - not
+///   confirmed against a real response.
+/// - `files` is always `None` for now - `product`'s shape isn't
+///   confirmed, so File Size/Delivery will show blank until we have a
+///   real sample response to design against.
+fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
+    let jobid = match AsvoJobID::try_from(detail.id) {
+        Ok(id) => id,
+        Err(_) => {
+            warn!(
+                "Skipping MWA ASVO job: ID {} doesn't fit in the expected range",
+                detail.id
+            );
+            return None;
+        }
+    };
+
+    let obsid = match detail.job_params.get("obs_id").and_then(|v| v.as_u64()) {
+        Some(o) => match Obsid::validate(o) {
+            Ok(obsid) => obsid,
+            Err(e) => {
+                warn!(
+                    "Skipping MWA ASVO job {}: invalid obs_id in job_params: {}",
+                    jobid, e
+                );
+                return None;
+            }
+        },
+        None => {
+            warn!(
+                "Skipping MWA ASVO job {}: couldn't find a usable obs_id in job_params",
+                jobid
+            );
+            return None;
+        }
+    };
+
+    let jtype = match detail.job_type {
+        0 => AsvoJobType::Conversion,
+        1 => AsvoJobType::DownloadVisibilities,
+        2 => AsvoJobType::DownloadMetadata,
+        3 => AsvoJobType::DownloadVoltage,
+        4 => AsvoJobType::CancelJob,
+        5 => AsvoJobType::DownloadBeamformer,
+        6 => AsvoJobType::Imaging,
+        _ => AsvoJobType::Unknown,
+    };
+
+    let state = match AsvoJobState::from_str(&detail.job_state) {
+        Ok(state) => state,
+        Err(_) => {
+            warn!(
+                "Skipping MWA ASVO job {}: unrecognised job_state {:?}",
+                jobid, detail.job_state
+            );
+            return None;
+        }
+    };
+
+    Some(AsvoJob {
+        obsid,
+        jobid,
+        jtype,
+        state,
+        files: None,
+        completed: detail.completed,
+    })
 }

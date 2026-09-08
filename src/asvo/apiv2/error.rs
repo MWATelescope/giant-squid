@@ -38,4 +38,24 @@ pub enum Apiv2Error {
     /// An error from the reqwest crate.
     #[error("{0}")]
     Reqwest(#[from] reqwest::Error),
+
+    /// The server responded with a non-success status code, in the
+    /// structured `ErrorResponse` shape. The fields are copied out of
+    /// `super::openapi::ErrorResponse` individually rather than wrapping it
+    /// directly, since thiserror needs a plain `Display` to format on.
+    #[error("MWA ASVO returned an error ({error_code}): {message}")]
+    ApiError {
+        error_code: String,
+        message: String,
+        detail: Option<String>,
+        suggestion: Option<String>,
+    },
+
+    /// The server responded with a non-success status code, but the body
+    /// wasn't in the structured `ErrorResponse` shape we expected.
+    #[error("The server responded with status code {code}, message:\n{message}")]
+    BadStatus {
+        code: reqwest::StatusCode,
+        message: String,
+    },
 }

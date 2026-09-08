@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Code to interface with the MWA ASVO.
-mod apiv2;
+pub mod apiv2;
 mod asvo_serde;
 mod error;
 #[cfg(test)]
@@ -13,6 +13,8 @@ mod types;
 
 use crate::obsid::Obsid;
 use crate::{built_info, check_file_sha1_hash};
+pub use apiv2::client::AsvoClientv2;
+pub use apiv2::Apiv2Error;
 use asvo_serde::{parse_asvo_json, AsvoSubmitJobResponse};
 pub use error::AsvoError;
 pub use token_store::StoredTokens;
