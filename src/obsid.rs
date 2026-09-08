@@ -32,6 +32,17 @@ impl Obsid {
     pub fn from_string(s: &str) -> Result<Vec<Obsid>, ObsidError> {
         s.split_whitespace().map(|i| i.parse()).collect()
     }
+
+    /// Get the underlying [u64] value.
+    pub fn get(&self) -> u64 {
+        self.0
+    }
+}
+
+impl From<Obsid> for u64 {
+    fn from(o: Obsid) -> u64 {
+        o.0
+    }
 }
 
 impl FromStr for Obsid {

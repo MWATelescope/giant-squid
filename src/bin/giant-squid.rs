@@ -9,7 +9,7 @@ use std::{thread, time};
 
 use anyhow::bail;
 use clap::{ArgAction, Parser};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -17,6 +17,10 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
+use mwa_giant_squid::asvo::apiv2::openapi::{
+    DeliveryFormat as V2DeliveryFormat, ImageSizes, ImagingJobParams, ImagingJobParamsDelivery,
+    JobType, OutputMode, PhaseCenter, Weighting,
+};
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
 
@@ -37,6 +41,44 @@ lazy_static::lazy_static! {
         }
         s
     };
+}
+
+/// Builds a clap value parser that only accepts an f64 within `[min, max]`
+/// inclusive - used for the imaging job parameters that have a documented
+/// range in the MWA ASVO v2 schema, so out-of-range values are rejected
+/// immediately by the CLI rather than only server-side.
+fn parse_f64_range(min: f64, max: f64) -> impl Fn(&str) -> Result<f64, String> + Clone {
+    move |s: &str| {
+        let v: f64 = s.parse().map_err(|e| format!("not a valid number: {e}"))?;
+        if v < min || v > max {
+            Err(format!("must be between {min} and {max} (got {v})"))
+        } else {
+            Ok(v)
+        }
+    }
+}
+
+/// As [parse_f64_range], but for i64 fields.
+fn parse_i64_range(min: i64, max: i64) -> impl Fn(&str) -> Result<i64, String> + Clone {
+    move |s: &str| {
+        let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
+        if v < min || v > max {
+            Err(format!("must be between {min} and {max} (got {v})"))
+        } else {
+            Ok(v)
+        }
+    }
+}
+
+/// Validates a WSClean image size against the MWA ASVO v2 API's fixed
+/// set of allowed sizes (mirrors the generated `ImageSizes` type's own
+/// `TryFrom<i64>`, which has no string parser we could use directly as a
+/// clap value parser).
+fn parse_image_size(s: &str) -> Result<i64, String> {
+    let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
+    ImageSizes::try_from(v)
+        .map(i64::from)
+        .map_err(|e| e.to_string())
 }
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
@@ -290,34 +332,145 @@ enum Args {
         obsids: Vec<String>,
     },
 
-    /// Submit MWA ASVO imaging jobs
+    /// Submit MWA ASVO imaging jobs (v2 API)
     #[command(alias = "si")]
     SubmitImage {
-        /// The imaging parameters to use. Specify as comma separated `key=value`. If you specify an ObsID you should include conversion
-        /// job parameters in addition to imaging parameters. If you specify an existing JobID
-        /// you only need to include the imaging parameters.
-        /// Conversion Job and Imaging Job parameters reference can be found in the README.md file.
-        #[arg(short, long)]
-        parameters: Option<String>,
+        /// An existing MWA ASVO conversion job ID to image, instead of
+        /// converting the obsid from scratch. Only valid when exactly one
+        /// obsid is given.
+        #[arg(long)]
+        source_job_id: Option<std::num::NonZeroU64>,
 
-        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
-        /// provides a download URL which you can download with giant-squid, wget, etc.
-        /// Other options are: "dug" and "scratch", to deliver
-        /// data directly to a target filesystem, but these are only
-        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
-        /// Please see README.md for more information on delivery options. The default can be
-        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
-        #[arg(short, long)]
-        delivery: Option<String>,
+        /// Tell MWA ASVO where to deliver the data.
+        #[arg(short, long, default_value_t = ImagingJobParamsDelivery::Acacia)]
+        delivery: ImagingJobParamsDelivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
-        /// which is always `tar`
-        #[arg(short = 'f', long)]
-        delivery_format: Option<String>,
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files)]
+        delivery_format: V2DeliveryFormat,
 
-        #[arg(short = 'o', long, default_value_t = ImageJobOutputMode::Fits)]
-        output_mode: ImageJobOutputMode,
+        /// Whether to apply the DI calibration solution.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        apply_di_cal: bool,
+
+        /// Whether to apply the primary beam correction.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        apply_primary_beam: bool,
+
+        /// WSClean -auto-mask value.
+        #[arg(long, default_value_t = 3, value_parser = parse_i64_range(2, 512))]
+        auto_mask: i64,
+
+        /// WSClean -auto-threshold value.
+        #[arg(long, default_value_t = 0.5, value_parser = parse_f64_range(0.1, 5.0))]
+        auto_threshold: f64,
+
+        /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
+        /// unless explicitly set.
+        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
+        abs_threshold: Option<f64>,
+
+        /// Frequency resolution to average to before imaging (kHz).
+        #[arg(long, default_value_t = 40.0, value_parser = parse_f64_range(0.0, 1280.0))]
+        avg_freq_res: f64,
+
+        /// Time resolution to average to before imaging (s).
+        #[arg(long, default_value_t = 2.0, value_parser = parse_f64_range(0.0, f64::MAX))]
+        avg_time_res: f64,
+
+        /// Number of output channel groups.
+        #[arg(long, default_value_t = 4)]
+        channels_out: i64,
+
+        /// WSClean -niter value (max clean iterations).
+        #[arg(long, default_value_t = 100000, value_parser = parse_i64_range(0, 1_000_000))]
+        clean_iterations: i64,
+
+        /// WSClean cleaning threshold (Jy). Takes precedence over
+        /// auto_threshold if set.
+        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
+        clean_threshold: Option<f64>,
+
+        /// Custom phase centre declination (degrees). Requires
+        /// --phase-center custom.
+        #[arg(long, value_parser = parse_f64_range(-90.0, 90.0))]
+        custom_dec: Option<f64>,
+
+        /// Custom phase centre right ascension (degrees). Requires
+        /// --phase-center custom.
+        #[arg(long, value_parser = parse_f64_range(0.0, 359.999999))]
+        custom_ra: Option<f64>,
+
+        /// Width of frequency edge flagging (kHz).
+        #[arg(long, default_value_t = 80.0, value_parser = parse_f64_range(0.0, 640.0))]
+        flag_edge_width: f64,
+
+        /// WSClean image size in pixels.
+        #[arg(long, default_value_t = 3072, value_parser = parse_image_size)]
+        image_size: i64,
+
+        /// Join output channel groups for cleaning.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        join_channels: bool,
+
+        /// Join polarisations for cleaning.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        join_polarizations: bool,
+
+        /// WSClean -mgain value.
+        #[arg(long, default_value_t = 0.8, value_parser = parse_f64_range(0.1, 1.0))]
+        mgain: f64,
+
+        /// Enable WSClean multiscale cleaning.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        multiscale: bool,
+
+        /// WSClean -nmiter value (max major cleaning iterations).
+        #[arg(long, default_value_t = 10, value_parser = parse_i64_range(1, 500))]
+        nmiter: i64,
+
+        /// Number of w-projection layers. Leave unset to let the server
+        /// decide.
+        #[arg(long, value_parser = parse_i64_range(32, 512))]
+        nwlayers: Option<i64>,
+
+        /// The output mode / product to request.
+        #[arg(short = 'o', long, default_value_t = OutputMode::Fits)]
+        output_mode: OutputMode,
+
+        /// Where to centre the image.
+        #[arg(long, default_value_t = PhaseCenter::Phase)]
+        phase_center: PhaseCenter,
+
+        /// Pixel scale (arcsec/pixel).
+        #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
+        pixel_scale: f64,
+
+        /// Polarisations to image, comma separated.
+        #[arg(long, default_value = "XX,YY")]
+        pol: String,
+
+        /// WSClean -robust (Briggs robustness) value.
+        #[arg(long, default_value_t = -0.5, value_parser = parse_f64_range(-2.0, 2.0))]
+        robust: f64,
+
+        /// Maximum uv distance to image, in wavelengths (upper bound on
+        /// the range that can be requested).
+        #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
+        uvw_max: Option<f64>,
+
+        /// Minimum uv distance to image, in wavelengths.
+        #[arg(long, default_value_t = 75.0, value_parser = parse_f64_range(f64::MIN, 100.0))]
+        uvw_min: f64,
+
+        /// WSClean weighting scheme.
+        #[arg(long, default_value_t = Weighting::Briggs)]
+        weighting: Weighting,
+
+        /// Number of w-stacking layers. Leave unset to let the server
+        /// decide.
+        #[arg(long)]
+        wstack_nwlayers: Option<i64>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -329,8 +482,8 @@ enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
-        /// Allow resubmit- if exact same job params already in your queue
-        /// allow submission anyway. Default: allow resubmit is False / not present
+        /// Not yet supported by the MWA ASVO v2 imaging_job endpoint;
+        /// reserved for when it is. Currently has no effect.
         #[arg(short = 'r', long, action=ArgAction::SetTrue)]
         allow_resubmit: bool,
 
@@ -339,13 +492,11 @@ enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
-        /// The job IDs or obsids to be downloaded. Files containing job IDs or
-        /// obsids are also accepted. Specifying an obsid will preprocess the
-        /// raw visibilities (so be sure to include conversion job parameters in
-        /// your --parameters argument); specifying a job id wll attempt to image
-        /// an already completed conversion job (if possible).
-        #[arg(id = "JOBID_OR_OBSID")]
-        jobids_or_obsids: Vec<String>,
+        /// The obsids to submit for imaging. Files containing obsids are
+        /// also accepted. All obsids in one invocation share the same
+        /// parameters above.
+        #[arg(id = "OBSID")]
+        obsids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and RFI flags (if available)
@@ -597,6 +748,74 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError>
                 }
                 AsvoJobState::Expired => return Err(AsvoError::Expired(*j)),
                 AsvoJobState::Cancelled => return Err(AsvoError::Cancelled(*j)),
+                _ => {
+                    // For all other states
+                    any_not_ready = true;
+                }
+            }
+            // log if there was a change in state.
+            let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
+            match last_state.insert(*j, job.state.clone()) {
+                Some(last_state) if last_state != job.state => {
+                    info!("{} is {}", log_prefix, job.state);
+                }
+                Some(_) => (), // State did not change from last_state
+                None => info!("{} is {}", log_prefix, job.state), // First time just report current state
+            }
+        }
+        // Our lock variable is set if we broke out of the loop.
+        if any_not_ready {
+            std::thread::sleep(Duration::from_secs(60));
+        } else {
+            // If we reach here, all jobs are ready.
+            break;
+        }
+    }
+    info!("All {} MWA ASVO jobs are ready for download.", jobids.len());
+    Ok(())
+}
+
+/// Like [wait_loop], but polls via `AsvoClientv2::get_jobs` (v2) instead
+/// of the v1 client. Kept as a separate function rather than making
+/// [wait_loop] generic, since the error types differ: `Apiv2Error` has no
+/// equivalents for `NoAsvoJob`/`UpstreamError`/`Expired`/`Cancelled` (it
+/// currently only covers what login/get_jobs/submit_imaging_job need), so
+/// those cases are reported directly via `anyhow::bail!` here instead.
+fn wait_loop_v2(client: &AsvoClientv2, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
+    info!("Waiting for {} jobs to be ready...", jobids.len());
+    let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
+    // Offer the MWA ASVO a kindness by waiting a few seconds, so
+    // that the user's queue is hopefully current.
+    std::thread::sleep(Duration::from_secs(1));
+    loop {
+        // Get the current state of all jobs. By converting to a map, we avoid
+        // quadratic complexity below. Probably not a big deal, but why not?
+        // `None` here mirrors `list`'s own default: fetch full history
+        // rather than relying on the (unconfirmed) server-side default.
+        let jobs = client.get_jobs(None)?.into_map();
+        let mut any_not_ready = false;
+        // Iterate over all supplied job IDs.
+        for j in jobids {
+            // Find the relevant job in the queue.
+            let job = match jobs.0.get(j) {
+                None => bail!("MWA ASVO job ID {} wasn't found in your list of jobs.", j),
+                Some(job) => job,
+            };
+            // Handle the job's state. If it's ready, there's nothing to do. If
+            // the job is simply queued or in processing (or other intermediate states),
+            // we can say that we're not ready yet. All other possibilities are handled drastically.
+            match &job.state {
+                AsvoJobState::Ready => (),
+                AsvoJobState::Error(e) => {
+                    bail!(
+                        "MWA ASVO job ID {} (obsid: {}) has an error: {}",
+                        j,
+                        job.obsid,
+                        e
+                    );
+                }
+                AsvoJobState::Expired => bail!("MWA ASVO job ID {} has expired.", j),
+                AsvoJobState::Cancelled => bail!("MWA ASVO job ID {} has been cancelled.", j),
                 _ => {
                     // For all other states
                     any_not_ready = true;
@@ -922,121 +1141,146 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitImage {
-            parameters,
+            source_job_id,
             delivery,
             delivery_format,
+            apply_di_cal,
+            apply_primary_beam,
+            auto_mask,
+            auto_threshold,
+            abs_threshold,
+            avg_freq_res,
+            avg_time_res,
+            channels_out,
+            clean_iterations,
+            clean_threshold,
+            custom_dec,
+            custom_ra,
+            flag_edge_width,
+            image_size,
+            join_channels,
+            join_polarizations,
+            mgain,
+            multiscale,
+            nmiter,
+            nwlayers,
             output_mode,
+            phase_center,
+            pixel_scale,
+            pol,
+            robust,
+            uvw_max,
+            uvw_min,
+            weighting,
+            wstack_nwlayers,
             wait,
             dry_run,
-            allow_resubmit,
+            allow_resubmit: _, // Not yet supported by the v2 API; see the arg's help text.
             verbosity,
-            jobids_or_obsids,
+            obsids,
         } => {
-            if jobids_or_obsids.is_empty() {
-                bail!("No jobs or obsids specified!");
+            if obsids.is_empty() {
+                bail!("No obsids specified!");
             }
 
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
+            let (jobids_from_input, obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            if !jobids_from_input.is_empty() {
+                bail!(
+                    "This command only accepts obsids; to image an existing conversion job, use --source-job-id instead."
+                );
+            }
+
+            if source_job_id.is_some() && obsids.len() != 1 {
+                bail!(
+                    "--source-job-id can only be used when submitting exactly one obsid (it names the conversion job for that one obsid)."
+                );
+            }
 
             init_logger(verbosity);
 
-            let delivery = Delivery::validate(delivery)?;
-            debug!("Using {} for delivery", delivery);
-
-            let delivery_format: Option<DeliveryFormat> =
-                DeliveryFormat::validate(delivery_format)?;
-            debug!("Using {:#?} for delivery format", delivery_format);
-
-            // Get the user parameters and set any defaults that the user has not set.
-            let params = {
-                let mut params = match &parameters {
-                    Some(s) => parse_key_value_pairs(s)?,
-                    None => BTreeMap::new(),
-                };
-                for (&key, &value) in DEFAULT_CONVERSION_PARAMETERS.iter() {
-                    if !params.contains_key(key) {
-                        params.insert(key, value);
-                    }
-                }
-                params
-            };
+            let image_size: ImageSizes = ImageSizes::try_from(image_size)
+                .map_err(|e| anyhow::anyhow!("Invalid image_size: {e}"))?;
+            let nmiter = std::num::NonZeroU64::new(nmiter as u64)
+                .expect("clap's range validator already ensures nmiter >= 1");
 
             if dry_run {
                 info!(
-                    "Would have submitted {} obsids for imaging, using these parameters:\n{:?}",
-                    parsed_obsids.len(),
-                    params
-                );
-                info!(
-                    "Would have submitted {} existing conversion jobids for imaging, using these parameters:\n{:?}",
-                    parsed_jobids.len(),
-                    params
+                    "Would have submitted {} obsids for imaging with: delivery={:?}, delivery_format={:?}, image_size={:?}, weighting={:?}, output_mode={:?}, phase_center={:?}, source_job_id={:?}",
+                    obsids.len(),
+                    delivery,
+                    delivery_format,
+                    image_size,
+                    weighting,
+                    output_mode,
+                    phase_center,
+                    source_job_id
                 );
             } else {
-                let client = AsvoClient::new()?;
-                let mut jobids: Vec<AsvoJobID> =
-                    Vec::with_capacity(parsed_obsids.len() + parsed_jobids.len());
-                let mut raw_image_submitted_count = 0;
-                let mut conv_image_submitted_count = 0;
+                let client = AsvoClientv2::new()?;
+                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut submitted_count = 0;
 
-                for o in parsed_obsids {
-                    let j = client.submit_image(
-                        Some(o),
-                        None,
-                        delivery,
-                        delivery_format,
-                        output_mode,
-                        &params,
-                        allow_resubmit,
-                    )?;
+                for o in &obsids {
+                    let obs_id_i64 = i64::try_from(u64::from(*o))
+                        .expect("Obsid's validated range always fits in i64");
 
-                    if let Some(jobid) = j {
-                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
-                        jobids.push(jobid);
-                        raw_image_submitted_count += 1;
+                    let params: ImagingJobParams = ImagingJobParams::builder()
+                        .obs_id(obs_id_i64)
+                        .job_type(JobType::Imaging)
+                        .source_job_id(source_job_id)
+                        .delivery(Some(delivery))
+                        .delivery_format(delivery_format)
+                        .apply_di_cal(apply_di_cal)
+                        .apply_primary_beam(apply_primary_beam)
+                        .auto_mask(auto_mask)
+                        .auto_threshold(auto_threshold)
+                        .abs_threshold(abs_threshold)
+                        .avg_freq_res(avg_freq_res)
+                        .avg_time_res(avg_time_res)
+                        .channels_out(channels_out)
+                        .clean_iterations(clean_iterations)
+                        .clean_threshold(clean_threshold)
+                        .custom_dec(custom_dec)
+                        .custom_ra(custom_ra)
+                        .flag_edge_width(flag_edge_width)
+                        .image_size(image_size.clone())
+                        .join_channels(join_channels)
+                        .join_polarizations(join_polarizations)
+                        .mgain(mgain)
+                        .multiscale(multiscale)
+                        .nmiter(nmiter)
+                        .nwlayers(nwlayers)
+                        .output_mode(output_mode)
+                        .phase_center(phase_center)
+                        .pixel_scale(pixel_scale)
+                        .pol(pol.clone())
+                        .robust(robust)
+                        .uvw_max(uvw_max)
+                        .uvw_min(uvw_min)
+                        .weighting(weighting)
+                        .wstack_nwlayers(wstack_nwlayers)
+                        .try_into()?;
+
+                    let job_id = client.submit_imaging_job(&params)?;
+                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    match AsvoJobID::try_from(job_id) {
+                        Ok(id) => jobids.push(id),
+                        Err(_) => warn!(
+                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
+                            job_id
+                        ),
                     }
-                    // for the none case- the "submit_asvo" function
-                    // will have already provided user some feedback
+                    submitted_count += 1;
                 }
 
-                for o in parsed_jobids {
-                    let j = client.submit_image(
-                        None,
-                        Some(o),
-                        delivery,
-                        delivery_format,
-                        output_mode,
-                        &params,
-                        allow_resubmit,
-                    )?;
+                info!("Submitted {} obsids for imaging.", submitted_count);
 
-                    if let Some(jobid) = j {
-                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
-                        jobids.push(jobid);
-                        conv_image_submitted_count += 1;
-                    }
-                    // for the none case- the "submit_asvo" function
-                    // will have already provided user some feedback
-                }
-
-                if raw_image_submitted_count > 0 {
-                    info!(
-                        "Submitted {} obsids for imaging of raw visibilities.",
-                        raw_image_submitted_count
-                    );
-                }
-                if conv_image_submitted_count > 0 {
-                    info!(
-                        "Submitted {} jobids for imaging of existing conversion jobs.",
-                        conv_image_submitted_count
-                    );
-                }
-                if raw_image_submitted_count + conv_image_submitted_count == 0 {
-                    info!("Submitted 0 obsids / jobids for imaging.");
-                } else if wait {
+                if wait {
                     // Endlessly loop over the newly-supplied job IDs until
-                    // they're all ready.
-                    wait_loop(&client, &jobids)?;
+                    // they're all ready. Reuses the v2 client's own
+                    // get_jobs, so this polls the same v2 API we just
+                    // submitted to.
+                    wait_loop_v2(&client, &jobids)?;
                 }
             }
         }

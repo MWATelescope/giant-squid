@@ -34,8 +34,8 @@ use crate::obsid::Obsid;
 
 use super::error::Apiv2Error;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, ErrorResponse, JobDetailResponse, JobsByUserRequest,
-    JobsByUserResponse, Login, TokenResponse, UserResponse,
+    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobParams, JobDetailResponse,
+    JobsByUserRequest, JobsByUserResponse, Login, TokenResponse, UserResponse,
 };
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -427,6 +427,48 @@ impl AsvoClientv2 {
         }
 
         Ok(AsvoJobVec(all_jobs))
+    }
+
+    /// Submit an MWA ASVO v2 imaging job. Returns the new job's ID.
+    ///
+    /// ASSUMPTION (unconfirmed against the real server): POST to
+    /// /api/v2/imaging_job, and a 200 response body is a bare JSON
+    /// integer (the job ID) - both per the original hand-written spec for
+    /// this endpoint, from before real generated types existed. Given
+    /// that both the job-listing endpoint's path (/job_history guessed,
+    /// /get_jobs actual) and its timestamp format turned out to need
+    /// correction against the real server, treat this the same way:
+    /// probably needs adjusting once tried for real.
+    pub fn submit_imaging_job(&self, params: &ImagingJobParams) -> Result<i64, Apiv2Error> {
+        debug!("Submitting an imaging job to MWA ASVO v2");
+
+        let response = self
+            .client
+            .post(format!("{}/api/v2/imaging_job", get_asvo_server_address()))
+            .json(params)
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                Ok(err) => Apiv2Error::ApiError {
+                    error_code: err.error_code,
+                    message: err.message,
+                    detail: err.detail,
+                    suggestion: err.suggestion,
+                },
+                Err(_) => Apiv2Error::BadStatus {
+                    code: status,
+                    message: body,
+                },
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 imaging_job response body: {}", body);
+        let job_id: i64 = serde_json::from_str(&body)?;
+        Ok(job_id)
     }
 }
 
