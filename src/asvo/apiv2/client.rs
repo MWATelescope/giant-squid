@@ -374,10 +374,9 @@ impl AsvoClientv2 {
                 sort_by: "id".to_string(),
             };
 
-            // ASSUMPTION: guessing POST to /api/v2/job_history (matching
-            // the other v2 endpoints' POST+JSON convention, and the
-            // schema's doc comment naming this endpoint) since we don't
-            // have the real `paths` section to confirm the method or path.
+            // Confirmed via testing against the real dev server: POST to
+            // /api/v2/get_jobs (my original guess of /api/v2/job_history
+            // was wrong).
             let response = self
                 .client
                 .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
@@ -406,7 +405,9 @@ impl AsvoClientv2 {
             let page: JobsByUserResponse = serde_json::from_str(&body)?;
 
             let page_len = page.jobs.len() as u64;
-            for job_value in page.jobs {
+            for mut job_value in page.jobs {
+                normalize_job_value(&mut job_value);
+
                 // Hard error: this is a basic structural mismatch against
                 // the schema (an item that isn't even a JobDetailResponse
                 // shape), not a content-level ambiguity like the ones
@@ -429,6 +430,51 @@ impl AsvoClientv2 {
     }
 }
 
+/// Patches two confirmed real-server quirks into a raw job JSON object
+/// before we try to deserialize it as `JobDetailResponse`, since we can't
+/// fix the generated type directly (it gets overwritten on regeneration).
+/// Both are worth raising with the API dev so they become unnecessary:
+///
+/// 1. `completed`/`started`/`modified` are sometimes omitted entirely
+///    (confirmed: `modified` was absent, not null, in a real response)
+///    rather than sent as JSON `null`. Those three fields lack a
+///    `#[serde(default)]` in the generated type (unlike `error_text`/
+///    `product`, which do), so a genuinely missing key is a hard
+///    deserialize error, not a `None`. Fixed by inserting `null` for any
+///    of the three that are missing.
+/// 2. Timestamps (`created`, and the three above when present) come back
+///    without a timezone designator (confirmed: `"created":
+///    "2026-09-08T05:41:54.757232"`, no `Z`/offset) - a naive timestamp,
+///    not RFC3339. `chrono::DateTime<Utc>`'s deserializer requires
+///    RFC3339 and fails with "premature end of input" on a naive one.
+///    Fixed by appending `Z` to any of these four fields' string values
+///    that don't already have a timezone marker (assuming UTC, which
+///    matches the schema's own `DateTime<Utc>` typing).
+fn normalize_job_value(job_value: &mut serde_json::Map<String, serde_json::Value>) {
+    for key in ["completed", "started", "modified"] {
+        job_value.entry(key).or_insert(serde_json::Value::Null);
+    }
+
+    for key in ["created", "completed", "started", "modified"] {
+        if let Some(serde_json::Value::String(s)) = job_value.get_mut(key) {
+            if looks_like_naive_timestamp(s) {
+                s.push('Z');
+            }
+        }
+    }
+}
+
+/// Does `s` look like an ISO8601 timestamp with no timezone designator?
+/// Deliberately simple: skip the `YYYY-MM-DD` date portion (which has its
+/// own `-` characters that would otherwise look like a negative UTC
+/// offset), then check whether what's left names a zone at all.
+fn looks_like_naive_timestamp(s: &str) -> bool {
+    match s.get(10..) {
+        Some(rest) => !rest.is_empty() && !rest.contains(['Z', '+', '-']),
+        None => false,
+    }
+}
+
 /// Best-effort conversion from the v2 API's `JobDetailResponse` into the
 /// existing `AsvoJob` domain type. Returns `None` (after logging a warning)
 /// if a job can't be reliably converted; callers should skip that job and
@@ -436,18 +482,13 @@ impl AsvoClientv2 {
 ///
 /// - `job_type` codes we don't recognise become `AsvoJobType::Unknown`
 ///   (existing forward-compat behaviour, never fails).
-/// - `job_state` is parsed via the existing `AsvoJobState::FromStr`.
-///   ASSUMPTION: `JobDetailResponse.job_state`'s doc comment describes it
-///   as a numeric code, but the field is typed `String` - I'm guessing
-///   it's actually the same string vocabulary as
-///   `JobsByUserRequestJobState` ("queued", "completed", etc), which is
-///   what `AsvoJobState::from_str` already parses. If that's wrong, jobs
-///   will be skipped with a warning naming the unrecognised value, rather
-///   than silently misrepresenting the job's state.
+/// - `job_state` is parsed via the existing `AsvoJobState::FromStr`, with
+///   "completed" and "error" special-cased (see comment at the match
+///   below) - confirmed "staging"/"staged" round-trip correctly via real
+///   responses, but the full vocabulary isn't confirmed.
 /// - `obsid` is looked for at `job_params["obs_id"]` (an untyped JSON
-///   map). ASSUMPTION: guessing the key name and that it's a JSON number,
-///   by analogy with every other `obs_id` field in this schema - not
-///   confirmed against a real response.
+///   map). CONFIRMED against a real response: the key name is right, but
+///   the value is a JSON string, not a number - handled below.
 /// - `files` is always `None` for now - `product`'s shape isn't
 ///   confirmed, so File Size/Delivery will show blank until we have a
 ///   real sample response to design against.
@@ -463,7 +504,15 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         }
     };
 
-    let obsid = match detail.job_params.get("obs_id").and_then(|v| v.as_u64()) {
+    // ASSUMPTION resolved by a real sample response: the key is `obs_id`
+    // as guessed, but its value is a JSON string (e.g. "1455950264"), not
+    // a number - handle both, in case that's not consistent across jobs.
+    let obs_id_value = detail.job_params.get("obs_id").and_then(|v| {
+        v.as_u64()
+            .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+    });
+
+    let obsid = match obs_id_value {
         Some(o) => match Obsid::validate(o) {
             Ok(obsid) => obsid,
             Err(e) => {
@@ -494,15 +543,26 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         _ => AsvoJobType::Unknown,
     };
 
-    let state = match AsvoJobState::from_str(&detail.job_state) {
-        Ok(state) => state,
-        Err(_) => {
-            warn!(
-                "Skipping MWA ASVO job {}: unrecognised job_state {:?}",
-                jobid, detail.job_state
-            );
-            return None;
-        }
+    // v2's job_state vocabulary (JobsByUserRequestJobState) uses
+    // "completed" and has no "ready"/"expired" at all, whereas v1's
+    // AsvoJobState::from_str expects "ready" for the same concept.
+    // Translated locally rather than changing the shared v1 type (which
+    // CLI argument parsing also uses). Also: since JobDetailResponse
+    // separately carries `error_text`, use it to populate
+    // AsvoJobState::Error's message instead of discarding it.
+    let state = match detail.job_state.as_str() {
+        "completed" => AsvoJobState::Ready,
+        "error" => AsvoJobState::Error(detail.error_text.unwrap_or_default()),
+        other => match AsvoJobState::from_str(other) {
+            Ok(state) => state,
+            Err(_) => {
+                warn!(
+                    "Skipping MWA ASVO job {}: unrecognised job_state {:?}",
+                    jobid, other
+                );
+                return None;
+            }
+        },
     };
 
     Some(AsvoJob {
