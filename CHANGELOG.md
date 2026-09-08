@@ -5,13 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# 2.6.0 - 2026-07-21
+# 3.0.0 - 2026-09-??
 
-* list command now shows completed date time.
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
   The resulting session is cached at `$HOME/.mwa-asvo/tokens.json` (shared with mwa-cli, so logging in with
   either tool covers both) and is automatically refreshed when it expires, avoiding a fresh login on every
   command. This is transparent to users - `MWA_ASVO_API_KEY` is still how you authenticate.
+* `list` command now shows completed date time.
+* Docker:
+  * Updated the docker build to use a docker hardened image and a two stage build approach.
+* Housekeeping:
+  * Tests moved into their own module.
 
 # 2.5.1 - 2026-05-29
 
