@@ -977,8 +977,10 @@ impl ::std::convert::TryFrom<::std::string::String> for ConversionJobParamsOutpu
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Delivery {
     #[serde(rename = "acacia")]
+    #[default]
     Acacia,
     #[serde(rename = "scratch")]
     Scratch,
@@ -1031,11 +1033,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Delivery {
         value.parse()
     }
 }
-impl ::std::default::Default for Delivery {
-    fn default() -> Self {
-        Delivery::Acacia
-    }
-}
 ///`DeliveryFormat`
 ///
 /// <details><summary>JSON schema</summary>
@@ -1064,10 +1061,12 @@ impl ::std::default::Default for Delivery {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum DeliveryFormat {
     #[serde(rename = "tar")]
     Tar,
     #[serde(rename = "files")]
+    #[default]
     Files,
 }
 impl ::std::fmt::Display for DeliveryFormat {
@@ -1112,11 +1111,6 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for DeliveryFormat {
-    fn default() -> Self {
-        DeliveryFormat::Files
     }
 }
 ///Parameters for download job submission
@@ -1536,14 +1530,10 @@ impl HealthResponse {
 /// ```
 /// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(Default)]
 pub struct HttpValidationError {
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
     pub detail: ::std::vec::Vec<ValidationError>,
-}
-impl ::std::default::Default for HttpValidationError {
-    fn default() -> Self {
-        Self { detail: Default::default() }
-    }
 }
 impl HttpValidationError {
     pub fn builder() -> builder::HttpValidationError {
@@ -2263,8 +2253,10 @@ impl JobDetailResponse {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum JobType {
     #[serde(rename = "download")]
+    #[default]
     Download,
     #[serde(rename = "imaging")]
     Imaging,
@@ -2327,11 +2319,6 @@ impl ::std::convert::TryFrom<::std::string::String> for JobType {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for JobType {
-    fn default() -> Self {
-        JobType::Download
     }
 }
 ///Parameters for /job_history endpoint
@@ -2813,8 +2800,10 @@ impl<'de> ::serde::Deserialize<'de> for Login {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum OutputMode {
     #[serde(rename = "fits")]
+    #[default]
     Fits,
     #[serde(rename = "all_fits")]
     AllFits,
@@ -2865,11 +2854,6 @@ impl ::std::convert::TryFrom<::std::string::String> for OutputMode {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for OutputMode {
-    fn default() -> Self {
-        OutputMode::Fits
     }
 }
 ///User password
@@ -2981,8 +2965,10 @@ impl<'de> ::serde::Deserialize<'de> for Password {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum PhaseCenter {
     #[serde(rename = "phase")]
+    #[default]
     Phase,
     #[serde(rename = "custom")]
     Custom,
@@ -3029,11 +3015,6 @@ impl ::std::convert::TryFrom<::std::string::String> for PhaseCenter {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for PhaseCenter {
-    fn default() -> Self {
-        PhaseCenter::Phase
     }
 }
 ///`PiProjectDetails`
@@ -4003,8 +3984,10 @@ impl WebSocketTokenResponse {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Weighting {
     #[serde(rename = "briggs")]
+    #[default]
     Briggs,
     #[serde(rename = "uniform")]
     Uniform,
@@ -4055,11 +4038,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Weighting {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for Weighting {
-    fn default() -> Self {
-        Weighting::Briggs
     }
 }
 /// Types for composing complex structures.
