@@ -1765,12 +1765,12 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("No jobids specified!");
             }
             init_logger(verbosity);
-            let client = AsvoClient::new()?;
+            let client = AsvoClientv2::new()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
-            wait_loop(&client, &parsed_jobids)?;
+            wait_loop_v2(&client, &parsed_jobids)?;
 
-            let mut jobs = client.get_jobs()?;
+            let mut jobs = client.get_jobs(None)?;
             if !parsed_jobids.is_empty() {
                 jobs = jobs.retain(|j| parsed_jobids.contains(&j.jobid));
             }
