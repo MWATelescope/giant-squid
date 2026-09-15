@@ -1796,18 +1796,18 @@ fn main() -> Result<(), anyhow::Error> {
             if dry_run {
                 info!("Would have cancelled {} jobids.", parsed_jobids.len());
             } else {
-                let client = AsvoClient::new()?;
+                let client = AsvoClientv2::new()?;
 
                 let mut cancelled_count = 0;
                 for j in parsed_jobids {
-                    let result = client.cancel_asvo_job(j);
-
-                    if let Ok(Some(_)) = result {
-                        // Job was cancelled.
-                        // None means it was not cancelled but don't stop
-                        // processing the rest of the list
-                        info!("Cancelled MWA ASVO job ID {}", j);
-                        cancelled_count += 1;
+                    match client.cancel_job(j) {
+                        Ok(resp) => {
+                            info!("Cancelled MWA ASVO job ID {} ({})", j, resp.message);
+                            cancelled_count += 1;
+                        }
+                        Err(e) => {
+                            error!("Failed to cancel MWA ASVO job ID {}: {}", j, e);
+                        }
                     }
                 }
                 info!("Cancelled {} jobs.", cancelled_count);

@@ -662,6 +662,41 @@ impl AsvoClientv2 {
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
+
+    pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, Apiv2Error> {
+        debug!("Cancelling MWA ASVO v2 job {}", job_id);
+
+        let response = self
+            .client
+            .delete(format!(
+                "{}/api/v2/jobs/{}",
+                get_asvo_server_address(),
+                job_id
+            ))
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                Ok(err) => Apiv2Error::ApiError {
+                    error_code: err.error_code,
+                    message: err.message,
+                    detail: err.detail,
+                    suggestion: err.suggestion,
+                },
+                Err(_) => Apiv2Error::BadStatus {
+                    code: status,
+                    message: body,
+                },
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 cancel_job response body: {}", body);
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
+    }
 }
 
 /// Patches two confirmed real-server quirks into a raw job JSON object
