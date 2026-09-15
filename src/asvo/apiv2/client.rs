@@ -34,9 +34,9 @@ use crate::obsid::Obsid;
 
 use super::error::Apiv2Error;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobFlow1Params,
-    ImagingJobFlow2Params, JobDetailResponse, JobsByUserRequest, JobsByUserResponse, Login,
-    TokenResponse, UserResponse,
+    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, ImagingJobFlow1Params,
+    ImagingJobFlow2Params, JobDetailResponse, JobSubmittedResponse, JobsByUserRequest,
+    JobsByUserResponse, Login, TokenResponse, UserResponse,
 };
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -508,6 +508,44 @@ impl AsvoClientv2 {
         debug!("MWA ASVO v2 image_from_job response body: {}", body);
         let job_id: i64 = serde_json::from_str(&body)?;
         Ok(job_id)
+    }
+
+    pub fn submit_download_vis_job(
+        &self,
+        params: &DownloadJobParams,
+    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+        debug!("Submitting a download-vis job to MWA ASVO v2");
+
+        let response = self
+            .client
+            .post(format!(
+                "{}/api/v2/download_vis_job",
+                get_asvo_server_address()
+            ))
+            .json(params)
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                Ok(err) => Apiv2Error::ApiError {
+                    error_code: err.error_code,
+                    message: err.message,
+                    detail: err.detail,
+                    suggestion: err.suggestion,
+                },
+                Err(_) => Apiv2Error::BadStatus {
+                    code: status,
+                    message: body,
+                },
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 download_vis_job response body: {}", body);
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
     }
 }
 
