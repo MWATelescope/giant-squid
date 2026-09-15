@@ -854,71 +854,7 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
 }
 
 /// Wait for all of the specified job IDs to become ready, then exit.
-fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> Result<(), AsvoError> {
-    info!("Waiting for {} jobs to be ready...", jobids.len());
-    let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
-    // Offer the MWA ASVO a kindness by waiting a few seconds, so
-    // that the user's queue is hopefully current.
-    std::thread::sleep(Duration::from_secs(1));
-    loop {
-        // Get the current state of all jobs. By converting to a map, we avoid
-        // quadratic complexity below. Probably not a big deal, but why not?
-        let jobs = client.get_jobs()?.into_map();
-        let mut any_not_ready = false;
-        // Iterate over all supplied job IDs.
-        for j in jobids {
-            // Find the relevant job in the queue.
-            let job = match jobs.0.get(j) {
-                None => return Err(AsvoError::NoAsvoJob(*j)),
-                Some(job) => job,
-            };
-            // Handle the job's state. If it's ready, there's nothing to do. If
-            // the job is simply queued or in processing (or other intermediate states),
-            // we can say that we're not ready yet. All other possibilities are handled drastically.
-            match &job.state {
-                AsvoJobState::Ready => (),
-                AsvoJobState::Error(e) => {
-                    return Err(AsvoError::UpstreamError {
-                        jobid: *j,
-                        obsid: job.obsid,
-                        error: e.to_string(),
-                    })
-                }
-                AsvoJobState::Expired => return Err(AsvoError::Expired(*j)),
-                AsvoJobState::Cancelled => return Err(AsvoError::Cancelled(*j)),
-                _ => {
-                    // For all other states
-                    any_not_ready = true;
-                }
-            }
-            // log if there was a change in state.
-            let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
-            match last_state.insert(*j, job.state.clone()) {
-                Some(last_state) if last_state != job.state => {
-                    info!("{} is {}", log_prefix, job.state);
-                }
-                Some(_) => (), // State did not change from last_state
-                None => info!("{} is {}", log_prefix, job.state), // First time just report current state
-            }
-        }
-        // Our lock variable is set if we broke out of the loop.
-        if any_not_ready {
-            std::thread::sleep(Duration::from_secs(60));
-        } else {
-            // If we reach here, all jobs are ready.
-            break;
-        }
-    }
-    info!("All {} MWA ASVO jobs are ready for download.", jobids.len());
-    Ok(())
-}
-
-/// Like [wait_loop], but polls via `AsvoClientv2::get_jobs` (v2) instead
-/// of the v1 client. Kept as a separate function rather than making
-/// [wait_loop] generic, since the error types differ: `Apiv2Error` has no
-/// equivalents for `NoAsvoJob`/`UpstreamError`/`Expired`/`Cancelled` (it
-/// currently only covers what login/get_jobs/submit_imaging_job need), so
-/// those cases are reported directly via `anyhow::bail!` here instead.
+/// Polls via `AsvoClientv2::get_jobs` (v2).
 fn wait_loop_v2(client: &AsvoClientv2, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
     info!("Waiting for {} jobs to be ready...", jobids.len());
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();

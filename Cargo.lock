@@ -1234,7 +1234,6 @@ dependencies = [
  "clap",
  "indicatif",
  "indicatif-log-bridge",
- "lazy_static",
  "litemap",
  "log",
  "prettyplease",

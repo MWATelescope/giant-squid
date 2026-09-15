@@ -5,8 +5,6 @@
 //! ASVO data types.
 
 use chrono::{DateTime, Utc};
-use clap::ValueEnum;
-use log::warn;
 use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
@@ -329,32 +327,6 @@ pub enum Delivery {
     Scratch,
 }
 
-impl Delivery {
-    pub fn validate<S: AsRef<str>>(d: Option<S>) -> Result<Delivery, AsvoError> {
-        match (d, std::env::var("GIANT_SQUID_DELIVERY")) {
-            (Some(d), _) => match d.as_ref() {
-                "acacia" => Ok(Delivery::Acacia),
-                "dug" => Ok(Delivery::Dug),
-                "scratch" => Ok(Delivery::Scratch),
-                d => Err(AsvoError::InvalidDelivery(d.to_string())),
-            },
-            (None, Ok(d)) => match d.as_str() {
-                "acacia" => Ok(Delivery::Acacia),
-                "dug" => Ok(Delivery::Dug),
-                "scratch" => Ok(Delivery::Scratch),
-                d => Err(AsvoError::InvalidDeliveryEnv(d.to_string())),
-            },
-            (None, Err(std::env::VarError::NotPresent)) => {
-                warn!("Using 'acacia' for MWA ASVO delivery");
-                Ok(Delivery::Acacia)
-            }
-            (None, Err(std::env::VarError::NotUnicode(_))) => {
-                Err(AsvoError::InvalidDeliveryEnvUnicode)
-            }
-        }
-    }
-}
-
 impl std::fmt::Display for Delivery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -364,72 +336,6 @@ impl std::fmt::Display for Delivery {
                 Delivery::Acacia => "acacia",
                 Delivery::Dug => "dug",
                 Delivery::Scratch => "scratch",
-            }
-        )
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
-pub enum DeliveryFormat {
-    /// Tar - tar up all files. Only relevant for non-voltage scratch jobs    
-    Tar,
-}
-
-impl DeliveryFormat {
-    pub fn validate<S: AsRef<str>>(d: Option<S>) -> Result<Option<DeliveryFormat>, AsvoError> {
-        match (d, std::env::var("GIANT_SQUID_DELIVERY_FORMAT")) {
-            (Some(d), _) => match d.as_ref() {
-                "tar" => Ok(Some(DeliveryFormat::Tar)),
-                d => Err(AsvoError::InvalidDeliveryFormat(d.to_string())),
-            },
-            (None, Ok(d)) => match d.as_str() {
-                "tar" => Ok(Some(DeliveryFormat::Tar)),
-                d => Err(AsvoError::InvalidDeliveryFormatEnv(d.to_string())),
-            },
-            (None, Err(std::env::VarError::NotPresent)) => Ok(None),
-            (None, Err(std::env::VarError::NotUnicode(_))) => {
-                Err(AsvoError::InvalidDeliveryFormatEnvUnicode)
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for DeliveryFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                DeliveryFormat::Tar => "tar",
-            }
-        )
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, ValueEnum)]
-pub enum ImageJobOutputMode {
-    /// Deliver only the final image
-    #[value(name = "fits")]
-    Fits,
-
-    /// Deliver the final image plus auxiliary fits files
-    #[value(name = "all_fits")]
-    AllFits,
-
-    /// Deliver all fits files plus the CASA measurement set
-    #[value(name = "all_files")]
-    AllFiles,
-}
-
-impl std::fmt::Display for ImageJobOutputMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                ImageJobOutputMode::Fits => "fits",
-                ImageJobOutputMode::AllFits => "all_fits",
-                ImageJobOutputMode::AllFiles => "all_files",
             }
         )
     }

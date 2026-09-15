@@ -4,7 +4,6 @@
 
 //! Small helper utility functions.
 
-use std::collections::BTreeMap;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -100,48 +99,12 @@ pub fn parse_many_jobids_or_obsids(
     Ok((jobids, obsids))
 }
 
-/// Parse a string of key-value pairs (e.g. "avg_time_res=0.5,avg_freq_res=10") into a
-/// [BTreeMap].
-pub fn parse_key_value_pairs(s: &str) -> Result<BTreeMap<&str, &str>, ParseError> {
-    let mut map = BTreeMap::new();
-    for pair in s.split(',') {
-        let mut key = "";
-        let mut value = "";
-        let mut items = 0;
-        for item in pair.split('=') {
-            match items {
-                0 => {
-                    key = item.trim();
-                    items += 1;
-                }
-                1 => {
-                    value = item.trim();
-                    items += 1;
-                }
-                _ => {
-                    return Err(ParseError::NotKeyValue(pair.to_string()));
-                }
-            }
-        }
-        if items != 2 {
-            return Err(ParseError::NotKeyValue(pair.to_string()));
-        }
-
-        map.insert(key, value);
-    }
-    Ok(map)
-}
-
 #[derive(Error, Debug)]
 pub enum ParseError {
     /// When a whitespace-delimited string inside a file isn't an integer, this
     /// error can be used.
     #[error("'{text}' in file {file} could not be parsed as an int.")]
     InsideFile { file: String, text: String },
-
-    /// Invalid number of items when parsing key-value pairs.
-    #[error("Could not parse {0} into a key-value pair.")]
-    NotKeyValue(String),
 
     /// An IO error.
     #[error("{0}")]
@@ -245,36 +208,5 @@ mod tests {
 
         // Check the checksum of the tmp file - but the expected checksum is wrong
         assert!(check_file_sha1_hash(&tmpfile.path().to_path_buf(), "abcd123", 123).is_err());
-    }
-
-    #[test]
-    fn parse_map_simple() {
-        let result = parse_key_value_pairs("avg_time_res=0.5,avg_freq_res=10");
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get("avg_time_res"), Some(&"0.5"));
-        assert_eq!(map.get("avg_freq_res"), Some(&"10"));
-    }
-
-    #[test]
-    fn parse_map_complex() {
-        let result = parse_key_value_pairs(
-            r#"avg_time_res=0.5 ,
-
-            avg_freq_res = 10 "#,
-        );
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get("avg_time_res"), Some(&"0.5"));
-        assert_eq!(map.get("avg_freq_res"), Some(&"10"));
-    }
-
-    #[test]
-    fn bad_parse_map() {
-        let result = parse_key_value_pairs("avg_time_res=0.5=1,avg_freq_res=10");
-        assert!(result.is_err());
-
-        let result = parse_key_value_pairs("avg_time_res=0.5,avg_freq_res");
-        assert!(result.is_err());
     }
 }
