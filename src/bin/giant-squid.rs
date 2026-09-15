@@ -21,7 +21,7 @@ use mwa_giant_squid::asvo::apiv2::openapi::{
     ConversionJobParams, ConversionJobParamsCentre, Delivery as V2Delivery,
     DeliveryFormat as V2DeliveryFormat, DownloadJobParams, DownloadJobParamsDownloadType,
     ImageSizes, ImagingJobFlow1Params, ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params,
-    Output, OutputMode, Weighting,
+    Output, OutputMode, VoltageJobParams, Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -688,32 +688,30 @@ enum Args {
         obsids: Vec<String>,
     },
 
-    /// Submit MWA ASVO jobs to download MWA voltages
+    /// Submit MWA ASVO jobs to download MWA voltages (v2 API)
     #[command(alias = "st")]
     SubmitVolt {
-        /// Tell MWA ASVO where to deliver the data. The only valid value for a voltage
-        /// job is "scratch", but this is only available when your MWA ASVO profile has the
-        /// "mwavcs" "Pawsey Group" set.
-        /// Please see README.md for more information on delivery options. The default can be
-        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
-        #[arg(short, long)]
-        delivery: Option<String>,
+        /// Tell MWA ASVO where to deliver the data. The only valid value for
+        /// a voltage job is "scratch", which requires the "mwavcs" Pawsey
+        /// Group on your MWA ASVO profile.
+        #[arg(short, long, default_value = "scratch", env = "GIANT_SQUID_DELIVERY")]
+        delivery: String,
 
         /// The offset in seconds from the start GPS time of the observation.
         #[arg(short, long)]
-        offset: i32,
+        offset: i64,
 
         /// The duration (in seconds) to download.
         #[arg(short = 'u', long)]
-        duration: i32,
+        duration: u64,
 
-        /// The 'from' receiver channel number (0-255)
+        /// The 'from' receiver channel number (0-255).
         #[arg(short = 'f', long)]
-        from_channel: Option<i32>,
+        from_channel: Option<u8>,
 
-        /// The 'to' receiver channel number (0-255)
+        /// The 'to' receiver channel number (0-255).
         #[arg(short = 't', long)]
-        to_channel: Option<i32>,
+        to_channel: Option<u8>,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -725,9 +723,8 @@ enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
-        /// Allow resubmit- if exact same job params already in your queue
-        /// allow submission anyway. Default: allow resubmit is False / not present
-        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
+        /// Allow resubmitting a job even if an identical one has completed.
+        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -1652,14 +1649,7 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
-            // Default delivery for all jobs is acacia, except voltage
-            let volt_delivery = match delivery {
-                Some(d) => d,
-                None => "scratch".to_string(),
-            };
-
-            let delivery = Delivery::validate(Some(volt_delivery))?;
-            debug!("Using {} for delivery", delivery);
+            let channel_range = from_channel.is_some() || to_channel.is_some();
 
             if dry_run {
                 info!(
@@ -1667,35 +1657,41 @@ fn main() -> Result<(), anyhow::Error> {
                     obsids.len()
                 );
             } else {
-                let client = AsvoClient::new()?;
+                let client = AsvoClientv2::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
                 for o in parsed_obsids {
-                    let j = client.submit_volt(
-                        o,
-                        delivery,
-                        offset,
-                        duration,
-                        from_channel,
-                        to_channel,
-                        allow_resubmit,
-                    )?;
+                    let obs_id_i64 = i64::try_from(u64::from(o))
+                        .expect("Obsid's validated range always fits in i64");
 
-                    if let Some(jobid) = j {
-                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
-                        jobids.push(jobid);
-                        submitted_count += 1;
+                    let params: VoltageJobParams = VoltageJobParams::builder()
+                        .obs_id(obs_id_i64)
+                        .delivery(delivery.clone())
+                        .offset(offset)
+                        .duration(duration)
+                        .from_channel(from_channel)
+                        .to_channel(to_channel)
+                        .channel_range(Some(channel_range))
+                        .allow_resubmit(Some(allow_resubmit))
+                        .try_into()?;
+
+                    let resp = client.submit_voltage_job(&params)?;
+                    let job_id = resp.job_id;
+                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    match AsvoJobID::try_from(u64::from(job_id)) {
+                        Ok(id) => jobids.push(id),
+                        Err(_) => warn!(
+                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
+                            job_id
+                        ),
                     }
-                    // for the none case- the "submit_asvo" function
-                    // will have already provided user some feedback
+                    submitted_count += 1;
                 }
                 info!("Submitted {} obsids for voltage download.", submitted_count);
 
                 if wait {
-                    // Endlessly loop over the newly-supplied job IDs until
-                    // they're all ready.
-                    wait_loop(&client, &jobids)?;
+                    wait_loop_v2(&client, &jobids)?;
                 }
             }
         }

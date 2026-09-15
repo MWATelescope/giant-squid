@@ -36,7 +36,7 @@ use super::error::Apiv2Error;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, ConversionJobParams, DownloadJobParams, ErrorResponse,
     ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse, JobSubmittedResponse,
-    JobsByUserRequest, JobsByUserResponse, Login, TokenResponse, UserResponse,
+    JobsByUserRequest, JobsByUserResponse, Login, TokenResponse, UserResponse, VoltageJobParams,
 };
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -582,6 +582,44 @@ impl AsvoClientv2 {
 
         let body = response.text()?;
         debug!("MWA ASVO v2 conversion_job response body: {}", body);
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
+    }
+
+    pub fn submit_voltage_job(
+        &self,
+        params: &VoltageJobParams,
+    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+        debug!("Submitting a voltage job to MWA ASVO v2");
+
+        let response = self
+            .client
+            .post(format!(
+                "{}/api/v2/voltage_job",
+                get_asvo_server_address()
+            ))
+            .json(params)
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                Ok(err) => Apiv2Error::ApiError {
+                    error_code: err.error_code,
+                    message: err.message,
+                    detail: err.detail,
+                    suggestion: err.suggestion,
+                },
+                Err(_) => Apiv2Error::BadStatus {
+                    code: status,
+                    message: body,
+                },
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 voltage_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
