@@ -18,9 +18,10 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::apiv2::openapi::{
-    Delivery as V2Delivery, DeliveryFormat as V2DeliveryFormat, DownloadJobParams,
-    DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params,
-    ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params, OutputMode, Weighting,
+    ConversionJobParams, ConversionJobParamsCentre, Delivery as V2Delivery,
+    DeliveryFormat as V2DeliveryFormat, DownloadJobParams, DownloadJobParamsDownloadType,
+    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params,
+    Output, OutputMode, Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -28,21 +29,6 @@ use mwa_giant_squid::*;
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
-
-lazy_static::lazy_static! {
-    static ref DEFAULT_CONVERSION_PARAMETERS_TEXT: String = {
-        let mut s = "The conversion job parameters used. Specify as comma separated `key=value`. If any of the default parameters are not overwritten, then they remain. Conversion Job parameters reference can be found in the README.md file. Default: ".to_string();
-        for (i, (k, v)) in DEFAULT_CONVERSION_PARAMETERS.iter().enumerate() {
-            s.push_str(k);
-            s.push('=');
-            s.push_str(v);
-            if i != DEFAULT_CONVERSION_PARAMETERS.len() - 1 {
-                s.push_str(", ");
-            }
-        }
-        s
-    };
-}
 
 /// Builds a clap value parser that only accepts an f64 within `[min, max]`
 /// inclusive - used for the imaging job parameters that have a documented
@@ -276,27 +262,69 @@ enum Args {
         obsids: Vec<String>,
     },
 
-    /// Submit MWA ASVO preprocessing/conversion jobs
+    /// Submit MWA ASVO preprocessing/conversion jobs (v2 API)
     #[command(alias = "sc")]
     SubmitConv {
-        #[arg(short, long, help = DEFAULT_CONVERSION_PARAMETERS_TEXT.as_str())]
-        parameters: Option<String>,
-
-        /// Tell MWA ASVO where to deliver the data. The default is "acacia", which
-        /// provides a download URL which you can download with giant-squid, wget, etc.
-        /// Other options are: "dug" and "scratch", to deliver
-        /// data directly to a target filesystem, but these are only
-        /// available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set.
-        /// Please see README.md for more information on delivery options. The default can be
-        /// overridden with the environment variable GIANT_SQUID_DELIVERY.
-        #[arg(short, long)]
-        delivery: Option<String>,
+        /// Tell MWA ASVO where to deliver the data.
+        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        /// Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia`
-        /// which is always `tar`
-        #[arg(short = 'f', long)]
-        delivery_format: Option<String>,
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        delivery_format: V2DeliveryFormat,
+
+        /// Output format: "ms" (measurement set) or "uvfits".
+        #[arg(short = 'o', long, default_value_t = Output::Uvfits)]
+        output: Output,
+
+        /// Frequency resolution to average to (kHz).
+        #[arg(long, default_value_t = 80.0)]
+        avg_freq_res: f64,
+
+        /// Time resolution to average to (s).
+        #[arg(long, default_value_t = 2.0)]
+        avg_time_res: f64,
+
+        /// Width of frequency edge flagging (kHz).
+        #[arg(long, default_value_t = 80.0)]
+        flag_edge_width: f64,
+
+        /// Whether to apply the DI calibration solution.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        apply_di_cal: bool,
+
+        /// Phase centre mode: "phase", "pointing", or "custom".
+        /// If "custom", also supply --phase-centre-ra and --phase-centre-dec.
+        #[arg(long, default_value_t = ConversionJobParamsCentre::Phase)]
+        centre: ConversionJobParamsCentre,
+
+        /// Custom phase centre right ascension (degrees). Requires --centre custom.
+        #[arg(long)]
+        phase_centre_ra: Option<f64>,
+
+        /// Custom phase centre declination (degrees). Requires --centre custom.
+        #[arg(long)]
+        phase_centre_dec: Option<f64>,
+
+        /// Whether to skip applying amplitude calibration solutions.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_apply_amps: bool,
+
+        /// Whether to skip applying digital gains.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_digital_gains: bool,
+
+        /// Whether to skip flagging the DC channel.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_flag_dc: bool,
+
+        /// Whether to skip applying geometric delay corrections.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_geometry_delay: bool,
+
+        /// Whether to skip applying passband gain corrections.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_passband_gains: bool,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -308,9 +336,8 @@ enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
-        /// Allow resubmit- if exact same job params already in your queue
-        /// allow submission anyway. Default: allow resubmit is False / not present
-        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
+        /// Allow resubmitting a job even if an identical one has completed.
+        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -1188,9 +1215,21 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitConv {
-            parameters,
             delivery,
             delivery_format,
+            output,
+            avg_freq_res,
+            avg_time_res,
+            flag_edge_width,
+            apply_di_cal,
+            centre,
+            phase_centre_ra,
+            phase_centre_dec,
+            no_apply_amps,
+            no_digital_gains,
+            no_flag_dc,
+            no_geometry_delay,
+            no_passband_gains,
             wait,
             dry_run,
             allow_resubmit,
@@ -1210,61 +1249,63 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
-            let delivery = Delivery::validate(delivery)?;
-            debug!("Using {} for delivery", delivery);
-
-            let delivery_format: Option<DeliveryFormat> =
-                DeliveryFormat::validate(delivery_format)?;
-            debug!("Using {:#?} for delivery format", delivery_format);
-
-            // Get the user parameters and set any defaults that the user has not set.
-            let params = {
-                let mut params = match &parameters {
-                    Some(s) => parse_key_value_pairs(s)?,
-                    None => BTreeMap::new(),
-                };
-                for (&key, &value) in DEFAULT_CONVERSION_PARAMETERS.iter() {
-                    if !params.contains_key(key) {
-                        params.insert(key, value);
-                    }
-                }
-                params
-            };
-
             if dry_run {
                 info!(
-                    "Would have submitted {} obsids for conversion, using these parameters:\n{:?}",
+                    "Would have submitted {} obsids for conversion with: \
+                     output={:?}, avg_freq_res={}, avg_time_res={}, \
+                     flag_edge_width={}, centre={:?}",
                     obsids.len(),
-                    params
+                    output,
+                    avg_freq_res,
+                    avg_time_res,
+                    flag_edge_width,
+                    centre
                 );
             } else {
-                let client = AsvoClient::new()?;
+                let client = AsvoClientv2::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
                 for o in parsed_obsids {
-                    let j = client.submit_conv(
-                        o,
-                        delivery,
-                        delivery_format,
-                        &params,
-                        allow_resubmit,
-                    )?;
+                    let obs_id_i64 = i64::try_from(u64::from(o))
+                        .expect("Obsid's validated range always fits in i64");
 
-                    if let Some(jobid) = j {
-                        info!("Submitted {} as MWA ASVO job ID {}", o, jobid);
-                        jobids.push(jobid);
-                        submitted_count += 1;
+                    let params: ConversionJobParams = ConversionJobParams::builder()
+                        .obs_id(obs_id_i64)
+                        .delivery(delivery)
+                        .delivery_format(delivery_format)
+                        .output(output)
+                        .avg_freq_res(Some(avg_freq_res))
+                        .avg_time_res(Some(avg_time_res))
+                        .flag_edge_width(Some(flag_edge_width))
+                        .apply_di_cal(Some(apply_di_cal))
+                        .centre(Some(centre))
+                        .phase_centre_ra(phase_centre_ra)
+                        .phase_centre_dec(phase_centre_dec)
+                        .no_apply_amps(Some(no_apply_amps))
+                        .no_digital_gains(Some(no_digital_gains))
+                        .no_flag_dc(Some(no_flag_dc))
+                        .no_geometry_delay(Some(no_geometry_delay))
+                        .no_passband_gains(Some(no_passband_gains))
+                        .allow_resubmit(Some(allow_resubmit))
+                        .try_into()?;
+
+                    let resp = client.submit_conversion_job(&params)?;
+                    let job_id = resp.job_id;
+                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    match AsvoJobID::try_from(u64::from(job_id)) {
+                        Ok(id) => jobids.push(id),
+                        Err(_) => warn!(
+                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
+                            job_id
+                        ),
                     }
-                    // for the none case- the "submit_asvo" function
-                    // will have already provided user some feedback
+                    submitted_count += 1;
                 }
                 info!("Submitted {} obsids for conversion.", submitted_count);
 
                 if wait {
-                    // Endlessly loop over the newly-supplied job IDs until
-                    // they're all ready.
-                    wait_loop(&client, &jobids)?;
+                    wait_loop_v2(&client, &jobids)?;
                 }
             }
         }
