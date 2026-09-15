@@ -5,6 +5,7 @@
 //! ASVO data types.
 
 use chrono::{DateTime, Utc};
+use indicatif::ProgressBar;
 use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
@@ -339,4 +340,15 @@ impl std::fmt::Display for Delivery {
             }
         )
     }
+}
+
+/// Options common to all download operations.
+pub struct DownloadOptions<'a> {
+    pub keep_tar: bool,
+    pub no_resume: bool,
+    pub hash: bool,
+    pub download_dir: &'a str,
+    pub progress_bar: &'a ProgressBar,
+    pub download_number: usize,
+    pub download_count: usize,
 }

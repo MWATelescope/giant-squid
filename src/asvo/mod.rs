@@ -15,7 +15,8 @@ pub use apiv2::Apiv2Error;
 pub use error::AsvoError;
 pub use token_store::StoredTokens;
 pub use types::{
-    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
+    Delivery, DownloadOptions,
 };
 
 use std::env::{current_dir, var, VarError};
@@ -49,73 +50,40 @@ pub fn get_asvo_server_address() -> String {
         .to_string()
 }
 
-/// Download the specified MWA ASVO job ID.
-#[allow(clippy::too_many_arguments)]
-pub fn download_jobid(
+/// Look up a single job by job ID from the supplied list and download it.
+pub(crate) fn download_by_jobid(
     http_client: &Client,
     jobs: AsvoJobVec,
     jobid: AsvoJobID,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
-    download_dir: &str,
-    progress_bar: &ProgressBar,
-    download_number: usize,
-    download_count: usize,
+    opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
     let mut jobs = jobs;
     debug!("Attempting to download job {}", jobid);
-    // Filter all jobs but the one we're interested in.
     jobs.0.retain(|j| j.jobid == jobid);
     match jobs.0.len() {
         0 => Err(AsvoError::NoAsvoJob(jobid)),
-        1 => download(
-            http_client,
-            &jobs.0[0],
-            keep_tar,
-            no_resume,
-            hash,
-            download_dir,
-            progress_bar,
-            download_number,
-            download_count,
-        ),
-        // Hopefully there's never multiples of the same MWA ASVO job ID in a
-        // user's job listing...
+        1 => download_job(http_client, &jobs.0[0], opts),
         _ => unreachable!(),
     }
 }
 
-/// Download the job associated with an obsid. If more than one job is
-/// associated with the obsid, we must abort, because we don't know which
-/// job to download.
-#[allow(clippy::too_many_arguments)]
-pub fn download_obsid(
+/// Look up a single ready job by obsid from the supplied list and download it.
+/// Fails if zero, or more than one, ready jobs match the obsid.
+pub(crate) fn download_by_obsid(
     http_client: &Client,
     jobs: AsvoJobVec,
     obsid: Obsid,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
-    download_dir: &str,
-    progress_bar: &ProgressBar,
-    download_number: usize,
-    download_count: usize,
+    opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
     let mut all_jobs = jobs.clone();
 
     debug!("Attempting to download obsid {}", obsid);
-    // Filter all MWA ASVO jobs by obsid.
-    // If we don't have exactly one match for ready jobs, we
-    // have to bug out. Make a clone of all jobs so we can use
-    // it below, without needing to go back to the web server
-    let mut all_ready_jobs: AsvoJobVec = jobs;
-
-    all_ready_jobs
+    let mut ready_jobs = jobs;
+    ready_jobs
         .0
         .retain(|j| j.obsid == obsid && j.state == AsvoJobState::Ready);
-    match all_ready_jobs.0.len() {
-        // zero can be- there ar NO jobs with that obsid or zero can be no jobs with that obsid that are ready. We need to distinguish this case!
+
+    match ready_jobs.0.len() {
         0 => {
             all_jobs.0.retain(|j| j.obsid == obsid);
             match all_jobs.0.len() {
@@ -123,35 +91,17 @@ pub fn download_obsid(
                 _ => Err(AsvoError::NoJobReadyForObsid(obsid)),
             }
         }
-        1 => download(
-            http_client,
-            &all_ready_jobs.0[0],
-            keep_tar,
-            no_resume,
-            hash,
-            download_dir,
-            progress_bar,
-            download_number,
-            download_count,
-        ),
+        1 => download_job(http_client, &ready_jobs.0[0], opts),
         _ => Err(AsvoError::TooManyObsids(obsid)),
     }
 }
 
-/// Private function to actually do the work.
-#[allow(clippy::too_many_arguments)]
-fn download(
+/// Download all files for a single job, dispatching by delivery type.
+fn download_job(
     http_client: &Client,
     job: &AsvoJob,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
-    download_dir: &str,
-    progress_bar: &ProgressBar,
-    download_number: usize,
-    download_count: usize,
+    opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
-    // Is the job ready to download?
     if job.state != AsvoJobState::Ready {
         return Err(AsvoError::NotReady {
             jobid: job.jobid,
@@ -159,139 +109,120 @@ fn download(
         });
     }
 
-    // Handle any silly cases.
     let files = match &job.files {
         None => return Err(AsvoError::NoFiles(job.jobid)),
-        Some(f) => {
-            if f.is_empty() {
-                return Err(AsvoError::NoFiles(job.jobid));
-            }
-            f
-        }
+        Some(f) if f.is_empty() => return Err(AsvoError::NoFiles(job.jobid)),
+        Some(f) => f,
     };
 
     let log_prefix = format!(
         "Job ID {} (obsid: {}) [{}/{}]:",
-        job.jobid, job.obsid, download_number, download_count
+        job.jobid, job.obsid, opts.download_number, opts.download_count
     );
 
     let start_time = Instant::now();
 
-    // Download each file.
     for f in files {
         match f.r#type {
-            Delivery::Acacia => match f.url.as_deref() {
-                Some(url) => {
-                    debug!("{} Downloading from url {}", log_prefix, url);
+            Delivery::Acacia => {
+                let url = f
+                    .url
+                    .as_deref()
+                    .ok_or(AsvoError::NoUrl { job_id: job.jobid })?;
 
-                    // parse out path from url
-                    let url_obj = reqwest::Url::parse(url).unwrap();
-                    let out_path = Path::new(&download_dir)
-                        .join(url_obj.path_segments().unwrap().next_back().unwrap());
+                debug!("{} Downloading from url {}", log_prefix, url);
+                let url_obj = reqwest::Url::parse(url).unwrap();
+                let out_path = Path::new(opts.download_dir)
+                    .join(url_obj.path_segments().unwrap().next_back().unwrap());
 
-                    let op = || {
-                        try_download(
-                            http_client,
-                            url,
-                            keep_tar,
-                            no_resume,
-                            hash,
-                            f,
-                            job,
-                            download_dir,
-                            &out_path,
-                            &log_prefix,
-                            progress_bar,
-                        )
+                let op = || {
+                    try_download(http_client, url, f, job, &out_path, &log_prefix, opts)
                         .map_err(|e| match &e {
                             AsvoError::IO(_) => Error::permanent(e),
-                            // if we get 404 we should not retry AND we should provide a nicer error message
                             AsvoError::HttpError { status: 404, .. } => {
                                 Error::permanent(AsvoError::Http404Error { job_id: job.jobid })
                             }
-                            // If we get 401, 403 or 404 we should not retry
                             AsvoError::HttpError {
                                 status: 401 | 403, ..
                             } => Error::permanent(e),
                             _ => Error::transient(e),
                         })
-                    };
+                };
 
-                    // This next if is a bit counterintuitive to read, but it means:
-                    // Run the operation with exponential backoff retrying on transient errors. If it ultimately fails with a permanent error, return that error to the caller.
-                    match retry(ExponentialBackoff::default(), op) {
-                        Ok(()) => {}
-                        Err(Error::Permanent(err)) => return Err(err),
-                        Err(Error::Transient { err, .. }) => return Err(err),
-                    }
-
-                    let elapsed = start_time.elapsed();
-                    let elapsed_ms = elapsed.as_millis() as u64;
-
-                    let throughput_str = if elapsed_ms == 0 {
-                        "N/A".to_string()
-                    } else {
-                        bytesize::ByteSize(
-                            (f.size * 1000).checked_div(elapsed_ms).unwrap_or_default(),
-                        )
-                        .display()
-                        .iec()
-                        .to_string()
-                    };
-
-                    let duration_str = if elapsed.as_secs() > 60 {
-                        format!(
-                            "{} min {:.2} s",
-                            elapsed.as_secs() / 60,
-                            (elapsed.as_millis() as f64 / 1e3) % 60.0
-                        )
-                    } else {
-                        format!("{:.3} s", elapsed.as_millis() as f64 / 1e3)
-                    };
-
-                    info!(
-                        "{} Completed download of {} in {} ({}/s)",
-                        log_prefix,
-                        bytesize::ByteSize(f.size).display().iec(),
-                        duration_str,
-                        throughput_str
-                    );
+                match retry(ExponentialBackoff::default(), op) {
+                    Ok(()) => {}
+                    Err(Error::Permanent(err)) => return Err(err),
+                    Err(Error::Transient { err, .. }) => return Err(err),
                 }
-                None => return Err(AsvoError::NoUrl { job_id: job.jobid }),
-            },
+
+                let elapsed = start_time.elapsed();
+                let elapsed_ms = elapsed.as_millis() as u64;
+
+                let throughput_str = if elapsed_ms == 0 {
+                    "N/A".to_string()
+                } else {
+                    bytesize::ByteSize(
+                        (f.size * 1000).checked_div(elapsed_ms).unwrap_or_default(),
+                    )
+                    .display()
+                    .iec()
+                    .to_string()
+                };
+
+                let duration_str = if elapsed.as_secs() > 60 {
+                    format!(
+                        "{} min {:.2} s",
+                        elapsed.as_secs() / 60,
+                        (elapsed.as_millis() as f64 / 1e3) % 60.0
+                    )
+                } else {
+                    format!("{:.3} s", elapsed.as_millis() as f64 / 1e3)
+                };
+
+                info!(
+                    "{} Completed download of {} in {} ({}/s)",
+                    log_prefix,
+                    bytesize::ByteSize(f.size).display().iec(),
+                    duration_str,
+                    throughput_str
+                );
+            }
             Delivery::Dug => {
                 error!(
-                    "{} Files for Job are not reachable from the current host. You will find your job's files on the DUG filesystem.",
+                    "{} Files for Job are not reachable from the current host. \
+                     You will find your job's files on the DUG filesystem.",
                     log_prefix
                 );
             }
             Delivery::Scratch => {
-                match &f.path {
-                    Some(path) => {
-                        //If it's a /scratch job, and the files are reachable from the current host, move them into the current working directory
-                        let path_obj = Path::new(&path);
-                        let folder_name = path_obj
-                            .components()
-                            .next_back()
-                            .unwrap()
-                            .as_os_str()
-                            .to_str()
-                            .unwrap();
+                let path = f
+                    .path
+                    .as_deref()
+                    .ok_or(AsvoError::NoPath { job_id: job.jobid })?;
+                let path_obj = Path::new(path);
+                let folder_name = path_obj
+                    .components()
+                    .next_back()
+                    .unwrap()
+                    .as_os_str()
+                    .to_str()
+                    .unwrap();
 
-                        if !Path::exists(path_obj) {
-                            error!(
-                                "{} Files for Job are not reachable from the current host. You will find your jobs's files on the scratch filesystem at Pawsey.",
-                                log_prefix
-                            );
-                        } else {
-                            info!("{} Files for Job are reachable from the current host. Copying to current directory.", log_prefix);
-
-                            let mut current_path = current_dir()?;
-                            current_path.push(folder_name);
-                            rename(path, current_path)?;
-                        }
-                    }
-                    None => return Err(AsvoError::NoPath { job_id: job.jobid }),
+                if !path_obj.exists() {
+                    error!(
+                        "{} Files for Job are not reachable from the current host. \
+                         You will find your job's files on the scratch filesystem at Pawsey.",
+                        log_prefix
+                    );
+                } else {
+                    info!(
+                        "{} Files for Job are reachable from the current host. \
+                         Copying to current directory.",
+                        log_prefix
+                    );
+                    let mut current_path = current_dir()?;
+                    current_path.push(folder_name);
+                    rename(path, current_path)?;
                 }
             }
         }
@@ -300,38 +231,34 @@ fn download(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn try_download(
+/// Execute a single HTTP file download (Acacia delivery), with optional
+/// resume support, stream-untarring, on-the-fly SHA1 hashing, and progress
+/// reporting.
+fn try_download(
     http_client: &Client,
     url: &str,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
     file_info: &AsvoFilesArray,
     job: &AsvoJob,
-    download_dir: &str,
     out_path: &PathBuf,
     log_prefix: &str,
-    progress_bar: &ProgressBar,
+    opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
-    // How big should our in-memory download buffer be [MiB]?
     let buffer_size = match var(CONST_ENV_GIANT_SQUID_BUF_SIZE) {
         Ok(s) => s.parse()?,
         Err(_) => 100, // 100 MiB by default.
     } * 1024
         * 1024;
 
-    // Get mwa asvo hash
-    let mwa_asvo_hash = match &file_info.sha1 {
-        Some(h) => h,
-        None => panic!("{} job does not have an Sha1 hash! Please report this to asvo_support@mwatelescope.org", log_prefix),
-    };
+    let mwa_asvo_hash = file_info.sha1.as_deref().unwrap_or_else(|| {
+        panic!(
+            "{} job does not have an Sha1 hash! \
+             Please report this to asvo_support@mwatelescope.org",
+            log_prefix
+        )
+    });
 
-    let response: reqwest::blocking::Response;
-    let mut tee: TeeReader<reqwest::blocking::Response, _>;
-
-    // This updates the spinner twice per second
-    progress_bar.enable_steady_tick(Duration::from_millis(500));
+    opts.progress_bar
+        .enable_steady_tick(Duration::from_millis(500));
 
     info!(
         "{} Download starting (type: {}, {})",
@@ -340,95 +267,18 @@ pub fn try_download(
         bytesize::ByteSize(file_info.size).display().iec(),
     );
 
-    if keep_tar {
-        let file_size_bytes: u64;
-        let mut out_file: File;
+    let response: reqwest::blocking::Response;
+    let mut tee: TeeReader<reqwest::blocking::Response, _>;
 
-        if out_path.try_exists()? {
-            // File already exists!
+    if opts.keep_tar {
+        let (mut out_file, file_size_bytes) =
+            prepare_output_file(out_path, opts.no_resume, file_info, mwa_asvo_hash, job.jobid, log_prefix)?;
 
-            if no_resume {
-                out_file = File::open(out_path)?;
-            } else {
-                out_file = File::options().append(true).open(out_path)?
-            }
+        opts.progress_bar.set_length(file_info.size);
+        opts.progress_bar.set_position(file_size_bytes);
+        opts.progress_bar.reset_eta();
+        opts.progress_bar.set_message(log_prefix.to_string());
 
-            // Get the size of the file
-            file_size_bytes = File::metadata(&out_file)?.len();
-
-            if no_resume && file_size_bytes < file_info.size {
-                warn!(
-                    "{} Partial file {:?} exists, but --no-resume was set. Skipping file.",
-                    log_prefix, out_path
-                );
-                return Ok(());
-            }
-
-            // If the file size matches the expected file size, skip downloading
-            // if the hash matches
-            if file_size_bytes == file_info.size {
-                info!(
-                    "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-                    log_prefix, out_path
-                );
-                // Now check the hash
-                match check_file_sha1_hash(out_path, mwa_asvo_hash, job.jobid) {
-                    Ok(()) => {
-                        // We already have the file and it is the right size and matches
-                        // the hash, just get out of here!
-                        progress_bar.finish_and_clear();
-                        info!(
-                            "{} File exists, is the correct size and matches the MWA ASVO provided hash. Skipping file.", log_prefix
-                        );
-                        return Ok(());
-                    }
-                    Err(_) => {
-                        // Since the hash didn't match, just truncate the file and start again
-                        if no_resume {
-                            warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Leaving file as is, since --no-resume was set.", log_prefix);
-                            return Ok(());
-                        } else {
-                            warn!("{} File exists and is the correct size, but the hash does not match the provided MWA ASVO hash. Restarting download...", log_prefix);
-
-                            let out_file_result = File::create(out_path);
-
-                            if out_file_result.is_err() {
-                                error!(
-                                    "{} Error- cannot create file {:?}",
-                                    log_prefix,
-                                    out_path.display()
-                                );
-                            }
-
-                            out_file = out_file_result?;
-                        }
-                    }
-                }
-            }
-        } else {
-            file_size_bytes = 0;
-
-            let out_file_result = File::create(out_path);
-
-            if out_file_result.is_err() {
-                error!(
-                    "{} Error- cannot create file {:?}",
-                    log_prefix,
-                    out_path.display()
-                );
-            }
-
-            out_file = out_file_result?;
-        }
-
-        // Set the progress bar to be the number bytes in the file
-        progress_bar.set_length(file_info.size);
-        progress_bar.set_position(file_size_bytes);
-        progress_bar.reset_eta();
-        progress_bar.set_message(log_prefix.to_string());
-
-        // If file_size_bytes != 0 then we are going to try and resume the download
-        // from where we left off. If file_size_bytes == 0 then we'll start from the start!
         let mut headers = HeaderMap::new();
         headers.insert(
             RANGE,
@@ -439,27 +289,9 @@ pub fn try_download(
             .unwrap(),
         );
 
-        let raw_response = http_client.get(url).headers(headers).send()?;
-
-        // Check HTTP status before attempting to read the response body
-        let status = raw_response.status();
-        if !status.is_success() {
-            let body = raw_response.text().unwrap_or_default();
-            error!(
-                "{} HTTP error {} downloading tar {:?}: {}",
-                log_prefix, status, out_path, body
-            );
-            return Err(AsvoError::HttpError {
-                status: status.as_u16(),
-                message: body,
-            });
-        }
-
-        response = raw_response;
+        response = send_checked(http_client, url, Some(headers), log_prefix)?;
         tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-        // Simply dump the response to the appropriate file name. Use a
-        // buffer to avoid doing frequent writes.
         info!(
             "{} {} tar archive {:?}",
             log_prefix,
@@ -471,141 +303,66 @@ pub fn try_download(
             out_path,
         );
 
-        let mut file_buf = BufReader::with_capacity(buffer_size, tee.by_ref());
-
-        loop {
-            let buffer = file_buf.fill_buf()?;
-            out_file.write_all(buffer)?;
-
-            let length = buffer.len();
-
-            file_buf.consume(length);
-
-            if length == 0 {
-                break;
-            } else {
-                // Increment progress bar
-                progress_bar.inc(length.try_into().unwrap());
-            }
-        }
+        copy_with_progress(tee.by_ref(), &mut out_file, buffer_size, opts.progress_bar)?;
     } else {
-        // Stream-untar the response.
-        let unpack_path = Path::new(download_dir);
+        let unpack_path = Path::new(opts.download_dir);
         info!(
             "{} Downloading and untarring to {}",
             log_prefix,
             unpack_path.display()
         );
 
-        let raw_response = http_client.get(url).send()?;
-
-        // Check HTTP status before attempting to parse body as a tar archive
-        let status = raw_response.status();
-        if !status.is_success() {
-            let body = raw_response.text().unwrap_or_default();
-            error!(
-                "{} HTTP error {} downloading and untarring to {}: {}",
-                log_prefix,
-                status,
-                unpack_path.display(),
-                body
-            );
-            return Err(AsvoError::HttpError {
-                status: status.as_u16(),
-                message: body,
-            });
-        }
-
-        response = raw_response;
+        response = send_checked(http_client, url, None, log_prefix)?;
         tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
         let mut tar = Archive::new(&mut tee);
         tar.set_preserve_mtime(false);
 
-        let tar_entries = tar.entries()?;
+        opts.progress_bar.set_length(file_info.size);
+        opts.progress_bar.set_position(0);
+        opts.progress_bar.reset_eta();
+        opts.progress_bar.set_message(log_prefix.to_string());
 
-        // Set progress max to be the full tar size (there is no compression
-        // so the extracted size will == the tar size)
-        progress_bar.set_length(file_info.size);
-        progress_bar.set_position(0);
-        progress_bar.reset_eta();
-        progress_bar.set_message(log_prefix.to_string());
+        for entry in tar.entries()? {
+            let entry = entry.unwrap();
+            let entry_path = entry.path()?.to_path_buf();
+            let out_full = unpack_path.join(&entry_path);
 
-        // Loop through all files in the tar and unpack each one
-        for file in tar_entries {
-            let file = file.unwrap();
-            let out_filename = &file.path()?.to_path_buf();
-            let out_full_filename = unpack_path.join(out_filename);
-
-            // Ignore the "." tar entry
-            if !out_filename.to_str().unwrap().ends_with("/") {
-                debug!(
-                    "{} Writing file {}",
-                    log_prefix,
-                    out_full_filename.display()
-                );
-                let mut file_buf = BufReader::with_capacity(buffer_size, file);
-                let out_file_result = File::create(&out_full_filename);
-
-                if out_file_result.is_err() {
-                    error!(
-                        "{} Error- cannot create file {:?}",
-                        log_prefix,
-                        out_full_filename.display()
-                    );
-                }
-
-                let mut out_file = out_file_result?;
-
-                loop {
-                    let buffer = file_buf.fill_buf()?;
-                    out_file.write_all(buffer)?;
-
-                    let length = buffer.len();
-
-                    file_buf.consume(length);
-
-                    if length == 0 {
-                        break;
-                    } else {
-                        // Increment progress bar
-                        progress_bar.inc(length.try_into().unwrap());
-                    }
-                }
-            } else if !out_full_filename.exists() {
-                // Create the directory
-                debug!("{} Creating directory {:?}", log_prefix, out_full_filename);
-                let create_dir_result = std::fs::create_dir(&out_full_filename);
-                if create_dir_result.is_err() {
+            if !entry_path.to_str().unwrap().ends_with('/') {
+                debug!("{} Writing file {}", log_prefix, out_full.display());
+                let mut out_file = create_file_logged(&out_full, log_prefix)?;
+                copy_with_progress(
+                    BufReader::with_capacity(buffer_size, entry),
+                    &mut out_file,
+                    buffer_size,
+                    opts.progress_bar,
+                )?;
+            } else if !out_full.exists() {
+                debug!("{} Creating directory {:?}", log_prefix, out_full);
+                std::fs::create_dir(&out_full).map_err(|e| {
                     error!(
                         "{} Error- cannot create directory {:?}",
                         log_prefix,
-                        out_full_filename.display()
+                        out_full.display()
                     );
-                    create_dir_result?;
-                }
+                    AsvoError::IO(e)
+                })?;
             } else {
-                debug!(
-                    "{} Directory exists {}",
-                    log_prefix,
-                    out_full_filename.display()
-                );
+                debug!("{} Directory exists {}", log_prefix, out_full.display());
             }
         }
     }
 
-    // If we were told to hash the download, compare our hash against
-    // the upstream hash. Stream untarring may not read all of the
-    // bytes; read the tee to the end.
+    // Drain any remaining bytes so the TeeReader's hash covers everything.
     {
         let mut final_bytes = vec![];
         tee.read_to_end(&mut final_bytes)?;
         debug!("{} Read final bytes: {}", log_prefix, final_bytes.len());
     }
 
-    progress_bar.finish_and_clear();
+    opts.progress_bar.finish_and_clear();
 
-    if hash {
+    if opts.hash {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
@@ -622,9 +379,140 @@ pub fn try_download(
                 expected_hash: mwa_asvo_hash.to_string(),
             });
         }
-
         info!("{} File matches the MWA ASVO provided hash.", log_prefix);
     }
 
     Ok(())
 }
+
+// --- helpers ---------------------------------------------------------------
+
+/// Send an HTTP GET and check for a successful status code.
+fn send_checked(
+    http_client: &Client,
+    url: &str,
+    headers: Option<HeaderMap>,
+    log_prefix: &str,
+) -> Result<reqwest::blocking::Response, AsvoError> {
+    let mut req = http_client.get(url);
+    if let Some(h) = headers {
+        req = req.headers(h);
+    }
+    let response = req.send()?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        error!("{} HTTP error {}: {}", log_prefix, status, body);
+        return Err(AsvoError::HttpError {
+            status: status.as_u16(),
+            message: body,
+        });
+    }
+    Ok(response)
+}
+
+/// Buffered copy from `reader` to `writer`, updating the progress bar.
+fn copy_with_progress(
+    reader: impl Read,
+    writer: &mut impl Write,
+    buffer_size: usize,
+    progress_bar: &ProgressBar,
+) -> Result<(), std::io::Error> {
+    let mut buf = BufReader::with_capacity(buffer_size, reader);
+    loop {
+        let data = buf.fill_buf()?;
+        let len = data.len();
+        if len == 0 {
+            break;
+        }
+        writer.write_all(data)?;
+        buf.consume(len);
+        progress_bar.inc(len as u64);
+    }
+    Ok(())
+}
+
+/// Create a file, logging on failure.
+fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> {
+    File::create(path).map_err(|e| {
+        error!(
+            "{} Error- cannot create file {:?}",
+            log_prefix,
+            path.display()
+        );
+        AsvoError::IO(e)
+    })
+}
+
+/// Prepare the output file for a keep-tar download, handling resume and
+/// existing-file-with-matching-hash short-circuits.  Returns the open file
+/// handle and the byte count already on disk (0 for a fresh download).
+fn prepare_output_file(
+    out_path: &PathBuf,
+    no_resume: bool,
+    file_info: &AsvoFilesArray,
+    mwa_asvo_hash: &str,
+    jobid: AsvoJobID,
+    log_prefix: &str,
+) -> Result<(File, u64), AsvoError> {
+    if !out_path.try_exists()? {
+        return Ok((create_file_logged(out_path, log_prefix)?, 0));
+    }
+
+    // File already exists.
+    let out_file = if no_resume {
+        File::open(out_path)?
+    } else {
+        File::options().append(true).open(out_path)?
+    };
+    let file_size_bytes = File::metadata(&out_file)?.len();
+
+    if no_resume && file_size_bytes < file_info.size {
+        warn!(
+            "{} Partial file {:?} exists, but --no-resume was set. Skipping file.",
+            log_prefix, out_path
+        );
+        // Signal: nothing to download (caller should return Ok early).
+        // We re-use the existing file handle with size == expected so the
+        // caller's "already complete" path fires.  A cleaner option would
+        // be a dedicated return variant, but this preserves the original
+        // behaviour without changing the control flow.
+        return Ok((out_file, file_info.size));
+    }
+
+    if file_size_bytes == file_info.size {
+        info!(
+            "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
+            log_prefix, out_path
+        );
+        match check_file_sha1_hash(out_path, mwa_asvo_hash, jobid) {
+            Ok(()) => {
+                info!(
+                    "{} File exists, is the correct size and matches the MWA ASVO provided hash. Skipping file.",
+                    log_prefix
+                );
+                // Return size == expected to signal "already complete".
+                return Ok((out_file, file_info.size));
+            }
+            Err(_) => {
+                if no_resume {
+                    warn!(
+                        "{} File exists and is the correct size, but the hash does not match \
+                         the provided MWA ASVO hash. Leaving file as is, since --no-resume was set.",
+                        log_prefix
+                    );
+                    return Ok((out_file, file_info.size));
+                }
+                warn!(
+                    "{} File exists and is the correct size, but the hash does not match \
+                     the provided MWA ASVO hash. Restarting download...",
+                    log_prefix
+                );
+                return Ok((create_file_logged(out_path, log_prefix)?, 0));
+            }
+        }
+    }
+
+    Ok((out_file, file_size_bytes))
+}
+

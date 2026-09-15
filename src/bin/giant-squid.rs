@@ -80,71 +80,29 @@ fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     pb
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run_jobid_download(
     jobid: AsvoJobID,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
-    download_dir: &str,
-    multi_progress_bar: &MultiProgress,
-    download_number: usize,
-    download_count: usize,
+    opts: &DownloadOptions,
 ) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let pb = create_progress_bar(multi_progress_bar);
-
     let client = AsvoClientv2::new()?;
-    let jobs = client.get_jobs(None)?;
-    download_jobid(
-        client.http_client(),
-        jobs,
-        jobid,
-        keep_tar,
-        no_resume,
-        hash,
-        download_dir,
-        &pb,
-        download_number,
-        download_count,
-    )?;
+    client.download_jobid(jobid, opts)?;
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 fn run_obsid_download(
     obsid: Obsid,
-    keep_tar: bool,
-    no_resume: bool,
-    hash: bool,
-    download_dir: &str,
-    multi_progress_bar: &MultiProgress,
-    download_number: usize,
-    download_count: usize,
+    opts: &DownloadOptions,
 ) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let pb = create_progress_bar(multi_progress_bar);
-
     let client = AsvoClientv2::new()?;
-    let jobs = client.get_jobs(None)?;
-    download_obsid(
-        client.http_client(),
-        jobs,
-        obsid,
-        keep_tar,
-        no_resume,
-        hash,
-        download_dir,
-        &pb,
-        download_number,
-        download_count,
-    )?;
+    client.download_obsid(obsid, opts)?;
     Ok(())
 }
 
@@ -1025,16 +983,17 @@ fn main() -> Result<(), anyhow::Error> {
                     .par_iter()
                     .enumerate()
                     .map(|(c, j)| {
-                        run_jobid_download(
-                            *j,
-                            keep_zip,
+                        let pb = create_progress_bar(&mpb);
+                        let opts = DownloadOptions {
+                            keep_tar: keep_zip,
                             no_resume,
                             hash,
-                            &download_dir,
-                            &mpb,
-                            c + 1,
-                            t,
-                        )
+                            download_dir: &download_dir,
+                            progress_bar: &pb,
+                            download_number: c + 1,
+                            download_count: t,
+                        };
+                        run_jobid_download(*j, &opts)
                     })
                     .collect();
 
@@ -1042,16 +1001,17 @@ fn main() -> Result<(), anyhow::Error> {
                     .par_iter()
                     .enumerate()
                     .map(|(c, o)| {
-                        run_obsid_download(
-                            *o,
-                            keep_zip,
+                        let pb = create_progress_bar(&mpb);
+                        let opts = DownloadOptions {
+                            keep_tar: keep_zip,
                             no_resume,
                             hash,
-                            &download_dir,
-                            &mpb,
-                            c + 1,
-                            t,
-                        )
+                            download_dir: &download_dir,
+                            progress_bar: &pb,
+                            download_number: c + 1,
+                            download_count: t,
+                        };
+                        run_obsid_download(*o, &opts)
                     })
                     .collect();
 

@@ -26,8 +26,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    get_asvo_server_address, get_asvo_server_address_env, AsvoJob, AsvoJobID, AsvoJobState,
-    AsvoJobType, AsvoJobVec,
+    download_by_jobid, download_by_obsid, get_asvo_server_address, get_asvo_server_address_env,
+    AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, DownloadOptions,
 };
 use crate::built_info;
 use crate::obsid::Obsid;
@@ -183,6 +183,32 @@ impl AsvoClientv2 {
     /// to Ceph signed URLs) outside the ASVO API.
     pub fn http_client(&self) -> &Client {
         &self.client
+    }
+
+    /// Download the MWA ASVO job with the given job ID.
+    /// Fetches the current job list, locates the job, and downloads its
+    /// files according to the supplied options.
+    pub fn download_jobid(
+        &self,
+        jobid: AsvoJobID,
+        opts: &DownloadOptions,
+    ) -> anyhow::Result<()> {
+        let jobs = self.get_jobs(None)?;
+        download_by_jobid(&self.client, jobs, jobid, opts)?;
+        Ok(())
+    }
+
+    /// Download the MWA ASVO job associated with the given obsid.
+    /// Fetches the current job list, locates the single ready job for
+    /// the obsid, and downloads its files according to the supplied options.
+    pub fn download_obsid(
+        &self,
+        obsid: Obsid,
+        opts: &DownloadOptions,
+    ) -> anyhow::Result<()> {
+        let jobs = self.get_jobs(None)?;
+        download_by_obsid(&self.client, jobs, obsid, opts)?;
+        Ok(())
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
