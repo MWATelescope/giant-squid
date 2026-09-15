@@ -34,10 +34,10 @@ use crate::obsid::Obsid;
 
 use super::error::Apiv2Error;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams,
-    DownloadJobParams, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    JobDetailResponse, JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login,
-    TokenResponse, UserResponse, VoltageJobParams,
+    ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
+    ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
+    JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login, TokenResponse,
+    UserResponse, VoltageJobParams,
 };
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -176,6 +176,13 @@ impl AsvoClientv2 {
             .build()?;
 
         Ok(AsvoClientv2 { client })
+    }
+
+    /// Returns a reference to the underlying HTTP client, for use by
+    /// download functions that need to make direct HTTP requests (e.g.
+    /// to Ceph signed URLs) outside the ASVO API.
+    pub fn http_client(&self) -> &Client {
+        &self.client
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
@@ -473,10 +480,7 @@ impl AsvoClientv2 {
         Ok(job_id)
     }
 
-    pub fn submit_image_from_job(
-        &self,
-        params: &ImagingJobFlow2Params,
-    ) -> Result<i64, Apiv2Error> {
+    pub fn submit_image_from_job(&self, params: &ImagingJobFlow2Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
         let response = self
@@ -595,10 +599,7 @@ impl AsvoClientv2 {
 
         let response = self
             .client
-            .post(format!(
-                "{}/api/v2/voltage_job",
-                get_asvo_server_address()
-            ))
+            .post(format!("{}/api/v2/voltage_job", get_asvo_server_address()))
             .json(params)
             .send()?;
 

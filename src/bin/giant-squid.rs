@@ -18,11 +18,10 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::apiv2::openapi::{
-    BeamformerJobParams, ConversionJobParams, ConversionJobParamsCentre,
-    Delivery as V2Delivery, DeliveryFormat as V2DeliveryFormat, DownloadJobParams,
-    DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params,
-    ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params, Output, OutputMode, VoltageJobParams,
-    Weighting,
+    BeamformerJobParams, ConversionJobParams, ConversionJobParamsCentre, Delivery as V2Delivery,
+    DeliveryFormat as V2DeliveryFormat, DownloadJobParams, DownloadJobParamsDownloadType,
+    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params,
+    Output, OutputMode, VoltageJobParams, Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -91,15 +90,18 @@ fn run_jobid_download(
     multi_progress_bar: &MultiProgress,
     download_number: usize,
     download_count: usize,
-) -> Result<AsvoClient, AsvoError> {
+) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let pb = create_progress_bar(multi_progress_bar);
 
-    let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_jobid(
+    let client = AsvoClientv2::new()?;
+    let jobs = client.get_jobs(None)?;
+    download_jobid(
+        client.http_client(),
+        jobs,
         jobid,
         keep_tar,
         no_resume,
@@ -109,7 +111,7 @@ fn run_jobid_download(
         download_number,
         download_count,
     )?;
-    Ok(client)
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -122,15 +124,18 @@ fn run_obsid_download(
     multi_progress_bar: &MultiProgress,
     download_number: usize,
     download_count: usize,
-) -> Result<AsvoClient, AsvoError> {
+) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let pb = create_progress_bar(multi_progress_bar);
 
-    let client = AsvoClient::new().expect("Cannot create new MWA ASVO client");
-    client.download_obsid(
+    let client = AsvoClientv2::new()?;
+    let jobs = client.get_jobs(None)?;
+    download_obsid(
+        client.http_client(),
+        jobs,
         obsid,
         keep_tar,
         no_resume,
@@ -140,7 +145,7 @@ fn run_obsid_download(
         download_number,
         download_count,
     )?;
-    Ok(client)
+    Ok(())
 }
 
 #[derive(Parser, Debug)]
@@ -1080,7 +1085,7 @@ fn main() -> Result<(), anyhow::Error> {
                 // the results (I think)
                 let t: usize = jobids.len() + obsids.len();
 
-                let mut jobids_results: Vec<Result<AsvoClient, AsvoError>> = jobids
+                let mut jobids_results: Vec<anyhow::Result<()>> = jobids
                     .par_iter()
                     .enumerate()
                     .map(|(c, j)| {
@@ -1097,7 +1102,7 @@ fn main() -> Result<(), anyhow::Error> {
                     })
                     .collect();
 
-                let mut obsids_results: Vec<Result<AsvoClient, AsvoError>> = obsids
+                let mut obsids_results: Vec<anyhow::Result<()>> = obsids
                     .par_iter()
                     .enumerate()
                     .map(|(c, o)| {
