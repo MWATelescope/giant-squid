@@ -18,8 +18,9 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::apiv2::openapi::{
-    DeliveryFormat as V2DeliveryFormat, ImageSizes, ImagingJobParams, ImagingJobParamsDelivery,
-    JobType, OutputMode, PhaseCenter, Weighting,
+    Delivery as V2Delivery, DeliveryFormat as V2DeliveryFormat, ImageSizes,
+    ImagingJobFlow1Params, ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params, OutputMode,
+    Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -335,15 +336,9 @@ enum Args {
     /// Submit MWA ASVO imaging jobs (v2 API)
     #[command(alias = "si")]
     SubmitImage {
-        /// An existing MWA ASVO conversion job ID to image, instead of
-        /// converting the obsid from scratch. Only valid when exactly one
-        /// obsid is given.
-        #[arg(long)]
-        source_job_id: Option<std::num::NonZeroU64>,
-
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = ImagingJobParamsDelivery::Acacia)]
-        delivery: ImagingJobParamsDelivery,
+        #[arg(short, long, default_value_t = V2Delivery::Acacia)]
+        delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files)]
@@ -439,8 +434,149 @@ enum Args {
         output_mode: OutputMode,
 
         /// Where to centre the image.
-        #[arg(long, default_value_t = PhaseCenter::Phase)]
-        phase_center: PhaseCenter,
+        #[arg(long, default_value_t = ImagingJobFlow1ParamsPhaseCenter::Phase)]
+        phase_center: ImagingJobFlow1ParamsPhaseCenter,
+
+        /// Pixel scale (arcsec/pixel).
+        #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
+        pixel_scale: f64,
+
+        /// Polarisations to image, comma separated.
+        #[arg(long, default_value = "XX,YY")]
+        pol: String,
+
+        /// WSClean -robust (Briggs robustness) value.
+        #[arg(long, default_value_t = -0.5, value_parser = parse_f64_range(-2.0, 2.0))]
+        robust: f64,
+
+        /// Maximum uv distance to image, in wavelengths (upper bound on
+        /// the range that can be requested).
+        #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
+        uvw_max: Option<f64>,
+
+        /// Minimum uv distance to image, in wavelengths.
+        #[arg(long, default_value_t = 75.0, value_parser = parse_f64_range(f64::MIN, 100.0))]
+        uvw_min: f64,
+
+        /// WSClean weighting scheme.
+        #[arg(long, default_value_t = Weighting::Briggs)]
+        weighting: Weighting,
+
+        /// Number of w-stacking layers. Leave unset to let the server
+        /// decide.
+        #[arg(long)]
+        wstack_nwlayers: Option<i64>,
+
+        /// Whether to skip applying amplitude calibration solutions.
+        /// Leave at the default (false) unless you know you need this.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        no_apply_amps: bool,
+
+        /// Do not exit giant-squid until the specified obsids are ready for
+        /// download.
+        #[arg(short, long)]
+        wait: bool,
+
+        /// Don't actually submit; print information on what would've happened
+        /// instead.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+
+        /// Allow resubmitting a job even if an identical one has completed.
+        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
+        allow_resubmit: bool,
+
+        /// The verbosity of the program. The default is to print high-level
+        /// information.
+        #[arg(short, long, action=ArgAction::Count)]
+        verbosity: u8,
+
+        /// The obsids to submit for imaging. Files containing obsids are
+        /// also accepted. All obsids in one invocation share the same
+        /// parameters above.
+        #[arg(id = "OBSID")]
+        obsids: Vec<String>,
+    },
+
+    /// Submit MWA ASVO imaging jobs from an existing conversion job (v2 API).
+    /// Unlike submit-image, this skips the conversion step and images
+    /// directly from the output of a previous conversion job.
+    #[command(alias = "sifj")]
+    SubmitImageFromJob {
+        /// The MWA ASVO conversion job ID to image from. Required.
+        #[arg(long)]
+        source_job_id: std::num::NonZeroU64,
+
+        /// Tell MWA ASVO where to deliver the data.
+        #[arg(short, long, default_value_t = V2Delivery::Acacia)]
+        delivery: V2Delivery,
+
+        /// Tell MWA ASVO to deliver the data in a particular format.
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files)]
+        delivery_format: V2DeliveryFormat,
+
+        /// Whether to apply the primary beam correction.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        apply_primary_beam: bool,
+
+        /// WSClean -auto-mask value.
+        #[arg(long, default_value_t = 3, value_parser = parse_i64_range(2, 512))]
+        auto_mask: i64,
+
+        /// WSClean -auto-threshold value.
+        #[arg(long, default_value_t = 0.5, value_parser = parse_f64_range(0.1, 5.0))]
+        auto_threshold: f64,
+
+        /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
+        /// unless explicitly set.
+        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
+        abs_threshold: Option<f64>,
+
+        /// Number of output channel groups.
+        #[arg(long, default_value_t = 4)]
+        channels_out: i64,
+
+        /// WSClean -niter value (max clean iterations).
+        #[arg(long, default_value_t = 100000, value_parser = parse_i64_range(0, 1_000_000))]
+        clean_iterations: i64,
+
+        /// WSClean cleaning threshold (Jy). Takes precedence over
+        /// auto_threshold if set.
+        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
+        clean_threshold: Option<f64>,
+
+        /// WSClean image size in pixels.
+        #[arg(long, default_value_t = 3072, value_parser = parse_image_size)]
+        image_size: i64,
+
+        /// Join output channel groups for cleaning.
+        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        join_channels: bool,
+
+        /// Join polarisations for cleaning.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        join_polarizations: bool,
+
+        /// WSClean -mgain value.
+        #[arg(long, default_value_t = 0.8, value_parser = parse_f64_range(0.1, 1.0))]
+        mgain: f64,
+
+        /// Enable WSClean multiscale cleaning.
+        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        multiscale: bool,
+
+        /// WSClean -nmiter value (max major cleaning iterations).
+        #[arg(long, default_value_t = 10, value_parser = parse_i64_range(1, 500))]
+        nmiter: i64,
+
+        /// Number of w-projection layers. Leave unset to let the server
+        /// decide.
+        #[arg(long, value_parser = parse_i64_range(32, 512))]
+        nwlayers: Option<i64>,
+
+        /// The output mode / product to request.
+        #[arg(short = 'o', long, default_value_t = OutputMode::Fits)]
+        output_mode: OutputMode,
 
         /// Pixel scale (arcsec/pixel).
         #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
@@ -482,9 +618,8 @@ enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
-        /// Not yet supported by the MWA ASVO v2 imaging_job endpoint;
-        /// reserved for when it is. Currently has no effect.
-        #[arg(short = 'r', long, action=ArgAction::SetTrue)]
+        /// Allow resubmitting a job even if an identical one has completed.
+        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
         allow_resubmit: bool,
 
         /// The verbosity of the program. The default is to print high-level
@@ -492,9 +627,8 @@ enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
-        /// The obsids to submit for imaging. Files containing obsids are
-        /// also accepted. All obsids in one invocation share the same
-        /// parameters above.
+        /// The obsid to image. Exactly one obsid is required (the
+        /// source_job_id identifies the conversion job for this obsid).
         #[arg(id = "OBSID")]
         obsids: Vec<String>,
     },
@@ -1141,7 +1275,6 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitImage {
-            source_job_id,
             delivery,
             delivery_format,
             apply_di_cal,
@@ -1173,9 +1306,10 @@ fn main() -> Result<(), anyhow::Error> {
             uvw_min,
             weighting,
             wstack_nwlayers,
+            no_apply_amps,
             wait,
             dry_run,
-            allow_resubmit: _, // Not yet supported by the v2 API; see the arg's help text.
+            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1186,13 +1320,7 @@ fn main() -> Result<(), anyhow::Error> {
             let (jobids_from_input, obsids) = parse_many_jobids_or_obsids(&obsids)?;
             if !jobids_from_input.is_empty() {
                 bail!(
-                    "This command only accepts obsids; to image an existing conversion job, use --source-job-id instead."
-                );
-            }
-
-            if source_job_id.is_some() && obsids.len() != 1 {
-                bail!(
-                    "--source-job-id can only be used when submitting exactly one obsid (it names the conversion job for that one obsid)."
+                    "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead."
                 );
             }
 
@@ -1205,15 +1333,14 @@ fn main() -> Result<(), anyhow::Error> {
 
             if dry_run {
                 info!(
-                    "Would have submitted {} obsids for imaging with: delivery={:?}, delivery_format={:?}, image_size={:?}, weighting={:?}, output_mode={:?}, phase_center={:?}, source_job_id={:?}",
+                    "Would have submitted {} obsids for imaging with: delivery={:?}, delivery_format={:?}, image_size={:?}, weighting={:?}, output_mode={:?}, phase_center={:?}",
                     obsids.len(),
                     delivery,
                     delivery_format,
                     image_size,
                     weighting,
                     output_mode,
-                    phase_center,
-                    source_job_id
+                    phase_center
                 );
             } else {
                 let client = AsvoClientv2::new()?;
@@ -1224,34 +1351,33 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(*o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: ImagingJobParams = ImagingJobParams::builder()
+                    let params: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
                         .obs_id(obs_id_i64)
-                        .job_type(JobType::Imaging)
-                        .source_job_id(source_job_id)
-                        .delivery(Some(delivery))
+                        .delivery(delivery)
                         .delivery_format(delivery_format)
-                        .apply_di_cal(apply_di_cal)
+                        .apply_di_cal(Some(apply_di_cal))
                         .apply_primary_beam(apply_primary_beam)
                         .auto_mask(auto_mask)
                         .auto_threshold(auto_threshold)
                         .abs_threshold(abs_threshold)
-                        .avg_freq_res(avg_freq_res)
-                        .avg_time_res(avg_time_res)
+                        .avg_freq_res(Some(avg_freq_res))
+                        .avg_time_res(Some(avg_time_res))
                         .channels_out(channels_out)
                         .clean_iterations(clean_iterations)
                         .clean_threshold(clean_threshold)
                         .custom_dec(custom_dec)
                         .custom_ra(custom_ra)
-                        .flag_edge_width(flag_edge_width)
+                        .flag_edge_width(Some(flag_edge_width))
                         .image_size(image_size.clone())
                         .join_channels(join_channels)
                         .join_polarizations(join_polarizations)
                         .mgain(mgain)
                         .multiscale(multiscale)
                         .nmiter(nmiter)
+                        .no_apply_amps(Some(no_apply_amps))
                         .nwlayers(nwlayers)
                         .output_mode(output_mode)
-                        .phase_center(phase_center)
+                        .phase_center(Some(phase_center))
                         .pixel_scale(pixel_scale)
                         .pol(pol.clone())
                         .robust(robust)
@@ -1259,6 +1385,7 @@ fn main() -> Result<(), anyhow::Error> {
                         .uvw_min(uvw_min)
                         .weighting(weighting)
                         .wstack_nwlayers(wstack_nwlayers)
+                        .allow_resubmit(Some(allow_resubmit))
                         .try_into()?;
 
                     let job_id = client.submit_imaging_job(&params)?;
@@ -1281,6 +1408,126 @@ fn main() -> Result<(), anyhow::Error> {
                     // get_jobs, so this polls the same v2 API we just
                     // submitted to.
                     wait_loop_v2(&client, &jobids)?;
+                }
+            }
+        }
+
+        Args::SubmitImageFromJob {
+            source_job_id,
+            delivery,
+            delivery_format,
+            apply_primary_beam,
+            auto_mask,
+            auto_threshold,
+            abs_threshold,
+            channels_out,
+            clean_iterations,
+            clean_threshold,
+            image_size,
+            join_channels,
+            join_polarizations,
+            mgain,
+            multiscale,
+            nmiter,
+            nwlayers,
+            output_mode,
+            pixel_scale,
+            pol,
+            robust,
+            uvw_max,
+            uvw_min,
+            weighting,
+            wstack_nwlayers,
+            wait,
+            dry_run,
+            allow_resubmit,
+            verbosity,
+            obsids,
+        } => {
+            if obsids.is_empty() {
+                bail!("No obsids specified!");
+            }
+
+            let (jobids_from_input, obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            if !jobids_from_input.is_empty() {
+                bail!("This command only accepts obsids, not job IDs.");
+            }
+
+            if obsids.len() != 1 {
+                bail!(
+                    "submit-image-from-job requires exactly one obsid \
+                     (the source_job_id identifies the conversion job for that obsid)."
+                );
+            }
+
+            init_logger(verbosity);
+
+            let image_size: ImageSizes = ImageSizes::try_from(image_size)
+                .map_err(|e| anyhow::anyhow!("Invalid image_size: {e}"))?;
+            let nmiter = std::num::NonZeroU64::new(nmiter as u64)
+                .expect("clap's range validator already ensures nmiter >= 1");
+
+            if dry_run {
+                info!(
+                    "Would have submitted obsid {} for image-from-job with: \
+                     source_job_id={}, delivery={:?}, delivery_format={:?}, \
+                     image_size={:?}, weighting={:?}, output_mode={:?}",
+                    obsids[0],
+                    source_job_id,
+                    delivery,
+                    delivery_format,
+                    image_size,
+                    weighting,
+                    output_mode
+                );
+            } else {
+                let client = AsvoClientv2::new()?;
+
+                let o = &obsids[0];
+                let obs_id_i64 = i64::try_from(u64::from(*o))
+                    .expect("Obsid's validated range always fits in i64");
+
+                let params: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
+                    .obs_id(obs_id_i64)
+                    .source_job_id(source_job_id)
+                    .delivery(delivery)
+                    .delivery_format(delivery_format)
+                    .apply_primary_beam(apply_primary_beam)
+                    .auto_mask(auto_mask)
+                    .auto_threshold(auto_threshold)
+                    .abs_threshold(abs_threshold)
+                    .channels_out(channels_out)
+                    .clean_iterations(clean_iterations)
+                    .clean_threshold(clean_threshold)
+                    .image_size(image_size)
+                    .join_channels(join_channels)
+                    .join_polarizations(join_polarizations)
+                    .mgain(mgain)
+                    .multiscale(multiscale)
+                    .nmiter(nmiter)
+                    .nwlayers(nwlayers)
+                    .output_mode(output_mode)
+                    .pixel_scale(pixel_scale)
+                    .pol(pol)
+                    .robust(robust)
+                    .uvw_max(uvw_max)
+                    .uvw_min(uvw_min)
+                    .weighting(weighting)
+                    .wstack_nwlayers(wstack_nwlayers)
+                    .allow_resubmit(Some(allow_resubmit))
+                    .try_into()?;
+
+                let job_id = client.submit_image_from_job(&params)?;
+                info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
+
+                if wait {
+                    match AsvoJobID::try_from(job_id) {
+                        Ok(id) => wait_loop_v2(&client, &[id])?,
+                        Err(_) => warn!(
+                            "MWA ASVO job ID {} doesn't fit in the expected range; cannot --wait",
+                            job_id
+                        ),
+                    }
                 }
             }
         }

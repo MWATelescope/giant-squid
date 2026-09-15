@@ -7,65 +7,7 @@
 // --features regen-openapi), from src/asvo/apiv2/openapi-schema.json.
 // Manual edits or modifications will be lost next time it is generated!
 //
-/// Error types.
-pub mod error {
-    /// Error from a `TryFrom` or `FromStr` implementation.
-    pub struct ConversionError(::std::borrow::Cow<'static, str>);
-    impl ::std::error::Error for ConversionError {}
-    impl ::std::fmt::Display for ConversionError {
-        fn fmt(
-            &self,
-            f: &mut ::std::fmt::Formatter<'_>,
-        ) -> Result<(), ::std::fmt::Error> {
-            ::std::fmt::Display::fmt(&self.0, f)
-        }
-    }
-    impl ::std::fmt::Debug for ConversionError {
-        fn fmt(
-            &self,
-            f: &mut ::std::fmt::Formatter<'_>,
-        ) -> Result<(), ::std::fmt::Error> {
-            ::std::fmt::Debug::fmt(&self.0, f)
-        }
-    }
-    impl From<&'static str> for ConversionError {
-        fn from(value: &'static str) -> Self {
-            Self(value.into())
-        }
-    }
-    impl From<String> for ConversionError {
-        fn from(value: String) -> Self {
-            Self(value.into())
-        }
-    }
-}
 ///Response model for the /new_api_key endpoint
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "APIKeyResponse",
-///  "description": "Response model for the /new_api_key endpoint",
-///  "type": "object",
-///  "required": [
-///    "api_key",
-///    "created"
-///  ],
-///  "properties": {
-///    "api_key": {
-///      "title": "Api Key",
-///      "type": "string"
-///    },
-///    "created": {
-///      "title": "Created",
-///      "type": "string",
-///      "format": "date-time"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ApiKeyResponse {
     pub api_key: ::std::string::String,
@@ -77,38 +19,6 @@ impl ApiKeyResponse {
     }
 }
 ///Request model for client app login endpoint (uses API key instead of username)
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ApiLoginRequest",
-///  "description": "Request model for client app login endpoint (uses API key instead of username)",
-///  "type": "object",
-///  "required": [
-///    "login",
-///    "password"
-///  ],
-///  "properties": {
-///    "login": {
-///      "title": "Login",
-///      "description": "The name of the client app",
-///      "examples": [
-///        "manta-ray-clientv2.0.1",
-///        "giant-squidv2.0.1"
-///      ],
-///      "type": "string",
-///      "maxLength": 36,
-///      "minLength": 1
-///    },
-///    "password": {
-///      "title": "Password",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ApiLoginRequest {
     ///The name of the client app
@@ -121,48 +31,6 @@ impl ApiLoginRequest {
     }
 }
 ///Response model for login endpoint through other clients (CLIs, external services)
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ApiLoginResponse",
-///  "description": "Response model for login endpoint through other clients (CLIs, external services)",
-///  "type": "object",
-///  "required": [
-///    "access_token",
-///    "refresh_token",
-///    "user"
-///  ],
-///  "properties": {
-///    "access_token": {
-///      "title": "Access Token",
-///      "description": "JWT access token (also set in HTTP-only cookie)",
-///      "type": "string"
-///    },
-///    "refresh_token": {
-///      "title": "Refresh Token",
-///      "description": "JWT refresh token (also set in HTTP-only cookie)",
-///      "type": "string"
-///    },
-///    "token_type": {
-///      "title": "Token Type",
-///      "description": "Token type for Authorization header",
-///      "default": "bearer",
-///      "type": "string"
-///    },
-///    "user": {
-///      "$ref": "#/definitions/UserResponse"
-///    }
-///  },
-///  "example": {
-///    "access_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
-///    "refresh_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
-///    "token_type": "bearer"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ApiLoginResponse {
     ///JWT access token (also set in HTTP-only cookie)
@@ -180,25 +48,6 @@ impl ApiLoginResponse {
     }
 }
 ///`AuthStatusResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "AuthStatusResponse",
-///  "type": "object",
-///  "required": [
-///    "authenticated"
-///  ],
-///  "properties": {
-///    "authenticated": {
-///      "title": "Authenticated",
-///      "type": "boolean"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct AuthStatusResponse {
     pub authenticated: bool,
@@ -209,75 +58,6 @@ impl AuthStatusResponse {
     }
 }
 ///Parameters for beamformer job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "BeamformerJobParams",
-///  "description": "Parameters for beamformer job submission",
-///  "type": "object",
-///  "required": [
-///    "obs_id"
-///  ],
-///  "properties": {
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "acacia",
-///      "type": "string",
-///      "enum": [
-///        "acacia",
-///        "scratch",
-///        "dug"
-///      ]
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "enum": [
-///        "tar",
-///        "files"
-///      ]
-///    },
-///    "mode": {
-///      "title": "Mode",
-///      "default": "MWAX_BEAMFORMER",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "enum": [
-///            "MWAX_BEAMFORMER",
-///            "MWAX_CORR_BF"
-///          ]
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct BeamformerJobParams {
     ///allows user to resubmit a job despite it being completed
@@ -297,19 +77,6 @@ impl BeamformerJobParams {
     }
 }
 ///`BeamformerJobParamsMode`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "type": "string",
-///  "enum": [
-///    "MWAX_BEAMFORMER",
-///    "MWAX_CORR_BF"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -356,14 +123,6 @@ impl ::std::convert::TryFrom<&str> for BeamformerJobParamsMode {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for BeamformerJobParamsMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for BeamformerJobParamsMode {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -373,56 +132,6 @@ impl ::std::convert::TryFrom<::std::string::String> for BeamformerJobParamsMode 
     }
 }
 ///Calibration service callback
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "CalibrationReadyCallback",
-///  "description": "Calibration service callback",
-///  "type": "object",
-///  "required": [
-///    "asvo_job_id",
-///    "calibration_file",
-///    "obs_id",
-///    "status",
-///    "success",
-///    "target_obs_id"
-///  ],
-///  "properties": {
-///    "asvo_job_id": {
-///      "title": "Asvo Job Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "calibration_file": {
-///      "title": "Calibration File",
-///      "description": "Name of the calibration file (.e.g. mock_cal_1234567890.fits)",
-///      "type": "string"
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    },
-///    "status": {
-///      "title": "Status",
-///      "description": "e.g. 'completed'",
-///      "type": "string"
-///    },
-///    "success": {
-///      "title": "Success",
-///      "type": "boolean"
-///    },
-///    "target_obs_id": {
-///      "title": "Target Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct CalibrationReadyCallback {
     pub asvo_job_id: ::std::num::NonZeroU64,
@@ -440,225 +149,6 @@ impl CalibrationReadyCallback {
     }
 }
 ///Parameters for conversion job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ConversionJobParams",
-///  "description": "Parameters for conversion job submission",
-///  "type": "object",
-///  "required": [
-///    "obs_id",
-///    "phase_centre_dec",
-///    "phase_centre_ra"
-///  ],
-///  "properties": {
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "apply_di_cal": {
-///      "title": "Apply Di Cal",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "avg_freq_res": {
-///      "title": "Avg Freq Res",
-///      "default": 40.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 1280.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "avg_time_res": {
-///      "title": "Avg Time Res",
-///      "default": 2.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "centre": {
-///      "title": "Centre",
-///      "default": "phase",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "enum": [
-///            "phase",
-///            "pointing",
-///            "custom"
-///          ]
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "acacia",
-///      "type": "string",
-///      "enum": [
-///        "acacia",
-///        "scratch"
-///      ]
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "enum": [
-///        "tar",
-///        "files"
-///      ]
-///    },
-///    "flag_edge_width": {
-///      "title": "Flag Edge Width",
-///      "default": 80.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 640.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "no_apply_amps": {
-///      "title": "No Apply Amps",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "no_digital_gains": {
-///      "title": "No Digital Gains",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "no_flag_dc": {
-///      "title": "No Flag Dc",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "no_geometry_delay": {
-///      "title": "No Geometry Delay",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "no_passband_gains": {
-///      "title": "No Passband Gains",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    },
-///    "output": {
-///      "title": "Output",
-///      "default": "ms",
-///      "type": "string",
-///      "enum": [
-///        "ms",
-///        "uvfits"
-///      ]
-///    },
-///    "phase_centre_dec": {
-///      "title": "Phase Centre Dec",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 90.0,
-///          "minimum": -90.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "phase_centre_ra": {
-///      "title": "Phase Centre Ra",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 359.999999,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ConversionJobParams {
     ///allows user to resubmit a job despite it being completed
@@ -691,7 +181,9 @@ pub struct ConversionJobParams {
     pub obs_id: i64,
     #[serde(default = "defaults::conversion_job_params_output")]
     pub output: Output,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub phase_centre_dec: ::std::option::Option<f64>,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub phase_centre_ra: ::std::option::Option<f64>,
 }
 impl ConversionJobParams {
@@ -700,20 +192,6 @@ impl ConversionJobParams {
     }
 }
 ///`ConversionJobParamsCentre`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "type": "string",
-///  "enum": [
-///    "phase",
-///    "pointing",
-///    "custom"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -764,14 +242,6 @@ impl ::std::convert::TryFrom<&str> for ConversionJobParamsCentre {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for ConversionJobParamsCentre {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for ConversionJobParamsCentre {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -781,22 +251,6 @@ impl ::std::convert::TryFrom<::std::string::String> for ConversionJobParamsCentr
     }
 }
 ///`Delivery`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Delivery",
-///  "default": "acacia",
-///  "type": "string",
-///  "enum": [
-///    "acacia",
-///    "scratch",
-///    "dug"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -847,14 +301,6 @@ impl ::std::convert::TryFrom<&str> for Delivery {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Delivery {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Delivery {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -869,21 +315,6 @@ impl ::std::default::Default for Delivery {
     }
 }
 ///`DeliveryFormat`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Delivery Format",
-///  "default": "files",
-///  "type": "string",
-///  "enum": [
-///    "tar",
-///    "files"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -930,14 +361,6 @@ impl ::std::convert::TryFrom<&str> for DeliveryFormat {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for DeliveryFormat {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -952,75 +375,6 @@ impl ::std::default::Default for DeliveryFormat {
     }
 }
 ///Parameters for download job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "DownloadJobParams",
-///  "description": "Parameters for download job submission",
-///  "type": "object",
-///  "required": [
-///    "obs_id"
-///  ],
-///  "properties": {
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "acacia",
-///      "type": "string",
-///      "enum": [
-///        "acacia",
-///        "scratch",
-///        "dug"
-///      ]
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "enum": [
-///        "tar",
-///        "files"
-///      ]
-///    },
-///    "download_type": {
-///      "title": "Download Type",
-///      "default": "vis",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "enum": [
-///            "vis",
-///            "meta"
-///          ]
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct DownloadJobParams {
     ///allows user to resubmit a job despite it being completed
@@ -1040,19 +394,6 @@ impl DownloadJobParams {
     }
 }
 ///`DownloadJobParamsDownloadType`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "type": "string",
-///  "enum": [
-///    "vis",
-///    "meta"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -1099,14 +440,6 @@ impl ::std::convert::TryFrom<&str> for DownloadJobParamsDownloadType {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for DownloadJobParamsDownloadType {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for DownloadJobParamsDownloadType {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -1116,131 +449,23 @@ impl ::std::convert::TryFrom<::std::string::String> for DownloadJobParamsDownloa
     }
 }
 ///Standard error response structure for all ASVO API endpoints
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ErrorResponse",
-///  "description": "Standard error response structure for all ASVO API endpoints",
-///  "examples": [
-///    {
-///      "error_code": "JOB_NOT_FOUND",
-///      "message": "Job 12345 not found",
-///      "request_id": "abc-123-def-456",
-///      "suggestion": "Please verify the job ID or check your job history"
-///    },
-///    {
-///      "error_code": "VALID_MISSING_FIELD",
-///      "field_errors": [
-///        {
-///          "field": "obs_id",
-///          "message": "Observation ID is required"
-///        },
-///        {
-///          "field": "email",
-///          "message": "Invalid email format"
-///        }
-///      ],
-///      "message": "Validation failed",
-///      "request_id": "xyz-789-ghi-012",
-///      "suggestion": "Please provide all required fields"
-///    },
-///    {
-///      "error_code": "AUTH_REQUIRED",
-///      "message": "Authentication required",
-///      "request_id": "req-111-222-333",
-///      "suggestion": "Please log in to continue"
-///    }
-///  ],
-///  "type": "object",
-///  "required": [
-///    "error_code",
-///    "message"
-///  ],
-///  "properties": {
-///    "detail": {
-///      "title": "Detail",
-///      "description": "Additional technical detail",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "error_code": {
-///      "title": "Error Code",
-///      "description": "machine readable error code",
-///      "type": "string"
-///    },
-///    "field_errors": {
-///      "title": "Field Errors",
-///      "description": "Field-specific validation errors",
-///      "anyOf": [
-///        {
-///          "type": "array",
-///          "items": {
-///            "$ref": "#/definitions/FieldError"
-///          }
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "message": {
-///      "title": "Message",
-///      "description": "user friendly error message",
-///      "type": "string"
-///    },
-///    "request_id": {
-///      "title": "Request Id",
-///      "description": "Request ID for tracing",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "suggestion": {
-///      "title": "Suggestion",
-///      "description": "Suggested resolution",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ErrorResponse {
     ///Additional technical detail
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub detail: ::std::option::Option<::std::string::String>,
     ///machine readable error code
     pub error_code: ::std::string::String,
     ///Field-specific validation errors
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub field_errors: ::std::option::Option<::std::vec::Vec<FieldError>>,
     ///user friendly error message
     pub message: ::std::string::String,
     ///Request ID for tracing
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub request_id: ::std::option::Option<::std::string::String>,
     ///Suggested resolution
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub suggestion: ::std::option::Option<::std::string::String>,
 }
 impl ErrorResponse {
@@ -1249,37 +474,6 @@ impl ErrorResponse {
     }
 }
 ///Field-specific validation error
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "FieldError",
-///  "description": "Field-specific validation error",
-///  "type": "object",
-///  "required": [
-///    "field",
-///    "message"
-///  ],
-///  "properties": {
-///    "field": {
-///      "title": "Field",
-///      "description": "Field name that failed valiation",
-///      "type": "string"
-///    },
-///    "message": {
-///      "title": "Message",
-///      "description": "Error message for this field",
-///      "type": "string"
-///    }
-///  },
-///  "example": {
-///    "field": "obs_id",
-///    "message": "Observation ID is required"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct FieldError {
     ///Field name that failed valiation
@@ -1293,49 +487,6 @@ impl FieldError {
     }
 }
 ///Health check response model
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "HealthResponse",
-///  "description": "Health check response model",
-///  "examples": [
-///    {
-///      "database": "connected",
-///      "service": "fastapi_server",
-///      "status": "ok",
-///      "version": "1.0.0"
-///    }
-///  ],
-///  "type": "object",
-///  "required": [
-///    "database",
-///    "service",
-///    "status",
-///    "version"
-///  ],
-///  "properties": {
-///    "database": {
-///      "title": "Database",
-///      "type": "string"
-///    },
-///    "service": {
-///      "title": "Service",
-///      "type": "string"
-///    },
-///    "status": {
-///      "title": "Status",
-///      "type": "string"
-///    },
-///    "version": {
-///      "title": "Version",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct HealthResponse {
     pub database: ::std::string::String,
@@ -1349,34 +500,10 @@ impl HealthResponse {
     }
 }
 ///`HttpValidationError`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "HTTPValidationError",
-///  "type": "object",
-///  "properties": {
-///    "detail": {
-///      "title": "Detail",
-///      "type": "array",
-///      "items": {
-///        "$ref": "#/definitions/ValidationError"
-///      }
-///    }
-///  }
-///}
-/// ```
-/// </details>
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
 pub struct HttpValidationError {
     #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
     pub detail: ::std::vec::Vec<ValidationError>,
-}
-impl ::std::default::Default for HttpValidationError {
-    fn default() -> Self {
-        Self { detail: Default::default() }
-    }
 }
 impl HttpValidationError {
     pub fn builder() -> builder::HttpValidationError {
@@ -1384,24 +511,6 @@ impl HttpValidationError {
     }
 }
 ///`ImageSizes`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ImageSizes",
-///  "type": "integer",
-///  "enum": [
-///    512,
-///    1024,
-///    2048,
-///    3072,
-///    4096,
-///    8192
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
 pub struct ImageSizes(i64);
@@ -1439,337 +548,6 @@ impl<'de> ::serde::Deserialize<'de> for ImageSizes {
     }
 }
 ///Parameters for image job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ImagingJobFlow1Params",
-///  "description": "Parameters for image job submission",
-///  "type": "object",
-///  "required": [
-///    "obs_id"
-///  ],
-///  "properties": {
-///    "abs_threshold": {
-///      "title": "Abs Threshold",
-///      "default": 0.001,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 10.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "apply_di_cal": {
-///      "title": "Apply Di Cal",
-///      "default": true,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "apply_primary_beam": {
-///      "title": "Apply Primary Beam",
-///      "default": true,
-///      "type": "boolean"
-///    },
-///    "auto_mask": {
-///      "title": "Auto Mask",
-///      "default": 3,
-///      "type": "integer",
-///      "maximum": 512.0,
-///      "minimum": 2.0
-///    },
-///    "auto_threshold": {
-///      "title": "Auto Threshold",
-///      "default": 0.5,
-///      "type": "number",
-///      "maximum": 5.0,
-///      "minimum": 0.1
-///    },
-///    "avg_freq_res": {
-///      "title": "Avg Freq Res",
-///      "default": 40.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 1280.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "avg_time_res": {
-///      "title": "Avg Time Res",
-///      "default": 2.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "channels_out": {
-///      "title": "Channels Out",
-///      "default": 4,
-///      "type": "integer"
-///    },
-///    "clean_iterations": {
-///      "title": "Clean Iterations",
-///      "default": 100000,
-///      "type": "integer",
-///      "maximum": 1000000.0
-///    },
-///    "clean_threshold": {
-///      "title": "Clean Threshold",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 10.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "custom_dec": {
-///      "title": "Custom Dec",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 90.0,
-///          "minimum": -90.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "custom_ra": {
-///      "title": "Custom Ra",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 359.999999,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "acacia",
-///      "type": "string",
-///      "enum": [
-///        "acacia",
-///        "scratch"
-///      ]
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "enum": [
-///        "tar",
-///        "files"
-///      ]
-///    },
-///    "flag_edge_width": {
-///      "title": "Flag Edge Width",
-///      "default": 80.0,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 640.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "image_size": {
-///      "default": 3072,
-///      "$ref": "#/definitions/ImageSizes"
-///    },
-///    "join_channels": {
-///      "title": "Join Channels",
-///      "default": true,
-///      "type": "boolean"
-///    },
-///    "join_polarizations": {
-///      "title": "Join Polarizations",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "mgain": {
-///      "title": "Mgain",
-///      "default": 0.8,
-///      "type": "number",
-///      "maximum": 1.0,
-///      "minimum": 0.1
-///    },
-///    "multiscale": {
-///      "title": "Multiscale",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "nmiter": {
-///      "title": "Nmiter",
-///      "default": 10,
-///      "type": "integer",
-///      "maximum": 500.0,
-///      "minimum": 1.0
-///    },
-///    "no_apply_amps": {
-///      "title": "No Apply Amps",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "nwlayers": {
-///      "title": "Nwlayers",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 512.0,
-///          "minimum": 32.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    },
-///    "output_mode": {
-///      "title": "Output Mode",
-///      "default": "fits",
-///      "type": "string",
-///      "enum": [
-///        "fits",
-///        "all_fits",
-///        "all_files"
-///      ]
-///    },
-///    "phase_center": {
-///      "title": "Phase Center",
-///      "default": "phase",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "enum": [
-///            "phase",
-///            "custom"
-///          ]
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "pixel_scale": {
-///      "title": "Pixel Scale",
-///      "default": 20,
-///      "type": "number",
-///      "maximum": 120.0,
-///      "minimum": 10.0
-///    },
-///    "pol": {
-///      "title": "Pol",
-///      "default": "XX,YY",
-///      "type": "string"
-///    },
-///    "robust": {
-///      "title": "Robust",
-///      "default": -0.5,
-///      "type": "number",
-///      "maximum": 2.0,
-///      "minimum": -2.0
-///    },
-///    "uvw_max": {
-///      "title": "Uvw Max",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 5000.0,
-///          "minimum": 1.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "uvw_min": {
-///      "title": "Uvw Min",
-///      "default": 75,
-///      "type": "number",
-///      "maximum": 100.0
-///    },
-///    "weighting": {
-///      "title": "Weighting",
-///      "default": "briggs",
-///      "type": "string",
-///      "enum": [
-///        "briggs",
-///        "uniform",
-///        "natural"
-///      ]
-///    },
-///    "wstack_nwlayers": {
-///      "title": "Wstack Nwlayers",
-///      "anyOf": [
-///        {
-///          "type": "integer"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_abs_threshold")]
@@ -1793,11 +571,11 @@ pub struct ImagingJobFlow1Params {
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub clean_threshold: ::std::option::Option<f64>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_dec: ::std::option::Option<f64>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_ra: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_delivery")]
     pub delivery: Delivery,
@@ -1819,7 +597,7 @@ pub struct ImagingJobFlow1Params {
     pub nmiter: ::std::num::NonZeroU64,
     #[serde(default = "defaults::imaging_job_flow1_params_no_apply_amps")]
     pub no_apply_amps: ::std::option::Option<bool>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
     #[serde(default = "defaults::imaging_job_flow1_params_output_mode")]
@@ -1832,13 +610,13 @@ pub struct ImagingJobFlow1Params {
     pub pol: ::std::string::String,
     #[serde(default = "defaults::imaging_job_flow1_params_robust")]
     pub robust: f64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_uvw_min")]
     pub uvw_min: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_weighting")]
     pub weighting: Weighting,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
 impl ImagingJobFlow1Params {
@@ -1847,19 +625,6 @@ impl ImagingJobFlow1Params {
     }
 }
 ///`ImagingJobFlow1ParamsPhaseCenter`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "type": "string",
-///  "enum": [
-///    "phase",
-///    "custom"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -1906,15 +671,6 @@ impl ::std::convert::TryFrom<&str> for ImagingJobFlow1ParamsPhaseCenter {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String>
-for ImagingJobFlow1ParamsPhaseCenter {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String>
 for ImagingJobFlow1ParamsPhaseCenter {
     type Error = self::error::ConversionError;
@@ -1925,236 +681,6 @@ for ImagingJobFlow1ParamsPhaseCenter {
     }
 }
 ///Parameters for image job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ImagingJobFlow2Params",
-///  "description": "Parameters for image job submission",
-///  "type": "object",
-///  "required": [
-///    "obs_id",
-///    "source_job_id"
-///  ],
-///  "properties": {
-///    "abs_threshold": {
-///      "title": "Abs Threshold",
-///      "default": 0.001,
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 10.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "apply_primary_beam": {
-///      "title": "Apply Primary Beam",
-///      "default": true,
-///      "type": "boolean"
-///    },
-///    "auto_mask": {
-///      "title": "Auto Mask",
-///      "default": 3,
-///      "type": "integer",
-///      "maximum": 512.0,
-///      "minimum": 2.0
-///    },
-///    "auto_threshold": {
-///      "title": "Auto Threshold",
-///      "default": 0.5,
-///      "type": "number",
-///      "maximum": 5.0,
-///      "minimum": 0.1
-///    },
-///    "channels_out": {
-///      "title": "Channels Out",
-///      "default": 4,
-///      "type": "integer"
-///    },
-///    "clean_iterations": {
-///      "title": "Clean Iterations",
-///      "default": 100000,
-///      "type": "integer",
-///      "maximum": 1000000.0
-///    },
-///    "clean_threshold": {
-///      "title": "Clean Threshold",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 10.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "acacia",
-///      "type": "string",
-///      "enum": [
-///        "acacia",
-///        "scratch"
-///      ]
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "enum": [
-///        "tar",
-///        "files"
-///      ]
-///    },
-///    "image_size": {
-///      "default": 3072,
-///      "$ref": "#/definitions/ImageSizes"
-///    },
-///    "join_channels": {
-///      "title": "Join Channels",
-///      "default": true,
-///      "type": "boolean"
-///    },
-///    "join_polarizations": {
-///      "title": "Join Polarizations",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "mgain": {
-///      "title": "Mgain",
-///      "default": 0.8,
-///      "type": "number",
-///      "maximum": 1.0,
-///      "minimum": 0.1
-///    },
-///    "multiscale": {
-///      "title": "Multiscale",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "nmiter": {
-///      "title": "Nmiter",
-///      "default": 10,
-///      "type": "integer",
-///      "maximum": 500.0,
-///      "minimum": 1.0
-///    },
-///    "nwlayers": {
-///      "title": "Nwlayers",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 512.0,
-///          "minimum": 32.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    },
-///    "output_mode": {
-///      "title": "Output Mode",
-///      "default": "fits",
-///      "type": "string",
-///      "enum": [
-///        "fits",
-///        "all_fits",
-///        "all_files"
-///      ]
-///    },
-///    "pixel_scale": {
-///      "title": "Pixel Scale",
-///      "default": 20,
-///      "type": "number",
-///      "maximum": 120.0,
-///      "minimum": 10.0
-///    },
-///    "pol": {
-///      "title": "Pol",
-///      "default": "XX,YY",
-///      "type": "string"
-///    },
-///    "robust": {
-///      "title": "Robust",
-///      "default": -0.5,
-///      "type": "number",
-///      "maximum": 2.0,
-///      "minimum": -2.0
-///    },
-///    "source_job_id": {
-///      "title": "Source Job Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "uvw_max": {
-///      "title": "Uvw Max",
-///      "anyOf": [
-///        {
-///          "type": "number",
-///          "maximum": 5000.0,
-///          "minimum": 1.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "uvw_min": {
-///      "title": "Uvw Min",
-///      "default": 75,
-///      "type": "number",
-///      "maximum": 100.0
-///    },
-///    "weighting": {
-///      "title": "Weighting",
-///      "default": "briggs",
-///      "type": "string",
-///      "enum": [
-///        "briggs",
-///        "uniform",
-///        "natural"
-///      ]
-///    },
-///    "wstack_nwlayers": {
-///      "title": "Wstack Nwlayers",
-///      "anyOf": [
-///        {
-///          "type": "integer"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_abs_threshold")]
@@ -2172,7 +698,7 @@ pub struct ImagingJobFlow2Params {
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub clean_threshold: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow2_params_delivery")]
     pub delivery: Delivery,
@@ -2190,7 +716,7 @@ pub struct ImagingJobFlow2Params {
     pub multiscale: bool,
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
     #[serde(default = "defaults::imaging_job_flow2_params_output_mode")]
@@ -2202,13 +728,13 @@ pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_robust")]
     pub robust: f64,
     pub source_job_id: ::std::num::NonZeroU64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow2_params_uvw_min")]
     pub uvw_min: f64,
     #[serde(default = "defaults::imaging_job_flow2_params_weighting")]
     pub weighting: Weighting,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
 impl ImagingJobFlow2Params {
@@ -2217,144 +743,15 @@ impl ImagingJobFlow2Params {
     }
 }
 ///Complete job details response
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobDetailResponse",
-///  "description": "Complete job details response",
-///  "type": "object",
-///  "required": [
-///    "completed",
-///    "created",
-///    "first_name",
-///    "id",
-///    "job_params",
-///    "job_state",
-///    "job_type",
-///    "last_name",
-///    "started",
-///    "user_id"
-///  ],
-///  "properties": {
-///    "completed": {
-///      "title": "Completed",
-///      "description": "Timestamp when job completed (null if still processing)",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "created": {
-///      "title": "Created",
-///      "description": "Timestamp when job was created",
-///      "type": "string",
-///      "format": "date-time"
-///    },
-///    "error_text": {
-///      "title": "Error Text",
-///      "description": "Error message if job failed (null if no error)",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "first_name": {
-///      "title": "First Name",
-///      "description": "First name of user who submitted the job",
-///      "type": "string"
-///    },
-///    "id": {
-///      "title": "Id",
-///      "description": "Unique job identifier",
-///      "type": "integer"
-///    },
-///    "job_params": {
-///      "title": "Job Params",
-///      "description": "Job parameters as JSON object (obs_id, delivery, processing options)",
-///      "type": "object",
-///      "additionalProperties": true
-///    },
-///    "job_state": {
-///      "title": "Job State",
-///      "description": "Current job state: 0=Queued, 1=WaitCal 2=Staging, 3=Staged, 4=Downloading, 5=Preprocessing, 6=Delivering, 9=Completed, 10=Error, 11=Cancelled",
-///      "type": "string"
-///    },
-///    "job_type": {
-///      "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging",
-///      "$ref": "#/definitions/JobType"
-///    },
-///    "last_name": {
-///      "title": "Last Name",
-///      "description": "Last name of user who submitted the job",
-///      "type": "string"
-///    },
-///    "modified": {
-///      "title": "Modified",
-///      "description": "Timestamp of when the job was last modified",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "product": {
-///      "title": "Product",
-///      "description": "Job output/results when completed (file listings, download links)",
-///      "anyOf": [
-///        {
-///          "type": "object",
-///          "additionalProperties": true
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "started": {
-///      "title": "Started",
-///      "description": "Timestamp of when the job began processing",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "user_id": {
-///      "title": "User Id",
-///      "description": "ID of user who submitted the job",
-///      "type": "integer"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobDetailResponse {
     ///Timestamp when job completed (null if still processing)
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub completed: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///Timestamp when job was created
     pub created: ::chrono::DateTime<::chrono::offset::Utc>,
     ///Error message if job failed (null if no error)
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub error_text: ::std::option::Option<::std::string::String>,
     ///First name of user who submitted the job
     pub first_name: ::std::string::String,
@@ -2369,14 +766,15 @@ pub struct JobDetailResponse {
     ///Last name of user who submitted the job
     pub last_name: ::std::string::String,
     ///Timestamp of when the job was last modified
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub modified: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///Job output/results when completed (file listings, download links)
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub product: ::std::option::Option<
         ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     >,
     ///Timestamp of when the job began processing
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub started: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///ID of user who submitted the job
     pub user_id: i64,
@@ -2387,32 +785,6 @@ impl JobDetailResponse {
     }
 }
 ///Priority score update for a job
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobPriorityUpdate",
-///  "description": "Priority score update for a job",
-///  "type": "object",
-///  "required": [
-///    "job_id",
-///    "priority_score"
-///  ],
-///  "properties": {
-///    "job_id": {
-///      "title": "Job Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "priority_score": {
-///      "title": "Priority Score",
-///      "type": "number"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobPriorityUpdate {
     pub job_id: ::std::num::NonZeroU64,
@@ -2424,40 +796,6 @@ impl JobPriorityUpdate {
     }
 }
 ///`JobSubmittedResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobSubmittedResponse",
-///  "type": "object",
-///  "required": [
-///    "job_id",
-///    "message"
-///  ],
-///  "properties": {
-///    "job_id": {
-///      "title": "Job Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "message": {
-///      "title": "Message",
-///      "type": "string"
-///    },
-///    "status": {
-///      "title": "Status",
-///      "default": "success",
-///      "type": "string",
-///      "enum": [
-///        "success",
-///        "failed"
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobSubmittedResponse {
     pub job_id: ::std::num::NonZeroU64,
@@ -2471,26 +809,6 @@ impl JobSubmittedResponse {
     }
 }
 ///Enum representing job types with their integer values
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobType",
-///  "description": "Enum representing job types with their integer values",
-///  "type": "integer",
-///  "enum": [
-///    0,
-///    1,
-///    2,
-///    3,
-///    4,
-///    5,
-///    6
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
 pub struct JobType(i64);
@@ -2527,135 +845,22 @@ impl<'de> ::serde::Deserialize<'de> for JobType {
     }
 }
 ///Parameters for /job_history endpoint
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobsByUserRequest",
-///  "description": "Parameters for /job_history endpoint",
-///  "type": "object",
-///  "properties": {
-///    "date_from": {
-///      "title": "Date From",
-///      "description": "The start date of the time window",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "date_to": {
-///      "title": "Date To",
-///      "description": "The end date of the time window",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "days": {
-///      "title": "Days",
-///      "description": "return the past x number of days when querying db",
-///      "default": 30,
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 30.0,
-///          "exclusiveMinimum": 1.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "job_state": {
-///      "title": "Job State",
-///      "description": "the current state of the job",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "enum": [
-///            "queued",
-///            "waitcal",
-///            "staging",
-///            "staged",
-///            "preparing",
-///            "downloading",
-///            "preprocessing",
-///            "imaging",
-///            "delivering",
-///            "completed",
-///            "error",
-///            "cancelled"
-///          ]
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "job_type": {
-///      "title": "Job Type",
-///      "description": "a numeric representation of the job type: 0 = conversion, 1 = vis_download, 2 = meta_download, 3 = voltage, 4 = cancel, 5 = beamformer, 6 = imaging",
-///      "anyOf": [
-///        {
-///          "type": "integer"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "limit": {
-///      "title": "Limit",
-///      "description": "maximum number of records to return",
-///      "default": 100,
-///      "type": "integer",
-///      "maximum": 500.0,
-///      "exclusiveMinimum": 0.0
-///    },
-///    "offset": {
-///      "title": "Offset",
-///      "description": "the offset (used to paginate the query results)",
-///      "default": 0,
-///      "type": "integer",
-///      "minimum": 0.0
-///    },
-///    "sort_by": {
-///      "title": "Sort By",
-///      "description": "The column to sort the jobs by",
-///      "default": "id",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobsByUserRequest {
     ///The start date of the time window
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub date_from: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///The end date of the time window
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub date_to: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///return the past x number of days when querying db
     #[serde(default = "defaults::jobs_by_user_request_days")]
     pub days: ::std::option::Option<i64>,
     ///the current state of the job
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_state: ::std::option::Option<JobsByUserRequestJobState>,
     ///a numeric representation of the job type: 0 = conversion, 1 = vis_download, 2 = meta_download, 3 = voltage, 4 = cancel, 5 = beamformer, 6 = imaging
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<i64>,
     ///maximum number of records to return
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 100>")]
@@ -2687,29 +892,6 @@ impl JobsByUserRequest {
     }
 }
 ///`JobsByUserRequestJobState`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "type": "string",
-///  "enum": [
-///    "queued",
-///    "waitcal",
-///    "staging",
-///    "staged",
-///    "preparing",
-///    "downloading",
-///    "preprocessing",
-///    "imaging",
-///    "delivering",
-///    "completed",
-///    "error",
-///    "cancelled"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -2796,14 +978,6 @@ impl ::std::convert::TryFrom<&str> for JobsByUserRequestJobState {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for JobsByUserRequestJobState {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for JobsByUserRequestJobState {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -2813,37 +987,6 @@ impl ::std::convert::TryFrom<::std::string::String> for JobsByUserRequestJobStat
     }
 }
 ///Parameters for /job_history endpoint
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "JobsByUserResponse",
-///  "description": "Parameters for /job_history endpoint",
-///  "type": "object",
-///  "required": [
-///    "jobs",
-///    "total_count"
-///  ],
-///  "properties": {
-///    "jobs": {
-///      "title": "Jobs",
-///      "description": "List of jobs pertaining to a specific user",
-///      "type": "array",
-///      "items": {
-///        "type": "object",
-///        "additionalProperties": true
-///      }
-///    },
-///    "total_count": {
-///      "title": "Total Count",
-///      "description": "The total number of jobs",
-///      "type": "integer"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobsByUserResponse {
     ///List of jobs pertaining to a specific user
@@ -2859,22 +1002,6 @@ impl JobsByUserResponse {
     }
 }
 ///`LocationItem`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "anyOf": [
-///    {
-///      "type": "string"
-///    },
-///    {
-///      "type": "integer"
-///    }
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum LocationItem {
@@ -2895,23 +1022,6 @@ impl ::std::convert::From<i64> for LocationItem {
     }
 }
 ///The name of the client app
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Login",
-///  "description": "The name of the client app",
-///  "examples": [
-///    "manta-ray-clientv2.0.1",
-///    "giant-squidv2.0.1"
-///  ],
-///  "type": "string",
-///  "maxLength": 36,
-///  "minLength": 1
-///}
-/// ```
-/// </details>
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct Login(::std::string::String);
@@ -2948,14 +1058,6 @@ impl ::std::convert::TryFrom<&str> for Login {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Login {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Login {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -2977,21 +1079,6 @@ impl<'de> ::serde::Deserialize<'de> for Login {
     }
 }
 ///`Output`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Output",
-///  "default": "ms",
-///  "type": "string",
-///  "enum": [
-///    "ms",
-///    "uvfits"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -3038,14 +1125,6 @@ impl ::std::convert::TryFrom<&str> for Output {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Output {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Output {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -3060,22 +1139,6 @@ impl ::std::default::Default for Output {
     }
 }
 ///`OutputMode`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Output Mode",
-///  "default": "fits",
-///  "type": "string",
-///  "enum": [
-///    "fits",
-///    "all_fits",
-///    "all_files"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -3126,14 +1189,6 @@ impl ::std::convert::TryFrom<&str> for OutputMode {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for OutputMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for OutputMode {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -3148,22 +1203,6 @@ impl ::std::default::Default for OutputMode {
     }
 }
 ///User password
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Password",
-///  "description": "User password",
-///  "examples": [
-///    "securePassword123!"
-///  ],
-///  "type": "string",
-///  "maxLength": 16,
-///  "minLength": 1
-///}
-/// ```
-/// </details>
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct Password(::std::string::String);
@@ -3200,14 +1239,6 @@ impl ::std::convert::TryFrom<&str> for Password {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Password {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Password {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -3229,35 +1260,6 @@ impl<'de> ::serde::Deserialize<'de> for Password {
     }
 }
 ///`PiProjectDetails`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "PiProjectDetails",
-///  "type": "object",
-///  "required": [
-///    "description",
-///    "project_id",
-///    "short_name"
-///  ],
-///  "properties": {
-///    "description": {
-///      "title": "Description",
-///      "type": "string"
-///    },
-///    "project_id": {
-///      "title": "Project Id",
-///      "type": "string"
-///    },
-///    "short_name": {
-///      "title": "Short Name",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct PiProjectDetails {
     pub description: ::std::string::String,
@@ -3270,30 +1272,6 @@ impl PiProjectDetails {
     }
 }
 ///`ProjectPermission`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ProjectPermission",
-///  "type": "object",
-///  "required": [
-///    "project_id",
-///    "short_name"
-///  ],
-///  "properties": {
-///    "project_id": {
-///      "title": "Project Id",
-///      "type": "string"
-///    },
-///    "short_name": {
-///      "title": "Short Name",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ProjectPermission {
     pub project_id: ::std::string::String,
@@ -3305,39 +1283,10 @@ impl ProjectPermission {
     }
 }
 ///`ProjectPermissionsResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ProjectPermissionsResponse",
-///  "type": "object",
-///  "required": [
-///    "projects"
-///  ],
-///  "properties": {
-///    "projects": {
-///      "title": "Projects",
-///      "description": "List of projects the user has access to",
-///      "anyOf": [
-///        {
-///          "type": "array",
-///          "items": {
-///            "$ref": "#/definitions/ProjectPermission"
-///          }
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ProjectPermissionsResponse {
     ///List of projects the user has access to
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub projects: ::std::option::Option<::std::vec::Vec<ProjectPermission>>,
 }
 impl ProjectPermissionsResponse {
@@ -3346,71 +1295,6 @@ impl ProjectPermissionsResponse {
     }
 }
 ///`QueuedJob`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "QueuedJob",
-///  "type": "object",
-///  "required": [
-///    "created",
-///    "id",
-///    "job_params",
-///    "job_type",
-///    "priority_score",
-///    "queue_position_cache",
-///    "user_id"
-///  ],
-///  "properties": {
-///    "created": {
-///      "title": "Created",
-///      "description": "Timestamp when job was created",
-///      "type": "string",
-///      "format": "date-time"
-///    },
-///    "id": {
-///      "title": "Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "job_params": {
-///      "title": "Job Params",
-///      "description": "Job parameters as JSON object (obs_id, delivery, processing options)",
-///      "type": "object",
-///      "additionalProperties": true
-///    },
-///    "job_type": {
-///      "$ref": "#/definitions/JobType"
-///    },
-///    "priority_score": {
-///      "title": "Priority Score",
-///      "description": "Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage",
-///      "type": "number",
-///      "minimum": 0.0
-///    },
-///    "queue_position_cache": {
-///      "title": "Queue Position Cache",
-///      "description": "Cached queue position updated by scheduler (invalidated when queue changes)",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "user_id": {
-///      "title": "User Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct QueuedJob {
     ///Timestamp when job was created
@@ -3422,6 +1306,7 @@ pub struct QueuedJob {
     ///Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage
     pub priority_score: f64,
     ///Cached queue position updated by scheduler (invalidated when queue changes)
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub queue_position_cache: ::std::option::Option<u64>,
     pub user_id: ::std::num::NonZeroU64,
 }
@@ -3431,58 +1316,15 @@ impl QueuedJob {
     }
 }
 ///`QueuedJobsRequest`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "QueuedJobsRequest",
-///  "type": "object",
-///  "properties": {
-///    "job_state": {
-///      "title": "Job State",
-///      "default": "queued",
-///      "type": "string"
-///    },
-///    "limit": {
-///      "title": "Limit",
-///      "description": "Safety cap for amount of results to retrieve",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 3000.0,
-///          "minimum": 1.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "user_id": {
-///      "title": "User Id",
-///      "description": "Optional user_id",
-///      "anyOf": [
-///        {
-///          "type": "integer"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct QueuedJobsRequest {
     #[serde(default = "defaults::queued_jobs_request_job_state")]
     pub job_state: ::std::string::String,
     ///Safety cap for amount of results to retrieve
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub limit: ::std::option::Option<::std::num::NonZeroU64>,
     ///Optional user_id
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub user_id: ::std::option::Option<i64>,
 }
 impl ::std::default::Default for QueuedJobsRequest {
@@ -3500,28 +1342,6 @@ impl QueuedJobsRequest {
     }
 }
 ///`QueuedJobsResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "QueuedJobsResponse",
-///  "type": "object",
-///  "required": [
-///    "jobs"
-///  ],
-///  "properties": {
-///    "jobs": {
-///      "title": "Jobs",
-///      "type": "array",
-///      "items": {
-///        "$ref": "#/definitions/QueuedJob"
-///      }
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct QueuedJobsResponse {
     pub jobs: ::std::vec::Vec<QueuedJob>,
@@ -3532,37 +1352,6 @@ impl QueuedJobsResponse {
     }
 }
 ///Staging callback payload
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "StagingCallback",
-///  "description": "Staging callback payload",
-///  "type": "object",
-///  "required": [
-///    "comment",
-///    "job_id",
-///    "return_code"
-///  ],
-///  "properties": {
-///    "comment": {
-///      "title": "Comment",
-///      "type": "string"
-///    },
-///    "job_id": {
-///      "title": "Job Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    },
-///    "return_code": {
-///      "title": "Return Code",
-///      "type": "integer"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct StagingCallback {
     pub comment: ::std::string::String,
@@ -3575,21 +1364,6 @@ impl StagingCallback {
     }
 }
 ///`Status`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Status",
-///  "default": "success",
-///  "type": "string",
-///  "enum": [
-///    "success",
-///    "failed"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -3636,14 +1410,6 @@ impl ::std::convert::TryFrom<&str> for Status {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Status {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Status {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -3658,44 +1424,6 @@ impl ::std::default::Default for Status {
     }
 }
 ///Response model for token-issuing endpoints (login, refresh)
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "TokenResponse",
-///  "description": "Response model for token-issuing endpoints (login, refresh)",
-///  "type": "object",
-///  "required": [
-///    "access_token",
-///    "refresh_token"
-///  ],
-///  "properties": {
-///    "access_token": {
-///      "title": "Access Token",
-///      "description": "JWT access token (also set in HTTP-only cookie)",
-///      "type": "string"
-///    },
-///    "refresh_token": {
-///      "title": "Refresh Token",
-///      "description": "JWT refresh token (also set in HTTP-only cookie)",
-///      "type": "string"
-///    },
-///    "token_type": {
-///      "title": "Token Type",
-///      "description": "Token type for Authorization header",
-///      "default": "bearer",
-///      "type": "string"
-///    }
-///  },
-///  "example": {
-///    "access_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
-///    "refresh_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
-///    "token_type": "bearer"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct TokenResponse {
     ///JWT access token (also set in HTTP-only cookie)
@@ -3712,47 +1440,6 @@ impl TokenResponse {
     }
 }
 ///Request model for login endpoint
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserLoginRequest",
-///  "description": "Request model for login endpoint",
-///  "type": "object",
-///  "required": [
-///    "password",
-///    "username"
-///  ],
-///  "properties": {
-///    "password": {
-///      "title": "Password",
-///      "description": "User password",
-///      "examples": [
-///        "securePassword123!"
-///      ],
-///      "type": "string",
-///      "maxLength": 16,
-///      "minLength": 1
-///    },
-///    "username": {
-///      "title": "Username",
-///      "description": "Username or email address",
-///      "examples": [
-///        "john_doe"
-///      ],
-///      "type": "string",
-///      "maxLength": 16,
-///      "minLength": 1
-///    }
-///  },
-///  "example": {
-///    "password": "securePassword123!",
-///    "username": "john_doe"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserLoginRequest {
     ///User password
@@ -3766,28 +1453,6 @@ impl UserLoginRequest {
     }
 }
 ///Response model for logout endpoint
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserLogoutResponse",
-///  "description": "Response model for logout endpoint",
-///  "type": "object",
-///  "properties": {
-///    "message": {
-///      "title": "Message",
-///      "description": "success message",
-///      "default": "Logged out successfully",
-///      "type": "string"
-///    }
-///  },
-///  "example": {
-///    "message": "Logged out successfully"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserLogoutResponse {
     ///success message
@@ -3807,154 +1472,31 @@ impl UserLogoutResponse {
     }
 }
 ///`UserProfile`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserProfile",
-///  "type": "object",
-///  "required": [
-///    "id",
-///    "login"
-///  ],
-///  "properties": {
-///    "confirmed": {
-///      "title": "Confirmed",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "created": {
-///      "title": "Created",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "date-time"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "disabled": {
-///      "title": "Disabled",
-///      "default": true,
-///      "type": "boolean"
-///    },
-///    "dug_group": {
-///      "title": "Dug Group",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "email": {
-///      "title": "Email",
-///      "anyOf": [
-///        {
-///          "type": "string",
-///          "format": "email"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "first_name": {
-///      "title": "First Name",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "id": {
-///      "title": "Id",
-///      "type": "integer"
-///    },
-///    "is_superuser": {
-///      "title": "Is Superuser",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "last_name": {
-///      "title": "Last Name",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "login": {
-///      "title": "Login",
-///      "type": "string"
-///    },
-///    "mwa_member": {
-///      "title": "Mwa Member",
-///      "default": false,
-///      "type": "boolean"
-///    },
-///    "pawsey_group": {
-///      "title": "Pawsey Group",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "provider_id": {
-///      "title": "Provider Id",
-///      "anyOf": [
-///        {
-///          "type": "integer"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserProfile {
     #[serde(default)]
     pub confirmed: bool,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub created: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     #[serde(default = "defaults::default_bool::<true>")]
     pub disabled: bool,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub dug_group: ::std::option::Option<::std::string::String>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub email: ::std::option::Option<::std::string::String>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub first_name: ::std::option::Option<::std::string::String>,
     pub id: i64,
     #[serde(default)]
     pub is_superuser: bool,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub last_name: ::std::option::Option<::std::string::String>,
     pub login: ::std::string::String,
     #[serde(default)]
     pub mwa_member: bool,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub pawsey_group: ::std::option::Option<::std::string::String>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub provider_id: ::std::option::Option<i64>,
 }
 impl UserProfile {
@@ -3963,39 +1505,10 @@ impl UserProfile {
     }
 }
 ///`UserProjectsPiResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserProjectsPiResponse",
-///  "type": "object",
-///  "required": [
-///    "projects"
-///  ],
-///  "properties": {
-///    "projects": {
-///      "title": "Projects",
-///      "description": "List of projects this user is a PI of",
-///      "anyOf": [
-///        {
-///          "type": "array",
-///          "items": {
-///            "$ref": "#/definitions/PiProjectDetails"
-///          }
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserProjectsPiResponse {
     ///List of projects this user is a PI of
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub projects: ::std::option::Option<::std::vec::Vec<PiProjectDetails>>,
 }
 impl UserProjectsPiResponse {
@@ -4004,32 +1517,6 @@ impl UserProjectsPiResponse {
     }
 }
 ///`UserQueuedJobCountResponse`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserQueuedJobCountResponse",
-///  "type": "object",
-///  "required": [
-///    "count",
-///    "user_id"
-///  ],
-///  "properties": {
-///    "count": {
-///      "title": "Count",
-///      "type": "integer",
-///      "minimum": 0.0
-///    },
-///    "user_id": {
-///      "title": "User Id",
-///      "type": "integer",
-///      "minimum": 1.0
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserQueuedJobCountResponse {
     pub count: u64,
@@ -4041,80 +1528,10 @@ impl UserQueuedJobCountResponse {
     }
 }
 ///Response model for user information
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserResponse",
-///  "description": "Response model for user information",
-///  "type": "object",
-///  "required": [
-///    "email",
-///    "id",
-///    "is_superuser",
-///    "login"
-///  ],
-///  "properties": {
-///    "dug_group": {
-///      "title": "Dug Group",
-///      "description": "DUG group membership",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "email": {
-///      "title": "Email",
-///      "description": "user email address",
-///      "type": "string",
-///      "format": "email"
-///    },
-///    "id": {
-///      "title": "Id",
-///      "description": "User ID",
-///      "type": "integer"
-///    },
-///    "is_superuser": {
-///      "title": "Is Superuser",
-///      "description": "whether user has admin privileges",
-///      "type": "boolean"
-///    },
-///    "login": {
-///      "title": "Login",
-///      "description": "username",
-///      "type": "string"
-///    },
-///    "pawsey_group": {
-///      "title": "Pawsey Group",
-///      "description": "Pawsey group membership",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  },
-///  "example": {
-///    "email": "johndoe@example.com",
-///    "id": 123,
-///    "is_superuser": false,
-///    "pawsey_group": "mwa_asvo"
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserResponse {
     ///DUG group membership
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub dug_group: ::std::option::Option<::std::string::String>,
     ///user email address
     pub email: ::std::string::String,
@@ -4125,7 +1542,7 @@ pub struct UserResponse {
     ///username
     pub login: ::std::string::String,
     ///Pawsey group membership
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub pawsey_group: ::std::option::Option<::std::string::String>,
 }
 impl UserResponse {
@@ -4134,64 +1551,13 @@ impl UserResponse {
     }
 }
 ///Request model for updating a user's profile
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "UserUpdateProfileRequest",
-///  "description": "Request model for updating a user's profile",
-///  "type": "object",
-///  "required": [
-///    "affiliation",
-///    "email",
-///    "firstname",
-///    "lastname",
-///    "orcid"
-///  ],
-///  "properties": {
-///    "affiliation": {
-///      "title": "Affiliation",
-///      "type": "string"
-///    },
-///    "email": {
-///      "title": "Email",
-///      "type": "string"
-///    },
-///    "firstname": {
-///      "title": "Firstname",
-///      "type": "string"
-///    },
-///    "lastname": {
-///      "title": "Lastname",
-///      "type": "string"
-///    },
-///    "orcid": {
-///      "title": "Orcid",
-///      "anyOf": [
-///        {
-///          "type": "string"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "subscribed_to_status_emails": {
-///      "title": "Subscribed To Status Emails",
-///      "default": false,
-///      "type": "boolean"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct UserUpdateProfileRequest {
     pub affiliation: ::std::string::String,
     pub email: ::std::string::String,
     pub firstname: ::std::string::String,
     pub lastname: ::std::string::String,
+    #[serde(deserialize_with = "::std::option::Option::deserialize")]
     pub orcid: ::std::option::Option<::std::string::String>,
     #[serde(default)]
     pub subscribed_to_status_emails: bool,
@@ -4202,22 +1568,6 @@ impl UserUpdateProfileRequest {
     }
 }
 ///Username or email address
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Username",
-///  "description": "Username or email address",
-///  "examples": [
-///    "john_doe"
-///  ],
-///  "type": "string",
-///  "maxLength": 16,
-///  "minLength": 1
-///}
-/// ```
-/// </details>
 #[derive(::serde::Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[serde(transparent)]
 pub struct Username(::std::string::String);
@@ -4254,14 +1604,6 @@ impl ::std::convert::TryFrom<&str> for Username {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for Username {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 impl ::std::convert::TryFrom<::std::string::String> for Username {
     type Error = self::error::ConversionError;
     fn try_from(
@@ -4283,57 +1625,11 @@ impl<'de> ::serde::Deserialize<'de> for Username {
     }
 }
 ///`ValidationError`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "ValidationError",
-///  "type": "object",
-///  "required": [
-///    "loc",
-///    "msg",
-///    "type"
-///  ],
-///  "properties": {
-///    "ctx": {
-///      "title": "Context",
-///      "type": "object"
-///    },
-///    "input": {
-///      "title": "Input"
-///    },
-///    "loc": {
-///      "title": "Location",
-///      "type": "array",
-///      "items": {
-///        "anyOf": [
-///          {
-///            "type": "string"
-///          },
-///          {
-///            "type": "integer"
-///          }
-///        ]
-///      }
-///    },
-///    "msg": {
-///      "title": "Message",
-///      "type": "string"
-///    },
-///    "type": {
-///      "title": "Error Type",
-///      "type": "string"
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ValidationError {
     #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
     pub ctx: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub input: ::std::option::Option<::serde_json::Value>,
     pub loc: ::std::vec::Vec<LocationItem>,
     pub msg: ::std::string::String,
@@ -4346,103 +1642,6 @@ impl ValidationError {
     }
 }
 ///Parameters for voltage job submission
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "VoltageJobParams",
-///  "description": "Parameters for voltage job submission",
-///  "type": "object",
-///  "required": [
-///    "duration",
-///    "obs_id",
-///    "offset"
-///  ],
-///  "properties": {
-///    "allow_resubmit": {
-///      "title": "Allow Resubmit",
-///      "description": "allows user to resubmit a job despite it being completed",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "channel_range": {
-///      "title": "Channel Range",
-///      "default": false,
-///      "anyOf": [
-///        {
-///          "type": "boolean"
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "delivery": {
-///      "title": "Delivery",
-///      "default": "scratch",
-///      "type": "string",
-///      "const": "scratch"
-///    },
-///    "delivery_format": {
-///      "title": "Delivery Format",
-///      "default": "files",
-///      "type": "string",
-///      "const": "files"
-///    },
-///    "duration": {
-///      "title": "Duration",
-///      "type": "integer",
-///      "minimum": 0.0
-///    },
-///    "from_channel": {
-///      "title": "From Channel",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 255.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    },
-///    "obs_id": {
-///      "title": "Obs Id",
-///      "type": "integer",
-///      "minimum": 888888889.0
-///    },
-///    "offset": {
-///      "title": "Offset",
-///      "type": "integer",
-///      "maximum": 5400.0,
-///      "minimum": 0.0
-///    },
-///    "to_channel": {
-///      "title": "To Channel",
-///      "anyOf": [
-///        {
-///          "type": "integer",
-///          "maximum": 255.0,
-///          "minimum": 0.0
-///        },
-///        {
-///          "type": "null"
-///        }
-///      ]
-///    }
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct VoltageJobParams {
     ///allows user to resubmit a job despite it being completed
@@ -4455,11 +1654,11 @@ pub struct VoltageJobParams {
     #[serde(default = "defaults::voltage_job_params_delivery_format")]
     pub delivery_format: ::std::string::String,
     pub duration: u64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub from_channel: ::std::option::Option<u8>,
     pub obs_id: i64,
     pub offset: i64,
-    #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub to_channel: ::std::option::Option<u8>,
 }
 impl VoltageJobParams {
@@ -4468,30 +1667,6 @@ impl VoltageJobParams {
     }
 }
 ///Response model for token-issuing endpoint (/v2/ws/jobs)
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "WebSocketTokenResponse",
-///  "description": "Response model for token-issuing endpoint (/v2/ws/jobs)",
-///  "type": "object",
-///  "required": [
-///    "token"
-///  ],
-///  "properties": {
-///    "token": {
-///      "title": "Token",
-///      "description": "JWT websocket token",
-///      "type": "string"
-///    }
-///  },
-///  "example": {
-///    "token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9..."
-///  }
-///}
-/// ```
-/// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct WebSocketTokenResponse {
     ///JWT websocket token
@@ -4503,22 +1678,6 @@ impl WebSocketTokenResponse {
     }
 }
 ///`Weighting`
-///
-/// <details><summary>JSON schema</summary>
-///
-/// ```json
-///{
-///  "title": "Weighting",
-///  "default": "briggs",
-///  "type": "string",
-///  "enum": [
-///    "briggs",
-///    "uniform",
-///    "natural"
-///  ]
-///}
-/// ```
-/// </details>
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -4565,14 +1724,6 @@ impl ::std::convert::TryFrom<&str> for Weighting {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for Weighting {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
@@ -9498,5 +6649,37 @@ pub mod defaults {
     }
     pub(super) fn voltage_job_params_delivery_format() -> ::std::string::String {
         "files".to_string()
+    }
+}
+/// Error types.
+pub mod error {
+    /// Error from a `TryFrom` or `FromStr` implementation.
+    pub struct ConversionError(::std::borrow::Cow<'static, str>);
+    impl ::std::error::Error for ConversionError {}
+    impl ::std::fmt::Display for ConversionError {
+        fn fmt(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> Result<(), ::std::fmt::Error> {
+            ::std::fmt::Display::fmt(&self.0, f)
+        }
+    }
+    impl ::std::fmt::Debug for ConversionError {
+        fn fmt(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> Result<(), ::std::fmt::Error> {
+            ::std::fmt::Debug::fmt(&self.0, f)
+        }
+    }
+    impl From<&'static str> for ConversionError {
+        fn from(value: &'static str) -> Self {
+            Self(value.into())
+        }
+    }
+    impl From<String> for ConversionError {
+        fn from(value: String) -> Self {
+            Self(value.into())
+        }
     }
 }

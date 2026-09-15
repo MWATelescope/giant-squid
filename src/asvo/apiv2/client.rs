@@ -34,8 +34,9 @@ use crate::obsid::Obsid;
 
 use super::error::Apiv2Error;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobParams, JobDetailResponse,
-    JobsByUserRequest, JobsByUserResponse, Login, TokenResponse, UserResponse,
+    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobFlow1Params,
+    ImagingJobFlow2Params, JobDetailResponse, JobsByUserRequest, JobsByUserResponse, Login,
+    TokenResponse, UserResponse,
 };
 
 const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -439,7 +440,7 @@ impl AsvoClientv2 {
     /// /get_jobs actual) and its timestamp format turned out to need
     /// correction against the real server, treat this the same way:
     /// probably needs adjusting once tried for real.
-    pub fn submit_imaging_job(&self, params: &ImagingJobParams) -> Result<i64, Apiv2Error> {
+    pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an imaging job to MWA ASVO v2");
 
         let response = self
@@ -467,6 +468,44 @@ impl AsvoClientv2 {
 
         let body = response.text()?;
         debug!("MWA ASVO v2 imaging_job response body: {}", body);
+        let job_id: i64 = serde_json::from_str(&body)?;
+        Ok(job_id)
+    }
+
+    pub fn submit_image_from_job(
+        &self,
+        params: &ImagingJobFlow2Params,
+    ) -> Result<i64, Apiv2Error> {
+        debug!("Submitting an image-from-job to MWA ASVO v2");
+
+        let response = self
+            .client
+            .post(format!(
+                "{}/api/v2/image_from_job",
+                get_asvo_server_address()
+            ))
+            .json(params)
+            .send()?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
+                Ok(err) => Apiv2Error::ApiError {
+                    error_code: err.error_code,
+                    message: err.message,
+                    detail: err.detail,
+                    suggestion: err.suggestion,
+                },
+                Err(_) => Apiv2Error::BadStatus {
+                    code: status,
+                    message: body,
+                },
+            });
+        }
+
+        let body = response.text()?;
+        debug!("MWA ASVO v2 image_from_job response body: {}", body);
         let job_id: i64 = serde_json::from_str(&body)?;
         Ok(job_id)
     }
@@ -574,7 +613,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         }
     };
 
-    let jtype = match detail.job_type {
+    let jtype = match *detail.job_type {
         0 => AsvoJobType::Conversion,
         1 => AsvoJobType::DownloadVisibilities,
         2 => AsvoJobType::DownloadMetadata,
