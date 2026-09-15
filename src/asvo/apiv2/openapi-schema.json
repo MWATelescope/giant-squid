@@ -122,18 +122,18 @@
           "title": "Delivery Format",
           "default": "files"
         },
-        "job_type": {
-          "type": "string",
-          "enum": [
-            "download",
-            "imaging",
-            "beamformer",
-            "cancel",
-            "voltage",
-            "conversion"
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Job Type",
-          "default": "download"
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
         },
         "mode": {
           "anyOf": [
@@ -159,6 +159,50 @@
       "title": "BeamformerJobParams",
       "description": "Parameters for beamformer job submission"
     },
+    "CalibrationReadyCallback": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "target_obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Target Obs Id"
+        },
+        "asvo_job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Asvo Job Id"
+        },
+        "success": {
+          "type": "boolean",
+          "title": "Success"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status",
+          "description": "e.g. 'completed'"
+        },
+        "calibration_file": {
+          "type": "string",
+          "title": "Calibration File",
+          "description": "Name of the calibration file (.e.g. mock_cal_1234567890.fits)"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "target_obs_id",
+        "asvo_job_id",
+        "success",
+        "status",
+        "calibration_file"
+      ],
+      "title": "CalibrationReadyCallback",
+      "description": "Calibration service callback"
+    },
     "ConversionJobParams": {
       "properties": {
         "obs_id": {
@@ -167,62 +211,41 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "acacia",
-                "scratch"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "acacia",
+            "scratch"
           ],
           "title": "Delivery",
           "default": "acacia"
         },
         "delivery_format": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "tar",
-                "files"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "tar",
+            "files"
           ],
           "title": "Delivery Format",
           "default": "files"
         },
-        "job_type": {
-          "type": "string",
-          "enum": [
-            "download",
-            "imaging",
-            "beamformer",
-            "cancel",
-            "voltage",
-            "conversion"
-          ],
-          "title": "Job Type",
-          "default": "download"
-        },
-        "output": {
+        "allow_resubmit": {
           "anyOf": [
             {
-              "type": "string",
-              "enum": [
-                "ms",
-                "uvfits"
-              ]
+              "type": "boolean"
             },
             {
               "type": "null"
             }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "output": {
+          "type": "string",
+          "enum": [
+            "ms",
+            "uvfits"
           ],
           "title": "Output",
           "default": "ms"
@@ -323,6 +346,18 @@
           "title": "Apply Di Cal",
           "default": false
         },
+        "no_apply_amps": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Apply Amps",
+          "default": false
+        },
         "no_geometry_delay": {
           "anyOf": [
             {
@@ -407,18 +442,18 @@
           "title": "Delivery Format",
           "default": "files"
         },
-        "job_type": {
-          "type": "string",
-          "enum": [
-            "download",
-            "imaging",
-            "beamformer",
-            "cancel",
-            "voltage",
-            "conversion"
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Job Type",
-          "default": "download"
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
         },
         "download_type": {
           "anyOf": [
@@ -633,7 +668,7 @@
       ],
       "title": "ImageSizes"
     },
-    "ImagingJobParams": {
+    "ImagingJobFlow1Params": {
       "properties": {
         "obs_id": {
           "type": "integer",
@@ -641,17 +676,10 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "acacia",
-                "scratch"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "acacia",
+            "scratch"
           ],
           "title": "Delivery",
           "default": "acacia"
@@ -665,61 +693,96 @@
           "title": "Delivery Format",
           "default": "files"
         },
-        "job_type": {
-          "type": "string",
-          "enum": [
-            "download",
-            "imaging",
-            "beamformer",
-            "cancel",
-            "voltage",
-            "conversion"
-          ],
-          "title": "Job Type",
-          "default": "download"
-        },
-        "source_job_id": {
+        "allow_resubmit": {
           "anyOf": [
             {
-              "type": "integer",
-              "minimum": 1.0
+              "type": "boolean"
             },
             {
               "type": "null"
             }
           ],
-          "title": "Source Job Id"
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
         },
         "apply_di_cal": {
-          "type": "boolean",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Apply Di Cal",
           "default": true
         },
+        "no_apply_amps": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Apply Amps",
+          "default": false
+        },
         "avg_time_res": {
-          "type": "number",
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Avg Time Res",
           "default": 2.0
         },
         "avg_freq_res": {
-          "type": "number",
-          "maximum": 1280.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 1280.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Avg Freq Res",
           "default": 40.0
         },
         "flag_edge_width": {
-          "type": "number",
-          "maximum": 640.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 640.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Flag Edge Width",
           "default": 80.0
         },
         "phase_center": {
-          "type": "string",
-          "enum": [
-            "phase",
-            "custom"
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "phase",
+                "custom"
+              ]
+            },
+            {
+              "type": "null"
+            }
           ],
           "title": "Phase Center",
           "default": "phase"
@@ -927,7 +990,231 @@
       "required": [
         "obs_id"
       ],
-      "title": "ImagingJobParams",
+      "title": "ImagingJobFlow1Params",
+      "description": "Parameters for image job submission"
+    },
+    "ImagingJobFlow2Params": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "type": "string",
+          "enum": [
+            "acacia",
+            "scratch"
+          ],
+          "title": "Delivery",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "type": "string",
+          "enum": [
+            "tar",
+            "files"
+          ],
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "source_job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Source Job Id"
+        },
+        "image_size": {
+          "$ref": "#/definitions/ImageSizes",
+          "default": 3072
+        },
+        "pixel_scale": {
+          "type": "number",
+          "maximum": 120.0,
+          "minimum": 10.0,
+          "title": "Pixel Scale",
+          "default": 20
+        },
+        "weighting": {
+          "type": "string",
+          "enum": [
+            "briggs",
+            "uniform",
+            "natural"
+          ],
+          "title": "Weighting",
+          "default": "briggs"
+        },
+        "robust": {
+          "type": "number",
+          "maximum": 2.0,
+          "minimum": -2.0,
+          "title": "Robust",
+          "default": -0.5
+        },
+        "clean_iterations": {
+          "type": "integer",
+          "maximum": 1000000.0,
+          "title": "Clean Iterations",
+          "default": 100000
+        },
+        "abs_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Abs Threshold",
+          "default": 0.001
+        },
+        "clean_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Clean Threshold"
+        },
+        "auto_threshold": {
+          "type": "number",
+          "maximum": 5.0,
+          "minimum": 0.1,
+          "title": "Auto Threshold",
+          "default": 0.5
+        },
+        "nmiter": {
+          "type": "integer",
+          "maximum": 500.0,
+          "minimum": 1.0,
+          "title": "Nmiter",
+          "default": 10
+        },
+        "mgain": {
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.1,
+          "title": "Mgain",
+          "default": 0.8
+        },
+        "auto_mask": {
+          "type": "integer",
+          "maximum": 512.0,
+          "minimum": 2.0,
+          "title": "Auto Mask",
+          "default": 3
+        },
+        "apply_primary_beam": {
+          "type": "boolean",
+          "title": "Apply Primary Beam",
+          "default": true
+        },
+        "nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Nwlayers"
+        },
+        "wstack_nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Wstack Nwlayers"
+        },
+        "multiscale": {
+          "type": "boolean",
+          "title": "Multiscale",
+          "default": false
+        },
+        "uvw_min": {
+          "type": "number",
+          "maximum": 100.0,
+          "title": "Uvw Min",
+          "default": 75
+        },
+        "uvw_max": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 5000.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Uvw Max"
+        },
+        "join_polarizations": {
+          "type": "boolean",
+          "title": "Join Polarizations",
+          "default": false
+        },
+        "channels_out": {
+          "type": "integer",
+          "title": "Channels Out",
+          "default": 4
+        },
+        "join_channels": {
+          "type": "boolean",
+          "title": "Join Channels",
+          "default": true
+        },
+        "pol": {
+          "type": "string",
+          "title": "Pol",
+          "default": "XX,YY"
+        },
+        "output_mode": {
+          "type": "string",
+          "enum": [
+            "fits",
+            "all_fits",
+            "all_files"
+          ],
+          "title": "Output Mode",
+          "default": "fits"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "source_job_id"
+      ],
+      "title": "ImagingJobFlow2Params",
       "description": "Parameters for image job submission"
     },
     "JobDetailResponse": {
@@ -943,8 +1230,7 @@
           "description": "ID of user who submitted the job"
         },
         "job_type": {
-          "type": "integer",
-          "title": "Job Type",
+          "$ref": "#/definitions/JobType",
           "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
         },
         "job_state": {
@@ -1049,12 +1335,73 @@
         "created",
         "started",
         "completed",
-        "modified",
         "first_name",
         "last_name"
       ],
       "title": "JobDetailResponse",
       "description": "Complete job details response"
+    },
+    "JobPriorityUpdate": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "priority_score": {
+          "type": "number",
+          "title": "Priority Score"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "priority_score"
+      ],
+      "title": "JobPriorityUpdate",
+      "description": "Priority score update for a job"
+    },
+    "JobSubmittedResponse": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "failed"
+          ],
+          "title": "Status",
+          "default": "success"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "message"
+      ],
+      "title": "JobSubmittedResponse"
+    },
+    "JobType": {
+      "type": "integer",
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "title": "JobType",
+      "description": "Enum representing job types with their integer values"
     },
     "JobsByUserRequest": {
       "properties": {
@@ -1252,6 +1599,143 @@
         "projects"
       ],
       "title": "ProjectPermissionsResponse"
+    },
+    "QueuedJob": {
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Id"
+        },
+        "user_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "User Id"
+        },
+        "job_type": {
+          "$ref": "#/definitions/JobType"
+        },
+        "job_params": {
+          "additionalProperties": true,
+          "type": "object",
+          "title": "Job Params",
+          "description": "Job parameters as JSON object (obs_id, delivery, processing options)"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Created",
+          "description": "Timestamp when job was created"
+        },
+        "priority_score": {
+          "type": "number",
+          "minimum": 0.0,
+          "title": "Priority Score",
+          "description": "Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage"
+        },
+        "queue_position_cache": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Queue Position Cache",
+          "description": "Cached queue position updated by scheduler (invalidated when queue changes)"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "user_id",
+        "job_type",
+        "job_params",
+        "created",
+        "priority_score",
+        "queue_position_cache"
+      ],
+      "title": "QueuedJob"
+    },
+    "QueuedJobsRequest": {
+      "properties": {
+        "job_state": {
+          "type": "string",
+          "title": "Job State",
+          "default": "queued"
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 3000.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Limit",
+          "description": "Safety cap for amount of results to retrieve"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Id",
+          "description": "Optional user_id"
+        }
+      },
+      "type": "object",
+      "title": "QueuedJobsRequest"
+    },
+    "QueuedJobsResponse": {
+      "properties": {
+        "jobs": {
+          "items": {
+            "$ref": "#/definitions/QueuedJob"
+          },
+          "type": "array",
+          "title": "Jobs"
+        }
+      },
+      "type": "object",
+      "required": [
+        "jobs"
+      ],
+      "title": "QueuedJobsResponse"
+    },
+    "StagingCallback": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "return_code": {
+          "type": "integer",
+          "title": "Return Code"
+        },
+        "comment": {
+          "type": "string",
+          "title": "Comment"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "return_code",
+        "comment"
+      ],
+      "title": "StagingCallback",
+      "description": "Staging callback payload"
     },
     "TokenResponse": {
       "properties": {
@@ -1477,6 +1961,26 @@
       ],
       "title": "UserProjectsPiResponse"
     },
+    "UserQueuedJobCountResponse": {
+      "properties": {
+        "user_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "User Id"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Count"
+        }
+      },
+      "type": "object",
+      "required": [
+        "user_id",
+        "count"
+      ],
+      "title": "UserQueuedJobCountResponse"
+    },
     "UserResponse": {
       "properties": {
         "id": {
@@ -1635,43 +2139,29 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "anyOf": [
-            {
-              "type": "string",
-              "const": "scratch"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
+          "const": "scratch",
           "title": "Delivery",
           "default": "scratch"
         },
         "delivery_format": {
+          "type": "string",
+          "const": "files",
+          "title": "Delivery Format",
+          "default": "files"
+        },
+        "allow_resubmit": {
           "anyOf": [
             {
-              "type": "string",
-              "const": "files"
+              "type": "boolean"
             },
             {
               "type": "null"
             }
           ],
-          "title": "Delivery Format",
-          "default": "files"
-        },
-        "job_type": {
-          "type": "string",
-          "enum": [
-            "download",
-            "imaging",
-            "beamformer",
-            "cancel",
-            "voltage",
-            "conversion"
-          ],
-          "title": "Job Type",
-          "default": "download"
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
         },
         "offset": {
           "type": "integer",

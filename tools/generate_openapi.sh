@@ -24,7 +24,7 @@ set -euo pipefail
 #   OPENAPI_URL=http://localhost:8000/openapi.json ./generate_openapi.sh
 #
 
-OPENAPI_URL="${OPENAPI_URL:-https://dev-asvo.mwatelescope.org/openapi.json}"
+OPENAPI_URL="${OPENAPI_URL:-https://test-asvo.mwatelescope.org/openapi.json}"
 OUTPUT_FILE="src/asvo/apiv2/openapi-schema.json"
 
 # --- Preflight checks (before we go anywhere, so there's nothing to unwind) -
