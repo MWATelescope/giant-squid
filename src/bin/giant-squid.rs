@@ -418,8 +418,8 @@ enum Args {
 
         /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
         /// unless explicitly set.
-        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
-        abs_threshold: Option<f64>,
+        #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+        abs_threshold: f64,
 
         /// Frequency resolution to average to before imaging (kHz).
         #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_range(0.0, 1280.0))]
@@ -439,8 +439,8 @@ enum Args {
 
         /// WSClean cleaning threshold (Jy). Takes precedence over
         /// auto_threshold if set.
-        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
-        clean_threshold: Option<f64>,
+        #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+        clean_threshold: f64,
 
         /// Custom phase centre declination (degrees). Requires
         /// --phase-center custom.
@@ -599,8 +599,8 @@ enum Args {
 
         /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
         /// unless explicitly set.
-        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
-        abs_threshold: Option<f64>,
+        #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+        abs_threshold: f64,
 
         /// Number of output channel groups.
         #[arg(long, default_value_t = imaging2_defaults().channels_out)]
