@@ -135,6 +135,37 @@ fn voltage_defaults() -> VoltageJobParams {
         .expect("BUG: a required VoltageJobParams field is missing from voltage_defaults()")
 }
 
+/// A [`BeamformerJobParams`] populated from the OpenAPI schema defaults,
+/// used to source the SubmitBf clap arg defaults. `obs_id` is a required
+/// placeholder.
+fn beamformer_defaults() -> BeamformerJobParams {
+    BeamformerJobParams::builder()
+        .obs_id(0_i64)
+        .try_into()
+        .expect("BUG: a required BeamformerJobParams field is missing from beamformer_defaults()")
+}
+
+/// An [`ImagingJobFlow1Params`] populated from the OpenAPI schema defaults,
+/// used to source the SubmitImage clap arg defaults. `obs_id` is a required
+/// placeholder.
+fn imaging1_defaults() -> ImagingJobFlow1Params {
+    ImagingJobFlow1Params::builder()
+        .obs_id(0_i64)
+        .try_into()
+        .expect("BUG: a required ImagingJobFlow1Params field is missing from imaging1_defaults()")
+}
+
+/// An [`ImagingJobFlow2Params`] populated from the OpenAPI schema defaults,
+/// used to source the SubmitImageFromJob clap arg defaults. `obs_id` and
+/// `source_job_id` are required placeholders.
+fn imaging2_defaults() -> ImagingJobFlow2Params {
+    ImagingJobFlow2Params::builder()
+        .obs_id(0_i64)
+        .source_job_id(std::num::NonZeroU64::new(1).unwrap())
+        .try_into()
+        .expect("BUG: a required ImagingJobFlow2Params field is missing from imaging2_defaults()")
+}
+
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
 enum Args {
@@ -348,27 +379,41 @@ enum Args {
     #[command(alias = "si")]
     SubmitImage {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Whether to apply the DI calibration solution.
-        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        #[arg(
+            long,
+            default_value_t = imaging1_defaults().apply_di_cal,
+            default_missing_value = "true",
+            num_args = 0..=1,
+            require_equals = true,
+            action = ArgAction::Set,
+        )]
         apply_di_cal: bool,
 
         /// Whether to apply the primary beam correction.
-        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        #[arg(
+            long,
+            default_value_t = imaging1_defaults().apply_primary_beam,
+            default_missing_value = "true",
+            num_args = 0..=1,
+            require_equals = true,
+            action = ArgAction::Set,
+        )]
         apply_primary_beam: bool,
 
         /// WSClean -auto-mask value.
-        #[arg(long, default_value_t = 3, value_parser = parse_i64_range(2, 512))]
+        #[arg(long, default_value_t = imaging1_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
         auto_mask: i64,
 
         /// WSClean -auto-threshold value.
-        #[arg(long, default_value_t = 0.5, value_parser = parse_f64_range(0.1, 5.0))]
+        #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
         auto_threshold: f64,
 
         /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
@@ -377,19 +422,19 @@ enum Args {
         abs_threshold: Option<f64>,
 
         /// Frequency resolution to average to before imaging (kHz).
-        #[arg(long, default_value_t = 40.0, value_parser = parse_f64_range(0.0, 1280.0))]
+        #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_range(0.0, 1280.0))]
         avg_freq_res: f64,
 
         /// Time resolution to average to before imaging (s).
-        #[arg(long, default_value_t = 2.0, value_parser = parse_f64_range(0.0, f64::MAX))]
+        #[arg(long, default_value_t = imaging1_defaults().avg_time_res, value_parser = parse_f64_range(0.0, f64::MAX))]
         avg_time_res: f64,
 
         /// Number of output channel groups.
-        #[arg(long, default_value_t = 4)]
+        #[arg(long, default_value_t = imaging1_defaults().channels_out)]
         channels_out: i64,
 
         /// WSClean -niter value (max clean iterations).
-        #[arg(long, default_value_t = 100000, value_parser = parse_i64_range(0, 1_000_000))]
+        #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
         clean_iterations: i64,
 
         /// WSClean cleaning threshold (Jy). Takes precedence over
@@ -408,31 +453,38 @@ enum Args {
         custom_ra: Option<f64>,
 
         /// Width of frequency edge flagging (kHz).
-        #[arg(long, default_value_t = 80.0, value_parser = parse_f64_range(0.0, 640.0))]
+        #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_range(0.0, 640.0))]
         flag_edge_width: f64,
 
         /// WSClean image size in pixels.
-        #[arg(long, default_value_t = 3072, value_parser = parse_image_size)]
+        #[arg(long, default_value_t = *imaging1_defaults().image_size, value_parser = parse_image_size)]
         image_size: i64,
 
         /// Join output channel groups for cleaning.
-        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        #[arg(
+            long,
+            default_value_t = imaging1_defaults().join_channels,
+            default_missing_value = "true",
+            num_args = 0..=1,
+            require_equals = true,
+            action = ArgAction::Set,
+        )]
         join_channels: bool,
 
         /// Join polarisations for cleaning.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         join_polarizations: bool,
 
         /// WSClean -mgain value.
-        #[arg(long, default_value_t = 0.8, value_parser = parse_f64_range(0.1, 1.0))]
+        #[arg(long, default_value_t = imaging1_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
         mgain: f64,
 
         /// Enable WSClean multiscale cleaning.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         multiscale: bool,
 
         /// WSClean -nmiter value (max major cleaning iterations).
-        #[arg(long, default_value_t = 10, value_parser = parse_i64_range(1, 500))]
+        #[arg(long, default_value_t = imaging1_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
         nmiter: i64,
 
         /// Number of w-projection layers. Leave unset to let the server
@@ -441,15 +493,15 @@ enum Args {
         nwlayers: Option<i64>,
 
         /// The output mode / product to request.
-        #[arg(short = 'o', long, default_value_t = OutputMode::Fits)]
+        #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode)]
         output_mode: OutputMode,
 
         /// Where to centre the image.
-        #[arg(long, default_value_t = Centre::Phase)]
+        #[arg(long, default_value_t = imaging1_defaults().centre)]
         phase_center: Centre,
 
         /// Pixel scale (arcsec/pixel).
-        #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
+        #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
         pixel_scale: f64,
 
         /// Polarisations to image, comma separated.
@@ -457,7 +509,7 @@ enum Args {
         pol: String,
 
         /// WSClean -robust (Briggs robustness) value.
-        #[arg(long, default_value_t = -0.5, value_parser = parse_f64_range(-2.0, 2.0))]
+        #[arg(long, default_value_t = imaging1_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
         robust: f64,
 
         /// Maximum uv distance to image, in wavelengths (upper bound on
@@ -466,11 +518,11 @@ enum Args {
         uvw_max: Option<f64>,
 
         /// Minimum uv distance to image, in wavelengths.
-        #[arg(long, default_value_t = 75.0, value_parser = parse_f64_range(f64::MIN, 100.0))]
+        #[arg(long, default_value_t = imaging1_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
         uvw_min: f64,
 
         /// WSClean weighting scheme.
-        #[arg(long, default_value_t = Weighting::Briggs)]
+        #[arg(long, default_value_t = imaging1_defaults().weighting)]
         weighting: Weighting,
 
         /// Number of w-stacking layers. Leave unset to let the server
@@ -480,7 +532,7 @@ enum Args {
 
         /// Whether to skip applying amplitude calibration solutions.
         /// Leave at the default (false) unless you know you need this.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_apply_amps: bool,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -519,23 +571,30 @@ enum Args {
         source_job_id: std::num::NonZeroU64,
 
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Whether to apply the primary beam correction.
-        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        #[arg(
+            long,
+            default_value_t = imaging2_defaults().apply_primary_beam,
+            default_missing_value = "true",
+            num_args = 0..=1,
+            require_equals = true,
+            action = ArgAction::Set,
+        )]
         apply_primary_beam: bool,
 
         /// WSClean -auto-mask value.
-        #[arg(long, default_value_t = 3, value_parser = parse_i64_range(2, 512))]
+        #[arg(long, default_value_t = imaging2_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
         auto_mask: i64,
 
         /// WSClean -auto-threshold value.
-        #[arg(long, default_value_t = 0.5, value_parser = parse_f64_range(0.1, 5.0))]
+        #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
         auto_threshold: f64,
 
         /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
@@ -544,11 +603,11 @@ enum Args {
         abs_threshold: Option<f64>,
 
         /// Number of output channel groups.
-        #[arg(long, default_value_t = 4)]
+        #[arg(long, default_value_t = imaging2_defaults().channels_out)]
         channels_out: i64,
 
         /// WSClean -niter value (max clean iterations).
-        #[arg(long, default_value_t = 100000, value_parser = parse_i64_range(0, 1_000_000))]
+        #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
         clean_iterations: i64,
 
         /// WSClean cleaning threshold (Jy). Takes precedence over
@@ -557,27 +616,34 @@ enum Args {
         clean_threshold: Option<f64>,
 
         /// WSClean image size in pixels.
-        #[arg(long, default_value_t = 3072, value_parser = parse_image_size)]
+        #[arg(long, default_value_t = *imaging2_defaults().image_size, value_parser = parse_image_size)]
         image_size: i64,
 
         /// Join output channel groups for cleaning.
-        #[arg(long, default_value_t = true, action = ArgAction::Set)]
+        #[arg(
+            long,
+            default_value_t = imaging2_defaults().join_channels,
+            default_missing_value = "true",
+            num_args = 0..=1,
+            require_equals = true,
+            action = ArgAction::Set,
+        )]
         join_channels: bool,
 
         /// Join polarisations for cleaning.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         join_polarizations: bool,
 
         /// WSClean -mgain value.
-        #[arg(long, default_value_t = 0.8, value_parser = parse_f64_range(0.1, 1.0))]
+        #[arg(long, default_value_t = imaging2_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
         mgain: f64,
 
         /// Enable WSClean multiscale cleaning.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         multiscale: bool,
 
         /// WSClean -nmiter value (max major cleaning iterations).
-        #[arg(long, default_value_t = 10, value_parser = parse_i64_range(1, 500))]
+        #[arg(long, default_value_t = imaging2_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
         nmiter: i64,
 
         /// Number of w-projection layers. Leave unset to let the server
@@ -586,19 +652,19 @@ enum Args {
         nwlayers: Option<i64>,
 
         /// The output mode / product to request.
-        #[arg(short = 'o', long, default_value_t = OutputMode::Fits)]
+        #[arg(short = 'o', long, default_value_t = imaging2_defaults().output_mode)]
         output_mode: OutputMode,
 
         /// Pixel scale (arcsec/pixel).
-        #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
+        #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
         pixel_scale: f64,
 
         /// Polarisations to image, comma separated.
-        #[arg(long, default_value = "XX,YY")]
+        #[arg(long, default_value_t = imaging2_defaults().pol)]
         pol: String,
 
         /// WSClean -robust (Briggs robustness) value.
-        #[arg(long, default_value_t = -0.5, value_parser = parse_f64_range(-2.0, 2.0))]
+        #[arg(long, default_value_t = imaging2_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
         robust: f64,
 
         /// Maximum uv distance to image, in wavelengths (upper bound on
@@ -607,11 +673,11 @@ enum Args {
         uvw_max: Option<f64>,
 
         /// Minimum uv distance to image, in wavelengths.
-        #[arg(long, default_value_t = 75.0, value_parser = parse_f64_range(f64::MIN, 100.0))]
+        #[arg(long, default_value_t = imaging2_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
         uvw_min: f64,
 
         /// WSClean weighting scheme.
-        #[arg(long, default_value_t = Weighting::Briggs)]
+        #[arg(long, default_value_t = imaging2_defaults().weighting)]
         weighting: Weighting,
 
         /// Number of w-stacking layers. Leave unset to let the server
@@ -735,11 +801,11 @@ enum Args {
     #[command(alias = "sb")]
     SubmitBf {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
