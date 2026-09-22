@@ -186,8 +186,10 @@ impl CancelledJobsResponse {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Centre {
     #[serde(rename = "phase")]
+    #[default]
     Phase,
     #[serde(rename = "pointing")]
     Pointing,
@@ -230,11 +232,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Centre {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for Centre {
-    fn default() -> Self {
-        Centre::Phase
     }
 }
 ///Parameters for conversion job submission
@@ -297,8 +294,10 @@ impl ConversionJobParams {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Delivery {
     #[serde(rename = "acacia")]
+    #[default]
     Acacia,
     #[serde(rename = "scratch")]
     Scratch,
@@ -343,11 +342,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Delivery {
         value.parse()
     }
 }
-impl ::std::default::Default for Delivery {
-    fn default() -> Self {
-        Delivery::Acacia
-    }
-}
 ///`DeliveryFormat`
 #[derive(
     ::serde::Deserialize,
@@ -361,8 +355,10 @@ impl ::std::default::Default for Delivery {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum DeliveryFormat {
     #[serde(rename = "tar")]
+    #[default]
     Tar,
     #[serde(rename = "files")]
     Files,
@@ -401,11 +397,6 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for DeliveryFormat {
-    fn default() -> Self {
-        DeliveryFormat::Tar
     }
 }
 ///Parameters for download job submission
@@ -1173,8 +1164,10 @@ impl MarkAsErrorRequest {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Output {
     #[serde(rename = "ms")]
+    #[default]
     Ms,
     #[serde(rename = "uvfits")]
     Uvfits,
@@ -1215,11 +1208,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Output {
         value.parse()
     }
 }
-impl ::std::default::Default for Output {
-    fn default() -> Self {
-        Output::Ms
-    }
-}
 ///`OutputMode`
 #[derive(
     ::serde::Deserialize,
@@ -1233,8 +1221,10 @@ impl ::std::default::Default for Output {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum OutputMode {
     #[serde(rename = "fits")]
+    #[default]
     Fits,
     #[serde(rename = "all_fits")]
     AllFits,
@@ -1277,11 +1267,6 @@ impl ::std::convert::TryFrom<::std::string::String> for OutputMode {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for OutputMode {
-    fn default() -> Self {
-        OutputMode::Fits
     }
 }
 ///User password
@@ -1507,8 +1492,10 @@ impl StagingCallback {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Status {
     #[serde(rename = "success")]
+    #[default]
     Success,
     #[serde(rename = "failed")]
     Failed,
@@ -1547,11 +1534,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Status {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for Status {
-    fn default() -> Self {
-        Status::Success
     }
 }
 ///Response model for token-issuing endpoints (login, refresh)
@@ -1815,8 +1797,10 @@ impl WebSocketTokenResponse {
     PartialEq,
     PartialOrd
 )]
+#[derive(Default)]
 pub enum Weighting {
     #[serde(rename = "briggs")]
+    #[default]
     Briggs,
     #[serde(rename = "uniform")]
     Uniform,
@@ -1859,11 +1843,6 @@ impl ::std::convert::TryFrom<::std::string::String> for Weighting {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for Weighting {
-    fn default() -> Self {
-        Weighting::Briggs
     }
 }
 /// Types for composing complex structures.
