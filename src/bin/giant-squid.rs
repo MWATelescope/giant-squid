@@ -113,6 +113,16 @@ fn conversion_defaults() -> ConversionJobParams {
         .expect("BUG: a required ConversionJobParams field is missing from conversion_defaults()")
 }
 
+/// A [`DownloadJobParams`] populated from the OpenAPI schema defaults, used
+/// to source the SubmitVis/SubmitMeta clap arg defaults. As with
+/// `conversion_defaults`, `obs_id` is a required placeholder.
+fn download_defaults() -> DownloadJobParams {
+    DownloadJobParams::builder()
+        .obs_id(0_i64)
+        .try_into()
+        .expect("BUG: a required DownloadJobParams field is missing from download_defaults()")
+}
+
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
 enum Args {
@@ -201,11 +211,11 @@ enum Args {
     #[command(alias = "sv")]
     SubmitVis {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -627,11 +637,11 @@ enum Args {
     #[command(alias = "sm")]
     SubmitMeta {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
