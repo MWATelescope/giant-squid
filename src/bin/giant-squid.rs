@@ -10,6 +10,7 @@ use std::{thread, time};
 use anyhow::bail;
 use clap::{ArgAction, Parser};
 use log::{debug, error, info, warn};
+use mwa_giant_squid::apiv2::openapi::{Centre, PhaseCenter};
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -18,10 +19,10 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::apiv2::openapi::{
-    BeamformerJobParams, ConversionJobParams, ConversionJobParamsCentre, Delivery as V2Delivery,
+    BeamformerJobParams, ConversionJobParams, Delivery as V2Delivery,
     DeliveryFormat as V2DeliveryFormat, DownloadJobParams, DownloadJobParamsDownloadType,
-    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow1ParamsPhaseCenter, ImagingJobFlow2Params,
-    Output, OutputMode, VoltageJobParams, Weighting,
+    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode, VoltageJobParams,
+    Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -80,10 +81,7 @@ fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     pb
 }
 
-fn run_jobid_download(
-    jobid: AsvoJobID,
-    opts: &DownloadOptions,
-) -> anyhow::Result<()> {
+fn run_jobid_download(jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
@@ -93,10 +91,7 @@ fn run_jobid_download(
     Ok(())
 }
 
-fn run_obsid_download(
-    obsid: Obsid,
-    opts: &DownloadOptions,
-) -> anyhow::Result<()> {
+fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
@@ -259,8 +254,8 @@ enum Args {
 
         /// Phase centre mode: "phase", "pointing", or "custom".
         /// If "custom", also supply --phase-centre-ra and --phase-centre-dec.
-        #[arg(long, default_value_t = ConversionJobParamsCentre::Phase)]
-        centre: ConversionJobParamsCentre,
+        #[arg(long, default_value_t = Centre::Phase)]
+        centre: Centre,
 
         /// Custom phase centre right ascension (degrees). Requires --centre custom.
         #[arg(long)]
@@ -416,8 +411,8 @@ enum Args {
         output_mode: OutputMode,
 
         /// Where to centre the image.
-        #[arg(long, default_value_t = ImagingJobFlow1ParamsPhaseCenter::Phase)]
-        phase_center: ImagingJobFlow1ParamsPhaseCenter,
+        #[arg(long, default_value_t = PhaseCenter::Phase)]
+        phase_center: PhaseCenter,
 
         /// Pixel scale (arcsec/pixel).
         #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
@@ -1157,19 +1152,19 @@ fn main() -> Result<(), anyhow::Error> {
                         .delivery(delivery)
                         .delivery_format(delivery_format)
                         .output(output)
-                        .avg_freq_res(Some(avg_freq_res))
-                        .avg_time_res(Some(avg_time_res))
-                        .flag_edge_width(Some(flag_edge_width))
-                        .apply_di_cal(Some(apply_di_cal))
-                        .centre(Some(centre))
+                        .avg_freq_res(avg_freq_res)
+                        .avg_time_res(avg_time_res)
+                        .flag_edge_width(flag_edge_width)
+                        .apply_di_cal(apply_di_cal)
+                        .centre(centre)
                         .phase_centre_ra(phase_centre_ra)
                         .phase_centre_dec(phase_centre_dec)
-                        .no_apply_amps(Some(no_apply_amps))
-                        .no_digital_gains(Some(no_digital_gains))
-                        .no_flag_dc(Some(no_flag_dc))
-                        .no_geometry_delay(Some(no_geometry_delay))
-                        .no_passband_gains(Some(no_passband_gains))
-                        .allow_resubmit(Some(allow_resubmit))
+                        .no_apply_amps(no_apply_amps)
+                        .no_digital_gains(no_digital_gains)
+                        .no_flag_dc(no_flag_dc)
+                        .no_geometry_delay(no_geometry_delay)
+                        .no_passband_gains(no_passband_gains)
+                        .allow_resubmit(allow_resubmit)
                         .try_into()?;
 
                     let resp = client.submit_conversion_job(&params)?;
@@ -1273,29 +1268,29 @@ fn main() -> Result<(), anyhow::Error> {
                         .obs_id(obs_id_i64)
                         .delivery(delivery)
                         .delivery_format(delivery_format)
-                        .apply_di_cal(Some(apply_di_cal))
+                        .apply_di_cal(apply_di_cal)
                         .apply_primary_beam(apply_primary_beam)
                         .auto_mask(auto_mask)
                         .auto_threshold(auto_threshold)
                         .abs_threshold(abs_threshold)
-                        .avg_freq_res(Some(avg_freq_res))
-                        .avg_time_res(Some(avg_time_res))
+                        .avg_freq_res(avg_freq_res)
+                        .avg_time_res(avg_time_res)
                         .channels_out(channels_out)
                         .clean_iterations(clean_iterations)
                         .clean_threshold(clean_threshold)
                         .custom_dec(custom_dec)
                         .custom_ra(custom_ra)
-                        .flag_edge_width(Some(flag_edge_width))
+                        .flag_edge_width(flag_edge_width)
                         .image_size(image_size.clone())
                         .join_channels(join_channels)
                         .join_polarizations(join_polarizations)
                         .mgain(mgain)
                         .multiscale(multiscale)
                         .nmiter(nmiter)
-                        .no_apply_amps(Some(no_apply_amps))
+                        .no_apply_amps(no_apply_amps)
                         .nwlayers(nwlayers)
                         .output_mode(output_mode)
-                        .phase_center(Some(phase_center))
+                        .phase_center(phase_center)
                         .pixel_scale(pixel_scale)
                         .pol(pol.clone())
                         .robust(robust)
@@ -1303,7 +1298,7 @@ fn main() -> Result<(), anyhow::Error> {
                         .uvw_min(uvw_min)
                         .weighting(weighting)
                         .wstack_nwlayers(wstack_nwlayers)
-                        .allow_resubmit(Some(allow_resubmit))
+                        .allow_resubmit(allow_resubmit)
                         .try_into()?;
 
                     let job_id = client.submit_imaging_job(&params)?;

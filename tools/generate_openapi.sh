@@ -104,4 +104,7 @@ with open(out_path, "w") as f:
 PYEOF
 
 echo "Wrote ${OUTPUT_FILE}."
-echo "Now run: cargo build --features regen-openapi && git diff src/asvo/apiv2/openapi.rs"
+cargo build --features regen-openapi
+
+git diff src/asvo/apiv2/openapi.rs"
+echo "Done"

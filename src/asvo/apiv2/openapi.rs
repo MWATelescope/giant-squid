@@ -87,7 +87,7 @@ impl BeamformerJobParams {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum BeamformerJobParamsMode {
     #[serde(rename = "MWAX_BEAMFORMER")]
@@ -105,7 +105,9 @@ impl ::std::fmt::Display for BeamformerJobParamsMode {
 }
 impl ::std::str::FromStr for BeamformerJobParamsMode {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "MWAX_BEAMFORMER" => Ok(Self::MwaxBeamformer),
             "MWAX_CORR_BF" => Ok(Self::MwaxCorrBf),
@@ -115,7 +117,9 @@ impl ::std::str::FromStr for BeamformerJobParamsMode {
 }
 impl ::std::convert::TryFrom<&str> for BeamformerJobParamsMode {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -144,50 +148,32 @@ impl CalibrationReadyCallback {
         Default::default()
     }
 }
-///Parameters for conversion job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
-pub struct ConversionJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::conversion_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_apply_di_cal")]
-    pub apply_di_cal: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_avg_freq_res")]
-    pub avg_freq_res: ::std::option::Option<f64>,
-    #[serde(default = "defaults::conversion_job_params_avg_time_res")]
-    pub avg_time_res: ::std::option::Option<f64>,
-    #[serde(default = "defaults::conversion_job_params_centre")]
-    pub centre: ::std::option::Option<ConversionJobParamsCentre>,
-    #[serde(default = "defaults::conversion_job_params_delivery")]
-    pub delivery: Delivery,
-    #[serde(default = "defaults::conversion_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::conversion_job_params_flag_edge_width")]
-    pub flag_edge_width: ::std::option::Option<f64>,
-    #[serde(default = "defaults::conversion_job_params_no_apply_amps")]
-    pub no_apply_amps: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_no_digital_gains")]
-    pub no_digital_gains: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_no_flag_dc")]
-    pub no_flag_dc: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_no_geometry_delay")]
-    pub no_geometry_delay: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_no_passband_gains")]
-    pub no_passband_gains: ::std::option::Option<bool>,
-    pub obs_id: i64,
-    #[serde(default = "defaults::conversion_job_params_output")]
-    pub output: Output,
-    #[serde(deserialize_with = "::std::option::Option::deserialize")]
-    pub phase_centre_dec: ::std::option::Option<f64>,
-    #[serde(deserialize_with = "::std::option::Option::deserialize")]
-    pub phase_centre_ra: ::std::option::Option<f64>,
+///`CancelledJobsRequest`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
+pub struct CancelledJobsRequest {
+    ///Safety cap for amount of results to retrieve
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub limit: ::std::option::Option<::std::num::NonZeroU64>,
+    ///Optional user_id
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub user_id: ::std::option::Option<i64>,
 }
-impl ConversionJobParams {
-    pub fn builder() -> builder::ConversionJobParams {
+impl CancelledJobsRequest {
+    pub fn builder() -> builder::CancelledJobsRequest {
         Default::default()
     }
 }
-///`ConversionJobParamsCentre`
+///`CancelledJobsResponse`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+pub struct CancelledJobsResponse {
+    pub jobs: ::std::vec::Vec<QueuedJob>,
+}
+impl CancelledJobsResponse {
+    pub fn builder() -> builder::CancelledJobsResponse {
+        Default::default()
+    }
+}
+///`Centre`
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -198,9 +184,9 @@ impl ConversionJobParams {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
-pub enum ConversionJobParamsCentre {
+pub enum Centre {
     #[serde(rename = "phase")]
     Phase,
     #[serde(rename = "pointing")]
@@ -208,7 +194,7 @@ pub enum ConversionJobParamsCentre {
     #[serde(rename = "custom")]
     Custom,
 }
-impl ::std::fmt::Display for ConversionJobParamsCentre {
+impl ::std::fmt::Display for Centre {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Phase => f.write_str("phase"),
@@ -217,9 +203,11 @@ impl ::std::fmt::Display for ConversionJobParamsCentre {
         }
     }
 }
-impl ::std::str::FromStr for ConversionJobParamsCentre {
+impl ::std::str::FromStr for Centre {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "phase" => Ok(Self::Phase),
             "pointing" => Ok(Self::Pointing),
@@ -228,18 +216,72 @@ impl ::std::str::FromStr for ConversionJobParamsCentre {
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for ConversionJobParamsCentre {
+impl ::std::convert::TryFrom<&str> for Centre {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for ConversionJobParamsCentre {
+impl ::std::convert::TryFrom<::std::string::String> for Centre {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+impl ::std::default::Default for Centre {
+    fn default() -> Self {
+        Centre::Phase
+    }
+}
+///Parameters for conversion job submission
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+pub struct ConversionJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::conversion_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default)]
+    pub apply_di_cal: bool,
+    #[serde(default = "defaults::conversion_job_params_avg_freq_res")]
+    pub avg_freq_res: f64,
+    #[serde(default = "defaults::conversion_job_params_avg_time_res")]
+    pub avg_time_res: f64,
+    #[serde(default = "defaults::conversion_job_params_centre")]
+    pub centre: Centre,
+    #[serde(default = "defaults::conversion_job_params_delivery")]
+    pub delivery: Delivery,
+    #[serde(default = "defaults::conversion_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    #[serde(default = "defaults::conversion_job_params_flag_edge_width")]
+    pub flag_edge_width: f64,
+    #[serde(default)]
+    pub no_apply_amps: bool,
+    #[serde(default = "defaults::conversion_job_params_no_cable_delay")]
+    pub no_cable_delay: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_digital_gains")]
+    pub no_digital_gains: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_flag_dc")]
+    pub no_flag_dc: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_geometry_delay")]
+    pub no_geometry_delay: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_passband_gains")]
+    pub no_passband_gains: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_rfi")]
+    pub no_rfi: ::std::option::Option<bool>,
+    pub obs_id: i64,
+    #[serde(default = "defaults::conversion_job_params_output")]
+    pub output: Output,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub phase_centre_dec: ::std::option::Option<f64>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub phase_centre_ra: ::std::option::Option<f64>,
+}
+impl ConversionJobParams {
+    pub fn builder() -> builder::ConversionJobParams {
+        Default::default()
     }
 }
 ///`Delivery`
@@ -253,7 +295,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ConversionJobParamsCentr
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum Delivery {
     #[serde(rename = "acacia")]
@@ -274,7 +316,9 @@ impl ::std::fmt::Display for Delivery {
 }
 impl ::std::str::FromStr for Delivery {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "acacia" => Ok(Self::Acacia),
             "scratch" => Ok(Self::Scratch),
@@ -285,7 +329,9 @@ impl ::std::str::FromStr for Delivery {
 }
 impl ::std::convert::TryFrom<&str> for Delivery {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -313,7 +359,7 @@ impl ::std::default::Default for Delivery {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum DeliveryFormat {
     #[serde(rename = "tar")]
@@ -331,7 +377,9 @@ impl ::std::fmt::Display for DeliveryFormat {
 }
 impl ::std::str::FromStr for DeliveryFormat {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "tar" => Ok(Self::Tar),
             "files" => Ok(Self::Files),
@@ -341,7 +389,9 @@ impl ::std::str::FromStr for DeliveryFormat {
 }
 impl ::std::convert::TryFrom<&str> for DeliveryFormat {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -355,7 +405,7 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
 }
 impl ::std::default::Default for DeliveryFormat {
     fn default() -> Self {
-        DeliveryFormat::Files
+        DeliveryFormat::Tar
     }
 }
 ///Parameters for download job submission
@@ -388,7 +438,7 @@ impl DownloadJobParams {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum DownloadJobParamsDownloadType {
     #[serde(rename = "vis")]
@@ -406,7 +456,9 @@ impl ::std::fmt::Display for DownloadJobParamsDownloadType {
 }
 impl ::std::str::FromStr for DownloadJobParamsDownloadType {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "vis" => Ok(Self::Vis),
             "meta" => Ok(Self::Meta),
@@ -416,7 +468,9 @@ impl ::std::str::FromStr for DownloadJobParamsDownloadType {
 }
 impl ::std::convert::TryFrom<&str> for DownloadJobParamsDownloadType {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -479,17 +533,6 @@ impl HealthResponse {
         Default::default()
     }
 }
-///`HttpValidationError`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
-pub struct HttpValidationError {
-    #[serde(default, skip_serializing_if = "::std::vec::Vec::is_empty")]
-    pub detail: ::std::vec::Vec<ValidationError>,
-}
-impl HttpValidationError {
-    pub fn builder() -> builder::HttpValidationError {
-        Default::default()
-    }
-}
 ///`ImageSizes`
 #[derive(::serde::Serialize, Clone, Debug)]
 #[serde(transparent)]
@@ -507,8 +550,11 @@ impl ::std::convert::From<ImageSizes> for i64 {
 }
 impl ::std::convert::TryFrom<i64> for ImageSizes {
     type Error = self::error::ConversionError;
-    fn try_from(value: i64) -> ::std::result::Result<Self, self::error::ConversionError> {
-        if ![512_i64, 1024_i64, 2048_i64, 3072_i64, 4096_i64, 8192_i64].contains(&value) {
+    fn try_from(
+        value: i64,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if ![512_i64, 1024_i64, 2048_i64, 3072_i64, 4096_i64, 8192_i64].contains(&value)
+        {
             Err("invalid value".into())
         } else {
             Ok(Self(value))
@@ -521,7 +567,7 @@ impl<'de> ::serde::Deserialize<'de> for ImageSizes {
         D: ::serde::Deserializer<'de>,
     {
         Self::try_from(<i64>::deserialize(deserializer)?)
-            .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
+            .map_err(|e| { <D::Error as ::serde::de::Error>::custom(e.to_string()) })
     }
 }
 ///Parameters for image job submission
@@ -532,8 +578,8 @@ pub struct ImagingJobFlow1Params {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::imaging_job_flow1_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_apply_di_cal")]
-    pub apply_di_cal: ::std::option::Option<bool>,
+    #[serde(default = "defaults::default_bool::<true>")]
+    pub apply_di_cal: bool,
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_primary_beam: bool,
     #[serde(default = "defaults::default_u64::<i64, 3>")]
@@ -541,14 +587,15 @@ pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_auto_threshold")]
     pub auto_threshold: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_avg_freq_res")]
-    pub avg_freq_res: ::std::option::Option<f64>,
+    pub avg_freq_res: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_avg_time_res")]
-    pub avg_time_res: ::std::option::Option<f64>,
+    pub avg_time_res: f64,
     #[serde(default = "defaults::default_u64::<i64, 4>")]
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    ///deprecated. use abs_threshold instead
+    #[serde(default = "defaults::imaging_job_flow1_params_clean_threshold")]
     pub clean_threshold: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_dec: ::std::option::Option<f64>,
@@ -559,7 +606,7 @@ pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::imaging_job_flow1_params_flag_edge_width")]
-    pub flag_edge_width: ::std::option::Option<f64>,
+    pub flag_edge_width: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_image_size")]
     pub image_size: ImageSizes,
     #[serde(default = "defaults::default_bool::<true>")]
@@ -572,19 +619,20 @@ pub struct ImagingJobFlow1Params {
     pub multiscale: bool,
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_apply_amps")]
-    pub no_apply_amps: ::std::option::Option<bool>,
+    #[serde(default)]
+    pub no_apply_amps: bool,
+    ///deprecated. use wstack_nwlayers instead
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
     #[serde(default = "defaults::imaging_job_flow1_params_output_mode")]
     pub output_mode: OutputMode,
     #[serde(default = "defaults::imaging_job_flow1_params_phase_center")]
-    pub phase_center: ::std::option::Option<ImagingJobFlow1ParamsPhaseCenter>,
+    pub phase_center: PhaseCenter,
     #[serde(default = "defaults::imaging_job_flow1_params_pixel_scale")]
     pub pixel_scale: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_pol")]
-    pub pol: ::std::string::String,
+    pub pol: Polarization,
     #[serde(default = "defaults::imaging_job_flow1_params_robust")]
     pub robust: f64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -599,57 +647,6 @@ pub struct ImagingJobFlow1Params {
 impl ImagingJobFlow1Params {
     pub fn builder() -> builder::ImagingJobFlow1Params {
         Default::default()
-    }
-}
-///`ImagingJobFlow1ParamsPhaseCenter`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ImagingJobFlow1ParamsPhaseCenter {
-    #[serde(rename = "phase")]
-    Phase,
-    #[serde(rename = "custom")]
-    Custom,
-}
-impl ::std::fmt::Display for ImagingJobFlow1ParamsPhaseCenter {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Phase => f.write_str("phase"),
-            Self::Custom => f.write_str("custom"),
-        }
-    }
-}
-impl ::std::str::FromStr for ImagingJobFlow1ParamsPhaseCenter {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "phase" => Ok(Self::Phase),
-            "custom" => Ok(Self::Custom),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ImagingJobFlow1ParamsPhaseCenter {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ImagingJobFlow1ParamsPhaseCenter {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
     }
 }
 ///Parameters for image job submission
@@ -714,11 +711,24 @@ impl ImagingJobFlow2Params {
         Default::default()
     }
 }
+///`JobCancelledResponse`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+pub struct JobCancelledResponse {
+    pub job_id: ::std::num::NonZeroU64,
+    pub message: ::std::string::String,
+    #[serde(default = "defaults::job_cancelled_response_status")]
+    pub status: Status,
+}
+impl JobCancelledResponse {
+    pub fn builder() -> builder::JobCancelledResponse {
+        Default::default()
+    }
+}
 ///Complete job details response
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobDetailResponse {
     ///Timestamp when job completed (null if still processing)
-    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub completed: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///Timestamp when job was created
     pub created: ::chrono::DateTime<::chrono::offset::Utc>,
@@ -742,10 +752,11 @@ pub struct JobDetailResponse {
     pub modified: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///Job output/results when completed (file listings, download links)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub product:
-        ::std::option::Option<::serde_json::Map<::std::string::String, ::serde_json::Value>>,
+    pub product: ::std::option::Option<
+        ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    >,
     ///Timestamp of when the job began processing
-    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub started: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
     ///ID of user who submitted the job
     pub user_id: i64,
@@ -764,6 +775,102 @@ pub struct JobPriorityUpdate {
 impl JobPriorityUpdate {
     pub fn builder() -> builder::JobPriorityUpdate {
         Default::default()
+    }
+}
+/**Enum representing the possible states of a job
+Inherits from str to make it JSON serializable and directly usable in SQL queries*/
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum JobState {
+    #[serde(rename = "preparing")]
+    Preparing,
+    #[serde(rename = "queued")]
+    Queued,
+    #[serde(rename = "waitcal")]
+    Waitcal,
+    #[serde(rename = "staging")]
+    Staging,
+    #[serde(rename = "staged")]
+    Staged,
+    #[serde(rename = "downloading")]
+    Downloading,
+    #[serde(rename = "preprocessing")]
+    Preprocessing,
+    #[serde(rename = "imaging")]
+    Imaging,
+    #[serde(rename = "delivering")]
+    Delivering,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "error")]
+    Error,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+impl ::std::fmt::Display for JobState {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Preparing => f.write_str("preparing"),
+            Self::Queued => f.write_str("queued"),
+            Self::Waitcal => f.write_str("waitcal"),
+            Self::Staging => f.write_str("staging"),
+            Self::Staged => f.write_str("staged"),
+            Self::Downloading => f.write_str("downloading"),
+            Self::Preprocessing => f.write_str("preprocessing"),
+            Self::Imaging => f.write_str("imaging"),
+            Self::Delivering => f.write_str("delivering"),
+            Self::Completed => f.write_str("completed"),
+            Self::Error => f.write_str("error"),
+            Self::Cancelled => f.write_str("cancelled"),
+        }
+    }
+}
+impl ::std::str::FromStr for JobState {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "preparing" => Ok(Self::Preparing),
+            "queued" => Ok(Self::Queued),
+            "waitcal" => Ok(Self::Waitcal),
+            "staging" => Ok(Self::Staging),
+            "staged" => Ok(Self::Staged),
+            "downloading" => Ok(Self::Downloading),
+            "preprocessing" => Ok(Self::Preprocessing),
+            "imaging" => Ok(Self::Imaging),
+            "delivering" => Ok(Self::Delivering),
+            "completed" => Ok(Self::Completed),
+            "error" => Ok(Self::Error),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for JobState {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for JobState {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///`JobSubmittedResponse`
@@ -796,7 +903,9 @@ impl ::std::convert::From<JobType> for i64 {
 }
 impl ::std::convert::TryFrom<i64> for JobType {
     type Error = self::error::ConversionError;
-    fn try_from(value: i64) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: i64,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         if ![0_i64, 1_i64, 2_i64, 3_i64, 4_i64, 5_i64, 6_i64].contains(&value) {
             Err("invalid value".into())
         } else {
@@ -810,7 +919,7 @@ impl<'de> ::serde::Deserialize<'de> for JobType {
         D: ::serde::Deserializer<'de>,
     {
         Self::try_from(<i64>::deserialize(deserializer)?)
-            .map_err(|e| <D::Error as ::serde::de::Error>::custom(e.to_string()))
+            .map_err(|e| { <D::Error as ::serde::de::Error>::custom(e.to_string()) })
     }
 }
 ///Parameters for /job_history endpoint
@@ -871,7 +980,7 @@ impl JobsByUserRequest {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum JobsByUserRequestJobState {
     #[serde(rename = "queued")]
@@ -919,7 +1028,9 @@ impl ::std::fmt::Display for JobsByUserRequestJobState {
 }
 impl ::std::str::FromStr for JobsByUserRequestJobState {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "queued" => Ok(Self::Queued),
             "waitcal" => Ok(Self::Waitcal),
@@ -939,7 +1050,9 @@ impl ::std::str::FromStr for JobsByUserRequestJobState {
 }
 impl ::std::convert::TryFrom<&str> for JobsByUserRequestJobState {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -955,7 +1068,9 @@ impl ::std::convert::TryFrom<::std::string::String> for JobsByUserRequestJobStat
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct JobsByUserResponse {
     ///List of jobs pertaining to a specific user
-    pub jobs: ::std::vec::Vec<::serde_json::Map<::std::string::String, ::serde_json::Value>>,
+    pub jobs: ::std::vec::Vec<
+        ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    >,
     ///The total number of jobs
     pub total_count: i64,
 }
@@ -964,24 +1079,14 @@ impl JobsByUserResponse {
         Default::default()
     }
 }
-///`LocationItem`
+///`JobsToCancelRequest`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
-#[serde(untagged)]
-pub enum LocationItem {
-    String(::std::string::String),
-    Integer(i64),
+pub struct JobsToCancelRequest {
+    pub job_ids: ::std::vec::Vec<i64>,
 }
-impl ::std::fmt::Display for LocationItem {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match self {
-            Self::String(x) => x.fmt(f),
-            Self::Integer(x) => x.fmt(f),
-        }
-    }
-}
-impl ::std::convert::From<i64> for LocationItem {
-    fn from(value: i64) -> Self {
-        Self::Integer(value)
+impl JobsToCancelRequest {
+    pub fn builder() -> builder::JobsToCancelRequest {
+        Default::default()
     }
 }
 ///The name of the client app
@@ -1001,7 +1106,9 @@ impl ::std::convert::From<Login> for ::std::string::String {
 }
 impl ::std::str::FromStr for Login {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         if value.chars().count() > 36usize {
             return Err("longer than 36 characters".into());
         }
@@ -1013,7 +1120,9 @@ impl ::std::str::FromStr for Login {
 }
 impl ::std::convert::TryFrom<&str> for Login {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1037,6 +1146,20 @@ impl<'de> ::serde::Deserialize<'de> for Login {
             })
     }
 }
+///`MarkAsErrorRequest`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+pub struct MarkAsErrorRequest {
+    #[serde(default)]
+    pub error_code: i64,
+    pub job_id: ::std::num::NonZeroU64,
+    #[serde(default = "defaults::mark_as_error_request_message")]
+    pub message: ::std::string::String,
+}
+impl MarkAsErrorRequest {
+    pub fn builder() -> builder::MarkAsErrorRequest {
+        Default::default()
+    }
+}
 ///`Output`
 #[derive(
     ::serde::Deserialize,
@@ -1048,7 +1171,7 @@ impl<'de> ::serde::Deserialize<'de> for Login {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum Output {
     #[serde(rename = "ms")]
@@ -1066,7 +1189,9 @@ impl ::std::fmt::Display for Output {
 }
 impl ::std::str::FromStr for Output {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "ms" => Ok(Self::Ms),
             "uvfits" => Ok(Self::Uvfits),
@@ -1076,7 +1201,9 @@ impl ::std::str::FromStr for Output {
 }
 impl ::std::convert::TryFrom<&str> for Output {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1104,7 +1231,7 @@ impl ::std::default::Default for Output {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum OutputMode {
     #[serde(rename = "fits")]
@@ -1125,7 +1252,9 @@ impl ::std::fmt::Display for OutputMode {
 }
 impl ::std::str::FromStr for OutputMode {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "fits" => Ok(Self::Fits),
             "all_fits" => Ok(Self::AllFits),
@@ -1136,7 +1265,9 @@ impl ::std::str::FromStr for OutputMode {
 }
 impl ::std::convert::TryFrom<&str> for OutputMode {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1170,7 +1301,9 @@ impl ::std::convert::From<Password> for ::std::string::String {
 }
 impl ::std::str::FromStr for Password {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         if value.chars().count() > 16usize {
             return Err("longer than 16 characters".into());
         }
@@ -1182,7 +1315,9 @@ impl ::std::str::FromStr for Password {
 }
 impl ::std::convert::TryFrom<&str> for Password {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1206,6 +1341,66 @@ impl<'de> ::serde::Deserialize<'de> for Password {
             })
     }
 }
+///`PhaseCenter`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum PhaseCenter {
+    #[serde(rename = "phase")]
+    Phase,
+    #[serde(rename = "custom")]
+    Custom,
+}
+impl ::std::fmt::Display for PhaseCenter {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Phase => f.write_str("phase"),
+            Self::Custom => f.write_str("custom"),
+        }
+    }
+}
+impl ::std::str::FromStr for PhaseCenter {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "phase" => Ok(Self::Phase),
+            "custom" => Ok(Self::Custom),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for PhaseCenter {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PhaseCenter {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::default::Default for PhaseCenter {
+    fn default() -> Self {
+        PhaseCenter::Phase
+    }
+}
 ///`PiProjectDetails`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct PiProjectDetails {
@@ -1216,6 +1411,65 @@ pub struct PiProjectDetails {
 impl PiProjectDetails {
     pub fn builder() -> builder::PiProjectDetails {
         Default::default()
+    }
+}
+///`Polarization`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum Polarization {
+    #[serde(rename = "XX")]
+    Xx,
+    #[serde(rename = "YY")]
+    Yy,
+    #[serde(rename = "XXYY")]
+    Xxyy,
+}
+impl ::std::fmt::Display for Polarization {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Xx => f.write_str("XX"),
+            Self::Yy => f.write_str("YY"),
+            Self::Xxyy => f.write_str("XXYY"),
+        }
+    }
+}
+impl ::std::str::FromStr for Polarization {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "XX" => Ok(Self::Xx),
+            "YY" => Ok(Self::Yy),
+            "XXYY" => Ok(Self::Xxyy),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for Polarization {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for Polarization {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///`ProjectPermission`
@@ -1251,9 +1505,10 @@ pub struct QueuedJob {
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     pub job_type: JobType,
     ///Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage
-    pub priority_score: f64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub priority_score: ::std::option::Option<f64>,
     ///Cached queue position updated by scheduler (invalidated when queue changes)
-    #[serde(deserialize_with = "::std::option::Option::deserialize")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub queue_position_cache: ::std::option::Option<u64>,
     pub user_id: ::std::num::NonZeroU64,
 }
@@ -1263,25 +1518,14 @@ impl QueuedJob {
     }
 }
 ///`QueuedJobsRequest`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
 pub struct QueuedJobsRequest {
-    #[serde(default = "defaults::queued_jobs_request_job_state")]
-    pub job_state: ::std::string::String,
     ///Safety cap for amount of results to retrieve
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub limit: ::std::option::Option<::std::num::NonZeroU64>,
     ///Optional user_id
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub user_id: ::std::option::Option<i64>,
-}
-impl ::std::default::Default for QueuedJobsRequest {
-    fn default() -> Self {
-        Self {
-            job_state: defaults::queued_jobs_request_job_state(),
-            limit: Default::default(),
-            user_id: Default::default(),
-        }
-    }
 }
 impl QueuedJobsRequest {
     pub fn builder() -> builder::QueuedJobsRequest {
@@ -1321,7 +1565,7 @@ impl StagingCallback {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum Status {
     #[serde(rename = "success")]
@@ -1339,7 +1583,9 @@ impl ::std::fmt::Display for Status {
 }
 impl ::std::str::FromStr for Status {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "success" => Ok(Self::Success),
             "failed" => Ok(Self::Failed),
@@ -1349,7 +1595,9 @@ impl ::std::str::FromStr for Status {
 }
 impl ::std::convert::TryFrom<&str> for Status {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1379,6 +1627,17 @@ pub struct TokenResponse {
 }
 impl TokenResponse {
     pub fn builder() -> builder::TokenResponse {
+        Default::default()
+    }
+}
+///State update for a job
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+pub struct UpdateStateRequest {
+    pub job_id: ::std::num::NonZeroU64,
+    pub state: JobState,
+}
+impl UpdateStateRequest {
+    pub fn builder() -> builder::UpdateStateRequest {
         Default::default()
     }
 }
@@ -1527,7 +1786,9 @@ impl ::std::convert::From<Username> for ::std::string::String {
 }
 impl ::std::str::FromStr for Username {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         if value.chars().count() > 16usize {
             return Err("longer than 16 characters".into());
         }
@@ -1539,7 +1800,9 @@ impl ::std::str::FromStr for Username {
 }
 impl ::std::convert::TryFrom<&str> for Username {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1561,23 +1824,6 @@ impl<'de> ::serde::Deserialize<'de> for Username {
             .map_err(|e: self::error::ConversionError| {
                 <D::Error as ::serde::de::Error>::custom(e.to_string())
             })
-    }
-}
-///`ValidationError`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
-pub struct ValidationError {
-    #[serde(default, skip_serializing_if = "::serde_json::Map::is_empty")]
-    pub ctx: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub input: ::std::option::Option<::serde_json::Value>,
-    pub loc: ::std::vec::Vec<LocationItem>,
-    pub msg: ::std::string::String,
-    #[serde(rename = "type")]
-    pub type_: ::std::string::String,
-}
-impl ValidationError {
-    pub fn builder() -> builder::ValidationError {
-        Default::default()
     }
 }
 ///Parameters for voltage job submission
@@ -1627,7 +1873,7 @@ impl WebSocketTokenResponse {
     Hash,
     Ord,
     PartialEq,
-    PartialOrd,
+    PartialOrd
 )]
 pub enum Weighting {
     #[serde(rename = "briggs")]
@@ -1648,7 +1894,9 @@ impl ::std::fmt::Display for Weighting {
 }
 impl ::std::str::FromStr for Weighting {
     type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "briggs" => Ok(Self::Briggs),
             "uniform" => Ok(Self::Uniform),
@@ -1659,7 +1907,9 @@ impl ::std::str::FromStr for Weighting {
 }
 impl ::std::convert::TryFrom<&str> for Weighting {
     type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
@@ -1681,8 +1931,10 @@ pub mod builder {
     #[derive(Clone, Debug)]
     pub struct ApiKeyResponse {
         api_key: ::std::result::Result<::std::string::String, ::std::string::String>,
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        created: ::std::result::Result<
+            ::chrono::DateTime<::chrono::offset::Utc>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for ApiKeyResponse {
         fn default() -> Self {
@@ -1700,7 +1952,9 @@ pub mod builder {
         {
             self.api_key = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for api_key: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for api_key: {e}")
+                });
             self
         }
         pub fn created<T>(mut self, value: T) -> Self
@@ -1710,7 +1964,9 @@ pub mod builder {
         {
             self.created = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for created: {e}")
+                });
             self
         }
     }
@@ -1764,7 +2020,9 @@ pub mod builder {
         {
             self.password = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for password: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for password: {e}")
+                });
             self
         }
     }
@@ -1789,8 +2047,14 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct ApiLoginResponse {
-        access_token: ::std::result::Result<::std::string::String, ::std::string::String>,
-        refresh_token: ::std::result::Result<::std::string::String, ::std::string::String>,
+        access_token: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
+        refresh_token: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
         token_type: ::std::result::Result<::std::string::String, ::std::string::String>,
         user: ::std::result::Result<super::UserResponse, ::std::string::String>,
     }
@@ -1812,7 +2076,9 @@ pub mod builder {
         {
             self.access_token = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for access_token: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for access_token: {e}")
+                });
             self
         }
         pub fn refresh_token<T>(mut self, value: T) -> Self
@@ -1822,7 +2088,9 @@ pub mod builder {
         {
             self.refresh_token = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for refresh_token: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for refresh_token: {e}")
+                });
             self
         }
         pub fn token_type<T>(mut self, value: T) -> Self
@@ -1832,7 +2100,9 @@ pub mod builder {
         {
             self.token_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for token_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for token_type: {e}")
+                });
             self
         }
         pub fn user<T>(mut self, value: T) -> Self
@@ -1888,7 +2158,9 @@ pub mod builder {
         {
             self.authenticated = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for authenticated: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for authenticated: {e}")
+                });
             self
         }
     }
@@ -1911,9 +2183,15 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct BeamformerJobParams {
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<super::DeliveryFormat, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
         mode: ::std::result::Result<
             ::std::option::Option<super::BeamformerJobParamsMode>,
             ::std::string::String,
@@ -1923,9 +2201,13 @@ pub mod builder {
     impl ::std::default::Default for BeamformerJobParams {
         fn default() -> Self {
             Self {
-                allow_resubmit: Ok(super::defaults::beamformer_job_params_allow_resubmit()),
+                allow_resubmit: Ok(
+                    super::defaults::beamformer_job_params_allow_resubmit(),
+                ),
                 delivery: Ok(super::defaults::beamformer_job_params_delivery()),
-                delivery_format: Ok(super::defaults::beamformer_job_params_delivery_format()),
+                delivery_format: Ok(
+                    super::defaults::beamformer_job_params_delivery_format(),
+                ),
                 mode: Ok(super::defaults::beamformer_job_params_mode()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
             }
@@ -1939,7 +2221,9 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn delivery<T>(mut self, value: T) -> Self
@@ -1949,7 +2233,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -1959,12 +2245,16 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn mode<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<super::BeamformerJobParamsMode>>,
+            T: ::std::convert::TryInto<
+                ::std::option::Option<super::BeamformerJobParamsMode>,
+            >,
             T::Error: ::std::fmt::Display,
         {
             self.mode = value
@@ -2010,8 +2300,14 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct CalibrationReadyCallback {
-        asvo_job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        calibration_file: ::std::result::Result<::std::string::String, ::std::string::String>,
+        asvo_job_id: ::std::result::Result<
+            ::std::num::NonZeroU64,
+            ::std::string::String,
+        >,
+        calibration_file: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         status: ::std::result::Result<::std::string::String, ::std::string::String>,
         success: ::std::result::Result<bool, ::std::string::String>,
@@ -2021,7 +2317,9 @@ pub mod builder {
         fn default() -> Self {
             Self {
                 asvo_job_id: Err("no value supplied for asvo_job_id".to_string()),
-                calibration_file: Err("no value supplied for calibration_file".to_string()),
+                calibration_file: Err(
+                    "no value supplied for calibration_file".to_string(),
+                ),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 status: Err("no value supplied for status".to_string()),
                 success: Err("no value supplied for success".to_string()),
@@ -2037,7 +2335,9 @@ pub mod builder {
         {
             self.asvo_job_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for asvo_job_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for asvo_job_id: {e}")
+                });
             self
         }
         pub fn calibration_file<T>(mut self, value: T) -> Self
@@ -2047,7 +2347,9 @@ pub mod builder {
         {
             self.calibration_file = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for calibration_file: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for calibration_file: {e}")
+                });
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -2077,7 +2379,9 @@ pub mod builder {
         {
             self.success = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for success: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for success: {e}")
+                });
             self
         }
         pub fn target_obs_id<T>(mut self, value: T) -> Self
@@ -2087,11 +2391,14 @@ pub mod builder {
         {
             self.target_obs_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for target_obs_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for target_obs_id: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<CalibrationReadyCallback> for super::CalibrationReadyCallback {
+    impl ::std::convert::TryFrom<CalibrationReadyCallback>
+    for super::CalibrationReadyCallback {
         type Error = super::error::ConversionError;
         fn try_from(
             value: CalibrationReadyCallback,
@@ -2106,7 +2413,8 @@ pub mod builder {
             })
         }
     }
-    impl ::std::convert::From<super::CalibrationReadyCallback> for CalibrationReadyCallback {
+    impl ::std::convert::From<super::CalibrationReadyCallback>
+    for CalibrationReadyCallback {
         fn from(value: super::CalibrationReadyCallback) -> Self {
             Self {
                 asvo_job_id: Ok(value.asvo_job_id),
@@ -2119,50 +2427,195 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct ConversionJobParams {
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        apply_di_cal: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        avg_freq_res: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        avg_time_res: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        centre: ::std::result::Result<
-            ::std::option::Option<super::ConversionJobParamsCentre>,
+    pub struct CancelledJobsRequest {
+        limit: ::std::result::Result<
+            ::std::option::Option<::std::num::NonZeroU64>,
             ::std::string::String,
         >,
+        user_id: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for CancelledJobsRequest {
+        fn default() -> Self {
+            Self {
+                limit: Ok(Default::default()),
+                user_id: Ok(Default::default()),
+            }
+        }
+    }
+    impl CancelledJobsRequest {
+        pub fn limit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::num::NonZeroU64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.limit = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for limit: {e}"));
+            self
+        }
+        pub fn user_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.user_id = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<CancelledJobsRequest> for super::CancelledJobsRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: CancelledJobsRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                limit: value.limit?,
+                user_id: value.user_id?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::CancelledJobsRequest> for CancelledJobsRequest {
+        fn from(value: super::CancelledJobsRequest) -> Self {
+            Self {
+                limit: Ok(value.limit),
+                user_id: Ok(value.user_id),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct CancelledJobsResponse {
+        jobs: ::std::result::Result<
+            ::std::vec::Vec<super::QueuedJob>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for CancelledJobsResponse {
+        fn default() -> Self {
+            Self {
+                jobs: Err("no value supplied for jobs".to_string()),
+            }
+        }
+    }
+    impl CancelledJobsResponse {
+        pub fn jobs<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<super::QueuedJob>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.jobs = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for jobs: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<CancelledJobsResponse>
+    for super::CancelledJobsResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: CancelledJobsResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self { jobs: value.jobs? })
+        }
+    }
+    impl ::std::convert::From<super::CancelledJobsResponse> for CancelledJobsResponse {
+        fn from(value: super::CancelledJobsResponse) -> Self {
+            Self { jobs: Ok(value.jobs) }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ConversionJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        apply_di_cal: ::std::result::Result<bool, ::std::string::String>,
+        avg_freq_res: ::std::result::Result<f64, ::std::string::String>,
+        avg_time_res: ::std::result::Result<f64, ::std::string::String>,
+        centre: ::std::result::Result<super::Centre, ::std::string::String>,
         delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<super::DeliveryFormat, ::std::string::String>,
-        flag_edge_width: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        no_apply_amps: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        no_digital_gains: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        no_flag_dc: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        no_geometry_delay:
-            ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        no_passband_gains:
-            ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        flag_edge_width: ::std::result::Result<f64, ::std::string::String>,
+        no_apply_amps: ::std::result::Result<bool, ::std::string::String>,
+        no_cable_delay: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        no_digital_gains: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        no_flag_dc: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        no_geometry_delay: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        no_passband_gains: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        no_rfi: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         output: ::std::result::Result<super::Output, ::std::string::String>,
-        phase_centre_dec: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        phase_centre_ra: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        phase_centre_dec: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        phase_centre_ra: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for ConversionJobParams {
         fn default() -> Self {
             Self {
-                allow_resubmit: Ok(super::defaults::conversion_job_params_allow_resubmit()),
-                apply_di_cal: Ok(super::defaults::conversion_job_params_apply_di_cal()),
+                allow_resubmit: Ok(
+                    super::defaults::conversion_job_params_allow_resubmit(),
+                ),
+                apply_di_cal: Ok(Default::default()),
                 avg_freq_res: Ok(super::defaults::conversion_job_params_avg_freq_res()),
                 avg_time_res: Ok(super::defaults::conversion_job_params_avg_time_res()),
                 centre: Ok(super::defaults::conversion_job_params_centre()),
                 delivery: Ok(super::defaults::conversion_job_params_delivery()),
-                delivery_format: Ok(super::defaults::conversion_job_params_delivery_format()),
-                flag_edge_width: Ok(super::defaults::conversion_job_params_flag_edge_width()),
-                no_apply_amps: Ok(super::defaults::conversion_job_params_no_apply_amps()),
-                no_digital_gains: Ok(super::defaults::conversion_job_params_no_digital_gains()),
+                delivery_format: Ok(
+                    super::defaults::conversion_job_params_delivery_format(),
+                ),
+                flag_edge_width: Ok(
+                    super::defaults::conversion_job_params_flag_edge_width(),
+                ),
+                no_apply_amps: Ok(Default::default()),
+                no_cable_delay: Ok(
+                    super::defaults::conversion_job_params_no_cable_delay(),
+                ),
+                no_digital_gains: Ok(
+                    super::defaults::conversion_job_params_no_digital_gains(),
+                ),
                 no_flag_dc: Ok(super::defaults::conversion_job_params_no_flag_dc()),
-                no_geometry_delay: Ok(super::defaults::conversion_job_params_no_geometry_delay()),
-                no_passband_gains: Ok(super::defaults::conversion_job_params_no_passband_gains()),
+                no_geometry_delay: Ok(
+                    super::defaults::conversion_job_params_no_geometry_delay(),
+                ),
+                no_passband_gains: Ok(
+                    super::defaults::conversion_job_params_no_passband_gains(),
+                ),
+                no_rfi: Ok(super::defaults::conversion_job_params_no_rfi()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 output: Ok(super::defaults::conversion_job_params_output()),
-                phase_centre_dec: Err("no value supplied for phase_centre_dec".to_string()),
-                phase_centre_ra: Err("no value supplied for phase_centre_ra".to_string()),
+                phase_centre_dec: Ok(Default::default()),
+                phase_centre_ra: Ok(Default::default()),
             }
         }
     }
@@ -2174,42 +2627,50 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn apply_di_cal<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
             self.apply_di_cal = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for apply_di_cal: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for apply_di_cal: {e}")
+                });
             self
         }
         pub fn avg_freq_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_freq_res = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for avg_freq_res: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for avg_freq_res: {e}")
+                });
             self
         }
         pub fn avg_time_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_time_res = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for avg_time_res: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for avg_time_res: {e}")
+                });
             self
         }
         pub fn centre<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<super::ConversionJobParamsCentre>>,
+            T: ::std::convert::TryInto<super::Centre>,
             T::Error: ::std::fmt::Display,
         {
             self.centre = value
@@ -2224,7 +2685,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -2234,27 +2697,45 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn flag_edge_width<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.flag_edge_width = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for flag_edge_width: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for flag_edge_width: {e}")
+                });
             self
         }
         pub fn no_apply_amps<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
             self.no_apply_amps = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_apply_amps: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_apply_amps: {e}")
+                });
+            self
+        }
+        pub fn no_cable_delay<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.no_cable_delay = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for no_cable_delay: {e}")
+                });
             self
         }
         pub fn no_digital_gains<T>(mut self, value: T) -> Self
@@ -2264,7 +2745,9 @@ pub mod builder {
         {
             self.no_digital_gains = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_digital_gains: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_digital_gains: {e}")
+                });
             self
         }
         pub fn no_flag_dc<T>(mut self, value: T) -> Self
@@ -2274,7 +2757,9 @@ pub mod builder {
         {
             self.no_flag_dc = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_flag_dc: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_flag_dc: {e}")
+                });
             self
         }
         pub fn no_geometry_delay<T>(mut self, value: T) -> Self
@@ -2284,7 +2769,9 @@ pub mod builder {
         {
             self.no_geometry_delay = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_geometry_delay: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_geometry_delay: {e}")
+                });
             self
         }
         pub fn no_passband_gains<T>(mut self, value: T) -> Self
@@ -2294,7 +2781,19 @@ pub mod builder {
         {
             self.no_passband_gains = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_passband_gains: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_passband_gains: {e}")
+                });
+            self
+        }
+        pub fn no_rfi<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.no_rfi = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for no_rfi: {e}"));
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -2324,7 +2823,9 @@ pub mod builder {
         {
             self.phase_centre_dec = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for phase_centre_dec: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for phase_centre_dec: {e}")
+                });
             self
         }
         pub fn phase_centre_ra<T>(mut self, value: T) -> Self
@@ -2334,7 +2835,9 @@ pub mod builder {
         {
             self.phase_centre_ra = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for phase_centre_ra: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for phase_centre_ra: {e}")
+                });
             self
         }
     }
@@ -2353,10 +2856,12 @@ pub mod builder {
                 delivery_format: value.delivery_format?,
                 flag_edge_width: value.flag_edge_width?,
                 no_apply_amps: value.no_apply_amps?,
+                no_cable_delay: value.no_cable_delay?,
                 no_digital_gains: value.no_digital_gains?,
                 no_flag_dc: value.no_flag_dc?,
                 no_geometry_delay: value.no_geometry_delay?,
                 no_passband_gains: value.no_passband_gains?,
+                no_rfi: value.no_rfi?,
                 obs_id: value.obs_id?,
                 output: value.output?,
                 phase_centre_dec: value.phase_centre_dec?,
@@ -2376,10 +2881,12 @@ pub mod builder {
                 delivery_format: Ok(value.delivery_format),
                 flag_edge_width: Ok(value.flag_edge_width),
                 no_apply_amps: Ok(value.no_apply_amps),
+                no_cable_delay: Ok(value.no_cable_delay),
                 no_digital_gains: Ok(value.no_digital_gains),
                 no_flag_dc: Ok(value.no_flag_dc),
                 no_geometry_delay: Ok(value.no_geometry_delay),
                 no_passband_gains: Ok(value.no_passband_gains),
+                no_rfi: Ok(value.no_rfi),
                 obs_id: Ok(value.obs_id),
                 output: Ok(value.output),
                 phase_centre_dec: Ok(value.phase_centre_dec),
@@ -2389,9 +2896,15 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct DownloadJobParams {
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<super::DeliveryFormat, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
         download_type: ::std::result::Result<
             ::std::option::Option<super::DownloadJobParamsDownloadType>,
             ::std::string::String,
@@ -2401,9 +2914,13 @@ pub mod builder {
     impl ::std::default::Default for DownloadJobParams {
         fn default() -> Self {
             Self {
-                allow_resubmit: Ok(super::defaults::download_job_params_allow_resubmit()),
+                allow_resubmit: Ok(
+                    super::defaults::download_job_params_allow_resubmit(),
+                ),
                 delivery: Ok(super::defaults::download_job_params_delivery()),
-                delivery_format: Ok(super::defaults::download_job_params_delivery_format()),
+                delivery_format: Ok(
+                    super::defaults::download_job_params_delivery_format(),
+                ),
                 download_type: Ok(super::defaults::download_job_params_download_type()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
             }
@@ -2417,7 +2934,9 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn delivery<T>(mut self, value: T) -> Self
@@ -2427,7 +2946,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -2437,17 +2958,23 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn download_type<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<super::DownloadJobParamsDownloadType>>,
+            T: ::std::convert::TryInto<
+                ::std::option::Option<super::DownloadJobParamsDownloadType>,
+            >,
             T::Error: ::std::fmt::Display,
         {
             self.download_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for download_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for download_type: {e}")
+                });
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -2537,17 +3064,23 @@ pub mod builder {
         {
             self.error_code = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for error_code: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for error_code: {e}")
+                });
             self
         }
         pub fn field_errors<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<::std::vec::Vec<super::FieldError>>>,
+            T: ::std::convert::TryInto<
+                ::std::option::Option<::std::vec::Vec<super::FieldError>>,
+            >,
             T::Error: ::std::fmt::Display,
         {
             self.field_errors = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for field_errors: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for field_errors: {e}")
+                });
             self
         }
         pub fn message<T>(mut self, value: T) -> Self
@@ -2557,7 +3090,9 @@ pub mod builder {
         {
             self.message = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for message: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
             self
         }
         pub fn request_id<T>(mut self, value: T) -> Self
@@ -2567,7 +3102,9 @@ pub mod builder {
         {
             self.request_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for request_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for request_id: {e}")
+                });
             self
         }
         pub fn suggestion<T>(mut self, value: T) -> Self
@@ -2577,7 +3114,9 @@ pub mod builder {
         {
             self.suggestion = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for suggestion: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for suggestion: {e}")
+                });
             self
         }
     }
@@ -2639,7 +3178,9 @@ pub mod builder {
         {
             self.message = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for message: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
             self
         }
     }
@@ -2687,7 +3228,9 @@ pub mod builder {
         {
             self.database = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for database: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for database: {e}")
+                });
             self
         }
         pub fn service<T>(mut self, value: T) -> Self
@@ -2697,7 +3240,9 @@ pub mod builder {
         {
             self.service = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for service: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for service: {e}")
+                });
             self
         }
         pub fn status<T>(mut self, value: T) -> Self
@@ -2717,7 +3262,9 @@ pub mod builder {
         {
             self.version = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for version: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for version: {e}")
+                });
             self
         }
     }
@@ -2745,116 +3292,119 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct HttpValidationError {
-        detail:
-            ::std::result::Result<::std::vec::Vec<super::ValidationError>, ::std::string::String>,
-    }
-    impl ::std::default::Default for HttpValidationError {
-        fn default() -> Self {
-            Self {
-                detail: Ok(Default::default()),
-            }
-        }
-    }
-    impl HttpValidationError {
-        pub fn detail<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::vec::Vec<super::ValidationError>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.detail = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for detail: {e}"));
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<HttpValidationError> for super::HttpValidationError {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: HttpValidationError,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                detail: value.detail?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::HttpValidationError> for HttpValidationError {
-        fn from(value: super::HttpValidationError) -> Self {
-            Self {
-                detail: Ok(value.detail),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
     pub struct ImagingJobFlow1Params {
-        abs_threshold: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        apply_di_cal: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        abs_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        apply_di_cal: ::std::result::Result<bool, ::std::string::String>,
         apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
         auto_mask: ::std::result::Result<i64, ::std::string::String>,
         auto_threshold: ::std::result::Result<f64, ::std::string::String>,
-        avg_freq_res: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        avg_time_res: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        avg_freq_res: ::std::result::Result<f64, ::std::string::String>,
+        avg_time_res: ::std::result::Result<f64, ::std::string::String>,
         channels_out: ::std::result::Result<i64, ::std::string::String>,
         clean_iterations: ::std::result::Result<i64, ::std::string::String>,
-        clean_threshold: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        custom_dec: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        custom_ra: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        clean_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        custom_dec: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        custom_ra: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<super::DeliveryFormat, ::std::string::String>,
-        flag_edge_width: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        flag_edge_width: ::std::result::Result<f64, ::std::string::String>,
         image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
         join_channels: ::std::result::Result<bool, ::std::string::String>,
         join_polarizations: ::std::result::Result<bool, ::std::string::String>,
         mgain: ::std::result::Result<f64, ::std::string::String>,
         multiscale: ::std::result::Result<bool, ::std::string::String>,
         nmiter: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        no_apply_amps: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        nwlayers: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output_mode: ::std::result::Result<super::OutputMode, ::std::string::String>,
-        phase_center: ::std::result::Result<
-            ::std::option::Option<super::ImagingJobFlow1ParamsPhaseCenter>,
+        no_apply_amps: ::std::result::Result<bool, ::std::string::String>,
+        nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
             ::std::string::String,
         >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+        output_mode: ::std::result::Result<super::OutputMode, ::std::string::String>,
+        phase_center: ::std::result::Result<super::PhaseCenter, ::std::string::String>,
         pixel_scale: ::std::result::Result<f64, ::std::string::String>,
-        pol: ::std::result::Result<::std::string::String, ::std::string::String>,
+        pol: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
-        uvw_max: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        uvw_max: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         uvw_min: ::std::result::Result<f64, ::std::string::String>,
         weighting: ::std::result::Result<super::Weighting, ::std::string::String>,
-        wstack_nwlayers: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        wstack_nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for ImagingJobFlow1Params {
         fn default() -> Self {
             Self {
-                abs_threshold: Ok(super::defaults::imaging_job_flow1_params_abs_threshold()),
-                allow_resubmit: Ok(super::defaults::imaging_job_flow1_params_allow_resubmit()),
-                apply_di_cal: Ok(super::defaults::imaging_job_flow1_params_apply_di_cal()),
+                abs_threshold: Ok(
+                    super::defaults::imaging_job_flow1_params_abs_threshold(),
+                ),
+                allow_resubmit: Ok(
+                    super::defaults::imaging_job_flow1_params_allow_resubmit(),
+                ),
+                apply_di_cal: Ok(super::defaults::default_bool::<true>()),
                 apply_primary_beam: Ok(super::defaults::default_bool::<true>()),
                 auto_mask: Ok(super::defaults::default_u64::<i64, 3>()),
-                auto_threshold: Ok(super::defaults::imaging_job_flow1_params_auto_threshold()),
-                avg_freq_res: Ok(super::defaults::imaging_job_flow1_params_avg_freq_res()),
-                avg_time_res: Ok(super::defaults::imaging_job_flow1_params_avg_time_res()),
+                auto_threshold: Ok(
+                    super::defaults::imaging_job_flow1_params_auto_threshold(),
+                ),
+                avg_freq_res: Ok(
+                    super::defaults::imaging_job_flow1_params_avg_freq_res(),
+                ),
+                avg_time_res: Ok(
+                    super::defaults::imaging_job_flow1_params_avg_time_res(),
+                ),
                 channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
                 clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
-                clean_threshold: Ok(Default::default()),
+                clean_threshold: Ok(
+                    super::defaults::imaging_job_flow1_params_clean_threshold(),
+                ),
                 custom_dec: Ok(Default::default()),
                 custom_ra: Ok(Default::default()),
                 delivery: Ok(super::defaults::imaging_job_flow1_params_delivery()),
-                delivery_format: Ok(super::defaults::imaging_job_flow1_params_delivery_format()),
-                flag_edge_width: Ok(super::defaults::imaging_job_flow1_params_flag_edge_width()),
+                delivery_format: Ok(
+                    super::defaults::imaging_job_flow1_params_delivery_format(),
+                ),
+                flag_edge_width: Ok(
+                    super::defaults::imaging_job_flow1_params_flag_edge_width(),
+                ),
                 image_size: Ok(super::defaults::imaging_job_flow1_params_image_size()),
                 join_channels: Ok(super::defaults::default_bool::<true>()),
                 join_polarizations: Ok(Default::default()),
                 mgain: Ok(super::defaults::imaging_job_flow1_params_mgain()),
                 multiscale: Ok(Default::default()),
-                nmiter: Ok(super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>()),
-                no_apply_amps: Ok(super::defaults::imaging_job_flow1_params_no_apply_amps()),
+                nmiter: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
+                ),
+                no_apply_amps: Ok(Default::default()),
                 nwlayers: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 output_mode: Ok(super::defaults::imaging_job_flow1_params_output_mode()),
-                phase_center: Ok(super::defaults::imaging_job_flow1_params_phase_center()),
+                phase_center: Ok(
+                    super::defaults::imaging_job_flow1_params_phase_center(),
+                ),
                 pixel_scale: Ok(super::defaults::imaging_job_flow1_params_pixel_scale()),
                 pol: Ok(super::defaults::imaging_job_flow1_params_pol()),
                 robust: Ok(super::defaults::imaging_job_flow1_params_robust()),
@@ -2873,7 +3423,9 @@ pub mod builder {
         {
             self.abs_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for abs_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for abs_threshold: {e}")
+                });
             self
         }
         pub fn allow_resubmit<T>(mut self, value: T) -> Self
@@ -2883,17 +3435,21 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn apply_di_cal<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
             self.apply_di_cal = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for apply_di_cal: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for apply_di_cal: {e}")
+                });
             self
         }
         pub fn apply_primary_beam<T>(mut self, value: T) -> Self
@@ -2901,9 +3457,13 @@ pub mod builder {
             T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
-            self.apply_primary_beam = value.try_into().map_err(|e| {
-                format!("error converting supplied value for apply_primary_beam: {e}")
-            });
+            self.apply_primary_beam = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for apply_primary_beam: {e}"
+                    )
+                });
             self
         }
         pub fn auto_mask<T>(mut self, value: T) -> Self
@@ -2913,7 +3473,9 @@ pub mod builder {
         {
             self.auto_mask = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for auto_mask: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_mask: {e}")
+                });
             self
         }
         pub fn auto_threshold<T>(mut self, value: T) -> Self
@@ -2923,27 +3485,33 @@ pub mod builder {
         {
             self.auto_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for auto_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_threshold: {e}")
+                });
             self
         }
         pub fn avg_freq_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_freq_res = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for avg_freq_res: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for avg_freq_res: {e}")
+                });
             self
         }
         pub fn avg_time_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_time_res = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for avg_time_res: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for avg_time_res: {e}")
+                });
             self
         }
         pub fn channels_out<T>(mut self, value: T) -> Self
@@ -2953,7 +3521,9 @@ pub mod builder {
         {
             self.channels_out = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for channels_out: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for channels_out: {e}")
+                });
             self
         }
         pub fn clean_iterations<T>(mut self, value: T) -> Self
@@ -2963,7 +3533,9 @@ pub mod builder {
         {
             self.clean_iterations = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for clean_iterations: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_iterations: {e}")
+                });
             self
         }
         pub fn clean_threshold<T>(mut self, value: T) -> Self
@@ -2973,7 +3545,9 @@ pub mod builder {
         {
             self.clean_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for clean_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_threshold: {e}")
+                });
             self
         }
         pub fn custom_dec<T>(mut self, value: T) -> Self
@@ -2983,7 +3557,9 @@ pub mod builder {
         {
             self.custom_dec = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for custom_dec: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for custom_dec: {e}")
+                });
             self
         }
         pub fn custom_ra<T>(mut self, value: T) -> Self
@@ -2993,7 +3569,9 @@ pub mod builder {
         {
             self.custom_ra = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for custom_ra: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for custom_ra: {e}")
+                });
             self
         }
         pub fn delivery<T>(mut self, value: T) -> Self
@@ -3003,7 +3581,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -3013,17 +3593,21 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn flag_edge_width<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
             self.flag_edge_width = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for flag_edge_width: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for flag_edge_width: {e}")
+                });
             self
         }
         pub fn image_size<T>(mut self, value: T) -> Self
@@ -3033,7 +3617,9 @@ pub mod builder {
         {
             self.image_size = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for image_size: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for image_size: {e}")
+                });
             self
         }
         pub fn join_channels<T>(mut self, value: T) -> Self
@@ -3043,7 +3629,9 @@ pub mod builder {
         {
             self.join_channels = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for join_channels: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for join_channels: {e}")
+                });
             self
         }
         pub fn join_polarizations<T>(mut self, value: T) -> Self
@@ -3051,9 +3639,13 @@ pub mod builder {
             T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
-            self.join_polarizations = value.try_into().map_err(|e| {
-                format!("error converting supplied value for join_polarizations: {e}")
-            });
+            self.join_polarizations = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for join_polarizations: {e}"
+                    )
+                });
             self
         }
         pub fn mgain<T>(mut self, value: T) -> Self
@@ -3073,7 +3665,9 @@ pub mod builder {
         {
             self.multiscale = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for multiscale: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for multiscale: {e}")
+                });
             self
         }
         pub fn nmiter<T>(mut self, value: T) -> Self
@@ -3088,12 +3682,14 @@ pub mod builder {
         }
         pub fn no_apply_amps<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
             self.no_apply_amps = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for no_apply_amps: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for no_apply_amps: {e}")
+                });
             self
         }
         pub fn nwlayers<T>(mut self, value: T) -> Self
@@ -3103,7 +3699,9 @@ pub mod builder {
         {
             self.nwlayers = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for nwlayers: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for nwlayers: {e}")
+                });
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -3123,19 +3721,21 @@ pub mod builder {
         {
             self.output_mode = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for output_mode: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for output_mode: {e}")
+                });
             self
         }
         pub fn phase_center<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<super::ImagingJobFlow1ParamsPhaseCenter>,
-            >,
+            T: ::std::convert::TryInto<super::PhaseCenter>,
             T::Error: ::std::fmt::Display,
         {
             self.phase_center = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for phase_center: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for phase_center: {e}")
+                });
             self
         }
         pub fn pixel_scale<T>(mut self, value: T) -> Self
@@ -3145,12 +3745,14 @@ pub mod builder {
         {
             self.pixel_scale = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pixel_scale: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for pixel_scale: {e}")
+                });
             self
         }
         pub fn pol<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::Polarization>,
             T::Error: ::std::fmt::Display,
         {
             self.pol = value
@@ -3175,7 +3777,9 @@ pub mod builder {
         {
             self.uvw_max = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for uvw_max: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_max: {e}")
+                });
             self
         }
         pub fn uvw_min<T>(mut self, value: T) -> Self
@@ -3185,7 +3789,9 @@ pub mod builder {
         {
             self.uvw_min = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for uvw_min: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_min: {e}")
+                });
             self
         }
         pub fn weighting<T>(mut self, value: T) -> Self
@@ -3195,7 +3801,9 @@ pub mod builder {
         {
             self.weighting = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for weighting: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for weighting: {e}")
+                });
             self
         }
         pub fn wstack_nwlayers<T>(mut self, value: T) -> Self
@@ -3205,11 +3813,14 @@ pub mod builder {
         {
             self.wstack_nwlayers = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for wstack_nwlayers: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for wstack_nwlayers: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<ImagingJobFlow1Params> for super::ImagingJobFlow1Params {
+    impl ::std::convert::TryFrom<ImagingJobFlow1Params>
+    for super::ImagingJobFlow1Params {
         type Error = super::error::ConversionError;
         fn try_from(
             value: ImagingJobFlow1Params,
@@ -3294,53 +3905,87 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct ImagingJobFlow2Params {
-        abs_threshold: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        abs_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
         auto_mask: ::std::result::Result<i64, ::std::string::String>,
         auto_threshold: ::std::result::Result<f64, ::std::string::String>,
         channels_out: ::std::result::Result<i64, ::std::string::String>,
         clean_iterations: ::std::result::Result<i64, ::std::string::String>,
-        clean_threshold: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        clean_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<super::DeliveryFormat, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
         image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
         join_channels: ::std::result::Result<bool, ::std::string::String>,
         join_polarizations: ::std::result::Result<bool, ::std::string::String>,
         mgain: ::std::result::Result<f64, ::std::string::String>,
         multiscale: ::std::result::Result<bool, ::std::string::String>,
         nmiter: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        nwlayers: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         output_mode: ::std::result::Result<super::OutputMode, ::std::string::String>,
         pixel_scale: ::std::result::Result<f64, ::std::string::String>,
         pol: ::std::result::Result<::std::string::String, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
-        source_job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        uvw_max: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        source_job_id: ::std::result::Result<
+            ::std::num::NonZeroU64,
+            ::std::string::String,
+        >,
+        uvw_max: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         uvw_min: ::std::result::Result<f64, ::std::string::String>,
         weighting: ::std::result::Result<super::Weighting, ::std::string::String>,
-        wstack_nwlayers: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        wstack_nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for ImagingJobFlow2Params {
         fn default() -> Self {
             Self {
-                abs_threshold: Ok(super::defaults::imaging_job_flow2_params_abs_threshold()),
-                allow_resubmit: Ok(super::defaults::imaging_job_flow2_params_allow_resubmit()),
+                abs_threshold: Ok(
+                    super::defaults::imaging_job_flow2_params_abs_threshold(),
+                ),
+                allow_resubmit: Ok(
+                    super::defaults::imaging_job_flow2_params_allow_resubmit(),
+                ),
                 apply_primary_beam: Ok(super::defaults::default_bool::<true>()),
                 auto_mask: Ok(super::defaults::default_u64::<i64, 3>()),
-                auto_threshold: Ok(super::defaults::imaging_job_flow2_params_auto_threshold()),
+                auto_threshold: Ok(
+                    super::defaults::imaging_job_flow2_params_auto_threshold(),
+                ),
                 channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
                 clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
                 clean_threshold: Ok(Default::default()),
                 delivery: Ok(super::defaults::imaging_job_flow2_params_delivery()),
-                delivery_format: Ok(super::defaults::imaging_job_flow2_params_delivery_format()),
+                delivery_format: Ok(
+                    super::defaults::imaging_job_flow2_params_delivery_format(),
+                ),
                 image_size: Ok(super::defaults::imaging_job_flow2_params_image_size()),
                 join_channels: Ok(super::defaults::default_bool::<true>()),
                 join_polarizations: Ok(Default::default()),
                 mgain: Ok(super::defaults::imaging_job_flow2_params_mgain()),
                 multiscale: Ok(Default::default()),
-                nmiter: Ok(super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>()),
+                nmiter: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
+                ),
                 nwlayers: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 output_mode: Ok(super::defaults::imaging_job_flow2_params_output_mode()),
@@ -3363,7 +4008,9 @@ pub mod builder {
         {
             self.abs_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for abs_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for abs_threshold: {e}")
+                });
             self
         }
         pub fn allow_resubmit<T>(mut self, value: T) -> Self
@@ -3373,7 +4020,9 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn apply_primary_beam<T>(mut self, value: T) -> Self
@@ -3381,9 +4030,13 @@ pub mod builder {
             T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
-            self.apply_primary_beam = value.try_into().map_err(|e| {
-                format!("error converting supplied value for apply_primary_beam: {e}")
-            });
+            self.apply_primary_beam = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for apply_primary_beam: {e}"
+                    )
+                });
             self
         }
         pub fn auto_mask<T>(mut self, value: T) -> Self
@@ -3393,7 +4046,9 @@ pub mod builder {
         {
             self.auto_mask = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for auto_mask: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_mask: {e}")
+                });
             self
         }
         pub fn auto_threshold<T>(mut self, value: T) -> Self
@@ -3403,7 +4058,9 @@ pub mod builder {
         {
             self.auto_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for auto_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_threshold: {e}")
+                });
             self
         }
         pub fn channels_out<T>(mut self, value: T) -> Self
@@ -3413,7 +4070,9 @@ pub mod builder {
         {
             self.channels_out = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for channels_out: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for channels_out: {e}")
+                });
             self
         }
         pub fn clean_iterations<T>(mut self, value: T) -> Self
@@ -3423,7 +4082,9 @@ pub mod builder {
         {
             self.clean_iterations = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for clean_iterations: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_iterations: {e}")
+                });
             self
         }
         pub fn clean_threshold<T>(mut self, value: T) -> Self
@@ -3433,7 +4094,9 @@ pub mod builder {
         {
             self.clean_threshold = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for clean_threshold: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_threshold: {e}")
+                });
             self
         }
         pub fn delivery<T>(mut self, value: T) -> Self
@@ -3443,7 +4106,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -3453,7 +4118,9 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn image_size<T>(mut self, value: T) -> Self
@@ -3463,7 +4130,9 @@ pub mod builder {
         {
             self.image_size = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for image_size: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for image_size: {e}")
+                });
             self
         }
         pub fn join_channels<T>(mut self, value: T) -> Self
@@ -3473,7 +4142,9 @@ pub mod builder {
         {
             self.join_channels = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for join_channels: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for join_channels: {e}")
+                });
             self
         }
         pub fn join_polarizations<T>(mut self, value: T) -> Self
@@ -3481,9 +4152,13 @@ pub mod builder {
             T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
-            self.join_polarizations = value.try_into().map_err(|e| {
-                format!("error converting supplied value for join_polarizations: {e}")
-            });
+            self.join_polarizations = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for join_polarizations: {e}"
+                    )
+                });
             self
         }
         pub fn mgain<T>(mut self, value: T) -> Self
@@ -3503,7 +4178,9 @@ pub mod builder {
         {
             self.multiscale = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for multiscale: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for multiscale: {e}")
+                });
             self
         }
         pub fn nmiter<T>(mut self, value: T) -> Self
@@ -3523,7 +4200,9 @@ pub mod builder {
         {
             self.nwlayers = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for nwlayers: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for nwlayers: {e}")
+                });
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -3543,7 +4222,9 @@ pub mod builder {
         {
             self.output_mode = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for output_mode: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for output_mode: {e}")
+                });
             self
         }
         pub fn pixel_scale<T>(mut self, value: T) -> Self
@@ -3553,7 +4234,9 @@ pub mod builder {
         {
             self.pixel_scale = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pixel_scale: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for pixel_scale: {e}")
+                });
             self
         }
         pub fn pol<T>(mut self, value: T) -> Self
@@ -3583,7 +4266,9 @@ pub mod builder {
         {
             self.source_job_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for source_job_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for source_job_id: {e}")
+                });
             self
         }
         pub fn uvw_max<T>(mut self, value: T) -> Self
@@ -3593,7 +4278,9 @@ pub mod builder {
         {
             self.uvw_max = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for uvw_max: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_max: {e}")
+                });
             self
         }
         pub fn uvw_min<T>(mut self, value: T) -> Self
@@ -3603,7 +4290,9 @@ pub mod builder {
         {
             self.uvw_min = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for uvw_min: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_min: {e}")
+                });
             self
         }
         pub fn weighting<T>(mut self, value: T) -> Self
@@ -3613,7 +4302,9 @@ pub mod builder {
         {
             self.weighting = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for weighting: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for weighting: {e}")
+                });
             self
         }
         pub fn wstack_nwlayers<T>(mut self, value: T) -> Self
@@ -3623,11 +4314,14 @@ pub mod builder {
         {
             self.wstack_nwlayers = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for wstack_nwlayers: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for wstack_nwlayers: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<ImagingJobFlow2Params> for super::ImagingJobFlow2Params {
+    impl ::std::convert::TryFrom<ImagingJobFlow2Params>
+    for super::ImagingJobFlow2Params {
         type Error = super::error::ConversionError;
         fn try_from(
             value: ImagingJobFlow2Params,
@@ -3697,13 +4391,85 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct JobCancelledResponse {
+        job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        message: ::std::result::Result<::std::string::String, ::std::string::String>,
+        status: ::std::result::Result<super::Status, ::std::string::String>,
+    }
+    impl ::std::default::Default for JobCancelledResponse {
+        fn default() -> Self {
+            Self {
+                job_id: Err("no value supplied for job_id".to_string()),
+                message: Err("no value supplied for message".to_string()),
+                status: Ok(super::defaults::job_cancelled_response_status()),
+            }
+        }
+    }
+    impl JobCancelledResponse {
+        pub fn job_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
+            self
+        }
+        pub fn message<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::string::String>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.message = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
+            self
+        }
+        pub fn status<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::Status>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.status = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for status: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobCancelledResponse> for super::JobCancelledResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobCancelledResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                job_id: value.job_id?,
+                message: value.message?,
+                status: value.status?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobCancelledResponse> for JobCancelledResponse {
+        fn from(value: super::JobCancelledResponse) -> Self {
+            Self {
+                job_id: Ok(value.job_id),
+                message: Ok(value.message),
+                status: Ok(value.status),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct JobDetailResponse {
         completed: ::std::result::Result<
             ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
             ::std::string::String,
         >,
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        created: ::std::result::Result<
+            ::chrono::DateTime<::chrono::offset::Utc>,
+            ::std::string::String,
+        >,
         error_text: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
             ::std::string::String,
@@ -3722,7 +4488,9 @@ pub mod builder {
             ::std::string::String,
         >,
         product: ::std::result::Result<
-            ::std::option::Option<::serde_json::Map<::std::string::String, ::serde_json::Value>>,
+            ::std::option::Option<
+                ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+            >,
             ::std::string::String,
         >,
         started: ::std::result::Result<
@@ -3734,7 +4502,7 @@ pub mod builder {
     impl ::std::default::Default for JobDetailResponse {
         fn default() -> Self {
             Self {
-                completed: Err("no value supplied for completed".to_string()),
+                completed: Ok(Default::default()),
                 created: Err("no value supplied for created".to_string()),
                 error_text: Ok(Default::default()),
                 first_name: Err("no value supplied for first_name".to_string()),
@@ -3745,7 +4513,7 @@ pub mod builder {
                 last_name: Err("no value supplied for last_name".to_string()),
                 modified: Ok(Default::default()),
                 product: Ok(Default::default()),
-                started: Err("no value supplied for started".to_string()),
+                started: Ok(Default::default()),
                 user_id: Err("no value supplied for user_id".to_string()),
             }
         }
@@ -3760,7 +4528,9 @@ pub mod builder {
         {
             self.completed = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for completed: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for completed: {e}")
+                });
             self
         }
         pub fn created<T>(mut self, value: T) -> Self
@@ -3770,7 +4540,9 @@ pub mod builder {
         {
             self.created = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for created: {e}")
+                });
             self
         }
         pub fn error_text<T>(mut self, value: T) -> Self
@@ -3780,7 +4552,9 @@ pub mod builder {
         {
             self.error_text = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for error_text: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for error_text: {e}")
+                });
             self
         }
         pub fn first_name<T>(mut self, value: T) -> Self
@@ -3790,7 +4564,9 @@ pub mod builder {
         {
             self.first_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for first_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for first_name: {e}")
+                });
             self
         }
         pub fn id<T>(mut self, value: T) -> Self
@@ -3812,7 +4588,9 @@ pub mod builder {
         {
             self.job_params = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_params: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_params: {e}")
+                });
             self
         }
         pub fn job_state<T>(mut self, value: T) -> Self
@@ -3822,7 +4600,9 @@ pub mod builder {
         {
             self.job_state = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_state: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_state: {e}")
+                });
             self
         }
         pub fn job_type<T>(mut self, value: T) -> Self
@@ -3832,7 +4612,9 @@ pub mod builder {
         {
             self.job_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_type: {e}")
+                });
             self
         }
         pub fn last_name<T>(mut self, value: T) -> Self
@@ -3842,7 +4624,9 @@ pub mod builder {
         {
             self.last_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for last_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for last_name: {e}")
+                });
             self
         }
         pub fn modified<T>(mut self, value: T) -> Self
@@ -3854,7 +4638,9 @@ pub mod builder {
         {
             self.modified = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for modified: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for modified: {e}")
+                });
             self
         }
         pub fn product<T>(mut self, value: T) -> Self
@@ -3868,7 +4654,9 @@ pub mod builder {
         {
             self.product = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for product: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for product: {e}")
+                });
             self
         }
         pub fn started<T>(mut self, value: T) -> Self
@@ -3880,7 +4668,9 @@ pub mod builder {
         {
             self.started = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for started: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for started: {e}")
+                });
             self
         }
         pub fn user_id<T>(mut self, value: T) -> Self
@@ -3890,7 +4680,9 @@ pub mod builder {
         {
             self.user_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for user_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
             self
         }
     }
@@ -3966,7 +4758,9 @@ pub mod builder {
         {
             self.priority_score = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for priority_score: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for priority_score: {e}")
+                });
             self
         }
     }
@@ -4022,7 +4816,9 @@ pub mod builder {
         {
             self.message = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for message: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
             self
         }
         pub fn status<T>(mut self, value: T) -> Self
@@ -4072,7 +4868,10 @@ pub mod builder {
             ::std::option::Option<super::JobsByUserRequestJobState>,
             ::std::string::String,
         >,
-        job_type: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        job_type: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         limit: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         offset: ::std::result::Result<u64, ::std::string::String>,
         sort_by: ::std::result::Result<::std::string::String, ::std::string::String>,
@@ -4085,7 +4884,9 @@ pub mod builder {
                 days: Ok(super::defaults::jobs_by_user_request_days()),
                 job_state: Ok(Default::default()),
                 job_type: Ok(Default::default()),
-                limit: Ok(super::defaults::default_nzu64::<::std::num::NonZeroU64, 100>()),
+                limit: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 100>(),
+                ),
                 offset: Ok(Default::default()),
                 sort_by: Ok(super::defaults::jobs_by_user_request_sort_by()),
             }
@@ -4101,7 +4902,9 @@ pub mod builder {
         {
             self.date_from = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for date_from: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for date_from: {e}")
+                });
             self
         }
         pub fn date_to<T>(mut self, value: T) -> Self
@@ -4113,7 +4916,9 @@ pub mod builder {
         {
             self.date_to = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for date_to: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for date_to: {e}")
+                });
             self
         }
         pub fn days<T>(mut self, value: T) -> Self
@@ -4128,12 +4933,16 @@ pub mod builder {
         }
         pub fn job_state<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<super::JobsByUserRequestJobState>>,
+            T: ::std::convert::TryInto<
+                ::std::option::Option<super::JobsByUserRequestJobState>,
+            >,
             T::Error: ::std::fmt::Display,
         {
             self.job_state = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_state: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_state: {e}")
+                });
             self
         }
         pub fn job_type<T>(mut self, value: T) -> Self
@@ -4143,7 +4952,9 @@ pub mod builder {
         {
             self.job_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_type: {e}")
+                });
             self
         }
         pub fn limit<T>(mut self, value: T) -> Self
@@ -4173,7 +4984,9 @@ pub mod builder {
         {
             self.sort_by = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for sort_by: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for sort_by: {e}")
+                });
             self
         }
     }
@@ -4211,7 +5024,9 @@ pub mod builder {
     #[derive(Clone, Debug)]
     pub struct JobsByUserResponse {
         jobs: ::std::result::Result<
-            ::std::vec::Vec<::serde_json::Map<::std::string::String, ::serde_json::Value>>,
+            ::std::vec::Vec<
+                ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+            >,
             ::std::string::String,
         >,
         total_count: ::std::result::Result<i64, ::std::string::String>,
@@ -4228,7 +5043,9 @@ pub mod builder {
         pub fn jobs<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<
-                ::std::vec::Vec<::serde_json::Map<::std::string::String, ::serde_json::Value>>,
+                ::std::vec::Vec<
+                    ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+                >,
             >,
             T::Error: ::std::fmt::Display,
         {
@@ -4244,7 +5061,9 @@ pub mod builder {
         {
             self.total_count = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for total_count: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for total_count: {e}")
+                });
             self
         }
     }
@@ -4264,6 +5083,116 @@ pub mod builder {
             Self {
                 jobs: Ok(value.jobs),
                 total_count: Ok(value.total_count),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct JobsToCancelRequest {
+        job_ids: ::std::result::Result<::std::vec::Vec<i64>, ::std::string::String>,
+    }
+    impl ::std::default::Default for JobsToCancelRequest {
+        fn default() -> Self {
+            Self {
+                job_ids: Err("no value supplied for job_ids".to_string()),
+            }
+        }
+    }
+    impl JobsToCancelRequest {
+        pub fn job_ids<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_ids = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for job_ids: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobsToCancelRequest> for super::JobsToCancelRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobsToCancelRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self { job_ids: value.job_ids? })
+        }
+    }
+    impl ::std::convert::From<super::JobsToCancelRequest> for JobsToCancelRequest {
+        fn from(value: super::JobsToCancelRequest) -> Self {
+            Self { job_ids: Ok(value.job_ids) }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct MarkAsErrorRequest {
+        error_code: ::std::result::Result<i64, ::std::string::String>,
+        job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        message: ::std::result::Result<::std::string::String, ::std::string::String>,
+    }
+    impl ::std::default::Default for MarkAsErrorRequest {
+        fn default() -> Self {
+            Self {
+                error_code: Ok(Default::default()),
+                job_id: Err("no value supplied for job_id".to_string()),
+                message: Ok(super::defaults::mark_as_error_request_message()),
+            }
+        }
+    }
+    impl MarkAsErrorRequest {
+        pub fn error_code<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.error_code = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for error_code: {e}")
+                });
+            self
+        }
+        pub fn job_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
+            self
+        }
+        pub fn message<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::string::String>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.message = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<MarkAsErrorRequest> for super::MarkAsErrorRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: MarkAsErrorRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                error_code: value.error_code?,
+                job_id: value.job_id?,
+                message: value.message?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::MarkAsErrorRequest> for MarkAsErrorRequest {
+        fn from(value: super::MarkAsErrorRequest) -> Self {
+            Self {
+                error_code: Ok(value.error_code),
+                job_id: Ok(value.job_id),
+                message: Ok(value.message),
             }
         }
     }
@@ -4290,7 +5219,9 @@ pub mod builder {
         {
             self.description = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for description: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for description: {e}")
+                });
             self
         }
         pub fn project_id<T>(mut self, value: T) -> Self
@@ -4300,7 +5231,9 @@ pub mod builder {
         {
             self.project_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for project_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for project_id: {e}")
+                });
             self
         }
         pub fn short_name<T>(mut self, value: T) -> Self
@@ -4310,7 +5243,9 @@ pub mod builder {
         {
             self.short_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for short_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for short_name: {e}")
+                });
             self
         }
     }
@@ -4356,7 +5291,9 @@ pub mod builder {
         {
             self.project_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for project_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for project_id: {e}")
+                });
             self
         }
         pub fn short_name<T>(mut self, value: T) -> Self
@@ -4366,7 +5303,9 @@ pub mod builder {
         {
             self.short_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for short_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for short_name: {e}")
+                });
             self
         }
     }
@@ -4413,21 +5352,23 @@ pub mod builder {
         {
             self.projects = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for projects: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for projects: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<ProjectPermissionsResponse> for super::ProjectPermissionsResponse {
+    impl ::std::convert::TryFrom<ProjectPermissionsResponse>
+    for super::ProjectPermissionsResponse {
         type Error = super::error::ConversionError;
         fn try_from(
             value: ProjectPermissionsResponse,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                projects: value.projects?,
-            })
+            Ok(Self { projects: value.projects? })
         }
     }
-    impl ::std::convert::From<super::ProjectPermissionsResponse> for ProjectPermissionsResponse {
+    impl ::std::convert::From<super::ProjectPermissionsResponse>
+    for ProjectPermissionsResponse {
         fn from(value: super::ProjectPermissionsResponse) -> Self {
             Self {
                 projects: Ok(value.projects),
@@ -4436,17 +5377,24 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct QueuedJob {
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        created: ::std::result::Result<
+            ::chrono::DateTime<::chrono::offset::Utc>,
+            ::std::string::String,
+        >,
         id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         job_params: ::std::result::Result<
             ::serde_json::Map<::std::string::String, ::serde_json::Value>,
             ::std::string::String,
         >,
         job_type: ::std::result::Result<super::JobType, ::std::string::String>,
-        priority_score: ::std::result::Result<f64, ::std::string::String>,
-        queue_position_cache:
-            ::std::result::Result<::std::option::Option<u64>, ::std::string::String>,
+        priority_score: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        queue_position_cache: ::std::result::Result<
+            ::std::option::Option<u64>,
+            ::std::string::String,
+        >,
         user_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
     }
     impl ::std::default::Default for QueuedJob {
@@ -4456,8 +5404,8 @@ pub mod builder {
                 id: Err("no value supplied for id".to_string()),
                 job_params: Err("no value supplied for job_params".to_string()),
                 job_type: Err("no value supplied for job_type".to_string()),
-                priority_score: Err("no value supplied for priority_score".to_string()),
-                queue_position_cache: Err("no value supplied for queue_position_cache".to_string()),
+                priority_score: Ok(Default::default()),
+                queue_position_cache: Ok(Default::default()),
                 user_id: Err("no value supplied for user_id".to_string()),
             }
         }
@@ -4470,7 +5418,9 @@ pub mod builder {
         {
             self.created = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for created: {e}")
+                });
             self
         }
         pub fn id<T>(mut self, value: T) -> Self
@@ -4492,7 +5442,9 @@ pub mod builder {
         {
             self.job_params = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_params: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_params: {e}")
+                });
             self
         }
         pub fn job_type<T>(mut self, value: T) -> Self
@@ -4502,17 +5454,21 @@ pub mod builder {
         {
             self.job_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for job_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for job_type: {e}")
+                });
             self
         }
         pub fn priority_score<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.priority_score = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for priority_score: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for priority_score: {e}")
+                });
             self
         }
         pub fn queue_position_cache<T>(mut self, value: T) -> Self
@@ -4520,9 +5476,13 @@ pub mod builder {
             T: ::std::convert::TryInto<::std::option::Option<u64>>,
             T::Error: ::std::fmt::Display,
         {
-            self.queue_position_cache = value.try_into().map_err(|e| {
-                format!("error converting supplied value for queue_position_cache: {e}")
-            });
+            self.queue_position_cache = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for queue_position_cache: {e}"
+                    )
+                });
             self
         }
         pub fn user_id<T>(mut self, value: T) -> Self
@@ -4532,7 +5492,9 @@ pub mod builder {
         {
             self.user_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for user_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
             self
         }
     }
@@ -4567,33 +5529,24 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct QueuedJobsRequest {
-        job_state: ::std::result::Result<::std::string::String, ::std::string::String>,
         limit: ::std::result::Result<
             ::std::option::Option<::std::num::NonZeroU64>,
             ::std::string::String,
         >,
-        user_id: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        user_id: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for QueuedJobsRequest {
         fn default() -> Self {
             Self {
-                job_state: Ok(super::defaults::queued_jobs_request_job_state()),
                 limit: Ok(Default::default()),
                 user_id: Ok(Default::default()),
             }
         }
     }
     impl QueuedJobsRequest {
-        pub fn job_state<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::string::String>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.job_state = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for job_state: {e}"));
-            self
-        }
         pub fn limit<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<::std::num::NonZeroU64>>,
@@ -4611,7 +5564,9 @@ pub mod builder {
         {
             self.user_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for user_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
             self
         }
     }
@@ -4621,7 +5576,6 @@ pub mod builder {
             value: QueuedJobsRequest,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
-                job_state: value.job_state?,
                 limit: value.limit?,
                 user_id: value.user_id?,
             })
@@ -4630,7 +5584,6 @@ pub mod builder {
     impl ::std::convert::From<super::QueuedJobsRequest> for QueuedJobsRequest {
         fn from(value: super::QueuedJobsRequest) -> Self {
             Self {
-                job_state: Ok(value.job_state),
                 limit: Ok(value.limit),
                 user_id: Ok(value.user_id),
             }
@@ -4638,7 +5591,10 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct QueuedJobsResponse {
-        jobs: ::std::result::Result<::std::vec::Vec<super::QueuedJob>, ::std::string::String>,
+        jobs: ::std::result::Result<
+            ::std::vec::Vec<super::QueuedJob>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for QueuedJobsResponse {
         fn default() -> Self {
@@ -4669,9 +5625,7 @@ pub mod builder {
     }
     impl ::std::convert::From<super::QueuedJobsResponse> for QueuedJobsResponse {
         fn from(value: super::QueuedJobsResponse) -> Self {
-            Self {
-                jobs: Ok(value.jobs),
-            }
+            Self { jobs: Ok(value.jobs) }
         }
     }
     #[derive(Clone, Debug)]
@@ -4697,7 +5651,9 @@ pub mod builder {
         {
             self.comment = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for comment: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for comment: {e}")
+                });
             self
         }
         pub fn job_id<T>(mut self, value: T) -> Self
@@ -4717,7 +5673,9 @@ pub mod builder {
         {
             self.return_code = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for return_code: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for return_code: {e}")
+                });
             self
         }
     }
@@ -4744,8 +5702,14 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct TokenResponse {
-        access_token: ::std::result::Result<::std::string::String, ::std::string::String>,
-        refresh_token: ::std::result::Result<::std::string::String, ::std::string::String>,
+        access_token: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
+        refresh_token: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
         token_type: ::std::result::Result<::std::string::String, ::std::string::String>,
     }
     impl ::std::default::Default for TokenResponse {
@@ -4765,7 +5729,9 @@ pub mod builder {
         {
             self.access_token = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for access_token: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for access_token: {e}")
+                });
             self
         }
         pub fn refresh_token<T>(mut self, value: T) -> Self
@@ -4775,7 +5741,9 @@ pub mod builder {
         {
             self.refresh_token = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for refresh_token: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for refresh_token: {e}")
+                });
             self
         }
         pub fn token_type<T>(mut self, value: T) -> Self
@@ -4785,7 +5753,9 @@ pub mod builder {
         {
             self.token_type = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for token_type: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for token_type: {e}")
+                });
             self
         }
     }
@@ -4811,6 +5781,60 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct UpdateStateRequest {
+        job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        state: ::std::result::Result<super::JobState, ::std::string::String>,
+    }
+    impl ::std::default::Default for UpdateStateRequest {
+        fn default() -> Self {
+            Self {
+                job_id: Err("no value supplied for job_id".to_string()),
+                state: Err("no value supplied for state".to_string()),
+            }
+        }
+    }
+    impl UpdateStateRequest {
+        pub fn job_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
+            self
+        }
+        pub fn state<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::JobState>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.state = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for state: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<UpdateStateRequest> for super::UpdateStateRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: UpdateStateRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                job_id: value.job_id?,
+                state: value.state?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::UpdateStateRequest> for UpdateStateRequest {
+        fn from(value: super::UpdateStateRequest) -> Self {
+            Self {
+                job_id: Ok(value.job_id),
+                state: Ok(value.state),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct UserLoginRequest {
         password: ::std::result::Result<super::Password, ::std::string::String>,
         username: ::std::result::Result<super::Username, ::std::string::String>,
@@ -4831,7 +5855,9 @@ pub mod builder {
         {
             self.password = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for password: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for password: {e}")
+                });
             self
         }
         pub fn username<T>(mut self, value: T) -> Self
@@ -4841,7 +5867,9 @@ pub mod builder {
         {
             self.username = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for username: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for username: {e}")
+                });
             self
         }
     }
@@ -4883,7 +5911,9 @@ pub mod builder {
         {
             self.message = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for message: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
             self
         }
     }
@@ -4892,16 +5922,12 @@ pub mod builder {
         fn try_from(
             value: UserLogoutResponse,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                message: value.message?,
-            })
+            Ok(Self { message: value.message? })
         }
     }
     impl ::std::convert::From<super::UserLogoutResponse> for UserLogoutResponse {
         fn from(value: super::UserLogoutResponse) -> Self {
-            Self {
-                message: Ok(value.message),
-            }
+            Self { message: Ok(value.message) }
         }
     }
     #[derive(Clone, Debug)]
@@ -4936,7 +5962,10 @@ pub mod builder {
             ::std::option::Option<::std::string::String>,
             ::std::string::String,
         >,
-        provider_id: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        provider_id: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for UserProfile {
         fn default() -> Self {
@@ -4965,7 +5994,9 @@ pub mod builder {
         {
             self.confirmed = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for confirmed: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for confirmed: {e}")
+                });
             self
         }
         pub fn created<T>(mut self, value: T) -> Self
@@ -4977,7 +6008,9 @@ pub mod builder {
         {
             self.created = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for created: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for created: {e}")
+                });
             self
         }
         pub fn disabled<T>(mut self, value: T) -> Self
@@ -4987,7 +6020,9 @@ pub mod builder {
         {
             self.disabled = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for disabled: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for disabled: {e}")
+                });
             self
         }
         pub fn dug_group<T>(mut self, value: T) -> Self
@@ -4997,7 +6032,9 @@ pub mod builder {
         {
             self.dug_group = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for dug_group: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for dug_group: {e}")
+                });
             self
         }
         pub fn email<T>(mut self, value: T) -> Self
@@ -5017,7 +6054,9 @@ pub mod builder {
         {
             self.first_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for first_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for first_name: {e}")
+                });
             self
         }
         pub fn id<T>(mut self, value: T) -> Self
@@ -5037,7 +6076,9 @@ pub mod builder {
         {
             self.is_superuser = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for is_superuser: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for is_superuser: {e}")
+                });
             self
         }
         pub fn last_name<T>(mut self, value: T) -> Self
@@ -5047,7 +6088,9 @@ pub mod builder {
         {
             self.last_name = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for last_name: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for last_name: {e}")
+                });
             self
         }
         pub fn login<T>(mut self, value: T) -> Self
@@ -5067,7 +6110,9 @@ pub mod builder {
         {
             self.mwa_member = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for mwa_member: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for mwa_member: {e}")
+                });
             self
         }
         pub fn pawsey_group<T>(mut self, value: T) -> Self
@@ -5077,7 +6122,9 @@ pub mod builder {
         {
             self.pawsey_group = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pawsey_group: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for pawsey_group: {e}")
+                });
             self
         }
         pub fn provider_id<T>(mut self, value: T) -> Self
@@ -5087,7 +6134,9 @@ pub mod builder {
         {
             self.provider_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for provider_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for provider_id: {e}")
+                });
             self
         }
     }
@@ -5156,18 +6205,19 @@ pub mod builder {
         {
             self.projects = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for projects: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for projects: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<UserProjectsPiResponse> for super::UserProjectsPiResponse {
+    impl ::std::convert::TryFrom<UserProjectsPiResponse>
+    for super::UserProjectsPiResponse {
         type Error = super::error::ConversionError;
         fn try_from(
             value: UserProjectsPiResponse,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                projects: value.projects?,
-            })
+            Ok(Self { projects: value.projects? })
         }
     }
     impl ::std::convert::From<super::UserProjectsPiResponse> for UserProjectsPiResponse {
@@ -5208,11 +6258,14 @@ pub mod builder {
         {
             self.user_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for user_id: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<UserQueuedJobCountResponse> for super::UserQueuedJobCountResponse {
+    impl ::std::convert::TryFrom<UserQueuedJobCountResponse>
+    for super::UserQueuedJobCountResponse {
         type Error = super::error::ConversionError;
         fn try_from(
             value: UserQueuedJobCountResponse,
@@ -5223,7 +6276,8 @@ pub mod builder {
             })
         }
     }
-    impl ::std::convert::From<super::UserQueuedJobCountResponse> for UserQueuedJobCountResponse {
+    impl ::std::convert::From<super::UserQueuedJobCountResponse>
+    for UserQueuedJobCountResponse {
         fn from(value: super::UserQueuedJobCountResponse) -> Self {
             Self {
                 count: Ok(value.count),
@@ -5266,7 +6320,9 @@ pub mod builder {
         {
             self.dug_group = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for dug_group: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for dug_group: {e}")
+                });
             self
         }
         pub fn email<T>(mut self, value: T) -> Self
@@ -5296,7 +6352,9 @@ pub mod builder {
         {
             self.is_superuser = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for is_superuser: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for is_superuser: {e}")
+                });
             self
         }
         pub fn login<T>(mut self, value: T) -> Self
@@ -5316,7 +6374,9 @@ pub mod builder {
         {
             self.pawsey_group = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pawsey_group: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for pawsey_group: {e}")
+                });
             self
         }
     }
@@ -5379,7 +6439,9 @@ pub mod builder {
         {
             self.affiliation = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for affiliation: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for affiliation: {e}")
+                });
             self
         }
         pub fn email<T>(mut self, value: T) -> Self
@@ -5399,7 +6461,9 @@ pub mod builder {
         {
             self.firstname = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for firstname: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for firstname: {e}")
+                });
             self
         }
         pub fn lastname<T>(mut self, value: T) -> Self
@@ -5409,7 +6473,9 @@ pub mod builder {
         {
             self.lastname = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for lastname: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for lastname: {e}")
+                });
             self
         }
         pub fn orcid<T>(mut self, value: T) -> Self
@@ -5427,13 +6493,18 @@ pub mod builder {
             T: ::std::convert::TryInto<bool>,
             T::Error: ::std::fmt::Display,
         {
-            self.subscribed_to_status_emails = value.try_into().map_err(|e| {
-                format!("error converting supplied value for subscribed_to_status_emails: {e}")
-            });
+            self.subscribed_to_status_emails = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for subscribed_to_status_emails: {e}"
+                    )
+                });
             self
         }
     }
-    impl ::std::convert::TryFrom<UserUpdateProfileRequest> for super::UserUpdateProfileRequest {
+    impl ::std::convert::TryFrom<UserUpdateProfileRequest>
+    for super::UserUpdateProfileRequest {
         type Error = super::error::ConversionError;
         fn try_from(
             value: UserUpdateProfileRequest,
@@ -5448,7 +6519,8 @@ pub mod builder {
             })
         }
     }
-    impl ::std::convert::From<super::UserUpdateProfileRequest> for UserUpdateProfileRequest {
+    impl ::std::convert::From<super::UserUpdateProfileRequest>
+    for UserUpdateProfileRequest {
         fn from(value: super::UserUpdateProfileRequest) -> Self {
             Self {
                 affiliation: Ok(value.affiliation),
@@ -5461,120 +6533,31 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct ValidationError {
-        ctx: ::std::result::Result<
-            ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-            ::std::string::String,
-        >,
-        input: ::std::result::Result<
-            ::std::option::Option<::serde_json::Value>,
-            ::std::string::String,
-        >,
-        loc: ::std::result::Result<::std::vec::Vec<super::LocationItem>, ::std::string::String>,
-        msg: ::std::result::Result<::std::string::String, ::std::string::String>,
-        type_: ::std::result::Result<::std::string::String, ::std::string::String>,
-    }
-    impl ::std::default::Default for ValidationError {
-        fn default() -> Self {
-            Self {
-                ctx: Ok(Default::default()),
-                input: Ok(Default::default()),
-                loc: Err("no value supplied for loc".to_string()),
-                msg: Err("no value supplied for msg".to_string()),
-                type_: Err("no value supplied for type_".to_string()),
-            }
-        }
-    }
-    impl ValidationError {
-        pub fn ctx<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<
-                ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-            >,
-            T::Error: ::std::fmt::Display,
-        {
-            self.ctx = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for ctx: {e}"));
-            self
-        }
-        pub fn input<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<::serde_json::Value>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.input = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for input: {e}"));
-            self
-        }
-        pub fn loc<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::vec::Vec<super::LocationItem>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.loc = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for loc: {e}"));
-            self
-        }
-        pub fn msg<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::string::String>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.msg = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for msg: {e}"));
-            self
-        }
-        pub fn type_<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::string::String>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.type_ = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for type_: {e}"));
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<ValidationError> for super::ValidationError {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: ValidationError,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                ctx: value.ctx?,
-                input: value.input?,
-                loc: value.loc?,
-                msg: value.msg?,
-                type_: value.type_?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::ValidationError> for ValidationError {
-        fn from(value: super::ValidationError) -> Self {
-            Self {
-                ctx: Ok(value.ctx),
-                input: Ok(value.input),
-                loc: Ok(value.loc),
-                msg: Ok(value.msg),
-                type_: Ok(value.type_),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
     pub struct VoltageJobParams {
-        allow_resubmit: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
-        channel_range: ::std::result::Result<::std::option::Option<bool>, ::std::string::String>,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        channel_range: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         delivery: ::std::result::Result<::std::string::String, ::std::string::String>,
-        delivery_format: ::std::result::Result<::std::string::String, ::std::string::String>,
+        delivery_format: ::std::result::Result<
+            ::std::string::String,
+            ::std::string::String,
+        >,
         duration: ::std::result::Result<u64, ::std::string::String>,
-        from_channel: ::std::result::Result<::std::option::Option<u8>, ::std::string::String>,
+        from_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         offset: ::std::result::Result<i64, ::std::string::String>,
-        to_channel: ::std::result::Result<::std::option::Option<u8>, ::std::string::String>,
+        to_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for VoltageJobParams {
         fn default() -> Self {
@@ -5582,7 +6565,9 @@ pub mod builder {
                 allow_resubmit: Ok(super::defaults::voltage_job_params_allow_resubmit()),
                 channel_range: Ok(super::defaults::voltage_job_params_channel_range()),
                 delivery: Ok(super::defaults::voltage_job_params_delivery()),
-                delivery_format: Ok(super::defaults::voltage_job_params_delivery_format()),
+                delivery_format: Ok(
+                    super::defaults::voltage_job_params_delivery_format(),
+                ),
                 duration: Err("no value supplied for duration".to_string()),
                 from_channel: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
@@ -5599,7 +6584,9 @@ pub mod builder {
         {
             self.allow_resubmit = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for allow_resubmit: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
             self
         }
         pub fn channel_range<T>(mut self, value: T) -> Self
@@ -5609,7 +6596,9 @@ pub mod builder {
         {
             self.channel_range = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for channel_range: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for channel_range: {e}")
+                });
             self
         }
         pub fn delivery<T>(mut self, value: T) -> Self
@@ -5619,7 +6608,9 @@ pub mod builder {
         {
             self.delivery = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
             self
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
@@ -5629,7 +6620,9 @@ pub mod builder {
         {
             self.delivery_format = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for delivery_format: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
             self
         }
         pub fn duration<T>(mut self, value: T) -> Self
@@ -5639,7 +6632,9 @@ pub mod builder {
         {
             self.duration = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for duration: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for duration: {e}")
+                });
             self
         }
         pub fn from_channel<T>(mut self, value: T) -> Self
@@ -5649,7 +6644,9 @@ pub mod builder {
         {
             self.from_channel = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for from_channel: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for from_channel: {e}")
+                });
             self
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
@@ -5679,7 +6676,9 @@ pub mod builder {
         {
             self.to_channel = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for to_channel: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for to_channel: {e}")
+                });
             self
         }
     }
@@ -5739,21 +6738,18 @@ pub mod builder {
             self
         }
     }
-    impl ::std::convert::TryFrom<WebSocketTokenResponse> for super::WebSocketTokenResponse {
+    impl ::std::convert::TryFrom<WebSocketTokenResponse>
+    for super::WebSocketTokenResponse {
         type Error = super::error::ConversionError;
         fn try_from(
             value: WebSocketTokenResponse,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                token: value.token?,
-            })
+            Ok(Self { token: value.token? })
         }
     }
     impl ::std::convert::From<super::WebSocketTokenResponse> for WebSocketTokenResponse {
         fn from(value: super::WebSocketTokenResponse) -> Self {
-            Self {
-                token: Ok(value.token),
-            }
+            Self { token: Ok(value.token) }
         }
     }
 }
@@ -5793,27 +6789,24 @@ pub mod defaults {
         super::Delivery::Acacia
     }
     pub(super) fn beamformer_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Files
+        super::DeliveryFormat::Tar
     }
-    pub(super) fn beamformer_job_params_mode(
-    ) -> ::std::option::Option<super::BeamformerJobParamsMode> {
+    pub(super) fn beamformer_job_params_mode() -> ::std::option::Option<
+        super::BeamformerJobParamsMode,
+    > {
         ::std::option::Option::Some(super::BeamformerJobParamsMode::MwaxBeamformer)
     }
     pub(super) fn conversion_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_apply_di_cal() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
+    pub(super) fn conversion_job_params_avg_freq_res() -> f64 {
+        40.0_f64
     }
-    pub(super) fn conversion_job_params_avg_freq_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(40.0_f64)
+    pub(super) fn conversion_job_params_avg_time_res() -> f64 {
+        2.0_f64
     }
-    pub(super) fn conversion_job_params_avg_time_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(2.0_f64)
-    }
-    pub(super) fn conversion_job_params_centre(
-    ) -> ::std::option::Option<super::ConversionJobParamsCentre> {
-        ::std::option::Option::Some(super::ConversionJobParamsCentre::Phase)
+    pub(super) fn conversion_job_params_centre() -> super::Centre {
+        super::Centre::Phase
     }
     pub(super) fn conversion_job_params_delivery() -> super::Delivery {
         super::Delivery::Acacia
@@ -5821,22 +6814,31 @@ pub mod defaults {
     pub(super) fn conversion_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Files
     }
-    pub(super) fn conversion_job_params_flag_edge_width() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(80.0_f64)
+    pub(super) fn conversion_job_params_flag_edge_width() -> f64 {
+        80.0_f64
     }
-    pub(super) fn conversion_job_params_no_apply_amps() -> ::std::option::Option<bool> {
+    pub(super) fn conversion_job_params_no_cable_delay() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_no_digital_gains() -> ::std::option::Option<bool> {
+    pub(super) fn conversion_job_params_no_digital_gains() -> ::std::option::Option<
+        bool,
+    > {
         ::std::option::Option::Some(false)
     }
     pub(super) fn conversion_job_params_no_flag_dc() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_no_geometry_delay() -> ::std::option::Option<bool> {
+    pub(super) fn conversion_job_params_no_geometry_delay() -> ::std::option::Option<
+        bool,
+    > {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_no_passband_gains() -> ::std::option::Option<bool> {
+    pub(super) fn conversion_job_params_no_passband_gains() -> ::std::option::Option<
+        bool,
+    > {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn conversion_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
     pub(super) fn conversion_job_params_output() -> super::Output {
@@ -5849,38 +6851,45 @@ pub mod defaults {
         super::Delivery::Acacia
     }
     pub(super) fn download_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Files
+        super::DeliveryFormat::Tar
     }
-    pub(super) fn download_job_params_download_type(
-    ) -> ::std::option::Option<super::DownloadJobParamsDownloadType> {
+    pub(super) fn download_job_params_download_type() -> ::std::option::Option<
+        super::DownloadJobParamsDownloadType,
+    > {
         ::std::option::Option::Some(super::DownloadJobParamsDownloadType::Vis)
     }
-    pub(super) fn imaging_job_flow1_params_abs_threshold() -> ::std::option::Option<f64> {
+    pub(super) fn imaging_job_flow1_params_abs_threshold() -> ::std::option::Option<
+        f64,
+    > {
         ::std::option::Option::Some(0.001_f64)
     }
-    pub(super) fn imaging_job_flow1_params_allow_resubmit() -> ::std::option::Option<bool> {
+    pub(super) fn imaging_job_flow1_params_allow_resubmit() -> ::std::option::Option<
+        bool,
+    > {
         ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_apply_di_cal() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(true)
     }
     pub(super) fn imaging_job_flow1_params_auto_threshold() -> f64 {
         0.5_f64
     }
-    pub(super) fn imaging_job_flow1_params_avg_freq_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(40.0_f64)
+    pub(super) fn imaging_job_flow1_params_avg_freq_res() -> f64 {
+        40.0_f64
     }
-    pub(super) fn imaging_job_flow1_params_avg_time_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(2.0_f64)
+    pub(super) fn imaging_job_flow1_params_avg_time_res() -> f64 {
+        2.0_f64
+    }
+    pub(super) fn imaging_job_flow1_params_clean_threshold() -> ::std::option::Option<
+        f64,
+    > {
+        ::std::option::Option::Some(0.001_f64)
     }
     pub(super) fn imaging_job_flow1_params_delivery() -> super::Delivery {
         super::Delivery::Acacia
     }
     pub(super) fn imaging_job_flow1_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Files
+        super::DeliveryFormat::Tar
     }
-    pub(super) fn imaging_job_flow1_params_flag_edge_width() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(80.0_f64)
+    pub(super) fn imaging_job_flow1_params_flag_edge_width() -> f64 {
+        80.0_f64
     }
     pub(super) fn imaging_job_flow1_params_image_size() -> super::ImageSizes {
         super::ImageSizes(3072_i64)
@@ -5888,21 +6897,17 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_mgain() -> f64 {
         0.8_f64
     }
-    pub(super) fn imaging_job_flow1_params_no_apply_amps() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
     pub(super) fn imaging_job_flow1_params_output_mode() -> super::OutputMode {
         super::OutputMode::Fits
     }
-    pub(super) fn imaging_job_flow1_params_phase_center(
-    ) -> ::std::option::Option<super::ImagingJobFlow1ParamsPhaseCenter> {
-        ::std::option::Option::Some(super::ImagingJobFlow1ParamsPhaseCenter::Phase)
+    pub(super) fn imaging_job_flow1_params_phase_center() -> super::PhaseCenter {
+        super::PhaseCenter::Phase
     }
     pub(super) fn imaging_job_flow1_params_pixel_scale() -> f64 {
         20_f64
     }
-    pub(super) fn imaging_job_flow1_params_pol() -> ::std::string::String {
-        "XX,YY".to_string()
+    pub(super) fn imaging_job_flow1_params_pol() -> super::Polarization {
+        super::Polarization::Xxyy
     }
     pub(super) fn imaging_job_flow1_params_robust() -> f64 {
         -0.5_f64
@@ -5913,10 +6918,14 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_weighting() -> super::Weighting {
         super::Weighting::Briggs
     }
-    pub(super) fn imaging_job_flow2_params_abs_threshold() -> ::std::option::Option<f64> {
+    pub(super) fn imaging_job_flow2_params_abs_threshold() -> ::std::option::Option<
+        f64,
+    > {
         ::std::option::Option::Some(0.001_f64)
     }
-    pub(super) fn imaging_job_flow2_params_allow_resubmit() -> ::std::option::Option<bool> {
+    pub(super) fn imaging_job_flow2_params_allow_resubmit() -> ::std::option::Option<
+        bool,
+    > {
         ::std::option::Option::Some(false)
     }
     pub(super) fn imaging_job_flow2_params_auto_threshold() -> f64 {
@@ -5926,7 +6935,7 @@ pub mod defaults {
         super::Delivery::Acacia
     }
     pub(super) fn imaging_job_flow2_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Files
+        super::DeliveryFormat::Tar
     }
     pub(super) fn imaging_job_flow2_params_image_size() -> super::ImageSizes {
         super::ImageSizes(3072_i64)
@@ -5952,6 +6961,9 @@ pub mod defaults {
     pub(super) fn imaging_job_flow2_params_weighting() -> super::Weighting {
         super::Weighting::Briggs
     }
+    pub(super) fn job_cancelled_response_status() -> super::Status {
+        super::Status::Success
+    }
     pub(super) fn job_submitted_response_status() -> super::Status {
         super::Status::Success
     }
@@ -5961,8 +6973,8 @@ pub mod defaults {
     pub(super) fn jobs_by_user_request_sort_by() -> ::std::string::String {
         "id".to_string()
     }
-    pub(super) fn queued_jobs_request_job_state() -> ::std::string::String {
-        "queued".to_string()
+    pub(super) fn mark_as_error_request_message() -> ::std::string::String {
+        "Unknown Error".to_string()
     }
     pub(super) fn token_response_token_type() -> ::std::string::String {
         "bearer".to_string()
@@ -5989,12 +7001,18 @@ pub mod error {
     pub struct ConversionError(::std::borrow::Cow<'static, str>);
     impl ::std::error::Error for ConversionError {}
     impl ::std::fmt::Display for ConversionError {
-        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {
+        fn fmt(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> Result<(), ::std::fmt::Error> {
             ::std::fmt::Display::fmt(&self.0, f)
         }
     }
     impl ::std::fmt::Debug for ConversionError {
-        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> Result<(), ::std::fmt::Error> {
+        fn fmt(
+            &self,
+            f: &mut ::std::fmt::Formatter<'_>,
+        ) -> Result<(), ::std::fmt::Error> {
             ::std::fmt::Debug::fmt(&self.0, f)
         }
     }

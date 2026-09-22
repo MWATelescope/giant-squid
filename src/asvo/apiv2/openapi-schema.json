@@ -120,7 +120,7 @@
             "files"
           ],
           "title": "Delivery Format",
-          "default": "files"
+          "default": "tar"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -203,6 +203,54 @@
       "title": "CalibrationReadyCallback",
       "description": "Calibration service callback"
     },
+    "CancelledJobsRequest": {
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 3000.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Limit",
+          "description": "Safety cap for amount of results to retrieve"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Id",
+          "description": "Optional user_id"
+        }
+      },
+      "type": "object",
+      "title": "CancelledJobsRequest"
+    },
+    "CancelledJobsResponse": {
+      "properties": {
+        "jobs": {
+          "items": {
+            "$ref": "#/definitions/QueuedJob"
+          },
+          "type": "array",
+          "title": "Jobs"
+        }
+      },
+      "type": "object",
+      "required": [
+        "jobs"
+      ],
+      "title": "CancelledJobsResponse"
+    },
     "ConversionJobParams": {
       "properties": {
         "obs_id": {
@@ -251,59 +299,31 @@
           "default": "ms"
         },
         "avg_time_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "minimum": 0.0,
           "title": "Avg Time Res",
           "default": 2.0
         },
         "avg_freq_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 1280.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "maximum": 1280.0,
+          "minimum": 0.0,
           "title": "Avg Freq Res",
           "default": 40.0
         },
         "flag_edge_width": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 640.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "maximum": 640.0,
+          "minimum": 0.0,
           "title": "Flag Edge Width",
           "default": 80.0
         },
         "centre": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "phase",
-                "pointing",
-                "custom"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "phase",
+            "pointing",
+            "custom"
           ],
           "title": "Centre",
           "default": "phase"
@@ -335,18 +355,16 @@
           "title": "Phase Centre Dec"
         },
         "apply_di_cal": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "boolean",
           "title": "Apply Di Cal",
           "default": false
         },
         "no_apply_amps": {
+          "type": "boolean",
+          "title": "No Apply Amps",
+          "default": false
+        },
+        "no_rfi": {
           "anyOf": [
             {
               "type": "boolean"
@@ -355,7 +373,7 @@
               "type": "null"
             }
           ],
-          "title": "No Apply Amps",
+          "title": "No Rfi",
           "default": false
         },
         "no_geometry_delay": {
@@ -368,6 +386,18 @@
             }
           ],
           "title": "No Geometry Delay",
+          "default": false
+        },
+        "no_cable_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Cable Delay",
           "default": false
         },
         "no_digital_gains": {
@@ -409,9 +439,7 @@
       },
       "type": "object",
       "required": [
-        "obs_id",
-        "phase_centre_ra",
-        "phase_centre_dec"
+        "obs_id"
       ],
       "title": "ConversionJobParams",
       "description": "Parameters for conversion job submission"
@@ -440,7 +468,7 @@
             "files"
           ],
           "title": "Delivery Format",
-          "default": "files"
+          "default": "tar"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -606,19 +634,6 @@
         "message": "Observation ID is required"
       }
     },
-    "HTTPValidationError": {
-      "properties": {
-        "detail": {
-          "items": {
-            "$ref": "#/definitions/ValidationError"
-          },
-          "type": "array",
-          "title": "Detail"
-        }
-      },
-      "type": "object",
-      "title": "HTTPValidationError"
-    },
     "HealthResponse": {
       "properties": {
         "status": {
@@ -691,7 +706,7 @@
             "files"
           ],
           "title": "Delivery Format",
-          "default": "files"
+          "default": "tar"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -707,82 +722,40 @@
           "default": false
         },
         "apply_di_cal": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "boolean",
           "title": "Apply Di Cal",
           "default": true
         },
         "no_apply_amps": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "boolean",
           "title": "No Apply Amps",
           "default": false
         },
         "avg_time_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "minimum": 0.0,
           "title": "Avg Time Res",
           "default": 2.0
         },
         "avg_freq_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 1280.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "maximum": 1280.0,
+          "minimum": 0.0,
           "title": "Avg Freq Res",
           "default": 40.0
         },
         "flag_edge_width": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 640.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "number",
+          "maximum": 640.0,
+          "minimum": 0.0,
           "title": "Flag Edge Width",
           "default": 80.0
         },
         "phase_center": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "phase",
-                "custom"
-              ]
-            },
-            {
-              "type": "null"
-            }
+          "type": "string",
+          "enum": [
+            "phase",
+            "custom"
           ],
           "title": "Phase Center",
           "default": "phase"
@@ -872,7 +845,9 @@
               "type": "null"
             }
           ],
-          "title": "Clean Threshold"
+          "title": "Clean Threshold",
+          "description": "deprecated. use abs_threshold instead",
+          "default": 0.001
         },
         "auto_threshold": {
           "type": "number",
@@ -918,12 +893,15 @@
               "type": "null"
             }
           ],
-          "title": "Nwlayers"
+          "title": "Nwlayers",
+          "description": "deprecated. use wstack_nwlayers instead"
         },
         "wstack_nwlayers": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
             },
             {
               "type": "null"
@@ -971,9 +949,8 @@
           "default": true
         },
         "pol": {
-          "type": "string",
-          "title": "Pol",
-          "default": "XX,YY"
+          "$ref": "#/definitions/Polarization",
+          "default": "XXYY"
         },
         "output_mode": {
           "type": "string",
@@ -1016,7 +993,7 @@
             "files"
           ],
           "title": "Delivery Format",
-          "default": "files"
+          "default": "tar"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -1217,6 +1194,34 @@
       "title": "ImagingJobFlow2Params",
       "description": "Parameters for image job submission"
     },
+    "JobCancelledResponse": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "failed"
+          ],
+          "title": "Status",
+          "default": "success"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "message"
+      ],
+      "title": "JobCancelledResponse"
+    },
     "JobDetailResponse": {
       "properties": {
         "id": {
@@ -1333,8 +1338,6 @@
         "job_state",
         "job_params",
         "created",
-        "started",
-        "completed",
         "first_name",
         "last_name"
       ],
@@ -1360,6 +1363,25 @@
       ],
       "title": "JobPriorityUpdate",
       "description": "Priority score update for a job"
+    },
+    "JobState": {
+      "type": "string",
+      "enum": [
+        "preparing",
+        "queued",
+        "waitcal",
+        "staging",
+        "staged",
+        "downloading",
+        "preprocessing",
+        "imaging",
+        "delivering",
+        "completed",
+        "error",
+        "cancelled"
+      ],
+      "title": "JobState",
+      "description": "Enum representing the possible states of a job\nInherits from str to make it JSON serializable and directly usable in SQL queries"
     },
     "JobSubmittedResponse": {
       "properties": {
@@ -1535,6 +1557,46 @@
       "title": "JobsByUserResponse",
       "description": "Parameters for /job_history endpoint"
     },
+    "JobsToCancelRequest": {
+      "properties": {
+        "job_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array",
+          "title": "Job Ids"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_ids"
+      ],
+      "title": "JobsToCancelRequest"
+    },
+    "MarkAsErrorRequest": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message",
+          "default": "Unknown Error"
+        },
+        "error_code": {
+          "type": "integer",
+          "title": "Error Code",
+          "default": 0
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id"
+      ],
+      "title": "MarkAsErrorRequest"
+    },
     "PiProjectDetails": {
       "properties": {
         "project_id": {
@@ -1557,6 +1619,15 @@
         "description"
       ],
       "title": "PiProjectDetails"
+    },
+    "Polarization": {
+      "type": "string",
+      "enum": [
+        "XX",
+        "YY",
+        "XXYY"
+      ],
+      "title": "Polarization"
     },
     "ProjectPermission": {
       "properties": {
@@ -1628,8 +1699,15 @@
           "description": "Timestamp when job was created"
         },
         "priority_score": {
-          "type": "number",
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Priority Score",
           "description": "Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage"
         },
@@ -1653,19 +1731,12 @@
         "user_id",
         "job_type",
         "job_params",
-        "created",
-        "priority_score",
-        "queue_position_cache"
+        "created"
       ],
       "title": "QueuedJob"
     },
     "QueuedJobsRequest": {
       "properties": {
-        "job_state": {
-          "type": "string",
-          "title": "Job State",
-          "default": "queued"
-        },
         "limit": {
           "anyOf": [
             {
@@ -1768,6 +1839,25 @@
         "refresh_token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9...",
         "token_type": "bearer"
       }
+    },
+    "UpdateStateRequest": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        },
+        "state": {
+          "$ref": "#/definitions/JobState"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "state"
+      ],
+      "title": "UpdateStateRequest",
+      "description": "State update for a job"
     },
     "UserLoginRequest": {
       "properties": {
@@ -2090,46 +2180,6 @@
       ],
       "title": "UserUpdateProfileRequest",
       "description": "Request model for updating a user's profile"
-    },
-    "ValidationError": {
-      "properties": {
-        "loc": {
-          "items": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              }
-            ]
-          },
-          "type": "array",
-          "title": "Location"
-        },
-        "msg": {
-          "type": "string",
-          "title": "Message"
-        },
-        "type": {
-          "type": "string",
-          "title": "Error Type"
-        },
-        "input": {
-          "title": "Input"
-        },
-        "ctx": {
-          "type": "object",
-          "title": "Context"
-        }
-      },
-      "type": "object",
-      "required": [
-        "loc",
-        "msg",
-        "type"
-      ],
-      "title": "ValidationError"
     },
     "VoltageJobParams": {
       "properties": {
