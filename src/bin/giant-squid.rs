@@ -101,6 +101,18 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
     Ok(())
 }
 
+/// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
+/// defaults (via the generated builder's `Default`), used to source the
+/// clap arg defaults below so they can't drift from the schema. `obs_id` is
+/// required by the builder but irrelevant to the defaults - every real
+/// submission sets its own - so we pass a placeholder.
+fn conversion_defaults() -> ConversionJobParams {
+    ConversionJobParams::builder()
+        .obs_id(0_i64)
+        .try_into()
+        .expect("BUG: a required ConversionJobParams field is missing from conversion_defaults()")
+}
+
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
 enum Args {
@@ -225,36 +237,36 @@ enum Args {
     #[command(alias = "sc")]
     SubmitConv {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Output format: "ms" (measurement set) or "uvfits".
-        #[arg(short = 'o', long, default_value_t = Output::Uvfits)]
+        #[arg(short = 'o', long, default_value_t = conversion_defaults().output)]
         output: Output,
 
         /// Frequency resolution to average to (kHz).
-        #[arg(long, default_value_t = 80.0)]
+        #[arg(long, default_value_t = conversion_defaults().avg_freq_res)]
         avg_freq_res: f64,
 
         /// Time resolution to average to (s).
-        #[arg(long, default_value_t = 2.0)]
+        #[arg(long, default_value_t = conversion_defaults().avg_time_res)]
         avg_time_res: f64,
 
         /// Width of frequency edge flagging (kHz).
-        #[arg(long, default_value_t = 80.0)]
+        #[arg(long, default_value_t = conversion_defaults().flag_edge_width)]
         flag_edge_width: f64,
 
         /// Whether to apply the DI calibration solution.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         apply_di_cal: bool,
 
         /// Phase centre mode: "phase", "pointing", or "custom".
         /// If "custom", also supply --phase-centre-ra and --phase-centre-dec.
-        #[arg(long, default_value_t = Centre::Phase)]
+        #[arg(long, default_value_t = conversion_defaults().centre)]
         centre: Centre,
 
         /// Custom phase centre right ascension (degrees). Requires --centre custom.
@@ -266,23 +278,23 @@ enum Args {
         phase_centre_dec: Option<f64>,
 
         /// Whether to skip applying amplitude calibration solutions.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_apply_amps: bool,
 
         /// Whether to skip applying digital gains.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_digital_gains: bool,
 
         /// Whether to skip flagging the DC channel.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_flag_dc: bool,
 
         /// Whether to skip applying geometric delay corrections.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_geometry_delay: bool,
 
         /// Whether to skip applying passband gain corrections.
-        #[arg(long, default_value_t = false, action = ArgAction::Set)]
+        #[arg(long)]
         no_passband_gains: bool,
 
         /// Do not exit giant-squid until the specified obsids are ready for
