@@ -3,6 +3,15 @@
 # Fail the script on any error
 set -euo pipefail
 
+# Check how "dirty" the dir is. If dirty, stop, since cargo clippy --fix can be destructive!
+changed_file_count=$(git status --porcelain=v1 -uall | wc -l)
+
+if (( changed_file_count > 0 )); then
+    echo "Error: ${changed_file_count} uncommitted file(s) found. Aborting" >&2
+    git status --short
+    exit 1
+fi
+
 #
 # Downloads the MWA ASVO v2 OpenAPI schema and converts it into the format
 # typify expects, writing the result to src/asvo/apiv2/openapi-schema.json.
@@ -106,9 +115,12 @@ PYEOF
 echo "Wrote ${OUTPUT_FILE}."
 cargo build --features regen-openapi
 
-cargo clippy fix
+cargo check
+
+# Allow dirty is ok here as the only file that could be modified is Cargo.lock or the openapi.rs which we regenerated anyway!
+cargo clippy --fix --allow-dirty
 
 cargo check
 
-git diff src/asvo/apiv2/openapi.rs"
+git status
 echo "Done"
