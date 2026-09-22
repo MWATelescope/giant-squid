@@ -123,6 +123,18 @@ fn download_defaults() -> DownloadJobParams {
         .expect("BUG: a required DownloadJobParams field is missing from download_defaults()")
 }
 
+/// A [`VoltageJobParams`] populated from the OpenAPI schema defaults, used
+/// to source the SubmitVolt clap arg defaults. `obs_id`, `offset` and
+/// `duration` are required placeholders - every real submission sets them.
+fn voltage_defaults() -> VoltageJobParams {
+    VoltageJobParams::builder()
+        .obs_id(0_i64)
+        .offset(0_i64)
+        .duration(0_u64)
+        .try_into()
+        .expect("BUG: a required VoltageJobParams field is missing from voltage_defaults()")
+}
+
 #[derive(Parser, Debug)]
 #[command(author, about = ABOUT, version)]
 enum Args {
@@ -675,7 +687,7 @@ enum Args {
         /// Tell MWA ASVO where to deliver the data. The only valid value for
         /// a voltage job is "scratch", which requires the "mwavcs" Pawsey
         /// Group on your MWA ASVO profile.
-        #[arg(short, long, default_value = "scratch", env = "GIANT_SQUID_DELIVERY")]
+        #[arg(short, long, default_value_t = voltage_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
         delivery: String,
 
         /// The offset in seconds from the start GPS time of the observation.
