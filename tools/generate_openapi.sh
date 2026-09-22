@@ -106,5 +106,9 @@ PYEOF
 echo "Wrote ${OUTPUT_FILE}."
 cargo build --features regen-openapi
 
+cargo clippy fix
+
+cargo check
+
 git diff src/asvo/apiv2/openapi.rs"
 echo "Done"

@@ -136,8 +136,8 @@ fn download_job(
                     .join(url_obj.path_segments().unwrap().next_back().unwrap());
 
                 let op = || {
-                    try_download(http_client, url, f, job, &out_path, &log_prefix, opts)
-                        .map_err(|e| match &e {
+                    try_download(http_client, url, f, job, &out_path, &log_prefix, opts).map_err(
+                        |e| match &e {
                             AsvoError::IO(_) => Error::permanent(e),
                             AsvoError::HttpError { status: 404, .. } => {
                                 Error::permanent(AsvoError::Http404Error { job_id: job.jobid })
@@ -146,7 +146,8 @@ fn download_job(
                                 status: 401 | 403, ..
                             } => Error::permanent(e),
                             _ => Error::transient(e),
-                        })
+                        },
+                    )
                 };
 
                 match retry(ExponentialBackoff::default(), op) {
@@ -161,12 +162,10 @@ fn download_job(
                 let throughput_str = if elapsed_ms == 0 {
                     "N/A".to_string()
                 } else {
-                    bytesize::ByteSize(
-                        (f.size * 1000).checked_div(elapsed_ms).unwrap_or_default(),
-                    )
-                    .display()
-                    .iec()
-                    .to_string()
+                    bytesize::ByteSize((f.size * 1000).checked_div(elapsed_ms).unwrap_or_default())
+                        .display()
+                        .iec()
+                        .to_string()
                 };
 
                 let duration_str = if elapsed.as_secs() > 60 {
@@ -271,8 +270,14 @@ fn try_download(
     let mut tee: TeeReader<reqwest::blocking::Response, _>;
 
     if opts.keep_tar {
-        let (mut out_file, file_size_bytes) =
-            prepare_output_file(out_path, opts.no_resume, file_info, mwa_asvo_hash, job.jobid, log_prefix)?;
+        let (mut out_file, file_size_bytes) = prepare_output_file(
+            out_path,
+            opts.no_resume,
+            file_info,
+            mwa_asvo_hash,
+            job.jobid,
+            log_prefix,
+        )?;
 
         opts.progress_bar.set_length(file_info.size);
         opts.progress_bar.set_position(file_size_bytes);
@@ -515,4 +520,3 @@ fn prepare_output_file(
 
     Ok((out_file, file_size_bytes))
 }
-

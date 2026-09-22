@@ -328,7 +328,7 @@
           "title": "Centre",
           "default": "phase"
         },
-        "phase_centre_ra": {
+        "custom_centre_ra": {
           "anyOf": [
             {
               "type": "number",
@@ -339,9 +339,9 @@
               "type": "null"
             }
           ],
-          "title": "Phase Centre Ra"
+          "title": "Custom Centre Ra"
         },
-        "phase_centre_dec": {
+        "custom_centre_dec": {
           "anyOf": [
             {
               "type": "number",
@@ -352,7 +352,7 @@
               "type": "null"
             }
           ],
-          "title": "Phase Centre Dec"
+          "title": "Custom Centre Dec"
         },
         "apply_di_cal": {
           "type": "boolean",
@@ -751,16 +751,17 @@
           "title": "Flag Edge Width",
           "default": 80.0
         },
-        "phase_center": {
+        "centre": {
           "type": "string",
           "enum": [
             "phase",
+            "pointing",
             "custom"
           ],
-          "title": "Phase Center",
+          "title": "Centre",
           "default": "phase"
         },
-        "custom_ra": {
+        "custom_centre_ra": {
           "anyOf": [
             {
               "type": "number",
@@ -771,9 +772,9 @@
               "type": "null"
             }
           ],
-          "title": "Custom Ra"
+          "title": "Custom Centre Ra"
         },
-        "custom_dec": {
+        "custom_centre_dec": {
           "anyOf": [
             {
               "type": "number",
@@ -784,7 +785,7 @@
               "type": "null"
             }
           ],
-          "title": "Custom Dec"
+          "title": "Custom Centre Dec"
         },
         "image_size": {
           "$ref": "#/definitions/ImageSizes",

@@ -10,7 +10,7 @@ use std::{thread, time};
 use anyhow::bail;
 use clap::{ArgAction, Parser};
 use log::{debug, error, info, warn};
-use mwa_giant_squid::apiv2::openapi::{Centre, PhaseCenter};
+use mwa_giant_squid::apiv2::openapi::Centre;
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -411,8 +411,8 @@ enum Args {
         output_mode: OutputMode,
 
         /// Where to centre the image.
-        #[arg(long, default_value_t = PhaseCenter::Phase)]
-        phase_center: PhaseCenter,
+        #[arg(long, default_value_t = Centre::Phase)]
+        phase_center: Centre,
 
         /// Pixel scale (arcsec/pixel).
         #[arg(long, default_value_t = 20.0, value_parser = parse_f64_range(10.0, 120.0))]
@@ -1157,8 +1157,8 @@ fn main() -> Result<(), anyhow::Error> {
                         .flag_edge_width(flag_edge_width)
                         .apply_di_cal(apply_di_cal)
                         .centre(centre)
-                        .phase_centre_ra(phase_centre_ra)
-                        .phase_centre_dec(phase_centre_dec)
+                        .custom_centre_ra(phase_centre_ra)
+                        .custom_centre_dec(phase_centre_dec)
                         .no_apply_amps(no_apply_amps)
                         .no_digital_gains(no_digital_gains)
                         .no_flag_dc(no_flag_dc)
@@ -1200,8 +1200,8 @@ fn main() -> Result<(), anyhow::Error> {
             channels_out,
             clean_iterations,
             clean_threshold,
-            custom_dec,
-            custom_ra,
+            custom_dec: custom_centre_dec,
+            custom_ra: custom_centre_ra,
             flag_edge_width,
             image_size,
             join_channels,
@@ -1211,7 +1211,7 @@ fn main() -> Result<(), anyhow::Error> {
             nmiter,
             nwlayers,
             output_mode,
-            phase_center,
+            phase_center: centre,
             pixel_scale,
             pol,
             robust,
@@ -1253,7 +1253,7 @@ fn main() -> Result<(), anyhow::Error> {
                     image_size,
                     weighting,
                     output_mode,
-                    phase_center
+                    centre
                 );
             } else {
                 let client = AsvoClientv2::new()?;
@@ -1278,8 +1278,8 @@ fn main() -> Result<(), anyhow::Error> {
                         .channels_out(channels_out)
                         .clean_iterations(clean_iterations)
                         .clean_threshold(clean_threshold)
-                        .custom_dec(custom_dec)
-                        .custom_ra(custom_ra)
+                        .custom_centre_dec(custom_centre_dec)
+                        .custom_centre_ra(custom_centre_ra)
                         .flag_edge_width(flag_edge_width)
                         .image_size(image_size.clone())
                         .join_channels(join_channels)
@@ -1290,7 +1290,7 @@ fn main() -> Result<(), anyhow::Error> {
                         .no_apply_amps(no_apply_amps)
                         .nwlayers(nwlayers)
                         .output_mode(output_mode)
-                        .phase_center(phase_center)
+                        .centre(centre)
                         .pixel_scale(pixel_scale)
                         .pol(pol.clone())
                         .robust(robust)

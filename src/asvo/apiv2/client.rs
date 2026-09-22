@@ -247,11 +247,7 @@ impl AsvoClientv2 {
     /// Download the MWA ASVO job with the given job ID.
     /// Fetches the current job list, locates the job, and downloads its
     /// files according to the supplied options.
-    pub fn download_jobid(
-        &self,
-        jobid: AsvoJobID,
-        opts: &DownloadOptions,
-    ) -> anyhow::Result<()> {
+    pub fn download_jobid(&self, jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Result<()> {
         let jobs = self.get_jobs(None)?;
         let client = self.client.borrow();
         download_by_jobid(&client, jobs, jobid, opts)?;
@@ -261,11 +257,7 @@ impl AsvoClientv2 {
     /// Download the MWA ASVO job associated with the given obsid.
     /// Fetches the current job list, locates the single ready job for
     /// the obsid, and downloads its files according to the supplied options.
-    pub fn download_obsid(
-        &self,
-        obsid: Obsid,
-        opts: &DownloadOptions,
-    ) -> anyhow::Result<()> {
+    pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()> {
         let jobs = self.get_jobs(None)?;
         let client = self.client.borrow();
         download_by_obsid(&client, jobs, obsid, opts)?;
@@ -459,6 +451,7 @@ impl AsvoClientv2 {
         // cheap - it's reference-counted internally.
         let client = self.client.borrow().clone();
         let response = build(&client).send()?;
+
         if response.status().is_success() {
             return Ok(response);
         }
