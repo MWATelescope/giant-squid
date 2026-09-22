@@ -193,7 +193,7 @@ enum Args {
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -229,7 +229,7 @@ enum Args {
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Output format: "ms" (measurement set) or "uvfits".
@@ -314,11 +314,11 @@ enum Args {
     #[command(alias = "si")]
     SubmitImage {
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia)]
+        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files)]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Whether to apply the DI calibration solution.
@@ -485,11 +485,11 @@ enum Args {
         source_job_id: std::num::NonZeroU64,
 
         /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = V2Delivery::Acacia)]
+        #[arg(short, long, default_value_t = V2Delivery::Acacia, env = "GIANT_SQUID_DELIVERY")]
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files)]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Whether to apply the primary beam correction.
@@ -619,7 +619,7 @@ enum Args {
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
@@ -705,7 +705,7 @@ enum Args {
         delivery: V2Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Files, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+        #[arg(short = 'f', long, default_value_t = V2DeliveryFormat::Tar, env = "GIANT_SQUID_DELIVERY_FORMAT")]
         delivery_format: V2DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for

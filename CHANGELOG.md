@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   either tool covers both) and is automatically refreshed when it expires, avoiding a fresh login on every
   command. This is transparent to users - `MWA_ASVO_API_KEY` is still how you authenticate.
 * `list` command now shows completed date time.
+* `-v` now shows all API requests and responses. `-vv` shows the full payload of requests and responses. 
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 * Housekeeping:

@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
@@ -72,6 +72,44 @@ pub struct AsvoClientv2 {
     api_key: String,
     client_version: String,
     api_timeout_seconds: Option<u64>,
+}
+
+/// A minimal view of an HTTP response - the pieces callers need once the
+/// body has been read and logged centrally by [`execute_logged`].
+struct HttpResponse {
+    status: reqwest::StatusCode,
+    body: String,
+}
+
+/// Execute `builder` on `client`, logging one concise line for the request
+/// and one for the response at debug level (i.e. `-v`): the HTTP method,
+/// URL, and (for the response) the status. The full response body is logged
+/// at trace level (`-vv`) only. Reading the body is centralised here so
+/// every caller gets consistent logging in one place.
+///
+/// NOTE: login/refresh response bodies contain access and refresh tokens,
+/// so they will appear in `-vv` (trace) logs.
+fn execute_logged(
+    client: &Client,
+    builder: reqwest::blocking::RequestBuilder,
+) -> reqwest::Result<HttpResponse> {
+    let request = builder.build()?;
+    let method = request.method().clone();
+    let url = request.url().clone();
+    debug!("HTTP request:  {} {}", method, url);
+
+    if let Some(body) = request.body().and_then(|b| b.as_bytes()) {
+        trace!("HTTP request body: {}", String::from_utf8_lossy(body));
+    }
+
+    let response = client.execute(request)?;
+    let status = response.status();
+    debug!("HTTP response: {} {} -> {}", method, url, status);
+
+    let body = response.text()?;
+    trace!("HTTP response body: {}", body);
+
+    Ok(HttpResponse { status, body })
 }
 
 /// Decode a JWT's payload (without verifying its signature - we're only
@@ -318,23 +356,23 @@ impl AsvoClientv2 {
     ) -> Result<StoredTokens, Apiv2Error> {
         let login: Login = client_version.try_into()?;
 
-        let response = auth_client
-            .post(format!("{}/api/v2/api_login", get_asvo_server_address()))
-            .json(&ApiLoginRequest {
-                login,
-                password: api_key.to_string(),
-            })
-            .send()?;
+        let response = execute_logged(
+            auth_client,
+            auth_client
+                .post(format!("{}/api/v2/api_login", get_asvo_server_address()))
+                .json(&ApiLoginRequest {
+                    login,
+                    password: api_key.to_string(),
+                }),
+        )?;
 
-        if !response.status().is_success() {
+        if !response.status.is_success() {
             return Err(Apiv2Error::AuthenticationFailed {
-                message: response.text().unwrap_or_default(),
+                message: response.body,
             });
         }
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 login response body: {}", body);
-        let auth: ApiLoginResponse = serde_json::from_str(&body)?;
+        let auth: ApiLoginResponse = serde_json::from_str(&response.body)?;
 
         Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, auth.user)
     }
@@ -344,23 +382,23 @@ impl AsvoClientv2 {
     /// we carry it over from the session being refreshed - it's still the
     /// same account.
     fn refresh(auth_client: &Client, previous: &StoredTokens) -> Result<StoredTokens, Apiv2Error> {
-        let response = auth_client
-            .post(format!("{}/api/v2/refresh", get_asvo_server_address()))
-            .header(
-                reqwest::header::COOKIE,
-                format!("mwa_refresh_token={}", previous.refresh_token),
-            )
-            .send()?;
+        let response = execute_logged(
+            auth_client,
+            auth_client
+                .post(format!("{}/api/v2/refresh", get_asvo_server_address()))
+                .header(
+                    reqwest::header::COOKIE,
+                    format!("mwa_refresh_token={}", previous.refresh_token),
+                ),
+        )?;
 
-        if !response.status().is_success() {
+        if !response.status.is_success() {
             return Err(Apiv2Error::AuthenticationFailed {
-                message: response.text().unwrap_or_default(),
+                message: response.body,
             });
         }
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 refresh response body: {}", body);
-        let token: TokenResponse = serde_json::from_str(&body)?;
+        let token: TokenResponse = serde_json::from_str(&response.body)?;
 
         Self::stored_tokens_from_parts(
             token.access_token,
@@ -438,10 +476,11 @@ impl AsvoClientv2 {
     /// that is unexpired locally but rejected by the server, e.g. after
     /// switching between the dev and test environments.
     ///
-    /// A successful [`reqwest::blocking::Response`] is returned for the
-    /// caller to parse; a non-success status is mapped to an [`Apiv2Error`]
-    /// by [`Self::error_from_body`].
-    fn send_authed<F>(&self, build: F) -> Result<reqwest::blocking::Response, Apiv2Error>
+    /// On success the response body is returned for the caller to parse; a
+    /// non-success status is mapped to an [`Apiv2Error`] by
+    /// [`Self::error_from_body`]. All requests are logged via
+    /// [`execute_logged`].
+    fn send_authed<F>(&self, build: F) -> Result<String, Apiv2Error>
     where
         F: Fn(&Client) -> reqwest::blocking::RequestBuilder,
     {
@@ -450,15 +489,12 @@ impl AsvoClientv2 {
         // mutable borrow on the retry path. Cloning a reqwest client is
         // cheap - it's reference-counted internally.
         let client = self.client.borrow().clone();
-        let response = build(&client).send()?;
-
-        if response.status().is_success() {
-            return Ok(response);
+        let response = execute_logged(&client, build(&client))?;
+        if response.status.is_success() {
+            return Ok(response.body);
         }
 
-        let status = response.status();
-        let body = response.text().unwrap_or_default();
-        let err = Self::error_from_body(status, body);
+        let err = Self::error_from_body(response.status, response.body);
         if !Self::is_auth_error(&err) {
             return Err(err);
         }
@@ -467,14 +503,12 @@ impl AsvoClientv2 {
         // freshly-swapped client.
         self.reauthenticate()?;
         let client = self.client.borrow().clone();
-        let response = build(&client).send()?;
-        if response.status().is_success() {
-            return Ok(response);
+        let response = execute_logged(&client, build(&client))?;
+        if response.status.is_success() {
+            return Ok(response.body);
         }
 
-        let status = response.status();
-        let body = response.text().unwrap_or_default();
-        Err(Self::error_from_body(status, body))
+        Err(Self::error_from_body(response.status, response.body))
     }
 
     /// Map a non-success response body to an [`Apiv2Error`], preferring the
@@ -545,14 +579,11 @@ impl AsvoClientv2 {
             // Confirmed via testing against the real dev server: POST to
             // /api/v2/get_jobs (my original guess of /api/v2/job_history
             // was wrong).
-            let response = self.send_authed(|client| {
+            let body = self.send_authed(|client| {
                 client
                     .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
                     .json(&request)
             })?;
-
-            let body = response.text()?;
-            debug!("MWA ASVO v2 get_jobs response body: {}", body);
             let page: JobsByUserResponse = serde_json::from_str(&body)?;
 
             let page_len = page.jobs.len() as u64;
@@ -593,14 +624,12 @@ impl AsvoClientv2 {
     pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an imaging job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!("{}/api/v2/imaging_job", get_asvo_server_address()))
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 imaging_job response body: {}", body);
         let job_id: i64 = serde_json::from_str(&body)?;
         Ok(job_id)
     }
@@ -608,7 +637,7 @@ impl AsvoClientv2 {
     pub fn submit_image_from_job(&self, params: &ImagingJobFlow2Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!(
                     "{}/api/v2/image_from_job",
@@ -617,8 +646,6 @@ impl AsvoClientv2 {
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 image_from_job response body: {}", body);
         let job_id: i64 = serde_json::from_str(&body)?;
         Ok(job_id)
     }
@@ -629,7 +656,7 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a download-vis job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!(
                     "{}/api/v2/download_vis_job",
@@ -638,8 +665,6 @@ impl AsvoClientv2 {
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 download_vis_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
@@ -650,7 +675,7 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a conversion job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!(
                     "{}/api/v2/conversion_job",
@@ -659,8 +684,6 @@ impl AsvoClientv2 {
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 conversion_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
@@ -671,14 +694,12 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a voltage job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!("{}/api/v2/voltage_job", get_asvo_server_address()))
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 voltage_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
@@ -689,7 +710,7 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a beamformer job to MWA ASVO v2");
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client
                 .post(format!(
                     "{}/api/v2/beamformer_job",
@@ -698,8 +719,6 @@ impl AsvoClientv2 {
                 .json(params)
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 beamformer_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
@@ -707,7 +726,7 @@ impl AsvoClientv2 {
     pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
-        let response = self.send_authed(|client| {
+        let body = self.send_authed(|client| {
             client.delete(format!(
                 "{}/api/v2/jobs/{}",
                 get_asvo_server_address(),
@@ -715,8 +734,6 @@ impl AsvoClientv2 {
             ))
         })?;
 
-        let body = response.text()?;
-        debug!("MWA ASVO v2 cancel_job response body: {}", body);
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
