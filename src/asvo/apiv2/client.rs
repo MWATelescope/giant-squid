@@ -13,6 +13,7 @@
 //! infrastructure (not v1-specific) and are used directly from
 //! `crate::asvo` rather than being duplicated here.
 
+use std::cell::RefCell;
 use std::env::var;
 use std::num::NonZeroU64;
 use std::str::FromStr;
@@ -44,10 +45,33 @@ const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
 const CONST_ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
 const CONST_DEFAULT_MWA_ASVO_API_TIMEOUT: u64 = 60;
 
+/// User-agent string sent on every request to the MWA ASVO.
+const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
+/// Error codes the MWA ASVO returns when our access token is missing or
+/// rejected. These are recoverable: logging in again gets us a new token.
+/// In particular this covers a cached token that is still unexpired locally
+/// but was minted by a different environment (e.g. dev vs test, which sign
+/// JWTs with different secrets), so the other environment rejects it.
+const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
+
 #[derive(Debug)]
 pub struct AsvoClientv2 {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
-    client: Client,
+    ///
+    /// Wrapped in a [`RefCell`] so that, if the server rejects our access
+    /// token (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`), `send_authed` can
+    /// re-authenticate and swap in a fresh client mid-flight. This is sound
+    /// because an `AsvoClientv2` never crosses a thread boundary: the
+    /// parallel (rayon) download path builds its own client per worker
+    /// rather than sharing one.
+    client: RefCell<Client>,
+    /// Details needed to perform a fresh login on demand (i.e. when the
+    /// current token is rejected), so we don't have to thread them back
+    /// through every call site.
+    api_key: String,
+    client_version: String,
+    api_timeout_seconds: Option<u64>,
 }
 
 /// Decode a JWT's payload (without verifying its signature - we're only
@@ -94,9 +118,6 @@ impl AsvoClientv2 {
     /// isn't available or fails for any reason, giant-squid just falls back
     /// to a fresh login.
     pub fn new() -> Result<AsvoClientv2, Apiv2Error> {
-        static APP_USER_AGENT: &str =
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
-
         let api_key = var(CONST_ENV_MWA_ASVO_API_KEY).map_err(|_| Apiv2Error::MissingAuthKey)?;
 
         // Parse the timeout env variable or use default
@@ -151,20 +172,41 @@ impl AsvoClientv2 {
         let tokens = Self::get_valid_tokens(&client_version, &api_key, api_timeout_seconds)?;
 
         // Build the "real" client, with the access token attached as a
-        // default header on every request. We do this explicitly (rather
-        // than relying on the cookie jar alone) so that a session loaded
-        // from the cache behaves identically to one from a fresh login.
+        // default header on every request. If the server later rejects this
+        // token, `send_authed` re-logs-in and swaps in a new client, which
+        // is why we hold on to api_key/client_version/timeout below.
+        let client = Self::build_authed_client(&tokens.access_token, api_timeout_seconds)?;
+
+        Ok(AsvoClientv2 {
+            client: RefCell::new(client),
+            api_key,
+            client_version,
+            api_timeout_seconds,
+        })
+    }
+
+    /// Build a `reqwest` [Client] that sends `access_token` as the
+    /// `mwa_access_token` cookie on every request. Factored out of `new` so
+    /// `reauthenticate` can rebuild the client with a freshly-minted token.
+    ///
+    /// The token is attached explicitly (rather than relying on the cookie
+    /// jar alone) so a session loaded from the cache behaves identically to
+    /// one from a fresh login.
+    fn build_authed_client(
+        access_token: &str,
+        api_timeout_seconds: Option<u64>,
+    ) -> Result<Client, Apiv2Error> {
         let mut headers = HeaderMap::new();
         headers.insert(
             reqwest::header::COOKIE,
-            HeaderValue::from_str(&format!("mwa_access_token={}", tokens.access_token)).map_err(
-                |e| Apiv2Error::AuthenticationFailed {
+            HeaderValue::from_str(&format!("mwa_access_token={}", access_token)).map_err(|e| {
+                Apiv2Error::AuthenticationFailed {
                     message: format!("MWA ASVO returned an invalid access token: {}", e),
-                },
-            )?,
+                }
+            })?,
         );
 
-        let client = ClientBuilder::new()
+        Ok(ClientBuilder::new()
             .cookie_store(true)
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
@@ -173,16 +215,33 @@ impl AsvoClientv2 {
             .timeout(Duration::from_secs(
                 api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
             ))
-            .build()?;
-
-        Ok(AsvoClientv2 { client })
+            .build()?)
     }
 
-    /// Returns a reference to the underlying HTTP client, for use by
-    /// download functions that need to make direct HTTP requests (e.g.
-    /// to Ceph signed URLs) outside the ASVO API.
-    pub fn http_client(&self) -> &Client {
-        &self.client
+    /// Build the short-lived [Client] used purely for login/refresh calls
+    /// (it needs neither the cookie jar nor default auth headers).
+    fn build_auth_client(api_timeout_seconds: Option<u64>) -> Result<Client, Apiv2Error> {
+        Ok(ClientBuilder::new()
+            .connection_verbose(true)
+            .user_agent(APP_USER_AGENT)
+            .https_only(true)
+            .timeout(Duration::from_secs(
+                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
+            ))
+            .build()?)
+    }
+
+    /// Returns a clone of the underlying HTTP client, for use by download
+    /// functions that need to make direct HTTP requests (e.g. to Ceph
+    /// signed URLs) outside the ASVO API. Cloning a reqwest client is cheap
+    /// (it's reference-counted internally) and shares the same connection
+    /// pool.
+    ///
+    /// NOTE: currently has no callers - the download path now goes through
+    /// `download_jobid` / `download_obsid` - so this is a candidate for
+    /// deletion.
+    pub fn http_client(&self) -> Client {
+        self.client.borrow().clone()
     }
 
     /// Download the MWA ASVO job with the given job ID.
@@ -194,7 +253,8 @@ impl AsvoClientv2 {
         opts: &DownloadOptions,
     ) -> anyhow::Result<()> {
         let jobs = self.get_jobs(None)?;
-        download_by_jobid(&self.client, jobs, jobid, opts)?;
+        let client = self.client.borrow();
+        download_by_jobid(&client, jobs, jobid, opts)?;
         Ok(())
     }
 
@@ -207,7 +267,8 @@ impl AsvoClientv2 {
         opts: &DownloadOptions,
     ) -> anyhow::Result<()> {
         let jobs = self.get_jobs(None)?;
-        download_by_obsid(&self.client, jobs, obsid, opts)?;
+        let client = self.client.borrow();
+        download_by_obsid(&client, jobs, obsid, opts)?;
         Ok(())
     }
 
@@ -222,18 +283,7 @@ impl AsvoClientv2 {
     ) -> Result<StoredTokens, Apiv2Error> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the cookie jar or auth headers).
-        let auth_client = ClientBuilder::new()
-            .connection_verbose(true)
-            .user_agent(concat!(
-                env!("CARGO_PKG_NAME"),
-                "/",
-                env!("CARGO_PKG_VERSION")
-            ))
-            .https_only(true)
-            .timeout(Duration::from_secs(
-                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
-            ))
-            .build()?;
+        let auth_client = Self::build_auth_client(api_timeout_seconds)?;
 
         if let Some(cached) = token_store::load() {
             if cached.is_access_valid() {
@@ -329,6 +379,20 @@ impl AsvoClientv2 {
         )
     }
 
+    /// Force a fresh login (ignoring any cached session), persist the new
+    /// tokens, and swap the freshly-authenticated client in as our active
+    /// one. Called by `send_authed` when the server rejects our current
+    /// access token.
+    fn reauthenticate(&self) -> Result<(), Apiv2Error> {
+        debug!("Re-authenticating with MWA ASVO after a rejected access token");
+        let auth_client = Self::build_auth_client(self.api_timeout_seconds)?;
+        let fresh = Self::login(&auth_client, &self.client_version, &self.api_key)?;
+        token_store::save(&fresh);
+        let new_client = Self::build_authed_client(&fresh.access_token, self.api_timeout_seconds)?;
+        *self.client.borrow_mut() = new_client;
+        Ok(())
+    }
+
     /// Build a `StoredTokens` from a login response's pieces, decoding each
     /// JWT's `exp` claim to determine its expiry (the API response doesn't
     /// provide expiry timestamps directly).
@@ -372,6 +436,82 @@ impl AsvoClientv2 {
         })
     }
 
+    /// Send an authenticated request, retrying it once if the server
+    /// rejects our access token.
+    ///
+    /// `build` produces the request from a given [`Client`]; it may be
+    /// called a second time - against a freshly-authenticated client - if
+    /// the first attempt fails with an authentication error (see
+    /// [`AUTH_ERROR_CODES`]). This transparently recovers a cached token
+    /// that is unexpired locally but rejected by the server, e.g. after
+    /// switching between the dev and test environments.
+    ///
+    /// A successful [`reqwest::blocking::Response`] is returned for the
+    /// caller to parse; a non-success status is mapped to an [`Apiv2Error`]
+    /// by [`Self::error_from_body`].
+    fn send_authed<F>(&self, build: F) -> Result<reqwest::blocking::Response, Apiv2Error>
+    where
+        F: Fn(&Client) -> reqwest::blocking::RequestBuilder,
+    {
+        // Clone the client out of the RefCell rather than holding a borrow
+        // across the (blocking) send, so `reauthenticate` is free to take a
+        // mutable borrow on the retry path. Cloning a reqwest client is
+        // cheap - it's reference-counted internally.
+        let client = self.client.borrow().clone();
+        let response = build(&client).send()?;
+        if response.status().is_success() {
+            return Ok(response);
+        }
+
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        let err = Self::error_from_body(status, body);
+        if !Self::is_auth_error(&err) {
+            return Err(err);
+        }
+
+        // Token rejected: re-login once and retry the request against the
+        // freshly-swapped client.
+        self.reauthenticate()?;
+        let client = self.client.borrow().clone();
+        let response = build(&client).send()?;
+        if response.status().is_success() {
+            return Ok(response);
+        }
+
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        Err(Self::error_from_body(status, body))
+    }
+
+    /// Map a non-success response body to an [`Apiv2Error`], preferring the
+    /// structured `ErrorResponse` shape and falling back to `BadStatus` for
+    /// anything that doesn't match it.
+    fn error_from_body(status: reqwest::StatusCode, body: String) -> Apiv2Error {
+        match serde_json::from_str::<ErrorResponse>(&body) {
+            Ok(err) => Apiv2Error::ApiError {
+                error_code: err.error_code,
+                message: err.message,
+                detail: err.detail,
+                suggestion: err.suggestion,
+            },
+            Err(_) => Apiv2Error::BadStatus {
+                code: status,
+                message: body,
+            },
+        }
+    }
+
+    /// Whether `err` is an authentication failure that a fresh login might
+    /// fix (see [`AUTH_ERROR_CODES`]).
+    fn is_auth_error(err: &Apiv2Error) -> bool {
+        matches!(
+            err,
+            Apiv2Error::ApiError { error_code, .. }
+                if AUTH_ERROR_CODES.contains(&error_code.as_str())
+        )
+    }
+
     /// Fetch the caller's MWA ASVO jobs via the v2 API, returning the same
     /// `AsvoJobVec` the v1 client's `get_jobs` does, so the rest of
     /// giant-squid (filtering, `--json`, table rendering) doesn't need to
@@ -412,28 +552,11 @@ impl AsvoClientv2 {
             // Confirmed via testing against the real dev server: POST to
             // /api/v2/get_jobs (my original guess of /api/v2/job_history
             // was wrong).
-            let response = self
-                .client
-                .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
-                .json(&request)
-                .send()?;
-
-            if !response.status().is_success() {
-                let status = response.status();
-                let body = response.text().unwrap_or_default();
-                return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                    Ok(err) => Apiv2Error::ApiError {
-                        error_code: err.error_code,
-                        message: err.message,
-                        detail: err.detail,
-                        suggestion: err.suggestion,
-                    },
-                    Err(_) => Apiv2Error::BadStatus {
-                        code: status,
-                        message: body,
-                    },
-                });
-            }
+            let response = self.send_authed(|client| {
+                client
+                    .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
+                    .json(&request)
+            })?;
 
             let body = response.text()?;
             debug!("MWA ASVO v2 get_jobs response body: {}", body);
@@ -477,28 +600,11 @@ impl AsvoClientv2 {
     pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an imaging job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!("{}/api/v2/imaging_job", get_asvo_server_address()))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!("{}/api/v2/imaging_job", get_asvo_server_address()))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 imaging_job response body: {}", body);
@@ -509,31 +615,14 @@ impl AsvoClientv2 {
     pub fn submit_image_from_job(&self, params: &ImagingJobFlow2Params) -> Result<i64, Apiv2Error> {
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!(
-                "{}/api/v2/image_from_job",
-                get_asvo_server_address()
-            ))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!(
+                    "{}/api/v2/image_from_job",
+                    get_asvo_server_address()
+                ))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 image_from_job response body: {}", body);
@@ -547,31 +636,14 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a download-vis job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!(
-                "{}/api/v2/download_vis_job",
-                get_asvo_server_address()
-            ))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!(
+                    "{}/api/v2/download_vis_job",
+                    get_asvo_server_address()
+                ))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 download_vis_job response body: {}", body);
@@ -585,31 +657,14 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a conversion job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!(
-                "{}/api/v2/conversion_job",
-                get_asvo_server_address()
-            ))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!(
+                    "{}/api/v2/conversion_job",
+                    get_asvo_server_address()
+                ))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 conversion_job response body: {}", body);
@@ -623,28 +678,11 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a voltage job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!("{}/api/v2/voltage_job", get_asvo_server_address()))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!("{}/api/v2/voltage_job", get_asvo_server_address()))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 voltage_job response body: {}", body);
@@ -658,31 +696,14 @@ impl AsvoClientv2 {
     ) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Submitting a beamformer job to MWA ASVO v2");
 
-        let response = self
-            .client
-            .post(format!(
-                "{}/api/v2/beamformer_job",
-                get_asvo_server_address()
-            ))
-            .json(params)
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        let response = self.send_authed(|client| {
+            client
+                .post(format!(
+                    "{}/api/v2/beamformer_job",
+                    get_asvo_server_address()
+                ))
+                .json(params)
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 beamformer_job response body: {}", body);
@@ -693,31 +714,13 @@ impl AsvoClientv2 {
     pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, Apiv2Error> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
-        let response = self
-            .client
-            .delete(format!(
+        let response = self.send_authed(|client| {
+            client.delete(format!(
                 "{}/api/v2/jobs/{}",
                 get_asvo_server_address(),
                 job_id
             ))
-            .send()?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().unwrap_or_default();
-            return Err(match serde_json::from_str::<ErrorResponse>(&body) {
-                Ok(err) => Apiv2Error::ApiError {
-                    error_code: err.error_code,
-                    message: err.message,
-                    detail: err.detail,
-                    suggestion: err.suggestion,
-                },
-                Err(_) => Apiv2Error::BadStatus {
-                    code: status,
-                    message: body,
-                },
-            });
-        }
+        })?;
 
         let body = response.text()?;
         debug!("MWA ASVO v2 cancel_job response body: {}", body);
