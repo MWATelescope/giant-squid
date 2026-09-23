@@ -14,10 +14,6 @@ then:
     value: Wed, 23 Sep 2026 06:53:39 GMT
   - name: content-type
     value: application/json
-  - name: content-length
-    value: '2090'
-  - name: connection
-    value: keep-alive
   - name: server
     value: nginx/1.31.6
   - name: set-cookie
@@ -44,10 +40,6 @@ then:
     value: Wed, 23 Sep 2026 06:53:39 GMT
   - name: content-type
     value: application/json
-  - name: content-length
-    value: '801'
-  - name: connection
-    value: keep-alive
   - name: server
     value: nginx/1.31.6
   - name: x-request-id

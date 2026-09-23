@@ -57,6 +57,49 @@ FIELD_REPLACEMENTS: list[tuple[re.Pattern[str], str]] = [
 # Request headers that carry credentials.
 COOKIE_PATTERN = re.compile(r"(mwa_(?:access|refresh)_token=)([^\s;\"']+)")
 
+# Headers that must not be replayed.
+#
+# `content-length` describes the original body, and scrubbing changes the
+# body's length, so replaying it makes the mock server send a header that
+# contradicts what it actually writes - hyper then aborts the response with
+# "payload claims content-length of 802, custom content-length header claims
+# 801". The rest are hop-by-hop headers (RFC 7230 6.1): they describe the
+# connection the recording was made over, not the message, so the replaying
+# server has to set its own. Dropping them all lets it do that.
+DROPPED_HEADERS = (
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "keep-alive",
+)
+
+HEADER_ENTRY_PATTERN = re.compile(
+    r"^[ \t]*-[ \t]*name:[ \t]*(?P<name>[^\n]+?)[ \t]*\n[ \t]*value:[ \t]*[^\n]*\n",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def drop_invalidated_headers(text: str) -> tuple[str, int]:
+    """Remove header entries whose recorded value scrubbing invalidates.
+
+    Args:
+        text: The recording contents.
+
+    Returns:
+        A tuple of the text with those entries removed and the number
+        removed.
+    """
+    removed = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal removed
+        if match.group("name").strip().lower() in DROPPED_HEADERS:
+            removed += 1
+            return ""
+        return match.group(0)
+
+    return HEADER_ENTRY_PATTERN.sub(replace, text), removed
+
 
 def scrub(text: str) -> tuple[str, int]:
     """Replace every known secret in the recording text.
@@ -68,6 +111,9 @@ def scrub(text: str) -> tuple[str, int]:
         A tuple of the scrubbed text and the number of replacements made.
     """
     count = 0
+
+    text, n = drop_invalidated_headers(text)
+    count += n
 
     text, n = JWT_PATTERN.subn(PLACEHOLDER_JWT, text)
     count += n

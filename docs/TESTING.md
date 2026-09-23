@@ -154,6 +154,15 @@ claim is in 2036 so a fixture does not expire:
 python3 tools/scrub_recording.py <recorded file> tests/fixtures/<name>.yaml
 ```
 
+It also drops `content-length` and the hop-by-hop headers
+(`transfer-encoding`, `connection`, `keep-alive`) from the recorded
+messages. A recorded `content-length` describes the original body, and
+scrubbing changes the body's length, so replaying it makes the playback
+server send a header that contradicts what it writes - hyper then aborts the
+response with "payload claims content-length of 802, custom content-length
+header claims 801". The rest describe the connection the recording was made
+over rather than the message, so the replaying server has to set its own.
+
 It refuses to write the output if anything still looks like a JWT or an email
 address, so a fixture cannot be committed half-scrubbed. Two fields are
 deliberately left alone: a job's own `id`, which is not a secret and which
