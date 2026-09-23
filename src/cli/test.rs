@@ -429,6 +429,81 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
     assert_eq!(json["centre"], "custom");
 }
 
+/// A negative value has to work both as `--flag value` and `--flag=value`.
+/// clap reads a leading '-' as a flag unless the command opts in, so
+/// `--custom-dec -26.7` used to fail with "unknown argument '-2'" - a
+/// defect for any southern declination, a negative robustness, or a
+/// negative uvw_min.
+#[test]
+fn negative_values_are_accepted_in_either_form() {
+    for argv in [
+        vec![
+            "giant-squid",
+            "submit-image",
+            "--custom-dec",
+            "-26.7",
+            "--robust",
+            "-1.5",
+            TEST_OBSID,
+        ],
+        vec![
+            "giant-squid",
+            "submit-image",
+            "--custom-dec=-26.7",
+            "--robust=-1.5",
+            TEST_OBSID,
+        ],
+    ] {
+        let (args, _) = image_args(&argv);
+        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
+        assert_eq!(json["robust"], -1.5, "argv: {argv:?}");
+    }
+
+    for argv in [
+        vec![
+            "giant-squid",
+            "submit-conv",
+            "--centre",
+            "custom",
+            "--phase-centre-dec",
+            "-26.7",
+            TEST_OBSID,
+        ],
+        vec![
+            "giant-squid",
+            "submit-conv",
+            "--centre",
+            "custom",
+            "--phase-centre-dec=-26.7",
+            TEST_OBSID,
+        ],
+    ] {
+        let (args, _) = conv_args(&argv);
+        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
+    }
+}
+
+/// Negative numbers being allowed must not swallow the short flags on
+/// those same commands.
+#[test]
+fn allowing_negative_numbers_does_not_break_short_flags() {
+    match parse(&["giant-squid", "submit-image", "-n", "-vv", TEST_OBSID]) {
+        Args::SubmitImage {
+            dry_run,
+            verbosity,
+            wait,
+            ..
+        } => {
+            assert!(dry_run);
+            assert_eq!(verbosity, 2);
+            assert!(!wait);
+        }
+        other => panic!("expected SubmitImage, got {other:?}"),
+    }
+}
+
 #[test]
 fn submit_image_optional_fields_are_omitted_when_unset() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);

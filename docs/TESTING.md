@@ -222,6 +222,16 @@ the file from the same mock server.
 
 ## Defects the tests surfaced
 
+- `--custom-dec -26.7`, `--robust -1.5` and `--phase-centre-dec -26.7` were
+  rejected with "unknown argument '-2'": clap reads a leading `-` as a flag
+  unless the command opts in. Any southern declination, negative robustness
+  or negative `uvw_min` was unusable in the natural `--flag value` form; only
+  `--flag=value` worked. Fixed by setting `allow_negative_numbers` on
+  submit-conv, submit-image and submit-image-from-job, with tests covering
+  both forms and a guard that the short flags (`-n`, `-v`) still work. This
+  predates the CLI refactor - the arguments behaved the same when they lived
+  on the enum variants.
+
 - `submit-image --pol` defaulted to `XX,YY`, which the schema's
   `Polarization` type rejects - it accepts only `XX`, `YY` or `XXYY` - so
   every `submit-image` run without an explicit `--pol` failed when the
