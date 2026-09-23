@@ -170,11 +170,17 @@ the tests assert on, and the login request's `login` field, which carries the
 client version string rather than a username - rewriting it would stop the
 recorded request matching what the client sends.
 
-A CI job should validate recorded request and response bodies against
-`src/asvo/apiv2/openapi-schema.json`, extending the existing
-`openapi-drift-check` job. That keeps the fixtures honest: if the schema
-changes, stale recordings fail rather than silently testing an API that no
-longer exists.
+Recorded bodies are already validated against the schema, indirectly but
+effectively: `tests/playback.rs` drives the real client over the fixture, so
+each recorded response is deserialised through the types generated from
+`openapi-schema.json`. If the schema is regenerated with a renamed or newly
+required field, that test fails rather than the fixture silently describing
+an API that no longer exists.
+
+A dedicated JSON-schema validation job would only add value for fixture
+bodies that no client call exercises, of which there are none today. It
+would also mean a new dependency (a JSON-schema validator, or PyYAML in
+CI), so it is deliberately not added.
 
 ## CLI coverage matrix
 
@@ -254,22 +260,32 @@ already accepts both.
   permanent, or the retry count should be small and logged; the retry window
   is now at least configurable via `GIANT_SQUID_DOWNLOAD_RETRY_SECS`.
 
-- Resume is broken in two linked ways, found while writing the download
-  tests, and not fixed here because fixing either alone makes behaviour
-  worse:
-  1. The `RANGE` header value is built as `"Range: bytes=0-123"`, i.e. with
-     the header name inside the value, so the sent header is
-     `Range: Range: bytes=0-123`. A real server ignores or rejects it, so a
-     resumed download re-fetches from the start and appends, corrupting the
-     file - which the hash check then catches.
-  2. `prepare_output_file` signals "file already complete" by returning the
-     expected size, and its own comment says the caller should return early,
-     but `try_download` never checks: it requests and re-downloads anyway.
-     Fixing (1) without (2) would turn an already-complete file into a
-     `bytes=N-` request and a hash mismatch.
+- Resume was broken in three linked ways, found while writing the download
+  tests, and now fixed together:
+  1. The `RANGE` header value was built as `"Range: bytes=0-123"`, with the
+     header name inside the value, so the header sent was
+     `Range: Range: bytes=0-123`. A real server ignores that and returns the
+     whole file, which was then appended to the partial file. Now the value
+     is `bytes=<offset>-`, and the header is only sent when there is
+     something to skip.
+  2. `prepare_output_file` signalled "file already complete" by returning
+     the expected size, with a comment saying the caller should return
+     early - but `try_download` never checked, so a complete file was
+     downloaded again. It now returns an explicit `OutputTarget`, whose
+     `AlreadyDone` case the caller cannot miss.
+  3. The hash was taken from the `TeeReader`, which on a resumed download
+     only sees the bytes fetched this time, so it described the tail rather
+     than the file. Worse, in combination with (1) it *passed*: the whole
+     file was re-fetched and hashed while the file on disk had the partial
+     bytes in front of it. A resumed download now verifies the assembled
+     file on disk with `check_file_sha1_hash`; a fresh one still uses the
+     cheaper streamed hash.
 
-  Both want fixing together, with tests for: fresh download, resume of a
-  partial file, an already-complete file being skipped, and `--no-resume`.
+  A server that ignores the range request and answers `200` instead of
+  `206` is now detected, and the download restarts from the beginning
+  rather than appending. Tests in `tests/download.rs` cover resume, an
+  already-complete file, a complete-but-corrupt file, `--no-resume`, and the
+  ignored-range case.
 
 - `--custom-dec -26.7`, `--robust -1.5` and `--phase-centre-dec -26.7` were
   rejected with "unknown argument '-2'": clap reads a leading `-` as a flag
@@ -302,8 +318,8 @@ already accepts both.
 | 3b | `get_jobs` pagination, plus download-path error mocks | Done |
 | 3c | Recorded fixture from test-asvo, replayed offline | Done |
 | 3d | `product` mapping, plus successful download, tar and hash tests | Done |
-| 3e | Resume fix and its tests | See the resume defects above |
+| 3e | Resume fix and its tests | Done |
 | 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
-| 4b | Fixture schema validation in CI | Needs fixtures first |
+| 4b | Fixture schema validation in CI | Covered by playback, see below |
 | 5 | End-to-end CLI tests against the mock server | Done |
 | 6 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |

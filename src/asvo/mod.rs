@@ -274,45 +274,77 @@ fn try_download(
 
     let response: reqwest::blocking::Response;
     let mut tee: TeeReader<reqwest::blocking::Response, _>;
+    // Set when only part of the file was fetched this time, which changes
+    // how the hash has to be checked (see below).
+    let mut resumed = false;
 
     if opts.keep_tar {
-        let (mut out_file, file_size_bytes) = prepare_output_file(
+        let (mut out_file, mut resume_from) = match prepare_output_file(
             out_path,
             opts.no_resume,
             file_info,
             mwa_asvo_hash,
             job.jobid,
             log_prefix,
-        )?;
+        )? {
+            OutputTarget::AlreadyDone { reason } => {
+                info!("{} {} Skipping {:?}.", log_prefix, reason, out_path);
+                opts.progress_bar.finish_and_clear();
+                return Ok(());
+            }
+            OutputTarget::Download { file, offset } => (file, offset),
+        };
 
         opts.progress_bar.set_length(file_info.size);
-        opts.progress_bar.set_position(file_size_bytes);
+        opts.progress_bar.set_position(resume_from);
         opts.progress_bar.reset_eta();
         opts.progress_bar.set_message(log_prefix.to_string());
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            RANGE,
-            HeaderValue::from_str(&format!(
-                "Range: bytes={}-{}",
-                file_size_bytes, file_info.size
-            ))
-            .unwrap(),
-        );
-
-        response = send_checked(http_client, url, Some(headers), log_prefix)?;
-        tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
+        // Only ask for a range when there is something to skip, and ask
+        // open-ended: the server knows where the file ends, and a closed
+        // range invites off-by-one trouble.
+        let headers = if resume_from > 0 {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                RANGE,
+                HeaderValue::from_str(&format!("bytes={resume_from}-"))
+                    .expect("a byte range is always a valid header value"),
+            );
+            Some(headers)
+        } else {
+            None
+        };
 
         info!(
             "{} {} tar archive {:?}",
             log_prefix,
-            if file_size_bytes > 0 {
+            if resume_from > 0 {
                 "Resuming download of"
             } else {
                 "Downloading"
             },
             out_path,
         );
+
+        let http_response = send_checked(http_client, url, headers, log_prefix)?;
+
+        // A server that ignores the range answers 200 with the whole file.
+        // Appending that to a partial file would silently corrupt it, so
+        // start again from the beginning instead.
+        if resume_from > 0 && http_response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+            warn!(
+                "{} Asked to resume from byte {}, but the server sent the whole file. \
+                 Starting again from the beginning.",
+                log_prefix, resume_from
+            );
+            out_file = create_file_logged(out_path, log_prefix)?;
+            resume_from = 0;
+            opts.progress_bar.set_position(0);
+        }
+
+        resumed = resume_from > 0;
+        response = http_response;
+        tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
         copy_with_progress(tee.by_ref(), &mut out_file, buffer_size, opts.progress_bar)?;
     } else {
@@ -379,16 +411,24 @@ fn try_download(
             log_prefix, out_path
         );
         debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
-        let (_, hasher) = tee.into_inner();
-        let hash = format!("{:x}", hasher.finalize());
-        debug!("{} Our hash: {}", log_prefix, hash);
-        if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
-            return Err(AsvoError::HashMismatch {
-                jobid: job.jobid,
-                file: url.to_string(),
-                calculated_hash: hash,
-                expected_hash: mwa_asvo_hash.to_string(),
-            });
+
+        if resumed {
+            // The tee only saw the bytes fetched this time, so its hash
+            // describes the tail rather than the file. Read the assembled
+            // file back instead - slower, but only on a resumed download.
+            check_file_sha1_hash(out_path, mwa_asvo_hash, job.jobid)?;
+        } else {
+            let (_, hasher) = tee.into_inner();
+            let hash = format!("{:x}", hasher.finalize());
+            debug!("{} Our hash: {}", log_prefix, hash);
+            if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
+                return Err(AsvoError::HashMismatch {
+                    jobid: job.jobid,
+                    file: url.to_string(),
+                    calculated_hash: hash,
+                    expected_hash: mwa_asvo_hash.to_string(),
+                });
+            }
         }
         info!("{} File matches the MWA ASVO provided hash.", log_prefix);
     }
@@ -477,6 +517,22 @@ fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> 
 /// Prepare the output file for a keep-tar download, handling resume and
 /// existing-file-with-matching-hash short-circuits.  Returns the open file
 /// handle and the byte count already on disk (0 for a fresh download).
+/// What the output file on disk means for the download about to happen.
+///
+/// This used to be signalled by returning an offset equal to the expected
+/// file size, with a comment saying the caller should return early - but the
+/// caller never checked, so an already-complete file was downloaded again.
+/// An explicit outcome makes the "nothing to do" case impossible to miss.
+enum OutputTarget {
+    /// Nothing to fetch: the file is already complete and verified, or
+    /// `--no-resume` means it must be left as it is.
+    AlreadyDone { reason: &'static str },
+
+    /// Fetch into this file, starting `offset` bytes in. An `offset` of 0
+    /// is a download from the beginning.
+    Download { file: File, offset: u64 },
+}
+
 fn prepare_output_file(
     out_path: &PathBuf,
     no_resume: bool,
@@ -484,30 +540,21 @@ fn prepare_output_file(
     mwa_asvo_hash: &str,
     jobid: AsvoJobID,
     log_prefix: &str,
-) -> Result<(File, u64), AsvoError> {
+) -> Result<OutputTarget, AsvoError> {
     if !out_path.try_exists()? {
-        return Ok((create_file_logged(out_path, log_prefix)?, 0));
+        return Ok(OutputTarget::Download {
+            file: create_file_logged(out_path, log_prefix)?,
+            offset: 0,
+        });
     }
 
     // File already exists.
-    let out_file = if no_resume {
-        File::open(out_path)?
-    } else {
-        File::options().append(true).open(out_path)?
-    };
-    let file_size_bytes = File::metadata(&out_file)?.len();
+    let file_size_bytes = std::fs::metadata(out_path)?.len();
 
     if no_resume && file_size_bytes < file_info.size {
-        warn!(
-            "{} Partial file {:?} exists, but --no-resume was set. Skipping file.",
-            log_prefix, out_path
-        );
-        // Signal: nothing to download (caller should return Ok early).
-        // We re-use the existing file handle with size == expected so the
-        // caller's "already complete" path fires.  A cleaner option would
-        // be a dedicated return variant, but this preserves the original
-        // behaviour without changing the control flow.
-        return Ok((out_file, file_info.size));
+        return Ok(OutputTarget::AlreadyDone {
+            reason: "Partial file exists, but --no-resume was set.",
+        });
     }
 
     if file_size_bytes == file_info.size {
@@ -517,31 +564,33 @@ fn prepare_output_file(
         );
         match check_file_sha1_hash(out_path, mwa_asvo_hash, jobid) {
             Ok(()) => {
-                info!(
-                    "{} File exists, is the correct size and matches the MWA ASVO provided hash. Skipping file.",
-                    log_prefix
-                );
-                // Return size == expected to signal "already complete".
-                return Ok((out_file, file_info.size));
+                return Ok(OutputTarget::AlreadyDone {
+                    reason: "File exists, is the correct size and matches the MWA ASVO hash.",
+                });
             }
             Err(_) => {
                 if no_resume {
-                    warn!(
-                        "{} File exists and is the correct size, but the hash does not match \
-                         the provided MWA ASVO hash. Leaving file as is, since --no-resume was set.",
-                        log_prefix
-                    );
-                    return Ok((out_file, file_info.size));
+                    return Ok(OutputTarget::AlreadyDone {
+                        reason: "File exists and is the correct size, but its hash does not \
+                                 match the MWA ASVO hash, and --no-resume was set.",
+                    });
                 }
                 warn!(
                     "{} File exists and is the correct size, but the hash does not match \
                      the provided MWA ASVO hash. Restarting download...",
                     log_prefix
                 );
-                return Ok((create_file_logged(out_path, log_prefix)?, 0));
+                return Ok(OutputTarget::Download {
+                    file: create_file_logged(out_path, log_prefix)?,
+                    offset: 0,
+                });
             }
         }
     }
 
-    Ok((out_file, file_size_bytes))
+    // A partial file, and resuming is allowed: append to what's there.
+    Ok(OutputTarget::Download {
+        file: File::options().append(true).open(out_path)?,
+        offset: file_size_bytes,
+    })
 }

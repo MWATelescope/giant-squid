@@ -459,3 +459,182 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
         "expected NoFiles"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Resume
+// ---------------------------------------------------------------------------
+
+/// The payload used by the resume tests, and where a partial file stops.
+const RESUME_PAYLOAD: &str = "giant-squid integration test payload";
+const RESUME_SPLIT: usize = 12;
+
+#[test]
+fn a_partial_file_is_resumed_from_where_it_stopped() {
+    let env = TestEnv::with_session();
+    let (head, tail) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
+    let file = env.server.mock(|when, then| {
+        when.method(GET)
+            .path(DOWNLOAD_PATH)
+            .header("range", format!("bytes={RESUME_SPLIT}-").as_str());
+        then.status(206).body(tail);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
+    let dir_path = dir.path().display().to_string();
+    let progress_bar = ProgressBar::hidden();
+    let mut opts = options(&dir_path, &progress_bar);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new().expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("the resumed download should succeed");
+
+    assert_eq!(file.calls(), 1, "the range request should be made once");
+    let written = std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE))
+        .expect("the file should still be there");
+    // Also proves the hash was checked against the assembled file: the
+    // expected hash covers the whole payload, but only the tail was fetched.
+    assert_eq!(written, RESUME_PAYLOAD);
+}
+
+#[test]
+fn a_complete_and_verified_file_is_not_fetched_again() {
+    let env = TestEnv::with_session();
+    let requests = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(500).body("should not have been asked for");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), RESUME_PAYLOAD)
+        .expect("could not seed a complete file");
+    let dir_path = dir.path().display().to_string();
+    let progress_bar = ProgressBar::hidden();
+    let mut opts = options(&dir_path, &progress_bar);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new().expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("an already-complete file should be a no-op");
+
+    assert_eq!(requests.calls(), 0, "nothing should have been fetched");
+}
+
+#[test]
+fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(RESUME_PAYLOAD);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    // Right length, wrong bytes: the size check passes but the hash won't.
+    let corrupt = "X".repeat(RESUME_PAYLOAD.len());
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), &corrupt)
+        .expect("could not seed a corrupt file");
+    let dir_path = dir.path().display().to_string();
+    let progress_bar = ProgressBar::hidden();
+    let mut opts = options(&dir_path, &progress_bar);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new().expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("the download should restart and succeed");
+
+    assert_eq!(file.calls(), 1);
+    let written = std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE))
+        .expect("the file should be rewritten");
+    // Truncated rather than appended to, so no doubled length.
+    assert_eq!(written, RESUME_PAYLOAD);
+}
+
+#[test]
+fn a_partial_file_is_left_alone_when_no_resume_is_set() {
+    let env = TestEnv::with_session();
+    let requests = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(500).body("should not have been asked for");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let (head, _) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
+    let dir_path = dir.path().display().to_string();
+    let progress_bar = ProgressBar::hidden();
+    let mut opts = options(&dir_path, &progress_bar);
+    opts.keep_tar = true;
+    opts.no_resume = true;
+
+    let client = AsvoClient::new().expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("--no-resume should skip the file, not fail");
+
+    assert_eq!(requests.calls(), 0, "nothing should have been fetched");
+    let written = std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE))
+        .expect("the partial file should still be there");
+    assert_eq!(written, head, "the partial file should be untouched");
+}
+
+/// A server may ignore a range request and answer 200 with the whole file.
+/// Appending that to a partial file would corrupt it, so the download has to
+/// start again.
+#[test]
+fn a_server_that_ignores_the_range_request_restarts_the_download() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(RESUME_PAYLOAD);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let (head, _) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
+    let dir_path = dir.path().display().to_string();
+    let progress_bar = ProgressBar::hidden();
+    let mut opts = options(&dir_path, &progress_bar);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new().expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("the restarted download should succeed");
+
+    assert_eq!(file.calls(), 1);
+    let written = std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE))
+        .expect("the file should be rewritten");
+    assert_eq!(
+        written, RESUME_PAYLOAD,
+        "the partial bytes must not be left in front of the full file"
+    );
+}
