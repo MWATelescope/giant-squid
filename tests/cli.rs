@@ -317,6 +317,82 @@ fn submitting_with_no_obsids_is_rejected() {
     );
 }
 
+/// A failing obsid must not hide the ones after it: every obsid is
+/// attempted, each failure is reported, and the run fails at the end.
+#[test]
+fn one_failing_obsid_does_not_stop_the_others() {
+    let env = CliEnv::with_session();
+    let rejected = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1115977528 }"#);
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response(
+                "JOB_ALREADY_SUBMITTED",
+                "This job has already been submitted",
+            ));
+    });
+    let accepted = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(4321));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-meta", "1115977528", "1061311664"]);
+    let result = run(cmd);
+
+    let output = result.combined();
+    assert_eq!(rejected.calls(), 1);
+    assert_eq!(
+        accepted.calls(),
+        1,
+        "the second obsid should still be attempted: {output}"
+    );
+    assert!(!result.success, "the run should fail overall: {output}");
+    assert!(
+        output.contains("JOB_ALREADY_SUBMITTED"),
+        "output: {output}"
+    );
+    assert!(
+        output.contains("Submitted 1 of 2 obsids"),
+        "the summary should count both: {output}"
+    );
+}
+
+#[test]
+fn every_failure_is_listed_at_the_end() {
+    let env = CliEnv::with_session();
+    let rejected = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/download_vis_job");
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response("OBSID_NOT_FOUND", "No such observation"));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-meta", "1115977528", "1061311664", "1061311784"]);
+    let result = run(cmd);
+
+    let output = result.combined();
+    assert_eq!(rejected.calls(), 3, "all three should be attempted");
+    assert!(!result.success);
+    for obsid in ["1115977528", "1061311664", "1061311784"] {
+        assert!(
+            output.contains(obsid),
+            "{obsid} should appear in the failure report: {output}"
+        );
+    }
+    assert!(
+        output.contains("3 of 3 obsids failed"),
+        "output: {output}"
+    );
+}
+
 #[test]
 fn a_server_error_on_submission_fails_the_run() {
     let env = CliEnv::with_session();

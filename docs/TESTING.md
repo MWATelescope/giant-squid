@@ -259,6 +259,15 @@ already accepts both.
 
 ## Defects the tests surfaced
 
+- A submit command given several obsids stopped at the first failure, so
+  `submit-meta A B C` reported one error and silently never attempted B or
+  C. Every obsid is now attempted, each failure is reported as it happens,
+  and the run ends with a `Submitted N of M` summary plus a list of what
+  failed; the exit code still reflects the failure, but only after the whole
+  list has been tried. `submit_each_obsid` in the binary does this for all
+  seven submit commands. `download` already ran every download before
+  reporting, but exited 0 regardless - it now fails the run too.
+
 - A hash mismatch is treated as a transient error, so a failed checksum
   re-downloads the file under backoff. Kept deliberately: a mismatch
   usually means a corrupted transfer, which a retry can fix. The window is

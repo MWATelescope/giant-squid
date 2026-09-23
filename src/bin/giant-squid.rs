@@ -57,6 +57,48 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
     Ok(())
 }
 
+/// Submit one job per obsid, carrying on past failures.
+///
+/// A bad obsid in a list used to abort the whole run on the first error,
+/// hiding whatever came after it. Each failure is reported as it happens,
+/// the successes still go through, and the run ends with a summary. An
+/// error is returned when anything failed, so the exit code still signals
+/// it, but only after every obsid has been attempted.
+fn submit_each_obsid<F>(
+    obsids: &[Obsid],
+    description: &str,
+    mut submit: F,
+) -> Result<(), anyhow::Error>
+where
+    F: FnMut(&Obsid, i64) -> Result<(), anyhow::Error>,
+{
+    let mut failures: Vec<String> = Vec::new();
+
+    for o in obsids {
+        let obs_id_i64 =
+            i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
+
+        if let Err(e) = submit(o, obs_id_i64) {
+            error!("Obsid {}: {}", o, e);
+            failures.push(format!("{o}: {e}"));
+        }
+    }
+
+    let submitted = obsids.len() - failures.len();
+    info!("Submitted {} of {} obsids for {}.", submitted, obsids.len(), description);
+
+    if failures.is_empty() {
+        return Ok(());
+    }
+
+    bail!(
+        "{} of {} obsids failed:\n  {}",
+        failures.len(),
+        obsids.len(),
+        failures.join("\n  ")
+    );
+}
+
 /// Report what a submission would have sent, for `--dry-run`.
 ///
 /// Every submit command prints the same thing: the endpoint the request
@@ -327,15 +369,24 @@ fn main() -> Result<(), anyhow::Error> {
                     })
                     .collect();
 
-                // Combine both sets of results
-                // Filter for only Errors
-                // Report each error
+                // Every download runs to completion before anything is
+                // reported, so one failure doesn't hide the rest. Report
+                // each error, then fail the run as a whole so a script can
+                // tell something went wrong.
+                let mut failures = 0;
                 for job_result in jobids_results
                     .iter_mut()
                     .chain(obsids_results.iter_mut())
                     .filter(|o| o.is_err())
                 {
                     error!("{}", job_result.as_mut().unwrap_err());
+                    failures += 1;
+                }
+
+                info!("Downloaded {} of {}.", t - failures, t);
+
+                if failures > 0 {
+                    bail!("{} of {} downloads failed; see the errors above.", failures, t);
                 }
             }
         }
@@ -368,14 +419,9 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
-                let mut submitted_count = 0;
 
-                for o in parsed_obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = download.to_vis_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&parsed_obsids, "visibility download", |o, id| {
+                    let params = download.to_vis_params(id)?;
                     let resp = client.submit_download_vis_job(&params)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -386,16 +432,14 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-                info!(
-                    "Submitted {} obsids for visibility download.",
-                    submitted_count
-                );
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
@@ -426,14 +470,9 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
-                let mut submitted_count = 0;
 
-                for o in parsed_obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = conv.to_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&parsed_obsids, "conversion", |o, id| {
+                    let params = conv.to_params(id)?;
                     let resp = client.submit_conversion_job(&params)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -444,13 +483,14 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-                info!("Submitted {} obsids for conversion.", submitted_count);
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
@@ -481,14 +521,9 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
-                let mut submitted_count = 0;
 
-                for o in &obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(*o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = image.to_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&obsids, "imaging", |o, id| {
+                    let params = image.to_params(id)?;
                     let job_id = client.submit_imaging_job(&params)?;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(job_id) {
@@ -498,10 +533,8 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-
-                info!("Submitted {} obsids for imaging.", submitted_count);
+                    Ok(())
+                });
 
                 if wait {
                     // Endlessly loop over the newly-supplied job IDs until
@@ -510,6 +543,8 @@ fn main() -> Result<(), anyhow::Error> {
                     // submitted to.
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
@@ -594,13 +629,8 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
-                let mut submitted_count = 0;
-                for o in parsed_obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = download.to_meta_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&parsed_obsids, "metadata download", |o, id| {
+                    let params = download.to_meta_params(id)?;
                     let resp = client.submit_download_vis_job(&params)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -611,16 +641,14 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-                info!(
-                    "Submitted {} obsids for metadata download.",
-                    submitted_count
-                );
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
@@ -651,14 +679,9 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
-                let mut submitted_count = 0;
 
-                for o in parsed_obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = volt.to_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&parsed_obsids, "voltage download", |o, id| {
+                    let params = volt.to_params(id)?;
                     let resp = client.submit_voltage_job(&params)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -669,13 +692,14 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-                info!("Submitted {} obsids for voltage download.", submitted_count);
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
@@ -707,13 +731,8 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
-                let mut submitted_count = 0;
-                for o in parsed_obsids {
-                    let obs_id_i64 = i64::try_from(u64::from(o))
-                        .expect("Obsid's validated range always fits in i64");
-
-                    let params = bf.to_params(obs_id_i64)?;
-
+                let outcome = submit_each_obsid(&parsed_obsids, "beamformer download", |o, id| {
+                    let params = bf.to_params(id)?;
                     let resp = client.submit_beamformer_job(&params)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -724,16 +743,14 @@ fn main() -> Result<(), anyhow::Error> {
                             job_id
                         ),
                     }
-                    submitted_count += 1;
-                }
-                info!(
-                    "Submitted {} obsids for beamformer download.",
-                    submitted_count
-                );
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &jobids)?;
                 }
+
+                outcome?;
             }
         }
 
