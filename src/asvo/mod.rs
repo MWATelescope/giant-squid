@@ -25,7 +25,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use backoff::{retry, Error, ExponentialBackoff};
+use backoff::{retry, Error, ExponentialBackoffBuilder};
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use reqwest::blocking::Client;
@@ -36,7 +36,13 @@ use tee_readwrite::TeeReader;
 
 const CONST_ENV_MWA_ASVO_HOST: &str = "MWA_ASVO_HOST";
 const CONST_ENV_GIANT_SQUID_BUF_SIZE: &str = "GIANT_SQUID_BUF_SIZE";
+const CONST_ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS: &str = "GIANT_SQUID_DOWNLOAD_RETRY_SECS";
 const CONST_DEFAULT_URL: &str = "https://asvo.mwatelescope.org:443";
+
+/// How long a download keeps retrying transient failures before giving up.
+/// Matches `ExponentialBackoff`'s own default, so behaviour is unchanged
+/// unless overridden.
+const CONST_DEFAULT_DOWNLOAD_RETRY_SECS: u64 = 900;
 
 // Returns a custom MWA ASVO host address (via a set env var)
 // or returns VarError::NotPresent error when not set
@@ -150,7 +156,7 @@ fn download_job(
                     )
                 };
 
-                match retry(ExponentialBackoff::default(), op) {
+                match retry(download_backoff(), op) {
                     Ok(()) => {}
                     Err(Error::Permanent(err)) => return Err(err),
                     Err(Error::Transient { err, .. }) => return Err(err),
@@ -391,6 +397,25 @@ fn try_download(
 }
 
 // --- helpers ---------------------------------------------------------------
+
+/// The retry policy for a download.
+///
+/// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
+/// retried with exponential backoff for
+/// [`CONST_DEFAULT_DOWNLOAD_RETRY_SECS`], which can be overridden with
+/// `GIANT_SQUID_DOWNLOAD_RETRY_SECS`. Zero disables retrying, which is what
+/// the test suite uses: a test that deliberately triggers a transient
+/// failure would otherwise sit in backoff for fifteen minutes.
+fn download_backoff() -> backoff::ExponentialBackoff {
+    let seconds = match var(CONST_ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS) {
+        Ok(s) => s.parse().unwrap_or(CONST_DEFAULT_DOWNLOAD_RETRY_SECS),
+        Err(_) => CONST_DEFAULT_DOWNLOAD_RETRY_SECS,
+    };
+
+    ExponentialBackoffBuilder::new()
+        .with_max_elapsed_time(Some(Duration::from_secs(seconds)))
+        .build()
+}
 
 /// Send an HTTP GET and check for a successful status code.
 fn send_checked(

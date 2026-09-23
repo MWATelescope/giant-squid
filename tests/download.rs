@@ -330,7 +330,7 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
 fn a_hash_mismatch_is_reported() {
     let env = TestEnv::with_session();
     let payload = "giant-squid integration test payload";
-    env.server.mock(|when, then| {
+    let file = env.server.mock(|when, then| {
         when.method(GET).path(DOWNLOAD_PATH);
         then.status(200).body(payload);
     });
@@ -364,6 +364,10 @@ fn a_hash_mismatch_is_reported() {
         }
         other => panic!("expected HashMismatch, got {other:?}"),
     }
+    // A hash mismatch is classed as transient, so it is retried under
+    // exponential backoff in normal use. The harness sets
+    // GIANT_SQUID_DOWNLOAD_RETRY_SECS=0 so the test doesn't sit in backoff.
+    assert_eq!(file.calls(), 1, "retries are disabled in tests");
 }
 
 #[test]

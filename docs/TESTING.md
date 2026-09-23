@@ -127,6 +127,13 @@ parallel threads within one process. Any test that sets `MWA_ASVO_HOST`,
 serialised (for example with `serial_test`), or the client must take an
 explicit config value instead of reading the environment.
 
+The harness also sets `GIANT_SQUID_DOWNLOAD_RETRY_SECS=0`. A download
+classifies most failures as transient and retries them under exponential
+backoff for fifteen minutes; a test that deliberately triggers one (the hash
+mismatch test) would otherwise sit in backoff for that whole time while
+holding the lock, stalling every other test in the binary. That is exactly
+what happened before the retry window was made configurable.
+
 `HOME` also needs a per-test temporary directory: the token cache is
 `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli, and tests must never read
 or overwrite a real developer session.
@@ -230,6 +237,13 @@ JSON *number* here, where an earlier sample had it as a string. The client
 already accepts both.
 
 ## Defects the tests surfaced
+
+- A hash mismatch is treated as a transient error, so a failed checksum
+  silently re-downloads the entire file, for up to fifteen minutes of
+  backoff, before reporting anything. For a multi-terabyte visibility job
+  that is a long blind retry. Worth deciding whether a mismatch should be
+  permanent, or the retry count should be small and logged; the retry window
+  is now at least configurable via `GIANT_SQUID_DOWNLOAD_RETRY_SECS`.
 
 - Resume is broken in two linked ways, found while writing the download
   tests, and not fixed here because fixing either alone makes behaviour

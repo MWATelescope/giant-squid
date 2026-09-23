@@ -44,10 +44,11 @@ pub const TEST_OBSID_I64: i64 = 1065880128;
 pub const TEST_JOBID: u32 = 12345;
 
 /// The environment variables the harness overrides.
-const MANAGED_VARS: [&str; 4] = [
+const MANAGED_VARS: [&str; 5] = [
     "MWA_ASVO_HOST",
     "MWA_ASVO_API_KEY",
     "MWA_ASVO_API_TIMEOUT",
+    "GIANT_SQUID_DOWNLOAD_RETRY_SECS",
     "HOME",
 ];
 
@@ -95,6 +96,10 @@ impl TestEnv {
         set_env("MWA_ASVO_HOST", &server.base_url());
         set_env("MWA_ASVO_API_KEY", TEST_API_KEY);
         set_env("MWA_ASVO_API_TIMEOUT", "5");
+        // Without this, a test that deliberately triggers a transient
+        // download failure retries under exponential backoff for fifteen
+        // minutes - while holding ENV_LOCK, which stalls every other test.
+        set_env("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "0");
         set_env("HOME", &home.path().display().to_string());
 
         Self {
@@ -191,6 +196,7 @@ impl CliEnv {
         cmd.env("MWA_ASVO_HOST", self.server.base_url())
             .env("MWA_ASVO_API_KEY", TEST_API_KEY)
             .env("HOME", self.home.path())
+            .env("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "0")
             .env_remove("MWA_ASVO_API_TIMEOUT")
             .env_remove("GIANT_SQUID_DELIVERY")
             .env_remove("GIANT_SQUID_DELIVERY_FORMAT")
