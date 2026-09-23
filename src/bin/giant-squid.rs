@@ -17,6 +17,10 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
+use mwa_giant_squid::asvo::apiv2::client::{
+    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
+    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+};
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
@@ -50,6 +54,41 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
 
     let client = AsvoClient::new()?;
     client.download_obsid(obsid, opts)?;
+    Ok(())
+}
+
+/// Report what a submission would have sent, for `--dry-run`.
+///
+/// Every submit command prints the same thing: the endpoint the request
+/// would go to, and the resolved JSON body for each obsid. The body is
+/// built exactly as a real submission builds it, so a dry run exercises
+/// the argument-to-request mapping rather than just echoing arguments.
+fn report_dry_run_submissions<T, F>(
+    endpoint: &str,
+    obsids: &[Obsid],
+    build_params: F,
+) -> Result<(), anyhow::Error>
+where
+    T: serde::Serialize,
+    F: Fn(i64) -> Result<T, AsvoApiError>,
+{
+    for o in obsids {
+        let obs_id_i64 =
+            i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
+        let params = build_params(obs_id_i64)?;
+        info!(
+            "[dry run] Would POST {} for obsid {}:\n{}",
+            endpoint,
+            o,
+            serde_json::to_string_pretty(&params)?
+        );
+    }
+
+    info!(
+        "[dry run] Would have submitted {} obsids to {}. Nothing was sent.",
+        obsids.len(),
+        endpoint
+    );
     Ok(())
 }
 
@@ -323,10 +362,9 @@ fn main() -> Result<(), anyhow::Error> {
             }
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for visibility download.",
-                    obsids.len()
-                );
+                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obsids, |obs_id| {
+                    download.to_vis_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -382,17 +420,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for conversion with: \
-                     output={:?}, avg_freq_res={}, avg_time_res={}, \
-                     flag_edge_width={}, centre={:?}",
-                    obsids.len(),
-                    conv.output,
-                    conv.avg_freq_res,
-                    conv.avg_time_res,
-                    conv.flag_edge_width,
-                    conv.centre
-                );
+                report_dry_run_submissions(ENDPOINT_CONVERSION_JOB, &parsed_obsids, |obs_id| {
+                    conv.to_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -445,16 +475,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for imaging with: delivery={:?}, delivery_format={:?}, image_size={:?}, weighting={:?}, output_mode={:?}, phase_center={:?}",
-                    obsids.len(),
-                    image.delivery,
-                    image.delivery_format,
-                    image.image_size,
-                    image.weighting,
-                    image.output_mode,
-                    image.phase_center
-                );
+                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obsids, |obs_id| {
+                    image.to_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -516,18 +539,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted obsid {} for image-from-job with: \
-                     source_job_id={}, delivery={:?}, delivery_format={:?}, \
-                     image_size={:?}, weighting={:?}, output_mode={:?}",
-                    obsids[0],
-                    image.source_job_id,
-                    image.delivery,
-                    image.delivery_format,
-                    image.image_size,
-                    image.weighting,
-                    image.output_mode
-                );
+                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obsids, |obs_id| {
+                    image.to_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
 
@@ -573,10 +587,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for metadata download.",
-                    obsids.len()
-                );
+                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obsids, |obs_id| {
+                    download.to_meta_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -632,10 +645,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for voltage download.",
-                    obsids.len()
-                );
+                report_dry_run_submissions(ENDPOINT_VOLTAGE_JOB, &parsed_obsids, |obs_id| {
+                    volt.to_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -688,10 +700,9 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!(
-                    "Would have submitted {} obsids for beamformer download.",
-                    obsids.len()
-                );
+                report_dry_run_submissions(ENDPOINT_BEAMFORMER_JOB, &parsed_obsids, |obs_id| {
+                    bf.to_params(obs_id)
+                })?;
             } else {
                 let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
@@ -766,7 +777,13 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                info!("Would have cancelled {} jobids.", parsed_jobids.len());
+                for j in &parsed_jobids {
+                    info!("[dry run] Would DELETE {}/{}", ENDPOINT_JOBS, j);
+                }
+                info!(
+                    "[dry run] Would have cancelled {} jobids. Nothing was sent.",
+                    parsed_jobids.len()
+                );
             } else {
                 let client = AsvoClient::new()?;
 

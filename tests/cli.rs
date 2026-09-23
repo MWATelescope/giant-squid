@@ -93,6 +93,81 @@ fn a_dry_run_submission_contacts_no_server() {
     );
 }
 
+/// A dry run prints the endpoint and the resolved JSON body, so it shows
+/// what would actually be sent rather than echoing the arguments back.
+#[test]
+fn a_dry_run_prints_the_endpoint_and_the_request_body() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args([
+        "submit-conv",
+        "--dry-run",
+        "--delivery",
+        "scratch",
+        "--avg-freq-res",
+        "40",
+        TEST_OBSID,
+    ]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    let output = result.combined();
+    for expected in [
+        "/api/v2/conversion_job",
+        "\"obs_id\": 1065880128",
+        "\"delivery\": \"scratch\"",
+        "\"avg_freq_res\": 40",
+    ] {
+        assert!(
+            output.contains(expected),
+            "expected {expected} in the dry-run output: {output}"
+        );
+    }
+}
+
+#[test]
+fn a_dry_run_prints_one_body_per_obsid() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--dry-run", "1061311664", "1061311784"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    let output = result.combined();
+    assert!(
+        output.contains("\"obs_id\": 1061311664"),
+        "output: {output}"
+    );
+    assert!(
+        output.contains("\"obs_id\": 1061311784"),
+        "output: {output}"
+    );
+}
+
+#[test]
+fn a_dry_run_cancellation_names_the_job_resource() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "--dry-run", "12345"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    assert!(
+        result.combined().contains("/api/v2/jobs/12345"),
+        "output: {}",
+        result.combined()
+    );
+}
+
 #[test]
 fn a_dry_run_cancellation_contacts_no_server() {
     let env = CliEnv::with_session();

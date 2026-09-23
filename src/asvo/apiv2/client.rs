@@ -54,6 +54,19 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 /// but was minted by a different environment (e.g. dev vs test, which sign
 /// JWTs with different secrets), so the other environment rejects it.
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
+/// The MWA ASVO API endpoints this client uses. Public so that the binary
+/// can name the endpoint a `--dry-run` submission would have gone to
+/// without duplicating the path.
+pub const ENDPOINT_API_LOGIN: &str = "/api/v2/api_login";
+pub const ENDPOINT_REFRESH: &str = "/api/v2/refresh";
+pub const ENDPOINT_GET_JOBS: &str = "/api/v2/get_jobs";
+pub const ENDPOINT_JOBS: &str = "/api/v2/jobs";
+pub const ENDPOINT_CONVERSION_JOB: &str = "/api/v2/conversion_job";
+pub const ENDPOINT_DOWNLOAD_VIS_JOB: &str = "/api/v2/download_vis_job";
+pub const ENDPOINT_VOLTAGE_JOB: &str = "/api/v2/voltage_job";
+pub const ENDPOINT_BEAMFORMER_JOB: &str = "/api/v2/beamformer_job";
+pub const ENDPOINT_IMAGING_JOB: &str = "/api/v2/imaging_job";
+pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/image_from_job";
 
 #[derive(Debug)]
 pub struct AsvoClient {
@@ -373,7 +386,11 @@ impl AsvoClient {
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!("{}/api/v2/api_login", get_asvo_server_address()))
+                .post(format!(
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_API_LOGIN
+                ))
                 .json(&ApiLoginRequest {
                     login,
                     password: api_key.to_string(),
@@ -402,7 +419,7 @@ impl AsvoClient {
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!("{}/api/v2/refresh", get_asvo_server_address()))
+                .post(format!("{}{}", get_asvo_server_address(), ENDPOINT_REFRESH))
                 .header(
                     reqwest::header::COOKIE,
                     format!("mwa_refresh_token={}", previous.refresh_token),
@@ -597,7 +614,11 @@ impl AsvoClient {
             // was wrong).
             let body = self.send_authed(|client| {
                 client
-                    .post(format!("{}/api/v2/get_jobs", get_asvo_server_address()))
+                    .post(format!(
+                        "{}{}",
+                        get_asvo_server_address(),
+                        ENDPOINT_GET_JOBS
+                    ))
                     .json(&request)
             })?;
             let page: JobsByUserResponse = serde_json::from_str(&body)?;
@@ -642,7 +663,11 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!("{}/api/v2/imaging_job", get_asvo_server_address()))
+                .post(format!(
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_IMAGING_JOB
+                ))
                 .json(params)
         })?;
 
@@ -659,8 +684,9 @@ impl AsvoClient {
         let body = self.send_authed(|client| {
             client
                 .post(format!(
-                    "{}/api/v2/image_from_job",
-                    get_asvo_server_address()
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_IMAGE_FROM_JOB
                 ))
                 .json(params)
         })?;
@@ -678,8 +704,9 @@ impl AsvoClient {
         let body = self.send_authed(|client| {
             client
                 .post(format!(
-                    "{}/api/v2/download_vis_job",
-                    get_asvo_server_address()
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_DOWNLOAD_VIS_JOB
                 ))
                 .json(params)
         })?;
@@ -697,8 +724,9 @@ impl AsvoClient {
         let body = self.send_authed(|client| {
             client
                 .post(format!(
-                    "{}/api/v2/conversion_job",
-                    get_asvo_server_address()
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_CONVERSION_JOB
                 ))
                 .json(params)
         })?;
@@ -715,7 +743,11 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!("{}/api/v2/voltage_job", get_asvo_server_address()))
+                .post(format!(
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_VOLTAGE_JOB
+                ))
                 .json(params)
         })?;
 
@@ -732,8 +764,9 @@ impl AsvoClient {
         let body = self.send_authed(|client| {
             client
                 .post(format!(
-                    "{}/api/v2/beamformer_job",
-                    get_asvo_server_address()
+                    "{}{}",
+                    get_asvo_server_address(),
+                    ENDPOINT_BEAMFORMER_JOB
                 ))
                 .json(params)
         })?;
@@ -747,8 +780,9 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client.delete(format!(
-                "{}/api/v2/jobs/{}",
+                "{}{}/{}",
                 get_asvo_server_address(),
+                ENDPOINT_JOBS,
                 job_id
             ))
         })?;

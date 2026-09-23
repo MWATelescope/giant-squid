@@ -208,18 +208,24 @@ Plus `list` (filters by state, type, job ID, obsid, `--days`, `--json`),
 `wait`, `cancel`, and `download` (job ID, obsid, `--keep-tar`, `--no-resume`,
 `--skip-hash`, `--concurrent-downloads`, missing download directory).
 
-## `--dry-run` as it stands
+## `--dry-run`
 
-Nine commands already accept `--dry-run`, but it short-circuits before the
-request body is built, so it exercises none of the mapping code, and what it
-prints varies per command: `submit-vis` and `submit-meta` print only a count,
-`submit-image` prints a hand-picked subset of arguments, `download` prints
-parsed IDs plus `keep_zip` and `hash`.
+Every submit command's dry run prints the endpoint the request would go to
+and the resolved JSON body, one per obsid, then a summary saying nothing was
+sent. `cancel` prints the job resource it would `DELETE`. The body is built
+by the same `to_params()` call a real submission uses, so a dry run
+exercises the argument-to-request mapping rather than echoing arguments
+back.
 
-Now that `to_params()` exists, dry-run could instead print the resolved
-endpoint and the serialised JSON body for each obsid. That would be uniform
-across commands, more useful to users, and directly snapshot-testable.
-Deferred - no behaviour change made yet.
+It previously short-circuited before the body was built and printed
+something different per command - a count for `submit-vis` and
+`submit-meta`, a hand-picked subset of arguments for `submit-image`. The
+endpoint paths now live in `pub const ENDPOINT_*` in `client.rs`, used both
+by the client's requests and by the dry-run output, so the two cannot
+disagree.
+
+`tests/cli.rs` checks that a dry run makes no request at all, prints the
+endpoint, and prints one body per obsid.
 
 ## The `product` field, and what it unblocked
 
@@ -254,11 +260,10 @@ already accepts both.
 ## Defects the tests surfaced
 
 - A hash mismatch is treated as a transient error, so a failed checksum
-  silently re-downloads the entire file, for up to fifteen minutes of
-  backoff, before reporting anything. For a multi-terabyte visibility job
-  that is a long blind retry. Worth deciding whether a mismatch should be
-  permanent, or the retry count should be small and logged; the retry window
-  is now at least configurable via `GIANT_SQUID_DOWNLOAD_RETRY_SECS`.
+  re-downloads the file under backoff. Kept deliberately: a mismatch
+  usually means a corrupted transfer, which a retry can fix. The window is
+  configurable via `GIANT_SQUID_DOWNLOAD_RETRY_SECS` (default 900s), which
+  the test suite sets to 0.
 
 - Resume was broken in three linked ways, found while writing the download
   tests, and now fixed together:
@@ -322,4 +327,4 @@ already accepts both.
 | 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
 | 4b | Fixture schema validation in CI | Covered by playback, see below |
 | 5 | End-to-end CLI tests against the mock server | Done |
-| 6 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |
+| 6 | Uniform `--dry-run` output (endpoint plus JSON body) | Done |
