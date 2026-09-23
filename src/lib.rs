@@ -5,6 +5,11 @@
 //! An alternative, efficient and easy-to-use interface for the MWA ASVO.
 
 pub mod asvo;
+// The CLI definition needs clap, which only the binary feature pulls in. It
+// lives here rather than in src/bin so that tests can parse argument
+// vectors directly - see docs/TESTING.md.
+#[cfg(feature = "bin")]
+pub mod cli;
 mod helpers;
 pub mod obsid;
 

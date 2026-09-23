@@ -121,12 +121,13 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
         exp: i64,
     }
 
-    let payload_b64 = token
-        .split('.')
-        .nth(1)
-        .ok_or_else(|| AsvoApiError::AuthenticationFailed {
-            message: "Malformed JWT returned by MWA ASVO: no payload segment".to_string(),
-        })?;
+    let payload_b64 =
+        token
+            .split('.')
+            .nth(1)
+            .ok_or_else(|| AsvoApiError::AuthenticationFailed {
+                message: "Malformed JWT returned by MWA ASVO: no payload segment".to_string(),
+            })?;
 
     let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload_b64)
@@ -139,8 +140,10 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
             message: format!("Could not parse JWT payload JSON from MWA ASVO: {}", e),
         })?;
 
-    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| AsvoApiError::AuthenticationFailed {
-        message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
+    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| {
+        AsvoApiError::AuthenticationFailed {
+            message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
+        }
     })
 }
 

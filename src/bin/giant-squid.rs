@@ -8,9 +8,8 @@ use std::time::Duration;
 use std::{thread, time};
 
 use anyhow::bail;
-use clap::{ArgAction, Parser};
+use clap::Parser;
 use log::{debug, error, info, warn};
-use mwa_giant_squid::apiv2::openapi::Centre;
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -18,55 +17,9 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use mwa_giant_squid::asvo::apiv2::openapi::{
-    BeamformerJobParams, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    Output, OutputMode, VoltageJobParams, Weighting,
-};
 use mwa_giant_squid::asvo::*;
+use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
-
-const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
-Source:   https://github.com/MWATelescope/giant-squid
-MWA ASVO: https://asvo.mwatelescope.org"#;
-
-/// Builds a clap value parser that only accepts an f64 within `[min, max]`
-/// inclusive - used for the imaging job parameters that have a documented
-/// range in the MWA ASVO v2 schema, so out-of-range values are rejected
-/// immediately by the CLI rather than only server-side.
-fn parse_f64_range(min: f64, max: f64) -> impl Fn(&str) -> Result<f64, String> + Clone {
-    move |s: &str| {
-        let v: f64 = s.parse().map_err(|e| format!("not a valid number: {e}"))?;
-        if v < min || v > max {
-            Err(format!("must be between {min} and {max} (got {v})"))
-        } else {
-            Ok(v)
-        }
-    }
-}
-
-/// As [parse_f64_range], but for i64 fields.
-fn parse_i64_range(min: i64, max: i64) -> impl Fn(&str) -> Result<i64, String> + Clone {
-    move |s: &str| {
-        let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-        if v < min || v > max {
-            Err(format!("must be between {min} and {max} (got {v})"))
-        } else {
-            Ok(v)
-        }
-    }
-}
-
-/// Validates a WSClean image size against the MWA ASVO v2 API's fixed
-/// set of allowed sizes (mirrors the generated `ImageSizes` type's own
-/// `TryFrom<i64>`, which has no string parser we could use directly as a
-/// clap value parser).
-fn parse_image_size(s: &str) -> Result<i64, String> {
-    let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-    ImageSizes::try_from(v)
-        .map(i64::from)
-        .map_err(|e| e.to_string())
-}
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     let pb = multi_progress_bar.add(ProgressBar::new(0));
@@ -98,780 +51,6 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
     let client = AsvoClient::new()?;
     client.download_obsid(obsid, opts)?;
     Ok(())
-}
-
-/// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
-/// defaults (via the generated builder's `Default`), used to source the
-/// clap arg defaults below so they can't drift from the schema. `obs_id` is
-/// required by the builder but irrelevant to the defaults - every real
-/// submission sets its own - so we pass a placeholder.
-fn conversion_defaults() -> ConversionJobParams {
-    ConversionJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required ConversionJobParams field is missing from conversion_defaults()")
-}
-
-/// A [`DownloadJobParams`] populated from the OpenAPI schema defaults, used
-/// to source the SubmitVis/SubmitMeta clap arg defaults. As with
-/// `conversion_defaults`, `obs_id` is a required placeholder.
-fn download_defaults() -> DownloadJobParams {
-    DownloadJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required DownloadJobParams field is missing from download_defaults()")
-}
-
-/// A [`VoltageJobParams`] populated from the OpenAPI schema defaults, used
-/// to source the SubmitVolt clap arg defaults. `obs_id`, `offset` and
-/// `duration` are required placeholders - every real submission sets them.
-fn voltage_defaults() -> VoltageJobParams {
-    VoltageJobParams::builder()
-        .obs_id(0_i64)
-        .offset(0_i64)
-        .duration(0_u64)
-        .try_into()
-        .expect("BUG: a required VoltageJobParams field is missing from voltage_defaults()")
-}
-
-/// A [`BeamformerJobParams`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitBf clap arg defaults. `obs_id` is a required
-/// placeholder.
-fn beamformer_defaults() -> BeamformerJobParams {
-    BeamformerJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required BeamformerJobParams field is missing from beamformer_defaults()")
-}
-
-/// An [`ImagingJobFlow1Params`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitImage clap arg defaults. `obs_id` is a required
-/// placeholder.
-fn imaging1_defaults() -> ImagingJobFlow1Params {
-    ImagingJobFlow1Params::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required ImagingJobFlow1Params field is missing from imaging1_defaults()")
-}
-
-/// An [`ImagingJobFlow2Params`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitImageFromJob clap arg defaults. `obs_id` and
-/// `source_job_id` are required placeholders.
-fn imaging2_defaults() -> ImagingJobFlow2Params {
-    ImagingJobFlow2Params::builder()
-        .obs_id(0_i64)
-        .source_job_id(std::num::NonZeroU64::new(1).unwrap())
-        .try_into()
-        .expect("BUG: a required ImagingJobFlow2Params field is missing from imaging2_defaults()")
-}
-
-#[derive(Parser, Debug)]
-#[command(author, about = ABOUT, version)]
-enum Args {
-    /// List your current and recent MWA ASVO jobs
-    #[command(alias = "l")]
-    List {
-        /// Print the jobs as a simple JSON
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// show only jobs matching the provided states, case insensitive.
-        /// Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
-        #[arg(long, id = "STATE", value_delimiter = ',')]
-        states: Vec<AsvoJobState>,
-
-        /// filter job list by type, case insensitive with underscores. Options:
-        /// conversion, download_visibilities, download_metadata,
-        /// download_voltage or cancel_job
-        #[arg(long, id = "TYPE", value_delimiter = ',')]
-        types: Vec<AsvoJobType>,
-
-        /// Disables colouring of output. Useful when you have a non-black terminal background for example
-        #[arg(short, long)]
-        no_colour: bool,
-
-        /// Only fetch jobs from the past N days. If not given, fetches your
-        /// full job history.
-        #[arg(long)]
-        days: Option<i64>,
-
-        /// job IDs or obsids to filter by. Files containing job IDs or
-        /// obsids are also accepted.
-        #[arg(id = "JOBID_OR_OBSID")]
-        jobids_or_obsids: Vec<String>,
-    },
-
-    /// Download an MWA ASVO job
-    #[command(alias = "d")]
-    Download {
-        /// Which dir should downloads be written to.
-        #[arg(short, long, default_value = ".")]
-        download_dir: String,
-
-        /// Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off.
-        #[arg(short, long, visible_alias("keep-zip"))]
-        keep_tar: bool,
-
-        /// Do not attempt to resume a partial download. Leave the partial file alone.
-        #[arg(short = 'r', long)]
-        no_resume: bool,
-
-        /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has
-        #[arg(short = 'c', long, default_value = "4")]
-        concurrent_downloads: usize,
-
-        /// Don't verify the downloaded contents against the upstream hash.
-        #[arg(long)]
-        skip_hash: bool,
-
-        // Does nothing: hash check is enabled by default. This is for backwards compatibility.
-        #[arg(long, hide = true)]
-        hash: bool,
-
-        /// Don't actually download; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The job IDs or obsids to be downloaded. Files containing job IDs or
-        /// obsids are also accepted.
-        #[arg(id = "JOBID_OR_OBSID")]
-        jobids_or_obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO jobs to download MWA raw visibilities (v2 API)
-    #[command(alias = "sv")]
-    SubmitVis {
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to be submitted. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO preprocessing/conversion jobs (v2 API)
-    #[command(alias = "sc")]
-    SubmitConv {
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Output format: "ms" (measurement set) or "uvfits".
-        #[arg(short = 'o', long, default_value_t = conversion_defaults().output)]
-        output: Output,
-
-        /// Frequency resolution to average to (kHz).
-        #[arg(long, default_value_t = conversion_defaults().avg_freq_res)]
-        avg_freq_res: f64,
-
-        /// Time resolution to average to (s).
-        #[arg(long, default_value_t = conversion_defaults().avg_time_res)]
-        avg_time_res: f64,
-
-        /// Width of frequency edge flagging (kHz).
-        #[arg(long, default_value_t = conversion_defaults().flag_edge_width)]
-        flag_edge_width: f64,
-
-        /// Whether to apply the DI calibration solution.
-        #[arg(long)]
-        apply_di_cal: bool,
-
-        /// Phase centre mode: "phase", "pointing", or "custom".
-        /// If "custom", also supply --phase-centre-ra and --phase-centre-dec.
-        #[arg(long, default_value_t = conversion_defaults().centre)]
-        centre: Centre,
-
-        /// Custom phase centre right ascension (degrees). Requires --centre custom.
-        #[arg(long)]
-        phase_centre_ra: Option<f64>,
-
-        /// Custom phase centre declination (degrees). Requires --centre custom.
-        #[arg(long)]
-        phase_centre_dec: Option<f64>,
-
-        /// Whether to skip applying amplitude calibration solutions.
-        #[arg(long)]
-        no_apply_amps: bool,
-
-        /// Whether to skip applying digital gains.
-        #[arg(long)]
-        no_digital_gains: bool,
-
-        /// Whether to skip flagging the DC channel.
-        #[arg(long)]
-        no_flag_dc: bool,
-
-        /// Whether to skip applying geometric delay corrections.
-        #[arg(long)]
-        no_geometry_delay: bool,
-
-        /// Whether to skip applying passband gain corrections.
-        #[arg(long)]
-        no_passband_gains: bool,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to be submitted. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO imaging jobs (v2 API)
-    #[command(alias = "si")]
-    SubmitImage {
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Whether to apply the DI calibration solution.
-        #[arg(
-            long,
-            default_value_t = imaging1_defaults().apply_di_cal,
-            default_missing_value = "true",
-            num_args = 0..=1,
-            require_equals = true,
-            action = ArgAction::Set,
-        )]
-        apply_di_cal: bool,
-
-        /// Whether to apply the primary beam correction.
-        #[arg(
-            long,
-            default_value_t = imaging1_defaults().apply_primary_beam,
-            default_missing_value = "true",
-            num_args = 0..=1,
-            require_equals = true,
-            action = ArgAction::Set,
-        )]
-        apply_primary_beam: bool,
-
-        /// WSClean -auto-mask value.
-        #[arg(long, default_value_t = imaging1_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
-        auto_mask: i64,
-
-        /// WSClean -auto-threshold value.
-        #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
-        auto_threshold: f64,
-
-        /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
-        /// unless explicitly set.
-        #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
-        abs_threshold: f64,
-
-        /// Frequency resolution to average to before imaging (kHz).
-        #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_range(0.0, 1280.0))]
-        avg_freq_res: f64,
-
-        /// Time resolution to average to before imaging (s).
-        #[arg(long, default_value_t = imaging1_defaults().avg_time_res, value_parser = parse_f64_range(0.0, f64::MAX))]
-        avg_time_res: f64,
-
-        /// Number of output channel groups.
-        #[arg(long, default_value_t = imaging1_defaults().channels_out)]
-        channels_out: i64,
-
-        /// WSClean -niter value (max clean iterations).
-        #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
-        clean_iterations: i64,
-
-        /// WSClean cleaning threshold (Jy). Takes precedence over
-        /// auto_threshold if set.
-        #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
-        clean_threshold: f64,
-
-        /// Custom phase centre declination (degrees). Requires
-        /// --phase-center custom.
-        #[arg(long, value_parser = parse_f64_range(-90.0, 90.0))]
-        custom_dec: Option<f64>,
-
-        /// Custom phase centre right ascension (degrees). Requires
-        /// --phase-center custom.
-        #[arg(long, value_parser = parse_f64_range(0.0, 359.999999))]
-        custom_ra: Option<f64>,
-
-        /// Width of frequency edge flagging (kHz).
-        #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_range(0.0, 640.0))]
-        flag_edge_width: f64,
-
-        /// WSClean image size in pixels.
-        #[arg(long, default_value_t = *imaging1_defaults().image_size, value_parser = parse_image_size)]
-        image_size: i64,
-
-        /// Join output channel groups for cleaning.
-        #[arg(
-            long,
-            default_value_t = imaging1_defaults().join_channels,
-            default_missing_value = "true",
-            num_args = 0..=1,
-            require_equals = true,
-            action = ArgAction::Set,
-        )]
-        join_channels: bool,
-
-        /// Join polarisations for cleaning.
-        #[arg(long)]
-        join_polarizations: bool,
-
-        /// WSClean -mgain value.
-        #[arg(long, default_value_t = imaging1_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
-        mgain: f64,
-
-        /// Enable WSClean multiscale cleaning.
-        #[arg(long)]
-        multiscale: bool,
-
-        /// WSClean -nmiter value (max major cleaning iterations).
-        #[arg(long, default_value_t = imaging1_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
-        nmiter: i64,
-
-        /// Number of w-projection layers. Leave unset to let the server
-        /// decide.
-        #[arg(long, value_parser = parse_i64_range(32, 512))]
-        nwlayers: Option<i64>,
-
-        /// The output mode / product to request.
-        #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode)]
-        output_mode: OutputMode,
-
-        /// Where to centre the image.
-        #[arg(long, default_value_t = imaging1_defaults().centre)]
-        phase_center: Centre,
-
-        /// Pixel scale (arcsec/pixel).
-        #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
-        pixel_scale: f64,
-
-        /// Polarisations to image, comma separated.
-        #[arg(long, default_value = "XX,YY")]
-        pol: String,
-
-        /// WSClean -robust (Briggs robustness) value.
-        #[arg(long, default_value_t = imaging1_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
-        robust: f64,
-
-        /// Maximum uv distance to image, in wavelengths (upper bound on
-        /// the range that can be requested).
-        #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
-        uvw_max: Option<f64>,
-
-        /// Minimum uv distance to image, in wavelengths.
-        #[arg(long, default_value_t = imaging1_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
-        uvw_min: f64,
-
-        /// WSClean weighting scheme.
-        #[arg(long, default_value_t = imaging1_defaults().weighting)]
-        weighting: Weighting,
-
-        /// Number of w-stacking layers. Leave unset to let the server
-        /// decide.
-        #[arg(long)]
-        wstack_nwlayers: Option<i64>,
-
-        /// Whether to skip applying amplitude calibration solutions.
-        /// Leave at the default (false) unless you know you need this.
-        #[arg(long)]
-        no_apply_amps: bool,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to submit for imaging. Files containing obsids are
-        /// also accepted. All obsids in one invocation share the same
-        /// parameters above.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO imaging jobs from an existing conversion job (v2 API).
-    /// Unlike submit-image, this skips the conversion step and images
-    /// directly from the output of a previous conversion job.
-    #[command(alias = "sifj")]
-    SubmitImageFromJob {
-        /// The MWA ASVO conversion job ID to image from. Required.
-        #[arg(long)]
-        source_job_id: std::num::NonZeroU64,
-
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Whether to apply the primary beam correction.
-        #[arg(
-            long,
-            default_value_t = imaging2_defaults().apply_primary_beam,
-            default_missing_value = "true",
-            num_args = 0..=1,
-            require_equals = true,
-            action = ArgAction::Set,
-        )]
-        apply_primary_beam: bool,
-
-        /// WSClean -auto-mask value.
-        #[arg(long, default_value_t = imaging2_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
-        auto_mask: i64,
-
-        /// WSClean -auto-threshold value.
-        #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
-        auto_threshold: f64,
-
-        /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
-        /// unless explicitly set.
-        #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
-        abs_threshold: f64,
-
-        /// Number of output channel groups.
-        #[arg(long, default_value_t = imaging2_defaults().channels_out)]
-        channels_out: i64,
-
-        /// WSClean -niter value (max clean iterations).
-        #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
-        clean_iterations: i64,
-
-        /// WSClean cleaning threshold (Jy). Takes precedence over
-        /// auto_threshold if set.
-        #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
-        clean_threshold: Option<f64>,
-
-        /// WSClean image size in pixels.
-        #[arg(long, default_value_t = *imaging2_defaults().image_size, value_parser = parse_image_size)]
-        image_size: i64,
-
-        /// Join output channel groups for cleaning.
-        #[arg(
-            long,
-            default_value_t = imaging2_defaults().join_channels,
-            default_missing_value = "true",
-            num_args = 0..=1,
-            require_equals = true,
-            action = ArgAction::Set,
-        )]
-        join_channels: bool,
-
-        /// Join polarisations for cleaning.
-        #[arg(long)]
-        join_polarizations: bool,
-
-        /// WSClean -mgain value.
-        #[arg(long, default_value_t = imaging2_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
-        mgain: f64,
-
-        /// Enable WSClean multiscale cleaning.
-        #[arg(long)]
-        multiscale: bool,
-
-        /// WSClean -nmiter value (max major cleaning iterations).
-        #[arg(long, default_value_t = imaging2_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
-        nmiter: i64,
-
-        /// Number of w-projection layers. Leave unset to let the server
-        /// decide.
-        #[arg(long, value_parser = parse_i64_range(32, 512))]
-        nwlayers: Option<i64>,
-
-        /// The output mode / product to request.
-        #[arg(short = 'o', long, default_value_t = imaging2_defaults().output_mode)]
-        output_mode: OutputMode,
-
-        /// Pixel scale (arcsec/pixel).
-        #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
-        pixel_scale: f64,
-
-        /// Polarisations to image, comma separated.
-        #[arg(long, default_value_t = imaging2_defaults().pol)]
-        pol: String,
-
-        /// WSClean -robust (Briggs robustness) value.
-        #[arg(long, default_value_t = imaging2_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
-        robust: f64,
-
-        /// Maximum uv distance to image, in wavelengths (upper bound on
-        /// the range that can be requested).
-        #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
-        uvw_max: Option<f64>,
-
-        /// Minimum uv distance to image, in wavelengths.
-        #[arg(long, default_value_t = imaging2_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
-        uvw_min: f64,
-
-        /// WSClean weighting scheme.
-        #[arg(long, default_value_t = imaging2_defaults().weighting)]
-        weighting: Weighting,
-
-        /// Number of w-stacking layers. Leave unset to let the server
-        /// decide.
-        #[arg(long)]
-        wstack_nwlayers: Option<i64>,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsid to image. Exactly one obsid is required (the
-        /// source_job_id identifies the conversion job for this obsid).
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs
-    /// for each tile) and RFI flags (if available) (v2 API)
-    #[command(alias = "sm")]
-    SubmitMeta {
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to be submitted. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO jobs to download MWA voltages (v2 API)
-    #[command(alias = "st")]
-    SubmitVolt {
-        /// Tell MWA ASVO where to deliver the data. The only valid value for
-        /// a voltage job is "scratch", which requires the "mwavcs" Pawsey
-        /// Group on your MWA ASVO profile.
-        #[arg(short, long, default_value_t = voltage_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: String,
-
-        /// The offset in seconds from the start GPS time of the observation.
-        #[arg(short, long)]
-        offset: i64,
-
-        /// The duration (in seconds) to download.
-        #[arg(short = 'u', long)]
-        duration: u64,
-
-        /// The 'from' receiver channel number (0-255).
-        #[arg(short = 'f', long)]
-        from_channel: Option<u8>,
-
-        /// The 'to' receiver channel number (0-255).
-        #[arg(short = 't', long)]
-        to_channel: Option<u8>,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to be submitted. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil) (v2 API)
-    #[command(alias = "sb")]
-    SubmitBf {
-        /// Tell MWA ASVO where to deliver the data.
-        #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: Delivery,
-
-        /// Tell MWA ASVO to deliver the data in a particular format.
-        #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: DeliveryFormat,
-
-        /// Do not exit giant-squid until the specified obsids are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Allow resubmitting a job even if an identical one has completed.
-        #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-        allow_resubmit: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The obsids to be submitted. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
-    },
-
-    /// Wait for MWA ASVO jobs to complete, return the urls
-    #[command(alias = "w")]
-    Wait {
-        /// Print the jobs as a simple JSON after waiting
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// Disables colouring of output. Useful when you have a non-black terminal background for example
-        #[arg(short, long)]
-        no_colour: bool,
-
-        /// The jobs to wait for. Files containing jobs are also
-        /// accepted.
-        #[arg(id = "JOB")]
-        jobs: Vec<String>,
-    },
-
-    /// Cancel MWA ASVO job
-    #[command(alias = "c")]
-    Cancel {
-        /// Don't actually cancel; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
-        verbosity: u8,
-
-        /// The jobs to be cancelled. Files containing obsids are also
-        /// accepted.
-        #[arg(id = "JOB")]
-        jobs: Vec<String>,
-    },
 }
 
 fn init_logger(level: u8) {
@@ -1123,11 +302,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitVis {
-            delivery,
-            delivery_format,
+            download,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1159,13 +336,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: DownloadJobParams = DownloadJobParams::builder()
-                        .obs_id(obs_id_i64)
-                        .download_type(Some(DownloadJobParamsDownloadType::Vis))
-                        .delivery(delivery)
-                        .delivery_format(delivery_format)
-                        .allow_resubmit(Some(allow_resubmit))
-                        .try_into()?;
+                    let params = download.to_vis_params(obs_id_i64)?;
 
                     let resp = client.submit_download_vis_job(&params)?;
                     let job_id = resp.job_id;
@@ -1191,24 +362,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitConv {
-            delivery,
-            delivery_format,
-            output,
-            avg_freq_res,
-            avg_time_res,
-            flag_edge_width,
-            apply_di_cal,
-            centre,
-            phase_centre_ra,
-            phase_centre_dec,
-            no_apply_amps,
-            no_digital_gains,
-            no_flag_dc,
-            no_geometry_delay,
-            no_passband_gains,
+            conv,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1231,11 +387,11 @@ fn main() -> Result<(), anyhow::Error> {
                      output={:?}, avg_freq_res={}, avg_time_res={}, \
                      flag_edge_width={}, centre={:?}",
                     obsids.len(),
-                    output,
-                    avg_freq_res,
-                    avg_time_res,
-                    flag_edge_width,
-                    centre
+                    conv.output,
+                    conv.avg_freq_res,
+                    conv.avg_time_res,
+                    conv.flag_edge_width,
+                    conv.centre
                 );
             } else {
                 let client = AsvoClient::new()?;
@@ -1246,25 +402,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: ConversionJobParams = ConversionJobParams::builder()
-                        .obs_id(obs_id_i64)
-                        .delivery(delivery)
-                        .delivery_format(delivery_format)
-                        .output(output)
-                        .avg_freq_res(avg_freq_res)
-                        .avg_time_res(avg_time_res)
-                        .flag_edge_width(flag_edge_width)
-                        .apply_di_cal(apply_di_cal)
-                        .centre(centre)
-                        .custom_centre_ra(phase_centre_ra)
-                        .custom_centre_dec(phase_centre_dec)
-                        .no_apply_amps(no_apply_amps)
-                        .no_digital_gains(no_digital_gains)
-                        .no_flag_dc(no_flag_dc)
-                        .no_geometry_delay(no_geometry_delay)
-                        .no_passband_gains(no_passband_gains)
-                        .allow_resubmit(allow_resubmit)
-                        .try_into()?;
+                    let params = conv.to_params(obs_id_i64)?;
 
                     let resp = client.submit_conversion_job(&params)?;
                     let job_id = resp.job_id;
@@ -1287,41 +425,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitImage {
-            delivery,
-            delivery_format,
-            apply_di_cal,
-            apply_primary_beam,
-            auto_mask,
-            auto_threshold,
-            abs_threshold,
-            avg_freq_res,
-            avg_time_res,
-            channels_out,
-            clean_iterations,
-            clean_threshold,
-            custom_dec: custom_centre_dec,
-            custom_ra: custom_centre_ra,
-            flag_edge_width,
-            image_size,
-            join_channels,
-            join_polarizations,
-            mgain,
-            multiscale,
-            nmiter,
-            nwlayers,
-            output_mode,
-            phase_center: centre,
-            pixel_scale,
-            pol,
-            robust,
-            uvw_max,
-            uvw_min,
-            weighting,
-            wstack_nwlayers,
-            no_apply_amps,
+            image,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1338,21 +444,16 @@ fn main() -> Result<(), anyhow::Error> {
 
             init_logger(verbosity);
 
-            let image_size: ImageSizes = ImageSizes::try_from(image_size)
-                .map_err(|e| anyhow::anyhow!("Invalid image_size: {e}"))?;
-            let nmiter = std::num::NonZeroU64::new(nmiter as u64)
-                .expect("clap's range validator already ensures nmiter >= 1");
-
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for imaging with: delivery={:?}, delivery_format={:?}, image_size={:?}, weighting={:?}, output_mode={:?}, phase_center={:?}",
                     obsids.len(),
-                    delivery,
-                    delivery_format,
-                    image_size,
-                    weighting,
-                    output_mode,
-                    centre
+                    image.delivery,
+                    image.delivery_format,
+                    image.image_size,
+                    image.weighting,
+                    image.output_mode,
+                    image.phase_center
                 );
             } else {
                 let client = AsvoClient::new()?;
@@ -1363,42 +464,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(*o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
-                        .obs_id(obs_id_i64)
-                        .delivery(delivery)
-                        .delivery_format(delivery_format)
-                        .apply_di_cal(apply_di_cal)
-                        .apply_primary_beam(apply_primary_beam)
-                        .auto_mask(auto_mask)
-                        .auto_threshold(auto_threshold)
-                        .abs_threshold(abs_threshold)
-                        .avg_freq_res(avg_freq_res)
-                        .avg_time_res(avg_time_res)
-                        .channels_out(channels_out)
-                        .clean_iterations(clean_iterations)
-                        .clean_threshold(clean_threshold)
-                        .custom_centre_dec(custom_centre_dec)
-                        .custom_centre_ra(custom_centre_ra)
-                        .flag_edge_width(flag_edge_width)
-                        .image_size(image_size.clone())
-                        .join_channels(join_channels)
-                        .join_polarizations(join_polarizations)
-                        .mgain(mgain)
-                        .multiscale(multiscale)
-                        .nmiter(nmiter)
-                        .no_apply_amps(no_apply_amps)
-                        .nwlayers(nwlayers)
-                        .output_mode(output_mode)
-                        .centre(centre)
-                        .pixel_scale(pixel_scale)
-                        .pol(pol.clone())
-                        .robust(robust)
-                        .uvw_max(uvw_max)
-                        .uvw_min(uvw_min)
-                        .weighting(weighting)
-                        .wstack_nwlayers(wstack_nwlayers)
-                        .allow_resubmit(allow_resubmit)
-                        .try_into()?;
+                    let params = image.to_params(obs_id_i64)?;
 
                     let job_id = client.submit_imaging_job(&params)?;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
@@ -1425,34 +491,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitImageFromJob {
-            source_job_id,
-            delivery,
-            delivery_format,
-            apply_primary_beam,
-            auto_mask,
-            auto_threshold,
-            abs_threshold,
-            channels_out,
-            clean_iterations,
-            clean_threshold,
-            image_size,
-            join_channels,
-            join_polarizations,
-            mgain,
-            multiscale,
-            nmiter,
-            nwlayers,
-            output_mode,
-            pixel_scale,
-            pol,
-            robust,
-            uvw_max,
-            uvw_min,
-            weighting,
-            wstack_nwlayers,
+            image,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1474,23 +515,18 @@ fn main() -> Result<(), anyhow::Error> {
 
             init_logger(verbosity);
 
-            let image_size: ImageSizes = ImageSizes::try_from(image_size)
-                .map_err(|e| anyhow::anyhow!("Invalid image_size: {e}"))?;
-            let nmiter = std::num::NonZeroU64::new(nmiter as u64)
-                .expect("clap's range validator already ensures nmiter >= 1");
-
             if dry_run {
                 info!(
                     "Would have submitted obsid {} for image-from-job with: \
                      source_job_id={}, delivery={:?}, delivery_format={:?}, \
                      image_size={:?}, weighting={:?}, output_mode={:?}",
                     obsids[0],
-                    source_job_id,
-                    delivery,
-                    delivery_format,
-                    image_size,
-                    weighting,
-                    output_mode
+                    image.source_job_id,
+                    image.delivery,
+                    image.delivery_format,
+                    image.image_size,
+                    image.weighting,
+                    image.output_mode
                 );
             } else {
                 let client = AsvoClient::new()?;
@@ -1499,35 +535,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let obs_id_i64 = i64::try_from(u64::from(*o))
                     .expect("Obsid's validated range always fits in i64");
 
-                let params: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
-                    .obs_id(obs_id_i64)
-                    .source_job_id(source_job_id)
-                    .delivery(delivery)
-                    .delivery_format(delivery_format)
-                    .apply_primary_beam(apply_primary_beam)
-                    .auto_mask(auto_mask)
-                    .auto_threshold(auto_threshold)
-                    .abs_threshold(abs_threshold)
-                    .channels_out(channels_out)
-                    .clean_iterations(clean_iterations)
-                    .clean_threshold(clean_threshold)
-                    .image_size(image_size)
-                    .join_channels(join_channels)
-                    .join_polarizations(join_polarizations)
-                    .mgain(mgain)
-                    .multiscale(multiscale)
-                    .nmiter(nmiter)
-                    .nwlayers(nwlayers)
-                    .output_mode(output_mode)
-                    .pixel_scale(pixel_scale)
-                    .pol(pol)
-                    .robust(robust)
-                    .uvw_max(uvw_max)
-                    .uvw_min(uvw_min)
-                    .weighting(weighting)
-                    .wstack_nwlayers(wstack_nwlayers)
-                    .allow_resubmit(Some(allow_resubmit))
-                    .try_into()?;
+                let params = image.to_params(obs_id_i64)?;
 
                 let job_id = client.submit_image_from_job(&params)?;
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
@@ -1545,11 +553,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitMeta {
-            delivery,
-            delivery_format,
+            download,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1580,13 +586,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: DownloadJobParams = DownloadJobParams::builder()
-                        .obs_id(obs_id_i64)
-                        .download_type(Some(DownloadJobParamsDownloadType::Meta))
-                        .delivery(delivery)
-                        .delivery_format(delivery_format)
-                        .allow_resubmit(Some(allow_resubmit))
-                        .try_into()?;
+                    let params = download.to_meta_params(obs_id_i64)?;
 
                     let resp = client.submit_download_vis_job(&params)?;
                     let job_id = resp.job_id;
@@ -1612,14 +612,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitVolt {
-            delivery,
-            offset,
-            duration,
-            from_channel,
-            to_channel,
+            volt,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1636,8 +631,6 @@ fn main() -> Result<(), anyhow::Error> {
             }
             init_logger(verbosity);
 
-            let channel_range = from_channel.is_some() || to_channel.is_some();
-
             if dry_run {
                 info!(
                     "Would have submitted {} obsids for voltage download.",
@@ -1652,16 +645,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: VoltageJobParams = VoltageJobParams::builder()
-                        .obs_id(obs_id_i64)
-                        .delivery(delivery.clone())
-                        .offset(offset)
-                        .duration(duration)
-                        .from_channel(from_channel)
-                        .to_channel(to_channel)
-                        .channel_range(Some(channel_range))
-                        .allow_resubmit(Some(allow_resubmit))
-                        .try_into()?;
+                    let params = volt.to_params(obs_id_i64)?;
 
                     let resp = client.submit_voltage_job(&params)?;
                     let job_id = resp.job_id;
@@ -1684,11 +668,9 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::SubmitBf {
-            delivery,
-            delivery_format,
+            bf,
             wait,
             dry_run,
-            allow_resubmit,
             verbosity,
             obsids,
         } => {
@@ -1719,12 +701,7 @@ fn main() -> Result<(), anyhow::Error> {
                     let obs_id_i64 = i64::try_from(u64::from(o))
                         .expect("Obsid's validated range always fits in i64");
 
-                    let params: BeamformerJobParams = BeamformerJobParams::builder()
-                        .obs_id(obs_id_i64)
-                        .delivery(delivery)
-                        .delivery_format(delivery_format)
-                        .allow_resubmit(Some(allow_resubmit))
-                        .try_into()?;
+                    let params = bf.to_params(obs_id_i64)?;
 
                     let resp = client.submit_beamformer_job(&params)?;
                     let job_id = resp.job_id;
