@@ -6,12 +6,11 @@
 //!
 //! The authentication flow here (`new`, `get_valid_tokens`, `login`,
 //! `refresh`, JWT `exp` decoding, and the on-disk token cache shared with
-//! mwa-cli) is adapted from [`crate::asvo::AsvoClient`], the v1 client -
-//! updated to use the request/response types generated from the MWA ASVO
+//! mwa-cli) uses the request/response types generated from the MWA ASVO
 //! OpenAPI schema (see `super::openapi`) instead of hand-rolled structs.
-//! `token_store` and `get_asvo_server_address` are genuinely shared
-//! infrastructure (not v1-specific) and are used directly from
-//! `crate::asvo` rather than being duplicated here.
+//! `token_store` and `get_asvo_server_address` are shared infrastructure
+//! and are used directly from `crate::asvo` rather than being duplicated
+//! here.
 
 use std::cell::RefCell;
 use std::env::var;
@@ -33,7 +32,7 @@ use crate::asvo::{
 use crate::built_info;
 use crate::obsid::Obsid;
 
-use super::error::Apiv2Error;
+use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
     ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
@@ -56,13 +55,13 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
 
 #[derive(Debug)]
-pub struct AsvoClientv2 {
+pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
     ///
     /// Wrapped in a [`RefCell`] so that, if the server rejects our access
     /// token (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`), `send_authed` can
     /// re-authenticate and swap in a fresh client mid-flight. This is sound
-    /// because an `AsvoClientv2` never crosses a thread boundary: the
+    /// because an `AsvoClient` never crosses a thread boundary: the
     /// parallel (rayon) download path builds its own client per worker
     /// rather than sharing one.
     client: RefCell<Client>,
@@ -116,7 +115,7 @@ fn execute_logged(
 /// reading the `exp` claim to know when a token we've already been handed
 /// by the server will expire, not authenticating anything with it) and
 /// return its expiry as a UTC timestamp.
-fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, Apiv2Error> {
+fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
     #[derive(serde::Deserialize)]
     struct JwtExpClaim {
         exp: i64,
@@ -125,27 +124,27 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, Apiv2Error> {
     let payload_b64 = token
         .split('.')
         .nth(1)
-        .ok_or_else(|| Apiv2Error::AuthenticationFailed {
+        .ok_or_else(|| AsvoApiError::AuthenticationFailed {
             message: "Malformed JWT returned by MWA ASVO: no payload segment".to_string(),
         })?;
 
     let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload_b64)
-        .map_err(|e| Apiv2Error::AuthenticationFailed {
+        .map_err(|e| AsvoApiError::AuthenticationFailed {
             message: format!("Could not base64-decode JWT payload from MWA ASVO: {}", e),
         })?;
 
     let claim: JwtExpClaim =
-        serde_json::from_slice(&payload_bytes).map_err(|e| Apiv2Error::AuthenticationFailed {
+        serde_json::from_slice(&payload_bytes).map_err(|e| AsvoApiError::AuthenticationFailed {
             message: format!("Could not parse JWT payload JSON from MWA ASVO: {}", e),
         })?;
 
-    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| Apiv2Error::AuthenticationFailed {
+    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| AsvoApiError::AuthenticationFailed {
         message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
     })
 }
 
-impl AsvoClientv2 {
+impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO
     /// v2 API. Uses the `MWA_ASVO_API_KEY` environment variable for login.
     ///
@@ -155,8 +154,8 @@ impl AsvoClientv2 {
     /// performed otherwise. This is all best-effort and silent: if caching
     /// isn't available or fails for any reason, giant-squid just falls back
     /// to a fresh login.
-    pub fn new() -> Result<AsvoClientv2, Apiv2Error> {
-        let api_key = var(CONST_ENV_MWA_ASVO_API_KEY).map_err(|_| Apiv2Error::MissingAuthKey)?;
+    pub fn new() -> Result<AsvoClient, AsvoApiError> {
+        let api_key = var(CONST_ENV_MWA_ASVO_API_KEY).map_err(|_| AsvoApiError::MissingAuthKey)?;
 
         // Parse the timeout env variable or use default
         let api_timeout_seconds: Option<u64> = match var(CONST_ENV_MWA_ASVO_API_TIMEOUT) {
@@ -215,7 +214,7 @@ impl AsvoClientv2 {
         // is why we hold on to api_key/client_version/timeout below.
         let client = Self::build_authed_client(&tokens.access_token, api_timeout_seconds)?;
 
-        Ok(AsvoClientv2 {
+        Ok(AsvoClient {
             client: RefCell::new(client),
             api_key,
             client_version,
@@ -233,12 +232,12 @@ impl AsvoClientv2 {
     fn build_authed_client(
         access_token: &str,
         api_timeout_seconds: Option<u64>,
-    ) -> Result<Client, Apiv2Error> {
+    ) -> Result<Client, AsvoApiError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             reqwest::header::COOKIE,
             HeaderValue::from_str(&format!("mwa_access_token={}", access_token)).map_err(|e| {
-                Apiv2Error::AuthenticationFailed {
+                AsvoApiError::AuthenticationFailed {
                     message: format!("MWA ASVO returned an invalid access token: {}", e),
                 }
             })?,
@@ -258,7 +257,7 @@ impl AsvoClientv2 {
 
     /// Build the short-lived [Client] used purely for login/refresh calls
     /// (it needs neither the cookie jar nor default auth headers).
-    fn build_auth_client(api_timeout_seconds: Option<u64>) -> Result<Client, Apiv2Error> {
+    fn build_auth_client(api_timeout_seconds: Option<u64>) -> Result<Client, AsvoApiError> {
         Ok(ClientBuilder::new()
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
@@ -310,7 +309,7 @@ impl AsvoClientv2 {
         client_version: &str,
         api_key: &str,
         api_timeout_seconds: Option<u64>,
-    ) -> Result<StoredTokens, Apiv2Error> {
+    ) -> Result<StoredTokens, AsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the cookie jar or auth headers).
         let auth_client = Self::build_auth_client(api_timeout_seconds)?;
@@ -353,7 +352,7 @@ impl AsvoClientv2 {
         auth_client: &Client,
         client_version: &str,
         api_key: &str,
-    ) -> Result<StoredTokens, Apiv2Error> {
+    ) -> Result<StoredTokens, AsvoApiError> {
         let login: Login = client_version.try_into()?;
 
         let response = execute_logged(
@@ -367,7 +366,7 @@ impl AsvoClientv2 {
         )?;
 
         if !response.status.is_success() {
-            return Err(Apiv2Error::AuthenticationFailed {
+            return Err(AsvoApiError::AuthenticationFailed {
                 message: response.body,
             });
         }
@@ -381,7 +380,10 @@ impl AsvoClientv2 {
     /// endpoint's response (`TokenResponse`) doesn't include user info, so
     /// we carry it over from the session being refreshed - it's still the
     /// same account.
-    fn refresh(auth_client: &Client, previous: &StoredTokens) -> Result<StoredTokens, Apiv2Error> {
+    fn refresh(
+        auth_client: &Client,
+        previous: &StoredTokens,
+    ) -> Result<StoredTokens, AsvoApiError> {
         let response = execute_logged(
             auth_client,
             auth_client
@@ -393,7 +395,7 @@ impl AsvoClientv2 {
         )?;
 
         if !response.status.is_success() {
-            return Err(Apiv2Error::AuthenticationFailed {
+            return Err(AsvoApiError::AuthenticationFailed {
                 message: response.body,
             });
         }
@@ -413,7 +415,7 @@ impl AsvoClientv2 {
     /// tokens, and swap the freshly-authenticated client in as our active
     /// one. Called by `send_authed` when the server rejects our current
     /// access token.
-    fn reauthenticate(&self) -> Result<(), Apiv2Error> {
+    fn reauthenticate(&self) -> Result<(), AsvoApiError> {
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
         let auth_client = Self::build_auth_client(self.api_timeout_seconds)?;
         let fresh = Self::login(&auth_client, &self.client_version, &self.api_key)?;
@@ -430,12 +432,12 @@ impl AsvoClientv2 {
         access_token: String,
         refresh_token: String,
         user: UserResponse,
-    ) -> Result<StoredTokens, Apiv2Error> {
+    ) -> Result<StoredTokens, AsvoApiError> {
         // `StoredTokens.user_id` is a u64 (it's shared with mwa-cli's token
         // cache format), but the generated `UserResponse.id` is an i64.
         // A negative user ID from the server would be unexpected, but
         // let's not panic or silently wrap if it ever happened.
-        let user_id = u64::try_from(user.id).map_err(|_| Apiv2Error::AuthenticationFailed {
+        let user_id = u64::try_from(user.id).map_err(|_| AsvoApiError::AuthenticationFailed {
             message: format!(
                 "MWA ASVO returned an invalid (negative) user ID: {}",
                 user.id
@@ -451,7 +453,7 @@ impl AsvoClientv2 {
         user_id: u64,
         user_login: String,
         user_email: String,
-    ) -> Result<StoredTokens, Apiv2Error> {
+    ) -> Result<StoredTokens, AsvoApiError> {
         let access_expires_at = decode_jwt_exp(&access_token)?;
         let refresh_expires_at = decode_jwt_exp(&refresh_token)?;
 
@@ -477,10 +479,10 @@ impl AsvoClientv2 {
     /// switching between the dev and test environments.
     ///
     /// On success the response body is returned for the caller to parse; a
-    /// non-success status is mapped to an [`Apiv2Error`] by
+    /// non-success status is mapped to an [`AsvoApiError`] by
     /// [`Self::error_from_body`]. All requests are logged via
     /// [`execute_logged`].
-    fn send_authed<F>(&self, build: F) -> Result<String, Apiv2Error>
+    fn send_authed<F>(&self, build: F) -> Result<String, AsvoApiError>
     where
         F: Fn(&Client) -> reqwest::blocking::RequestBuilder,
     {
@@ -511,18 +513,18 @@ impl AsvoClientv2 {
         Err(Self::error_from_body(response.status, response.body))
     }
 
-    /// Map a non-success response body to an [`Apiv2Error`], preferring the
+    /// Map a non-success response body to an [`AsvoApiError`], preferring the
     /// structured `ErrorResponse` shape and falling back to `BadStatus` for
     /// anything that doesn't match it.
-    fn error_from_body(status: reqwest::StatusCode, body: String) -> Apiv2Error {
+    fn error_from_body(status: reqwest::StatusCode, body: String) -> AsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
-            Ok(err) => Apiv2Error::ApiError {
+            Ok(err) => AsvoApiError::ApiError {
                 error_code: err.error_code,
                 message: err.message,
                 detail: err.detail,
                 suggestion: err.suggestion,
             },
-            Err(_) => Apiv2Error::BadStatus {
+            Err(_) => AsvoApiError::BadStatus {
                 code: status,
                 message: body,
             },
@@ -531,18 +533,17 @@ impl AsvoClientv2 {
 
     /// Whether `err` is an authentication failure that a fresh login might
     /// fix (see [`AUTH_ERROR_CODES`]).
-    fn is_auth_error(err: &Apiv2Error) -> bool {
+    fn is_auth_error(err: &AsvoApiError) -> bool {
         matches!(
             err,
-            Apiv2Error::ApiError { error_code, .. }
+            AsvoApiError::ApiError { error_code, .. }
                 if AUTH_ERROR_CODES.contains(&error_code.as_str())
         )
     }
 
-    /// Fetch the caller's MWA ASVO jobs via the v2 API, returning the same
-    /// `AsvoJobVec` the v1 client's `get_jobs` does, so the rest of
-    /// giant-squid (filtering, `--json`, table rendering) doesn't need to
-    /// change.
+    /// Fetch the caller's MWA ASVO jobs, returning an `AsvoJobVec` so that
+    /// the rest of giant-squid (filtering, `--json`, table rendering) can
+    /// consume the results unchanged.
     ///
     /// `days` limits the results to the last N days if given. If `None`,
     /// we explicitly send `days: null` to ask for the caller's full
@@ -558,7 +559,7 @@ impl AsvoClientv2 {
     /// can't find/parse in the untyped `job_params`, or a job_state we
     /// don't recognise) are skipped with a warning logged, rather than
     /// failing the whole listing - see `job_detail_to_asvo_job`.
-    pub fn get_jobs(&self, days: Option<i64>) -> Result<AsvoJobVec, Apiv2Error> {
+    pub fn get_jobs(&self, days: Option<i64>) -> Result<AsvoJobVec, AsvoApiError> {
         const PAGE_SIZE: u64 = 100;
 
         let mut all_jobs = Vec::new();
@@ -621,7 +622,7 @@ impl AsvoClientv2 {
     /// /get_jobs actual) and its timestamp format turned out to need
     /// correction against the real server, treat this the same way:
     /// probably needs adjusting once tried for real.
-    pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, Apiv2Error> {
+    pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, AsvoApiError> {
         debug!("Submitting an imaging job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -634,7 +635,10 @@ impl AsvoClientv2 {
         Ok(job_id)
     }
 
-    pub fn submit_image_from_job(&self, params: &ImagingJobFlow2Params) -> Result<i64, Apiv2Error> {
+    pub fn submit_image_from_job(
+        &self,
+        params: &ImagingJobFlow2Params,
+    ) -> Result<i64, AsvoApiError> {
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -653,7 +657,7 @@ impl AsvoClientv2 {
     pub fn submit_download_vis_job(
         &self,
         params: &DownloadJobParams,
-    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a download-vis job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -672,7 +676,7 @@ impl AsvoClientv2 {
     pub fn submit_conversion_job(
         &self,
         params: &ConversionJobParams,
-    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a conversion job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -691,7 +695,7 @@ impl AsvoClientv2 {
     pub fn submit_voltage_job(
         &self,
         params: &VoltageJobParams,
-    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a voltage job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -707,7 +711,7 @@ impl AsvoClientv2 {
     pub fn submit_beamformer_job(
         &self,
         params: &BeamformerJobParams,
-    ) -> Result<JobSubmittedResponse, Apiv2Error> {
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a beamformer job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -723,7 +727,7 @@ impl AsvoClientv2 {
         Ok(resp)
     }
 
-    pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, Apiv2Error> {
+    pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
         let body = self.send_authed(|client| {
@@ -852,10 +856,10 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         _ => AsvoJobType::Unknown,
     };
 
-    // v2's job_state vocabulary (JobsByUserRequestJobState) uses
-    // "completed" and has no "ready"/"expired" at all, whereas v1's
+    // The API's job_state vocabulary (JobsByUserRequestJobState) uses
+    // "completed" and has no "ready"/"expired" at all, whereas
     // AsvoJobState::from_str expects "ready" for the same concept.
-    // Translated locally rather than changing the shared v1 type (which
+    // Translated locally rather than changing AsvoJobState itself (which
     // CLI argument parsing also uses). Also: since JobDetailResponse
     // separately carries `error_text`, use it to populate
     // AsvoJobState::Error's message instead of discarding it.

@@ -6,4 +6,4 @@ pub mod client;
 mod error;
 pub mod openapi;
 
-pub use error::Apiv2Error;
+pub use error::AsvoApiError;

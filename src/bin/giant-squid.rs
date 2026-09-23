@@ -19,10 +19,9 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use mwa_giant_squid::asvo::apiv2::openapi::{
-    BeamformerJobParams, ConversionJobParams, Delivery as V2Delivery,
-    DeliveryFormat as V2DeliveryFormat, DownloadJobParams, DownloadJobParamsDownloadType,
-    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode, VoltageJobParams,
-    Weighting,
+    BeamformerJobParams, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
+    DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params,
+    Output, OutputMode, VoltageJobParams, Weighting,
 };
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::*;
@@ -86,7 +85,7 @@ fn run_jobid_download(jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Resul
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let client = AsvoClientv2::new()?;
+    let client = AsvoClient::new()?;
     client.download_jobid(jobid, opts)?;
     Ok(())
 }
@@ -96,7 +95,7 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let client = AsvoClientv2::new()?;
+    let client = AsvoClient::new()?;
     client.download_obsid(obsid, opts)?;
     Ok(())
 }
@@ -255,11 +254,11 @@ enum Args {
     SubmitVis {
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -291,11 +290,11 @@ enum Args {
     SubmitConv {
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Output format: "ms" (measurement set) or "uvfits".
         #[arg(short = 'o', long, default_value_t = conversion_defaults().output)]
@@ -380,11 +379,11 @@ enum Args {
     SubmitImage {
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Whether to apply the DI calibration solution.
         #[arg(
@@ -572,11 +571,11 @@ enum Args {
 
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Whether to apply the primary beam correction.
         #[arg(
@@ -716,11 +715,11 @@ enum Args {
     SubmitMeta {
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -802,11 +801,11 @@ enum Args {
     SubmitBf {
         /// Tell MWA ASVO where to deliver the data.
         #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
-        delivery: V2Delivery,
+        delivery: Delivery,
 
         /// Tell MWA ASVO to deliver the data in a particular format.
         #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
-        delivery_format: V2DeliveryFormat,
+        delivery_format: DeliveryFormat,
 
         /// Do not exit giant-squid until the specified obsids are ready for
         /// download.
@@ -907,8 +906,8 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
 }
 
 /// Wait for all of the specified job IDs to become ready, then exit.
-/// Polls via `AsvoClientv2::get_jobs` (v2).
-fn wait_loop_v2(client: &AsvoClientv2, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
+/// Polls via `AsvoClient::get_jobs`.
+fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
     info!("Waiting for {} jobs to be ready...", jobids.len());
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
     // Offer the MWA ASVO a kindness by waiting a few seconds, so
@@ -984,7 +983,7 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
-            let client = AsvoClientv2::new()?;
+            let client = AsvoClient::new()?;
             let mut jobs = client.get_jobs(days)?;
             match (jobids, obsids) {
                 (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
@@ -1152,7 +1151,7 @@ fn main() -> Result<(), anyhow::Error> {
                     obsids.len()
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
@@ -1186,7 +1185,7 @@ fn main() -> Result<(), anyhow::Error> {
                 );
 
                 if wait {
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1239,7 +1238,7 @@ fn main() -> Result<(), anyhow::Error> {
                     centre
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
@@ -1282,7 +1281,7 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for conversion.", submitted_count);
 
                 if wait {
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1356,7 +1355,7 @@ fn main() -> Result<(), anyhow::Error> {
                     centre
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
@@ -1420,7 +1419,7 @@ fn main() -> Result<(), anyhow::Error> {
                     // they're all ready. Reuses the v2 client's own
                     // get_jobs, so this polls the same v2 API we just
                     // submitted to.
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1494,7 +1493,7 @@ fn main() -> Result<(), anyhow::Error> {
                     output_mode
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
 
                 let o = &obsids[0];
                 let obs_id_i64 = i64::try_from(u64::from(*o))
@@ -1535,7 +1534,7 @@ fn main() -> Result<(), anyhow::Error> {
 
                 if wait {
                     match AsvoJobID::try_from(job_id) {
-                        Ok(id) => wait_loop_v2(&client, &[id])?,
+                        Ok(id) => wait_loop(&client, &[id])?,
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; cannot --wait",
                             job_id
@@ -1573,7 +1572,7 @@ fn main() -> Result<(), anyhow::Error> {
                     obsids.len()
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let mut submitted_count = 0;
@@ -1607,7 +1606,7 @@ fn main() -> Result<(), anyhow::Error> {
                 );
 
                 if wait {
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1645,7 +1644,7 @@ fn main() -> Result<(), anyhow::Error> {
                     obsids.len()
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
                 let mut submitted_count = 0;
 
@@ -1679,7 +1678,7 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} obsids for voltage download.", submitted_count);
 
                 if wait {
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1712,7 +1711,7 @@ fn main() -> Result<(), anyhow::Error> {
                     obsids.len()
                 );
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let mut submitted_count = 0;
@@ -1745,7 +1744,7 @@ fn main() -> Result<(), anyhow::Error> {
                 );
 
                 if wait {
-                    wait_loop_v2(&client, &jobids)?;
+                    wait_loop(&client, &jobids)?;
                 }
             }
         }
@@ -1761,10 +1760,10 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("No jobids specified!");
             }
             init_logger(verbosity);
-            let client = AsvoClientv2::new()?;
+            let client = AsvoClient::new()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
-            wait_loop_v2(&client, &parsed_jobids)?;
+            wait_loop(&client, &parsed_jobids)?;
 
             let mut jobs = client.get_jobs(None)?;
             if !parsed_jobids.is_empty() {
@@ -1792,7 +1791,7 @@ fn main() -> Result<(), anyhow::Error> {
             if dry_run {
                 info!("Would have cancelled {} jobids.", parsed_jobids.len());
             } else {
-                let client = AsvoClientv2::new()?;
+                let client = AsvoClient::new()?;
 
                 let mut cancelled_count = 0;
                 for j in parsed_jobids {

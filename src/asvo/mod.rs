@@ -10,8 +10,8 @@ mod types;
 
 use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
-pub use apiv2::client::AsvoClientv2;
-pub use apiv2::Apiv2Error;
+pub use apiv2::client::AsvoClient;
+pub use apiv2::AsvoApiError;
 pub use error::AsvoError;
 pub use token_store::StoredTokens;
 pub use types::{

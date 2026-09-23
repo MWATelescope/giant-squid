@@ -4,19 +4,17 @@
 
 //! Errors when interfacing with the MWA ASVO v2 API.
 //!
-//! This is intentionally separate from [`crate::asvo::AsvoError`], which is
-//! full of variants specific to the v1 client (job states, the old delivery
-//! options, etc). This enum currently only covers what `AsvoClientv2`'s
-//! authentication needs; expect it to grow variants for the v2 API's
-//! structured error responses (`ErrorResponse`, `HttpValidationError`) once
-//! we implement request-sending for the imaging job endpoint.
+//! This is intentionally separate from [`crate::asvo::AsvoError`], which
+//! covers the file download path (job lookup, hash checks, HTTP transfer).
+//! This enum covers talking to the API itself: authentication and the
+//! structured error responses (`ErrorResponse`, `HttpValidationError`).
 
 use thiserror::Error;
 
 use super::openapi::error::ConversionError;
 
 #[derive(Error, Debug)]
-pub enum Apiv2Error {
+pub enum AsvoApiError {
     /// User's MWA_ASVO_API_KEY environment variable is not defined.
     #[error("MWA_ASVO_API_KEY is not defined.")]
     MissingAuthKey,
