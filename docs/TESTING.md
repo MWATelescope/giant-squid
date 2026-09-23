@@ -199,28 +199,54 @@ endpoint and the serialised JSON body for each obsid. That would be uniform
 across commands, more useful to users, and directly snapshot-testable.
 Deferred - no behaviour change made yet.
 
-## Blocked: downloads do not work on apiv2
+## The `product` field, and what it unblocked
 
-`job_detail_to_asvo_job` sets `AsvoJob.files` to `None` unconditionally,
-because the `product` field carrying the file listing and download links is
-typed in the schema as a free-form object (`additionalProperties: true`)
-with no documented shape. Consequences:
+`product` is typed in the schema as a free-form object, so its shape had to
+come from a real response. A recording from test-asvo shows:
 
-- every `giant-squid download` ends in `AsvoError::NoFiles`, whatever the
-  job's state;
-- `list` shows blank File Size and Delivery columns;
-- the download tests can only pin error paths, and hash verification, tar
-  handling and resume are untestable.
+```json
+"product": { "files": [ { "type": "acacia",
+                          "url": "https://.../1115977528_30000517_meta.tar?...",
+                          "size": 117016360960,
+                          "sha1": "ce32e0ae..." } ] }
+```
 
-The API dev is changing the API to define this properly; revisit once that
-lands. Unblocking it needs one real `product` payload from a completed job on
-test-asvo. `tests/record.rs` will capture it: run the recorder while a
-completed job is in the account's history, then read `product` out of the
-scrubbed recording. Once its shape is known, map it to `AsvoFilesArray`
-(`type`, `url`, `path`, `size`, `sha1`) and the download tests can serve
-the file from the same mock server.
+`product_to_files` in `client.rs` maps that to `AsvoFilesArray`, so
+`AsvoJob.files` is populated, downloads work, and `list` can show File Size
+and Delivery. Because nothing about `product` is guaranteed by type, the
+mapping is tolerant: an entry with an unrecognised or missing delivery type
+is skipped with a warning, a missing `size` becomes 0 (it only feeds
+progress reporting), and a job left with nothing usable reports
+`AsvoError::NoFiles` rather than half-downloading. Scratch and DUG
+deliveries carry a `path` instead of a `url`; those are mapped but have no
+recorded sample yet.
+
+`tests/playback.rs` replays the recording and pins the mapping against that
+real payload. `tests/download.rs` now runs a download end to end, with the
+mock server serving the file as well as the API.
+
+One thing the recording also showed: `job_params.obs_id` came back as a
+JSON *number* here, where an earlier sample had it as a string. The client
+already accepts both.
 
 ## Defects the tests surfaced
+
+- Resume is broken in two linked ways, found while writing the download
+  tests, and not fixed here because fixing either alone makes behaviour
+  worse:
+  1. The `RANGE` header value is built as `"Range: bytes=0-123"`, i.e. with
+     the header name inside the value, so the sent header is
+     `Range: Range: bytes=0-123`. A real server ignores or rejects it, so a
+     resumed download re-fetches from the start and appends, corrupting the
+     file - which the hash check then catches.
+  2. `prepare_output_file` signals "file already complete" by returning the
+     expected size, and its own comment says the caller should return early,
+     but `try_download` never checks: it requests and re-downloads anyway.
+     Fixing (1) without (2) would turn an already-complete file into a
+     `bytes=N-` request and a hash mismatch.
+
+  Both want fixing together, with tests for: fresh download, resume of a
+  partial file, an already-complete file being skipped, and `--no-resume`.
 
 - `--custom-dec -26.7`, `--robust -1.5` and `--phase-centre-dec -26.7` were
   rejected with "unknown argument '-2'": clap reads a leading `-` as a flag
@@ -251,8 +277,9 @@ the file from the same mock server.
 | 2 | Add `httpmock` dev-dependency, test harness, recording script, fixture scrubbing | Done |
 | 3 | Hand-written error-path mocks (auth, error mapping, listing, submit, cancel) | Done |
 | 3b | `get_jobs` pagination, plus download-path error mocks | Done |
-| 3d | Successful download, hash, tar and resume tests | Blocked on the `product` shape |
-| 3c | Recorded fixtures from test-asvo, replayed offline | Needs a recording run |
+| 3c | Recorded fixture from test-asvo, replayed offline | Done |
+| 3d | `product` mapping, plus successful download, tar and hash tests | Done |
+| 3e | Resume fix and its tests | See the resume defects above |
 | 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
 | 4b | Fixture schema validation in CI | Needs fixtures first |
 | 5 | End-to-end CLI tests against the mock server | Done |

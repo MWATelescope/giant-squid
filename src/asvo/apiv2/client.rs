@@ -27,7 +27,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
     download_by_jobid, download_by_obsid, get_asvo_server_address, get_asvo_server_address_env,
-    AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, DownloadOptions,
+    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    DownloadOptions,
 };
 use crate::built_info;
 use crate::obsid::Obsid;
@@ -816,9 +817,9 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// - `obsid` is looked for at `job_params["obs_id"]` (an untyped JSON
 ///   map). CONFIRMED against a real response: the key name is right, but
 ///   the value is a JSON string, not a number - handled below.
-/// - `files` is always `None` for now - `product`'s shape isn't
-///   confirmed, so File Size/Delivery will show blank until we have a
-///   real sample response to design against.
+/// - `files` comes from `product["files"]`, mapped by
+///   [`product_to_files`]. `product` is typed in the schema as a
+///   free-form object, so the mapping is deliberately tolerant.
 fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
     let jobid = match AsvoJobID::try_from(detail.id) {
         Ok(id) => id,
@@ -897,7 +898,101 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         jobid,
         jtype,
         state,
-        files: None,
+        files: product_to_files(jobid, detail.product.as_ref()),
         completed: detail.completed,
     })
+}
+
+/// Map a job's `product` object to the file list the download path uses.
+///
+/// The schema types `product` as a free-form object
+/// (`additionalProperties: true`), so nothing here can be relied on by
+/// type. A real completed job looks like:
+///
+/// ```text
+/// "product": { "files": [ { "type": "acacia",
+///                           "url": "https://.../1115977528_..._meta.tar?...",
+///                           "size": 117016360960,
+///                           "sha1": "ce32e0ae..." } ] }
+/// ```
+///
+/// Scratch and DUG deliveries carry a `path` instead of a `url`. Anything
+/// that can't be understood is skipped with a warning rather than failing
+/// the whole listing: a job we can't describe is better than no listing.
+///
+/// Returns `None` when there is no file list at all (for instance a job
+/// that hasn't completed), which the download path reports as
+/// [`crate::asvo::AsvoError::NoFiles`].
+fn product_to_files(
+    jobid: AsvoJobID,
+    product: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Option<Vec<AsvoFilesArray>> {
+    let files = product?.get("files")?.as_array()?;
+
+    let mapped: Vec<AsvoFilesArray> = files
+        .iter()
+        .filter_map(|file| {
+            let file = file.as_object()?;
+
+            let delivery = match file.get("type").and_then(|t| t.as_str()) {
+                Some(t) => match t.to_ascii_lowercase().as_str() {
+                    "acacia" => Delivery::Acacia,
+                    "dug" => Delivery::Dug,
+                    "scratch" => Delivery::Scratch,
+                    other => {
+                        warn!(
+                            "MWA ASVO job {}: skipping a file with unrecognised delivery type {:?}",
+                            jobid, other
+                        );
+                        return None;
+                    }
+                },
+                None => {
+                    warn!(
+                        "MWA ASVO job {}: skipping a file with no delivery type in product",
+                        jobid
+                    );
+                    return None;
+                }
+            };
+
+            let size = match file.get("size").and_then(|s| s.as_u64()) {
+                Some(size) => size,
+                None => {
+                    // Only used for progress and throughput reporting, so a
+                    // missing size is worth noting but not worth dropping
+                    // the file over.
+                    debug!("MWA ASVO job {}: file has no size in product", jobid);
+                    0
+                }
+            };
+
+            Some(AsvoFilesArray {
+                r#type: delivery,
+                url: file
+                    .get("url")
+                    .and_then(|u| u.as_str())
+                    .map(str::to_string),
+                path: file
+                    .get("path")
+                    .and_then(|p| p.as_str())
+                    .map(str::to_string),
+                size,
+                sha1: file
+                    .get("sha1")
+                    .and_then(|h| h.as_str())
+                    .map(str::to_string),
+            })
+        })
+        .collect();
+
+    if mapped.is_empty() {
+        warn!(
+            "MWA ASVO job {}: product carried a file list, but none of it was usable",
+            jobid
+        );
+        return None;
+    }
+
+    Some(mapped)
 }

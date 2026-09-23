@@ -1,0 +1,55 @@
+when:
+  path: /api/v2/api_login
+  method: POST
+  header:
+  - name: Accept
+    value: '*/*'
+  - name: Content-Type
+    value: application/json
+  body: '{"login":"giant-squidv3.0.0","password":"not-a-real-api-key"}'
+then:
+  status: 200
+  header:
+  - name: date
+    value: Wed, 23 Sep 2026 06:53:39 GMT
+  - name: content-type
+    value: application/json
+  - name: content-length
+    value: '2090'
+  - name: connection
+    value: keep-alive
+  - name: server
+    value: nginx/1.31.6
+  - name: set-cookie
+    value: mwa_access_token=notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature; Domain=https://test-asvo.mwatelescope.org; HttpOnly; Max-Age=900; Path=/; SameSite=lax; Secure
+  - name: set-cookie
+    value: mwa_refresh_token=notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature; Domain=https://test-asvo.mwatelescope.org; HttpOnly; Max-Age=604800; Path=/; SameSite=lax; Secure
+  - name: x-request-id
+    value: c78c6d02-d72d-4128-8e03-7227fcec691c
+  body: '{"access_token":"notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature","refresh_token":"notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature","token_type":"bearer","user":{"id":4242,"login":"test_user","email":"test_user@example.org","is_superuser":true,"pawsey_group":null,"dug_group":null}}'
+---
+when:
+  path: /api/v2/get_jobs
+  method: POST
+  header:
+  - name: Accept
+    value: '*/*'
+  - name: Content-Type
+    value: application/json
+  body: '{"days":30,"limit":100,"offset":0,"sort_by":"id"}'
+then:
+  status: 200
+  header:
+  - name: date
+    value: Wed, 23 Sep 2026 06:53:39 GMT
+  - name: content-type
+    value: application/json
+  - name: content-length
+    value: '801'
+  - name: connection
+    value: keep-alive
+  - name: server
+    value: nginx/1.31.6
+  - name: x-request-id
+    value: ef02bda6-0c3d-45fb-bab0-713895ce217f
+  body: '{"jobs":[{"job_type":2,"job_state":"completed","user_id":4242,"job_params":{"obs_id":1115977528,"delivery":"acacia","delivery_format":"tar","allow_resubmit":false,"download_type":"meta"},"error_code":null,"error_text":null,"created":"2026-09-22T07:42:27.031512","started":"2026-09-22T10:30:42.836734","completed":"2026-09-22T10:46:25.508526","product":{"files":[{"type":"acacia","url":"https://projects.pawsey.org.au/test-mwa-asvo/1115977528_30000517_meta.tar?AWSAccessKeyId=a5e466f891734d45a67676504a309c35&Signature=YOPM8T6gzr4jzzeUz86NFd4lj%2Fs%3D&Expires=1790678779","size":117016360960,"sha1":"ce32e0aeec0b7c64dec4deeb89881ba4452a6330"}]},"id":30000517,"client":null,"priority_score":null,"queue_position_cache":null,"estimated_start":null,"first_name":"Test","last_name":"User"}],"total_count":1}'
