@@ -969,10 +969,7 @@ fn product_to_files(
 
             Some(AsvoFilesArray {
                 r#type: delivery,
-                url: file
-                    .get("url")
-                    .and_then(|u| u.as_str())
-                    .map(str::to_string),
+                url: file.get("url").and_then(|u| u.as_str()).map(str::to_string),
                 path: file
                     .get("path")
                     .and_then(|p| p.as_str())
