@@ -254,6 +254,44 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(job.state, AsvoJobState::Ready);
 }
 
+/// The listing endpoint is paged 100 at a time, so a larger history has to
+/// be walked. Each page is matched on the `offset` the client sends.
+#[test]
+fn a_long_job_listing_is_fetched_page_by_page() {
+    let env = TestEnv::with_session();
+    let total = 150;
+    let page = |from: i64, count: i64| -> Vec<serde_json::Value> {
+        (from..from + count)
+            .map(|id| job_detail(id, TEST_OBSID, "completed", 1))
+            .collect()
+    };
+
+    let first = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(r#"{ "offset": 0 }"#);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(json!({ "jobs": page(1, 100), "total_count": total }));
+    });
+    let second = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(r#"{ "offset": 100 }"#);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(json!({ "jobs": page(101, 50), "total_count": total }));
+    });
+
+    let client = AsvoClient::new().expect("client should be created");
+    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+
+    assert_eq!(first.calls(), 1);
+    assert_eq!(second.calls(), 1, "the second page should be requested");
+    assert_eq!(jobs.0.len(), total as usize);
+    assert_eq!(jobs.0.last().expect("there should be jobs").jobid, 150);
+}
+
 #[test]
 fn an_errored_job_carries_the_servers_error_text() {
     let env = TestEnv::with_session();

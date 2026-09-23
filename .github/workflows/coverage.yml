@@ -9,8 +9,7 @@ on:
 permissions:
   contents: read
 
-env:
-  MWA_ASVO_API_KEY: ${{ secrets.MWA_ASVO_API_KEY }}
+# No MWA ASVO credentials here on purpose - see run-tests.yaml.
 
 name: Generate Coverage report
 

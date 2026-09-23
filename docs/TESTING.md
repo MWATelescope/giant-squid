@@ -88,9 +88,14 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-Still to write: download paths (`404`, HTTP errors, hash mismatch, resume
-via `RANGE`), and `get_jobs` pagination across more than one page, which
-needs a mock that varies its response per call.
+`tests/download.rs` covers the download path as far as it can go today:
+an unknown job ID, a job that is not ready, an unknown obsid, an obsid whose
+only job is unfinished, and an obsid with several ready jobs. Pagination is
+covered too - `tests/apiv2_client.rs` serves two pages by matching on the
+`offset` the client sends, so no per-call response variation is needed.
+
+Still to write: a successful download, hash verification, tar handling and
+resume via `RANGE`. Those are blocked - see below.
 
 ### Layer 3 - opt-in live tests
 
@@ -178,6 +183,26 @@ endpoint and the serialised JSON body for each obsid. That would be uniform
 across commands, more useful to users, and directly snapshot-testable.
 Deferred - no behaviour change made yet.
 
+## Blocked: downloads do not work on apiv2
+
+`job_detail_to_asvo_job` sets `AsvoJob.files` to `None` unconditionally,
+because the `product` field carrying the file listing and download links is
+typed in the schema as a free-form object (`additionalProperties: true`)
+with no documented shape. Consequences:
+
+- every `giant-squid download` ends in `AsvoError::NoFiles`, whatever the
+  job's state;
+- `list` shows blank File Size and Delivery columns;
+- the download tests can only pin error paths, and hash verification, tar
+  handling and resume are untestable.
+
+Unblocking it needs one real `product` payload from a completed job on
+test-asvo. `tests/record.rs` will capture it: run the recorder while a
+completed job is in the account's history, then read `product` out of the
+scrubbed recording. Once its shape is known, map it to `AsvoFilesArray`
+(`type`, `url`, `path`, `size`, `sha1`) and the download tests can serve
+the file from the same mock server.
+
 ## Defects the tests surfaced
 
 - `submit-image --pol` defaulted to `XX,YY`, which the schema's
@@ -198,7 +223,9 @@ Deferred - no behaviour change made yet.
 | 1 | Move `Args` into `src/cli/`, extract per-job-type params builders, add pure CLI tests | Done |
 | 2 | Add `httpmock` dev-dependency, test harness, recording script, fixture scrubbing | Done |
 | 3 | Hand-written error-path mocks (auth, error mapping, listing, submit, cancel) | Done |
-| 3b | Download-path mocks and `get_jobs` pagination | Not started |
+| 3b | `get_jobs` pagination, plus download-path error mocks | Done |
+| 3d | Successful download, hash, tar and resume tests | Blocked on the `product` shape |
 | 3c | Recorded fixtures from test-asvo, replayed offline | Needs a recording run |
-| 4 | Fixture schema validation in CI; drop `MWA_ASVO_API_KEY` from CI | Not started |
+| 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
+| 4b | Fixture schema validation in CI | Needs fixtures first |
 | 5 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |
