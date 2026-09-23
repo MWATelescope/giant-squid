@@ -97,6 +97,22 @@ covered too - `tests/apiv2_client.rs` serves two pages by matching on the
 Still to write: a successful download, hash verification, tar handling and
 resume via `RANGE`. Those are blocked - see below.
 
+### Layer 2b - the binary, end to end
+
+`tests/cli.rs` runs the built binary as a subprocess (via
+`CARGO_BIN_EXE_giant-squid`, so no extra dependency) against a mock server.
+It covers what only `main` can answer: `--dry-run` making no request at all,
+exit codes, the `No obsids specified` and job-ID-instead-of-obsid guards,
+`--json` output, state filtering, a rejected cancellation being logged
+without failing the run, and the `GIANT_SQUID_DELIVERY` /
+`GIANT_SQUID_DELIVERY_FORMAT` defaults - which clap reads at parse time, so
+they can only be set before the process starts.
+
+`CliEnv` passes the child's environment on the `Command` itself and mutates
+nothing process-wide, so these tests run in parallel, unlike the in-process
+ones. Every variable the client reads is set or cleared explicitly, so a
+developer's own settings cannot leak into a run.
+
 ### Layer 3 - opt-in live tests
 
 A small `#[ignore]`d or feature-gated suite that talks to a real server, run
@@ -115,10 +131,10 @@ explicit config value instead of reading the environment.
 `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli, and tests must never read
 or overwrite a real developer session.
 
-Layer 1 tests touch no environment variable, with one exception: the
+Layer 1 tests touch no environment variable at all. The
 `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT` defaults are read by
-clap at parse time and cannot be injected per call, so those tests are
-deferred to the serialised group in layer 2.
+clap at parse time and cannot be injected per call, so they are covered in
+layer 2b instead, where the value is set on the child process.
 
 ## Fixture hygiene
 
@@ -160,8 +176,8 @@ Per submit command (`submit-vis`, `submit-meta`, `submit-conv`,
 | Schema defaults applied when no flags given | 1 |
 | Every optional flag set to a non-default value | 1 |
 | Out-of-range values rejected by the value parser | 1 |
-| `GIANT_SQUID_DELIVERY` / `GIANT_SQUID_DELIVERY_FORMAT` defaults | 2 |
-| `--dry-run` submits nothing | 2 |
+| `GIANT_SQUID_DELIVERY` / `GIANT_SQUID_DELIVERY_FORMAT` defaults | 2b |
+| `--dry-run` submits nothing | 2b |
 | Request body sent to the server | 2 |
 | `--wait` polling until ready | 2 |
 | Server error responses | 2 |
@@ -196,7 +212,8 @@ with no documented shape. Consequences:
 - the download tests can only pin error paths, and hash verification, tar
   handling and resume are untestable.
 
-Unblocking it needs one real `product` payload from a completed job on
+The API dev is changing the API to define this properly; revisit once that
+lands. Unblocking it needs one real `product` payload from a completed job on
 test-asvo. `tests/record.rs` will capture it: run the recorder while a
 completed job is in the account's history, then read `product` out of the
 scrubbed recording. Once its shape is known, map it to `AsvoFilesArray`
@@ -228,4 +245,5 @@ the file from the same mock server.
 | 3c | Recorded fixtures from test-asvo, replayed offline | Needs a recording run |
 | 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
 | 4b | Fixture schema validation in CI | Needs fixtures first |
-| 5 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |
+| 5 | End-to-end CLI tests against the mock server | Done |
+| 6 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |

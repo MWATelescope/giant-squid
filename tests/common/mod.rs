@@ -18,6 +18,7 @@
 
 #![allow(dead_code)]
 
+use std::process::Command;
 use std::sync::{Mutex, MutexGuard};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -108,22 +109,7 @@ impl TestEnv {
     /// tokens. The stored expiry timestamps are taken from each token's own
     /// `exp` claim, so the file is self-consistent.
     pub fn write_session(&self, access_token: String, refresh_token: String) {
-        let dir = self.home.path().join(".mwa-asvo");
-        std::fs::create_dir_all(&dir).expect("could not create the token cache directory");
-        let tokens = json!({
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "access_expires_at": jwt_expiry(&access_token).to_rfc3339(),
-            "refresh_expires_at": jwt_expiry(&refresh_token).to_rfc3339(),
-            "user_id": TEST_USER_ID,
-            "user_login": TEST_USER_LOGIN,
-            "user_email": TEST_USER_EMAIL,
-        });
-        std::fs::write(
-            dir.join("tokens.json"),
-            serde_json::to_string_pretty(&tokens).unwrap(),
-        )
-        .expect("could not write the token cache");
+        write_session_at(self.home.path(), access_token, refresh_token);
     }
 
     /// The cached session as it stands on disk, or `None` if there isn't
@@ -173,6 +159,112 @@ impl Drop for TestEnv {
             }
         }
     }
+}
+
+/// A mock MWA ASVO for tests that run the built binary as a subprocess.
+///
+/// Unlike [`TestEnv`] this touches no process-wide state: the child's
+/// environment is set on the [`Command`] itself, so these tests run in
+/// parallel with each other and with everything else.
+pub struct CliEnv {
+    pub server: MockServer,
+    home: TempDir,
+}
+
+impl CliEnv {
+    /// Start a mock server and a temporary `HOME` holding a valid cached
+    /// session, so the binary does not need to log in.
+    pub fn with_session() -> Self {
+        let server = MockServer::start();
+        let home = TempDir::new().expect("could not create a temporary HOME");
+        write_session_at(home.path(), jwt_expiring_in(3600), jwt_expiring_in(86400));
+        Self { server, home }
+    }
+
+    /// The built `giant-squid` binary, pointed at the mock server.
+    ///
+    /// Every variable the client reads is set or cleared explicitly, so a
+    /// developer's own `GIANT_SQUID_*` or `MWA_ASVO_*` settings cannot leak
+    /// into a test run.
+    pub fn command(&self) -> Command {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_giant-squid"));
+        cmd.env("MWA_ASVO_HOST", self.server.base_url())
+            .env("MWA_ASVO_API_KEY", TEST_API_KEY)
+            .env("HOME", self.home.path())
+            .env_remove("MWA_ASVO_API_TIMEOUT")
+            .env_remove("GIANT_SQUID_DELIVERY")
+            .env_remove("GIANT_SQUID_DELIVERY_FORMAT")
+            .env_remove("GIANT_SQUID_BUF_SIZE");
+        cmd
+    }
+
+    /// Serve `POST /api/v2/get_jobs` with one page of jobs.
+    pub fn mock_get_jobs(&self, jobs: Vec<Value>) -> Mock<'_> {
+        let total_count = jobs.len();
+        self.server.mock(|when, then| {
+            when.method(POST).path("/api/v2/get_jobs");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!({ "jobs": jobs, "total_count": total_count }));
+        })
+    }
+}
+
+/// What a finished subprocess run produced.
+pub struct Run {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl Run {
+    /// Everything the run printed, whichever stream it went to. Log output
+    /// and clap's diagnostics land on different streams, so assertions on
+    /// messages use this rather than picking one.
+    pub fn combined(&self) -> String {
+        format!("{}{}", self.stdout, self.stderr)
+    }
+
+    /// The first JSON object printed on stdout. Lets a test read `--json`
+    /// output without tripping over interleaved log lines.
+    pub fn stdout_json(&self) -> Value {
+        let line = self
+            .stdout
+            .lines()
+            .find(|l| l.trim_start().starts_with('{'))
+            .expect("expected a JSON object on stdout");
+        serde_json::from_str(line.trim()).expect("stdout JSON should parse")
+    }
+}
+
+/// Run a command to completion and capture its output.
+pub fn run(mut cmd: Command) -> Run {
+    let out = cmd.output().expect("could not run the giant-squid binary");
+    Run {
+        success: out.status.success(),
+        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    }
+}
+
+/// Write a token cache under `home`, as the client expects to find it.
+fn write_session_at(home: &std::path::Path, access_token: String, refresh_token: String) {
+    let dir = home.join(".mwa-asvo");
+    std::fs::create_dir_all(&dir).expect("could not create the token cache directory");
+    let tokens = json!({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "access_expires_at": jwt_expiry(&access_token).to_rfc3339(),
+        "refresh_expires_at": jwt_expiry(&refresh_token).to_rfc3339(),
+        "user_id": TEST_USER_ID,
+        "user_login": TEST_USER_LOGIN,
+        "user_email": TEST_USER_EMAIL,
+    });
+    std::fs::write(
+        dir.join("tokens.json"),
+        serde_json::to_string_pretty(&tokens).unwrap(),
+    )
+    .expect("could not write the token cache");
 }
 
 /// A JWT whose payload carries an `exp` claim `seconds` from now.

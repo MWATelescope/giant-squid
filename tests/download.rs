@@ -67,12 +67,7 @@ fn downloading_an_unknown_job_id_is_reported() {
 #[test]
 fn downloading_a_job_that_is_not_ready_is_reported() {
     let env = TestEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(
-        TEST_JOBID as i64,
-        TEST_OBSID,
-        "queued",
-        1,
-    )]);
+    env.mock_get_jobs(vec![job_detail(TEST_JOBID as i64, TEST_OBSID, "queued", 1)]);
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 

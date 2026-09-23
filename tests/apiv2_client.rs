@@ -167,7 +167,11 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
     };
 
     assert!(is_api_error(&err, "AUTH_INVALID_TOKEN"), "got {err:?}");
-    assert_eq!(login.calls(), 1, "the rejected token should force a re-login");
+    assert_eq!(
+        login.calls(),
+        1,
+        "the rejected token should force a re-login"
+    );
     assert_eq!(get_jobs.calls(), 2, "the request should be retried once");
 }
 
@@ -395,9 +399,9 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
     let params = match Args::try_parse_from(["giant-squid", "submit-conv", TEST_OBSID])
         .expect("arguments should parse")
     {
-        Args::SubmitConv { conv, .. } => conv
-            .to_params(TEST_OBSID_I64)
-            .expect("params should build"),
+        Args::SubmitConv { conv, .. } => {
+            conv.to_params(TEST_OBSID_I64).expect("params should build")
+        }
         _ => panic!("expected submit-conv"),
     };
 
@@ -421,7 +425,8 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
 fn a_cancellation_deletes_the_job_resource() {
     let env = TestEnv::with_session();
     let cancel = env.server.mock(|when, then| {
-        when.method(DELETE).path(format!("/api/v2/jobs/{TEST_JOBID}"));
+        when.method(DELETE)
+            .path(format!("/api/v2/jobs/{TEST_JOBID}"));
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(TEST_JOBID as u64));
