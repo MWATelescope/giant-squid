@@ -134,7 +134,7 @@ impl TestEnv {
     pub fn mock_login_failure(&self, status: u16, body: &str) -> Mock<'_> {
         self.server.mock(|when, then| {
             when.method(POST).path("/api/v2/api_login");
-            then.status(status).body(body.to_string());
+            then.status(status).body(body);
         })
     }
 

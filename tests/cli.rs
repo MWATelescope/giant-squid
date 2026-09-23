@@ -13,7 +13,7 @@
 mod common;
 
 use common::*;
-use httpmock::prelude::*;
+use httpmock::{prelude::*, Mock};
 
 /// A mock that matches anything, used to prove no request was made.
 fn catch_all(env: &CliEnv) -> Mock<'_> {
