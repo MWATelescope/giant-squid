@@ -370,22 +370,43 @@ fn submit_image_defaults_come_from_the_schema() {
 
 #[test]
 fn submit_image_builds_an_imaging_body() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", "XXYY", TEST_OBSID]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
     let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
 
     assert_eq!(json["obs_id"], TEST_OBSID_I64);
     assert_eq!(json["image_size"], *imaging1_defaults().image_size);
-    assert_eq!(json["pol"], "XXYY");
+    assert_eq!(json["pol"], imaging1_defaults().pol.to_string());
 }
 
-/// The clap default for `--pol` on submit-image is "XX,YY", which the
-/// schema's `Polarization` type rejects - it only accepts XX, YY and XXYY.
-/// This test pins that known defect so it is visible rather than silent;
-/// update it when the default is corrected.
+/// `--pol` is sourced from the schema, which accepts only XX, YY or XXYY on
+/// this endpoint. A hardcoded default of "XX,YY" previously made every
+/// submit-image run fail when the request body was built.
 #[test]
-fn submit_image_default_pol_is_rejected_by_the_schema() {
+fn submit_image_default_pol_comes_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
-    assert!(args.to_params(TEST_OBSID_I64).is_err());
+    assert_eq!(args.pol, imaging1_defaults().pol.to_string());
+    assert!(args.to_params(TEST_OBSID_I64).is_ok());
+}
+
+#[test]
+fn submit_image_accepts_each_supported_polarisation() {
+    for pol in ["XX", "YY", "XXYY"] {
+        let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", pol, TEST_OBSID]);
+        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        assert_eq!(json["pol"], pol);
+    }
+}
+
+#[test]
+fn submit_image_rejects_an_unsupported_polarisation() {
+    for bad in ["XX,YY", "xx", "Q"] {
+        let err = parse_err(&["giant-squid", "submit-image", "--pol", bad, TEST_OBSID]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "expected --pol {bad} to be rejected"
+        );
+    }
 }
 
 #[test]
@@ -393,8 +414,6 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
-        "--pol",
-        "XXYY",
         "--phase-center",
         "custom",
         "--custom-ra",
@@ -412,7 +431,7 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
 
 #[test]
 fn submit_image_optional_fields_are_omitted_when_unset() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", "XXYY", TEST_OBSID]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
     let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
 
     assert!(json.get("nwlayers").is_none());
@@ -427,22 +446,13 @@ fn submit_image_boolean_flags_require_equals() {
         "submit-image",
         "--apply-di-cal=false",
         "--join-channels=false",
-        "--pol",
-        "XXYY",
         TEST_OBSID,
     ]);
     assert!(!args.apply_di_cal);
     assert!(!args.join_channels);
 
     // Given without a value, the flag takes its default_missing_value.
-    let (args, _) = image_args(&[
-        "giant-squid",
-        "submit-image",
-        "--apply-di-cal",
-        "--pol",
-        "XXYY",
-        TEST_OBSID,
-    ]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", "--apply-di-cal", TEST_OBSID]);
     assert!(args.apply_di_cal);
 }
 

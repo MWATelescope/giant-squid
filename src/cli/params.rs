@@ -18,7 +18,7 @@ use clap::ArgAction;
 use crate::asvo::apiv2::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
     DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    Output, OutputMode, VoltageJobParams, Weighting,
+    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::asvo::AsvoApiError;
 
@@ -57,6 +57,20 @@ pub fn parse_image_size(s: &str) -> Result<i64, String> {
     let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
     ImageSizes::try_from(v)
         .map(i64::from)
+        .map_err(|e| e.to_string())
+}
+
+/// Validates a polarisation against the MWA ASVO API's `Polarization` type
+/// and returns it in the string form the request body carries. The imaging
+/// (flow 1) endpoint takes the enum, so an unsupported value is rejected by
+/// the CLI rather than only when the request body is built.
+///
+/// NOTE: the image-from-job (flow 2) endpoint types the same field as a
+/// free-form string with a default of "XX,YY", so it is deliberately not
+/// validated here. That inconsistency is worth raising with the API dev.
+pub fn parse_polarization(s: &str) -> Result<String, String> {
+    Polarization::try_from(s)
+        .map(|p| p.to_string())
         .map_err(|e| e.to_string())
 }
 
@@ -396,8 +410,8 @@ pub struct ImagingJobArgs {
     #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
     pub pixel_scale: f64,
 
-    /// Polarisations to image, comma separated.
-    #[arg(long, default_value = "XX,YY")]
+    /// Polarisation to image: XX, YY or XXYY.
+    #[arg(long, default_value_t = imaging1_defaults().pol.to_string(), value_parser = parse_polarization)]
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
@@ -577,7 +591,8 @@ pub struct ImagingFromJobArgs {
     #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
     pub pixel_scale: f64,
 
-    /// Polarisations to image, comma separated.
+    /// Polarisations to image. This endpoint takes a free-form string
+    /// rather than the fixed set submit-image accepts.
     #[arg(long, default_value_t = imaging2_defaults().pol)]
     pub pol: String,
 

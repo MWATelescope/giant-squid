@@ -74,6 +74,11 @@ time-core = { version = "0.1", optional = true }
 [dev-dependencies]
 tempfile = "3.20"
 rand = "0.10"
+# Runs a real local HTTP server per test, so the client's requests and
+# response handling are exercised end to end without touching a real MWA
+# ASVO. The "record" feature is only needed by tests/record.rs, which is
+# #[ignore]d and captures fixtures from a live server by hand.
+httpmock = { version = "0.8", features = ["record"] }
 
 [build-dependencies]
 built = "0.8"

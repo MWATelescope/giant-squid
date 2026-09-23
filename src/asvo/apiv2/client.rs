@@ -147,6 +147,17 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
     })
 }
 
+/// Whether HTTP requests must use TLS.
+///
+/// True for the default host and any `https://` host, so real deployments
+/// are always HTTPS-only. An explicitly configured `http://` host - a local
+/// mock server in the test suite, or a plain-HTTP dev instance - is allowed
+/// to use plain HTTP, since forcing TLS there would simply make the
+/// configured host unusable.
+fn require_tls() -> bool {
+    !get_asvo_server_address().starts_with("http://")
+}
+
 impl AsvoClient {
     /// Get a new reqwest [Client] which has authenticated with the MWA ASVO
     /// v2 API. Uses the `MWA_ASVO_API_KEY` environment variable for login.
@@ -250,7 +261,7 @@ impl AsvoClient {
             .cookie_store(true)
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
-            .https_only(true)
+            .https_only(require_tls())
             .default_headers(headers)
             .timeout(Duration::from_secs(
                 api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
@@ -264,7 +275,7 @@ impl AsvoClient {
         Ok(ClientBuilder::new()
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
-            .https_only(true)
+            .https_only(require_tls())
             .timeout(Duration::from_secs(
                 api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
             ))

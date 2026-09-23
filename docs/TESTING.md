@@ -33,32 +33,64 @@ pure function, testable without a server.
 This layer covers goal 4, plus clap's own value parsers (image size, f64/i64
 ranges, `require_equals` booleans).
 
-### Layer 2 - record and playback with httpmock
+### Layer 2 - mock server tests with httpmock
 
 `httpmock` (0.8.x, `record` feature) runs a real local HTTP server with a
-synchronous API, which suits the blocking `reqwest` client.
+synchronous API, which suits the blocking `reqwest` client. It is a
+dev-dependency, so `Cargo.lock` must be regenerated (`./check.sh` does this
+via `cargo update`) and committed - CI runs `cargo test --locked` and will
+fail on a stale lock file.
 
-Recording (manual, never in CI):
+Pointing the client at the mock server needs no production code change: the
+base URL of every API call already comes from `MWA_ASVO_HOST`. The one thing
+that did need changing is TLS. Both `reqwest` clients were built with
+`https_only(true)`, which rejects the mock server's `http://127.0.0.1:PORT`
+address outright. `require_tls()` in `client.rs` now derives that flag from
+the configured host's scheme, so the default host and any `https://` host
+stay HTTPS-only, while an explicitly configured `http://` host - a mock
+server, or a plain-HTTP dev instance - is allowed.
 
-1. Start a mock server with a forwarding rule pointing at test-asvo.
-2. Point giant-squid at it by setting `MWA_ASVO_HOST` to the mock server's
-   base URL - no code change needed, because every API call already derives
-   its base URL from that variable.
-3. Exercise the command, then save the recording to `tests/fixtures/`.
+`tests/common/mod.rs` holds the harness. `TestEnv` starts a mock server,
+points `MWA_ASVO_HOST` at it, redirects `HOME` to a temporary directory so
+the real token cache is never touched, and optionally writes a valid cached
+session so `AsvoClient::new()` skips the login round trip. Because those
+variables are process-wide and cargo runs tests in parallel threads, the
+harness holds a mutex for the life of each test.
 
-Playback (in CI): a fresh `MockServer` loads the recording and serves the
-recorded interactions on its own base URL, so the tests set `MWA_ASVO_HOST`
-the same way. Proxy mode is only needed when a client's base URL cannot be
-overridden, which does not apply here.
+Recording is manual and never runs in CI. `tests/record.rs` is `#[ignore]`d
+and its module docs carry the exact command; in outline it starts a mock
+server forwarding to the target, points the client at it, exercises a
+read-only command, and saves the interactions. Run it with a throwaway
+`HOME` so a fresh login is captured and the real token cache is left alone.
+Only read-only endpoints are recorded: recording a submission would create a
+real job on the target server, so that is deliberately not automated.
+
+Playback loads a recording into a fresh `MockServer`, which serves the
+recorded interactions on its own base URL - the same `MWA_ASVO_HOST`
+injection the other tests use. Proxy mode is only needed when a client's
+base URL cannot be overridden, which does not apply here.
 
 Recordings cover the happy paths. Error paths cannot be recorded from a
-healthy server, so these stay hand-written `httpmock` mocks:
+healthy server, so these are hand-written `httpmock` mocks in
+`tests/apiv2_client.rs`:
 
-- `401` and `AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`, including the re-login
-  and retry path in `send_authed`.
+- A missing API key, a rejected login, and a failed login not being cached.
+- A valid cached session being reused; an expired access token being
+  refreshed; a failed refresh falling back to a fresh login; an expired
+  refresh token skipping the refresh entirely.
+- `AUTH_INVALID_TOKEN` driving exactly one re-login and one retry in
+  `send_authed`.
 - Structured `ErrorResponse` bodies mapping to `AsvoApiError::ApiError`.
 - Non-JSON error bodies mapping to `AsvoApiError::BadStatus`.
-- Download `404`, HTTP errors, hash mismatch, and resume via `RANGE`.
+- Job listing: `completed` mapping to `Ready`, `error_text` populating
+  `Error`, naive timestamps and a missing `modified` being normalised, and
+  unusable jobs being skipped rather than failing the listing.
+- Submission posting the exact body the CLI built, to the right endpoint,
+  and cancellation issuing a `DELETE` to the job resource.
+
+Still to write: download paths (`404`, HTTP errors, hash mismatch, resume
+via `RANGE`), and `get_jobs` pagination across more than one page, which
+needs a mock that varies its response per call.
 
 ### Layer 3 - opt-in live tests
 
@@ -86,13 +118,20 @@ deferred to the serialised group in layer 2.
 ## Fixture hygiene
 
 Recordings contain real access and refresh tokens, a user ID, a login name
-and an email address. They must be scrubbed before being committed. A
-`tools/` script should do this mechanically rather than by hand:
+and an email address. `tools/scrub_recording.py` replaces them with the same
+placeholder values the hand-written mocks use, including a JWT whose `exp`
+claim is in 2036 so a fixture does not expire:
 
-- replace `access_token` / `refresh_token` values with a dummy JWT whose
-  `exp` claim is far in the future,
-- replace `user_id`, `user_login`, `user_email` with fixed test values,
-- normalise timestamps so playback is deterministic.
+```text
+python3 tools/scrub_recording.py <recorded file> tests/fixtures/<name>.yaml
+```
+
+It refuses to write the output if anything still looks like a JWT or an email
+address, so a fixture cannot be committed half-scrubbed. Two fields are
+deliberately left alone: a job's own `id`, which is not a secret and which
+the tests assert on, and the login request's `login` field, which carries the
+client version string rather than a username - rewriting it would stop the
+recorded request matching what the client sends.
 
 A CI job should validate recorded request and response bodies against
 `src/asvo/apiv2/openapi-schema.json`, extending the existing
@@ -141,19 +180,25 @@ Deferred - no behaviour change made yet.
 
 ## Defects the tests surfaced
 
-- `submit-image --pol` defaults to `XX,YY`, but the schema's `Polarization`
-  type only accepts `XX`, `YY` or `XXYY`. Every `submit-image` run that does
-  not pass `--pol` explicitly therefore fails when the request body is built.
-  `submit_image_default_pol_is_rejected_by_the_schema` pins this so it stays
-  visible; correcting the default to `XXYY` would make that test fail, which
-  is the point.
+- `submit-image --pol` defaulted to `XX,YY`, which the schema's
+  `Polarization` type rejects - it accepts only `XX`, `YY` or `XXYY` - so
+  every `submit-image` run without an explicit `--pol` failed when the
+  request body was built. Fixed: the default now comes from the schema
+  (`XXYY`), like every other imaging default, and a value parser rejects an
+  unsupported polarisation at parse time.
+- The schema is inconsistent between the two imaging endpoints: `pol` is the
+  `Polarization` enum on `imaging_job` (default `XXYY`) but a free-form
+  string on `image_from_job` (default `XX,YY`). giant-squid follows each
+  endpoint, and only validates the enum one. Worth raising with the API dev.
 
 ## Phases
 
 | Phase | Work | Status |
 | --- | --- | --- |
 | 1 | Move `Args` into `src/cli/`, extract per-job-type params builders, add pure CLI tests | Done |
-| 2 | Add `httpmock` dev-dependency, recording script, fixture scrubbing | Not started |
-| 3 | Playback tests per endpoint, plus hand-written error-path mocks | Not started |
+| 2 | Add `httpmock` dev-dependency, test harness, recording script, fixture scrubbing | Done |
+| 3 | Hand-written error-path mocks (auth, error mapping, listing, submit, cancel) | Done |
+| 3b | Download-path mocks and `get_jobs` pagination | Not started |
+| 3c | Recorded fixtures from test-asvo, replayed offline | Needs a recording run |
 | 4 | Fixture schema validation in CI; drop `MWA_ASVO_API_KEY` from CI | Not started |
 | 5 | Optional: uniform `--dry-run` output plus snapshot tests | Deferred |

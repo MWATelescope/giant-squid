@@ -4,6 +4,11 @@
 
 pub mod client;
 mod error;
+// Generated code: typify emits a serde default helper for every schema
+// default, and not every one of them is reachable from the types we
+// actually use (e.g. `default_i64`). Allowed here, on the module
+// declaration, so it survives regeneration of openapi.rs itself.
+#[allow(dead_code)]
 pub mod openapi;
 
 pub use error::AsvoApiError;
