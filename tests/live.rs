@@ -68,7 +68,7 @@ const LIVE_TEST_OBSID: &str = "1384357952";
 /// An obsid with voltage data.
 const LIVE_VOLTAGE_OBSID: &str = "1360706032";
 /// An obsid with beamformer data.
-const LIVE_BEAMFORMER_OBSID: &str = "1465549448";
+const LIVE_BEAMFORMER_OBSID: &str = "1455379216";
 /// A well-formed obsid with no data behind it.
 const LIVE_NO_DATA_OBSID: &str = "1000000000";
 /// A job ID that no user has.
@@ -483,8 +483,22 @@ fn live_submit_conv() {
     let mut guard = JobGuard::new(&env);
 
     for args in [
-        vec!["submit-conv", "-r", LIVE_TEST_OBSID],
-        vec!["sc", "-r", "--output", "ms", LIVE_TEST_OBSID],
+        vec![
+            "submit-conv",
+            "-r",
+            "--delivery-format",
+            "tar",
+            LIVE_TEST_OBSID,
+        ],
+        vec![
+            "sc",
+            "-r",
+            "--output",
+            "ms",
+            "--delivery-format",
+            "tar",
+            LIVE_TEST_OBSID,
+        ],
     ] {
         for id in env.submit(&mut guard, &args) {
             env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_CONVERSION);
@@ -595,7 +609,17 @@ fn live_image_from_an_unfinished_conversion_is_rejected() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
 
-    let conv_id = env.submit(&mut guard, &["submit-conv", "-r", LIVE_TEST_OBSID])[0].to_string();
+    let conv_id = env.submit(
+        &mut guard,
+        &[
+            "submit-conv",
+            "-r",
+            "--delivery-format",
+            "tar",
+            LIVE_TEST_OBSID,
+        ],
+    )[0]
+    .to_string();
     env.submit_expecting_rejection(
         &mut guard,
         &[
