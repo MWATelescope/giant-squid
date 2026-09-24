@@ -115,6 +115,8 @@ const TYPE_DOWNLOAD_BEAMFORMER: &str = "DownloadBeamformer";
 const TYPE_IMAGING: &str = "Imaging";
 const STATE_CANCELLED: &str = "Cancelled";
 const STATE_ERROR: &str = "Error";
+/// States in which a job does no more work, so needs no cancelling.
+const FINISHED_STATES: [&str; 4] = [STATE_CANCELLED, STATE_ERROR, "Ready", "Expired"];
 
 /// A real MWA ASVO, with a test-only `HOME` for the token cache.
 struct LiveEnv {
@@ -296,9 +298,35 @@ impl Drop for JobGuard<'_> {
         let ids: Vec<String> = self.ids.iter().map(u64::to_string).collect();
         let mut cmd = self.env.command();
         cmd.arg("cancel").args(&ids);
-        let result = run(cmd);
-        if !result.success {
-            eprintln!("could not cancel jobs {ids:?}: {}", result.combined());
+        let cancel = run(cmd);
+
+        // `cancel` logs a failure for one job and carries on with a zero
+        // exit code, so check what the server now says about each job.
+        let mut list_args = vec!["list", "--json"];
+        list_args.extend(ids.iter().map(String::as_str));
+        let listing = self.env.run(&list_args);
+        let jobs = if listing.success {
+            listing.stdout_json()
+        } else {
+            Value::Null
+        };
+        let leaked: Vec<&String> = ids
+            .iter()
+            .filter(|id| !FINISHED_STATES.contains(&state_name(&jobs[id.as_str()]).as_str()))
+            .collect();
+        if leaked.is_empty() {
+            return;
+        }
+        let message = format!(
+            "jobs {leaked:?} may still be active on the server; cancel them by hand.\ncancel: {}\nlist: {}",
+            cancel.combined(),
+            listing.combined()
+        );
+        // Panicking while already unwinding would abort the whole run.
+        if std::thread::panicking() {
+            eprintln!("{message}");
+        } else {
+            panic!("{message}");
         }
     }
 }

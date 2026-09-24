@@ -74,14 +74,24 @@ pub fn parse_polarization(s: &str) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
-/// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
-/// defaults (via the generated builder's `Default`), used to source the
-/// clap arg defaults below so they can't drift from the schema. `obs_id` is
+/// The conversion delivery format giant-squid defaults to.
+///
+/// The schema's own default is `files`, but the server rejects `files` for
+/// its own default delivery, Acacia (`VALID_INVALID_VALUE`: Acacia jobs can
+/// only be delivered as zipped tar files). Every other job type defaults to
+/// `tar`, so conversion does too, until the schema default is fixed.
+const CONVERSION_DEFAULT_DELIVERY_FORMAT: DeliveryFormat = DeliveryFormat::Tar;
+
+/// A [`ConversionJobParams`] populated from the OpenAPI schema defaults (via
+/// the generated builder's `Default`), used to source the clap arg defaults
+/// below so they can't drift from the schema. The one exception is
+/// `delivery_format`; see [`CONVERSION_DEFAULT_DELIVERY_FORMAT`]. `obs_id` is
 /// required by the builder but irrelevant to the defaults - every real
 /// submission sets its own - so we pass a placeholder.
 pub fn conversion_defaults() -> ConversionJobParams {
     ConversionJobParams::builder()
         .obs_id(0_i64)
+        .delivery_format(CONVERSION_DEFAULT_DELIVERY_FORMAT)
         .try_into()
         .expect("BUG: a required ConversionJobParams field is missing from conversion_defaults()")
 }
