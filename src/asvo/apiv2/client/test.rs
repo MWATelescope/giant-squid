@@ -460,6 +460,66 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
     assert!(is_api_error(&err, "JOB_NOT_FOUND"), "got {err:?}");
 }
 
+/// Imaging submissions return a `JobSubmittedResponse`, like every other
+/// v2 submit endpoint, not a bare job ID.
+#[test]
+fn an_imaging_job_returns_a_job_submitted_response() {
+    let env = TestEnv::with_session();
+    let params = match Args::try_parse_from(["giant-squid", "submit-image", TEST_OBSID])
+        .expect("arguments should parse")
+    {
+        Args::SubmitImage { image, .. } => image
+            .to_params(TEST_OBSID_I64)
+            .expect("params should build"),
+        _ => panic!("expected submit-image"),
+    };
+
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/imaging_job");
+        then.status(200).json_body(job_submitted_response(779));
+    });
+
+    let client = AsvoClient::new().expect("client should be created");
+    let resp = client
+        .submit_imaging_job(&params)
+        .expect("submission should succeed");
+
+    assert_eq!(submit.calls(), 1);
+    assert_eq!(resp.job_id.get(), 779);
+}
+
+#[test]
+fn an_image_from_job_submission_returns_a_job_submitted_response() {
+    let env = TestEnv::with_session();
+    let params = match Args::try_parse_from([
+        "giant-squid",
+        "submit-image-from-job",
+        "--source-job-id",
+        "12345",
+        TEST_OBSID,
+    ])
+    .expect("arguments should parse")
+    {
+        Args::SubmitImageFromJob { image, .. } => image
+            .to_params(TEST_OBSID_I64)
+            .expect("params should build"),
+        _ => panic!("expected submit-image-from-job"),
+    };
+
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/image_from_job");
+        then.status(200).json_body(job_submitted_response(780));
+    });
+
+    let client = AsvoClient::new().expect("client should be created");
+    let resp = client
+        .submit_image_from_job(&params)
+        .expect("submission should succeed");
+
+    assert_eq!(submit.calls(), 1);
+    assert_eq!(resp.job_id.get(), 780);
+}
+
 // ---------------------------------------------------------------------------
 // Playback of a recording captured from a live MWA ASVO
 // ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ use mwa_giant_squid::asvo::apiv2::client::{
     ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };
+use mwa_giant_squid::asvo::apiv2::openapi::JobSubmittedResponse;
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
@@ -102,6 +103,17 @@ where
         obsids.len(),
         failures.join("\n  ")
     );
+}
+
+/// Print a submission's response as one line of JSON, for `--json`.
+///
+/// One compact object per submitted job, in submission order, so a caller
+/// can read the job IDs back without parsing log text.
+fn print_submitted_json(resp: &JobSubmittedResponse, json: bool) -> Result<(), anyhow::Error> {
+    if json {
+        println!("{}", serde_json::to_string(resp)?);
+    }
+    Ok(())
 }
 
 /// Report what a submission would have sent, for `--dry-run`.
@@ -404,6 +416,7 @@ fn main() -> Result<(), anyhow::Error> {
             download,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -432,6 +445,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let outcome = submit_each_obsid(&parsed_obsids, "visibility download", |o, id| {
                     let params = download.to_vis_params(id)?;
                     let resp = client.submit_download_vis_job(&params)?;
+                    print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(u64::from(job_id)) {
@@ -456,6 +470,7 @@ fn main() -> Result<(), anyhow::Error> {
             conv,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -483,6 +498,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let outcome = submit_each_obsid(&parsed_obsids, "conversion", |o, id| {
                     let params = conv.to_params(id)?;
                     let resp = client.submit_conversion_job(&params)?;
+                    print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(u64::from(job_id)) {
@@ -507,6 +523,7 @@ fn main() -> Result<(), anyhow::Error> {
             image,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -533,9 +550,11 @@ fn main() -> Result<(), anyhow::Error> {
 
                 let outcome = submit_each_obsid(&obsids, "imaging", |o, id| {
                     let params = image.to_params(id)?;
-                    let job_id = client.submit_imaging_job(&params)?;
+                    let resp = client.submit_imaging_job(&params)?;
+                    print_submitted_json(&resp, json)?;
+                    let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(job_id) {
+                    match AsvoJobID::try_from(u64::from(job_id)) {
                         Ok(id) => jobids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
@@ -561,6 +580,7 @@ fn main() -> Result<(), anyhow::Error> {
             image,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -595,11 +615,13 @@ fn main() -> Result<(), anyhow::Error> {
 
                 let params = image.to_params(obs_id_i64)?;
 
-                let job_id = client.submit_image_from_job(&params)?;
+                let resp = client.submit_image_from_job(&params)?;
+                print_submitted_json(&resp, json)?;
+                let job_id = resp.job_id;
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
 
                 if wait {
-                    match AsvoJobID::try_from(job_id) {
+                    match AsvoJobID::try_from(u64::from(job_id)) {
                         Ok(id) => wait_loop(&client, &[id])?,
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; cannot --wait",
@@ -614,6 +636,7 @@ fn main() -> Result<(), anyhow::Error> {
             download,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -641,6 +664,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let outcome = submit_each_obsid(&parsed_obsids, "metadata download", |o, id| {
                     let params = download.to_meta_params(id)?;
                     let resp = client.submit_download_vis_job(&params)?;
+                    print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(u64::from(job_id)) {
@@ -665,6 +689,7 @@ fn main() -> Result<(), anyhow::Error> {
             volt,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -692,6 +717,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let outcome = submit_each_obsid(&parsed_obsids, "voltage download", |o, id| {
                     let params = volt.to_params(id)?;
                     let resp = client.submit_voltage_job(&params)?;
+                    print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(u64::from(job_id)) {
@@ -716,6 +742,7 @@ fn main() -> Result<(), anyhow::Error> {
             bf,
             wait,
             dry_run,
+            json,
             verbosity,
             obsids,
         } => {
@@ -743,6 +770,7 @@ fn main() -> Result<(), anyhow::Error> {
                 let outcome = submit_each_obsid(&parsed_obsids, "beamformer download", |o, id| {
                     let params = bf.to_params(id)?;
                     let resp = client.submit_beamformer_job(&params)?;
+                    print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     match AsvoJobID::try_from(u64::from(job_id)) {

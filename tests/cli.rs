@@ -231,6 +231,60 @@ fn several_obsids_are_submitted_one_request_each() {
     assert_eq!(submit.calls(), 3);
 }
 
+/// `--json` prints the server's `JobSubmittedResponse` for each submitted
+/// job, one compact object per line, so scripts need not parse log text.
+#[test]
+fn json_prints_one_submitted_response_per_obsid() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/download_vis_job");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(4321));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--json", "1061311664", "1061311784"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let responses: Vec<serde_json::Value> = result
+        .stdout
+        .lines()
+        .filter(|l| l.trim_start().starts_with('{'))
+        .map(|l| serde_json::from_str(l.trim()).expect("each JSON line should parse"))
+        .collect();
+    assert_eq!(responses.len(), 2, "stdout: {}", result.stdout);
+    for resp in &responses {
+        assert_eq!(resp["job_id"], 4321);
+        assert_eq!(resp["status"], "success");
+    }
+}
+
+#[test]
+fn json_works_for_image_from_job_submissions() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/image_from_job");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(4322));
+    });
+
+    let mut cmd = env.command();
+    cmd.args([
+        "submit-image-from-job",
+        "--json",
+        "--source-job-id",
+        "12345",
+        TEST_OBSID,
+    ]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(result.stdout_json()["job_id"], 4322);
+}
+
 /// The delivery defaults can come from the environment, which clap reads at
 /// parse time - the one part of the CLI matrix the in-process tests cannot
 /// exercise, since the value must be set before the process starts.

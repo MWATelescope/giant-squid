@@ -648,17 +648,14 @@ impl AsvoClient {
         Ok(AsvoJobVec(all_jobs))
     }
 
-    /// Submit an MWA ASVO v2 imaging job. Returns the new job's ID.
+    /// Submit an MWA ASVO v2 imaging job (flow 1: from an obsid).
     ///
-    /// ASSUMPTION (unconfirmed against the real server): POST to
-    /// /api/v2/imaging_job, and a 200 response body is a bare JSON
-    /// integer (the job ID) - both per the original hand-written spec for
-    /// this endpoint, from before real generated types existed. Given
-    /// that both the job-listing endpoint's path (/job_history guessed,
-    /// /get_jobs actual) and its timestamp format turned out to need
-    /// correction against the real server, treat this the same way:
-    /// probably needs adjusting once tried for real.
-    pub fn submit_imaging_job(&self, params: &ImagingJobFlow1Params) -> Result<i64, AsvoApiError> {
+    /// Like every other v2 submit endpoint, a success returns a
+    /// `JobSubmittedResponse` carrying the new job's ID.
+    pub fn submit_imaging_job(
+        &self,
+        params: &ImagingJobFlow1Params,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting an imaging job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -671,14 +668,14 @@ impl AsvoClient {
                 .json(params)
         })?;
 
-        let job_id: i64 = serde_json::from_str(&body)?;
-        Ok(job_id)
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
     }
 
     pub fn submit_image_from_job(
         &self,
         params: &ImagingJobFlow2Params,
-    ) -> Result<i64, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -691,8 +688,8 @@ impl AsvoClient {
                 .json(params)
         })?;
 
-        let job_id: i64 = serde_json::from_str(&body)?;
-        Ok(job_id)
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
     }
 
     pub fn submit_download_vis_job(

@@ -127,6 +127,11 @@ pub enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[arg(short, long, action=ArgAction::Count)]
@@ -156,6 +161,11 @@ pub enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[arg(short, long, action=ArgAction::Count)]
@@ -184,6 +194,11 @@ pub enum Args {
         /// instead.
         #[arg(short = 'n', long)]
         dry_run: bool,
+
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
@@ -217,6 +232,11 @@ pub enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[arg(short, long, action=ArgAction::Count)]
@@ -245,6 +265,11 @@ pub enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[arg(short, long, action=ArgAction::Count)]
@@ -272,6 +297,11 @@ pub enum Args {
         #[arg(short = 'n', long)]
         dry_run: bool,
 
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information.
         #[arg(short, long, action=ArgAction::Count)]
@@ -298,6 +328,11 @@ pub enum Args {
         /// instead.
         #[arg(short = 'n', long)]
         dry_run: bool,
+
+        /// Print each submitted job's response from the MWA ASVO as one line
+        /// of JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.

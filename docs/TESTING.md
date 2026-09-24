@@ -119,9 +119,31 @@ developer's own settings cannot leak into a run.
 
 ### Layer 3 - opt-in live tests
 
-A small `#[ignore]`d or feature-gated suite that talks to a real server, run
-by hand only. Once layers 1 and 2 exist, the `MWA_ASVO_API_KEY` secret can be
-removed from `run-tests.yaml` and `coverage.yml`.
+`tests/live.rs` runs the built binary against a real MWA ASVO. Every test is
+`#[ignore]`d, so CI never runs it. Run it by hand:
+
+```text
+MWA_ASVO_E2E_TARGET=https://test-asvo.mwatelescope.org \
+MWA_ASVO_API_KEY=<your key> \
+  cargo test --test live -- --ignored --nocapture
+```
+
+It covers every command except `download` (a job is not ready in the time a
+test runs): each submit command and its alias with `--allow-resubmit`,
+`list` and its filters, `cancel`, `wait` on a cancelled and an unknown job,
+and server rejections - a duplicate without `--allow-resubmit`, an obsid
+with no data, `submit-image-from-job` from an unfinished or unknown job, an
+unknown job ID (`JOB_NOT_FOUND`), a bad API key, and a cached token the
+server did not issue (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`, then a fresh
+login). Job IDs come from the submit commands' `--json` output.
+
+The production host is refused unless `MWA_ASVO_E2E_ALLOW_PRODUCTION=1` is
+set. The server allows 5 logins a minute, so the tests share one token cache
+(a `HOME` under `CARGO_TARGET_TMPDIR`, keyed by host and API key) and log in
+at most once per run; the two authentication tests use their own `HOME` and
+log in themselves. The tests take a lock, so they run one at a time. Every
+job a test submits is cancelled when it ends, pass or fail. See the module
+docs for details.
 
 ## Test environment isolation
 
