@@ -79,7 +79,9 @@ const LIVE_VOLTAGE_DURATION_SECS: &str = "8";
 /// A look-back window for `list --days`.
 const LIVE_LIST_DAYS: &str = "7";
 /// A short look-back window, for the one request that primes the session.
-const LIVE_LOGIN_LIST_DAYS: &str = "1";
+/// The smallest value the server accepts: the schema limits `days` to
+/// more than 1 and at most 30.
+const LIVE_LOGIN_LIST_DAYS: &str = "2";
 
 /// The directory, under `CARGO_TARGET_TMPDIR`, holding the shared `HOME`s.
 const LIVE_HOME_DIR: &str = "live-home";
