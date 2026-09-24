@@ -17,7 +17,7 @@ env:
   CARGO_TERM_COLOR: always
   # No MWA ASVO credentials here on purpose: every test runs against a local
   # mock server (see docs/TESTING.md), and the one test that talks to a real
-  # server, tests/record.rs, is #[ignore]d and run by hand.
+  # server, record_login_and_get_jobs, is #[ignore]d and run by hand.
 
 jobs:
   test:

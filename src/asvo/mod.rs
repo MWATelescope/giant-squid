@@ -8,6 +8,9 @@ mod error;
 mod token_store;
 mod types;
 
+#[cfg(test)]
+mod test;
+
 use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
 pub use apiv2::client::AsvoClient;

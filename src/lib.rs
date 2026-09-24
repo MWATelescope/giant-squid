@@ -12,6 +12,8 @@ pub mod asvo;
 pub mod cli;
 mod helpers;
 pub mod obsid;
+#[cfg(test)]
+mod test_common;
 
 // Re-exports.
 pub use asvo::*;

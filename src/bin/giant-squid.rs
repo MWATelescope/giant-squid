@@ -85,7 +85,12 @@ where
     }
 
     let submitted = obsids.len() - failures.len();
-    info!("Submitted {} of {} obsids for {}.", submitted, obsids.len(), description);
+    info!(
+        "Submitted {} of {} obsids for {}.",
+        submitted,
+        obsids.len(),
+        description
+    );
 
     if failures.is_empty() {
         return Ok(());
@@ -386,7 +391,11 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Downloaded {} of {}.", t - failures, t);
 
                 if failures > 0 {
-                    bail!("{} of {} downloads failed; see the errors above.", failures, t);
+                    bail!(
+                        "{} of {} downloads failed; see the errors above.",
+                        failures,
+                        t
+                    );
                 }
             }
         }

@@ -50,15 +50,17 @@ the configured host's scheme, so the default host and any `https://` host
 stay HTTPS-only, while an explicitly configured `http://` host - a mock
 server, or a plain-HTTP dev instance - is allowed.
 
-`tests/common/mod.rs` holds the harness. `TestEnv` starts a mock server,
+`src/test_common.rs` holds the harness (`#[cfg(test)]`, and also pulled into
+`tests/common/mod.rs` for the subprocess tests). `TestEnv` starts a mock server,
 points `MWA_ASVO_HOST` at it, redirects `HOME` to a temporary directory so
 the real token cache is never touched, and optionally writes a valid cached
 session so `AsvoClient::new()` skips the login round trip. Because those
 variables are process-wide and cargo runs tests in parallel threads, the
 harness holds a mutex for the life of each test.
 
-Recording is manual and never runs in CI. `tests/record.rs` is `#[ignore]`d
-and its module docs carry the exact command; in outline it starts a mock
+Recording is manual and never runs in CI. `record_login_and_get_jobs` in
+`src/asvo/apiv2/client/test.rs` is `#[ignore]`d and its section notes carry
+the exact command; in outline it starts a mock
 server forwarding to the target, points the client at it, exercises a
 read-only command, and saves the interactions. Run it with a throwaway
 `HOME` so a fresh login is captured and the real token cache is left alone.
@@ -72,7 +74,7 @@ base URL cannot be overridden, which does not apply here.
 
 Recordings cover the happy paths. Error paths cannot be recorded from a
 healthy server, so these are hand-written `httpmock` mocks in
-`tests/apiv2_client.rs`:
+`src/asvo/apiv2/client/test.rs`:
 
 - A missing API key, a rejected login, and a failed login not being cached.
 - A valid cached session being reused; an expired access token being
@@ -88,10 +90,10 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-`tests/download.rs` covers the download path as far as it can go today:
+`src/asvo/test.rs` covers the download path as far as it can go today:
 an unknown job ID, a job that is not ready, an unknown obsid, an obsid whose
 only job is unfinished, and an obsid with several ready jobs. Pagination is
-covered too - `tests/apiv2_client.rs` serves two pages by matching on the
+covered too - `src/asvo/apiv2/client/test.rs` serves two pages by matching on the
 `offset` the client sends, so no per-call response variation is needed.
 
 Still to write: a successful download, hash verification, tar handling and
@@ -100,7 +102,9 @@ resume via `RANGE`. Those are blocked - see below.
 ### Layer 2b - the binary, end to end
 
 `tests/cli.rs` runs the built binary as a subprocess (via
-`CARGO_BIN_EXE_giant-squid`, so no extra dependency) against a mock server.
+`CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is the only test
+file left in `tests/`, because Cargo sets that variable only for integration
+tests. It runs against a mock server.
 It covers what only `main` can answer: `--dry-run` making no request at all,
 exit codes, the `No obsids specified` and job-ID-instead-of-obsid guards,
 `--json` output, state filtering, a rejected cancellation being logged
@@ -171,7 +175,7 @@ client version string rather than a username - rewriting it would stop the
 recorded request matching what the client sends.
 
 Recorded bodies are already validated against the schema, indirectly but
-effectively: `tests/playback.rs` drives the real client over the fixture, so
+effectively: the playback tests in `src/asvo/apiv2/client/test.rs` drives the real client over the fixture, so
 each recorded response is deserialised through the types generated from
 `openapi-schema.json`. If the schema is regenerated with a renamed or newly
 required field, that test fails rather than the fixture silently describing
@@ -249,8 +253,8 @@ progress reporting), and a job left with nothing usable reports
 deliveries carry a `path` instead of a `url`; those are mapped but have no
 recorded sample yet.
 
-`tests/playback.rs` replays the recording and pins the mapping against that
-real payload. `tests/download.rs` now runs a download end to end, with the
+the playback tests in `src/asvo/apiv2/client/test.rs` replays the recording and pins the mapping against that
+real payload. `src/asvo/test.rs` now runs a download end to end, with the
 mock server serving the file as well as the API.
 
 One thing the recording also showed: `job_params.obs_id` came back as a
@@ -297,7 +301,7 @@ already accepts both.
 
   A server that ignores the range request and answers `200` instead of
   `206` is now detected, and the download restarts from the beginning
-  rather than appending. Tests in `tests/download.rs` cover resume, an
+  rather than appending. Tests in `src/asvo/test.rs` cover resume, an
   already-complete file, a complete-but-corrupt file, `--no-resume`, and the
   ignored-range case.
 

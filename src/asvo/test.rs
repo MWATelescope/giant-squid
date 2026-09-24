@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Integration tests for the download path, run against a local mock
+//! Tests for the download path, run against a local mock
 //! server. Nothing is fetched from Acacia.
 //!
 //! The mock server serves the job's file as well as the API, so a real
@@ -12,16 +12,14 @@
 //! Resume is not covered here; see the resume defects noted in
 //! docs/TESTING.md, which need fixing before a test can pin the behaviour.
 
-mod common;
-
-use common::*;
 use httpmock::prelude::*;
 use indicatif::ProgressBar;
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
-use mwa_giant_squid::asvo::{AsvoClient, AsvoError, DownloadOptions};
+use crate::asvo::{AsvoClient, AsvoError, DownloadOptions};
+use crate::test_common::*;
 
 /// The name the file is served under, and so the name it lands under:
 /// the output path is the last segment of the download URL.

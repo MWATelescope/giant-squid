@@ -1027,3 +1027,6 @@ fn product_to_files(
 
     Some(mapped)
 }
+
+#[cfg(test)]
+mod test;

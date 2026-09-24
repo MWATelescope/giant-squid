@@ -354,10 +354,7 @@ fn one_failing_obsid_does_not_stop_the_others() {
         "the second obsid should still be attempted: {output}"
     );
     assert!(!result.success, "the run should fail overall: {output}");
-    assert!(
-        output.contains("JOB_ALREADY_SUBMITTED"),
-        "output: {output}"
-    );
+    assert!(output.contains("JOB_ALREADY_SUBMITTED"), "output: {output}");
     assert!(
         output.contains("Submitted 1 of 2 obsids"),
         "the summary should count both: {output}"
@@ -387,10 +384,7 @@ fn every_failure_is_listed_at_the_end() {
             "{obsid} should appear in the failure report: {output}"
         );
     }
-    assert!(
-        output.contains("3 of 3 obsids failed"),
-        "output: {output}"
-    );
+    assert!(output.contains("3 of 3 obsids failed"), "output: {output}");
 }
 
 #[test]
