@@ -14,6 +14,8 @@ mod helpers;
 pub mod obsid;
 #[cfg(test)]
 mod test_common;
+#[cfg(test)]
+mod test_config;
 
 // Re-exports.
 pub use asvo::*;

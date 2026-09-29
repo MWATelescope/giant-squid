@@ -8,10 +8,14 @@
 //! own token cache, so that logging in with either client makes a valid
 //! session available to the other. The location and JSON shape here
 //! (`$HOME/.mwa-asvo/tokens.json`) must stay in sync with mwa-cli's format.
+//!
+//! The library reads no environment variables, so the caller supplies the
+//! cache path. [`default_token_cache_path`] gives the path mwa-cli uses,
+//! relative to a home directory that the caller finds.
 
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -22,6 +26,13 @@ use serde::{Deserialize, Serialize};
 /// valid. This avoids a token expiring mid-flight between the check and the
 /// request actually being sent.
 const EXPIRY_SAFETY_BUFFER: Duration = Duration::from_secs(30);
+
+/// The token cache directory, relative to the home directory. Shared with
+/// mwa-cli.
+const TOKEN_CACHE_DIR: &str = ".mwa-asvo";
+/// The token cache file name, inside [`TOKEN_CACHE_DIR`]. Shared with
+/// mwa-cli.
+const TOKEN_CACHE_FILE: &str = "tokens.json";
 
 /// A cached MWA ASVO JWT session, as persisted to disk.
 ///
@@ -52,14 +63,12 @@ impl StoredTokens {
     }
 }
 
-/// Returns `$HOME/.mwa-asvo/tokens.json`, or `None` if `HOME` isn't set.
-///
-/// A missing `HOME` is not an error condition for callers: it just means
-/// session caching isn't available, and every command should fall back to
-/// a fresh login.
-fn token_path() -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(PathBuf::from(home).join(".mwa-asvo").join("tokens.json"))
+/// Returns `<home>/.mwa-asvo/tokens.json`: the token cache that mwa-cli
+/// also uses. Pass the result as
+/// [`AsvoClientConfig::token_cache_path`](crate::AsvoClientConfig::token_cache_path)
+/// to share sessions with mwa-cli.
+pub fn default_token_cache_path(home: &Path) -> PathBuf {
+    home.join(TOKEN_CACHE_DIR).join(TOKEN_CACHE_FILE)
 }
 
 /// Load cached tokens from disk, if any exist and are readable/parseable.
@@ -67,10 +76,8 @@ fn token_path() -> Option<PathBuf> {
 /// Any failure here (file missing, unreadable, corrupt JSON, wrong shape)
 /// is treated as "no usable cached session" rather than a hard error, since
 /// falling back to a fresh login is always a safe recovery path.
-pub fn load() -> Option<StoredTokens> {
-    let path = token_path()?;
-
-    let contents = match fs::read_to_string(&path) {
+pub fn load(path: &Path) -> Option<StoredTokens> {
+    let contents = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
             debug!(
@@ -95,19 +102,14 @@ pub fn load() -> Option<StoredTokens> {
     }
 }
 
-/// Persist tokens to disk at `$HOME/.mwa-asvo/tokens.json`, creating the
-/// directory if needed and restricting permissions to the current user.
+/// Persist tokens to disk at `path`, creating the directory if needed and
+/// restricting permissions to the current user.
 ///
 /// This is best-effort: a failure to save is logged but is not treated as
 /// fatal, since the JWT itself is still usable for the remainder of this
 /// process even if we couldn't cache it for next time.
-pub fn save(tokens: &StoredTokens) {
-    let Some(path) = token_path() else {
-        debug!("HOME is not set; skipping caching of MWA ASVO session");
-        return;
-    };
-
-    if let Err(e) = save_inner(&path, tokens) {
+pub fn save(path: &Path, tokens: &StoredTokens) {
+    if let Err(e) = save_inner(path, tokens) {
         debug!(
             "Could not cache MWA ASVO session to {}: {}",
             path.display(),
@@ -116,7 +118,7 @@ pub fn save(tokens: &StoredTokens) {
     }
 }
 
-fn save_inner(path: &PathBuf, tokens: &StoredTokens) -> io::Result<()> {
+fn save_inner(path: &Path, tokens: &StoredTokens) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

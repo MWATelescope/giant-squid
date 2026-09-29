@@ -23,6 +23,7 @@ use mwa_giant_squid::asvo::apiv2::client::{
 };
 use mwa_giant_squid::asvo::apiv2::openapi::JobSubmittedResponse;
 use mwa_giant_squid::asvo::*;
+use mwa_giant_squid::cli::config::client_config_from_env;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
 
@@ -38,12 +39,17 @@ fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     pb
 }
 
+/// Log in to the MWA ASVO with the config from the environment.
+fn connect() -> anyhow::Result<AsvoClient> {
+    Ok(AsvoClient::new(client_config_from_env()?)?)
+}
+
 fn run_jobid_download(jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let client = AsvoClient::new()?;
+    let client = connect()?;
     client.download_jobid(jobid, opts)?;
     Ok(())
 }
@@ -53,7 +59,7 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
-    let client = AsvoClient::new()?;
+    let client = connect()?;
     client.download_obsid(obsid, opts)?;
     Ok(())
 }
@@ -260,7 +266,7 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
-            let client = AsvoClient::new()?;
+            let client = connect()?;
             let mut jobs = client.get_jobs(days)?;
             match (jobids, obsids) {
                 (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
@@ -439,7 +445,7 @@ fn main() -> Result<(), anyhow::Error> {
                     download.to_vis_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&parsed_obsids, "visibility download", |o, id| {
@@ -492,7 +498,7 @@ fn main() -> Result<(), anyhow::Error> {
                     conv.to_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&parsed_obsids, "conversion", |o, id| {
@@ -545,7 +551,7 @@ fn main() -> Result<(), anyhow::Error> {
                     image.to_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&obsids, "imaging", |o, id| {
@@ -607,7 +613,7 @@ fn main() -> Result<(), anyhow::Error> {
                     image.to_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
 
                 let o = &obsids[0];
                 let obs_id_i64 = i64::try_from(u64::from(*o))
@@ -658,7 +664,7 @@ fn main() -> Result<(), anyhow::Error> {
                     download.to_meta_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&parsed_obsids, "metadata download", |o, id| {
@@ -711,7 +717,7 @@ fn main() -> Result<(), anyhow::Error> {
                     volt.to_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&parsed_obsids, "voltage download", |o, id| {
@@ -764,7 +770,7 @@ fn main() -> Result<(), anyhow::Error> {
                     bf.to_params(obs_id)
                 })?;
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
                 let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
 
                 let outcome = submit_each_obsid(&parsed_obsids, "beamformer download", |o, id| {
@@ -802,7 +808,7 @@ fn main() -> Result<(), anyhow::Error> {
                 bail!("No jobids specified!");
             }
             init_logger(verbosity);
-            let client = AsvoClient::new()?;
+            let client = connect()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
             wait_loop(&client, &parsed_jobids)?;
@@ -839,7 +845,7 @@ fn main() -> Result<(), anyhow::Error> {
                     parsed_jobids.len()
                 );
             } else {
-                let client = AsvoClient::new()?;
+                let client = connect()?;
 
                 let mut cancelled_count = 0;
                 for j in parsed_jobids {

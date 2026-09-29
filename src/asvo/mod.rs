@@ -13,16 +13,16 @@ mod test;
 
 use crate::check_file_sha1_hash;
 use crate::obsid::Obsid;
-pub use apiv2::client::AsvoClient;
+pub use apiv2::client::{AsvoClient, AsvoClientConfig, DEFAULT_API_TIMEOUT};
 pub use apiv2::AsvoApiError;
 pub use error::AsvoError;
-pub use token_store::StoredTokens;
+pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{
     AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
     Delivery, DownloadOptions,
 };
 
-use std::env::{current_dir, var, VarError};
+use std::env::{current_dir, var};
 use std::fs::{rename, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -37,27 +37,18 @@ use sha1::{Digest, Sha1};
 use tar::Archive;
 use tee_readwrite::TeeReader;
 
-const CONST_ENV_MWA_ASVO_HOST: &str = "MWA_ASVO_HOST";
 const CONST_ENV_GIANT_SQUID_BUF_SIZE: &str = "GIANT_SQUID_BUF_SIZE";
 const CONST_ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS: &str = "GIANT_SQUID_DOWNLOAD_RETRY_SECS";
-const CONST_DEFAULT_URL: &str = "https://asvo.mwatelescope.org:443";
+
+/// The production MWA ASVO host. Callers that do not need a different
+/// server (for example a test or development instance) use this as
+/// [`AsvoClientConfig::host`].
+pub const DEFAULT_ASVO_HOST: &str = "https://asvo.mwatelescope.org:443";
 
 /// How long a download keeps retrying transient failures before giving up.
 /// Matches `ExponentialBackoff`'s own default, so behaviour is unchanged
 /// unless overridden.
 const CONST_DEFAULT_DOWNLOAD_RETRY_SECS: u64 = 900;
-
-// Returns a custom MWA ASVO host address (via a set env var)
-// or returns VarError::NotPresent error when not set
-pub fn get_asvo_server_address_env() -> Result<String, VarError> {
-    std::env::var(CONST_ENV_MWA_ASVO_HOST)
-}
-
-pub fn get_asvo_server_address() -> String {
-    get_asvo_server_address_env()
-        .unwrap_or_else(|_| String::from(CONST_DEFAULT_URL))
-        .to_string()
-}
 
 /// Look up a single job by job ID from the supplied list and download it.
 pub(crate) fn download_by_jobid(

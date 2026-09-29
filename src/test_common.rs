@@ -7,12 +7,14 @@
 //! Every test here runs against a local [`MockServer`], never a real MWA
 //! ASVO. Two things make that safe and repeatable:
 //!
-//! 1. `MWA_ASVO_HOST` points the client at the mock server, and `HOME`
-//!    points the token cache at a temporary directory, so a developer's
-//!    real `~/.mwa-asvo/tokens.json` is never read or written.
-//! 2. Those variables are process-wide, and cargo runs tests in parallel
-//!    threads, so [`TestEnv`] holds a lock for the life of the test. Tests
-//!    using it therefore run one at a time.
+//! 1. The client is built from an explicit config (see
+//!    `src/test_config.rs`) that points it at the mock server, with the
+//!    token cache in a temporary directory, so a developer's real
+//!    `~/.mwa-asvo/tokens.json` is never read or written.
+//! 2. The download code still reads `GIANT_SQUID_DOWNLOAD_RETRY_SECS`. That
+//!    variable is process-wide, and cargo runs tests in parallel threads,
+//!    so [`TestEnv`] holds a lock for the life of the test. Tests using it
+//!    therefore run one at a time.
 //!
 //! This file is compiled twice: as `crate::test_common` for the unit tests,
 //! and via `#[path]` from `tests/common/mod.rs` for the subprocess tests in
@@ -22,7 +24,9 @@
 
 #![allow(dead_code)]
 
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
+use std::time::Duration as StdDuration;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -32,11 +36,13 @@ use httpmock::Mock;
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
-/// Serialises access to the environment variables the client reads.
+/// Serialises access to the environment variables the library still reads.
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// Values the harness uses in place of real credentials and user details.
 pub const TEST_API_KEY: &str = "not-a-real-api-key";
+/// The API timeout for clients built against the mock server.
+pub const TEST_API_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 pub const TEST_USER_ID: i64 = 4242;
 pub const TEST_USER_LOGIN: &str = "test_user";
 pub const TEST_USER_EMAIL: &str = "test_user@example.org";
@@ -47,18 +53,15 @@ pub const TEST_OBSID_I64: i64 = 1065880128;
 pub const TEST_JOBID: u32 = 12345;
 
 /// The environment variables the harness overrides.
-const MANAGED_VARS: [&str; 5] = [
-    "MWA_ASVO_HOST",
-    "MWA_ASVO_API_KEY",
-    "MWA_ASVO_API_TIMEOUT",
-    "GIANT_SQUID_DOWNLOAD_RETRY_SECS",
-    "HOME",
-];
+const MANAGED_VARS: [&str; 1] = ["GIANT_SQUID_DOWNLOAD_RETRY_SECS"];
 
-/// A mock MWA ASVO, with the environment pointed at it.
+/// A mock MWA ASVO, plus the values a client config needs to reach it.
 pub struct TestEnv {
     pub server: MockServer,
     home: TempDir,
+    /// The API key to put in the client config. Empty for
+    /// [`Self::without_api_key`].
+    api_key: &'static str,
     saved: Vec<(&'static str, Option<String>)>,
     _guard: MutexGuard<'static, ()>,
 }
@@ -81,8 +84,8 @@ impl TestEnv {
 
     /// As [`Self::without_session`], but with no API key either.
     pub fn without_api_key() -> Self {
-        let env = Self::bare();
-        clear_env("MWA_ASVO_API_KEY");
+        let mut env = Self::bare();
+        env.api_key = "";
         env
     }
 
@@ -96,24 +99,38 @@ impl TestEnv {
         let server = MockServer::start();
         let home = TempDir::new().expect("could not create a temporary HOME");
 
-        set_env("MWA_ASVO_HOST", &server.base_url());
-        set_env("MWA_ASVO_API_KEY", TEST_API_KEY);
-        set_env("MWA_ASVO_API_TIMEOUT", "5");
         // Without this, a test that deliberately triggers a transient
         // download failure retries under exponential backoff for fifteen
         // minutes - while holding ENV_LOCK, which stalls every other test.
         set_env("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "0");
-        set_env("HOME", &home.path().display().to_string());
 
         Self {
             server,
             home,
+            api_key: TEST_API_KEY,
             saved,
             _guard: guard,
         }
     }
 
-    /// Write a cached session to the temporary `HOME`, with the supplied
+    /// The mock server's base URL, for the client config's host.
+    pub fn base_url(&self) -> String {
+        self.server.base_url()
+    }
+
+    /// The API key for the client config (empty for
+    /// [`Self::without_api_key`]).
+    pub fn api_key(&self) -> &str {
+        self.api_key
+    }
+
+    /// The token cache path for the client config, inside the temporary
+    /// home directory.
+    pub fn token_cache_path(&self) -> PathBuf {
+        token_cache_path_at(self.home.path())
+    }
+
+    /// Write a cached session to the temporary home directory, with the supplied
     /// tokens. The stored expiry timestamps are taken from each token's own
     /// `exp` claim, so the file is self-consistent.
     pub fn write_session(&self, access_token: String, refresh_token: String) {
@@ -123,7 +140,7 @@ impl TestEnv {
     /// The cached session as it stands on disk, or `None` if there isn't
     /// one. Lets a test check that a login or refresh was persisted.
     pub fn cached_session(&self) -> Option<Value> {
-        let path = self.home.path().join(".mwa-asvo").join("tokens.json");
+        let path = self.token_cache_path();
         let contents = std::fs::read_to_string(path).ok()?;
         serde_json::from_str(&contents).ok()
     }
@@ -169,10 +186,17 @@ impl Drop for TestEnv {
     }
 }
 
-/// Write a token cache under `home`, as the client expects to find it.
+/// The token cache path under `home`, as the CLI sets it (the path mwa-cli
+/// also uses).
+fn token_cache_path_at(home: &std::path::Path) -> PathBuf {
+    home.join(".mwa-asvo").join("tokens.json")
+}
+
+/// Write a token cache under `home`, as the CLI expects to find it.
 pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_token: String) {
-    let dir = home.join(".mwa-asvo");
-    std::fs::create_dir_all(&dir).expect("could not create the token cache directory");
+    let path = token_cache_path_at(home);
+    let dir = path.parent().expect("the token cache path has a parent");
+    std::fs::create_dir_all(dir).expect("could not create the token cache directory");
     let tokens = json!({
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -182,11 +206,8 @@ pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_to
         "user_login": TEST_USER_LOGIN,
         "user_email": TEST_USER_EMAIL,
     });
-    std::fs::write(
-        dir.join("tokens.json"),
-        serde_json::to_string_pretty(&tokens).unwrap(),
-    )
-    .expect("could not write the token cache");
+    std::fs::write(&path, serde_json::to_string_pretty(&tokens).unwrap())
+        .expect("could not write the token cache");
 }
 
 /// A JWT whose payload carries an `exp` claim `seconds` from now.

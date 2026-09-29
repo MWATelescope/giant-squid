@@ -8,13 +8,15 @@
 //! `refresh`, JWT `exp` decoding, and the on-disk token cache shared with
 //! mwa-cli) uses the request/response types generated from the MWA ASVO
 //! OpenAPI schema (see `super::openapi`) instead of hand-rolled structs.
-//! `token_store` and `get_asvo_server_address` are shared infrastructure
-//! and are used directly from `crate::asvo` rather than being duplicated
-//! here.
+//! `token_store` is shared infrastructure and is used directly from
+//! `crate::asvo` rather than being duplicated here.
+//!
+//! The client reads no environment variables: the caller supplies the host,
+//! API key, timeout and token cache path in an [`AsvoClientConfig`].
 
 use std::cell::RefCell;
-use std::env::var;
 use std::num::NonZeroU64;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -26,9 +28,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    download_by_jobid, download_by_obsid, get_asvo_server_address, get_asvo_server_address_env,
-    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
-    DownloadOptions,
+    download_by_jobid, download_by_obsid, AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState,
+    AsvoJobType, AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
 use crate::obsid::Obsid;
@@ -41,9 +42,11 @@ use super::openapi::{
     UserResponse, VoltageJobParams,
 };
 
-const CONST_ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
-const CONST_ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
-const CONST_DEFAULT_MWA_ASVO_API_TIMEOUT: u64 = 60;
+/// The default timeout for a single MWA ASVO API request.
+pub const DEFAULT_API_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The URL scheme that permits plain HTTP. See [`require_tls`].
+const PLAIN_HTTP_SCHEME: &str = "http://";
 
 /// User-agent string sent on every request to the MWA ASVO.
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -68,6 +71,40 @@ pub const ENDPOINT_BEAMFORMER_JOB: &str = "/api/v2/beamformer_job";
 pub const ENDPOINT_IMAGING_JOB: &str = "/api/v2/imaging_job";
 pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/image_from_job";
 
+/// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
+///
+/// The library reads no environment variables. A caller (such as the
+/// giant-squid CLI) finds these values and builds the config.
+#[derive(Debug, Clone)]
+pub struct AsvoClientConfig {
+    /// The MWA ASVO base URL, for example [`DEFAULT_ASVO_HOST`]. An
+    /// `http://` host is permitted (a local mock server or a plain-HTTP
+    /// development instance); any other host must use TLS.
+    pub host: String,
+    /// The user's MWA ASVO API key.
+    pub api_key: String,
+    /// The timeout for a single API request.
+    pub api_timeout: Duration,
+    /// Where to cache the session tokens between runs. `None` keeps the
+    /// session in memory only, so every new client logs in again. Use
+    /// [`default_token_cache_path`](crate::default_token_cache_path) to
+    /// share the cache with mwa-cli.
+    pub token_cache_path: Option<PathBuf>,
+}
+
+impl AsvoClientConfig {
+    /// A config for `host` and `api_key`, with the default timeout
+    /// ([`DEFAULT_API_TIMEOUT`]) and no token cache.
+    pub fn new(host: impl Into<String>, api_key: impl Into<String>) -> Self {
+        Self {
+            host: host.into(),
+            api_key: api_key.into(),
+            api_timeout: DEFAULT_API_TIMEOUT,
+            token_cache_path: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
@@ -79,12 +116,11 @@ pub struct AsvoClient {
     /// parallel (rayon) download path builds its own client per worker
     /// rather than sharing one.
     client: RefCell<Client>,
-    /// Details needed to perform a fresh login on demand (i.e. when the
-    /// current token is rejected), so we don't have to thread them back
-    /// through every call site.
-    api_key: String,
+    /// The connection details. Kept so that a fresh login can be done on
+    /// demand (i.e. when the current token is rejected), and so that every
+    /// request uses the same host.
+    config: AsvoClientConfig,
     client_version: String,
-    api_timeout_seconds: Option<u64>,
 }
 
 /// A minimal view of an HTTP response - the pieces callers need once the
@@ -168,65 +204,40 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
 /// mock server in the test suite, or a plain-HTTP dev instance - is allowed
 /// to use plain HTTP, since forcing TLS there would simply make the
 /// configured host unusable.
-fn require_tls() -> bool {
-    !get_asvo_server_address().starts_with("http://")
+fn require_tls(host: &str) -> bool {
+    !host.starts_with(PLAIN_HTTP_SCHEME)
 }
 
 impl AsvoClient {
-    /// Get a new reqwest [Client] which has authenticated with the MWA ASVO
-    /// v2 API. Uses the `MWA_ASVO_API_KEY` environment variable for login.
+    /// Get a new client which has authenticated with the MWA ASVO v2 API,
+    /// using the host, API key and timeout in `config`.
     ///
-    /// A cached session (shared with mwa-cli, at
-    /// `$HOME/.mwa-asvo/tokens.json`) is reused if it's still valid,
+    /// If `config.token_cache_path` is set, a cached session there (the
+    /// format is shared with mwa-cli) is reused if it's still valid,
     /// refreshed if only the access token has expired, or a fresh login is
-    /// performed otherwise. This is all best-effort and silent: if caching
-    /// isn't available or fails for any reason, giant-squid just falls back
-    /// to a fresh login.
-    pub fn new() -> Result<AsvoClient, AsvoApiError> {
-        let api_key = var(CONST_ENV_MWA_ASVO_API_KEY).map_err(|_| AsvoApiError::MissingAuthKey)?;
-
-        // Parse the timeout env variable or use default
-        let api_timeout_seconds: Option<u64> = match var(CONST_ENV_MWA_ASVO_API_TIMEOUT) {
-            Ok(val) => match val.parse::<u64>() {
-                Ok(num) => {
-                    debug!(
-                        "{} timeout overidden to {} seconds",
-                        CONST_ENV_MWA_ASVO_API_TIMEOUT, num
-                    );
-                    Some(num)
-                }
-                Err(e) => {
-                    warn!(
-                        "Environment variable {}='{}' is not valid, defaulting to {}. (It should be an integer number of seconds). Error: {}",
-                        CONST_ENV_MWA_ASVO_API_TIMEOUT,
-                        val,
-                        CONST_DEFAULT_MWA_ASVO_API_TIMEOUT,
-                        e
-                    );
-                    None
-                }
-            },
-            Err(_) => {
-                // Env variable was not present, no worries
-                None
-            }
-        };
+    /// performed otherwise. This is all best-effort and silent: if the
+    /// cache can't be read or written for any reason, the client just falls
+    /// back to a fresh login. With no cache path, the client always logs in.
+    ///
+    /// Returns [`AsvoApiError::MissingAuthKey`] if `config.api_key` is empty.
+    pub fn new(config: AsvoClientConfig) -> Result<AsvoClient, AsvoApiError> {
+        if config.api_key.is_empty() {
+            return Err(AsvoApiError::MissingAuthKey);
+        }
 
         // Interfacing with the ASVO server requires specifying the client
         // version.
         let client_version = format!("giant-squidv{}", built_info::PKG_VERSION);
 
-        // Connect and return the cookie jar.
-        // IF we are using a custom MWA ASVO host, then
-        // upgrade this debug message to a warn message
-        let custom_server_result = get_asvo_server_address_env();
-        if custom_server_result.is_ok() {
+        // If we are using a non-default MWA ASVO host, then upgrade this
+        // debug message to a warn message.
+        if config.host == DEFAULT_ASVO_HOST {
+            debug!("Connecting to MWA ASVO... {}", config.host);
+        } else {
             warn!(
                 "Connecting to MWA ASVO non-default host: {}...",
-                get_asvo_server_address()
+                config.host
             );
-        } else {
-            debug!("Connecting to MWA ASVO... {}", get_asvo_server_address());
         }
 
         debug!("User Agent string: {}", APP_USER_AGENT);
@@ -234,19 +245,18 @@ impl AsvoClient {
         // Figure out which access token we're going to use: a cached one
         // (as-is, or refreshed), or a fresh login. Whichever path we take,
         // we end up with a valid `StoredTokens` to authenticate with.
-        let tokens = Self::get_valid_tokens(&client_version, &api_key, api_timeout_seconds)?;
+        let tokens = Self::get_valid_tokens(&config, &client_version)?;
 
         // Build the "real" client, with the access token attached as a
         // default header on every request. If the server later rejects this
         // token, `send_authed` re-logs-in and swaps in a new client, which
-        // is why we hold on to api_key/client_version/timeout below.
-        let client = Self::build_authed_client(&tokens.access_token, api_timeout_seconds)?;
+        // is why we hold on to the config and client_version below.
+        let client = Self::build_authed_client(&config, &tokens.access_token)?;
 
         Ok(AsvoClient {
             client: RefCell::new(client),
-            api_key,
+            config,
             client_version,
-            api_timeout_seconds,
         })
     }
 
@@ -258,8 +268,8 @@ impl AsvoClient {
     /// jar alone) so a session loaded from the cache behaves identically to
     /// one from a fresh login.
     fn build_authed_client(
+        config: &AsvoClientConfig,
         access_token: &str,
-        api_timeout_seconds: Option<u64>,
     ) -> Result<Client, AsvoApiError> {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -275,24 +285,20 @@ impl AsvoClient {
             .cookie_store(true)
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
-            .https_only(require_tls())
+            .https_only(require_tls(&config.host))
             .default_headers(headers)
-            .timeout(Duration::from_secs(
-                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
-            ))
+            .timeout(config.api_timeout)
             .build()?)
     }
 
     /// Build the short-lived [Client] used purely for login/refresh calls
     /// (it needs neither the cookie jar nor default auth headers).
-    fn build_auth_client(api_timeout_seconds: Option<u64>) -> Result<Client, AsvoApiError> {
+    fn build_auth_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
         Ok(ClientBuilder::new()
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
-            .https_only(require_tls())
-            .timeout(Duration::from_secs(
-                api_timeout_seconds.unwrap_or(CONST_DEFAULT_MWA_ASVO_API_TIMEOUT),
-            ))
+            .https_only(require_tls(&config.host))
+            .timeout(config.api_timeout)
             .build()?)
     }
 
@@ -331,18 +337,22 @@ impl AsvoClient {
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
     /// a still-valid cached session, a refreshed cached session, or a fresh
-    /// login. Successful refreshes and logins are cached to disk for next
-    /// time (best-effort; failure to cache is not fatal).
+    /// login. With a token cache path in `config`, successful refreshes and
+    /// logins are cached to disk for next time (best-effort; failure to
+    /// cache is not fatal).
     fn get_valid_tokens(
+        config: &AsvoClientConfig,
         client_version: &str,
-        api_key: &str,
-        api_timeout_seconds: Option<u64>,
     ) -> Result<StoredTokens, AsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the cookie jar or auth headers).
-        let auth_client = Self::build_auth_client(api_timeout_seconds)?;
+        let auth_client = Self::build_auth_client(config)?;
 
-        if let Some(cached) = token_store::load() {
+        let cached = config
+            .token_cache_path
+            .as_deref()
+            .and_then(token_store::load);
+        if let Some(cached) = cached {
             if cached.is_access_valid() {
                 debug!("Reusing cached MWA ASVO session (shared with mwa-cli)");
                 return Ok(cached);
@@ -350,9 +360,9 @@ impl AsvoClient {
 
             if cached.is_refresh_valid() {
                 debug!("Cached MWA ASVO access token expired; refreshing session");
-                match Self::refresh(&auth_client, &cached) {
+                match Self::refresh(&auth_client, &config.host, &cached) {
                     Ok(refreshed) => {
-                        token_store::save(&refreshed);
+                        Self::cache_tokens(config, &refreshed);
                         return Ok(refreshed);
                     }
                     Err(e) => {
@@ -370,30 +380,36 @@ impl AsvoClient {
         }
 
         debug!("Performing fresh MWA ASVO login");
-        let fresh = Self::login(&auth_client, client_version, api_key)?;
-        token_store::save(&fresh);
+        let fresh = Self::login(&auth_client, config, client_version)?;
+        Self::cache_tokens(config, &fresh);
         Ok(fresh)
+    }
+
+    /// Save `tokens` to the token cache in `config`, if it has one.
+    fn cache_tokens(config: &AsvoClientConfig, tokens: &StoredTokens) {
+        match &config.token_cache_path {
+            Some(path) => token_store::save(path, tokens),
+            None => {
+                debug!("No token cache configured; keeping the MWA ASVO session in memory only")
+            }
+        }
     }
 
     /// Perform a fresh login against the MWA ASVO v2 API using the API key.
     fn login(
         auth_client: &Client,
+        config: &AsvoClientConfig,
         client_version: &str,
-        api_key: &str,
     ) -> Result<StoredTokens, AsvoApiError> {
         let login: Login = client_version.try_into()?;
 
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_API_LOGIN
-                ))
+                .post(format!("{}{}", config.host, ENDPOINT_API_LOGIN))
                 .json(&ApiLoginRequest {
                     login,
-                    password: api_key.to_string(),
+                    password: config.api_key.clone(),
                 }),
         )?;
 
@@ -414,12 +430,13 @@ impl AsvoClient {
     /// same account.
     fn refresh(
         auth_client: &Client,
+        host: &str,
         previous: &StoredTokens,
     ) -> Result<StoredTokens, AsvoApiError> {
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!("{}{}", get_asvo_server_address(), ENDPOINT_REFRESH))
+                .post(format!("{}{}", host, ENDPOINT_REFRESH))
                 .header(
                     reqwest::header::COOKIE,
                     format!("mwa_refresh_token={}", previous.refresh_token),
@@ -449,10 +466,10 @@ impl AsvoClient {
     /// access token.
     fn reauthenticate(&self) -> Result<(), AsvoApiError> {
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
-        let auth_client = Self::build_auth_client(self.api_timeout_seconds)?;
-        let fresh = Self::login(&auth_client, &self.client_version, &self.api_key)?;
-        token_store::save(&fresh);
-        let new_client = Self::build_authed_client(&fresh.access_token, self.api_timeout_seconds)?;
+        let auth_client = Self::build_auth_client(&self.config)?;
+        let fresh = Self::login(&auth_client, &self.config, &self.client_version)?;
+        Self::cache_tokens(&self.config, &fresh);
+        let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
         *self.client.borrow_mut() = new_client;
         Ok(())
     }
@@ -614,11 +631,7 @@ impl AsvoClient {
             // was wrong).
             let body = self.send_authed(|client| {
                 client
-                    .post(format!(
-                        "{}{}",
-                        get_asvo_server_address(),
-                        ENDPOINT_GET_JOBS
-                    ))
+                    .post(format!("{}{}", self.config.host, ENDPOINT_GET_JOBS))
                     .json(&request)
             })?;
             let page: JobsByUserResponse = serde_json::from_str(&body)?;
@@ -660,11 +673,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_IMAGING_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_IMAGING_JOB))
                 .json(params)
         })?;
 
@@ -680,11 +689,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_IMAGE_FROM_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_IMAGE_FROM_JOB))
                 .json(params)
         })?;
 
@@ -700,11 +705,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_DOWNLOAD_VIS_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_DOWNLOAD_VIS_JOB))
                 .json(params)
         })?;
 
@@ -720,11 +721,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_CONVERSION_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_CONVERSION_JOB))
                 .json(params)
         })?;
 
@@ -740,11 +737,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_VOLTAGE_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_VOLTAGE_JOB))
                 .json(params)
         })?;
 
@@ -760,11 +753,7 @@ impl AsvoClient {
 
         let body = self.send_authed(|client| {
             client
-                .post(format!(
-                    "{}{}",
-                    get_asvo_server_address(),
-                    ENDPOINT_BEAMFORMER_JOB
-                ))
+                .post(format!("{}{}", self.config.host, ENDPOINT_BEAMFORMER_JOB))
                 .json(params)
         })?;
 
@@ -776,12 +765,7 @@ impl AsvoClient {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
         let body = self.send_authed(|client| {
-            client.delete(format!(
-                "{}{}/{}",
-                get_asvo_server_address(),
-                ENDPOINT_JOBS,
-                job_id
-            ))
+            client.delete(format!("{}{}/{}", self.config.host, ENDPOINT_JOBS, job_id))
         })?;
 
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;

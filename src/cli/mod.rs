@@ -10,6 +10,7 @@
 //! without contacting an MWA ASVO server. The binary is left with dispatch
 //! and I/O only.
 
+pub mod config;
 pub mod params;
 
 #[cfg(test)]

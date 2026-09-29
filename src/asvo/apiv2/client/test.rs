@@ -16,8 +16,10 @@ use serde_json::json;
 
 use crate::asvo::apiv2::openapi::DownloadJobParams;
 use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobState, AsvoJobType, Delivery};
+use crate::cli::config::client_config_from_env;
 use crate::cli::Args;
 use crate::test_common::*;
+use crate::test_config::client_config;
 
 /// Whether `err` is an API error carrying the given machine-readable code.
 fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
@@ -44,9 +46,9 @@ fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
 
 #[test]
 fn a_missing_api_key_is_reported_before_any_request() {
-    let _env = TestEnv::without_api_key();
+    let env = TestEnv::without_api_key();
 
-    let err = AsvoClient::new().expect_err("expected a missing-key failure");
+    let err = AsvoClient::new(client_config(&env)).expect_err("expected a missing-key failure");
     assert!(matches!(err, AsvoApiError::MissingAuthKey), "got {err:?}");
 }
 
@@ -56,7 +58,7 @@ fn a_valid_cached_session_is_reused_without_logging_in() {
     let login = env.mock_login();
     let get_jobs = env.mock_get_jobs(vec![]);
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert!(jobs.0.is_empty());
@@ -69,7 +71,7 @@ fn a_fresh_login_is_performed_and_cached_when_no_session_exists() {
     let env = TestEnv::without_session();
     let login = env.mock_login();
 
-    AsvoClient::new().expect("client should be created");
+    AsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(login.calls(), 1);
     let cached = env.cached_session().expect("the session should be cached");
@@ -82,7 +84,7 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
     let env = TestEnv::without_session();
     let login = env.mock_login_failure(401, "invalid api key");
 
-    let err = AsvoClient::new().expect_err("expected the login to fail");
+    let err = AsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
 
     assert_eq!(login.calls(), 1);
     match err {
@@ -109,7 +111,7 @@ fn an_expired_access_token_is_refreshed_rather_than_re_logged_in() {
             .json_body(token_response());
     });
 
-    AsvoClient::new().expect("client should be created");
+    AsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(refresh.calls(), 1);
     assert_eq!(login.calls(), 0, "a valid refresh token should be used");
@@ -125,7 +127,7 @@ fn a_failed_refresh_falls_back_to_a_fresh_login() {
         then.status(401).body("refresh token already rotated");
     });
 
-    AsvoClient::new().expect("client should still be created");
+    AsvoClient::new(client_config(&env)).expect("client should still be created");
 
     assert_eq!(refresh.calls(), 1);
     assert_eq!(login.calls(), 1);
@@ -141,7 +143,7 @@ fn an_expired_refresh_token_goes_straight_to_a_fresh_login() {
         then.status(200).json_body(token_response());
     });
 
-    AsvoClient::new().expect("client should be created");
+    AsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(refresh.calls(), 0);
     assert_eq!(login.calls(), 1);
@@ -161,7 +163,7 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
             ));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(None) else {
         panic!("expected the call to fail");
     };
@@ -189,7 +191,7 @@ fn a_structured_error_body_becomes_an_api_error() {
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(None) else {
         panic!("expected the call to fail");
     };
@@ -217,7 +219,7 @@ fn a_non_json_error_body_becomes_a_bad_status() {
         then.status(502).body("<html>bad gateway</html>");
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(None) else {
         panic!("expected the call to fail");
     };
@@ -245,7 +247,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
         1,
     )]);
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(get_jobs.calls(), 1);
@@ -287,7 +289,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
             .json_body(json!({ "jobs": page(101, 50), "total_count": total }));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(first.calls(), 1);
@@ -303,7 +305,7 @@ fn an_errored_job_carries_the_servers_error_text() {
     detail["error_text"] = json!("Observation has no data files");
     env.mock_get_jobs(vec![detail]);
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(
@@ -329,7 +331,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
 
     env.mock_get_jobs(vec![no_obsid, unknown_state, bad_obsid, good]);
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
@@ -356,7 +358,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
             .json_body(job_submitted_response(777));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_download_vis_job(&params)
         .expect("submission should succeed");
@@ -384,7 +386,7 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
         then.status(200).json_body(job_submitted_response(778));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_download_vis_job(&params)
         .expect("submission should succeed");
@@ -412,7 +414,7 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
         then.status(200).json_body(job_submitted_response(779));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_conversion_job(&params)
         .expect("submission should succeed");
@@ -432,7 +434,7 @@ fn a_cancellation_deletes_the_job_resource() {
             .json_body(job_submitted_response(TEST_JOBID as u64));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .cancel_job(TEST_JOBID)
         .expect("cancellation should succeed");
@@ -452,7 +454,7 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
             .json_body(error_response("JOB_NOT_FOUND", "No such job"));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .cancel_job(999999)
         .expect_err("expected the cancellation to fail");
@@ -479,7 +481,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
         then.status(200).json_body(job_submitted_response(779));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_imaging_job(&params)
         .expect("submission should succeed");
@@ -511,7 +513,7 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
         then.status(200).json_body(job_submitted_response(780));
     });
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_image_from_job(&params)
         .expect("submission should succeed");
@@ -554,7 +556,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
             .join("login_and_get_jobs.yaml"),
     );
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     // The recording was made with --days 30, and the recorded request is
     // the matching criteria, so the same argument is required here.
     let jobs = client
@@ -582,7 +584,7 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
             .join("login_and_get_jobs.yaml"),
     );
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(Some(30))
         .expect("the recorded listing should be served");
@@ -657,11 +659,13 @@ fn record_login_and_get_jobs() {
             });
     });
 
-    // Send giant-squid's own client through the recording server. Every
-    // request it makes derives its base URL from this variable.
-    std::env::set_var("MWA_ASVO_HOST", server.base_url());
+    // Send giant-squid's own client through the recording server. The
+    // rest of the config (API key, HOME) comes from the environment, as it
+    // does for the CLI.
+    let mut config = client_config_from_env().expect("MWA_ASVO_API_KEY must be set");
+    config.host = server.base_url();
 
-    let client = AsvoClient::new().expect("could not authenticate with the target server");
+    let client = AsvoClient::new(config).expect("could not authenticate with the target server");
     let jobs = client
         .get_jobs(Some(30))
         .expect("could not list jobs on the target server");

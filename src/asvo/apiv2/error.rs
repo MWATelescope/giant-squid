@@ -15,7 +15,8 @@ use super::openapi::error::ConversionError;
 
 #[derive(Error, Debug)]
 pub enum AsvoApiError {
-    /// User's MWA_ASVO_API_KEY environment variable is not defined.
+    /// No API key was given: the config's API key is empty, or (in the
+    /// CLI) the user's MWA_ASVO_API_KEY environment variable is not defined.
     #[error("MWA_ASVO_API_KEY is not defined.")]
     MissingAuthKey,
 

@@ -20,6 +20,7 @@ use tempfile::TempDir;
 
 use crate::asvo::{AsvoClient, AsvoError, DownloadOptions};
 use crate::test_common::*;
+use crate::test_config::client_config;
 
 /// The name the file is served under, and so the name it lands under:
 /// the output path is the last segment of the download URL.
@@ -84,7 +85,7 @@ fn downloading_an_unknown_job_id_is_reported() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(
             TEST_JOBID,
@@ -105,7 +106,7 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(
             TEST_JOBID,
@@ -134,7 +135,7 @@ fn a_ready_job_reports_that_it_has_no_files() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(
             TEST_JOBID,
@@ -162,7 +163,7 @@ fn downloading_an_unknown_obsid_is_reported() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
         .download_obsid(
@@ -189,7 +190,7 @@ fn an_obsid_whose_only_job_is_unfinished_is_reported() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
         .download_obsid(
@@ -214,7 +215,7 @@ fn an_obsid_with_several_ready_jobs_is_ambiguous() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
         .download_obsid(
@@ -241,7 +242,7 @@ fn a_job_listing_with_an_empty_product_is_not_downloadable() {
     let dir = TempDir::new().expect("could not create a download directory");
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(
             TEST_JOBID,
@@ -279,7 +280,7 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("the download should succeed");
@@ -309,7 +310,7 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
     let dir_path = dir.path().display().to_string();
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &options(&dir_path, &progress_bar))
         .expect("the download should succeed");
@@ -344,7 +345,7 @@ fn a_hash_mismatch_is_reported() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(TEST_JOBID, &opts)
         .expect_err("the hash check should fail");
@@ -387,7 +388,7 @@ fn an_expired_download_url_is_reported_as_gone() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(TEST_JOBID, &opts)
         .expect_err("a 404 should fail the download");
@@ -419,7 +420,7 @@ fn a_forbidden_download_fails_without_retrying() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(TEST_JOBID, &opts)
         .expect_err("a 403 should fail the download");
@@ -447,7 +448,7 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
     let dir_path = dir.path().display().to_string();
     let progress_bar = ProgressBar::hidden();
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_jobid(TEST_JOBID, &options(&dir_path, &progress_bar))
         .expect_err("expected the download to fail");
@@ -489,7 +490,7 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("the resumed download should succeed");
@@ -523,7 +524,7 @@ fn a_complete_and_verified_file_is_not_fetched_again() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("an already-complete file should be a no-op");
@@ -554,7 +555,7 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("the download should restart and succeed");
@@ -588,7 +589,7 @@ fn a_partial_file_is_left_alone_when_no_resume_is_set() {
     opts.keep_tar = true;
     opts.no_resume = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("--no-resume should skip the file, not fail");
@@ -623,7 +624,7 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
     let mut opts = options(&dir_path, &progress_bar);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new().expect("client should be created");
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_jobid(TEST_JOBID, &opts)
         .expect("the restarted download should succeed");
