@@ -44,6 +44,31 @@ fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
 // Authentication
 // ---------------------------------------------------------------------------
 
+/// Compiles only if `T` is `Send` and `Sync`.
+fn assert_send_sync<T: Send + Sync>() {}
+
+#[test]
+fn the_client_can_be_shared_between_threads() {
+    // PyO3 requires a `#[pyclass]` to be `Sync`, and the Python bindings
+    // release the GIL during network calls.
+    assert_send_sync::<AsvoClient>();
+}
+
+#[test]
+fn one_client_can_be_used_from_several_threads_at_once() {
+    let env = TestEnv::with_session();
+    let get_jobs = env.mock_get_jobs(vec![]);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| client.get_jobs(None).expect("get_jobs should succeed"));
+        }
+    });
+
+    assert_eq!(get_jobs.calls(), 4);
+}
+
 #[test]
 fn a_missing_api_key_is_reported_before_any_request() {
     let env = TestEnv::without_api_key();

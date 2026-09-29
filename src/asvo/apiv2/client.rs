@@ -14,10 +14,10 @@
 //! The client reads no environment variables: the caller supplies the host,
 //! API key, timeout and token cache path in an [`AsvoClientConfig`].
 
-use std::cell::RefCell;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use base64::Engine;
@@ -109,13 +109,14 @@ impl AsvoClientConfig {
 pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
     ///
-    /// Wrapped in a [`RefCell`] so that, if the server rejects our access
+    /// Wrapped in a [`Mutex`] so that, if the server rejects our access
     /// token (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`), `send_authed` can
-    /// re-authenticate and swap in a fresh client mid-flight. This is sound
-    /// because an `AsvoClient` never crosses a thread boundary: the
-    /// parallel (rayon) download path builds its own client per worker
-    /// rather than sharing one.
-    client: RefCell<Client>,
+    /// re-authenticate and swap in a fresh client mid-flight, and so that
+    /// an `AsvoClient` is `Sync` and can be shared between threads (the
+    /// Python bindings need this). The lock is held only to clone or swap
+    /// the client (see [`Self::current_client`]), never during a request,
+    /// so requests from different threads run at the same time.
+    client: Mutex<Client>,
     /// The connection details. Kept so that a fresh login can be done on
     /// demand (i.e. when the current token is rejected), and so that every
     /// request uses the same host.
@@ -254,7 +255,7 @@ impl AsvoClient {
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
 
         Ok(AsvoClient {
-            client: RefCell::new(client),
+            client: Mutex::new(client),
             config,
             client_version,
         })
@@ -312,7 +313,21 @@ impl AsvoClient {
     /// `download_jobid` / `download_obsid` - so this is a candidate for
     /// deletion.
     pub fn http_client(&self) -> Client {
-        self.client.borrow().clone()
+        self.current_client()
+    }
+
+    /// A clone of the current authenticated HTTP client. Cloning a reqwest
+    /// client is cheap (it's reference-counted internally), and a clone lets
+    /// the caller send requests without holding the lock.
+    ///
+    /// A poisoned lock is not an error here: the lock only guards the swap
+    /// of one `Client` value for another, so a panic in another thread
+    /// cannot leave it half-changed.
+    fn current_client(&self) -> Client {
+        self.client
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
     }
 
     /// Download the MWA ASVO job with the given job ID.
@@ -324,8 +339,7 @@ impl AsvoClient {
         opts: &DownloadOptions,
     ) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        let client = self.client.borrow();
-        download_by_jobid(&client, jobs, jobid, opts)
+        download_by_jobid(&self.current_client(), jobs, jobid, opts)
     }
 
     /// Download the MWA ASVO job associated with the given obsid.
@@ -333,8 +347,7 @@ impl AsvoClient {
     /// the obsid, and downloads its files according to the supplied options.
     pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        let client = self.client.borrow();
-        download_by_obsid(&client, jobs, obsid, opts)
+        download_by_obsid(&self.current_client(), jobs, obsid, opts)
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
@@ -472,7 +485,10 @@ impl AsvoClient {
         let fresh = Self::login(&auth_client, &self.config, &self.client_version)?;
         Self::cache_tokens(&self.config, &fresh);
         let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
-        *self.client.borrow_mut() = new_client;
+        *self
+            .client
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_client;
         Ok(())
     }
 
@@ -537,11 +553,10 @@ impl AsvoClient {
     where
         F: Fn(&Client) -> reqwest::blocking::RequestBuilder,
     {
-        // Clone the client out of the RefCell rather than holding a borrow
-        // across the (blocking) send, so `reauthenticate` is free to take a
-        // mutable borrow on the retry path. Cloning a reqwest client is
-        // cheap - it's reference-counted internally.
-        let client = self.client.borrow().clone();
+        // Clone the client out of the Mutex rather than holding the lock
+        // across the (blocking) send, so `reauthenticate` is free to take
+        // the lock on the retry path, and other threads are not blocked.
+        let client = self.current_client();
         let response = execute_logged(&client, build(&client))?;
         if response.status.is_success() {
             return Ok(response.body);
@@ -555,7 +570,7 @@ impl AsvoClient {
         // Token rejected: re-login once and retry the request against the
         // freshly-swapped client.
         self.reauthenticate()?;
-        let client = self.client.borrow().clone();
+        let client = self.current_client();
         let response = execute_logged(&client, build(&client))?;
         if response.status.is_success() {
             return Ok(response.body);

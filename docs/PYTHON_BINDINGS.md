@@ -29,9 +29,13 @@
   wraps an `AsvoApiError` from the job list request. The library now
   builds with `--no-default-features` (no `anyhow`, `indicatif` or
   `prettytable-rs`).
-- Next step: Phase 0, step 0.6 (`AsvoClient` uses a `Mutex` instead of a
-  `RefCell`). Start from a fresh clone of `apiv2`, one diff per step, and
-  update this section after each.
+- 2026-09-29: step 0.6 done. `AsvoClient` holds its HTTP client in a
+  `Mutex`, so it is `Send + Sync`. The lock is held only to clone or swap
+  the client, not during a request. Two new tests: a compile-time
+  `Send + Sync` check, and one client used from four threads at once.
+- Next step: Phase 0, step 0.7 (`wait_loop` moves into the library as
+  `AsvoClient::wait_for_jobs`). Start from a fresh clone of `apiv2`, one
+  diff per step, and update this section after each.
 
 ## Goal
 
