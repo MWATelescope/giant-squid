@@ -184,6 +184,32 @@ impl AsvoJobVec {
         Ok(all_ready)
     }
 
+    /// Keep only the jobs that match every non-empty filter. An empty slice
+    /// does not filter.
+    ///
+    /// - `jobids`: the job ID is one of these.
+    /// - `obsids`: the obsid is one of these.
+    /// - `jtypes`: the job type is one of these.
+    /// - `states`: the job state is one of these. Only the kind of state is
+    ///   compared, so any `AsvoJobState::Error(..)` matches every other.
+    pub fn filter(
+        self,
+        jobids: &[AsvoJobID],
+        obsids: &[Obsid],
+        jtypes: &[AsvoJobType],
+        states: &[AsvoJobState],
+    ) -> Self {
+        self.retain(|j| {
+            (jobids.is_empty() || jobids.contains(&j.jobid))
+                && (obsids.is_empty() || obsids.contains(&j.obsid))
+                && (jtypes.is_empty() || jtypes.contains(&j.jtype))
+                && (states.is_empty()
+                    || states
+                        .iter()
+                        .any(|s| std::mem::discriminant(s) == std::mem::discriminant(&j.state)))
+        })
+    }
+
     /// filter out any jobs that don't match jobids
     pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
         // if we wanted to use a nightly:

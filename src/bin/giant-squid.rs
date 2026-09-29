@@ -277,32 +277,13 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
+            if !jobids.is_empty() && !obsids.is_empty() {
+                bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
+            }
             let client = connect()?;
-            let mut jobs = client.get_jobs(days)?;
-            match (jobids, obsids) {
-                (jobids, obsids) if !jobids.is_empty() && !obsids.is_empty() => {
-                    bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
-                }
-                (jobids, _) if !jobids.is_empty() => {
-                    jobs = jobs.retain(|j| jobids.contains(&j.jobid))
-                }
-                (_, obsids) if !obsids.is_empty() => {
-                    jobs = jobs.retain(|j| obsids.contains(&j.obsid))
-                }
-                _ => (),
-            };
-
-            if !job_types.is_empty() {
-                jobs = jobs.retain(|j| job_types.contains(&j.jtype))
-            }
-
-            if !states.is_empty() {
-                jobs = jobs.retain(|j| {
-                    states.iter().any(|s|
-                        // this allows comparison with AsvoJobState::Error(..)
-                        std::mem::discriminant(s) == std::mem::discriminant(&j.state))
-                });
-            }
+            let jobs = client
+                .get_jobs(days)?
+                .filter(&jobids, &obsids, &job_types, &states);
 
             if json {
                 println!("{}", jobs.json()?);
@@ -832,10 +813,7 @@ fn main() -> Result<(), anyhow::Error> {
             // they're all ready.
             wait_loop(&client, &parsed_jobids)?;
 
-            let mut jobs = client.get_jobs(None)?;
-            if !parsed_jobids.is_empty() {
-                jobs = jobs.retain(|j| parsed_jobids.contains(&j.jobid));
-            }
+            let jobs = client.get_jobs(None)?.filter(&parsed_jobids, &[], &[], &[]);
 
             if json {
                 println!("{}", jobs.json()?);

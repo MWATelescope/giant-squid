@@ -43,9 +43,14 @@
   in the CLI (`wait_loop` in the binary). New `AsvoError` variants
   `JobFailed`, `JobExpired` and `JobCancelled` keep the old messages.
   Seven new library tests and two new CLI tests.
-- Next step: Phase 0, step 0.8 (`list` filters move into the library as
-  `AsvoJobVec::filter`). Start from a fresh clone of `apiv2`, one diff per
-  step, and update this section after each.
+- 2026-09-29: step 0.8 done. `AsvoJobVec::filter(jobids, obsids,
+  jtypes, states)` keeps jobs that match every non-empty filter (states
+  compare by kind, so any `Error(..)` matches). `list` and `wait` use it.
+  The CLI still rejects job IDs and obsids together, now before it
+  connects. Six new library tests.
+- Next step: Phase 0, step 0.9 (`AsvoClient::submit_download_meta_job`).
+  Start from a fresh clone of `apiv2`, one diff per step, and update this
+  section after each.
 
 ## Goal
 

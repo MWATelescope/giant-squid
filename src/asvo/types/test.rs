@@ -11,6 +11,9 @@ const OBSID: u64 = 1065880128;
 /// Job IDs used by these tests.
 const JOBID_A: AsvoJobID = 101;
 const JOBID_B: AsvoJobID = 102;
+const JOBID_C: AsvoJobID = 103;
+/// Another obsid, for the filter tests.
+const OTHER_OBSID: u64 = 1090008640;
 
 /// A job with the given ID and state.
 fn job(jobid: AsvoJobID, state: AsvoJobState) -> AsvoJob {
@@ -110,4 +113,83 @@ fn all_ready_reports_the_first_failure_in_the_order_asked() {
         jobs.all_ready(&[JOBID_B, JOBID_A]),
         Err(AsvoError::JobCancelled(JOBID_B))
     ));
+}
+
+/// A job with the given ID, obsid, type and state, for the filter tests.
+fn job_with(jobid: AsvoJobID, obsid: u64, jtype: AsvoJobType, state: AsvoJobState) -> AsvoJob {
+    AsvoJob {
+        obsid: Obsid::validate(obsid).expect("the test obsid should be valid"),
+        jobid,
+        jtype,
+        state,
+        files: None,
+        completed: None,
+    }
+}
+
+/// Three jobs that differ in job ID, obsid, type and state.
+fn mixed_jobs() -> AsvoJobVec {
+    AsvoJobVec(vec![
+        job_with(JOBID_A, OBSID, AsvoJobType::Conversion, AsvoJobState::Ready),
+        job_with(
+            JOBID_B,
+            OTHER_OBSID,
+            AsvoJobType::DownloadVisibilities,
+            AsvoJobState::Error("failed".to_string()),
+        ),
+        job_with(
+            JOBID_C,
+            OBSID,
+            AsvoJobType::DownloadMetadata,
+            AsvoJobState::Queued,
+        ),
+    ])
+}
+
+/// The job IDs in `jobs`, in order.
+fn ids(jobs: &AsvoJobVec) -> Vec<AsvoJobID> {
+    jobs.0.iter().map(|j| j.jobid).collect()
+}
+
+#[test]
+fn filter_with_no_criteria_keeps_every_job() {
+    let jobs = mixed_jobs().filter(&[], &[], &[], &[]);
+    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_B, JOBID_C]);
+}
+
+#[test]
+fn filter_by_jobid() {
+    let jobs = mixed_jobs().filter(&[JOBID_B, JOBID_C], &[], &[], &[]);
+    assert_eq!(ids(&jobs), vec![JOBID_B, JOBID_C]);
+}
+
+#[test]
+fn filter_by_obsid() {
+    let obsid = Obsid::validate(OBSID).expect("the test obsid should be valid");
+    let jobs = mixed_jobs().filter(&[], &[obsid], &[], &[]);
+    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_C]);
+}
+
+#[test]
+fn filter_by_job_type() {
+    let jobs = mixed_jobs().filter(&[], &[], &[AsvoJobType::DownloadMetadata], &[]);
+    assert_eq!(ids(&jobs), vec![JOBID_C]);
+}
+
+#[test]
+fn filter_by_state_matches_any_error() {
+    let jobs = mixed_jobs().filter(
+        &[],
+        &[],
+        &[],
+        &[AsvoJobState::Error(String::new()), AsvoJobState::Ready],
+    );
+    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_B]);
+}
+
+#[test]
+fn filter_criteria_are_combined() {
+    let obsid = Obsid::validate(OBSID).expect("the test obsid should be valid");
+    let jobs = mixed_jobs().filter(&[], &[obsid], &[], &[AsvoJobState::Queued]);
+    assert_eq!(ids(&jobs), vec![JOBID_C]);
 }
