@@ -20,9 +20,13 @@
   bars (`update_progress_bar` in the binary). `indicatif` is used only by
   the binary. `cargo check --no-default-features` now fails only on
   `anyhow` (step 0.5).
-- Next step: Phase 0, step 0.4 (`AsvoJobVec::list` and the table helpers
-  move to the CLI). Start from a fresh clone of `apiv2`, one diff per step,
-  and update this section after each.
+- 2026-09-29: step 0.4 done. The job table (`print_jobs_table`) and the
+  table style helpers are in `src/cli/table.rs`; `prettytable-rs` is a
+  `bin`-only dependency. The unused `AsvoJobType::prettytable_colour` is
+  removed. Two new CLI tests cover the table output.
+- Next step: Phase 0, step 0.5 (`download_jobid` and `download_obsid`
+  return `Result<(), AsvoError>`). Start from a fresh clone of `apiv2`, one
+  diff per step, and update this section after each.
 
 ## Goal
 

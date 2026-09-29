@@ -26,6 +26,7 @@ use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::cli::config::{
     client_config_from_env, download_buffer_size_from_env, download_retry_duration_from_env,
 };
+use mwa_giant_squid::cli::table::print_jobs_table;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
 
@@ -321,7 +322,7 @@ fn main() -> Result<(), anyhow::Error> {
             if json {
                 println!("{}", jobs.json()?);
             } else {
-                jobs.list(no_colour);
+                print_jobs_table(jobs, no_colour);
             }
         }
 
@@ -854,7 +855,7 @@ fn main() -> Result<(), anyhow::Error> {
             if json {
                 println!("{}", jobs.json()?);
             } else {
-                jobs.list(no_colour);
+                print_jobs_table(jobs, no_colour);
             }
         }
 

@@ -5,11 +5,10 @@
 //! ASVO data types.
 
 use chrono::{DateTime, Utc};
-use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
 
-use crate::{get_job_state_table_style, get_job_type_table_style, obsid::Obsid, AsvoError};
+use crate::{obsid::Obsid, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
 ///
@@ -31,16 +30,6 @@ pub enum AsvoJobType {
     DownloadBeamformer,
     Imaging,
     Unknown,
-}
-
-impl AsvoJobType {
-    pub fn prettytable_colour(no_colour: bool) -> String {
-        if no_colour {
-            "".to_string()
-        } else {
-            "Fr".to_string()
-        }
-    }
 }
 
 impl FromStr for AsvoJobType {
@@ -141,76 +130,6 @@ pub struct AsvoJob {
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
-    /// Render a slice of `AsvoJob` in a pretty-printed table.
-    /// If no_colour = True then don't colour the output
-    pub fn list(self, no_colour: bool) {
-        if self.0.is_empty() {
-            println!("You have no jobs.");
-        } else {
-            let mut table = Table::new();
-            table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-
-            table.set_titles(row![
-                b => "Job ID",
-                "Obsid",
-                "Job Type",
-                "Job State",
-                "File Size",
-                "Delivery",
-                "Completed"
-            ]);
-
-            let mut has_unknown_job_type: bool = false;
-
-            for j in self.0 {
-                table.add_row(Row::new(vec![
-                    Cell::new(j.jobid.to_string().as_str()),
-                    Cell::new(j.obsid.to_string().as_str()),
-                    Cell::new(j.jtype.to_string().as_str())
-                        .style_spec(&get_job_type_table_style(j.jtype, no_colour)),
-                    Cell::new(j.state.to_string().as_str())
-                        .style_spec(&get_job_state_table_style(j.state, no_colour)),
-                    Cell::new(
-                        match &j.files {
-                            None => "".to_string(),
-                            Some(v) => {
-                                let mut size = 0;
-                                for f in v {
-                                    size += f.size;
-                                }
-                                bytesize::ByteSize(size).display().iec().to_string()
-                            }
-                        }
-                        .as_str(),
-                    ),
-                    Cell::new(
-                        match j.files {
-                            None => "".to_string(),
-                            Some(v) => v.first().unwrap().r#type.to_string(),
-                        }
-                        .as_str(),
-                    ),
-                    Cell::new(
-                        j.completed
-                            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-                            .unwrap_or_default()
-                            .as_str(),
-                    ),
-                ]));
-
-                // If has_unknown_job_type is already True, stay true. If False, but this job is unknown set to True.
-                has_unknown_job_type |= j.jtype == AsvoJobType::Unknown;
-            }
-
-            table.printstd();
-
-            // if we had an unknown job type emit a warning
-            if has_unknown_job_type {
-                log::warn!("giant-squid needs to be updated: one of more of your jobs contains a job_type that is unknown to this version of giant-squid. Please update to the latest version.");
-            }
-        }
-    }
-
     /// Get a vector of ASVO jobs in JSON form.
     ///
     /// If the situation should arise that your job listing has an ASVO job ID

@@ -12,6 +12,7 @@
 
 pub mod config;
 pub mod params;
+pub mod table;
 
 #[cfg(test)]
 mod test;

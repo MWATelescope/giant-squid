@@ -484,6 +484,45 @@ fn list_json_prints_the_jobs_keyed_by_job_id() {
 }
 
 #[test]
+fn list_prints_the_jobs_as_a_table() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBSID, "completed", 1)]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--no-colour"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert!(
+        result.stdout.contains("Job ID") && result.stdout.contains("Job State"),
+        "expected the table header: {}",
+        result.stdout
+    );
+    assert!(
+        result.stdout.contains("12345") && result.stdout.contains(TEST_OBSID),
+        "expected the job in the table: {}",
+        result.stdout
+    );
+}
+
+#[test]
+fn list_reports_when_there_are_no_jobs() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![]);
+
+    let mut cmd = env.command();
+    cmd.arg("list");
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert!(
+        result.stdout.contains("You have no jobs."),
+        "output: {}",
+        result.combined()
+    );
+}
+
+#[test]
 fn list_filters_by_state() {
     let env = CliEnv::with_session();
     env.mock_get_jobs(vec![
