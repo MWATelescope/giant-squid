@@ -28,8 +28,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    download_by_jobid, download_by_obsid, AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState,
-    AsvoJobType, AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
+    download_by_jobid, download_by_obsid, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobID,
+    AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
 use crate::obsid::Obsid;
@@ -318,21 +318,23 @@ impl AsvoClient {
     /// Download the MWA ASVO job with the given job ID.
     /// Fetches the current job list, locates the job, and downloads its
     /// files according to the supplied options.
-    pub fn download_jobid(&self, jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Result<()> {
+    pub fn download_jobid(
+        &self,
+        jobid: AsvoJobID,
+        opts: &DownloadOptions,
+    ) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
         let client = self.client.borrow();
-        download_by_jobid(&client, jobs, jobid, opts)?;
-        Ok(())
+        download_by_jobid(&client, jobs, jobid, opts)
     }
 
     /// Download the MWA ASVO job associated with the given obsid.
     /// Fetches the current job list, locates the single ready job for
     /// the obsid, and downloads its files according to the supplied options.
-    pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()> {
+    pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
         let client = self.client.borrow();
-        download_by_obsid(&client, jobs, obsid, opts)?;
-        Ok(())
+        download_by_obsid(&client, jobs, obsid, opts)
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):

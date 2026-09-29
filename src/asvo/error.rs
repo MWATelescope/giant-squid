@@ -5,7 +5,7 @@
 //! Errors when interfacing with the MWA ASVO.
 use thiserror::Error;
 
-use super::{AsvoJobID, AsvoJobState};
+use super::{AsvoApiError, AsvoJobID, AsvoJobState};
 use crate::obsid::Obsid;
 
 #[derive(Error, Debug)]
@@ -57,6 +57,11 @@ pub enum AsvoError {
     /// Job type parsing error
     #[error("Could not parse job type from str: {str}")]
     InvalidJobType { str: String },
+
+    /// An MWA ASVO API call failed, for example the job list request that
+    /// a download does first.
+    #[error("{0}")]
+    AsvoApi(#[from] AsvoApiError),
 
     /// An error from the reqwest crate.
     #[error("{0}")]

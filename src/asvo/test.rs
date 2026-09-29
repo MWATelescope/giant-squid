@@ -79,12 +79,6 @@ fn options(dir: &str) -> DownloadOptions<'_> {
     }
 }
 
-/// The `AsvoError` behind an `anyhow::Error` from a download call.
-fn asvo_error(err: anyhow::Error) -> AsvoError {
-    err.downcast::<AsvoError>()
-        .expect("expected an AsvoError from the download path")
-}
-
 #[test]
 fn downloading_an_unknown_job_id_is_reported() {
     let env = TestEnv::with_session();
@@ -96,10 +90,32 @@ fn downloading_an_unknown_job_id_is_reported() {
         .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    match asvo_error(err) {
+    match err {
         AsvoError::NoAsvoJob(jobid) => assert_eq!(jobid, TEST_JOBID),
         other => panic!("expected NoAsvoJob, got {other:?}"),
     }
+}
+
+#[test]
+fn a_failed_job_listing_is_reported_as_an_api_error() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(500)
+            .header("content-type", "application/json")
+            .json_body(error_response("INTERNAL_ERROR", "the job list failed"));
+    });
+    let dir = TempDir::new().expect("could not create a download directory");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .expect_err("expected the download to fail");
+
+    assert!(
+        matches!(err, AsvoError::AsvoApi(_)),
+        "expected AsvoApi, got {err:?}"
+    );
 }
 
 #[test]
@@ -113,7 +129,7 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
         .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    match asvo_error(err) {
+    match err {
         AsvoError::NotReady { jobid, .. } => assert_eq!(jobid, TEST_JOBID),
         other => panic!("expected NotReady, got {other:?}"),
     }
@@ -138,7 +154,7 @@ fn a_ready_job_reports_that_it_has_no_files() {
         .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    match asvo_error(err) {
+    match err {
         AsvoError::NoFiles(jobid) => assert_eq!(jobid, TEST_JOBID),
         other => panic!("expected NoFiles, got {other:?}"),
     }
@@ -163,10 +179,7 @@ fn downloading_an_unknown_obsid_is_reported() {
         .download_obsid(obsid, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    assert!(
-        matches!(asvo_error(err), AsvoError::NoObsid(_)),
-        "expected NoObsid"
-    );
+    assert!(matches!(err, AsvoError::NoObsid(_)), "expected NoObsid");
 }
 
 #[test]
@@ -187,7 +200,7 @@ fn an_obsid_whose_only_job_is_unfinished_is_reported() {
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(asvo_error(err), AsvoError::NoJobReadyForObsid(_)),
+        matches!(err, AsvoError::NoJobReadyForObsid(_)),
         "expected NoJobReadyForObsid"
     );
 }
@@ -208,7 +221,7 @@ fn an_obsid_with_several_ready_jobs_is_ambiguous() {
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(asvo_error(err), AsvoError::TooManyObsids(_)),
+        matches!(err, AsvoError::TooManyObsids(_)),
         "expected TooManyObsids"
     );
 }
@@ -229,10 +242,7 @@ fn a_job_listing_with_an_empty_product_is_not_downloadable() {
         .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    assert!(
-        matches!(asvo_error(err), AsvoError::NoFiles(_)),
-        "expected NoFiles"
-    );
+    assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +393,7 @@ fn a_hash_mismatch_is_reported() {
         .download_jobid(TEST_JOBID, &opts)
         .expect_err("the hash check should fail");
 
-    match asvo_error(err) {
+    match err {
         AsvoError::HashMismatch {
             jobid,
             expected_hash,
@@ -425,7 +435,7 @@ fn an_expired_download_url_is_reported_as_gone() {
         .download_jobid(TEST_JOBID, &opts)
         .expect_err("a 404 should fail the download");
 
-    match asvo_error(err) {
+    match err {
         AsvoError::Http404Error { job_id } => assert_eq!(job_id, TEST_JOBID),
         other => panic!("expected Http404Error, got {other:?}"),
     }
@@ -457,7 +467,7 @@ fn a_forbidden_download_fails_without_retrying() {
         .expect_err("a 403 should fail the download");
 
     assert_eq!(file.calls(), 1, "a permanent error must not be retried");
-    match asvo_error(err) {
+    match err {
         AsvoError::HttpError { status, .. } => assert_eq!(status, 403),
         other => panic!("expected HttpError, got {other:?}"),
     }
@@ -483,10 +493,7 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
         .download_jobid(TEST_JOBID, &options(&dir_path))
         .expect_err("expected the download to fail");
 
-    assert!(
-        matches!(asvo_error(err), AsvoError::NoFiles(_)),
-        "expected NoFiles"
-    );
+    assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
 }
 
 // ---------------------------------------------------------------------------

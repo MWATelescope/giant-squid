@@ -24,9 +24,14 @@
   table style helpers are in `src/cli/table.rs`; `prettytable-rs` is a
   `bin`-only dependency. The unused `AsvoJobType::prettytable_colour` is
   removed. Two new CLI tests cover the table output.
-- Next step: Phase 0, step 0.5 (`download_jobid` and `download_obsid`
-  return `Result<(), AsvoError>`). Start from a fresh clone of `apiv2`, one
-  diff per step, and update this section after each.
+- 2026-09-29: step 0.5 done. `download_jobid` and `download_obsid`
+  return `Result<(), AsvoError>`. The new variant `AsvoError::AsvoApi`
+  wraps an `AsvoApiError` from the job list request. The library now
+  builds with `--no-default-features` (no `anyhow`, `indicatif` or
+  `prettytable-rs`).
+- Next step: Phase 0, step 0.6 (`AsvoClient` uses a `Mutex` instead of a
+  `RefCell`). Start from a fresh clone of `apiv2`, one diff per step, and
+  update this section after each.
 
 ## Goal
 
