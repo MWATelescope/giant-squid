@@ -18,6 +18,10 @@
 //! names are the Rust module paths with `::` changed to `.`, so the
 //! `mwa_giant_squid` logger is the parent of all of them.
 
+mod client;
+mod error;
+mod types;
+
 use std::sync::OnceLock;
 
 use pyo3::prelude::*;
@@ -33,6 +37,15 @@ mod module {
     use pyo3::prelude::*;
 
     use super::LOG_RESET_HANDLE;
+
+    #[pymodule_export]
+    use super::client::PyAsvoClient;
+    #[pymodule_export]
+    use super::error::{AsvoApiError, AsvoError};
+    #[pymodule_export]
+    use super::types::{
+        PyAsvoFilesArray, PyAsvoJob, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyDelivery,
+    };
 
     /// Make Python see changes to its logging configuration.
     ///

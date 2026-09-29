@@ -70,9 +70,15 @@
   `release-python` profile that unwinds on panic, a hand-written
   `mwa_giant_squid.pyi`, and `tests/python/test_module.py`. See the
   Phase 1 section for the differences from the first plan.
-- Next step: Phase 2 (Python API), starting with `AsvoClient` and
-  `get_jobs`. Start from a fresh clone of `apiv2`, one diff per step, and
-  update this section after each.
+- 2026-09-29: step 2.1 done. `AsvoClient` (constructor and `get_jobs`),
+  `AsvoJob`, `AsvoJobVec` (`len`, indexing, iteration, `filter`,
+  `all_ready`, `json`), `AsvoFilesArray`, the enums `AsvoJobType`,
+  `AsvoJobState` and `Delivery`, and the exceptions `AsvoApiError` and
+  `AsvoError`. `editable-profile = "dev"`. 16 pytest tests against a local
+  mock server (`pytest-httpserver`), including the log bridge.
+- Next step: Phase 2, step 2.2 (the submit methods and
+  `JobSubmittedResponse`). Start from a fresh clone of `apiv2`, one diff
+  per step, and update this section after each.
 
 ## Goal
 
@@ -235,6 +241,19 @@ Types: `AsvoJob`, `AsvoJobVec` (iterable, with `filter` and `json`),
 Long calls: downloads check for Ctrl-C between chunks and release the
 GIL. There is no library wait call; the caller's own loop (for example
 with `time.sleep`) handles Ctrl-C as normal Python code.
+
+Exceptions: `AsvoError::AsvoApi` (an API failure inside a download) is
+raised as `AsvoApiError`, so a caller catches every API failure in one
+way. The tuple variants' values are named attributes: `jobid` or `obsid`.
+
+Steps:
+
+| Step | Content |
+|---|---|
+| 2.1 | `AsvoClient(...)`, `get_jobs`, the job types and enums, the two exceptions (done) |
+| 2.2 | The seven submit methods, `JobSubmittedResponse`, and the enums the job arguments need |
+| 2.3 | `cancel_job`, `parse_many_jobids_or_obsids`, and the `*_params` builders |
+| 2.4 | `download_jobid`, `download_obsid` and the progress callback, with Ctrl-C between chunks |
 
 ## Phase 3: stubs, docs, tests, CI
 

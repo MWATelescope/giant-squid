@@ -4,6 +4,11 @@ This stub file is written by hand. Phase 3 of docs/PYTHON_BINDINGS.md replaces i
 pyo3-stub-gen.
 """
 
+import datetime
+import enum
+import os
+from collections.abc import Iterator
+
 __version__: str
 """The version of the giant-squid crate that this module was built from."""
 
@@ -14,3 +19,202 @@ def reset_logging() -> None:
     Call this after you change the logging configuration (for example, after ``logging.basicConfig`` or
     ``setLevel``), if the module has already logged.
     """
+
+class AsvoApiError(Exception):
+    """An MWA ASVO API call failed. ``kind`` is the Rust ``AsvoApiError`` variant.
+
+    ``kind`` is always set. The other attributes are set only for the kinds shown.
+    """
+
+    kind: str
+    """"MissingAuthKey", "AuthenticationFailed", "Conversion", "BadJson", "Reqwest", "ApiError" or "BadStatus"."""
+    message: str
+    """AuthenticationFailed, ApiError and BadStatus."""
+    error_code: str
+    """ApiError: the server's machine-readable error code."""
+    detail: str | None
+    """ApiError."""
+    suggestion: str | None
+    """ApiError."""
+    code: int
+    """BadStatus: the HTTP status code."""
+
+class AsvoError(Exception):
+    """A download or job check failed. ``kind`` is the Rust ``AsvoError`` variant.
+
+    ``kind`` is always set. The other attributes are set only for the kinds shown. A failed API call during a
+    download raises ``AsvoApiError``, not this.
+    """
+
+    kind: str
+    """The variant, for example "NoAsvoJob", "JobFailed", "NotReady" or "HashMismatch"."""
+    jobid: int
+    """NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles and HashMismatch."""
+    obsid: int
+    """JobFailed, NoObsid, NoJobReadyForObsid and TooManyObsids."""
+    error: str
+    """JobFailed: the job's error message."""
+    state: AsvoJobState
+    """NotReady: the job's state."""
+    file: str
+    """HashMismatch."""
+    calculated_hash: str
+    """HashMismatch."""
+    expected_hash: str
+    """HashMismatch."""
+    job_id: int
+    """NoUrl, NoPath and Http404Error."""
+    status: int
+    """HttpError: the HTTP status code."""
+    message: str
+    """HttpError."""
+    # Last in the class, so that it does not hide the built-in type ``str`` in the annotations above.
+    str: str
+    """InvalidJobState and InvalidJobType: the text that could not be parsed."""
+
+class AsvoJobType(enum.Enum):
+    """The type of an MWA ASVO job."""
+
+    Conversion = ...
+    DownloadVisibilities = ...
+    DownloadMetadata = ...
+    DownloadVoltage = ...
+    CancelJob = ...
+    DownloadBeamformer = ...
+    Imaging = ...
+    Unknown = ...
+
+class AsvoJobState(enum.Enum):
+    """The state of an MWA ASVO job. For ``Error``, the message is in ``AsvoJob.error_text``."""
+
+    Queued = ...
+    WaitCal = ...
+    Staging = ...
+    Staged = ...
+    Preparing = ...
+    Downloading = ...
+    Preprocessing = ...
+    Imaging = ...
+    Delivering = ...
+    Ready = ...
+    Error = ...
+    Expired = ...
+    Cancelled = ...
+
+class Delivery(enum.Enum):
+    """Where the MWA ASVO delivers a job's files."""
+
+    Acacia = ...
+    Dug = ...
+    Scratch = ...
+
+class AsvoFilesArray:
+    """One file of a job's product."""
+
+    @property
+    def type(self) -> Delivery:
+        """Where the file is delivered."""
+    @property
+    def url(self) -> str | None:
+        """The download URL (Acacia delivery), or None."""
+    @property
+    def path(self) -> str | None:
+        """The path on the filesystem (Scratch or DUG delivery), or None."""
+    @property
+    def size(self) -> int:
+        """The size of the file in bytes."""
+    @property
+    def sha1(self) -> str | None:
+        """The file's SHA-1 hash, or None."""
+
+class AsvoJob:
+    """An MWA ASVO job."""
+
+    @property
+    def jobid(self) -> int:
+        """The job ID."""
+    @property
+    def obsid(self) -> int:
+        """The obsid."""
+    @property
+    def jtype(self) -> AsvoJobType:
+        """The job type."""
+    @property
+    def state(self) -> AsvoJobState:
+        """The job state."""
+    @property
+    def error_text(self) -> str | None:
+        """The error message if the state is Error, otherwise None."""
+    @property
+    def files(self) -> list[AsvoFilesArray] | None:
+        """The job's files, or None if the job has no product yet."""
+    @property
+    def completed(self) -> datetime.datetime | None:
+        """When the job completed (UTC), or None."""
+
+class AsvoJobVec:
+    """A list of MWA ASVO jobs. Supports ``len()``, indexing and iteration."""
+
+    def __len__(self) -> int: ...
+    def __getitem__(self, index: int) -> AsvoJob: ...
+    def __iter__(self) -> Iterator[AsvoJob]: ...
+    def filter(
+        self,
+        jobids: list[int] | None = None,
+        obsids: list[int] | None = None,
+        jtypes: list[AsvoJobType] | None = None,
+        states: list[AsvoJobState] | None = None,
+    ) -> AsvoJobVec:
+        """Keep only the jobs that match every given filter.
+
+        A filter that is None or empty does not filter. States compare by kind only, so
+        ``AsvoJobState.Error`` matches every job with an error.
+
+        Raises:
+            ValueError: An obsid is not valid.
+        """
+    def all_ready(self, jobids: list[int]) -> bool:
+        """Whether all of ``jobids`` are ready for download. False means some are still in progress.
+
+        This makes no request: to wait, call ``AsvoClient.get_jobs`` and this in a loop.
+
+        Raises:
+            AsvoError: A job is missing, has an error, has expired or has been cancelled.
+        """
+    def json(self) -> str:
+        """The jobs as a JSON object keyed by job ID, as ``giant-squid list --json`` prints."""
+
+class AsvoClient:
+    """A client for the MWA ASVO. It logs in when it is created.
+
+    Args:
+        host: The MWA ASVO base URL, for example "https://asvo.mwatelescope.org:443". An "http://" host is
+            permitted (a local test server); every other host must use TLS.
+        api_key: Your MWA ASVO API key.
+        api_timeout: The timeout for one API request, in seconds. None uses the library default (60 s).
+        token_cache_path: Where to cache the session between runs. None keeps the session in memory only, so
+            every new client logs in. Give a path for a script that runs often, because the server permits
+            only a few logins a minute.
+
+    Raises:
+        AsvoApiError: The API key is empty, or the login failed.
+        ValueError: ``api_timeout`` is negative or not finite.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        api_key: str,
+        *,
+        api_timeout: float | None = None,
+        token_cache_path: str | os.PathLike[str] | None = None,
+    ) -> None: ...
+    def get_jobs(self, days: int | None = None) -> AsvoJobVec:
+        """Get your jobs.
+
+        Args:
+            days: Only the jobs from the past ``days`` days. None gets your full job history.
+
+        Raises:
+            AsvoApiError: The request failed.
+        """

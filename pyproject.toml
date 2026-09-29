@@ -43,7 +43,7 @@ dependencies = []
 "Source" = "https://github.com/MWATelescope/giant-squid"
 
 [dependency-groups]
-dev = ["pytest", "ruff", "ty"]
+dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
 
 [tool.maturin]
 module-name = "mwa_giant_squid"
@@ -54,6 +54,9 @@ no-default-features = true
 features = ["python"]
 # Unwinds on panic, so a Rust panic is a Python exception (see Cargo.toml).
 profile = "release-python"
+# Editable installs (`uv sync`, `maturin develop`) use the dev profile, which
+# builds much faster. The dev profile also unwinds on panic.
+editable-profile = "dev"
 locked = true
 strip = true
 
