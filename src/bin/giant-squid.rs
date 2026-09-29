@@ -669,7 +669,7 @@ fn main() -> Result<(), anyhow::Error> {
 
                 let outcome = submit_each_obsid(&parsed_obsids, "metadata download", |o, id| {
                     let params = download.to_meta_params(id)?;
-                    let resp = client.submit_download_vis_job(&params)?;
+                    let resp = client.submit_download_meta_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);

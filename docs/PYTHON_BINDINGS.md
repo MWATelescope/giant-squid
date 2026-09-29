@@ -48,9 +48,13 @@
   compare by kind, so any `Error(..)` matches). `list` and `wait` use it.
   The CLI still rejects job IDs and obsids together, now before it
   connects. Six new library tests.
-- Next step: Phase 0, step 0.9 (`AsvoClient::submit_download_meta_job`).
-  Start from a fresh clone of `apiv2`, one diff per step, and update this
-  section after each.
+- 2026-09-29: step 0.9 done. `AsvoClient::submit_download_meta_job(params)`
+  sets `download_type = meta` and calls `submit_download_vis_job`.
+  `submit-meta` uses it. `submit_download_vis_job` is unchanged (it does
+  not force `vis`). One new library test.
+- Next step: Phase 0, step 0.10 (library-level example
+  `examples/list_jobs.rs`). Start from a fresh clone of `apiv2`, one diff
+  per step, and update this section after each.
 
 ## Goal
 

@@ -37,9 +37,9 @@ use crate::obsid::Obsid;
 use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
-    ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
-    JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login, TokenResponse,
-    UserResponse, VoltageJobParams,
+    DownloadJobParamsDownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
+    JobDetailResponse, JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login,
+    TokenResponse, UserResponse, VoltageJobParams,
 };
 
 /// The default timeout for a single MWA ASVO API request.
@@ -769,6 +769,19 @@ impl AsvoClient {
 
         let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
         Ok(resp)
+    }
+
+    /// Submit a metadata download job. This is a download job with
+    /// `download_type` set to `meta`, sent to the same endpoint as
+    /// [`Self::submit_download_vis_job`]. Any `download_type` in `params`
+    /// is replaced.
+    pub fn submit_download_meta_job(
+        &self,
+        params: &DownloadJobParams,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        let mut params = params.clone();
+        params.download_type = Some(DownloadJobParamsDownloadType::Meta);
+        self.submit_download_vis_job(&params)
     }
 
     pub fn submit_conversion_job(
