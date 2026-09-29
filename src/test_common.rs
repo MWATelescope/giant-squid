@@ -5,16 +5,12 @@
 //! Shared harness for the tests that run against a mock MWA ASVO.
 //!
 //! Every test here runs against a local [`MockServer`], never a real MWA
-//! ASVO. Two things make that safe and repeatable:
-//!
-//! 1. The client is built from an explicit config (see
-//!    `src/test_config.rs`) that points it at the mock server, with the
-//!    token cache in a temporary directory, so a developer's real
-//!    `~/.mwa-asvo/tokens.json` is never read or written.
-//! 2. The download code still reads `GIANT_SQUID_DOWNLOAD_RETRY_SECS`. That
-//!    variable is process-wide, and cargo runs tests in parallel threads,
-//!    so [`TestEnv`] holds a lock for the life of the test. Tests using it
-//!    therefore run one at a time.
+//! ASVO. The client is built from an explicit config (see
+//! `src/test_config.rs`) that points it at the mock server, with the token
+//! cache in a temporary directory, so a developer's real
+//! `~/.mwa-asvo/tokens.json` is never read or written. The library reads no
+//! environment variables, so the tests touch no process-wide state and run
+//! in parallel.
 //!
 //! This file is compiled twice: as `crate::test_common` for the unit tests,
 //! and via `#[path]` from `tests/common/mod.rs` for the subprocess tests in
@@ -25,7 +21,6 @@
 #![allow(dead_code)]
 
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
 use std::time::Duration as StdDuration;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -35,9 +30,6 @@ use httpmock::prelude::*;
 use httpmock::Mock;
 use serde_json::{json, Value};
 use tempfile::TempDir;
-
-/// Serialises access to the environment variables the library still reads.
-static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// Values the harness uses in place of real credentials and user details.
 pub const TEST_API_KEY: &str = "not-a-real-api-key";
@@ -52,23 +44,21 @@ pub const TEST_OBSID: &str = "1065880128";
 pub const TEST_OBSID_I64: i64 = 1065880128;
 pub const TEST_JOBID: u32 = 12345;
 
-/// The environment variables the harness overrides.
-const MANAGED_VARS: [&str; 1] = ["GIANT_SQUID_DOWNLOAD_RETRY_SECS"];
-
 /// A mock MWA ASVO, plus the values a client config needs to reach it.
+///
+/// Each `TestEnv` has its own server and temporary home directory, so tests
+/// that use it can run in parallel.
 pub struct TestEnv {
     pub server: MockServer,
     home: TempDir,
     /// The API key to put in the client config. Empty for
     /// [`Self::without_api_key`].
     api_key: &'static str,
-    saved: Vec<(&'static str, Option<String>)>,
-    _guard: MutexGuard<'static, ()>,
 }
 
 impl TestEnv {
     /// Start a mock server with a valid cached session already on disk, so
-    /// `AsvoClient::new()` uses it instead of logging in. This is the usual
+    /// `AsvoClient::new` uses it instead of logging in. This is the usual
     /// starting point: it keeps tests focused on the endpoint under test.
     pub fn with_session() -> Self {
         let env = Self::bare();
@@ -76,7 +66,7 @@ impl TestEnv {
         env
     }
 
-    /// Start a mock server with no cached session, so `AsvoClient::new()`
+    /// Start a mock server with no cached session, so `AsvoClient::new`
     /// has to log in. Used by the authentication tests.
     pub fn without_session() -> Self {
         Self::bare()
@@ -90,26 +80,13 @@ impl TestEnv {
     }
 
     fn bare() -> Self {
-        let guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let saved = MANAGED_VARS
-            .iter()
-            .map(|var| (*var, std::env::var(var).ok()))
-            .collect();
-
         let server = MockServer::start();
         let home = TempDir::new().expect("could not create a temporary HOME");
-
-        // Without this, a test that deliberately triggers a transient
-        // download failure retries under exponential backoff for fifteen
-        // minutes - while holding ENV_LOCK, which stalls every other test.
-        set_env("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "0");
 
         Self {
             server,
             home,
             api_key: TEST_API_KEY,
-            saved,
-            _guard: guard,
         }
     }
 
@@ -172,17 +149,6 @@ impl TestEnv {
                 .header("content-type", "application/json")
                 .json_body(json!({ "jobs": jobs, "total_count": total_count }));
         })
-    }
-}
-
-impl Drop for TestEnv {
-    fn drop(&mut self) {
-        for (var, value) in &self.saved {
-            match value {
-                Some(value) => set_env(var, value),
-                None => clear_env(var),
-            }
-        }
     }
 }
 
@@ -291,16 +257,4 @@ pub fn job_detail(id: i64, obs_id: &str, job_state: &str, job_type: i64) -> Valu
         "last_name": "User",
         "user_id": TEST_USER_ID,
     })
-}
-
-/// Set an environment variable for the duration of a test.
-///
-/// Sound because [`TestEnv`] holds `ENV_LOCK` for the life of the test, so
-/// no other test reads or writes these variables concurrently.
-fn set_env(key: &str, value: &str) {
-    std::env::set_var(key, value);
-}
-
-fn clear_env(key: &str) {
-    std::env::remove_var(key);
 }

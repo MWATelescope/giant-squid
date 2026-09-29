@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
-use crate::asvo::{AsvoClient, AsvoError, DownloadOptions};
+use crate::asvo::{AsvoClient, AsvoError, DownloadOptions, DEFAULT_DOWNLOAD_BUFFER_SIZE};
 use crate::test_common::*;
 use crate::test_config::client_config;
 
@@ -59,7 +59,11 @@ fn tar_containing(name: &str, contents: &str) -> String {
 }
 
 /// Download options writing into a temporary directory, with progress
-/// output suppressed.
+/// output suppressed and retries disabled.
+///
+/// Retries are disabled because a test that deliberately triggers a
+/// transient download failure would otherwise retry under exponential
+/// backoff for fifteen minutes.
 fn options<'a>(dir: &'a str, progress_bar: &'a ProgressBar) -> DownloadOptions<'a> {
     DownloadOptions {
         keep_tar: false,
@@ -69,6 +73,8 @@ fn options<'a>(dir: &'a str, progress_bar: &'a ProgressBar) -> DownloadOptions<'
         progress_bar,
         download_number: 1,
         download_count: 1,
+        buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
+        retry_duration: std::time::Duration::ZERO,
     }
 }
 
@@ -364,8 +370,8 @@ fn a_hash_mismatch_is_reported() {
         other => panic!("expected HashMismatch, got {other:?}"),
     }
     // A hash mismatch is classed as transient, so it is retried under
-    // exponential backoff in normal use. The harness sets
-    // GIANT_SQUID_DOWNLOAD_RETRY_SECS=0 so the test doesn't sit in backoff.
+    // exponential backoff in normal use. `options` sets a zero
+    // retry_duration so the test doesn't sit in backoff.
     assert_eq!(file.calls(), 1, "retries are disabled in tests");
 }
 

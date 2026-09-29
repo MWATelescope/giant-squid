@@ -23,7 +23,9 @@ use mwa_giant_squid::asvo::apiv2::client::{
 };
 use mwa_giant_squid::asvo::apiv2::openapi::JobSubmittedResponse;
 use mwa_giant_squid::asvo::*;
-use mwa_giant_squid::cli::config::client_config_from_env;
+use mwa_giant_squid::cli::config::{
+    client_config_from_env, download_buffer_size_from_env, download_retry_duration_from_env,
+};
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
 
@@ -337,6 +339,8 @@ fn main() -> Result<(), anyhow::Error> {
 
             let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
             let hash = !skip_hash;
+            let buffer_size = download_buffer_size_from_env()?;
+            let retry_duration = download_retry_duration_from_env();
             if dry_run {
                 if !jobids.is_empty() {
                     debug!("Parsed job IDs: {:#?}", jobids);
@@ -369,6 +373,8 @@ fn main() -> Result<(), anyhow::Error> {
                             progress_bar: &pb,
                             download_number: c + 1,
                             download_count: t,
+                            buffer_size,
+                            retry_duration,
                         };
                         run_jobid_download(*j, &opts)
                     })
@@ -387,6 +393,8 @@ fn main() -> Result<(), anyhow::Error> {
                             progress_bar: &pb,
                             download_number: c + 1,
                             download_count: t,
+                            buffer_size,
+                            retry_duration,
                         };
                         run_obsid_download(*o, &opts)
                     })

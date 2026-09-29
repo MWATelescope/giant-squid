@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Builds the library's [`AsvoClientConfig`] from the environment.
+//! Builds the library's [`AsvoClientConfig`], and the download settings in
+//! [`DownloadOptions`](crate::DownloadOptions), from the environment.
 //!
 //! The library reads no environment variables. The CLI does, here, and
 //! gives the library an explicit config.
@@ -11,11 +12,12 @@ use std::env::var;
 use std::path::Path;
 use std::time::Duration;
 
+use anyhow::Context;
 use log::{debug, warn};
 
 use crate::asvo::{
-    default_token_cache_path, AsvoApiError, AsvoClientConfig, DEFAULT_API_TIMEOUT,
-    DEFAULT_ASVO_HOST,
+    default_token_cache_path, AsvoApiError, AsvoClientConfig, BYTES_PER_MIB, DEFAULT_API_TIMEOUT,
+    DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 /// Overrides the MWA ASVO host (default [`DEFAULT_ASVO_HOST`]).
@@ -28,6 +30,13 @@ pub const ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
 /// The home directory. The token cache (shared with mwa-cli) is kept
 /// under it. If it is not set, the session is not cached.
 pub const ENV_HOME: &str = "HOME";
+/// Overrides the download buffer size, in whole MiB (default
+/// [`DEFAULT_DOWNLOAD_BUFFER_SIZE`]).
+pub const ENV_GIANT_SQUID_BUF_SIZE: &str = "GIANT_SQUID_BUF_SIZE";
+/// Overrides how long a download retries transient failures, in whole
+/// seconds (default [`DEFAULT_DOWNLOAD_RETRY_DURATION`]). Zero disables
+/// retrying.
+pub const ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS: &str = "GIANT_SQUID_DOWNLOAD_RETRY_SECS";
 
 /// Build an [`AsvoClientConfig`] from the environment.
 ///
@@ -80,4 +89,39 @@ fn api_timeout_from_env() -> Duration {
             DEFAULT_API_TIMEOUT
         }
     }
+}
+
+/// The download buffer size in bytes, from `GIANT_SQUID_BUF_SIZE` (in MiB),
+/// or [`DEFAULT_DOWNLOAD_BUFFER_SIZE`] if it is not set.
+///
+/// Returns an error if the variable is set but is not a whole number of
+/// MiB, or is too large.
+pub fn download_buffer_size_from_env() -> anyhow::Result<usize> {
+    let Ok(val) = var(ENV_GIANT_SQUID_BUF_SIZE) else {
+        return Ok(DEFAULT_DOWNLOAD_BUFFER_SIZE);
+    };
+
+    let mib: usize = val.parse().with_context(|| {
+        format!(
+            "Environment variable {}='{}' is not valid. (It should be an integer number of MiB)",
+            ENV_GIANT_SQUID_BUF_SIZE, val
+        )
+    })?;
+    mib.checked_mul(BYTES_PER_MIB).with_context(|| {
+        format!(
+            "Environment variable {}='{}' is too large",
+            ENV_GIANT_SQUID_BUF_SIZE, val
+        )
+    })
+}
+
+/// How long a download retries transient failures, from
+/// `GIANT_SQUID_DOWNLOAD_RETRY_SECS`, or [`DEFAULT_DOWNLOAD_RETRY_DURATION`]
+/// if it is not set or not a whole number of seconds.
+pub fn download_retry_duration_from_env() -> Duration {
+    var(ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(DEFAULT_DOWNLOAD_RETRY_DURATION)
 }

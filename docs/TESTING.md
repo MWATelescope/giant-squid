@@ -41,9 +41,9 @@ dev-dependency, so `Cargo.lock` must be regenerated (`./check.sh` does this
 via `cargo update`) and committed - CI runs `cargo test --locked` and will
 fail on a stale lock file.
 
-Pointing the client at the mock server needs no production code change: the
-base URL of every API call already comes from `MWA_ASVO_HOST`. The one thing
-that did need changing is TLS. Both `reqwest` clients were built with
+Pointing the client at the mock server needs no special production code: the
+base URL of every API call comes from `AsvoClientConfig::host` (the CLI sets
+it from `MWA_ASVO_HOST`). The one thing that did need changing is TLS. Both `reqwest` clients were built with
 `https_only(true)`, which rejects the mock server's `http://127.0.0.1:PORT`
 address outright. `require_tls()` in `client.rs` now derives that flag from
 the configured host's scheme, so the default host and any `https://` host
@@ -51,12 +51,13 @@ stay HTTPS-only, while an explicitly configured `http://` host - a mock
 server, or a plain-HTTP dev instance - is allowed.
 
 `src/test_common.rs` holds the harness (`#[cfg(test)]`, and also pulled into
-`tests/common/mod.rs` for the subprocess tests). `TestEnv` starts a mock server,
-points `MWA_ASVO_HOST` at it, redirects `HOME` to a temporary directory so
-the real token cache is never touched, and optionally writes a valid cached
-session so `AsvoClient::new()` skips the login round trip. Because those
-variables are process-wide and cargo runs tests in parallel threads, the
-harness holds a mutex for the life of each test.
+`tests/common/mod.rs` for the subprocess tests). `TestEnv` starts a mock
+server and a temporary home directory, and optionally writes a valid cached
+session there so the client skips the login round trip.
+`client_config(&env)` in `src/test_config.rs` builds an `AsvoClientConfig`
+with the mock server as the host and the token cache in the temporary
+directory, so the real token cache is never touched. No environment
+variable is set, so the tests run in parallel.
 
 Recording is manual and never runs in CI. `record_login_and_get_jobs` in
 `src/asvo/apiv2/client/test.rs` is `#[ignore]`d and its section notes carry
@@ -147,20 +148,19 @@ docs for details.
 
 ## Test environment isolation
 
-The client reads process-wide environment variables, and cargo runs tests in
-parallel threads within one process. Any test that sets `MWA_ASVO_HOST`,
-`MWA_ASVO_API_KEY`, `MWA_ASVO_API_TIMEOUT` or `HOME` must therefore be
-serialised (for example with `serial_test`), or the client must take an
-explicit config value instead of reading the environment.
+The library reads no environment variables. The CLI reads them in
+`src/cli/config.rs` and gives the library an explicit `AsvoClientConfig` and
+`DownloadOptions`. So the in-process tests set no environment variable, and
+cargo can run them in parallel threads.
 
-The harness also sets `GIANT_SQUID_DOWNLOAD_RETRY_SECS=0`. A download
+The download tests set `DownloadOptions::retry_duration` to zero. A download
 classifies most failures as transient and retries them under exponential
 backoff for fifteen minutes; a test that deliberately triggers one (the hash
-mismatch test) would otherwise sit in backoff for that whole time while
-holding the lock, stalling every other test in the binary. That is exactly
-what happened before the retry window was made configurable.
+mismatch test) would otherwise sit in backoff for that whole time. The CLI
+tests set `GIANT_SQUID_DOWNLOAD_RETRY_SECS=0` on the child process for the
+same reason.
 
-`HOME` also needs a per-test temporary directory: the token cache is
+Each test also needs its own temporary token cache: the CLI's cache is
 `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli, and tests must never read
 or overwrite a real developer session.
 
@@ -297,8 +297,8 @@ already accepts both.
 - A hash mismatch is treated as a transient error, so a failed checksum
   re-downloads the file under backoff. Kept deliberately: a mismatch
   usually means a corrupted transfer, which a retry can fix. The window is
-  configurable via `GIANT_SQUID_DOWNLOAD_RETRY_SECS` (default 900s), which
-  the test suite sets to 0.
+  configurable via `DownloadOptions::retry_duration` (default 900 s; the CLI
+  reads `GIANT_SQUID_DOWNLOAD_RETRY_SECS`), which the test suite sets to 0.
 
 - Resume was broken in three linked ways, found while writing the download
   tests, and now fixed together:

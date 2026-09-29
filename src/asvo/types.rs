@@ -351,4 +351,11 @@ pub struct DownloadOptions<'a> {
     pub progress_bar: &'a ProgressBar,
     pub download_number: usize,
     pub download_count: usize,
+    /// How much data, in bytes, is held in memory before it is written to
+    /// disk. See [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
+    pub buffer_size: usize,
+    /// How long to retry transient download failures before giving up.
+    /// Zero disables retrying. See
+    /// [`DEFAULT_DOWNLOAD_RETRY_DURATION`](crate::DEFAULT_DOWNLOAD_RETRY_DURATION).
+    pub retry_duration: std::time::Duration,
 }

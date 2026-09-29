@@ -7,12 +7,15 @@
 - 2026-09-29: step 0.1 done. `AsvoClientConfig` and
   `AsvoClient::new(config)`; the library reads no `MWA_ASVO_*` or `HOME`
   variable. The CLI builds the config in `src/cli/config.rs`. The unit
-  tests build the config in `src/test_config.rs`. `ENV_LOCK` stays until
-  0.2, because the download code still reads
-  `GIANT_SQUID_DOWNLOAD_RETRY_SECS`.
-- Next step: Phase 0, step 0.2 (`DownloadOptions` gets `buffer_size` and
-  `retry_duration`). Start from a fresh clone of `apiv2`, one diff per
-  step, and update this section after each.
+  tests build the config in `src/test_config.rs`.
+- 2026-09-29: step 0.2 done. `DownloadOptions` has `buffer_size` (bytes)
+  and `retry_duration`; the CLI reads `GIANT_SQUID_BUF_SIZE` and
+  `GIANT_SQUID_DOWNLOAD_RETRY_SECS` in `src/cli/config.rs`. The library
+  reads no environment variable. `ENV_LOCK` is removed, so the unit tests
+  run in parallel.
+- Next step: Phase 0, step 0.3 (progress callback instead of
+  `indicatif::ProgressBar`). Start from a fresh clone of `apiv2`, one diff
+  per step, and update this section after each.
 
 ## Goal
 

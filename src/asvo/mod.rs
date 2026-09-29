@@ -22,7 +22,7 @@ pub use types::{
     Delivery, DownloadOptions,
 };
 
-use std::env::{current_dir, var};
+use std::env::current_dir;
 use std::fs::{rename, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -37,18 +37,21 @@ use sha1::{Digest, Sha1};
 use tar::Archive;
 use tee_readwrite::TeeReader;
 
-const CONST_ENV_GIANT_SQUID_BUF_SIZE: &str = "GIANT_SQUID_BUF_SIZE";
-const CONST_ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS: &str = "GIANT_SQUID_DOWNLOAD_RETRY_SECS";
-
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
 /// [`AsvoClientConfig::host`].
 pub const DEFAULT_ASVO_HOST: &str = "https://asvo.mwatelescope.org:443";
 
-/// How long a download keeps retrying transient failures before giving up.
-/// Matches `ExponentialBackoff`'s own default, so behaviour is unchanged
-/// unless overridden.
-const CONST_DEFAULT_DOWNLOAD_RETRY_SECS: u64 = 900;
+/// The number of bytes in one MiB.
+pub const BYTES_PER_MIB: usize = 1024 * 1024;
+
+/// The default [`DownloadOptions::buffer_size`]: 100 MiB.
+pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
+
+/// The default [`DownloadOptions::retry_duration`]: how long a download
+/// keeps retrying transient failures before giving up. Matches
+/// `ExponentialBackoff`'s own default (900 s).
+pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
 
 /// Look up a single job by job ID from the supplied list and download it.
 pub(crate) fn download_by_jobid(
@@ -150,7 +153,7 @@ fn download_job(
                     )
                 };
 
-                match retry(download_backoff(), op) {
+                match retry(download_backoff(opts.retry_duration), op) {
                     Ok(()) => {}
                     Err(Error::Permanent(err)) => return Err(err),
                     Err(Error::Transient { err, .. }) => return Err(err),
@@ -242,11 +245,7 @@ fn try_download(
     log_prefix: &str,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
-    let buffer_size = match var(CONST_ENV_GIANT_SQUID_BUF_SIZE) {
-        Ok(s) => s.parse()?,
-        Err(_) => 100, // 100 MiB by default.
-    } * 1024
-        * 1024;
+    let buffer_size = opts.buffer_size;
 
     let mwa_asvo_hash = file_info.sha1.as_deref().unwrap_or_else(|| {
         panic!(
@@ -435,19 +434,13 @@ fn try_download(
 /// The retry policy for a download.
 ///
 /// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
-/// retried with exponential backoff for
-/// [`CONST_DEFAULT_DOWNLOAD_RETRY_SECS`], which can be overridden with
-/// `GIANT_SQUID_DOWNLOAD_RETRY_SECS`. Zero disables retrying, which is what
-/// the test suite uses: a test that deliberately triggers a transient
+/// retried with exponential backoff for `retry_duration`
+/// ([`DownloadOptions::retry_duration`]). Zero disables retrying, which is
+/// what the test suite uses: a test that deliberately triggers a transient
 /// failure would otherwise sit in backoff for fifteen minutes.
-fn download_backoff() -> backoff::ExponentialBackoff {
-    let seconds = match var(CONST_ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS) {
-        Ok(s) => s.parse().unwrap_or(CONST_DEFAULT_DOWNLOAD_RETRY_SECS),
-        Err(_) => CONST_DEFAULT_DOWNLOAD_RETRY_SECS,
-    };
-
+fn download_backoff(retry_duration: Duration) -> backoff::ExponentialBackoff {
     ExponentialBackoffBuilder::new()
-        .with_max_elapsed_time(Some(Duration::from_secs(seconds)))
+        .with_max_elapsed_time(Some(retry_duration))
         .build()
 }
 
