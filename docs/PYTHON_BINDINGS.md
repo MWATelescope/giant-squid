@@ -267,6 +267,23 @@ Steps:
   `ruff check`, `ruff format` (line length 120) and `ty check` on the
   Python code. Publishing to PyPI stays your step.
 
+Notes for Phase 3, found during Phases 1 and 2:
+
+- Build the Linux wheels in a manylinux container (for example
+  `maturin-action` with `manylinux: auto`). A wheel built on a developer
+  machine gets that machine's glibc tag (`manylinux_2_38` on the build
+  machine used here), which older systems, such as many HPC systems,
+  cannot install.
+- The wheel links `reqwest`, `rustls` and `aws-lc-rs` (about 2.4 MB).
+  `aws-lc-sys` compiles C code, so each wheel build environment needs a C
+  toolchain. The standard maturin images have one.
+- Add the `python-stubgen` feature and `pyo3-stub-gen` here (moved from
+  Phase 1). Use `default-features = false`: its default features add
+  `numpy`, which this crate does not use. The generated
+  `mwa_giant_squid.pyi` replaces the hand-written one.
+- Set `readme` in `pyproject.toml` to `docs/PYTHON.md`, so that the PyPI
+  page describes the Python module and not the CLI.
+
 ## Out of scope for now
 
 An `async` API, free-threaded wheels, Windows wheels, and an installed
