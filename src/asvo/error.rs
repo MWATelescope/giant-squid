@@ -10,9 +10,25 @@ use crate::obsid::Obsid;
 
 #[derive(Error, Debug)]
 pub enum AsvoError {
-    /// Tried to download a job that doesn't exist.
+    /// Tried to download (or check) a job that doesn't exist.
     #[error("MWA ASVO job ID {0} wasn't found in your list of jobs.")]
     NoAsvoJob(AsvoJobID),
+
+    /// A checked job is in an error state.
+    #[error("MWA ASVO job ID {jobid} (obsid: {obsid}) has an error: {error}")]
+    JobFailed {
+        jobid: AsvoJobID,
+        obsid: Obsid,
+        error: String,
+    },
+
+    /// A checked job has expired.
+    #[error("MWA ASVO job ID {0} has expired.")]
+    JobExpired(AsvoJobID),
+
+    /// A checked job has been cancelled.
+    #[error("MWA ASVO job ID {0} has been cancelled.")]
+    JobCancelled(AsvoJobID),
 
     /// Tried to download an obsid that doesn't exist.
     #[error("Obsid {0} wasn't found in your list of jobs.")]

@@ -148,6 +148,42 @@ impl AsvoJobVec {
         AsvoJobMap::from(self)
     }
 
+    /// Check whether all of `jobids` are ready for download, in this job
+    /// list. This makes no request: to wait for jobs, the caller gets the
+    /// job list ([`AsvoClient::get_jobs`](crate::AsvoClient::get_jobs)),
+    /// calls this, and sleeps and repeats while it returns `Ok(false)`.
+    ///
+    /// Returns `Ok(true)` if every job is `Ready`, and `Ok(false)` if every
+    /// job is ready or still in progress (queued, processing and so on).
+    /// Returns an error for the first job (in the order of `jobids`) that
+    /// is not in the list ([`AsvoError::NoAsvoJob`]), has an error
+    /// ([`AsvoError::JobFailed`]), has expired ([`AsvoError::JobExpired`])
+    /// or has been cancelled ([`AsvoError::JobCancelled`]).
+    pub fn all_ready(&self, jobids: &[AsvoJobID]) -> Result<bool, AsvoError> {
+        let mut all_ready = true;
+        for jobid in jobids {
+            let job = self
+                .0
+                .iter()
+                .find(|j| j.jobid == *jobid)
+                .ok_or(AsvoError::NoAsvoJob(*jobid))?;
+            match &job.state {
+                AsvoJobState::Ready => (),
+                AsvoJobState::Error(e) => {
+                    return Err(AsvoError::JobFailed {
+                        jobid: *jobid,
+                        obsid: job.obsid,
+                        error: e.clone(),
+                    });
+                }
+                AsvoJobState::Expired => return Err(AsvoError::JobExpired(*jobid)),
+                AsvoJobState::Cancelled => return Err(AsvoError::JobCancelled(*jobid)),
+                _ => all_ready = false,
+            }
+        }
+        Ok(all_ready)
+    }
+
     /// filter out any jobs that don't match jobids
     pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
         // if we wanted to use a nightly:
@@ -307,3 +343,6 @@ pub struct DownloadOptions<'a> {
     /// [`DEFAULT_DOWNLOAD_RETRY_DURATION`](crate::DEFAULT_DOWNLOAD_RETRY_DURATION).
     pub retry_duration: std::time::Duration,
 }
+
+#[cfg(test)]
+mod test;

@@ -216,49 +216,36 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
 
 /// Wait for all of the specified job IDs to become ready, then exit.
 /// Polls via `AsvoClient::get_jobs`.
+/// The time between job list requests while waiting for jobs.
+const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How long to wait before the first job list request, so that the user's
+/// queue is hopefully current.
+const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
+
+/// Poll the job list until all of `jobids` are ready, logging each job's
+/// state when it changes. Fails as soon as a job is missing, has an error,
+/// has expired or has been cancelled (see `AsvoJobVec::all_ready`).
 fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
     info!("Waiting for {} jobs to be ready...", jobids.len());
     let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
-    // Offer the MWA ASVO a kindness by waiting a few seconds, so
-    // that the user's queue is hopefully current.
-    std::thread::sleep(Duration::from_secs(1));
+    // Offer the MWA ASVO a kindness by waiting a moment, so that the
+    // user's queue is hopefully current.
+    std::thread::sleep(WAIT_INITIAL_DELAY);
     loop {
-        // Get the current state of all jobs. By converting to a map, we avoid
-        // quadratic complexity below. Probably not a big deal, but why not?
         // `None` here mirrors `list`'s own default: fetch full history
         // rather than relying on the (unconfirmed) server-side default.
-        let jobs = client.get_jobs(None)?.into_map();
-        let mut any_not_ready = false;
-        // Iterate over all supplied job IDs.
-        for j in jobids {
-            // Find the relevant job in the queue.
-            let job = match jobs.0.get(j) {
-                None => bail!("MWA ASVO job ID {} wasn't found in your list of jobs.", j),
-                Some(job) => job,
-            };
-            // Handle the job's state. If it's ready, there's nothing to do. If
-            // the job is simply queued or in processing (or other intermediate states),
-            // we can say that we're not ready yet. All other possibilities are handled drastically.
-            match &job.state {
-                AsvoJobState::Ready => (),
-                AsvoJobState::Error(e) => {
-                    bail!(
-                        "MWA ASVO job ID {} (obsid: {}) has an error: {}",
-                        j,
-                        job.obsid,
-                        e
-                    );
-                }
-                AsvoJobState::Expired => bail!("MWA ASVO job ID {} has expired.", j),
-                AsvoJobState::Cancelled => bail!("MWA ASVO job ID {} has been cancelled.", j),
-                _ => {
-                    // For all other states
-                    any_not_ready = true;
-                }
-            }
-            // log if there was a change in state.
+        let jobs = client.get_jobs(None)?;
+        let all_ready = jobs.all_ready(jobids)?;
+
+        // Log if there was a change in state. `all_ready` has already
+        // checked that every job is in the list.
+        for job in jobids
+            .iter()
+            .filter_map(|id| jobs.0.iter().find(|j| j.jobid == *id))
+        {
             let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
-            match last_state.insert(*j, job.state.clone()) {
+            match last_state.insert(job.jobid, job.state.clone()) {
                 Some(last_state) if last_state != job.state => {
                     info!("{} is {}", log_prefix, job.state);
                 }
@@ -266,13 +253,11 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
                 None => info!("{} is {}", log_prefix, job.state), // First time just report current state
             }
         }
-        // Our lock variable is set if we broke out of the loop.
-        if any_not_ready {
-            std::thread::sleep(Duration::from_secs(60));
-        } else {
-            // If we reach here, all jobs are ready.
+
+        if all_ready {
             break;
         }
+        std::thread::sleep(WAIT_POLL_INTERVAL);
     }
     info!("All {} MWA ASVO jobs are ready for download.", jobids.len());
     Ok(())

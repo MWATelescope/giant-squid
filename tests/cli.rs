@@ -523,6 +523,41 @@ fn list_reports_when_there_are_no_jobs() {
 }
 
 #[test]
+fn wait_returns_when_the_job_is_ready() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBSID, "completed", 1)]);
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "--json", "12345"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let parsed = result.stdout_json();
+    assert_eq!(parsed["12345"]["jobId"], 12345);
+}
+
+#[test]
+fn wait_fails_when_the_job_has_an_error() {
+    let env = CliEnv::with_session();
+    let mut job = job_detail(12345, TEST_OBSID, "error", 1);
+    job["error_text"] = serde_json::json!("the conversion failed");
+    env.mock_get_jobs(vec![job]);
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "12345"]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    assert!(
+        result.combined().contains(
+            "MWA ASVO job ID 12345 (obsid: 1065880128) has an error: the conversion failed"
+        ),
+        "output: {}",
+        result.combined()
+    );
+}
+
+#[test]
 fn list_filters_by_state() {
     let env = CliEnv::with_session();
     env.mock_get_jobs(vec![

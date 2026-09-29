@@ -37,9 +37,15 @@
   the others reuse its token. Three new tests: a compile-time
   `Send + Sync` check, one client used from four threads at once, and
   eight threads sharing a rejected token cause exactly one login.
-- Next step: Phase 0, step 0.7 (`wait_loop` moves into the library as
-  `AsvoClient::wait_for_jobs`). Start from a fresh clone of `apiv2`, one
-  diff per step, and update this section after each.
+- 2026-09-29: step 0.7 done (revised: decision 9). The library has
+  `AsvoJobVec::all_ready(jobids)`, a single check with no request and no
+  sleep. The poll loop, its 60 s interval and the state-change logs stay
+  in the CLI (`wait_loop` in the binary). New `AsvoError` variants
+  `JobFailed`, `JobExpired` and `JobCancelled` keep the old messages.
+  Seven new library tests and two new CLI tests.
+- Next step: Phase 0, step 0.8 (`list` filters move into the library as
+  `AsvoJobVec::filter`). Start from a fresh clone of `apiv2`, one diff per
+  step, and update this section after each.
 
 ## Goal
 
@@ -82,6 +88,10 @@ client.cancel_job(resp.job_id)
 8. The in-process tests may change how they build the client (from an
    `AsvoClientConfig` instead of environment variables). Their assertions
    stay the same.
+9. Library functions do not implement poll loops (added 2026-09-29).
+   The library gives single checks; the caller does the loop and the
+   sleep. This keeps Ctrl-C, timeouts and progress output in the
+   caller's hands.
 
 Also kept from the first draft: optional job arguments default to `None`,
 meaning "use the OpenAPI schema default", so neither layer adds defaults of
@@ -114,7 +124,7 @@ Each step is its own diff; the CLI keeps its current behaviour.
 | 0.4 | `AsvoJobVec::list` (the table) and the table-style helpers move to the CLI; `prettytable` becomes CLI-only | The library prints nothing |
 | 0.5 | `download_jobid` and `download_obsid` return `Result<(), AsvoError>`, not `anyhow::Result` | A library returns typed errors; Python maps them to exceptions |
 | 0.6 | `AsvoClient` uses a `Mutex` instead of a `RefCell` | PyO3 requires a `#[pyclass]` to be `Sync`, and network calls run with the GIL released (`py.detach`) |
-| 0.7 | Move `wait_loop` into the library as `AsvoClient::wait_for_jobs(jobids, poll_interval)`; the 60 s interval becomes a named default | Shared by both CLIs |
+| 0.7 | Add `AsvoJobVec::all_ready(jobids)`: one check of a job list, with typed errors for a missing, failed, expired or cancelled job. The poll loop stays in the CLI (decision 9) | Shared by both CLIs |
 | 0.8 | Move the `list` filters into the library (`AsvoJobVec::filter(jobids, obsids, jtypes, states)`) | Same |
 | 0.9 | Add `AsvoClient::submit_download_meta_job` (wraps `submit_download_vis_job` with `download_type = meta`) | The `submit-meta` command has no library method today; this gives Rust and Python the same name |
 | 0.10 | A library-level example (`examples/list_jobs.rs`) that uses only the public API | Shows the library works without the CLI |
@@ -156,7 +166,7 @@ logins a minute.
 | `submit_voltage_job(obs_id, offset, duration, *, ...)` | `submit-volt` |
 | `submit_beamformer_job(obs_id, *, ...)` | `submit-bf` |
 | `cancel_job(jobid) -> JobSubmittedResponse` | `cancel` |
-| `wait_for_jobs(jobids, poll_interval=None)` | `wait` |
+| `get_jobs()` then `AsvoJobVec.all_ready(jobids)`, in a loop the caller writes | `wait` |
 | `download_jobid(jobid, download_dir, *, keep_tar=False, no_resume=False, hash=True, progress=None)` | `download` |
 | `download_obsid(obs_id, ...)` | `download` |
 
@@ -173,8 +183,9 @@ Types: `AsvoJob`, `AsvoJobVec` (iterable, with `filter` and `json`),
 `AsvoJobState::Error(String)` carries data, so in Python it is
 `AsvoJobState.Error` and the message is in `AsvoJob.error_text`.
 
-Long calls: `wait_for_jobs` sleeps in short slices and checks for Ctrl-C;
-downloads check between chunks. Both release the GIL.
+Long calls: downloads check for Ctrl-C between chunks and release the
+GIL. There is no library wait call; the caller's own loop (for example
+with `time.sleep`) handles Ctrl-C as normal Python code.
 
 ## Phase 3: stubs, docs, tests, CI
 
