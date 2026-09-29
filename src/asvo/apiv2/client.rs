@@ -17,7 +17,7 @@
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use base64::Engine;
@@ -105,6 +105,19 @@ impl AsvoClientConfig {
     }
 }
 
+/// The authenticated HTTP client, and a count of how many times it has been
+/// replaced after a rejected token.
+///
+/// A thread records the generation of the client it sends a request with.
+/// If the server rejects that token, [`AsvoClient::reauthenticate`] compares
+/// that generation with the current one. If they differ, another thread
+/// has already logged in again, so this thread reuses the new client.
+#[derive(Debug)]
+struct Session {
+    client: Client,
+    generation: u64,
+}
+
 #[derive(Debug)]
 pub struct AsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
@@ -114,9 +127,14 @@ pub struct AsvoClient {
     /// re-authenticate and swap in a fresh client mid-flight, and so that
     /// an `AsvoClient` is `Sync` and can be shared between threads (the
     /// Python bindings need this). The lock is held only to clone or swap
-    /// the client (see [`Self::current_client`]), never during a request,
+    /// the client (see [`Self::current_session`]), never during a request,
     /// so requests from different threads run at the same time.
-    client: Mutex<Client>,
+    session: Mutex<Session>,
+    /// Held for the whole of a re-login, so that when several threads have
+    /// the same token rejected at the same time, only the first one logs
+    /// in again. The others wait, then reuse its token. This matters
+    /// because the server permits only a few logins a minute.
+    login_lock: Mutex<()>,
     /// The connection details. Kept so that a fresh login can be done on
     /// demand (i.e. when the current token is rejected), and so that every
     /// request uses the same host.
@@ -255,7 +273,11 @@ impl AsvoClient {
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
 
         Ok(AsvoClient {
-            client: Mutex::new(client),
+            session: Mutex::new(Session {
+                client,
+                generation: 0,
+            }),
+            login_lock: Mutex::new(()),
             config,
             client_version,
         })
@@ -313,21 +335,25 @@ impl AsvoClient {
     /// `download_jobid` / `download_obsid` - so this is a candidate for
     /// deletion.
     pub fn http_client(&self) -> Client {
-        self.current_client()
+        self.current_session().0
     }
 
-    /// A clone of the current authenticated HTTP client. Cloning a reqwest
-    /// client is cheap (it's reference-counted internally), and a clone lets
-    /// the caller send requests without holding the lock.
-    ///
-    /// A poisoned lock is not an error here: the lock only guards the swap
-    /// of one `Client` value for another, so a panic in another thread
-    /// cannot leave it half-changed.
-    fn current_client(&self) -> Client {
-        self.client
+    /// Lock the session. A poisoned lock is not an error here: the lock
+    /// only guards the swap of one [`Session`] value for another, so a
+    /// panic in another thread cannot leave it half-changed.
+    fn lock_session(&self) -> MutexGuard<'_, Session> {
+        self.session
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
+    }
+
+    /// A clone of the current authenticated HTTP client, and its
+    /// generation. Cloning a reqwest client is cheap (it's reference-counted
+    /// internally), and a clone lets the caller send requests without
+    /// holding the lock.
+    fn current_session(&self) -> (Client, u64) {
+        let session = self.lock_session();
+        (session.client.clone(), session.generation)
     }
 
     /// Download the MWA ASVO job with the given job ID.
@@ -339,7 +365,7 @@ impl AsvoClient {
         opts: &DownloadOptions,
     ) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        download_by_jobid(&self.current_client(), jobs, jobid, opts)
+        download_by_jobid(&self.current_session().0, jobs, jobid, opts)
     }
 
     /// Download the MWA ASVO job associated with the given obsid.
@@ -347,7 +373,7 @@ impl AsvoClient {
     /// the obsid, and downloads its files according to the supplied options.
     pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        download_by_obsid(&self.current_client(), jobs, obsid, opts)
+        download_by_obsid(&self.current_session().0, jobs, obsid, opts)
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
@@ -477,18 +503,33 @@ impl AsvoClient {
 
     /// Force a fresh login (ignoring any cached session), persist the new
     /// tokens, and swap the freshly-authenticated client in as our active
-    /// one. Called by `send_authed` when the server rejects our current
-    /// access token.
-    fn reauthenticate(&self) -> Result<(), AsvoApiError> {
+    /// one. Called by `send_authed` when the server rejects the token of
+    /// the client with generation `rejected_generation`.
+    ///
+    /// Only one thread logs in at a time (see `login_lock`). If the
+    /// generation has changed by the time this thread holds the lock,
+    /// another thread has already logged in again, so this thread does not
+    /// log in and the caller uses the new client.
+    fn reauthenticate(&self, rejected_generation: u64) -> Result<(), AsvoApiError> {
+        let _login = self
+            .login_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if self.lock_session().generation != rejected_generation {
+            debug!("Another thread has already logged in to MWA ASVO again; reusing its token");
+            return Ok(());
+        }
+
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
         let auth_client = Self::build_auth_client(&self.config)?;
         let fresh = Self::login(&auth_client, &self.config, &self.client_version)?;
         Self::cache_tokens(&self.config, &fresh);
         let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
-        *self
-            .client
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = new_client;
+
+        let mut session = self.lock_session();
+        session.client = new_client;
+        session.generation = session.generation.wrapping_add(1);
         Ok(())
     }
 
@@ -556,7 +597,7 @@ impl AsvoClient {
         // Clone the client out of the Mutex rather than holding the lock
         // across the (blocking) send, so `reauthenticate` is free to take
         // the lock on the retry path, and other threads are not blocked.
-        let client = self.current_client();
+        let (client, generation) = self.current_session();
         let response = execute_logged(&client, build(&client))?;
         if response.status.is_success() {
             return Ok(response.body);
@@ -567,10 +608,10 @@ impl AsvoClient {
             return Err(err);
         }
 
-        // Token rejected: re-login once and retry the request against the
-        // freshly-swapped client.
-        self.reauthenticate()?;
-        let client = self.current_client();
+        // Token rejected: re-login once (or reuse another thread's re-login)
+        // and retry the request against the freshly-swapped client.
+        self.reauthenticate(generation)?;
+        let (client, _) = self.current_session();
         let response = execute_logged(&client, build(&client))?;
         if response.status.is_success() {
             return Ok(response.body);

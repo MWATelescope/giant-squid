@@ -31,8 +31,12 @@
   `prettytable-rs`).
 - 2026-09-29: step 0.6 done. `AsvoClient` holds its HTTP client in a
   `Mutex`, so it is `Send + Sync`. The lock is held only to clone or swap
-  the client, not during a request. Two new tests: a compile-time
-  `Send + Sync` check, and one client used from four threads at once.
+  the client, not during a request. A re-login after a rejected token is
+  serialised (`login_lock` plus a generation counter), so when several
+  threads have the same token rejected, only the first logs in again and
+  the others reuse its token. Three new tests: a compile-time
+  `Send + Sync` check, one client used from four threads at once, and
+  eight threads sharing a rejected token cause exactly one login.
 - Next step: Phase 0, step 0.7 (`wait_loop` moves into the library as
   `AsvoClient::wait_for_jobs`). Start from a fresh clone of `apiv2`, one
   diff per step, and update this section after each.

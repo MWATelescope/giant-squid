@@ -68,7 +68,7 @@ const LIVE_TEST_OBSID: &str = "1384357952";
 /// An obsid with voltage data.
 const LIVE_VOLTAGE_OBSID: &str = "1360706032";
 /// An obsid with beamformer data.
-const LIVE_BEAMFORMER_OBSID: &str = "1455379216";
+const LIVE_BEAMFORMER_OBSID: &str = "1455599472";
 /// A well-formed obsid with no data behind it.
 const LIVE_NO_DATA_OBSID: &str = "1000000000";
 /// A job ID that no user has.

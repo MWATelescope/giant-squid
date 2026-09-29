@@ -202,6 +202,69 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
     assert_eq!(get_jobs.calls(), 2, "the request should be retried once");
 }
 
+/// How many threads share one client in the concurrent re-login test.
+const CONCURRENT_THREADS: usize = 8;
+
+#[test]
+fn threads_that_share_a_rejected_token_log_in_again_only_once() {
+    let env = TestEnv::with_session();
+    // Different lifetimes, so the two tokens are different strings.
+    let stale = jwt_expiring_in(3600);
+    let fresh = jwt_expiring_in(7200);
+    env.write_session(stale.clone(), jwt_expiring_in(86400));
+
+    let mut login_body = login_response();
+    login_body["access_token"] = json!(fresh);
+    let login = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/api_login");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(login_body);
+    });
+    let rejected = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .cookie("mwa_access_token", &stale);
+        then.status(401)
+            .header("content-type", "application/json")
+            .json_body(error_response(
+                "AUTH_INVALID_TOKEN",
+                "Access token is invalid",
+            ));
+    });
+    let accepted = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .cookie("mwa_access_token", &fresh);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(json!({ "jobs": [], "total_count": 0 }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let start = std::sync::Barrier::new(CONCURRENT_THREADS);
+    std::thread::scope(|scope| {
+        for _ in 0..CONCURRENT_THREADS {
+            scope.spawn(|| {
+                start.wait();
+                client.get_jobs(None).expect("get_jobs should succeed");
+            });
+        }
+    });
+
+    assert_eq!(
+        login.calls(),
+        1,
+        "only the first thread should log in again"
+    );
+    assert!(rejected.calls() >= 1, "the stale token should be rejected");
+    assert_eq!(
+        accepted.calls(),
+        CONCURRENT_THREADS,
+        "every thread should retry with the new token"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Error mapping
 // ---------------------------------------------------------------------------
