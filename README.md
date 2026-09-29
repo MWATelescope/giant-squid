@@ -78,6 +78,7 @@ suit users for a few reasons:
   - [Building from crates.io](#building-from-cratesio)
   - [Building from source](#building-from-source)
 - [Docker](#docker)
+- [Using giant-squid as a Rust library](#using-giant-squid-as-a-rust-library)
 - [Environment Variables](#environment-variables)
 - [Background](#background)
 
@@ -765,7 +766,116 @@ docker run mwatelescope/giant-squid:latest --help
 
 ---
 
+## Using giant-squid as a Rust library
+
+The `mwa_giant_squid` crate is also a Rust library. The `giant-squid`
+command uses it, and your own Rust programs can use it too. The library:
+
+- reads no environment variables. Your program gives it the host, API key,
+  timeout and token cache path in an `AsvoClientConfig`.
+- prints nothing. It logs through the [`log`](https://crates.io/crates/log)
+  crate, and it reports download progress through an optional callback.
+- returns typed errors: `AsvoApiError` for MWA ASVO API calls, and
+  `AsvoError` for downloads and job checks.
+- does not do poll loops. To wait for jobs, your program calls
+  `AsvoJobVec::all_ready` in its own loop.
+- has an `AsvoClient` that is `Send + Sync`, so threads can share one
+  client. If the server rejects the session token, only one thread logs in
+  again, and the other threads use the new token.
+
+Add the crate without its default `bin` feature, so that the command line
+dependencies are not built. The API below is from version 3.0.0.
+
+```toml
+[dependencies]
+mwa_giant_squid = { version = "3", default-features = false }
+```
+
+An example:
+
+```rust
+use std::error::Error;
+use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
+
+use mwa_giant_squid::asvo::apiv2::openapi::DownloadJobParams;
+use mwa_giant_squid::{
+    default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, DownloadOptions,
+    DownloadProgress, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    DEFAULT_DOWNLOAD_RETRY_DURATION,
+};
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // The library reads no environment variables: the caller supplies everything.
+    let mut config = AsvoClientConfig::new(DEFAULT_ASVO_HOST, "my-api-key");
+    config.token_cache_path = Some(default_token_cache_path(Path::new("/home/me")));
+    let client = AsvoClient::new(config)?;
+
+    // List the ready jobs from the past 7 days.
+    let ready = client
+        .get_jobs(Some(7))?
+        .filter(&[], &[], &[], &[AsvoJobState::Ready]);
+    for job in &ready.0 {
+        println!("{} {} {}", job.jobid, job.obsid, job.state);
+    }
+
+    // Submit a visibility download job. Fields you do not set use the
+    // MWA ASVO API's own defaults.
+    let params: DownloadJobParams = DownloadJobParams::builder()
+        .obs_id(1090008640)
+        .try_into()?;
+    let resp = client.submit_download_vis_job(&params)?;
+    let jobid = u32::try_from(resp.job_id.get())?;
+
+    // Wait for it: the library checks once, the caller loops and sleeps.
+    while !client.get_jobs(None)?.all_ready(&[jobid])? {
+        sleep(Duration::from_secs(60));
+    }
+
+    // Download it, with an optional progress callback.
+    let progress = |event: DownloadProgress| {
+        if let DownloadProgress::Advanced { bytes } = event {
+            eprint!("+{bytes} ");
+        }
+    };
+    let opts = DownloadOptions {
+        keep_tar: false,
+        no_resume: false,
+        hash: true,
+        download_dir: ".",
+        progress: Some(&progress),
+        download_number: 1,
+        download_count: 1,
+        buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
+        retry_duration: DEFAULT_DOWNLOAD_RETRY_DURATION,
+    };
+    client.download_jobid(jobid, &opts)?;
+    Ok(())
+}
+```
+
+To use a server other than the production MWA ASVO (for example, to test
+API features that are not live yet), give its URL as the host, for example
+`AsvoClientConfig::new("https://test-asvo.mwatelescope.org", api_key)`.
+With `token_cache_path = None`, the session is kept in memory only.
+
+For a complete program that reads its settings from the environment, see
+[`examples/list_jobs.rs`](examples/list_jobs.rs):
+
+```bash
+MWA_ASVO_API_KEY=<your key> cargo run --no-default-features --example list_jobs
+```
+
+The full API is on [docs.rs](https://docs.rs/mwa_giant_squid).
+
+---
+
 ## Environment Variables
+
+These variables are read by the `giant-squid` command. The Rust library
+reads no environment variables (see
+[Using giant-squid as a Rust library](#using-giant-squid-as-a-rust-library)).
 
 | Variable | Description | Default |
 |---|---|---|

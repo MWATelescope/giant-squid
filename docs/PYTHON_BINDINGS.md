@@ -50,11 +50,22 @@
   connects. Six new library tests.
 - 2026-09-29: step 0.9 done. `AsvoClient::submit_download_meta_job(params)`
   sets `download_type = meta` and calls `submit_download_vis_job`.
-  `submit-meta` uses it. `submit_download_vis_job` is unchanged (it does
-  not force `vis`). One new library test.
-- Next step: Phase 0, step 0.10 (library-level example
-  `examples/list_jobs.rs`). Start from a fresh clone of `apiv2`, one diff
-  per step, and update this section after each.
+  `submit-meta` uses it. One new library test.
+- 2026-09-29: `submit_download_vis_job` now forces `download_type = vis`,
+  as `submit_download_meta_job` forces `meta` (both call a private
+  `submit_download_job`). The existing metadata test now calls
+  `submit_download_meta_job` (approved); its assertions are unchanged. One
+  new library test.
+- 2026-09-29: step 0.10 done. `examples/list_jobs.rs` uses only the
+  public library API. It reads `MWA_ASVO_API_KEY`, `MWA_ASVO_HOST` and
+  `HOME` itself, builds an `AsvoClientConfig`, lists jobs and uses
+  `AsvoJobVec::filter`. It builds with `--no-default-features`. **Phase 0
+  is complete.**
+- 2026-09-29: step 0.10b done. README section "Using giant-squid as a
+  Rust library" (dependency line, a compile-checked example, and a link to
+  `examples/list_jobs.rs`).
+- Next step: Phase 1 (Python module skeleton). Start from a fresh clone of
+  `apiv2`, one diff per step, and update this section after each.
 
 ## Goal
 

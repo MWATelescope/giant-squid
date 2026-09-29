@@ -476,7 +476,7 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .submit_download_vis_job(&params)
+        .submit_download_meta_job(&params)
         .expect("submission should succeed");
 
     assert_eq!(submit.calls(), 1);
@@ -504,6 +504,36 @@ fn a_metadata_job_method_always_sends_a_meta_download_type() {
 
     assert_eq!(submit.calls(), 1);
     assert_eq!(resp.job_id.get(), 779);
+}
+
+#[test]
+fn a_visibility_job_method_always_sends_a_vis_download_type() {
+    let env = TestEnv::with_session();
+    // Start from metadata params: the visibility method must replace the
+    // download type.
+    let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBSID])
+        .expect("arguments should parse")
+    {
+        Args::SubmitMeta { download, .. } => download
+            .to_meta_params(TEST_OBSID_I64)
+            .expect("params should build"),
+        _ => panic!("expected submit-meta"),
+    };
+
+    let submit = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "download_type": "vis" }"#);
+        then.status(200).json_body(job_submitted_response(780));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let resp = client
+        .submit_download_vis_job(&params)
+        .expect("submission should succeed");
+
+    assert_eq!(submit.calls(), 1);
+    assert_eq!(resp.job_id.get(), 780);
 }
 
 #[test]

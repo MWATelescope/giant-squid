@@ -755,33 +755,45 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Submit a visibility download job. Any `download_type` in `params` is
+    /// replaced with `vis`, so this always submits a visibility job.
     pub fn submit_download_vis_job(
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        debug!("Submitting a download-vis job to MWA ASVO v2");
-
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_DOWNLOAD_VIS_JOB))
-                .json(params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit_download_job(params, DownloadJobParamsDownloadType::Vis)
     }
 
-    /// Submit a metadata download job. This is a download job with
-    /// `download_type` set to `meta`, sent to the same endpoint as
-    /// [`Self::submit_download_vis_job`]. Any `download_type` in `params`
-    /// is replaced.
+    /// Submit a metadata download job. Any `download_type` in `params` is
+    /// replaced with `meta`, so this always submits a metadata job.
     pub fn submit_download_meta_job(
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        self.submit_download_job(params, DownloadJobParamsDownloadType::Meta)
+    }
+
+    /// Submit a download job of `download_type`. Visibility and metadata
+    /// jobs use the same endpoint and request body; the server uses the
+    /// body's `download_type` to decide which kind of job to create.
+    fn submit_download_job(
+        &self,
+        params: &DownloadJobParams,
+        download_type: DownloadJobParamsDownloadType,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        debug!("Submitting a download-{} job to MWA ASVO v2", download_type);
+
         let mut params = params.clone();
-        params.download_type = Some(DownloadJobParamsDownloadType::Meta);
-        self.submit_download_vis_job(&params)
+        params.download_type = Some(download_type);
+
+        let body = self.send_authed(|client| {
+            client
+                .post(format!("{}{}", self.config.host, ENDPOINT_DOWNLOAD_VIS_JOB))
+                .json(&params)
+        })?;
+
+        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        Ok(resp)
     }
 
     pub fn submit_conversion_job(
