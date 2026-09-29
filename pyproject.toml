@@ -1,0 +1,68 @@
+# The Python package `mwa-giant-squid` (`import mwa_giant_squid`), built from
+# this crate's "python" feature by maturin. See docs/PYTHON_BINDINGS.md.
+#
+#   uv sync                 # build the module and install it, with the dev tools
+#   uv run pytest           # run the Python tests
+#   maturin build --release # build a wheel
+
+[build-system]
+requires = ["maturin>=1.9.4,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "mwa-giant-squid"
+description = "Python bindings for giant-squid, a client for the MWA ASVO"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MPL-2.0"
+keywords = ["MWA", "MWA ASVO", "radioastronomy"]
+authors = [
+  { name = "Greg Sleap", email = "greg.sleap@curtin.edu.au" },
+  { name = "Dev Null", email = "dev.null@curtin.edu.au" },
+  { name = "Christopher H. Jordan", email = "christopherjordan87@gmail.com" },
+  { name = "Harrison Barlow", email = "harrison.barlow@curtin.edu.au" },
+]
+maintainers = [{ name = "Greg Sleap", email = "greg.sleap@curtin.edu.au" }]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Astronomy",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = []
+
+[project.urls]
+"Homepage" = "https://github.com/MWATelescope/giant-squid"
+"Bug Reports" = "https://github.com/MWATelescope/giant-squid/issues"
+"Source" = "https://github.com/MWATelescope/giant-squid"
+
+[dependency-groups]
+dev = ["pytest", "ruff", "ty"]
+
+[tool.maturin]
+module-name = "mwa_giant_squid"
+bindings = "pyo3"
+# Only the Python module: not the default "bin" feature, which adds the CLI
+# (clap, indicatif and others) to the library.
+no-default-features = true
+features = ["python"]
+# Unwinds on panic, so a Rust panic is a Python exception (see Cargo.toml).
+profile = "release-python"
+locked = true
+strip = true
+
+[tool.uv]
+# Rebuild the module when the Rust code changes.
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }, { file = "**/*.rs" }]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+
+[tool.ruff]
+line-length = 120

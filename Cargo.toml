@@ -30,6 +30,9 @@ bin = ["anyhow", "clap", "simplelog", "reqwest-retry", "task-local-extensions", 
 #   cargo build --features regen-openapi
 #   git diff src/asvo/apiv2/openapi.rs
 regen-openapi = ["dep:typify", "dep:schemars", "dep:syn", "dep:prettyplease"]
+# The Python module (`import mwa_giant_squid`). Built by maturin, which reads
+# its settings from pyproject.toml: `maturin develop` or `maturin build`.
+python = ["pyo3", "pyo3-log"]
 
 [[bin]]
 name = "giant-squid"
@@ -39,6 +42,14 @@ required-features = ["bin"]
 lto = "thin"
 opt-level = 'z'  # Optimize for size.
 panic = 'abort'
+
+# The profile maturin uses for the Python module (see pyproject.toml). A
+# Python extension must unwind: pyo3 turns a Rust panic into a Python
+# `PanicException`, but with `panic = 'abort'` a panic stops the whole
+# Python process.
+[profile.release-python]
+inherits = "release"
+panic = "unwind"
 
 [dependencies]
 backoff = "0.4"
@@ -70,6 +81,10 @@ simplelog = { version = "0.12", optional = true }
 task-local-extensions = { version = "0.1", optional = true }
 time = { version = "0.3", optional = true }
 time-core = { version = "0.1", optional = true }
+
+# Dependencies only for the Python module ("python" feature).
+pyo3 = { version = "0.29", features = ["abi3-py310"], optional = true }
+pyo3-log = { version = "0.13", optional = true }
 
 [dev-dependencies]
 tempfile = "3.20"

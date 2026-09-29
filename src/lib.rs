@@ -12,6 +12,9 @@ pub mod asvo;
 pub mod cli;
 mod helpers;
 pub mod obsid;
+// The Python module. Built by maturin; see pyproject.toml.
+#[cfg(feature = "python")]
+mod python;
 #[cfg(test)]
 mod test_common;
 #[cfg(test)]

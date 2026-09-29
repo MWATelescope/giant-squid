@@ -64,8 +64,15 @@
 - 2026-09-29: step 0.10b done. README section "Using giant-squid as a
   Rust library" (dependency line, a compile-checked example, and a link to
   `examples/list_jobs.rs`).
-- Next step: Phase 1 (Python module skeleton). Start from a fresh clone of
-  `apiv2`, one diff per step, and update this section after each.
+- 2026-09-29: Phase 1 done. `python` feature (`pyo3` 0.29 with
+  `abi3-py310`, `pyo3-log` 0.13), `pyproject.toml` (maturin), the module
+  in `src/python/mod.rs` (`__version__`, `reset_logging()`), a
+  `release-python` profile that unwinds on panic, a hand-written
+  `mwa_giant_squid.pyi`, and `tests/python/test_module.py`. See the
+  Phase 1 section for the differences from the first plan.
+- Next step: Phase 2 (Python API), starting with `AsvoClient` and
+  `get_jobs`. Start from a fresh clone of `apiv2`, one diff per step, and
+  update this section after each.
 
 ## Goal
 
@@ -157,16 +164,38 @@ instead. Their assertions do not change. This also removes the need for
 the process-wide `ENV_LOCK`, so those tests can run in parallel. The CLI
 tests in `tests/cli.rs` and `tests/live.rs` do not change.
 
-## Phase 1: Python module skeleton
+## Phase 1: Python module skeleton (done)
 
-- `Cargo.toml`: `crate-type = ["rlib", "cdylib"]`; `python` feature
-  (`pyo3` with `extension-module` and `abi3-py310`, `pyo3-log`);
-  `python-stubgen` feature (as mwalib).
-- `pyproject.toml`: maturin backend, `features = ["python"]`,
-  `module-name = "mwa_giant_squid"`, version from `Cargo.toml`,
-  `requires-python = ">=3.10"`.
+- `Cargo.toml`: `python` feature (`pyo3` 0.29 with `abi3-py310`, and
+  `pyo3-log` 0.13). A `release-python` profile inherits `release` but sets
+  `panic = "unwind"`: pyo3 turns a Rust panic into a Python
+  `PanicException`, but the `release` profile's `panic = 'abort'` would stop
+  the whole Python process.
+- `pyproject.toml`: maturin backend, `module-name = "mwa_giant_squid"`,
+  `no-default-features = true` and `features = ["python"]` (so the CLI is
+  not in the wheel), `profile = "release-python"`, version from
+  `Cargo.toml`, `requires-python = ">=3.10"`. Dev tools (`pytest`, `ruff`,
+  `ty`) are in the `dev` dependency group: `uv sync`, then `uv run pytest`.
 - `src/python/` holds all binding code, behind `#[cfg(feature = "python")]`.
-- Rust `log` output goes to Python `logging` (logger `mwa_giant_squid`).
+- Rust `log` output goes to Python `logging` through `pyo3-log`. Logger
+  names are the Rust module paths with `.` for `::`, so `mwa_giant_squid`
+  is their parent. Records below `DEBUG` (Rust `trace`, which includes
+  request and response bodies with tokens) are not sent to Python.
+  `reset_logging()` clears `pyo3-log`'s cache of logger levels after the
+  caller changes its logging configuration.
+- `mwa_giant_squid.pyi` (hand-written for now) gives `ty` and editors the
+  module's types; maturin puts it in the wheel with `py.typed`.
+
+Differences from the first plan, found while checking the current
+documentation:
+
+- No `crate-type = ["rlib", "cdylib"]`. maturin passes
+  `--crate-type cdylib` itself, so a normal `cargo build` makes no shared
+  library.
+- No `extension-module` feature. It is deprecated in pyo3 0.29; maturin
+  1.9.4 and later set `PYO3_BUILD_EXTENSION_MODULE` instead. As a result,
+  `cargo test --features python` links and runs.
+- The `python-stubgen` feature moves to Phase 3, where stubs are generated.
 
 ## Phase 2: Python API
 

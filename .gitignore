@@ -1,2 +1,8 @@
 /target/
 .envrc
+
+# Python
+.venv/
+__pycache__/
+*.so
+/dist/
