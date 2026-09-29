@@ -5,7 +5,6 @@
 //! ASVO data types.
 
 use chrono::{DateTime, Utc};
-use indicatif::ProgressBar;
 use prettytable::{row, Cell, Row, Table};
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
@@ -342,13 +341,43 @@ impl std::fmt::Display for Delivery {
     }
 }
 
+/// A download progress event, given to [`DownloadOptions::progress`].
+///
+/// For each file, the library sends one or more `Started` events, zero or
+/// more `Advanced` events, then one `Finished` event. A second `Started`
+/// for the same file means the download restarted (for example, the server
+/// did not honour a resume request), so the caller resets its count.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloadProgress {
+    /// A file download starts, or starts again.
+    Started {
+        /// The MWA ASVO job ID.
+        jobid: AsvoJobID,
+        /// A human-readable label for the download, for example
+        /// `Job ID 123 (obsid: 1234567890) [1/2]:`.
+        label: String,
+        /// The size of the file in bytes.
+        total_bytes: u64,
+        /// The number of bytes already on disk (non-zero for a resumed
+        /// download).
+        position: u64,
+    },
+    /// `bytes` more bytes were written.
+    Advanced { bytes: u64 },
+    /// The file download is complete, or was skipped because the file is
+    /// already on disk.
+    Finished,
+}
+
 /// Options common to all download operations.
 pub struct DownloadOptions<'a> {
     pub keep_tar: bool,
     pub no_resume: bool,
     pub hash: bool,
     pub download_dir: &'a str,
-    pub progress_bar: &'a ProgressBar,
+    /// Called with each [`DownloadProgress`] event. `None` reports no
+    /// progress. The library has no user interface of its own.
+    pub progress: Option<&'a dyn Fn(DownloadProgress)>,
     pub download_number: usize,
     pub download_count: usize,
     /// How much data, in bytes, is held in memory before it is written to

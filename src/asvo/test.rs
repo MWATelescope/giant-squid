@@ -13,12 +13,13 @@
 //! docs/TESTING.md, which need fixing before a test can pin the behaviour.
 
 use httpmock::prelude::*;
-use indicatif::ProgressBar;
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
-use crate::asvo::{AsvoClient, AsvoError, DownloadOptions, DEFAULT_DOWNLOAD_BUFFER_SIZE};
+use crate::asvo::{
+    AsvoClient, AsvoError, DownloadOptions, DownloadProgress, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+};
 use crate::test_common::*;
 use crate::test_config::client_config;
 
@@ -58,19 +59,19 @@ fn tar_containing(name: &str, contents: &str) -> String {
     String::from_utf8(bytes).expect("an ASCII tar should be valid UTF-8")
 }
 
-/// Download options writing into a temporary directory, with progress
-/// output suppressed and retries disabled.
+/// Download options writing into a temporary directory, with no progress
+/// callback and retries disabled.
 ///
 /// Retries are disabled because a test that deliberately triggers a
 /// transient download failure would otherwise retry under exponential
 /// backoff for fifteen minutes.
-fn options<'a>(dir: &'a str, progress_bar: &'a ProgressBar) -> DownloadOptions<'a> {
+fn options(dir: &str) -> DownloadOptions<'_> {
     DownloadOptions {
         keep_tar: false,
         no_resume: false,
         hash: true,
         download_dir: dir,
-        progress_bar,
+        progress: None,
         download_number: 1,
         download_count: 1,
         buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
@@ -89,14 +90,10 @@ fn downloading_an_unknown_job_id_is_reported() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(
-            TEST_JOBID,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match asvo_error(err) {
@@ -110,14 +107,10 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![job_detail(TEST_JOBID as i64, TEST_OBSID, "queued", 1)]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(
-            TEST_JOBID,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match asvo_error(err) {
@@ -139,14 +132,10 @@ fn a_ready_job_reports_that_it_has_no_files() {
         1,
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(
-            TEST_JOBID,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match asvo_error(err) {
@@ -167,15 +156,11 @@ fn downloading_an_unknown_obsid_is_reported() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![job_detail(1, "1061311664", "completed", 1)]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(
-            obsid,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_obsid(obsid, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -194,15 +179,11 @@ fn an_obsid_whose_only_job_is_unfinished_is_reported() {
         1,
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(
-            obsid,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_obsid(obsid, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -219,15 +200,11 @@ fn an_obsid_with_several_ready_jobs_is_ambiguous() {
         job_detail(2, TEST_OBSID, "completed", 0),
     ]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(
-            obsid,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_obsid(obsid, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -246,14 +223,10 @@ fn a_job_listing_with_an_empty_product_is_not_downloadable() {
     detail["product"] = json!({});
     env.mock_get_jobs(vec![detail]);
     let dir = TempDir::new().expect("could not create a download directory");
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(
-            TEST_JOBID,
-            &options(&dir.path().display().to_string(), &progress_bar),
-        )
+        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -282,8 +255,7 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -295,6 +267,63 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
     let written =
         std::fs::read(dir.path().join(DOWNLOAD_FILE)).expect("the file should be written");
     assert_eq!(written, payload.as_bytes());
+}
+
+#[test]
+fn a_download_reports_its_progress_to_the_callback() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid integration test payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+
+    let events = std::sync::Mutex::new(Vec::new());
+    let progress = |event: DownloadProgress| events.lock().unwrap().push(event);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+    opts.progress = Some(&progress);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("the download should succeed");
+
+    let events = events.into_inner().unwrap();
+    match events.first() {
+        Some(DownloadProgress::Started {
+            jobid,
+            total_bytes,
+            position,
+            ..
+        }) => {
+            assert_eq!(*jobid, TEST_JOBID);
+            assert_eq!(*total_bytes, payload.len() as u64);
+            assert_eq!(*position, 0);
+        }
+        other => panic!("expected Started first, got {other:?}"),
+    }
+    assert_eq!(events.last(), Some(&DownloadProgress::Finished));
+    let advanced: u64 = events
+        .iter()
+        .map(|e| match e {
+            DownloadProgress::Advanced { bytes } => *bytes,
+            _ => 0,
+        })
+        .sum();
+    assert_eq!(
+        advanced,
+        payload.len() as u64,
+        "every byte should be reported"
+    );
 }
 
 #[test]
@@ -314,11 +343,10 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &options(&dir_path, &progress_bar))
+        .download_jobid(TEST_JOBID, &options(&dir_path))
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -347,8 +375,7 @@ fn a_hash_mismatch_is_reported() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -390,8 +417,7 @@ fn an_expired_download_url_is_reported_as_gone() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -422,8 +448,7 @@ fn a_forbidden_download_fails_without_retrying() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -452,11 +477,10 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
 
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir_path, &progress_bar))
+        .download_jobid(TEST_JOBID, &options(&dir_path))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -492,8 +516,7 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
     let dir = TempDir::new().expect("could not create a download directory");
     std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -526,8 +549,7 @@ fn a_complete_and_verified_file_is_not_fetched_again() {
     std::fs::write(dir.path().join(DOWNLOAD_FILE), RESUME_PAYLOAD)
         .expect("could not seed a complete file");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -557,8 +579,7 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
     std::fs::write(dir.path().join(DOWNLOAD_FILE), &corrupt)
         .expect("could not seed a corrupt file");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -590,8 +611,7 @@ fn a_partial_file_is_left_alone_when_no_resume_is_set() {
     let dir = TempDir::new().expect("could not create a download directory");
     std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
     opts.no_resume = true;
 
@@ -626,8 +646,7 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
     let dir = TempDir::new().expect("could not create a download directory");
     std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
     let dir_path = dir.path().display().to_string();
-    let progress_bar = ProgressBar::hidden();
-    let mut opts = options(&dir_path, &progress_bar);
+    let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");

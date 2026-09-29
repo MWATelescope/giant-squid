@@ -41,6 +41,29 @@ fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     pb
 }
 
+/// How often a progress bar's spinner redraws while a download runs.
+const PROGRESS_BAR_TICK: Duration = Duration::from_millis(500);
+
+/// Show a library [`DownloadProgress`] event on an `indicatif` bar.
+fn update_progress_bar(pb: &ProgressBar, event: DownloadProgress) {
+    match event {
+        DownloadProgress::Started {
+            label,
+            total_bytes,
+            position,
+            ..
+        } => {
+            pb.enable_steady_tick(PROGRESS_BAR_TICK);
+            pb.set_length(total_bytes);
+            pb.set_position(position);
+            pb.reset_eta();
+            pb.set_message(label);
+        }
+        DownloadProgress::Advanced { bytes } => pb.inc(bytes),
+        DownloadProgress::Finished => pb.finish_and_clear(),
+    }
+}
+
 /// Log in to the MWA ASVO with the config from the environment.
 fn connect() -> anyhow::Result<AsvoClient> {
     Ok(AsvoClient::new(client_config_from_env()?)?)
@@ -365,12 +388,13 @@ fn main() -> Result<(), anyhow::Error> {
                     .enumerate()
                     .map(|(c, j)| {
                         let pb = create_progress_bar(&mpb);
+                        let progress = |event| update_progress_bar(&pb, event);
                         let opts = DownloadOptions {
                             keep_tar: keep_zip,
                             no_resume,
                             hash,
                             download_dir: &download_dir,
-                            progress_bar: &pb,
+                            progress: Some(&progress),
                             download_number: c + 1,
                             download_count: t,
                             buffer_size,
@@ -385,12 +409,13 @@ fn main() -> Result<(), anyhow::Error> {
                     .enumerate()
                     .map(|(c, o)| {
                         let pb = create_progress_bar(&mpb);
+                        let progress = |event| update_progress_bar(&pb, event);
                         let opts = DownloadOptions {
                             keep_tar: keep_zip,
                             no_resume,
                             hash,
                             download_dir: &download_dir,
-                            progress_bar: &pb,
+                            progress: Some(&progress),
                             download_number: c + 1,
                             download_count: t,
                             buffer_size,

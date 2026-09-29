@@ -13,9 +13,16 @@
   `GIANT_SQUID_DOWNLOAD_RETRY_SECS` in `src/cli/config.rs`. The library
   reads no environment variable. `ENV_LOCK` is removed, so the unit tests
   run in parallel.
-- Next step: Phase 0, step 0.3 (progress callback instead of
-  `indicatif::ProgressBar`). Start from a fresh clone of `apiv2`, one diff
-  per step, and update this section after each.
+- 2026-09-29: `AsvoError::Parse` removed (no producer after 0.2).
+- 2026-09-29: step 0.3 done. `DownloadOptions.progress` is an
+  `Option<&dyn Fn(DownloadProgress)>`; `DownloadProgress` has `Started`,
+  `Advanced` and `Finished` events. The CLI shows them on its `indicatif`
+  bars (`update_progress_bar` in the binary). `indicatif` is used only by
+  the binary. `cargo check --no-default-features` now fails only on
+  `anyhow` (step 0.5).
+- Next step: Phase 0, step 0.4 (`AsvoJobVec::list` and the table helpers
+  move to the CLI). Start from a fresh clone of `apiv2`, one diff per step,
+  and update this section after each.
 
 ## Goal
 

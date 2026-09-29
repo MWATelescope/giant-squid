@@ -62,10 +62,6 @@ pub enum AsvoError {
     #[error("{0}")]
     Reqwest(#[from] reqwest::Error),
 
-    /// A parse error.
-    #[error("{0}")]
-    Parse(#[from] std::num::ParseIntError),
-
     /// An IO error.
     #[error("{0}")]
     IO(#[from] std::io::Error),

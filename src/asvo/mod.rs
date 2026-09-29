@@ -19,7 +19,7 @@ pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{
     AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
-    Delivery, DownloadOptions,
+    Delivery, DownloadOptions, DownloadProgress,
 };
 
 use std::env::current_dir;
@@ -29,7 +29,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use backoff::{retry, Error, ExponentialBackoffBuilder};
-use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
@@ -255,9 +254,6 @@ fn try_download(
         )
     });
 
-    opts.progress_bar
-        .enable_steady_tick(Duration::from_millis(500));
-
     info!(
         "{} Download starting (type: {}, {})",
         log_prefix,
@@ -282,16 +278,13 @@ fn try_download(
         )? {
             OutputTarget::AlreadyDone { reason } => {
                 info!("{} {} Skipping {:?}.", log_prefix, reason, out_path);
-                opts.progress_bar.finish_and_clear();
+                report(opts, DownloadProgress::Finished);
                 return Ok(());
             }
             OutputTarget::Download { file, offset } => (file, offset),
         };
 
-        opts.progress_bar.set_length(file_info.size);
-        opts.progress_bar.set_position(resume_from);
-        opts.progress_bar.reset_eta();
-        opts.progress_bar.set_message(log_prefix.to_string());
+        report_started(opts, job, log_prefix, file_info.size, resume_from);
 
         // Only ask for a range when there is something to skip, and ask
         // open-ended: the server knows where the file ends, and a closed
@@ -332,14 +325,14 @@ fn try_download(
             );
             out_file = create_file_logged(out_path, log_prefix)?;
             resume_from = 0;
-            opts.progress_bar.set_position(0);
+            report_started(opts, job, log_prefix, file_info.size, resume_from);
         }
 
         resumed = resume_from > 0;
         response = http_response;
         tee = tee_readwrite::TeeReader::new(response, Sha1::new(), false);
 
-        copy_with_progress(tee.by_ref(), &mut out_file, buffer_size, opts.progress_bar)?;
+        copy_with_progress(tee.by_ref(), &mut out_file, buffer_size, opts)?;
     } else {
         let unpack_path = Path::new(opts.download_dir);
         info!(
@@ -354,10 +347,7 @@ fn try_download(
         let mut tar = Archive::new(&mut tee);
         tar.set_preserve_mtime(false);
 
-        opts.progress_bar.set_length(file_info.size);
-        opts.progress_bar.set_position(0);
-        opts.progress_bar.reset_eta();
-        opts.progress_bar.set_message(log_prefix.to_string());
+        report_started(opts, job, log_prefix, file_info.size, 0);
 
         for entry in tar.entries()? {
             let entry = entry.unwrap();
@@ -371,7 +361,7 @@ fn try_download(
                     BufReader::with_capacity(buffer_size, entry),
                     &mut out_file,
                     buffer_size,
-                    opts.progress_bar,
+                    opts,
                 )?;
             } else if !out_full.exists() {
                 debug!("{} Creating directory {:?}", log_prefix, out_full);
@@ -396,7 +386,7 @@ fn try_download(
         debug!("{} Read final bytes: {}", log_prefix, final_bytes.len());
     }
 
-    opts.progress_bar.finish_and_clear();
+    report(opts, DownloadProgress::Finished);
 
     if opts.hash {
         info!(
@@ -468,12 +458,39 @@ fn send_checked(
     Ok(response)
 }
 
-/// Buffered copy from `reader` to `writer`, updating the progress bar.
+/// Give `event` to the caller's progress callback, if there is one.
+fn report(opts: &DownloadOptions, event: DownloadProgress) {
+    if let Some(progress) = opts.progress {
+        progress(event);
+    }
+}
+
+/// Report that a download of `job` starts (or starts again) at `position`
+/// bytes of `total_bytes`.
+fn report_started(
+    opts: &DownloadOptions,
+    job: &AsvoJob,
+    label: &str,
+    total_bytes: u64,
+    position: u64,
+) {
+    report(
+        opts,
+        DownloadProgress::Started {
+            jobid: job.jobid,
+            label: label.to_string(),
+            total_bytes,
+            position,
+        },
+    );
+}
+
+/// Buffered copy from `reader` to `writer`, reporting progress.
 fn copy_with_progress(
     reader: impl Read,
     writer: &mut impl Write,
     buffer_size: usize,
-    progress_bar: &ProgressBar,
+    opts: &DownloadOptions,
 ) -> Result<(), std::io::Error> {
     let mut buf = BufReader::with_capacity(buffer_size, reader);
     loop {
@@ -484,7 +501,7 @@ fn copy_with_progress(
         }
         writer.write_all(data)?;
         buf.consume(len);
-        progress_bar.inc(len as u64);
+        report(opts, DownloadProgress::Advanced { bytes: len as u64 });
     }
     Ok(())
 }
