@@ -8,6 +8,7 @@ import datetime
 import enum
 import os
 from collections.abc import Iterator
+from typing import Any
 
 __version__: str
 """The version of the giant-squid crate that this module was built from."""
@@ -18,6 +19,176 @@ def reset_logging() -> None:
     For speed, the module caches each Python logger and its level the first time a Rust log record uses it.
     Call this after you change the logging configuration (for example, after ``logging.basicConfig`` or
     ``setLevel``), if the module has already logged.
+    """
+
+def parse_many_jobids_or_obsids(strings: list[str]) -> tuple[list[int], list[int]]:
+    """Sort job IDs and obsids, as the CLI does with its arguments.
+
+    A string that is an integer is an obsid if it is a valid obsid, and a job ID if not. Any other string is the
+    path of a file of job IDs and obsids, separated by whitespace.
+
+    Args:
+        strings: The job IDs, obsids and file paths.
+
+    Returns:
+        The job IDs and the obsids, each in the order given.
+
+    Raises:
+        ValueError: Text in a file is not an integer.
+        OSError: A file cannot be read (for example ``FileNotFoundError``).
+    """
+
+def download_vis_job_params(
+    obs_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_download_vis_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def download_meta_job_params(
+    obs_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_download_meta_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def conversion_job_params(
+    obs_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    output: Output | None = None,
+    avg_freq_res: float | None = None,
+    avg_time_res: float | None = None,
+    flag_edge_width: float | None = None,
+    apply_di_cal: bool | None = None,
+    centre: Centre | None = None,
+    custom_centre_ra: float | None = None,
+    custom_centre_dec: float | None = None,
+    no_apply_amps: bool | None = None,
+    no_digital_gains: bool | None = None,
+    no_flag_dc: bool | None = None,
+    no_geometry_delay: bool | None = None,
+    no_passband_gains: bool | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_conversion_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def imaging_job_params(
+    obs_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    apply_di_cal: bool | None = None,
+    apply_primary_beam: bool | None = None,
+    auto_mask: int | None = None,
+    auto_threshold: float | None = None,
+    abs_threshold: float | None = None,
+    avg_freq_res: float | None = None,
+    avg_time_res: float | None = None,
+    channels_out: int | None = None,
+    clean_iterations: int | None = None,
+    clean_threshold: float | None = None,
+    centre: Centre | None = None,
+    custom_centre_dec: float | None = None,
+    custom_centre_ra: float | None = None,
+    flag_edge_width: float | None = None,
+    image_size: int | None = None,
+    join_channels: bool | None = None,
+    join_polarizations: bool | None = None,
+    mgain: float | None = None,
+    multiscale: bool | None = None,
+    nmiter: int | None = None,
+    no_apply_amps: bool | None = None,
+    nwlayers: int | None = None,
+    output_mode: OutputMode | None = None,
+    pixel_scale: float | None = None,
+    pol: Polarization | None = None,
+    robust: float | None = None,
+    uvw_max: float | None = None,
+    uvw_min: float | None = None,
+    weighting: Weighting | None = None,
+    wstack_nwlayers: int | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_imaging_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def image_from_job_params(
+    obs_id: int,
+    source_job_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    apply_primary_beam: bool | None = None,
+    auto_mask: int | None = None,
+    auto_threshold: float | None = None,
+    abs_threshold: float | None = None,
+    channels_out: int | None = None,
+    clean_iterations: int | None = None,
+    clean_threshold: float | None = None,
+    image_size: int | None = None,
+    join_channels: bool | None = None,
+    join_polarizations: bool | None = None,
+    mgain: float | None = None,
+    multiscale: bool | None = None,
+    nmiter: int | None = None,
+    nwlayers: int | None = None,
+    output_mode: OutputMode | None = None,
+    pixel_scale: float | None = None,
+    pol: str | None = None,
+    robust: float | None = None,
+    uvw_max: float | None = None,
+    uvw_min: float | None = None,
+    weighting: Weighting | None = None,
+    wstack_nwlayers: int | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_image_from_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def voltage_job_params(
+    obs_id: int,
+    offset: int,
+    duration: int,
+    *,
+    delivery: str | None = None,
+    from_channel: int | None = None,
+    to_channel: int | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_voltage_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
+    """
+
+def beamformer_job_params(
+    obs_id: int,
+    *,
+    delivery: Delivery | None = None,
+    delivery_format: DeliveryFormat | None = None,
+    allow_resubmit: bool | None = None,
+) -> dict[str, Any]:
+    """The request body that ``AsvoClient.submit_beamformer_job`` sends, as a dict. Makes no request.
+
+    The arguments, the defaults and the argument errors (``ValueError``, ``OverflowError``) are those of the method.
     """
 
 class AsvoApiError(Exception):
@@ -362,7 +533,9 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: ``obs_id`` is not a valid obsid.
+            ValueError: ``obs_id`` is not a valid obsid, or a number is outside what the MWA ASVO accepts (for
+                example ``avg_freq_res`` above 1280). The message names the argument and its limits. Nothing is
+                sent.
             AsvoApiError: The request failed.
         """
     def submit_imaging_job(
@@ -523,7 +696,7 @@ class AsvoClient:
 
         Args:
             obs_id: The obsid.
-            offset: The offset in seconds from the start GPS time of the observation.
+            offset: The offset in seconds from the start GPS time of the observation, from 0 to 5400.
             duration: The duration to download, in seconds.
             delivery: Where the MWA ASVO delivers the data. The only valid value is "scratch", which needs
                 the "mwavcs" Pawsey Group on your MWA ASVO profile.
@@ -535,7 +708,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: ``obs_id`` is not a valid obsid.
+            ValueError: ``obs_id`` is not a valid obsid, or ``offset`` is not from 0 to 5400. Nothing is sent.
             OverflowError: A channel number is not from 0 to 255.
             AsvoApiError: The request failed.
         """
@@ -554,4 +727,17 @@ class AsvoClient:
         Raises:
             ValueError: ``obs_id`` is not a valid obsid.
             AsvoApiError: The request failed.
+        """
+    def cancel_job(self, job_id: int) -> JobSubmittedResponse:
+        """Cancel a job.
+
+        Args:
+            job_id: The ID of the job to cancel.
+
+        Returns:
+            The server's reply. Its ``job_id`` is the cancelled job.
+
+        Raises:
+            OverflowError: ``job_id`` is negative or too large to be a job ID.
+            AsvoApiError: The request failed, for example because there is no such job.
         """

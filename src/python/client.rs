@@ -22,7 +22,7 @@ use super::types::{
     PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput,
     PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig};
+use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobID};
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
@@ -185,7 +185,10 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     ValueError: `obs_id` is not a valid obsid, or a number is outside
+    ///         what the MWA ASVO accepts (for example `avg_freq_res` above
+    ///         1280). The message names the argument and its limits.
+    ///         Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (
         obs_id,
@@ -553,7 +556,7 @@ impl PyAsvoClient {
     /// Args:
     ///     obs_id: The obsid.
     ///     offset: The offset in seconds from the start GPS time of the
-    ///         observation.
+    ///         observation, from 0 to 5400.
     ///     duration: The duration to download, in seconds.
     ///     delivery: Where the MWA ASVO delivers the data. The only valid
     ///         value is "scratch", which needs the "mwavcs" Pawsey Group
@@ -567,7 +570,8 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     ValueError: `obs_id` is not a valid obsid, or `offset` is not
+    ///         from 0 to 5400. Nothing is sent.
     ///     OverflowError: A channel number is not from 0 to 255.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (
@@ -632,6 +636,24 @@ impl PyAsvoClient {
         }
         .into_params(obs_id)?;
         py.detach(|| self.inner.submit_beamformer_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Cancel a job.
+    ///
+    /// Args:
+    ///     job_id: The ID of the job to cancel.
+    ///
+    /// Returns:
+    ///     The server's reply. Its `job_id` is the cancelled job.
+    ///
+    /// Raises:
+    ///     OverflowError: `job_id` is negative or too large to be a job ID.
+    ///     AsvoApiError: The request failed, for example because there is
+    ///         no such job.
+    fn cancel_job(&self, py: Python<'_>, job_id: AsvoJobID) -> PyResult<PyJobSubmittedResponse> {
+        py.detach(|| self.inner.cancel_job(job_id))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }

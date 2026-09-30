@@ -17,9 +17,22 @@ use super::*;
 /// The schema this crate's request types were generated from.
 const SCHEMA: &str = include_str!("../openapi-schema.json");
 
-/// The two imaging request bodies.
+/// The request bodies that have numeric limits, by their schema names.
+const CONVERSION: &str = "ConversionJobParams";
 const FLOW1: &str = "ImagingJobFlow1Params";
 const FLOW2: &str = "ImagingJobFlow2Params";
+const VOLTAGE: &str = "VoltageJobParams";
+
+/// Every job request body in the schema. The completeness test looks for
+/// limits in all of them, so a limit added to any body is noticed.
+const JOB_BODIES: [&str; 6] = [
+    "DownloadJobParams",
+    CONVERSION,
+    FLOW1,
+    FLOW2,
+    VOLTAGE,
+    "BeamformerJobParams",
+];
 
 /// The limits of the fields both imaging request bodies have.
 const SHARED_LIMITS: [(&str, Bounds); 12] = [
@@ -37,8 +50,9 @@ const SHARED_LIMITS: [(&str, Bounds); 12] = [
     ("uvw_min", UVW_MIN),
 ];
 
-/// The limits of the fields only the imaging (flow 1) request body has.
-const FLOW1_ONLY_LIMITS: [(&str, Bounds); 5] = [
+/// The limits of the fields that the imaging (flow 1) and the conversion
+/// request bodies have, and the image-from-job (flow 2) body does not.
+const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("avg_freq_res", AVG_FREQ_RES),
     ("avg_time_res", AVG_TIME_RES),
     ("custom_centre_dec", CUSTOM_CENTRE_DEC),
@@ -46,8 +60,45 @@ const FLOW1_ONLY_LIMITS: [(&str, Bounds); 5] = [
     ("flag_edge_width", FLAG_EDGE_WIDTH),
 ];
 
+/// The limits that only the imaging (flow 1) body has.
+const FLOW1_ONLY_LIMITS: [(&str, Bounds); 1] = [("wstack_nwlayers", WSTACK_NWLAYERS)];
+
+/// The limits of the voltage body that this module checks.
+const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
+
+/// Schema limits that the Rust type enforces, so this module has no check
+/// for them: `(body, field, why)`. The completeness test fails for any
+/// schema limit that is in neither this list nor a table above.
+const TYPE_ENFORCED: [(&str, &str, &str); 10] = [
+    ("DownloadJobParams", "obs_id", "Obsid::validate is stricter"),
+    (CONVERSION, "obs_id", "Obsid::validate is stricter"),
+    (FLOW1, "obs_id", "Obsid::validate is stricter"),
+    (FLOW2, "obs_id", "Obsid::validate is stricter"),
+    (VOLTAGE, "obs_id", "Obsid::validate is stricter"),
+    (
+        "BeamformerJobParams",
+        "obs_id",
+        "Obsid::validate is stricter",
+    ),
+    (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
+    (VOLTAGE, "duration", "u64 has minimum 0"),
+    (VOLTAGE, "from_channel", "u8 has the range 0 to 255"),
+    (VOLTAGE, "to_channel", "u8 has the range 0 to 255"),
+];
+
 /// The fields whose values are integers in the request body.
-const INTEGER_FIELDS: [&str; 4] = ["auto_mask", "clean_iterations", "nmiter", "nwlayers"];
+const INTEGER_FIELDS: [&str; 6] = [
+    "auto_mask",
+    "clean_iterations",
+    "nmiter",
+    "nwlayers",
+    "wstack_nwlayers",
+    "offset",
+];
+
+/// The smallest obsid [`Obsid::validate`](crate::obsid::Obsid::validate)
+/// accepts. The schema's own minimum must not be above it.
+const SMALLEST_VALID_OBSID: f64 = 1e9;
 
 /// Limits this module has that the schema does not state, as
 /// `(schema type, field, "minimum" or "maximum")`. See
@@ -60,6 +111,22 @@ const LIMITS_NOT_IN_SCHEMA: [(&str, &str, &str); 2] = [
 fn flow1_defaults() -> ImagingJobFlow1Params {
     ImagingJobFlow1Params::builder()
         .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build")
+}
+
+fn conversion_defaults() -> ConversionJobParams {
+    ConversionJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build")
+}
+
+fn voltage_defaults() -> VoltageJobParams {
+    VoltageJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .offset(0_i64)
+        .duration(8_u64)
         .try_into()
         .expect("defaults build")
 }
@@ -159,11 +226,65 @@ fn check_names_the_argument() {
 fn the_schema_defaults_are_within_the_limits() {
     validate_imaging_params(&flow1_defaults()).expect("flow 1 defaults are valid");
     validate_image_from_job_params(&flow2_defaults()).expect("flow 2 defaults are valid");
+    validate_conversion_params(&conversion_defaults()).expect("conversion defaults are valid");
+    validate_voltage_params(&voltage_defaults()).expect("voltage defaults are valid");
+}
+
+/// Check both ends of each of `limits` with `validate`, starting from
+/// `defaults`: the end itself is valid, one past it names the field.
+fn assert_limits_enforced<T: Serialize + DeserializeOwned>(
+    defaults: &T,
+    limits: &[(&str, Bounds)],
+    validate: fn(&T) -> Result<(), AsvoApiError>,
+) {
+    for (field, bounds) in limits {
+        for (end, past) in [
+            (bounds.max, bounds.max.map(|m| m + 1.0)),
+            (bounds.min, bounds.min.map(|m| m - 1.0)),
+        ] {
+            let (Some(end), Some(past)) = (end, past) else {
+                continue;
+            };
+            let params = with_field(defaults, field, field_value(field, end));
+            validate(&params).unwrap_or_else(|e| panic!("{field}={end} should be valid: {e}"));
+            let params = with_field(defaults, field, field_value(field, past));
+            assert_eq!(invalid_name(validate(&params)), *field, "{field}={past}");
+        }
+    }
+}
+
+#[test]
+fn every_limit_is_enforced_on_both_ends_for_the_conversion_body() {
+    assert_limits_enforced(
+        &conversion_defaults(),
+        &CONVERSION_LIMITS,
+        validate_conversion_params,
+    );
+}
+
+#[test]
+fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
+    assert_limits_enforced(
+        &voltage_defaults(),
+        &VOLTAGE_LIMITS,
+        validate_voltage_params,
+    );
+}
+
+#[test]
+fn wstack_nwlayers_is_not_limited_in_the_image_from_job_body() {
+    // The schema has no limit for it there; see WSTACK_NWLAYERS.
+    let params = with_field(&flow2_defaults(), "wstack_nwlayers", json!(1));
+    validate_image_from_job_params(&params).expect("no limit in flow 2");
 }
 
 #[test]
 fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
-    for (field, bounds) in SHARED_LIMITS.iter().chain(FLOW1_ONLY_LIMITS.iter()) {
+    for (field, bounds) in SHARED_LIMITS
+        .iter()
+        .chain(CONVERSION_LIMITS.iter())
+        .chain(FLOW1_ONLY_LIMITS.iter())
+    {
         if let Some(max) = bounds.max {
             let params = with_field(&flow1_defaults(), field, field_value(field, max));
             validate_imaging_params(&params)
@@ -307,15 +428,87 @@ fn assert_matches_schema(schema_type: &str, field: &str, bounds: Bounds) {
     }
 }
 
+/// Every table of limits, with the bodies it applies to.
+fn limit_tables() -> Vec<(&'static str, &'static [(&'static str, Bounds)])> {
+    vec![
+        (FLOW1, &SHARED_LIMITS),
+        (FLOW2, &SHARED_LIMITS),
+        (FLOW1, &CONVERSION_LIMITS),
+        (CONVERSION, &CONVERSION_LIMITS),
+        (FLOW1, &FLOW1_ONLY_LIMITS),
+        (VOLTAGE, &VOLTAGE_LIMITS),
+    ]
+}
+
 #[test]
 fn the_limits_are_the_schema_limits() {
-    for (field, bounds) in SHARED_LIMITS {
-        assert_matches_schema(FLOW1, field, bounds);
-        assert_matches_schema(FLOW2, field, bounds);
+    for (body, table) in limit_tables() {
+        for (field, bounds) in table {
+            assert_matches_schema(body, field, *bounds);
+        }
     }
-    for (field, bounds) in FLOW1_ONLY_LIMITS {
-        assert_matches_schema(FLOW1, field, bounds);
+}
+
+#[test]
+fn every_schema_limit_on_a_job_body_is_checked() {
+    let checked: Vec<(&str, &str)> = limit_tables()
+        .into_iter()
+        .flat_map(|(body, table)| table.iter().map(move |(field, _)| (body, *field)))
+        .collect();
+
+    for body in JOB_BODIES {
+        let properties = schema_properties(body);
+        let properties = properties
+            .as_object()
+            .unwrap_or_else(|| panic!("{body} is not in the schema"));
+        for (field, schema_field) in properties {
+            let limited = ["minimum", "maximum"]
+                .iter()
+                .any(|key| schema_limit(schema_field, key).is_some());
+            if !limited {
+                continue;
+            }
+            let covered = checked.contains(&(body, field.as_str()))
+                || TYPE_ENFORCED
+                    .iter()
+                    .any(|(b, f, _)| *b == body && *f == field.as_str());
+            assert!(
+                covered,
+                "{body}.{field} has a limit in the schema that nothing checks"
+            );
+        }
     }
+}
+
+#[test]
+fn the_type_enforced_limits_are_still_the_schema_limits() {
+    for body in JOB_BODIES {
+        let obs_id_min = schema_limit(&schema_properties(body)["obs_id"], "minimum")
+            .unwrap_or_else(|| panic!("{body}.obs_id has no minimum"));
+        assert!(
+            obs_id_min <= SMALLEST_VALID_OBSID,
+            "{body}.obs_id: the schema minimum is above what Obsid accepts"
+        );
+    }
+    let voltage = schema_properties(VOLTAGE);
+    assert_eq!(schema_limit(&voltage["duration"], "minimum"), Some(0.0));
+    assert_eq!(schema_limit(&voltage["duration"], "maximum"), None);
+    for channel in ["from_channel", "to_channel"] {
+        assert_eq!(schema_limit(&voltage[channel], "minimum"), Some(0.0));
+        assert_eq!(
+            schema_limit(&voltage[channel], "maximum"),
+            Some(f64::from(u8::MAX))
+        );
+    }
+}
+
+#[test]
+fn wstack_nwlayers_has_no_limit_in_the_image_from_job_schema() {
+    // When this fails, the API has added the limit: add ("wstack_nwlayers",
+    // WSTACK_NWLAYERS) to the checks for flow 2 and remove this test.
+    let field = &schema_properties(FLOW2)["wstack_nwlayers"];
+    assert_eq!(schema_limit(field, "minimum"), None);
+    assert_eq!(schema_limit(field, "maximum"), None);
 }
 
 #[test]

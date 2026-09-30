@@ -909,3 +909,74 @@ fn submit_image_from_job_rejects_out_of_range_values() {
         );
     }
 }
+
+#[test]
+fn submit_conv_rejects_out_of_range_values() {
+    for bad in [
+        vec!["--avg-freq-res", "1281"],
+        vec!["--avg-freq-res", "-1"],
+        vec!["--avg-time-res", "-1"],
+        vec!["--flag-edge-width", "641"],
+        vec!["--phase-centre-ra", "360"],
+        vec!["--phase-centre-dec", "91"],
+    ] {
+        let mut argv = vec!["giant-squid", "submit-conv"];
+        argv.extend_from_slice(&bad);
+        argv.push(TEST_OBSID);
+        let err = parse_err(&argv);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "expected {bad:?} to be rejected"
+        );
+    }
+}
+
+#[test]
+fn submit_volt_rejects_an_offset_outside_the_observation() {
+    // The "=" form, so that clap does not read "-1" as a flag. (submit-volt
+    // does not allow negative numbers as separate values, and a negative
+    // offset is invalid anyway.)
+    for offset in ["--offset=-1", "--offset=5401"] {
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-volt",
+            offset,
+            "--duration",
+            "8",
+            TEST_OBSID,
+        ]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "expected {offset} to be rejected"
+        );
+    }
+}
+
+#[test]
+fn submit_image_rejects_an_out_of_range_wstack_nwlayers() {
+    let err = parse_err(&[
+        "giant-squid",
+        "submit-image",
+        "--wstack-nwlayers",
+        "16",
+        TEST_OBSID,
+    ]);
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+}
+
+#[test]
+fn submit_image_from_job_accepts_any_wstack_nwlayers() {
+    // The schema has no limit for it in the image-from-job body.
+    let (args, _) = image_from_job_args(&[
+        "giant-squid",
+        "submit-image-from-job",
+        "--source-job-id",
+        TEST_JOBID,
+        "--wstack-nwlayers",
+        "16",
+        TEST_OBSID,
+    ]);
+    assert_eq!(args.wstack_nwlayers, Some(16));
+}

@@ -724,6 +724,65 @@ fn an_out_of_range_image_from_job_is_not_sent() {
     assert_eq!(submit.calls(), 0);
 }
 
+#[test]
+fn an_out_of_range_conversion_job_is_not_sent() {
+    let env = TestEnv::with_session();
+    let mut params: crate::asvo::apiv2::openapi::ConversionJobParams =
+        crate::asvo::apiv2::openapi::ConversionJobParams::builder()
+            .obs_id(TEST_OBSID_I64)
+            .try_into()
+            .expect("defaults build");
+    params.avg_freq_res = 5000.0;
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/conversion_job");
+        then.status(200).json_body(job_submitted_response(1));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .submit_conversion_job(&params)
+        .expect_err("expected the submission to be refused");
+
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "avg_freq_res",
+                ..
+            }
+        ),
+        "got {err:?}"
+    );
+    assert_eq!(submit.calls(), 0);
+}
+
+#[test]
+fn an_out_of_range_voltage_job_is_not_sent() {
+    let env = TestEnv::with_session();
+    let params: crate::asvo::apiv2::openapi::VoltageJobParams =
+        crate::asvo::apiv2::openapi::VoltageJobParams::builder()
+            .obs_id(TEST_OBSID_I64)
+            .offset(9999_i64)
+            .duration(8_u64)
+            .try_into()
+            .expect("params build");
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/voltage_job");
+        then.status(200).json_body(job_submitted_response(1));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .submit_voltage_job(&params)
+        .expect_err("expected the submission to be refused");
+
+    assert!(
+        matches!(err, AsvoApiError::InvalidParameter { name: "offset", .. }),
+        "got {err:?}"
+    );
+    assert_eq!(submit.calls(), 0);
+}
+
 // ---------------------------------------------------------------------------
 // Playback of a recording captured from a live MWA ASVO
 // ---------------------------------------------------------------------------

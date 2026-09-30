@@ -10,10 +10,10 @@
 //! module holds those limits once, so that every caller checks the same
 //! values: the CLI (which uses them as `clap` value parsers, to fail
 //! early), the Python module, and any Rust program that uses the library.
-//! [`AsvoClient::submit_imaging_job`] and
-//! [`AsvoClient::submit_image_from_job`] check their request body with
-//! [`validate_imaging_params`] and [`validate_image_from_job_params`], so
-//! an out-of-range value is never sent.
+//! The client's submit methods for conversion, imaging, image-from-job and
+//! voltage jobs check their request body with the `validate_*_params`
+//! function for that body, so an out-of-range value is never sent. The
+//! download and beamformer bodies have no numeric limits.
 //!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
@@ -21,14 +21,13 @@
 //! different limits, the tests fail until the constant is updated. A limit
 //! in the schema is never overridden here; a wrong limit is fixed in the
 //! API.
-//!
-//! [`AsvoClient::submit_imaging_job`]: super::client::AsvoClient::submit_imaging_job
-//! [`AsvoClient::submit_image_from_job`]: super::client::AsvoClient::submit_image_from_job
 
 use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
-use super::openapi::{ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params};
+use super::openapi::{
+    ConversionJobParams, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
+};
 
 #[cfg(test)]
 mod test;
@@ -106,10 +105,11 @@ impl Bounds {
     }
 }
 
-// The limits below are those of the MWA ASVO OpenAPI schema. The same name
-// is used for the same field in the imaging (flow 1) and image-from-job
-// (flow 2) request bodies, which have identical limits for the fields they
-// share.
+// The limits below are those of the MWA ASVO OpenAPI schema. One constant
+// serves a field in every request body that has it (for example
+// `avg_freq_res` in the conversion and imaging bodies), because the schema
+// gives that field the same limits in each. The unit tests check this for
+// every body.
 
 /// `abs_threshold`: the absolute cleaning threshold (Jy).
 pub const ABS_THRESHOLD: Bounds = Bounds::between(0.0, 10.0);
@@ -151,6 +151,15 @@ pub const ROBUST: Bounds = Bounds::between(-2.0, 2.0);
 pub const UVW_MAX: Bounds = Bounds::between(1.0, 5000.0);
 /// `uvw_min`: the minimum uv distance to image (wavelengths).
 pub const UVW_MIN: Bounds = Bounds::at_most(100.0);
+/// `wstack_nwlayers`: the number of w-stacking layers.
+///
+/// The schema has this limit for the imaging (flow 1) body only. In the
+/// image-from-job (flow 2) body the same field has no limit, so it is not
+/// checked there. The unit tests record this, so that they fail when the
+/// schema adds the limit to flow 2.
+pub const WSTACK_NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
+/// `offset` of a voltage job: seconds from the start of the observation.
+pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 5400.0);
 
 /// The image sizes (pixels) that the MWA ASVO accepts.
 pub const IMAGE_SIZES: [i64; 6] = [512, 1024, 2048, 3072, 4096, 8192];
@@ -193,6 +202,46 @@ macro_rules! shared_imaging_checks {
     };
 }
 
+/// Check the numbers of a conversion request body against the schema's
+/// limits.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`], for the first argument that is out
+/// of range.
+pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), AsvoApiError> {
+    check_all(&[
+        ("avg_freq_res", AVG_FREQ_RES, Some(params.avg_freq_res)),
+        ("avg_time_res", AVG_TIME_RES, Some(params.avg_time_res)),
+        (
+            "flag_edge_width",
+            FLAG_EDGE_WIDTH,
+            Some(params.flag_edge_width),
+        ),
+        (
+            "custom_centre_ra",
+            CUSTOM_CENTRE_RA,
+            params.custom_centre_ra,
+        ),
+        (
+            "custom_centre_dec",
+            CUSTOM_CENTRE_DEC,
+            params.custom_centre_dec,
+        ),
+    ])
+}
+
+/// Check the numbers of a voltage request body against the schema's
+/// limits. `duration`, `from_channel` and `to_channel` need no check: the
+/// schema's limits for them are the limits of their types (`u64`, `u8`).
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if `offset` is out of range.
+pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiError> {
+    VOLTAGE_OFFSET.check("offset", params.offset as f64)
+}
+
 /// Check the numbers of an imaging (flow 1) request body against the
 /// schema's limits.
 ///
@@ -219,6 +268,11 @@ pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), Asv
             "flag_edge_width",
             FLAG_EDGE_WIDTH,
             Some(params.flag_edge_width),
+        ),
+        (
+            "wstack_nwlayers",
+            WSTACK_NWLAYERS,
+            params.wstack_nwlayers.map(|n| n as f64),
         ),
     ])
 }

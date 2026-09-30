@@ -20,6 +20,7 @@
 
 mod client;
 mod error;
+mod functions;
 mod params;
 mod types;
 
@@ -43,6 +44,12 @@ mod module {
     use super::client::PyAsvoClient;
     #[pymodule_export]
     use super::error::{AsvoApiError, AsvoError};
+    #[pymodule_export]
+    use super::functions::{
+        beamformer_job_params, conversion_job_params, download_meta_job_params,
+        download_vis_job_params, image_from_job_params, imaging_job_params,
+        parse_many_jobids_or_obsids, voltage_job_params,
+    };
     #[pymodule_export]
     use super::types::{
         PyAsvoFilesArray, PyAsvoJob, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre,

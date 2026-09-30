@@ -43,6 +43,7 @@ CUSTOM_RA = 12.5
 CUSTOM_DEC = -26.7
 CLEAN_THRESHOLD_JY = 0.5
 NMITER = 7
+WSTACK_LAYERS = 64
 VALID_IMAGE_SIZE = 1024
 INVALID_IMAGE_SIZE = 100
 INVALID_OBSID = 1
@@ -237,7 +238,7 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
         pol=gs.Polarization.Xx,
         weighting=gs.Weighting.Natural,
         uvw_max=FREQ_RES,
-        wstack_nwlayers=NMITER,
+        wstack_nwlayers=WSTACK_LAYERS,
         clean_threshold=CLEAN_THRESHOLD_JY,
         join_polarizations=True,
         allow_resubmit=True,
@@ -254,7 +255,7 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
     assert body["pol"] == "XX"
     assert body["weighting"] == "natural"
     assert body["uvw_max"] == FREQ_RES
-    assert body["wstack_nwlayers"] == NMITER
+    assert body["wstack_nwlayers"] == WSTACK_LAYERS
     assert body["clean_threshold"] == CLEAN_THRESHOLD_JY
     assert body["join_polarizations"] is True
     assert body["allow_resubmit"] is True
@@ -482,6 +483,8 @@ OUT_OF_RANGE = [
     ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
     ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_dec": -91.0}, "custom_centre_dec"),
     ("submit_imaging_job", {"mgain": float("nan")}, "mgain"),
+    ("submit_imaging_job", {"wstack_nwlayers": 16}, "wstack_nwlayers"),
+    ("submit_imaging_job", {"wstack_nwlayers": 513}, "wstack_nwlayers"),
     ("submit_image_from_job", {"mgain": 1.5}, "mgain"),
     ("submit_image_from_job", {"nmiter": 501}, "nmiter"),
     ("submit_image_from_job", {"pixel_scale": 121.0}, "pixel_scale"),
@@ -546,3 +549,91 @@ def test_values_at_the_limits_are_accepted_and_sent(client: gs.AsvoClient, https
     assert body["robust"] == -2.0
     assert body["uvw_min"] == 100.0
     assert body["auto_mask"] == 512
+
+
+# Conversion arguments that are outside the schema's limits: (keyword arguments, the name the error must give).
+CONVERSION_OUT_OF_RANGE = [
+    ({"avg_freq_res": 1281.0}, "avg_freq_res"),
+    ({"avg_freq_res": -1.0}, "avg_freq_res"),
+    ({"avg_time_res": -1.0}, "avg_time_res"),
+    ({"flag_edge_width": 641.0}, "flag_edge_width"),
+    ({"centre": gs.Centre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
+    ({"centre": gs.Centre.Custom, "custom_centre_dec": 91.0}, "custom_centre_dec"),
+]
+
+
+@pytest.mark.parametrize(("kwargs", "name"), CONVERSION_OUT_OF_RANGE)
+def test_a_conversion_argument_outside_the_schema_limits_is_rejected(
+    client: gs.AsvoClient, httpserver: HTTPServer, kwargs: dict[str, Any], name: str
+) -> None:
+    """A conversion number outside the schema's limits raises ValueError, and nothing is sent."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match=name):
+        client.submit_conversion_job(TEST_OBSID, **kwargs)
+
+    assert len(httpserver.log) == requests_before
+
+
+@pytest.mark.parametrize("offset", [-1, 5401])
+def test_a_voltage_offset_outside_the_observation_is_rejected(
+    client: gs.AsvoClient, httpserver: HTTPServer, offset: int
+) -> None:
+    """The offset must be from 0 to 5400 seconds, and nothing is sent otherwise."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="offset"):
+        client.submit_voltage_job(TEST_OBSID, offset, VOLTAGE_DURATION)
+
+    assert len(httpserver.log) == requests_before
+
+
+def test_image_from_job_accepts_any_wstack_nwlayers(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """The schema has no limit for wstack_nwlayers in the image-from-job body, so it is sent as given."""
+    submitted(httpserver, IMAGE_FROM_JOB_PATH)
+    small = 16
+
+    client.submit_image_from_job(TEST_OBSID, SOURCE_JOB_ID, wstack_nwlayers=small)
+
+    assert body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)["wstack_nwlayers"] == small
+
+
+# The endpoint that cancels a job: DELETE <CANCEL_PATH>/<job id>.
+CANCEL_PATH = "/api/v2/jobs"
+CANCELLED_JOB_ID = 4321
+
+
+def test_cancel_job_sends_a_delete_and_returns_the_response(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """cancel_job deletes the job and returns the server's reply."""
+    httpserver.expect_request(f"{CANCEL_PATH}/{CANCELLED_JOB_ID}", method="DELETE").respond_with_json(
+        {"job_id": CANCELLED_JOB_ID, "message": "Job cancelled", "status": "success"}
+    )
+
+    response = client.cancel_job(CANCELLED_JOB_ID)
+
+    assert response.job_id == CANCELLED_JOB_ID
+    assert response.message == "Job cancelled"
+    assert response.status == "success"
+
+
+def test_cancelling_a_missing_job_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """A structured error reply has the server's error code."""
+    httpserver.expect_request(f"{CANCEL_PATH}/{CANCELLED_JOB_ID}", method="DELETE").respond_with_json(
+        error_response("JOB_NOT_FOUND", "No such job"), status=404
+    )
+
+    with pytest.raises(gs.AsvoApiError) as err:
+        client.cancel_job(CANCELLED_JOB_ID)
+
+    assert err.value.kind == "ApiError"
+    assert err.value.error_code == "JOB_NOT_FOUND"
+
+
+def test_a_negative_job_id_is_rejected_before_any_request(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """A job ID must fit the library's job ID type, and nothing is sent otherwise."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(OverflowError):
+        client.cancel_job(-1)
+
+    assert len(httpserver.log) == requests_before

@@ -15,9 +15,9 @@
 //! client use. An argument that is out of range raises `ValueError`, and
 //! nothing is sent.
 //!
-//! There is one argument struct per job type. The submit methods build it
-//! from their keyword arguments; step 2.3's `*_params` functions will do the
-//! same.
+//! There is one argument struct per job type. The submit methods and the
+//! `*_params` module functions (see `super::functions`) both build it from
+//! their keyword arguments, so both apply the same defaults and checks.
 //!
 //! The Python argument names are the OpenAPI field names. The CLI-only
 //! options `mode` (beamformer) and the voltage `delivery_format` are not
@@ -127,7 +127,9 @@ impl ConversionArgs {
             no_passband_gains => self.no_passband_gains,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(value_error)
+        let params: ConversionJobParams = builder.try_into().map_err(value_error)?;
+        validate::validate_conversion_params(&params).map_err(value_error)?;
+        Ok(params)
     }
 }
 
@@ -319,7 +321,9 @@ impl VoltageArgs {
             to_channel => self.to_channel,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(value_error)
+        let params: VoltageJobParams = builder.try_into().map_err(value_error)?;
+        validate::validate_voltage_params(&params).map_err(value_error)?;
+        Ok(params)
     }
 }
 

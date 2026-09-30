@@ -201,15 +201,15 @@ pub struct ConversionJobArgs {
     pub output: Output,
 
     /// Frequency resolution to average to (kHz).
-    #[arg(long, default_value_t = conversion_defaults().avg_freq_res)]
+    #[arg(long, default_value_t = conversion_defaults().avg_freq_res, value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
     pub avg_freq_res: f64,
 
     /// Time resolution to average to (s).
-    #[arg(long, default_value_t = conversion_defaults().avg_time_res)]
+    #[arg(long, default_value_t = conversion_defaults().avg_time_res, value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
     pub avg_time_res: f64,
 
     /// Width of frequency edge flagging (kHz).
-    #[arg(long, default_value_t = conversion_defaults().flag_edge_width)]
+    #[arg(long, default_value_t = conversion_defaults().flag_edge_width, value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
     pub flag_edge_width: f64,
 
     /// Whether to apply the DI calibration solution.
@@ -222,11 +222,11 @@ pub struct ConversionJobArgs {
     pub centre: Centre,
 
     /// Custom phase centre right ascension (degrees). Requires --centre custom.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
     pub phase_centre_ra: Option<f64>,
 
     /// Custom phase centre declination (degrees). Requires --centre custom.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
     pub phase_centre_dec: Option<f64>,
 
     /// Whether to skip applying amplitude calibration solutions.
@@ -433,7 +433,7 @@ pub struct ImagingJobArgs {
 
     /// Number of w-stacking layers. Leave unset to let the server
     /// decide.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
     pub wstack_nwlayers: Option<i64>,
 
     /// Whether to skip applying amplitude calibration solutions.
@@ -674,7 +674,7 @@ pub struct VoltageJobArgs {
     pub delivery: String,
 
     /// The offset in seconds from the start GPS time of the observation.
-    #[arg(short, long)]
+    #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: i64,
 
     /// The duration (in seconds) to download.

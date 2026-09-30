@@ -126,10 +126,50 @@
   and the voltage `offset` (0 to 5400). 16 new library tests (including
   the schema comparison), 4 new CLI and client tests, 28 new pytest tests
   (77 in total).
-- Next step: Phase 2, step 2.3 (`cancel_job`,
-  `parse_many_jobids_or_obsids` and the `*_params` builders). Start from a
-  fresh clone of `apiv2`, one diff per step, and update this section after
-  each.
+- 2026-09-30: step 2.2c done (approved: add the remaining schema limits
+  to the library). New checks: `validate_conversion_params` (the same five
+  limits as the imaging body: `avg_freq_res`, `avg_time_res`,
+  `flag_edge_width`, `custom_centre_ra`, `custom_centre_dec`),
+  `validate_voltage_params` (`offset`, 0 to 5400, constant
+  `VOLTAGE_OFFSET`), and `wstack_nwlayers` (32 to 512, constant
+  `WSTACK_NWLAYERS`) in the imaging body. `submit_conversion_job` and
+  `submit_voltage_job` now check their body before sending, as the imaging
+  submits do; the CLI (`submit-conv`, `submit-volt`, `submit-image`) and
+  Python use the same constants. The image-from-job body is not checked for
+  `wstack_nwlayers`, because the schema gives it no limit there; a test
+  fails when the schema adds one (a point to raise with the API developer).
+  A new test finds every `minimum` and `maximum` in the six job bodies of
+  the schema and fails for any that is neither checked here nor enforced by
+  the Rust type (`obs_id` by `Obsid::validate`, which is stricter;
+  `source_job_id` by `NonZeroU64`; `duration` by `u64`; channels by `u8`).
+  A negative `--offset` given as a separate value (`--offset -1`) is still
+  refused by clap as an unknown argument, because `submit-volt` does not
+  allow negative numbers; `--offset=-1` reaches the check. 6 new library
+  tests (22 in total), 6 new CLI and client tests, 11 new pytest tests
+  (88 in total).
+- 2026-09-30: step 2.3 done. `AsvoClient.cancel_job(job_id)` returns
+  `JobSubmittedResponse`; the argument is `job_id`, as in Rust (the table
+  below said `jobid`; corrected). Module function
+  `parse_many_jobids_or_obsids(strings)` returns `(jobids, obsids)`; text
+  in a file that is not an integer raises `ValueError`, and a file that
+  cannot be read raises the matching `OSError` (for example
+  `FileNotFoundError`). Seven builders, named after the submit methods
+  without `submit_` (`download_vis_job_params`, `download_meta_job_params`,
+  `conversion_job_params`, `imaging_job_params`, `image_from_job_params`,
+  `voltage_job_params`, `beamformer_job_params`), in
+  `src/python/functions.rs`. Each returns the request body as a `dict` and
+  makes no request. It uses the argument struct of its submit method, so it
+  has the same defaults and checks; the download builders also set
+  `download_type`, which the client sets when it submits. pytest tests
+  check that each builder's `dict` is the body its submit method sends, and
+  that each builder has the same signature as its method (pyo3 exposes the
+  real signatures to `inspect`), because the two argument lists are written
+  out twice in Rust. The `.pyi` stubs of the builders are copied from the
+  submit stubs. 31 new pytest tests (119 in total). **Phase 2 steps 2.1 to
+  2.3 are done.**
+- Next step: Phase 2, step 2.4 (`download_jobid`, `download_obsid` and the
+  progress callback, with Ctrl-C between chunks). Start from a fresh clone
+  of `apiv2`, one diff per step, and update this section after each.
 
 ## Goal
 
@@ -275,7 +315,7 @@ logins a minute.
 | `submit_image_from_job(obs_id, source_job_id, *, ...)` | `submit-image-from-job` |
 | `submit_voltage_job(obs_id, offset, duration, *, ...)` | `submit-volt` |
 | `submit_beamformer_job(obs_id, *, ...)` | `submit-bf` |
-| `cancel_job(jobid) -> JobSubmittedResponse` | `cancel` |
+| `cancel_job(job_id) -> JobSubmittedResponse` | `cancel` |
 | `get_jobs()` then `AsvoJobVec.all_ready(jobids)`, in a loop the caller writes | `wait` |
 | `download_jobid(jobid, download_dir, *, keep_tar=False, no_resume=False, hash=True, progress=None)` | `download` |
 | `download_obsid(obs_id, ...)` | `download` |
@@ -285,7 +325,8 @@ they match the schema and the Rust builder methods.
 
 Module functions: `parse_many_jobids_or_obsids`, and one `*_params`
 builder per job type that returns the request body as a `dict` (for a
-caller's own dry run).
+caller's own dry run). A builder's name is its submit method's name without
+`submit_`, plus `_params` (for example `imaging_job_params`).
 
 Types: `AsvoJob`, `AsvoJobVec` (iterable, with `filter` and `json`),
 `AsvoFilesArray`, `JobSubmittedResponse`, and the enums `AsvoJobType`,
@@ -307,7 +348,7 @@ Steps:
 |---|---|
 | 2.1 | `AsvoClient(...)`, `get_jobs`, the job types and enums, the two exceptions (done) |
 | 2.2 | The seven submit methods, `JobSubmittedResponse`, and the enums the job arguments need (done) |
-| 2.3 | `cancel_job`, `parse_many_jobids_or_obsids`, and the `*_params` builders |
+| 2.3 | `cancel_job`, `parse_many_jobids_or_obsids`, and the `*_params` builders (done) |
 | 2.4 | `download_jobid`, `download_obsid` and the progress callback, with Ctrl-C between chunks |
 
 ## Phase 3: stubs, docs, tests, CI

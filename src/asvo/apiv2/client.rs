@@ -41,7 +41,10 @@ use super::openapi::{
     JobDetailResponse, JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login,
     TokenResponse, UserResponse, VoltageJobParams,
 };
-use super::validate::{validate_image_from_job_params, validate_imaging_params};
+use super::validate::{
+    validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
+    validate_voltage_params,
+};
 
 /// The default timeout for a single MWA ASVO API request.
 pub const DEFAULT_API_TIMEOUT: Duration = Duration::from_secs(60);
@@ -809,10 +812,16 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Submit an MWA ASVO v2 conversion job.
+    ///
+    /// The numbers in `params` are checked against the schema's limits
+    /// first ([`validate_conversion_params`]); nothing is sent if one is out
+    /// of range, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_conversion_job(
         &self,
         params: &ConversionJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_conversion_params(params)?;
         debug!("Submitting a conversion job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -825,10 +834,16 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Submit an MWA ASVO v2 voltage download job.
+    ///
+    /// `params.offset` is checked against the schema's limits first
+    /// ([`validate_voltage_params`]); nothing is sent if it is out of range,
+    /// and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_voltage_job(
         &self,
         params: &VoltageJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_voltage_params(params)?;
         debug!("Submitting a voltage job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
