@@ -9,7 +9,7 @@ use std::{thread, time};
 
 use anyhow::bail;
 use clap::Parser;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -184,31 +184,35 @@ where
     Ok(())
 }
 
-fn init_logger(level: u8) {
+/// The log level for a `-v` count: none is `Info`, one is `Debug`, more is
+/// `Trace`.
+fn log_level(verbosity: u8) -> LevelFilter {
+    match verbosity {
+        0 => LevelFilter::Info,
+        1 => LevelFilter::Debug,
+        _ => LevelFilter::Trace,
+    }
+}
+
+/// Send all log records to stderr, so that stdout has only a command's
+/// output (the job table, `--json`), which a script can read. The
+/// `simplelog` `SimpleLogger` sent every level except `Error` to stdout.
+fn init_logger(verbosity: u8) {
     let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
-        .expect("Unable to set time offset to local in SimpleLogger")
+        .expect("Unable to set time offset to local in the logger")
         .build();
-    match level {
-        0 => SimpleLogger::init(LevelFilter::Info, log_config).unwrap(),
-        1 => SimpleLogger::init(LevelFilter::Debug, log_config).unwrap(),
-        _ => SimpleLogger::init(LevelFilter::Trace, log_config).unwrap(),
-    };
+    WriteLogger::init(log_level(verbosity), log_config, std::io::stderr()).unwrap();
 }
 
 fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgress) {
     let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
-        .expect("Unable to set time offset to local in SimpleLogger")
+        .expect("Unable to set time offset to local in the logger")
         .build();
 
-    let filter = match level {
-        0 => LevelFilter::Info,
-        1 => LevelFilter::Debug,
-        _ => LevelFilter::Trace,
-    };
-
-    let log = SimpleLogger::new(filter, log_config);
+    // To stderr, as in `init_logger`.
+    let log = WriteLogger::new(log_level(level), log_config, std::io::stderr());
 
     LogWrapper::new(multiprogressbar.clone(), log)
         .try_init()
@@ -291,10 +295,7 @@ fn main() -> Result<(), anyhow::Error> {
                 .filter(&job_ids, &obs_ids, &job_types, &job_states);
 
             if legacy_json {
-                // Not a log record: the logger writes to stdout, and a
-                // line there would break the JSON for a script (for
-                // example `giant-squid list --legacy-json | jq`).
-                eprintln!("Warning: {LEGACY_JSON_WARNING}");
+                warn!("{LEGACY_JSON_WARNING}");
                 println!("{}", to_legacy_json(&jobs)?);
             } else if json {
                 println!("{}", jobs.json()?);
@@ -794,10 +795,7 @@ fn main() -> Result<(), anyhow::Error> {
                 .filter(&parsed_job_ids, &[], &[], &[]);
 
             if legacy_json {
-                // Not a log record: the logger writes to stdout, and a
-                // line there would break the JSON for a script (for
-                // example `giant-squid list --legacy-json | jq`).
-                eprintln!("Warning: {LEGACY_JSON_WARNING}");
+                warn!("{LEGACY_JSON_WARNING}");
                 println!("{}", to_legacy_json(&jobs)?);
             } else if json {
                 println!("{}", jobs.json()?);

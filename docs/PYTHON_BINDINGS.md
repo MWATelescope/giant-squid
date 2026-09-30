@@ -262,6 +262,19 @@
   `)]` in `src/cli/mod.rs` (`submit-meta`) in the pushed 2.5 commit, which
   stopped the crate from building. 3 new CLI unit tests, 1 new CLI test;
   the 2.5 key-pinning test now pins the new keys.
+- 2026-09-30: step 2.7 done (approved). The CLI logs to stderr: both
+  logger setups (`init_logger`, and `init_logger_with_progressbar_support`
+  for `download`) use `simplelog`'s `WriteLogger` over `std::io::stderr()`,
+  which writes each record in the same format as before. `SimpleLogger`
+  sent every level except `Error` to stdout, so a warning (for example
+  "non-default host") was mixed into the `--json` output. Now stdout has
+  only a command's output: the job table, the `--json` jobs, and the
+  `submit-* --json` responses. The `--legacy-json` warning is a normal
+  `warn!` again (step 2.6 used `eprintln!` to avoid stdout). The
+  `--dry-run` reports are log records, so they are on stderr now too. One
+  new CLI test: the whole of `list --json` stdout parses as one JSON
+  document, and the non-default-host warning is on stderr; it fails with
+  the old logger.
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section

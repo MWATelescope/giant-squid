@@ -25,9 +25,8 @@ use crate::asvo::{
 };
 use crate::obs_id::ObsId;
 
-/// The warning printed to stderr when `--legacy-json` is used. It is not
-/// a log record, because the CLI logger writes to stdout, where it would
-/// break the JSON for a script.
+/// The warning logged (to stderr, like every log record) when
+/// `--legacy-json` is used.
 pub const LEGACY_JSON_WARNING: &str = "--legacy-json is deprecated and will be removed in the \
      release after 3.0.0. Use --json, which prints the OpenAPI names (obs_id, job_id, job_type, \
      job_state; and type, url, path, size, sha1 for each file).";

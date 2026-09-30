@@ -513,6 +513,31 @@ fn list_legacy_json_prints_the_old_keys_and_a_warning() {
     );
 }
 
+/// Log records go to stderr, so that stdout is only the output a script
+/// reads (for example `giant-squid list --json | jq`).
+#[test]
+fn list_json_puts_only_the_json_on_stdout() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--json"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    // The whole of stdout is one JSON document, with no log lines.
+    let parsed: serde_json::Value = serde_json::from_str(result.stdout.trim())
+        .unwrap_or_else(|e| panic!("stdout is not only JSON ({e}): {}", result.stdout));
+    assert_eq!(parsed["12345"]["job_id"], 12345);
+    // The mock server is not the default host, so the client always logs
+    // a warning. It is on stderr.
+    assert!(
+        result.stderr.contains("non-default host"),
+        "stderr: {}",
+        result.stderr
+    );
+}
+
 #[test]
 fn list_prints_the_jobs_as_a_table() {
     let env = CliEnv::with_session();
