@@ -128,6 +128,24 @@ def slow_file(httpserver: HTTPServer, serve_jobs: Callable[..., None]) -> None:
     httpserver.expect_request(FILE_PATH, method="GET").respond_with_handler(handler)
 
 
+@pytest.fixture
+def sigint_raises() -> Iterator[None]:
+    """Make SIGINT raise KeyboardInterrupt in this process, for the test.
+
+    Python installs that handler at start-up only if SIGINT is not ignored. A process started in the
+    background by a non-interactive shell (for example ``cmd &`` in a script, or some CI runners) starts
+    with SIGINT ignored, and the Ctrl-C tests would then wait for a signal that never arrives.
+
+    Yields:
+        Nothing; the old handler is put back afterwards.
+    """
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
 def send_sigint_soon() -> threading.Timer:
     """Send SIGINT to this process after SIGINT_AFTER seconds, from another thread.
 
@@ -228,6 +246,7 @@ def test_an_exception_in_the_callback_stops_the_download_and_is_raised(
 
 
 @pytest.mark.parametrize("progress", [None, lambda _: None], ids=["no callback", "callback"])
+@pytest.mark.usefixtures("sigint_raises")
 def test_ctrl_c_stops_a_download(
     client: gs.AsvoClient, slow_file: None, tmp_path: pathlib.Path, progress: Callable[..., None] | None
 ) -> None:
@@ -245,6 +264,7 @@ def test_ctrl_c_stops_a_download(
     assert (tmp_path / FILE_NAME).stat().st_size < CHUNKS * CHUNK_SIZE
 
 
+@pytest.mark.usefixtures("sigint_raises")
 def test_ctrl_c_stops_the_wait_before_a_retry(
     client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
 ) -> None:

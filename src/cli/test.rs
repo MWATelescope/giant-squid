@@ -1192,7 +1192,9 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
 fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
-    use crate::asvo::{AsvoFilesArray, AsvoJob, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
+    use crate::asvo::{
+        AsvoFilesArray, AsvoJob, AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    };
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed = chrono::DateTime::parse_from_rfc3339("2026-09-08T06:00:00Z")
         .expect("a valid time")
@@ -1209,24 +1211,26 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             job_id: 101,
             job_type: AsvoJobType::DownloadVisibilities,
             job_state: AsvoJobState::Ready,
-            files: Some(vec![
-                AsvoFilesArray {
-                    r#type: Delivery::Acacia,
-                    url: Some("https://example.org/a.tar".to_string()),
-                    path: None,
-                    size: 1234,
-                    sha1: Some("ab".repeat(20)),
-                    format: None,
-                },
-                AsvoFilesArray {
-                    r#type: Delivery::Scratch,
-                    url: None,
-                    path: Some("/scratch/mwa/x".to_string()),
-                    size: 5,
-                    sha1: None,
-                    format: None,
-                },
-            ]),
+            product: Some(AsvoJobProduct {
+                files: vec![
+                    AsvoFilesArray {
+                        r#type: Delivery::Acacia,
+                        url: Some("https://example.org/a.tar".to_string()),
+                        path: None,
+                        size: 1234,
+                        sha1: Some("ab".repeat(20)),
+                        format: None,
+                    },
+                    AsvoFilesArray {
+                        r#type: Delivery::Scratch,
+                        url: None,
+                        path: Some("/scratch/mwa/x".to_string()),
+                        size: 5,
+                        sha1: None,
+                        format: None,
+                    },
+                ],
+            }),
             created,
             started: Some(created),
             completed: Some(completed),
@@ -1242,7 +1246,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             job_id: 102,
             job_type: AsvoJobType::Conversion,
             job_state: AsvoJobState::Queued,
-            files: None,
+            product: None,
             created,
             started: None,
             completed: None,
@@ -1258,7 +1262,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             job_id: 103,
             job_type: AsvoJobType::Imaging,
             job_state: AsvoJobState::Error("the \"conversion\" failed".to_string()),
-            files: Some(vec![]),
+            product: Some(AsvoJobProduct { files: vec![] }),
             created,
             started: None,
             completed: None,
@@ -1286,7 +1290,7 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 /// `--json` prints the OpenAPI names, with the same values.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}],"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
+    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","product":{"files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}]},"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","product":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"product":{"files":[]},"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 
@@ -1336,4 +1340,53 @@ fn submit_conv_sends_no_cable_delay_and_no_rfi() {
     );
     assert_eq!(json["no_cable_delay"], false);
     assert_eq!(json["no_rfi"], false);
+}
+
+#[test]
+fn a_list_time_is_rfc3339_or_a_date() {
+    use super::params::parse_utc_time;
+
+    assert_eq!(
+        parse_utc_time("2026-09-01T12:30:00+08:00")
+            .expect("RFC 3339")
+            .to_rfc3339(),
+        "2026-09-01T04:30:00+00:00"
+    );
+    assert_eq!(
+        parse_utc_time("2026-09-01").expect("a date").to_rfc3339(),
+        "2026-09-01T00:00:00+00:00"
+    );
+    assert!(parse_utc_time("yesterday").is_err());
+}
+
+#[test]
+fn list_takes_the_date_and_sort_filters() {
+    match parse(&[
+        "giant-squid",
+        "list",
+        "--date-from",
+        "2026-09-01",
+        "--date-to",
+        "2026-09-30T00:00:00Z",
+        "--sort-by",
+        "created",
+    ]) {
+        Args::List {
+            date_from,
+            date_to,
+            sort_by,
+            ..
+        } => {
+            assert_eq!(
+                date_from.map(|t| t.to_rfc3339()),
+                Some("2026-09-01T00:00:00+00:00".to_string())
+            );
+            assert_eq!(
+                date_to.map(|t| t.to_rfc3339()),
+                Some("2026-09-30T00:00:00+00:00".to_string())
+            );
+            assert_eq!(sort_by.as_deref(), Some("created"));
+        }
+        other => panic!("expected List, got {other:?}"),
+    }
 }

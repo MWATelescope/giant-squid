@@ -79,10 +79,11 @@ impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
             job_id: job.job_id,
             job_type: &job.job_type,
             job_state: &job.job_state,
+            // The old format had the file list at the top level.
             files: job
-                .files
+                .product
                 .as_ref()
-                .map(|files| files.iter().map(LegacyFile::from).collect()),
+                .map(|product| product.files.iter().map(LegacyFile::from).collect()),
             completed: &job.completed,
         }
     }

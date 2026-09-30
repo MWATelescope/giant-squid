@@ -29,7 +29,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
     download_by_job_id, download_by_obs_id, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId,
-    AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
+    AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DownloadOptions,
+    DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
 use crate::obs_id::ObsId;
@@ -736,6 +737,24 @@ impl AsvoClient {
         Ok(AsvoJobVec(all_jobs))
     }
 
+    /// List jobs as `giant-squid list` does: [`JobQuery::validate`], then
+    /// [`get_jobs`](Self::get_jobs) with the server-side part of `query`,
+    /// then [`AsvoJobVec::filter`] with its lists.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoApiError::InvalidParameter`] before any request, if the query
+    /// is not valid; otherwise the error from the request.
+    pub fn list_jobs(&self, query: &JobQuery) -> Result<AsvoJobVec, AsvoApiError> {
+        query.validate()?;
+        Ok(self.get_jobs(&query.server_filter())?.filter(
+            &query.job_ids,
+            &query.obs_ids,
+            &query.job_types,
+            &query.job_states,
+        ))
+    }
+
     /// Submit an MWA ASVO v2 imaging job (flow 1: from an obsid).
     ///
     /// Like every other v2 submit endpoint, a success returns a
@@ -1052,7 +1071,8 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         job_id,
         job_type,
         job_state,
-        files: product_to_files(job_id, detail.product.as_ref()),
+        product: product_to_files(job_id, detail.product.as_ref())
+            .map(|files| AsvoJobProduct { files }),
         created: detail.created,
         started: detail.started,
         completed: detail.completed,
@@ -1161,6 +1181,73 @@ impl JobsFilter {
         Self {
             days: Some(days),
             ..Self::default()
+        }
+    }
+}
+
+/// A job listing: the server-side filters of [`JobsFilter`], plus the
+/// filters that the MWA ASVO API does not have (several job IDs, obsids,
+/// types or states), which [`AsvoClient::list_jobs`] applies to the result.
+/// An empty list does not filter.
+///
+/// This is what `giant-squid list` and `wait` do, so a program (or a Python
+/// CLI) does not need to repeat it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JobQuery {
+    /// Only these jobs. Cannot be combined with `obs_ids`.
+    pub job_ids: Vec<AsvoJobId>,
+    /// Only the jobs for these obsids. Cannot be combined with `job_ids`.
+    pub obs_ids: Vec<ObsId>,
+    /// Only the jobs of these types.
+    pub job_types: Vec<AsvoJobType>,
+    /// Only the jobs in these states. States compare by kind, so any
+    /// `AsvoJobState::Error` matches every job with an error.
+    pub job_states: Vec<AsvoJobState>,
+    /// Only the jobs from the past `days` days.
+    pub days: Option<i64>,
+    /// Only the jobs created at or after this time.
+    pub date_from: Option<DateTime<Utc>>,
+    /// Only the jobs created at or before this time.
+    pub date_to: Option<DateTime<Utc>>,
+    /// The column to sort the jobs by, for example `id`.
+    pub sort_by: Option<String>,
+}
+
+impl JobQuery {
+    /// Check the query before any request.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids`
+    /// are given.
+    pub fn validate(&self) -> Result<(), AsvoApiError> {
+        if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
+            return Err(AsvoApiError::InvalidParameter {
+                name: "job_ids",
+                message: "can't specify both job IDs and obsids; use one or the other".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// The server-side part of the query. A single type or state is sent to
+    /// the server, if the API can filter by it, so that less comes back; the
+    /// list filters are applied to the result in any case.
+    fn server_filter(&self) -> JobsFilter {
+        let single = |states: &[AsvoJobState]| match states {
+            [state] if api_job_state(state).is_ok() => Some(state.clone()),
+            _ => None,
+        };
+        JobsFilter {
+            days: self.days,
+            job_state: single(&self.job_states),
+            job_type: match self.job_types.as_slice() {
+                [job_type] if api_job_type(*job_type).is_ok() => Some(*job_type),
+                _ => None,
+            },
+            date_from: self.date_from,
+            date_to: self.date_to,
+            sort_by: self.sort_by.clone(),
         }
     }
 }

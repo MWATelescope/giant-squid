@@ -25,7 +25,7 @@ use super::types::{
     PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
     PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobsFilter};
+use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -119,6 +119,82 @@ impl PyAsvoClient {
             sort_by,
         };
         py.detach(|| self.inner.get_jobs(&filter))
+            .map(PyAsvoJobVec::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// List jobs as `giant-squid list` does: the server filters what it
+    /// can, and the lists (several job IDs, obsids, types or states) are
+    /// applied to the result. Every filter that is `None` does not filter.
+    ///
+    /// Args:
+    ///     job_ids: Only these jobs. Cannot be combined with `obs_ids`.
+    ///     obs_ids: Only the jobs for these obsids.
+    ///     job_types: Only the jobs of these types.
+    ///     job_states: Only the jobs in these states. States compare by
+    ///         kind, so `AsvoJobState.Error` matches every job with an
+    ///         error. `AsvoJobState.Expired` works here too.
+    ///     days: Only the jobs from the past `days` days. `None` gets your
+    ///         full job history.
+    ///     date_from: Only the jobs created at or after this time. It must
+    ///         have a time zone.
+    ///     date_to: Only the jobs created at or before this time. It must
+    ///         have a time zone.
+    ///     sort_by: The column to sort the jobs by, for example "id".
+    ///
+    /// Raises:
+    ///     ValueError: Both `job_ids` and `obs_ids` are given, or an obsid
+    ///         is not valid.
+    ///     TypeError: `date_from` or `date_to` has no time zone.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (
+        job_ids=None,
+        obs_ids=None,
+        job_types=None,
+        job_states=None,
+        *,
+        days=None,
+        date_from=None,
+        date_to=None,
+        sort_by=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn list_jobs(
+        &self,
+        py: Python<'_>,
+        job_ids: Option<Vec<AsvoJobId>>,
+        obs_ids: Option<Vec<u64>>,
+        job_types: Option<Vec<PyAsvoJobType>>,
+        job_states: Option<Vec<PyAsvoJobState>>,
+        days: Option<i64>,
+        date_from: Option<DateTime<Utc>>,
+        date_to: Option<DateTime<Utc>>,
+        sort_by: Option<String>,
+    ) -> PyResult<PyAsvoJobVec> {
+        let obs_ids = obs_ids
+            .unwrap_or_default()
+            .into_iter()
+            .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
+            .collect::<PyResult<Vec<ObsId>>>()?;
+        let query = JobQuery {
+            job_ids: job_ids.unwrap_or_default(),
+            obs_ids,
+            job_types: job_types
+                .unwrap_or_default()
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            job_states: job_states
+                .unwrap_or_default()
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            days,
+            date_from,
+            date_to,
+            sort_by,
+        };
+        py.detach(|| self.inner.list_jobs(&query))
             .map(PyAsvoJobVec::from)
             .map_err(|e| api_error(py, e))
     }

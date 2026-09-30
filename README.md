@@ -12,6 +12,13 @@ An alternative [MWA ASVO](https://asvo.mwatelescope.org/) client. For general he
 the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/24973129/Data+Access).
 
 ---
+## Upgrading from giant-squid 2.x
+
+giant-squid 3.0.0 uses version 2 of the MWA ASVO API, and some options, defaults and outputs
+changed. See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md) for what to change in your commands and
+scripts.
+
+---
 ## NOTE FOR HPC USERS
 
 Please read [this wiki article](https://mwatelescope.atlassian.net/wiki/spaces/MP/pages/65405030/MWA+ASVO+Use+with+HPC+Systems)
@@ -516,6 +523,9 @@ Options:
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltage or cancel_job
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days. If not given, fetches your full job history
+      --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
+      --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
+      --sort-by <SORT_BY>       The column to sort the jobs by, for example "id"
   -h, --help                    Print help
 ```
 
@@ -534,18 +544,20 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}],"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","product":{"files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
 ```
 
 The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
-`job_state`, `files`, `created`, `started`, `completed`, `modified`, `error_text`, `user_id`,
-`first_name`, `last_name` and `job_params`, which are the MWA ASVO API's (OpenAPI) names. Each file has
-`type` (where it is delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and
-`format` (as the MWA ASVO gives it, or `null`).
+`job_state`, `product`, `created`, `started`, `completed`, `modified`, `error_text`, `user_id`,
+`first_name`, `last_name` and `job_params`, which are the MWA ASVO API's (OpenAPI) names. `product`
+is `null` until the job has files; then its `files` list has, for each file, `type` (where it is
+delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and `format` (as the MWA
+ASVO gives it, or `null`).
 
 Before giant-squid 3.0.0 the keys were different (`obsid`, `jobId`, `jobType`, `jobState`, and
-`fileUrl`, `filePath`, `fileSize`, `fileHash` for each file; the delivery type was also under
-`jobType`). For one release, `--legacy-json` (on `list` and `wait`) prints the old format, with
+`fileUrl`, `filePath`, `fileSize`, `fileHash` for each file in a top-level `files` list; the
+delivery type was also under `jobType`). See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md) for the
+full list. For one release, `--legacy-json` (on `list` and `wait`) prints the old format, with
 a warning on stderr. It will be removed in the release after 3.0.0, so update scripts to the new
 keys.
 
@@ -600,7 +612,10 @@ Out[3]: dict_keys(['216087', '216241', '217628'])
 these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
 
 Additionally, the `--job-states` and `--job-types` options can be used to further filter the output.
-(The older names `--states` and `--types` still work.)
+(The older names `--states` and `--types` still work.) `--days`, `--date-from` and `--date-to`
+(a date such as `2026-09-01`, which is midnight UTC, or an RFC 3339 time such as
+`2026-09-01T12:00:00Z`) limit the listing by when the jobs were created, and `--sort-by` sets the
+order.
 
 These both take a comma-separated, case-insensitive list of values from the `job_type` and
 `job_state` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
@@ -628,7 +643,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 ```bash
 set -eux
 giant-squid list --json --job-types download_visibilities --job-states ready \
-  | jq -r '.[]|[.job_id,.files[0].url//"",.files[0].size//"",.files[0].sha1//""]|@tsv' \
+  | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
    # note: it's a good idea to check you have enough disk space here using $size.

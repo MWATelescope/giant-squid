@@ -19,8 +19,8 @@ use crate::asvo::apiv2::openapi::{
     Weighting,
 };
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
-    DownloadProgress,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec,
+    Delivery, DownloadProgress,
 };
 use crate::obs_id::ObsId;
 
@@ -283,6 +283,29 @@ impl PyAsvoFilesArray {
     }
 }
 
+/// The product of a completed job: its files.
+#[pyclass(
+    frozen,
+    skip_from_py_object,
+    name = "AsvoJobProduct",
+    module = "mwa_giant_squid"
+)]
+#[derive(Clone)]
+pub struct PyAsvoJobProduct(AsvoJobProduct);
+
+#[pymethods]
+impl PyAsvoJobProduct {
+    /// The job's files.
+    #[getter]
+    fn files(&self) -> Vec<PyAsvoFilesArray> {
+        self.0.files.iter().cloned().map(PyAsvoFilesArray).collect()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("AsvoJobProduct(<{} files>)", self.0.files.len())
+    }
+}
+
 /// An MWA ASVO job.
 #[pyclass(
     frozen,
@@ -326,13 +349,10 @@ impl PyAsvoJob {
         self.0.error_text.clone()
     }
 
-    /// The job's files, or `None` if the job has no product yet.
+    /// The job's product (its files), or `None` if the job has none yet.
     #[getter]
-    fn files(&self) -> Option<Vec<PyAsvoFilesArray>> {
-        self.0
-            .files
-            .as_ref()
-            .map(|files| files.iter().cloned().map(PyAsvoFilesArray).collect())
+    fn product(&self) -> Option<PyAsvoJobProduct> {
+        self.0.product.clone().map(PyAsvoJobProduct)
     }
 
     /// When the job completed (UTC), or `None`.
@@ -585,10 +605,10 @@ impl PyAsvoJobVec {
 
     /// The jobs as a JSON object keyed by job ID, as `giant-squid list
     /// --json` prints. The keys are the OpenAPI names (`obs_id`, `job_id`,
-    /// `job_type`, `job_state`, `files`, `created`, `started`, `completed`,
-    /// `modified`, `error_text`, `user_id`, `first_name`, `last_name`,
-    /// `job_params`; and `type`, `url`, `path`, `size`, `sha1`, `format` for
-    /// each file).
+    /// `job_type`, `job_state`, `product`, `created`, `started`,
+    /// `completed`, `modified`, `error_text`, `user_id`, `first_name`,
+    /// `last_name`, `job_params`; and, in `product.files`, `type`, `url`,
+    /// `path`, `size`, `sha1`, `format` for each file).
     fn json(&self) -> PyResult<String> {
         self.0
             .clone()

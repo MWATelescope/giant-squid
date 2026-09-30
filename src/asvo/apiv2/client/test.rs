@@ -16,7 +16,7 @@ use serde_json::json;
 
 use crate::asvo::apiv2::openapi::DownloadJobParams;
 use crate::asvo::{
-    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobsFilter,
+    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobQuery, JobsFilter,
 };
 use crate::cli::config::client_config_from_env;
 use crate::cli::Args;
@@ -868,10 +868,11 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
         .get_jobs(&JobsFilter::days(30))
         .expect("the recorded listing should be served");
 
-    let files = jobs.0[0]
-        .files
+    let files = &jobs.0[0]
+        .product
         .as_ref()
-        .expect("a completed job should carry its files");
+        .expect("a completed job should carry its files")
+        .files;
     assert_eq!(files.len(), 1);
     let file = &files[0];
     assert_eq!(file.r#type, Delivery::Acacia);
@@ -971,7 +972,7 @@ fn a_product_file_keeps_its_format() {
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");
 
-    let files = jobs.0[0].files.as_ref().expect("the job has files");
+    let files = &jobs.0[0].product.as_ref().expect("the job has files").files;
     assert_eq!(files[0].format.as_deref(), Some("tar"));
     assert_eq!(files[0].size, 3);
 }
@@ -991,7 +992,7 @@ fn a_product_without_files_does_not_fail_the_listing() {
         .expect("the listing should succeed");
 
     assert_eq!(jobs.0.len(), 2);
-    assert!(jobs.0[0].files.is_none());
+    assert!(jobs.0[0].product.is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -1186,4 +1187,118 @@ fn an_api_error_without_details_has_the_plain_message() {
         err.to_string(),
         "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
     );
+}
+
+// ---------------------------------------------------------------------------
+// list_jobs: the listing that the CLI's list and wait use
+// ---------------------------------------------------------------------------
+
+/// Three jobs: a ready conversion, a queued imaging job and an expired
+/// visibility download.
+fn three_jobs() -> Vec<serde_json::Value> {
+    vec![
+        job_detail(1, TEST_OBS_ID, "completed", 0),
+        job_detail(2, TEST_OBS_ID, "queued", 6),
+        job_detail(3, "1090008640", "expired", 1),
+    ]
+}
+
+/// One state and one type go to the server; the listing is then filtered
+/// on the client too, so the result is right whatever the server does.
+#[test]
+fn list_jobs_sends_a_single_state_and_type_to_the_server() {
+    let env = TestEnv::with_session();
+    let listing = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(r#"{ "job_state": "queued", "job_type": 6 }"#);
+        then.status(200)
+            .json_body(json!({ "jobs": three_jobs(), "total_count": 3 }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .list_jobs(&JobQuery {
+            job_states: vec![AsvoJobState::Queued],
+            job_types: vec![AsvoJobType::Imaging],
+            ..JobQuery::default()
+        })
+        .expect("the listing should succeed");
+
+    assert_eq!(listing.calls(), 1);
+    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
+    assert_eq!(ids, [2]);
+}
+
+/// Several states are not a server filter; they are applied to the result.
+#[test]
+fn list_jobs_filters_several_states_on_the_client() {
+    let env = TestEnv::with_session();
+    let listing = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs").is_true(|req| {
+            let body: serde_json::Value =
+                serde_json::from_slice(req.body().as_ref()).unwrap_or_default();
+            body.get("job_state").is_none() && body.get("job_type").is_none()
+        });
+        then.status(200)
+            .json_body(json!({ "jobs": three_jobs(), "total_count": 3 }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .list_jobs(&JobQuery {
+            job_states: vec![AsvoJobState::Ready, AsvoJobState::Queued],
+            ..JobQuery::default()
+        })
+        .expect("the listing should succeed");
+
+    assert_eq!(listing.calls(), 1);
+    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
+    assert_eq!(ids, [1, 2]);
+}
+
+/// The API cannot filter by `Expired`, so `list_jobs` (unlike `get_jobs`)
+/// filters by it on the client rather than failing.
+#[test]
+fn list_jobs_filters_expired_on_the_client() {
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(three_jobs());
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .list_jobs(&JobQuery {
+            job_states: vec![AsvoJobState::Expired],
+            ..JobQuery::default()
+        })
+        .expect("the listing should succeed");
+
+    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
+    assert_eq!(ids, [3]);
+}
+
+/// Job IDs and obsids together are refused before any request.
+#[test]
+fn list_jobs_refuses_job_ids_and_obs_ids_together() {
+    let env = TestEnv::with_session();
+    let listing = env.mock_get_jobs(vec![]);
+    let query = JobQuery {
+        job_ids: vec![1],
+        obs_ids: vec![crate::ObsId::validate(1065880128).expect("a valid obsid")],
+        ..JobQuery::default()
+    };
+
+    assert!(matches!(
+        query.validate(),
+        Err(AsvoApiError::InvalidParameter {
+            name: "job_ids",
+            ..
+        })
+    ));
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .list_jobs(&query)
+        .expect_err("the query should be refused");
+
+    assert!(err.to_string().contains("can't specify both"), "{err}");
+    assert_eq!(listing.calls(), 0);
 }

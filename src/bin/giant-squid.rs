@@ -282,20 +282,27 @@ fn main() -> Result<(), anyhow::Error> {
             no_colour,
             days,
             job_types,
+            date_from,
+            date_to,
+            sort_by,
         } => {
             init_logger(verbosity);
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
-            if !job_ids.is_empty() && !obs_ids.is_empty() {
-                bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
-            }
+            let query = JobQuery {
+                job_ids,
+                obs_ids,
+                job_types,
+                job_states,
+                days,
+                date_from,
+                date_to,
+                sort_by,
+            };
+            // Before connecting, so that a bad query does not log in.
+            query.validate()?;
             let client = connect()?;
-            let jobs = client
-                .get_jobs(&JobsFilter {
-                    days,
-                    ..JobsFilter::default()
-                })?
-                .filter(&job_ids, &obs_ids, &job_types, &job_states);
+            let jobs = client.list_jobs(&query)?;
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");
@@ -793,10 +800,10 @@ fn main() -> Result<(), anyhow::Error> {
             // they're all ready.
             wait_loop(&client, &parsed_job_ids)?;
 
-            let jobs =
-                client
-                    .get_jobs(&JobsFilter::default())?
-                    .filter(&parsed_job_ids, &[], &[], &[]);
+            let jobs = client.list_jobs(&JobQuery {
+                job_ids: parsed_job_ids,
+                ..JobQuery::default()
+            })?;
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");

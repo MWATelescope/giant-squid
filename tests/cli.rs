@@ -631,6 +631,35 @@ fn list_filters_by_state() {
     assert!(jobs.contains_key("1"));
 }
 
+/// `list` sends its date filters, and a single state, to the server.
+#[test]
+fn list_sends_its_filters_to_the_server() {
+    let env = CliEnv::with_session();
+    let listing = env.server.mock(|when, then| {
+        when.method(httpmock::Method::POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(
+                r#"{ "date_from": "2026-09-01T00:00:00Z", "job_state": "completed" }"#,
+            );
+        then.status(200)
+            .json_body(serde_json::json!({ "jobs": [], "total_count": 0 }));
+    });
+
+    let mut cmd = env.command();
+    cmd.args([
+        "list",
+        "--json",
+        "--date-from",
+        "2026-09-01",
+        "--job-states",
+        "ready",
+    ]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(listing.calls(), 1);
+}
+
 #[test]
 fn list_rejects_job_ids_and_obs_ids_together() {
     let env = CliEnv::with_session();

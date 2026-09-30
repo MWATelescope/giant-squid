@@ -50,6 +50,20 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
     }
 }
 
+/// Parses a time for `list --date-from` / `--date-to`: RFC 3339 (for
+/// example `2026-09-01T00:00:00Z`), or a date alone (`2026-09-01`), which
+/// is midnight UTC.
+pub fn parse_utc_time(s: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
+    if let Ok(time) = chrono::DateTime::parse_from_rfc3339(s) {
+        return Ok(time.with_timezone(&chrono::Utc));
+    }
+    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+        .map(|date| date.and_time(chrono::NaiveTime::MIN).and_utc())
+        .map_err(|_| {
+            "not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)".to_string()
+        })
+}
+
 /// Validates a WSClean image size against the MWA ASVO API's fixed set of
 /// allowed sizes (see [`validate::image_size`]).
 pub fn parse_image_size(s: &str) -> Result<i64, String> {

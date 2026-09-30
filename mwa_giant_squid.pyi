@@ -346,6 +346,13 @@ class AsvoFilesArray:
     def format(self) -> str | None:
         """The file's format, as the MWA ASVO gives it, or None."""
 
+class AsvoJobProduct:
+    """The product of a completed job: its files."""
+
+    @property
+    def files(self) -> list[AsvoFilesArray]:
+        """The job's files."""
+
 class AsvoJob:
     """An MWA ASVO job."""
 
@@ -365,8 +372,8 @@ class AsvoJob:
     def error_text(self) -> str | None:
         """The server's error message, or None. A job in the Error state has its message here."""
     @property
-    def files(self) -> list[AsvoFilesArray] | None:
-        """The job's files, or None if the job has no product yet."""
+    def product(self) -> AsvoJobProduct | None:
+        """The job's product (its files), or None if the job has none yet."""
     @property
     def completed(self) -> datetime.datetime | None:
         """When the job completed (UTC), or None."""
@@ -478,10 +485,10 @@ class AsvoJobVec:
     def json(self) -> str:
         """The jobs as a JSON object keyed by job ID, as ``giant-squid list --json`` prints.
 
-        The keys are the OpenAPI names: ``obs_id``, ``job_id``, ``job_type``, ``job_state``, ``files``,
+        The keys are the OpenAPI names: ``obs_id``, ``job_id``, ``job_type``, ``job_state``, ``product``,
         ``created``, ``started``, ``completed``, ``modified``, ``error_text``, ``user_id``, ``first_name``,
-        ``last_name`` and ``job_params``; and ``type``, ``url``, ``path``, ``size``, ``sha1`` and ``format`` for
-        each file.
+        ``last_name`` and ``job_params``; and, in ``product.files``, ``type``, ``url``, ``path``, ``size``, ``sha1``
+        and ``format`` for each file.
         """
 
 class AsvoClient:
@@ -536,6 +543,39 @@ class AsvoClient:
             AsvoApiError: The request failed.
         """
 
+    def list_jobs(
+        self,
+        job_ids: list[int] | None = None,
+        obs_ids: list[int] | None = None,
+        job_types: list[AsvoJobType] | None = None,
+        job_states: list[AsvoJobState] | None = None,
+        *,
+        days: int | None = None,
+        date_from: datetime.datetime | None = None,
+        date_to: datetime.datetime | None = None,
+        sort_by: str | None = None,
+    ) -> AsvoJobVec:
+        """List jobs as ``giant-squid list`` does.
+
+        The server filters what it can, and the lists (several job IDs, obsids, types or states) are applied to the
+        result. Every filter that is None does not filter.
+
+        Args:
+            job_ids: Only these jobs. Cannot be combined with ``obs_ids``.
+            obs_ids: Only the jobs for these obsids.
+            job_types: Only the jobs of these types.
+            job_states: Only the jobs in these states. States compare by kind, so ``AsvoJobState.Error`` matches
+                every job with an error. ``AsvoJobState.Expired`` works here too.
+            days: Only the jobs from the past ``days`` days. None gets your full job history.
+            date_from: Only the jobs created at or after this time. It must have a time zone.
+            date_to: Only the jobs created at or before this time. It must have a time zone.
+            sort_by: The column to sort the jobs by, for example "id".
+
+        Raises:
+            ValueError: Both ``job_ids`` and ``obs_ids`` are given, or an obsid is not valid.
+            TypeError: ``date_from`` or ``date_to`` has no time zone.
+            AsvoApiError: The request failed.
+        """
     def submit_download_vis_job(
         self,
         obs_id: int,

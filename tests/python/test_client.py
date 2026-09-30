@@ -89,8 +89,8 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert ready.job_state == gs.AsvoJobState.Ready
     assert ready.error_text is None
     assert ready.completed == COMPLETED_UTC
-    assert ready.files is not None
-    (file,) = ready.files
+    assert ready.product is not None
+    (file,) = ready.product.files
     assert file.type == gs.Delivery.Acacia
     assert file.url == FILE_URL
     assert file.size == FILE_SIZE
@@ -98,7 +98,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert file.path is None
 
     assert jobs[1].job_state == gs.AsvoJobState.Queued
-    assert jobs[1].files is None
+    assert jobs[1].product is None
     assert jobs[-1].job_state == gs.AsvoJobState.Error
     assert jobs[-1].error_text == "the conversion failed"
 
@@ -268,8 +268,8 @@ def test_a_file_has_the_format_the_server_gives(host: str, serve_jobs: Callable[
 
     (job,) = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
-    assert job.files is not None
-    assert [file.format for file in job.files] == ["tar", None]
+    assert job.product is not None
+    assert [file.format for file in job.product.files] == ["tar", None]
 
 
 # The filter values of the get_jobs test, and what the server receives for them.
@@ -405,3 +405,63 @@ def test_an_api_error_without_details_has_empty_ones(host: str, httpserver: HTTP
 
     assert err.value.field_errors == []
     assert err.value.request_id is None
+
+
+def three_jobs() -> list[dict[str, Any]]:
+    """A ready conversion job, a queued imaging job and an expired download for another obsid.
+
+    Returns:
+        The jobs, as the server sends them.
+    """
+    other = job_detail(3, "expired", job_type=1)
+    other["job_params"] = {"obs_id": str(OTHER_OBS_ID), "delivery": "acacia"}
+    return [job_detail(1, "completed", job_type=0), job_detail(2, "queued", job_type=6), other]
+
+
+# An obsid that differs from TEST_OBS_ID.
+OTHER_OBS_ID = 1090008640
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_list_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: Callable[..., None]) -> None:
+    """The lists are applied to the result, including Expired, which the server cannot filter by."""
+    serve_jobs(three_jobs())
+    client = gs.AsvoClient(host, TEST_API_KEY)
+
+    ready_or_queued = client.list_jobs(job_states=[gs.AsvoJobState.Ready, gs.AsvoJobState.Queued])
+    expired = client.list_jobs(job_states=[gs.AsvoJobState.Expired])
+    other_obs = client.list_jobs(obs_ids=[OTHER_OBS_ID])
+
+    assert [job.job_id for job in ready_or_queued] == [1, 2]
+    assert [job.job_id for job in expired] == [3]
+    assert [job.job_id for job in other_obs] == [3]
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_list_jobs_sends_a_single_state_and_type_to_the_server(
+    host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None]
+) -> None:
+    """One supported state and one type are server filters, so less comes back."""
+    serve_jobs(three_jobs())
+
+    jobs = gs.AsvoClient(host, TEST_API_KEY).list_jobs(
+        job_states=[gs.AsvoJobState.Queued], job_types=[gs.AsvoJobType.Imaging], days=FILTER_DAYS
+    )
+
+    body = get_jobs_body(httpserver)
+    assert body["job_state"] == "queued"
+    assert body["job_type"] == IMAGING_JOB_TYPE_NUMBER
+    assert body["days"] == FILTER_DAYS
+    assert [job.job_id for job in jobs] == [2]
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_list_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
+    """Job IDs and obsids together raise ValueError before any listing."""
+    client = gs.AsvoClient(host, TEST_API_KEY)
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="can't specify both"):
+        client.list_jobs(job_ids=[1], obs_ids=[TEST_OBS_ID])
+
+    assert len(httpserver.log) == requests_before

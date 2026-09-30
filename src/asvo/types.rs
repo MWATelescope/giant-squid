@@ -107,6 +107,14 @@ pub struct AsvoFilesArray {
     pub format: Option<String>,
 }
 
+/// The product of a completed job: the OpenAPI `JobProduct`.
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+pub struct AsvoJobProduct {
+    /// The job's files. For a job from the server it is not empty: a
+    /// product with no usable file is `None` on the job.
+    pub files: Vec<AsvoFilesArray>,
+}
+
 /// An MWA ASVO job ID. A `u64`, as the OpenAPI schema's `job_id` is a
 /// 64-bit integer. A type alias, not a newtype, because a newtype would add
 /// complexity for no gain.
@@ -115,15 +123,16 @@ pub type AsvoJobId = u64;
 /// All of the metadata associated with an ASVO job.
 ///
 /// In JSON the keys are the field names, which are the OpenAPI names of a
-/// `JobDetailResponse`. Two differ in form: `obs_id` is read from
-/// `job_params`, and `files` is the `product`'s file list.
+/// `JobDetailResponse`. One differs in form: `obs_id`, which the API has
+/// only in `job_params`, is also a field of its own here.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoJob {
     pub obs_id: ObsId,
     pub job_id: AsvoJobId,
     pub job_type: AsvoJobType,
     pub job_state: AsvoJobState,
-    pub files: Option<Vec<AsvoFilesArray>>,
+    /// The job's product (its files), or `None` if the job has none yet.
+    pub product: Option<AsvoJobProduct>,
     /// When the job was created (UTC).
     pub created: DateTime<Utc>,
     /// When the job started, or `None` if it has not started.
@@ -313,7 +322,7 @@ impl std::fmt::Display for AsvoJob {
             job_id=self.job_id,
             type=self.job_type,
             state=self.job_state,
-            files=self.files,
+            files=self.product.as_ref().map(|p| &p.files),
         )
     }
 }

@@ -348,6 +348,34 @@ already accepts both.
   string on `image_from_job` (default `XX,YY`). giant-squid follows each
   endpoint, and only validates the enum one. Worth raising with the API dev.
 
+## Code coverage
+
+`tools/coverage.sh` makes a local coverage report, to run before pushing. It
+uses `cargo-llvm-cov`, as the "Generate Coverage report" CI workflow does, so
+its Rust numbers are the same as CI's. It also runs the Python tests against
+an instrumented build of the extension module, because the code they test is
+the Rust in `src/python/`. The package has no Python code of its own yet.
+
+```bash
+cargo install cargo-llvm-cov        # once
+rustup component add llvm-tools     # once
+tools/coverage.sh
+```
+
+It prints two summaries, after the Rust tests and with the Python tests
+added, and writes `coverage/html/index.html` and `coverage/coverage.lcov`
+(git-ignored). The line coverage of `src/python/` in the second summary is
+the Python tests' coverage. With a Rust toolchain that rustup did not
+install, set `LLVM_COV` and `LLVM_PROFDATA` to its `llvm-cov` and
+`llvm-profdata`. The script rebuilds the extension module in `.venv` with
+instrumentation; run `uv sync` afterwards for a normal build. A test that
+fails does not stop the script; the report covers the tests that ran, and
+the script exits with the failure.
+
+The generated `src/asvo/apiv2/openapi.rs` counts in the totals, and much of
+it (builders and types for endpoints the client does not use) is never run,
+so read the per-file numbers, not only the total.
+
 ## Phases
 
 | Phase | Work | Status |

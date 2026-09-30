@@ -32,7 +32,7 @@ fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
         job_id,
         job_type: AsvoJobType::DownloadVisibilities,
         job_state: state,
-        files: None,
+        product: None,
         created: test_created(),
         started: None,
         completed: None,
@@ -140,7 +140,7 @@ fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: AsvoJo
         job_id,
         job_type,
         job_state: state,
-        files: None,
+        product: None,
         created: test_created(),
         started: None,
         completed: None,
@@ -230,14 +230,16 @@ fn filter_criteria_are_combined() {
 #[test]
 fn the_json_output_keys_are_the_openapi_names() {
     let mut ready = job(JOB_ID_A, AsvoJobState::Ready);
-    ready.files = Some(vec![AsvoFilesArray {
-        r#type: Delivery::Acacia,
-        url: Some("https://example.org/f.tar".to_string()),
-        path: None,
-        size: 1,
-        sha1: Some("0".repeat(40)),
-        format: None,
-    }]);
+    ready.product = Some(AsvoJobProduct {
+        files: vec![AsvoFilesArray {
+            r#type: Delivery::Acacia,
+            url: Some("https://example.org/f.tar".to_string()),
+            path: None,
+            size: 1,
+            sha1: Some("0".repeat(40)),
+            format: None,
+        }],
+    });
 
     let json: serde_json::Value =
         serde_json::from_str(&AsvoJobVec(vec![ready]).json().expect("the jobs serialise"))
@@ -257,7 +259,6 @@ fn the_json_output_keys_are_the_openapi_names() {
             "completed",
             "created",
             "error_text",
-            "files",
             "first_name",
             "job_id",
             "job_params",
@@ -266,11 +267,12 @@ fn the_json_output_keys_are_the_openapi_names() {
             "last_name",
             "modified",
             "obs_id",
+            "product",
             "started",
             "user_id"
         ]
     );
-    let file_keys: Vec<&str> = entry["files"][0]
+    let file_keys: Vec<&str> = entry["product"]["files"][0]
         .as_object()
         .expect("each file is an object")
         .keys()

@@ -13,13 +13,13 @@ mod test;
 
 use crate::check_file_sha1_hash;
 use crate::obs_id::ObsId;
-pub use apiv2::client::{AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT};
+pub use apiv2::client::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT};
 pub use apiv2::AsvoApiError;
 pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
-    Delivery, DownloadOptions, DownloadProgress,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobProduct, AsvoJobState, AsvoJobType,
+    AsvoJobVec, Delivery, DownloadOptions, DownloadProgress,
 };
 
 use std::env::current_dir;
@@ -116,10 +116,10 @@ fn download_job(
         });
     }
 
-    let files = match &job.files {
+    let files = match &job.product {
         None => return Err(AsvoError::NoFiles(job.job_id)),
-        Some(f) if f.is_empty() => return Err(AsvoError::NoFiles(job.job_id)),
-        Some(f) => f,
+        Some(p) if p.files.is_empty() => return Err(AsvoError::NoFiles(job.job_id)),
+        Some(p) => &p.files,
     };
 
     let log_prefix = format!(

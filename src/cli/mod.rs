@@ -18,12 +18,13 @@ pub mod table;
 #[cfg(test)]
 mod test;
 
+use chrono::{DateTime, Utc};
 use clap::{ArgAction, Parser};
 
 use crate::asvo::{AsvoJobState, AsvoJobType};
 use params::{
-    BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs,
-    VoltageJobArgs,
+    parse_utc_time, BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs,
+    ImagingJobArgs, VoltageJobArgs,
 };
 
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
@@ -71,6 +72,20 @@ pub enum Args {
         /// full job history.
         #[arg(long)]
         days: Option<i64>,
+
+        /// Only jobs created at or after this time: RFC 3339 (for example
+        /// 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC).
+        #[arg(long, value_parser = parse_utc_time)]
+        date_from: Option<DateTime<Utc>>,
+
+        /// Only jobs created at or before this time: RFC 3339 or a date
+        /// (midnight UTC).
+        #[arg(long, value_parser = parse_utc_time)]
+        date_to: Option<DateTime<Utc>>,
+
+        /// The column to sort the jobs by, for example "id".
+        #[arg(long)]
+        sort_by: Option<String>,
 
         /// job IDs or obsids to filter by. Files containing job IDs or
         /// obsids are also accepted.

@@ -10,3 +10,8 @@ __pycache__/
 # Working files
 g.patch
 run_live_tests.sh
+
+# Coverage reports (tools/coverage.sh, and CI), and the raw profiles that an
+# instrumented binary writes when it runs outside the script
+/coverage/
+*.profraw

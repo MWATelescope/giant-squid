@@ -338,6 +338,31 @@
   required it (struct literals, the JSON key and golden tests); one test
   comment changed. 6 new client tests, 1 new CLI test, 9 new pytest tests
   (147 in total).
+- 2026-09-30: step 2.10 done (approved). Listing logic is in the library:
+  `JobQuery` has the lists the API cannot filter by (several job IDs,
+  obsids, job types and job states) and the server-side filters, and
+  `AsvoClient::list_jobs(&JobQuery)` validates it (job IDs and obsids
+  together are an `InvalidParameter`, before any request), sends a single
+  supported type or state to the server, and applies the lists to the
+  result (so `Expired` works too). The CLI's `list` and `wait` use it, and
+  `list` has `--date-from`, `--date-to` (RFC 3339, or a date at midnight
+  UTC) and `--sort-by`. Python: `AsvoClient.list_jobs(job_ids, obs_ids,
+  job_types, job_states, *, days, date_from, date_to, sort_by)`. The files
+  of a job are nested as in the API: `AsvoJob.product:
+  Option<AsvoJobProduct>` with `files`, in Rust, Python
+  (`job.product.files`; `AsvoJob.files` is gone) and `--json`
+  (`"product": {"files": [...]}`); `--legacy-json` is unchanged. The job
+  table no longer panics on a job with an empty file list. New
+  `docs/V3_MIGRATION.md`, a guide for CLI users from 2.x (based on the
+  2.5.1 README and source): its example commands were checked with
+  `--dry-run`, and its `jq` recipes give the same output from the old and
+  new JSON. New `tools/coverage.sh` (see docs/TESTING.md, "Code
+  coverage"): Rust tests, then the Python tests against an instrumented
+  extension module, with `cargo-llvm-cov` as in CI; reports in
+  `coverage/` (git-ignored). A fixture makes the Ctrl-C tests install
+  Python's SIGINT handler, because a process started in the background by
+  a non-interactive shell starts with SIGINT ignored. 6 new library
+  tests, 3 new CLI tests, 3 new pytest tests (150 in total).
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section

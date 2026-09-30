@@ -43,24 +43,24 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                 Cell::new(j.job_state.to_string().as_str())
                     .style_spec(&job_state_table_style(j.job_state, no_colour)),
                 Cell::new(
-                    match &j.files {
+                    match &j.product {
                         None => "".to_string(),
-                        Some(v) => {
-                            let mut size = 0;
-                            for f in v {
-                                size += f.size;
-                            }
+                        Some(p) => {
+                            let size: u64 = p.files.iter().map(|f| f.size).sum();
                             bytesize::ByteSize(size).display().iec().to_string()
                         }
                     }
                     .as_str(),
                 ),
                 Cell::new(
-                    match j.files {
-                        None => "".to_string(),
-                        Some(v) => v.first().unwrap().r#type.to_string(),
-                    }
-                    .as_str(),
+                    // The first file's delivery type. An empty file list
+                    // (possible for a job built by a program) shows nothing.
+                    j.product
+                        .as_ref()
+                        .and_then(|p| p.files.first())
+                        .map(|f| f.r#type.to_string())
+                        .unwrap_or_default()
+                        .as_str(),
                 ),
                 Cell::new(
                     j.completed

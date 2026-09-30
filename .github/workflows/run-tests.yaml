@@ -64,6 +64,9 @@ jobs:
     - name: Regenerate src/asvo/apiv2/openapi.rs
       run: cargo build --features regen-openapi
 
+    - name: Fomrmat src/asvo/apiv2/openapi.rs
+      run: cargo fmt
+
     - name: Fail if regeneration produced a diff
       run: |
         if ! git diff --exit-code -- src/asvo/apiv2/openapi.rs; then
