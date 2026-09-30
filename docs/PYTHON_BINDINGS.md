@@ -603,6 +603,18 @@ Notes for Phase 3, found during Phases 1 and 2:
 - Write those overrides as plain attributes. Inside `cfg_attr(...)`, the
   `#[gen_stub_pymethods]` macro does not see them and the build fails
   ("cannot find attribute `gen_stub`").
+- The overrides are temporary. pyo3-stub-gen PR #496
+  (https://github.com/Jij-Inc/pyo3-stub-gen/pull/496, "Add support for
+  Jiff 0.2 types"; open on 2026-09-30, CI passing) adds an optional
+  `jiff-02` feature that maps `jiff::Timestamp` (and `Zoned`,
+  `civil::DateTime`) to `datetime.datetime`, the same type as the
+  overrides, so `Option<Timestamp>` becomes `datetime.datetime | None`.
+  When a release has it: enable the feature (`pyo3-stub-gen = { ...,
+  features = ["jiff-02"] }`), delete the overrides, and check that the
+  generated `.pyi` does not change. Give each override a comment that
+  names PR #496, so all of them can be found. Even with the PR,
+  pyo3-stub-gen depends on chrono (not optional), so `python-stubgen`
+  builds still pull chrono in; the published crate and wheel do not.
 
 - Build the Linux wheels in a manylinux container (for example
   `maturin-action` with `manylinux: auto`). A wheel built on a developer
