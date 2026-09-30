@@ -18,9 +18,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use log::debug;
 use serde::{Deserialize, Serialize};
+
+#[cfg(test)]
+mod test;
 
 /// How much of a safety buffer to apply when deciding if a token is still
 /// valid. This avoids a token expiring mid-flight between the check and the
@@ -42,8 +45,8 @@ const TOKEN_CACHE_FILE: &str = "tokens.json";
 pub struct StoredTokens {
     pub access_token: String,
     pub refresh_token: String,
-    pub access_expires_at: DateTime<Utc>,
-    pub refresh_expires_at: DateTime<Utc>,
+    pub access_expires_at: Timestamp,
+    pub refresh_expires_at: Timestamp,
     pub user_id: u64,
     pub user_login: String,
     pub user_email: String,
@@ -52,14 +55,12 @@ pub struct StoredTokens {
 impl StoredTokens {
     /// Is the access token still safe to use right now?
     pub fn is_access_valid(&self) -> bool {
-        self.access_expires_at
-            > Utc::now() + chrono::Duration::from_std(EXPIRY_SAFETY_BUFFER).unwrap()
+        self.access_expires_at > Timestamp::now() + EXPIRY_SAFETY_BUFFER
     }
 
     /// Is the refresh token still safe to use right now?
     pub fn is_refresh_valid(&self) -> bool {
-        self.refresh_expires_at
-            > Utc::now() + chrono::Duration::from_std(EXPIRY_SAFETY_BUFFER).unwrap()
+        self.refresh_expires_at > Timestamp::now() + EXPIRY_SAFETY_BUFFER
     }
 }
 

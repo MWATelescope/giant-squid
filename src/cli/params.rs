@@ -53,16 +53,23 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
 /// Parses a time for `list --date-from` / `--date-to`: RFC 3339 (for
 /// example `2026-09-01T00:00:00Z`), or a date alone (`2026-09-01`), which
 /// is midnight UTC.
-pub fn parse_utc_time(s: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
-    if let Ok(time) = chrono::DateTime::parse_from_rfc3339(s) {
-        return Ok(time.with_timezone(&chrono::Utc));
+///
+/// A date and time with no offset (`2026-09-01T12:00:00`) is refused rather
+/// than guessed: the date form must be exactly `YYYY-MM-DD`.
+pub fn parse_utc_time(s: &str) -> Result<jiff::Timestamp, String> {
+    if let Ok(time) = s.parse::<jiff::Timestamp>() {
+        return Ok(time);
     }
-    chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
-        .map(|date| date.and_time(chrono::NaiveTime::MIN).and_utc())
+    jiff::civil::Date::strptime(DATE_ONLY_FORMAT, s)
+        .and_then(|date| date.to_zoned(jiff::tz::TimeZone::UTC))
+        .map(|midnight| midnight.timestamp())
         .map_err(|_| {
             "not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)".to_string()
         })
 }
+
+/// The date-only form that [`parse_utc_time`] accepts.
+const DATE_ONLY_FORMAT: &str = "%Y-%m-%d";
 
 /// Validates a WSClean image size against the MWA ASVO API's fixed set of
 /// allowed sizes (see [`validate::image_size`]).

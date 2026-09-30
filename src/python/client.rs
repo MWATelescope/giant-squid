@@ -11,7 +11,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -106,8 +106,8 @@ impl PyAsvoClient {
         days: Option<i64>,
         job_state: Option<PyAsvoJobState>,
         job_type: Option<PyAsvoJobType>,
-        date_from: Option<DateTime<Utc>>,
-        date_to: Option<DateTime<Utc>>,
+        date_from: Option<Timestamp>,
+        date_to: Option<Timestamp>,
         sort_by: Option<String>,
     ) -> PyResult<PyAsvoJobVec> {
         let filter = JobsFilter {
@@ -167,8 +167,8 @@ impl PyAsvoClient {
         job_types: Option<Vec<PyAsvoJobType>>,
         job_states: Option<Vec<PyAsvoJobState>>,
         days: Option<i64>,
-        date_from: Option<DateTime<Utc>>,
-        date_to: Option<DateTime<Utc>>,
+        date_from: Option<Timestamp>,
+        date_to: Option<Timestamp>,
         sort_by: Option<String>,
     ) -> PyResult<PyAsvoJobVec> {
         let obs_ids = obs_ids

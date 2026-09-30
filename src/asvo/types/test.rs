@@ -19,10 +19,10 @@ const OTHER_OBS_ID: u64 = 1090008640;
 const TEST_USER_ID: i64 = 4242;
 
 /// When the test jobs were created.
-fn test_created() -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339("2026-09-08T05:41:54Z")
+fn test_created() -> jiff::Timestamp {
+    "2026-09-08T05:41:54Z"
+        .parse::<jiff::Timestamp>()
         .expect("a valid time")
-        .with_timezone(&chrono::Utc)
 }
 
 /// A job with the given ID and state.

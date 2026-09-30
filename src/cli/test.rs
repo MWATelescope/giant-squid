@@ -1196,12 +1196,8 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
         AsvoFilesArray, AsvoJob, AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
     };
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
-    let completed = chrono::DateTime::parse_from_rfc3339("2026-09-08T06:00:00Z")
-        .expect("a valid time")
-        .with_timezone(&chrono::Utc);
-    let created = chrono::DateTime::parse_from_rfc3339("2026-09-08T05:41:54Z")
-        .expect("a valid time")
-        .with_timezone(&chrono::Utc);
+    let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
+    let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
     let mut job_params = serde_json::Map::new();
     job_params.insert("obs_id".to_string(), serde_json::json!(1065880128));
     job_params.insert("delivery".to_string(), serde_json::json!("acacia"));
@@ -1342,21 +1338,26 @@ fn submit_conv_sends_no_cable_delay_and_no_rfi() {
     assert_eq!(json["no_rfi"], false);
 }
 
+/// A UTC time, for the expected values below.
+fn utc(time: &str) -> jiff::Timestamp {
+    time.parse().expect("a valid time")
+}
+
 #[test]
 fn a_list_time_is_rfc3339_or_a_date() {
     use super::params::parse_utc_time;
 
     assert_eq!(
-        parse_utc_time("2026-09-01T12:30:00+08:00")
-            .expect("RFC 3339")
-            .to_rfc3339(),
-        "2026-09-01T04:30:00+00:00"
+        parse_utc_time("2026-09-01T12:30:00+08:00").expect("RFC 3339"),
+        utc("2026-09-01T04:30:00Z")
     );
     assert_eq!(
-        parse_utc_time("2026-09-01").expect("a date").to_rfc3339(),
-        "2026-09-01T00:00:00+00:00"
+        parse_utc_time("2026-09-01").expect("a date"),
+        utc("2026-09-01T00:00:00Z")
     );
     assert!(parse_utc_time("yesterday").is_err());
+    // A date and time with no offset is refused, not read as midnight.
+    assert!(parse_utc_time("2026-09-01T12:00:00").is_err());
 }
 
 #[test]
@@ -1377,14 +1378,8 @@ fn list_takes_the_date_and_sort_filters() {
             sort_by,
             ..
         } => {
-            assert_eq!(
-                date_from.map(|t| t.to_rfc3339()),
-                Some("2026-09-01T00:00:00+00:00".to_string())
-            );
-            assert_eq!(
-                date_to.map(|t| t.to_rfc3339()),
-                Some("2026-09-30T00:00:00+00:00".to_string())
-            );
+            assert_eq!(date_from, Some(utc("2026-09-01T00:00:00Z")));
+            assert_eq!(date_to, Some(utc("2026-09-30T00:00:00Z")));
             assert_eq!(sort_by.as_deref(), Some("created"));
         }
         other => panic!("expected List, got {other:?}"),

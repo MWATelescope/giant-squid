@@ -25,10 +25,17 @@ mod regen_openapi {
     use std::fs;
     use std::path::Path;
 
-    use typify::{TypeSpace, TypeSpaceSettings};
+    use schemars::schema::{InstanceType, SchemaObject};
+    use typify::{TypeSpace, TypeSpaceImpl, TypeSpaceSettings};
 
     const SCHEMA_PATH: &str = "src/asvo/apiv2/openapi-schema.json";
     const OUTPUT_PATH: &str = "src/asvo/apiv2/openapi.rs";
+    /// The Rust type for a schema `date-time` string. typify's own choice
+    /// is `chrono::DateTime<Utc>`; giant-squid uses jiff instead (chrono is
+    /// soft-deprecated). Every MWA ASVO time is UTC, so a `Timestamp` fits.
+    const DATE_TIME_TYPE: &str = "::jiff::Timestamp";
+    /// The JSON Schema format that `DATE_TIME_TYPE` replaces.
+    const DATE_TIME_FORMAT: &str = "date-time";
 
     // No embedded generation timestamp on purpose: build.rs runs on every
     // build, so a timestamp here would make the file "change" (and the CI
@@ -60,7 +67,23 @@ mod regen_openapi {
         let schema: schemars::schema::RootSchema = serde_json::from_str(&content)
             .unwrap_or_else(|e| panic!("failed to parse {SCHEMA_PATH} as a JSON schema: {e}"));
 
-        let mut type_space = TypeSpace::new(TypeSpaceSettings::default().with_struct_builder(true));
+        // typify matches a conversion on the schema without its metadata
+        // (title, description), so this one entry covers every `date-time`
+        // field, including the optional ones (inside `anyOf`).
+        let date_time = SchemaObject {
+            instance_type: Some(InstanceType::String.into()),
+            format: Some(DATE_TIME_FORMAT.to_string()),
+            ..Default::default()
+        };
+        let mut type_space = TypeSpace::new(
+            TypeSpaceSettings::default()
+                .with_struct_builder(true)
+                .with_conversion(
+                    date_time,
+                    DATE_TIME_TYPE,
+                    [TypeSpaceImpl::Display, TypeSpaceImpl::FromStr].into_iter(),
+                ),
+        );
         type_space
             .add_root_schema(schema)
             .expect("typify failed to process the openapi schema");

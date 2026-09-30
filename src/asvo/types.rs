@@ -4,7 +4,7 @@
 
 //! ASVO data types.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -134,12 +134,12 @@ pub struct AsvoJob {
     /// The job's product (its files), or `None` if the job has none yet.
     pub product: Option<AsvoJobProduct>,
     /// When the job was created (UTC).
-    pub created: DateTime<Utc>,
+    pub created: Timestamp,
     /// When the job started, or `None` if it has not started.
-    pub started: Option<DateTime<Utc>>,
-    pub completed: Option<DateTime<Utc>>,
+    pub started: Option<Timestamp>,
+    pub completed: Option<Timestamp>,
     /// When the job was last changed, or `None`.
-    pub modified: Option<DateTime<Utc>>,
+    pub modified: Option<Timestamp>,
     /// The server's error message, or `None`. For a job in the `Error`
     /// state it is also in [`AsvoJobState::Error`].
     pub error_text: Option<String>,

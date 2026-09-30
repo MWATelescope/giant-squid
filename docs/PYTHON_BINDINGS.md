@@ -363,6 +363,27 @@
   Python's SIGINT handler, because a process started in the background by
   a non-interactive shell starts with SIGINT ignored. 6 new library
   tests, 3 new CLI tests, 3 new pytest tests (150 in total).
+- 2026-09-30: step 2.11 done (approved: option B). chrono is gone:
+  it is soft-deprecated (chrono issue #1768), and the RustSec
+  "unmaintained" advisory waits only for jiff 1.0. The crate uses
+  `jiff::Timestamp` (jiff 0.2, without its time zone database features;
+  every MWA ASVO time is UTC), and re-exports `mwa_giant_squid::jiff`. The
+  generated `openapi.rs` has `Timestamp` for every `date-time` field: one
+  `with_conversion` in `build.rs` (typify matches it without the schema's
+  descriptions); the regenerated file differs from the old one only in
+  that type. PyO3 uses its `jiff-02` feature, which converts as its chrono
+  feature did (a UTC-aware `datetime` out; a naive one refused), so the
+  Python API and its tests are unchanged. `cargo tree -i chrono` finds
+  nothing for any feature set, and `Cargo.lock` has no chrono. The
+  `--json` and `--legacy-json` times are unchanged (the byte-for-byte
+  golden test passes as it was), and so is the token cache shared with
+  mwa-cli: new tests show that jiff reads `Z`, `+00:00`, other offsets and
+  fractional seconds, and writes RFC 3339 UTC with `Z`, as chrono did.
+  `list --date-from` and `--date-to` still refuse a time without an offset
+  (a test now covers this). Tests that compared chrono's `to_rfc3339()`
+  text now compare the instants. jiff 0.2 is in the public Rust API, so
+  jiff 1.0 will be a giant-squid major version for Rust library users (not
+  for CLI or Python users). 3 new library tests, 1 new CLI test assertion.
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section
@@ -568,6 +589,20 @@ Steps:
   Python code. Publishing to PyPI stays your step.
 
 Notes for Phase 3, found during Phases 1 and 2:
+
+- The dates and times are `jiff::Timestamp` (step 2.11), which
+  pyo3-stub-gen 0.23 does not know (no `PyStubType`). Give each of them a
+  `#[gen_stub(override_return_type(type_repr = "datetime.datetime",
+  imports = ("datetime")))]` (getters) or `#[gen_stub(override_type(
+  type_repr = "datetime.datetime | None", imports = ("datetime")))]`
+  (arguments): the four `AsvoJob` time getters, and `date_from` and
+  `date_to` of `get_jobs`, `list_jobs` and their stubs. For an override the
+  macro emits only the Python string, not a `PyStubType` bound; a
+  throwaway crate with pyo3-stub-gen 0.23 proved this (it builds and makes
+  `datetime.datetime` stubs with the overrides, and fails without them).
+- Write those overrides as plain attributes. Inside `cfg_attr(...)`, the
+  `#[gen_stub_pymethods]` macro does not see them and the build fails
+  ("cannot find attribute `gen_stub`").
 
 - Build the Linux wheels in a manylinux container (for example
   `maturin-action` with `manylinux: auto`). A wheel built on a developer

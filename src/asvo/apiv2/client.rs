@@ -21,7 +21,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use base64::Engine;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use log::{debug, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -189,7 +189,7 @@ fn execute_logged(
 /// reading the `exp` claim to know when a token we've already been handed
 /// by the server will expire, not authenticating anything with it) and
 /// return its expiry as a UTC timestamp.
-fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
+fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
     #[derive(serde::Deserialize)]
     struct JwtExpClaim {
         exp: i64,
@@ -214,10 +214,8 @@ fn decode_jwt_exp(token: &str) -> Result<DateTime<Utc>, AsvoApiError> {
             message: format!("Could not parse JWT payload JSON from MWA ASVO: {}", e),
         })?;
 
-    DateTime::<Utc>::from_timestamp(claim.exp, 0).ok_or_else(|| {
-        AsvoApiError::AuthenticationFailed {
-            message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
-        }
+    Timestamp::from_second(claim.exp).map_err(|_| AsvoApiError::AuthenticationFailed {
+        message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
     })
 }
 
@@ -931,11 +929,11 @@ impl AsvoClient {
 /// 2. Timestamps (`created`, and the three above when present) come back
 ///    without a timezone designator (confirmed: `"created":
 ///    "2026-09-08T05:41:54.757232"`, no `Z`/offset) - a naive timestamp,
-///    not RFC3339. `chrono::DateTime<Utc>`'s deserializer requires
-///    RFC3339 and fails with "premature end of input" on a naive one.
-///    Fixed by appending `Z` to any of these four fields' string values
-///    that don't already have a timezone marker (assuming UTC, which
-///    matches the schema's own `DateTime<Utc>` typing).
+///    not RFC3339. `jiff::Timestamp`'s deserializer (like chrono's before
+///    it) needs an offset, so it refuses a naive one. Fixed by appending
+///    `Z` to any of these four fields' string values that don't already
+///    have a timezone marker (assuming UTC, which matches the schema's own
+///    `date-time` typing, generated as `Timestamp`).
 ///
 /// And one defensive fix, not seen from the real server:
 ///
@@ -1168,9 +1166,9 @@ pub struct JobsFilter {
     /// Only the jobs of this type.
     pub job_type: Option<AsvoJobType>,
     /// Only the jobs created at or after this time.
-    pub date_from: Option<DateTime<Utc>>,
+    pub date_from: Option<Timestamp>,
     /// Only the jobs created at or before this time.
-    pub date_to: Option<DateTime<Utc>>,
+    pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
     pub sort_by: Option<String>,
 }
@@ -1206,9 +1204,9 @@ pub struct JobQuery {
     /// Only the jobs from the past `days` days.
     pub days: Option<i64>,
     /// Only the jobs created at or after this time.
-    pub date_from: Option<DateTime<Utc>>,
+    pub date_from: Option<Timestamp>,
     /// Only the jobs created at or before this time.
-    pub date_to: Option<DateTime<Utc>>,
+    pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
     pub sort_by: Option<String>,
 }

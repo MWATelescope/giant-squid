@@ -64,7 +64,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                 ),
                 Cell::new(
                     j.completed
-                        .map(|dt| dt.format(COMPLETED_FORMAT).to_string())
+                        .map(|dt| dt.strftime(COMPLETED_FORMAT).to_string())
                         .unwrap_or_default()
                         .as_str(),
                 ),

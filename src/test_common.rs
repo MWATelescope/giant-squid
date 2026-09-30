@@ -25,9 +25,9 @@ use std::time::Duration as StdDuration;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::{Duration, Utc};
 use httpmock::prelude::*;
 use httpmock::Mock;
+use jiff::{SignedDuration, Timestamp};
 use serde_json::{json, Value};
 use tempfile::TempDir;
 
@@ -166,8 +166,8 @@ pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_to
     let tokens = json!({
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "access_expires_at": jwt_expiry(&access_token).to_rfc3339(),
-        "refresh_expires_at": jwt_expiry(&refresh_token).to_rfc3339(),
+        "access_expires_at": jwt_expiry(&access_token).to_string(),
+        "refresh_expires_at": jwt_expiry(&refresh_token).to_string(),
         "user_id": TEST_USER_ID,
         "user_login": TEST_USER_LOGIN,
         "user_email": TEST_USER_EMAIL,
@@ -182,20 +182,20 @@ pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_to
 /// verifies the signature - so the header and signature segments are
 /// placeholders.
 pub fn jwt_expiring_in(seconds: i64) -> String {
-    let exp = (Utc::now() + Duration::seconds(seconds)).timestamp();
+    let exp = (Timestamp::now() + SignedDuration::from_secs(seconds)).as_second();
     let payload = URL_SAFE_NO_PAD.encode(format!(r#"{{"exp":{exp}}}"#));
     format!("notaheader.{payload}.notasignature")
 }
 
 /// The expiry encoded in a token built by [`jwt_expiring_in`].
-fn jwt_expiry(token: &str) -> chrono::DateTime<Utc> {
+fn jwt_expiry(token: &str) -> Timestamp {
     let payload = token.split('.').nth(1).expect("malformed test JWT");
     let decoded = URL_SAFE_NO_PAD
         .decode(payload)
         .expect("test JWT payload should decode");
     let claim: Value = serde_json::from_slice(&decoded).expect("test JWT payload should be JSON");
     let exp = claim["exp"].as_i64().expect("test JWT should carry exp");
-    chrono::DateTime::from_timestamp(exp, 0).expect("test JWT exp should be in range")
+    Timestamp::from_second(exp).expect("test JWT exp should be in range")
 }
 
 /// A successful `ApiLoginResponse` body.

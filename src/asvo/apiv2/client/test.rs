@@ -1111,15 +1111,10 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
         .expect("the listing should succeed");
     let job = &jobs.0[0];
 
-    assert_eq!(job.created.to_rfc3339(), "2026-09-08T05:41:54.757232+00:00");
-    assert_eq!(
-        job.started.map(|t| t.to_rfc3339()),
-        Some("2026-09-08T05:50:00+00:00".to_string())
-    );
-    assert_eq!(
-        job.modified.map(|t| t.to_rfc3339()),
-        Some("2026-09-08T05:55:00+00:00".to_string())
-    );
+    let utc = |time: &str| time.parse::<jiff::Timestamp>().expect("a valid time");
+    assert_eq!(job.created, utc("2026-09-08T05:41:54.757232Z"));
+    assert_eq!(job.started, Some(utc("2026-09-08T05:50:00Z")));
+    assert_eq!(job.modified, Some(utc("2026-09-08T05:55:00Z")));
     assert_eq!(job.error_text.as_deref(), Some("it failed"));
     assert_eq!(job.job_state, AsvoJobState::Error("it failed".to_string()));
     assert_eq!(job.user_id, TEST_USER_ID);

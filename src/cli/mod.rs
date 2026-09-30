@@ -18,8 +18,8 @@ pub mod table;
 #[cfg(test)]
 mod test;
 
-use chrono::{DateTime, Utc};
 use clap::{ArgAction, Parser};
+use jiff::Timestamp;
 
 use crate::asvo::{AsvoJobState, AsvoJobType};
 use params::{
@@ -76,12 +76,12 @@ pub enum Args {
         /// Only jobs created at or after this time: RFC 3339 (for example
         /// 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC).
         #[arg(long, value_parser = parse_utc_time)]
-        date_from: Option<DateTime<Utc>>,
+        date_from: Option<Timestamp>,
 
         /// Only jobs created at or before this time: RFC 3339 or a date
         /// (midnight UTC).
         #[arg(long, value_parser = parse_utc_time)]
-        date_to: Option<DateTime<Utc>>,
+        date_to: Option<Timestamp>,
 
         /// The column to sort the jobs by, for example "id".
         #[arg(long)]

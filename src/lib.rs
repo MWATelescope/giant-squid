@@ -23,6 +23,9 @@ mod test_config;
 // Re-exports.
 pub use asvo::*;
 pub use helpers::*;
+/// The jiff crate, for the dates and times in this crate's API (for example
+/// `AsvoJob::created`), so that a program uses the same jiff version.
+pub use jiff;
 pub use obs_id::ObsId;
 
 // Include the generated-file as a separate module

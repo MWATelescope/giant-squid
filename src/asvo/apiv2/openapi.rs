@@ -11,7 +11,7 @@
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ApiKeyResponse {
     pub api_key: ::std::string::String,
-    pub created: ::chrono::DateTime<::chrono::offset::Utc>,
+    pub created: ::jiff::Timestamp,
 }
 impl ApiKeyResponse {
     pub fn builder() -> builder::ApiKeyResponse {
@@ -706,9 +706,9 @@ impl JobCancelledResponse {
 pub struct JobDetailResponse {
     ///Timestamp when job completed (null if still processing)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub completed: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub completed: ::std::option::Option<::jiff::Timestamp>,
     ///Timestamp when job was created
-    pub created: ::chrono::DateTime<::chrono::offset::Utc>,
+    pub created: ::jiff::Timestamp,
     ///Error message if job failed (null if no error)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub error_text: ::std::option::Option<::std::string::String>,
@@ -726,13 +726,13 @@ pub struct JobDetailResponse {
     pub last_name: ::std::string::String,
     ///Timestamp of when the job was last modified
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub modified: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub modified: ::std::option::Option<::jiff::Timestamp>,
     ///Job output/results when completed (file listings, download links)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub product: ::std::option::Option<JobProduct>,
     ///Timestamp of when the job began processing
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub started: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub started: ::std::option::Option<::jiff::Timestamp>,
     ///ID of user who submitted the job
     pub user_id: i64,
 }
@@ -928,10 +928,10 @@ impl<'de> ::serde::Deserialize<'de> for JobType {
 pub struct JobsByUserRequest {
     ///The start date of the time window
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub date_from: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub date_from: ::std::option::Option<::jiff::Timestamp>,
     ///The end date of the time window
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub date_to: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub date_to: ::std::option::Option<::jiff::Timestamp>,
     ///return the past x number of days when querying db
     #[serde(default = "defaults::jobs_by_user_request_days")]
     pub days: ::std::option::Option<i64>,
@@ -1414,7 +1414,7 @@ impl ProjectPermissionsResponse {
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct QueuedJob {
     ///Timestamp when job was created
-    pub created: ::chrono::DateTime<::chrono::offset::Utc>,
+    pub created: ::jiff::Timestamp,
     pub id: ::std::num::NonZeroU64,
     ///Job parameters as JSON object (obs_id, delivery, processing options)
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
@@ -1591,7 +1591,7 @@ pub struct UserProfile {
     #[serde(default)]
     pub confirmed: bool,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub created: ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
+    pub created: ::std::option::Option<::jiff::Timestamp>,
     #[serde(default = "defaults::default_bool::<true>")]
     pub disabled: bool,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -1835,8 +1835,7 @@ pub mod builder {
     #[derive(Clone, Debug)]
     pub struct ApiKeyResponse {
         api_key: ::std::result::Result<::std::string::String, ::std::string::String>,
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        created: ::std::result::Result<::jiff::Timestamp, ::std::string::String>,
     }
     impl ::std::default::Default for ApiKeyResponse {
         fn default() -> Self {
@@ -1859,7 +1858,7 @@ pub mod builder {
         }
         pub fn created<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::chrono::DateTime<::chrono::offset::Utc>>,
+            T: ::std::convert::TryInto<::jiff::Timestamp>,
             T::Error: ::std::fmt::Display,
         {
             self.created = value
@@ -3991,12 +3990,9 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct JobDetailResponse {
-        completed: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        completed:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
+        created: ::std::result::Result<::jiff::Timestamp, ::std::string::String>,
         error_text: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
             ::std::string::String,
@@ -4010,16 +4006,12 @@ pub mod builder {
         job_state: ::std::result::Result<::std::string::String, ::std::string::String>,
         job_type: ::std::result::Result<super::JobType, ::std::string::String>,
         last_name: ::std::result::Result<::std::string::String, ::std::string::String>,
-        modified: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
+        modified:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
         product:
             ::std::result::Result<::std::option::Option<super::JobProduct>, ::std::string::String>,
-        started: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
+        started:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
         user_id: ::std::result::Result<i64, ::std::string::String>,
     }
     impl ::std::default::Default for JobDetailResponse {
@@ -4044,9 +4036,7 @@ pub mod builder {
     impl JobDetailResponse {
         pub fn completed<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.completed = value
@@ -4056,7 +4046,7 @@ pub mod builder {
         }
         pub fn created<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::chrono::DateTime<::chrono::offset::Utc>>,
+            T: ::std::convert::TryInto<::jiff::Timestamp>,
             T::Error: ::std::fmt::Display,
         {
             self.created = value
@@ -4138,9 +4128,7 @@ pub mod builder {
         }
         pub fn modified<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.modified = value
@@ -4160,9 +4148,7 @@ pub mod builder {
         }
         pub fn started<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.started = value
@@ -4506,14 +4492,10 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct JobsByUserRequest {
-        date_from: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
-        date_to: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
+        date_from:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
+        date_to:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
         days: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
         job_state: ::std::result::Result<
             ::std::option::Option<super::JobsByUserRequestJobState>,
@@ -4542,9 +4524,7 @@ pub mod builder {
     impl JobsByUserRequest {
         pub fn date_from<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.date_from = value
@@ -4554,9 +4534,7 @@ pub mod builder {
         }
         pub fn date_to<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.date_to = value
@@ -4988,8 +4966,7 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct QueuedJob {
-        created:
-            ::std::result::Result<::chrono::DateTime<::chrono::offset::Utc>, ::std::string::String>,
+        created: ::std::result::Result<::jiff::Timestamp, ::std::string::String>,
         id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         job_params: ::std::result::Result<
             ::serde_json::Map<::std::string::String, ::serde_json::Value>,
@@ -5017,7 +4994,7 @@ pub mod builder {
     impl QueuedJob {
         pub fn created<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::chrono::DateTime<::chrono::offset::Utc>>,
+            T: ::std::convert::TryInto<::jiff::Timestamp>,
             T::Error: ::std::fmt::Display,
         {
             self.created = value
@@ -5499,10 +5476,8 @@ pub mod builder {
     #[derive(Clone, Debug)]
     pub struct UserProfile {
         confirmed: ::std::result::Result<bool, ::std::string::String>,
-        created: ::std::result::Result<
-            ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            ::std::string::String,
-        >,
+        created:
+            ::std::result::Result<::std::option::Option<::jiff::Timestamp>, ::std::string::String>,
         disabled: ::std::result::Result<bool, ::std::string::String>,
         dug_group: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
@@ -5562,9 +5537,7 @@ pub mod builder {
         }
         pub fn created<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<::chrono::DateTime<::chrono::offset::Utc>>,
-            >,
+            T: ::std::convert::TryInto<::std::option::Option<::jiff::Timestamp>>,
             T::Error: ::std::fmt::Display,
         {
             self.created = value

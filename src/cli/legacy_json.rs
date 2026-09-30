@@ -17,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 
 use crate::asvo::{
@@ -57,7 +57,7 @@ struct LegacyJob<'a> {
     #[serde(rename = "jobState")]
     job_state: &'a AsvoJobState,
     files: Option<Vec<LegacyFile<'a>>>,
-    completed: &'a Option<DateTime<Utc>>,
+    completed: &'a Option<Timestamp>,
 }
 
 impl<'a> From<&'a AsvoFilesArray> for LegacyFile<'a> {

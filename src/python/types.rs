@@ -8,7 +8,7 @@
 //! `AsvoJobState::Error(String)` carries data, so in Python it is the plain
 //! enum member `AsvoJobState.Error` and the message is `AsvoJob.error_text`.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyIterator, PyList};
@@ -357,25 +357,25 @@ impl PyAsvoJob {
 
     /// When the job completed (UTC), or `None`.
     #[getter]
-    fn completed(&self) -> Option<DateTime<Utc>> {
+    fn completed(&self) -> Option<Timestamp> {
         self.0.completed
     }
 
     /// When the job was created (UTC).
     #[getter]
-    fn created(&self) -> DateTime<Utc> {
+    fn created(&self) -> Timestamp {
         self.0.created
     }
 
     /// When the job started (UTC), or `None` if it has not started.
     #[getter]
-    fn started(&self) -> Option<DateTime<Utc>> {
+    fn started(&self) -> Option<Timestamp> {
         self.0.started
     }
 
     /// When the job was last changed (UTC), or `None`.
     #[getter]
-    fn modified(&self) -> Option<DateTime<Utc>> {
+    fn modified(&self) -> Option<Timestamp> {
         self.0.modified
     }
 
