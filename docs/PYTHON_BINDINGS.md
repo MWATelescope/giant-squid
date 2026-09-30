@@ -167,9 +167,53 @@
   out twice in Rust. The `.pyi` stubs of the builders are copied from the
   submit stubs. 31 new pytest tests (119 in total). **Phase 2 steps 2.1 to
   2.3 are done.**
-- Next step: Phase 2, step 2.4 (`download_jobid`, `download_obsid` and the
-  progress callback, with Ctrl-C between chunks). Start from a fresh clone
-  of `apiv2`, one diff per step, and update this section after each.
+- 2026-09-30: step 2.3b done (approved). `submit-volt` has
+  `allow_negative_numbers`, so `--offset -1` reaches the range check and
+  gives its message, as the other submit commands do for negative values.
+  `ParseError::IO` is now a struct variant with the `file` (a `PathBuf`)
+  and the `source` IO error, and its message names the file; the CLI shows
+  the path too (`/tmp/ids.txt: No such file or directory`). In Python,
+  `parse_many_jobids_or_obsids` raises `OSError(errno, strerror, filename)`,
+  which Python makes the subclass for the errno (for example
+  `FileNotFoundError`) with `filename` set, as Python's own file functions
+  do. One new library test, one new CLI test, one new pytest test (120 in
+  total).
+- 2026-09-30: step 2.4 done. Library: `DownloadOptions` has a new field
+  `should_stop: Option<&dyn Fn() -> bool>`. The download asks it before
+  each chunk and, in steps of at most 100 ms, while it waits to retry; when
+  it returns `true` the download ends with the new `AsvoError::Interrupted`,
+  which is never retried. The retry loop is now `retry_unless_stopped`
+  (the `backoff::retry` rules, but with the wait cut into steps), so a stop
+  does not wait for a back-off interval of up to a minute. A partial file
+  stays on disk for a later resume. The library still reads no signal; the
+  CLI passes `None`, so Ctrl-C ends the CLI process as before. The one
+  line `should_stop: None` was added to the struct literals in the CLI, the
+  README example and the `options()` helper of `src/asvo/test.rs` (no
+  assertion changed). Python: `AsvoClient.download_jobid(jobid,
+  download_dir, *, keep_tar=False, no_resume=False, hash=True,
+  progress=None, buffer_size=None, retry_duration=None, download_number=1,
+  download_count=1)` and `download_obsid(obsid, ...)` with the same
+  keywords (`obsid` is the Rust name; the table below said `obs_id`;
+  corrected). They run with the GIL released (`src/python/download.rs`).
+  The library's `should_stop` hook runs `check_signals` at most every
+  100 ms, so Ctrl-C raises `KeyboardInterrupt` at the next chunk when the
+  call is on the main thread. The progress callback gets
+  `DownloadProgress.Started`, `.Advanced` and `.Finished` (a pyo3 complex
+  enum: each variant is a subclass, so `isinstance` and `match` work).
+  `Advanced` events are combined and sent at most every 100 ms, with the
+  byte total unchanged, because the library reports every chunk. An
+  exception from the callback stops the download at the next check and is
+  raised to the caller; it takes priority over the download's own error.
+  `buffer_size`, `retry_duration` (seconds), `download_number` and
+  `download_count` are the other `DownloadOptions` fields; `None` uses the
+  library defaults. 3 new library tests (a stop, no stop, and a stop during
+  a retry wait after one real retry); 16 new pytest tests (136 in total),
+  including SIGINT sent from a timer thread during a slow download and
+  during a retry wait. **Phase 2 is complete.**
+- Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
+  `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
+  from a fresh clone of `apiv2`, one diff per step, and update this section
+  after each.
 
 ## Goal
 
@@ -318,7 +362,7 @@ logins a minute.
 | `cancel_job(job_id) -> JobSubmittedResponse` | `cancel` |
 | `get_jobs()` then `AsvoJobVec.all_ready(jobids)`, in a loop the caller writes | `wait` |
 | `download_jobid(jobid, download_dir, *, keep_tar=False, no_resume=False, hash=True, progress=None)` | `download` |
-| `download_obsid(obs_id, ...)` | `download` |
+| `download_obsid(obsid, ...)` | `download` |
 
 Keyword names are the OpenAPI field names (for example `avg_freq_res`), so
 they match the schema and the Rust builder methods.
@@ -349,7 +393,7 @@ Steps:
 | 2.1 | `AsvoClient(...)`, `get_jobs`, the job types and enums, the two exceptions (done) |
 | 2.2 | The seven submit methods, `JobSubmittedResponse`, and the enums the job arguments need (done) |
 | 2.3 | `cancel_job`, `parse_many_jobids_or_obsids`, and the `*_params` builders (done) |
-| 2.4 | `download_jobid`, `download_obsid` and the progress callback, with Ctrl-C between chunks |
+| 2.4 | `download_jobid`, `download_obsid` and the progress callback, with Ctrl-C between chunks (done) |
 
 ## Phase 3: stubs, docs, tests, CI
 

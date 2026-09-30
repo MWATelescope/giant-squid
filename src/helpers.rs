@@ -45,11 +45,17 @@ pub fn parse_jobids_and_obsids_from_file<T: AsRef<Path>>(
     let mut obsids = vec![];
     let mut jobids = vec![];
 
+    // An IO error keeps the path, so the caller can say which file failed.
+    let io_error = |source: io::Error| ParseError::IO {
+        file: f.as_ref().to_path_buf(),
+        source,
+    };
+
     // Open the file.
-    let mut reader = std::io::BufReader::new(std::fs::File::open(&f)?);
+    let mut reader = std::io::BufReader::new(std::fs::File::open(&f).map_err(io_error)?);
     let mut line = String::new();
     // For each line...
-    while reader.read_line(&mut line)? > 0 {
+    while reader.read_line(&mut line).map_err(io_error)? > 0 {
         // ... split the whitespace and try to parse
         // obsids. Fail if whitespace-delimited text
         // can't be parsed into an int.
@@ -106,9 +112,14 @@ pub enum ParseError {
     #[error("'{text}' in file {file} could not be parsed as an int.")]
     InsideFile { file: String, text: String },
 
-    /// An IO error.
-    #[error("{0}")]
-    IO(#[from] std::io::Error),
+    /// A file of job IDs and obsids could not be read.
+    #[error("{}: {source}", file.display())]
+    IO {
+        /// The file.
+        file: PathBuf,
+        /// The error from the operating system.
+        source: std::io::Error,
+    },
 }
 
 /// Takes a filename, expected hash and a job id and returns

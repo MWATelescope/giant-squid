@@ -849,6 +849,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         download_count: 1,
         buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
         retry_duration: DEFAULT_DOWNLOAD_RETRY_DURATION,
+        should_stop: None,
     };
     client.download_jobid(jobid, &opts)?;
     Ok(())

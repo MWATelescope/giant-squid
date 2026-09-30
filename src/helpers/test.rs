@@ -34,3 +34,22 @@ fn check_file_sha1_hash_err() {
     // Check the checksum of the tmp file - but the expected checksum is wrong
     assert!(check_file_sha1_hash(&tmpfile.path().to_path_buf(), "abcd123", 123).is_err());
 }
+
+#[test]
+fn a_missing_file_of_ids_names_the_file() {
+    let missing = std::env::temp_dir().join("giant-squid-no-such-file-of-ids.txt");
+
+    let err = parse_jobids_and_obsids_from_file(&missing).expect_err("the file does not exist");
+
+    match &err {
+        ParseError::IO { file, source } => {
+            assert_eq!(file, &missing);
+            assert_eq!(source.kind(), std::io::ErrorKind::NotFound);
+        }
+        other => panic!("expected an IO error, got {other:?}"),
+    }
+    assert!(
+        err.to_string().contains(&missing.display().to_string()),
+        "the message should name the file: {err}"
+    );
+}

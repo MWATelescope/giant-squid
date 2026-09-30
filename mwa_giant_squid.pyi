@@ -7,7 +7,7 @@ pyo3-stub-gen.
 import datetime
 import enum
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 __version__: str
@@ -218,7 +218,7 @@ class AsvoError(Exception):
     """
 
     kind: str
-    """The variant, for example "NoAsvoJob", "JobFailed", "NotReady" or "HashMismatch"."""
+    """The variant, for example "NoAsvoJob", "JobFailed", "NotReady", "HashMismatch" or "Interrupted"."""
     jobid: int
     """NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles and HashMismatch."""
     obsid: int
@@ -362,6 +362,47 @@ class AsvoJob:
     @property
     def completed(self) -> datetime.datetime | None:
         """When the job completed (UTC), or None."""
+
+class DownloadProgress:
+    """A download progress event, given to the ``progress`` callback of the download methods.
+
+    For each file there are one or more ``Started`` events, then zero or more ``Advanced`` events, then one
+    ``Finished`` event. A second ``Started`` for the same file means that the download started again (for
+    example, the server did not honour a resume request), so reset the count. Each variant is a subclass, so
+    ``isinstance`` and ``match`` work.
+    """
+
+    class Started(DownloadProgress):
+        """A file download starts, or starts again."""
+
+        __match_args__ = ("jobid", "label", "total_bytes", "position")
+        def __init__(self, jobid: int, label: str, total_bytes: int, position: int) -> None: ...
+        @property
+        def jobid(self) -> int:
+            """The MWA ASVO job ID."""
+        @property
+        def label(self) -> str:
+            """A human-readable label, for example "Job ID 123 (obsid: 1234567890) [1/2]:"."""
+        @property
+        def total_bytes(self) -> int:
+            """The size of the file in bytes."""
+        @property
+        def position(self) -> int:
+            """The bytes already on disk (not zero for a resumed download)."""
+
+    class Advanced(DownloadProgress):
+        """``bytes`` more bytes were written. Events are combined, so there are about 10 a second at most."""
+
+        __match_args__ = ("bytes",)
+        def __init__(self, bytes: int) -> None: ...
+        @property
+        def bytes(self) -> int:
+            """The number of bytes written since the last Advanced event."""
+
+    class Finished(DownloadProgress):
+        """The file download is complete, or was skipped because the file is already on disk."""
+
+        def __init__(self) -> None: ...
 
 class JobSubmittedResponse:
     """The MWA ASVO's reply to a job submission or to a cancellation."""
@@ -740,4 +781,77 @@ class AsvoClient:
         Raises:
             OverflowError: ``job_id`` is negative or too large to be a job ID.
             AsvoApiError: The request failed, for example because there is no such job.
+        """
+    def download_jobid(
+        self,
+        jobid: int,
+        download_dir: str | os.PathLike[str],
+        *,
+        keep_tar: bool = False,
+        no_resume: bool = False,
+        hash: bool = True,
+        progress: Callable[[DownloadProgress], object] | None = None,
+        buffer_size: int | None = None,
+        retry_duration: float | None = None,
+        download_number: int = 1,
+        download_count: int = 1,
+    ) -> None:
+        """Download the files of a job.
+
+        The job must be ready (see ``AsvoJobVec.all_ready``). The call blocks until the download ends, with the
+        GIL released. Ctrl-C stops the download at the next chunk and raises ``KeyboardInterrupt``, when the
+        call is made from the main thread. A partial file stays on disk, so a new call resumes it (unless
+        ``no_resume``).
+
+        Args:
+            jobid: The job ID.
+            download_dir: The directory for the files. It must exist.
+            keep_tar: Keep the tar file as it is. False unpacks it into ``download_dir`` while it downloads
+                (then there is no resume).
+            no_resume: Download the whole file again, even if part of it is on disk.
+            hash: Check the SHA-1 hash of the file against the MWA ASVO's.
+            progress: A function to call with each ``DownloadProgress`` event, or None. ``Advanced`` events are
+                combined, so the function is called about 10 times a second at most. If it raises, the download
+                stops and its exception is raised.
+            buffer_size: How many bytes to hold in memory before they are written. None uses the library
+                default (100 MiB).
+            retry_duration: How long to retry a failing download, in seconds. 0 disables retries. None uses the
+                library default (900 s).
+            download_number: The number of this download, in a series, for the progress and log label ("[1/2]").
+            download_count: How many downloads there are in the series.
+
+        Raises:
+            AsvoError: The job is missing, not ready or has no files, a transfer failed, or the hash does not
+                match.
+            AsvoApiError: Getting the job list failed.
+            ValueError: ``download_dir`` or ``retry_duration`` is not valid.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def download_obsid(
+        self,
+        obsid: int,
+        download_dir: str | os.PathLike[str],
+        *,
+        keep_tar: bool = False,
+        no_resume: bool = False,
+        hash: bool = True,
+        progress: Callable[[DownloadProgress], object] | None = None,
+        buffer_size: int | None = None,
+        retry_duration: float | None = None,
+        download_number: int = 1,
+        download_count: int = 1,
+    ) -> None:
+        """Download the files of the one ready job for an obsid.
+
+        The arguments, and the way the download runs, are those of ``download_jobid``.
+
+        Args:
+            obsid: The obsid. There must be exactly one ready job for it.
+
+        Raises:
+            ValueError: ``obsid`` is not a valid obsid.
+            AsvoError: No job, no ready job, or more than one ready job has this obsid, or the download failed
+                (see ``download_jobid``).
+            AsvoApiError: Getting the job list failed.
+            KeyboardInterrupt: Ctrl-C was pressed.
         """

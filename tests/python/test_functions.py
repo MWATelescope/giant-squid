@@ -4,8 +4,10 @@ The builders make no request. The tests that compare a builder with its submit m
 ASVO, and never a real server.
 """
 
+import errno
 import inspect
 import json
+import os
 import pathlib
 from collections.abc import Callable
 from typing import Any
@@ -206,3 +208,16 @@ def test_a_builder_applies_the_submit_checks(
     """A builder raises for the same bad arguments as its submit method."""
     with pytest.raises(error):
         builder(*args, **kwargs)
+
+
+def test_a_missing_file_error_names_the_file(tmp_path: pathlib.Path) -> None:
+    """The error has the errno, the message and the path, as Python's own file functions give them."""
+    missing = tmp_path / "missing.txt"
+
+    with pytest.raises(FileNotFoundError) as err:
+        gs.parse_many_jobids_or_obsids([str(missing)])
+
+    assert err.value.filename == str(missing)
+    assert err.value.errno == errno.ENOENT
+    assert err.value.strerror == os.strerror(errno.ENOENT)
+    assert str(missing) in str(err.value)

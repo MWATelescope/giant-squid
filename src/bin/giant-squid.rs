@@ -366,6 +366,8 @@ fn main() -> Result<(), anyhow::Error> {
                             download_count: t,
                             buffer_size,
                             retry_duration,
+                            // Ctrl-C ends the CLI process, as before.
+                            should_stop: None,
                         };
                         run_jobid_download(*j, &opts)
                     })
@@ -387,6 +389,8 @@ fn main() -> Result<(), anyhow::Error> {
                             download_count: t,
                             buffer_size,
                             retry_duration,
+                            // Ctrl-C ends the CLI process, as before.
+                            should_stop: None,
                         };
                         run_obsid_download(*o, &opts)
                     })

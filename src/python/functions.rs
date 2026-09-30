@@ -13,7 +13,7 @@
 //! schema defaults and the same checks. A pytest test checks that each
 //! function has the same signature as its submit method.
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyOSError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::Serialize;
@@ -38,6 +38,23 @@ fn to_dict<'py>(py: Python<'py>, params: &impl Serialize) -> PyResult<Bound<'py,
         .map_err(PyErr::from)
 }
 
+/// A Python `OSError` for an IO error on `file`, as Python's own file
+/// functions raise it: `OSError(errno, strerror, filename)`, which Python
+/// makes the subclass for the errno (for example `FileNotFoundError`), with
+/// `filename` set. An error with no OS error number keeps the Rust message.
+fn os_error(py: Python<'_>, file: &std::path::Path, source: &std::io::Error) -> PyErr {
+    let filename = file.display().to_string();
+    let Some(errno) = source.raw_os_error() else {
+        return PyOSError::new_err(format!("{filename}: {source}"));
+    };
+    let strerror = py
+        .import("os")
+        .and_then(|os| os.call_method1("strerror", (errno,)))
+        .and_then(|s| s.extract::<String>())
+        .unwrap_or_else(|_| source.to_string());
+    PyOSError::new_err((errno, strerror, filename))
+}
+
 /// Sort job IDs and obsids, as the CLI does with its arguments.
 ///
 /// A string that is an integer is an obsid if it is a valid obsid, and a job
@@ -54,10 +71,13 @@ fn to_dict<'py>(py: Python<'py>, params: &impl Serialize) -> PyResult<Bound<'py,
 ///     ValueError: Text in a file is not an integer.
 ///     OSError: A file cannot be read (for example `FileNotFoundError`).
 #[pyfunction]
-pub fn parse_many_jobids_or_obsids(strings: Vec<String>) -> PyResult<(Vec<AsvoJobID>, Vec<u64>)> {
+pub fn parse_many_jobids_or_obsids(
+    py: Python<'_>,
+    strings: Vec<String>,
+) -> PyResult<(Vec<AsvoJobID>, Vec<u64>)> {
     match crate::parse_many_jobids_or_obsids(&strings) {
         Ok((jobids, obsids)) => Ok((jobids, obsids.into_iter().map(u64::from).collect())),
-        Err(ParseError::IO(e)) => Err(PyErr::from(e)),
+        Err(ParseError::IO { file, source }) => Err(os_error(py, &file, &source)),
         Err(e @ ParseError::InsideFile { .. }) => Err(PyValueError::new_err(e.to_string())),
     }
 }

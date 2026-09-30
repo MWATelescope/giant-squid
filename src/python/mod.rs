@@ -19,6 +19,7 @@
 //! `mwa_giant_squid` logger is the parent of all of them.
 
 mod client;
+mod download;
 mod error;
 mod functions;
 mod params;
@@ -53,8 +54,8 @@ mod module {
     #[pymodule_export]
     use super::types::{
         PyAsvoFilesArray, PyAsvoJob, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre,
-        PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput, PyOutputMode,
-        PyPolarization, PyWeighting,
+        PyDelivery, PyDeliveryFormat, PyDownloadProgress, PyJobSubmittedResponse, PyOutput,
+        PyOutputMode, PyPolarization, PyWeighting,
     };
 
     /// Make Python see changes to its logging configuration.

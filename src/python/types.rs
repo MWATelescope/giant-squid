@@ -20,6 +20,7 @@ use crate::asvo::apiv2::openapi::{
 };
 use crate::asvo::{
     AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    DownloadProgress,
 };
 use crate::obsid::Obsid;
 
@@ -341,6 +342,77 @@ impl PyAsvoJob {
             "AsvoJob(jobid={}, obsid={}, jtype={}, state={})",
             self.0.jobid, self.0.obsid, self.0.jtype, self.0.state
         )
+    }
+}
+
+/// A download progress event, given to the `progress` callback of
+/// `AsvoClient.download_jobid` and `AsvoClient.download_obsid`.
+///
+/// For each file there are one or more `Started` events, then zero or more
+/// `Advanced` events, then one `Finished` event. A second `Started` for the
+/// same file means that the download started again (for example, the
+/// server did not honour a resume request), so reset the count. Each
+/// variant is a subclass, so `isinstance` and `match` work.
+#[pyclass(
+    frozen,
+    skip_from_py_object,
+    name = "DownloadProgress",
+    module = "mwa_giant_squid"
+)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PyDownloadProgress {
+    /// A file download starts, or starts again. `jobid` is the MWA ASVO job
+    /// ID, `label` a human-readable label (for example `Job ID 123 (obsid:
+    /// 1234567890) [1/2]:`), `total_bytes` the file size, and `position`
+    /// the bytes already on disk (not zero for a resumed download).
+    Started {
+        jobid: AsvoJobID,
+        label: String,
+        total_bytes: u64,
+        position: u64,
+    },
+    /// `bytes` more bytes were written.
+    Advanced { bytes: u64 },
+    /// The file download is complete, or was skipped because the file is
+    /// already on disk.
+    Finished {},
+}
+
+#[pymethods]
+impl PyDownloadProgress {
+    fn __repr__(&self) -> String {
+        match self {
+            Self::Started {
+                jobid,
+                label,
+                total_bytes,
+                position,
+            } => format!(
+                "DownloadProgress.Started(jobid={jobid}, label={label:?}, total_bytes={total_bytes}, position={position})"
+            ),
+            Self::Advanced { bytes } => format!("DownloadProgress.Advanced(bytes={bytes})"),
+            Self::Finished {} => "DownloadProgress.Finished()".to_string(),
+        }
+    }
+}
+
+impl From<DownloadProgress> for PyDownloadProgress {
+    fn from(event: DownloadProgress) -> Self {
+        match event {
+            DownloadProgress::Started {
+                jobid,
+                label,
+                total_bytes,
+                position,
+            } => Self::Started {
+                jobid,
+                label,
+                total_bytes,
+                position,
+            },
+            DownloadProgress::Advanced { bytes } => Self::Advanced { bytes },
+            DownloadProgress::Finished => Self::Finished {},
+        }
     }
 }
 

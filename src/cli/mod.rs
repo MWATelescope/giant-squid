@@ -284,7 +284,9 @@ pub enum Args {
     },
 
     /// Submit MWA ASVO jobs to download MWA voltages
-    #[command(alias = "st")]
+    // Without this, clap reads "--offset -1" as an unknown "-1" flag, not
+    // as a value, and the offset's range check is never reached.
+    #[command(alias = "st", allow_negative_numbers = true)]
     SubmitVolt {
         #[command(flatten)]
         volt: VoltageJobArgs,

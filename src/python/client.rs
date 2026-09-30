@@ -14,6 +14,7 @@ use std::time::Duration;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use super::download::{run_download, PyDownloadArgs};
 use super::error::api_error;
 use super::params::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
@@ -23,6 +24,7 @@ use super::types::{
     PyOutputMode, PyPolarization, PyWeighting,
 };
 use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobID};
+use crate::obsid::Obsid;
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
@@ -656,6 +658,140 @@ impl PyAsvoClient {
         py.detach(|| self.inner.cancel_job(job_id))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
+    }
+
+    /// Download the files of a job.
+    ///
+    /// The job must be ready (see `AsvoJobVec.all_ready`). The call blocks
+    /// until the download ends, with the GIL released. Ctrl-C stops the
+    /// download at the next chunk and raises `KeyboardInterrupt`, when the
+    /// call is made from the main thread. A partial file stays on disk, so
+    /// a new call resumes it (unless `no_resume`).
+    ///
+    /// Args:
+    ///     jobid: The job ID.
+    ///     download_dir: The directory for the files. It must exist.
+    ///     keep_tar: Keep the tar file as it is. `False` unpacks it into
+    ///         `download_dir` while it downloads (then there is no resume).
+    ///     no_resume: Download the whole file again, even if part of it is
+    ///         on disk.
+    ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's.
+    ///     progress: A function to call with each `DownloadProgress` event,
+    ///         or `None`. `Advanced` events are combined, so the function is
+    ///         called about 10 times a second at most. If it raises, the
+    ///         download stops and its exception is raised.
+    ///     buffer_size: How many bytes to hold in memory before they are
+    ///         written. `None` uses the library default (100 MiB).
+    ///     retry_duration: How long to retry a failing download, in
+    ///         seconds. 0 disables retries. `None` uses the library default
+    ///         (900 s).
+    ///     download_number: The number of this download, in a series,
+    ///         for the progress and log label (`[1/2]`).
+    ///     download_count: How many downloads there are in the series.
+    ///
+    /// Raises:
+    ///     AsvoError: The job is missing, not ready or has no files, a
+    ///         transfer failed, or the hash does not match.
+    ///     AsvoApiError: Getting the job list failed.
+    ///     ValueError: `download_dir` or `retry_duration` is not valid.
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    #[pyo3(signature = (
+        jobid,
+        download_dir,
+        *,
+        keep_tar=false,
+        no_resume=false,
+        hash=true,
+        progress=None,
+        buffer_size=None,
+        retry_duration=None,
+        download_number=1,
+        download_count=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn download_jobid(
+        &self,
+        py: Python<'_>,
+        jobid: AsvoJobID,
+        download_dir: PathBuf,
+        keep_tar: bool,
+        no_resume: bool,
+        hash: bool,
+        progress: Option<Py<PyAny>>,
+        buffer_size: Option<usize>,
+        retry_duration: Option<f64>,
+        download_number: usize,
+        download_count: usize,
+    ) -> PyResult<()> {
+        let args = PyDownloadArgs {
+            download_dir,
+            keep_tar,
+            no_resume,
+            hash,
+            progress,
+            buffer_size,
+            retry_duration,
+            download_number,
+            download_count,
+        };
+        run_download(py, args, |opts| self.inner.download_jobid(jobid, opts))
+    }
+
+    /// Download the files of the one ready job for an obsid.
+    ///
+    /// The arguments, and the way the download runs, are those of
+    /// `download_jobid`.
+    ///
+    /// Args:
+    ///     obsid: The obsid. There must be exactly one ready job for it.
+    ///
+    /// Raises:
+    ///     ValueError: `obsid` is not a valid obsid.
+    ///     AsvoError: No job, no ready job, or more than one ready job has
+    ///         this obsid, or the download failed (see `download_jobid`).
+    ///     AsvoApiError: Getting the job list failed.
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    #[pyo3(signature = (
+        obsid,
+        download_dir,
+        *,
+        keep_tar=false,
+        no_resume=false,
+        hash=true,
+        progress=None,
+        buffer_size=None,
+        retry_duration=None,
+        download_number=1,
+        download_count=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn download_obsid(
+        &self,
+        py: Python<'_>,
+        obsid: u64,
+        download_dir: PathBuf,
+        keep_tar: bool,
+        no_resume: bool,
+        hash: bool,
+        progress: Option<Py<PyAny>>,
+        buffer_size: Option<usize>,
+        retry_duration: Option<f64>,
+        download_number: usize,
+        download_count: usize,
+    ) -> PyResult<()> {
+        let obsid = Obsid::validate(obsid).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let args = PyDownloadArgs {
+            download_dir,
+            keep_tar,
+            no_resume,
+            hash,
+            progress,
+            buffer_size,
+            retry_duration,
+            download_number,
+            download_count,
+        };
+        run_download(py, args, |opts| self.inner.download_obsid(obsid, opts))
     }
 
     fn __repr__(&self) -> String {

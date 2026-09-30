@@ -368,6 +368,14 @@ pub struct DownloadOptions<'a> {
     /// Zero disables retrying. See
     /// [`DEFAULT_DOWNLOAD_RETRY_DURATION`](crate::DEFAULT_DOWNLOAD_RETRY_DURATION).
     pub retry_duration: std::time::Duration,
+    /// Asked between chunks of a download, and during the wait before a
+    /// retry, whether to stop. When it returns `true`, the download stops
+    /// with [`AsvoError::Interrupted`](crate::AsvoError::Interrupted), which
+    /// is never retried. `None` never stops. The caller decides what a stop
+    /// means (for example, Ctrl-C in the Python module); the library reads
+    /// no signals. A file that is being written stays on disk, partial, so
+    /// a later download can resume it.
+    pub should_stop: Option<&'a dyn Fn() -> bool>,
 }
 
 #[cfg(test)]

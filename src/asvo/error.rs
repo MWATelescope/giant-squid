@@ -87,6 +87,11 @@ pub enum AsvoError {
     #[error("{0}")]
     IO(#[from] std::io::Error),
 
+    /// [`DownloadOptions::should_stop`](super::DownloadOptions::should_stop)
+    /// asked the download to stop.
+    #[error("The download was stopped by the caller.")]
+    Interrupted,
+
     // Error determining url for Acacia job
     #[error("Could not determine url for job {job_id:?}")]
     NoUrl { job_id: u32 },

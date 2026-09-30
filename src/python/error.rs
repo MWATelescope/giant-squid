@@ -169,6 +169,7 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         }
         lib::AsvoError::Reqwest(_) => ("Reqwest", vec![]),
         lib::AsvoError::IO(_) => ("IO", vec![]),
+        lib::AsvoError::Interrupted => ("Interrupted", vec![]),
         lib::AsvoError::NoUrl { job_id } => {
             ("NoUrl", vec![("job_id", Field::Int(u64::from(job_id)))])
         }

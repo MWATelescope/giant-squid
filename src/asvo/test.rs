@@ -76,6 +76,7 @@ fn options(dir: &str) -> DownloadOptions<'_> {
         download_count: 1,
         buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
         retry_duration: std::time::Duration::ZERO,
+        should_stop: None,
     }
 }
 
@@ -667,5 +668,135 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
     assert_eq!(
         written, RESUME_PAYLOAD,
         "the partial bytes must not be left in front of the full file"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Stopping a download (DownloadOptions::should_stop)
+// ---------------------------------------------------------------------------
+
+/// A download stopped before its first chunk ends with `Interrupted`.
+#[test]
+fn a_download_stops_when_the_caller_asks() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid integration test payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+
+    let asked = std::sync::atomic::AtomicUsize::new(0);
+    let stop = || {
+        asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        true
+    };
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+    opts.should_stop = Some(&stop);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect_err("the download should stop");
+
+    assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
+    assert_eq!(
+        asked.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "a stop is not retried"
+    );
+}
+
+/// A download that the caller lets run is not affected by the hook.
+#[test]
+fn a_download_that_is_not_stopped_completes() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid integration test payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+
+    let asked = std::sync::atomic::AtomicUsize::new(0);
+    let stop = || {
+        asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        false
+    };
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+    opts.should_stop = Some(&stop);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect("the download should succeed");
+
+    assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
+    let written =
+        std::fs::read(dir.path().join(DOWNLOAD_FILE)).expect("the file should be written");
+    assert_eq!(written, payload.as_bytes());
+}
+
+/// A stop during the wait before a retry is seen within a short time, not
+/// after the back-off interval.
+#[test]
+fn a_stop_ends_the_wait_before_a_retry() {
+    /// Long enough that, without the stop, the test would wait many
+    /// back-off intervals.
+    const LONG_RETRY: std::time::Duration = std::time::Duration::from_secs(300);
+    /// Far more than a stop takes, far less than LONG_RETRY.
+    const MAX_STOP_TIME: std::time::Duration = std::time::Duration::from_secs(10);
+    /// How many times the hook says "go on" before it says "stop". The
+    /// hook is asked about every 100 ms while waiting, and the first
+    /// back-off interval is at most 750 ms, so this lets at least one retry
+    /// happen first.
+    const CHECKS_BEFORE_STOP: usize = 15;
+
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(500).body("transient server fault");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        1,
+        &sha1_hex(b"x"),
+    )]);
+
+    let asked = std::sync::atomic::AtomicUsize::new(0);
+    let stop = || asked.fetch_add(1, std::sync::atomic::Ordering::SeqCst) >= CHECKS_BEFORE_STOP;
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+    opts.retry_duration = LONG_RETRY;
+    opts.should_stop = Some(&stop);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let started = std::time::Instant::now();
+    let err = client
+        .download_jobid(TEST_JOBID, &opts)
+        .expect_err("the download should stop");
+
+    assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
+    assert!(file.calls() >= 2, "the transient failure was retried");
+    assert!(
+        started.elapsed() < MAX_STOP_TIME,
+        "the stop took {:?}",
+        started.elapsed()
     );
 }

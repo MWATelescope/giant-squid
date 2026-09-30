@@ -934,9 +934,7 @@ fn submit_conv_rejects_out_of_range_values() {
 
 #[test]
 fn submit_volt_rejects_an_offset_outside_the_observation() {
-    // The "=" form, so that clap does not read "-1" as a flag. (submit-volt
-    // does not allow negative numbers as separate values, and a negative
-    // offset is invalid anyway.)
+    // The "=" form. The separate form is tested below.
     for offset in ["--offset=-1", "--offset=5401"] {
         let err = parse_err(&[
             "giant-squid",
@@ -979,4 +977,25 @@ fn submit_image_from_job_accepts_any_wstack_nwlayers() {
         TEST_OBSID,
     ]);
     assert_eq!(args.wstack_nwlayers, Some(16));
+}
+
+#[test]
+fn submit_volt_reads_a_negative_offset_as_a_value() {
+    // "-1" is a value of --offset, not an unknown flag, so the range check
+    // gives its own message.
+    let err = parse_err(&[
+        "giant-squid",
+        "submit-volt",
+        "--offset",
+        "-1",
+        "--duration",
+        "8",
+        TEST_OBSID,
+    ]);
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    assert!(
+        err.to_string()
+            .contains("must be between 0 and 5400 (got -1)"),
+        "{err}"
+    );
 }

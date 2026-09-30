@@ -28,7 +28,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use backoff::{retry, Error, ExponentialBackoffBuilder};
+use backoff::backoff::Backoff;
+use backoff::{Error, ExponentialBackoff, ExponentialBackoffBuilder};
 use log::{debug, error, info, warn};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
@@ -51,6 +52,10 @@ pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
 /// keeps retrying transient failures before giving up. Matches
 /// `ExponentialBackoff`'s own default (900 s).
 pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
+
+/// The longest the library sleeps before it asks
+/// [`DownloadOptions::should_stop`] again, while it waits to retry.
+const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Look up a single job by job ID from the supplied list and download it.
 pub(crate) fn download_by_jobid(
@@ -140,7 +145,7 @@ fn download_job(
                 let op = || {
                     try_download(http_client, url, f, job, &out_path, &log_prefix, opts).map_err(
                         |e| match &e {
-                            AsvoError::IO(_) => Error::permanent(e),
+                            AsvoError::IO(_) | AsvoError::Interrupted => Error::permanent(e),
                             AsvoError::HttpError { status: 404, .. } => {
                                 Error::permanent(AsvoError::Http404Error { job_id: job.jobid })
                             }
@@ -152,11 +157,7 @@ fn download_job(
                     )
                 };
 
-                match retry(download_backoff(opts.retry_duration), op) {
-                    Ok(()) => {}
-                    Err(Error::Permanent(err)) => return Err(err),
-                    Err(Error::Transient { err, .. }) => return Err(err),
-                }
+                retry_unless_stopped(download_backoff(opts.retry_duration), op, opts)?;
 
                 let elapsed = start_time.elapsed();
                 let elapsed_ms = elapsed.as_millis() as u64;
@@ -428,6 +429,58 @@ fn try_download(
 /// ([`DownloadOptions::retry_duration`]). Zero disables retrying, which is
 /// what the test suite uses: a test that deliberately triggers a transient
 /// failure would otherwise sit in backoff for fifteen minutes.
+/// Whether the caller has asked the download to stop.
+fn stop_requested(opts: &DownloadOptions) -> bool {
+    opts.should_stop.is_some_and(|should_stop| should_stop())
+}
+
+/// Run `op`, and retry it under `backoff` while it fails with a transient
+/// error, as `backoff::retry` does. The difference: the wait before each
+/// retry is cut into steps of at most [`STOP_CHECK_INTERVAL`], and the
+/// retries end with [`AsvoError::Interrupted`] when the caller asks the
+/// download to stop. Otherwise a stop could wait for the whole back-off
+/// interval, which grows to a minute.
+fn retry_unless_stopped<T>(
+    mut backoff: ExponentialBackoff,
+    mut op: impl FnMut() -> Result<T, Error<AsvoError>>,
+    opts: &DownloadOptions,
+) -> Result<T, AsvoError> {
+    backoff.reset();
+    loop {
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(Error::Permanent(err)) => return Err(err),
+            Err(Error::Transient { err, retry_after }) => {
+                let Some(wait) = retry_after.or_else(|| backoff.next_backoff()) else {
+                    return Err(err);
+                };
+                debug!("Retrying the download in {:?}: {}", wait, err);
+                sleep_unless_stopped(wait, opts)?;
+            }
+        }
+    }
+}
+
+/// Sleep for `wait`, and stop early with [`AsvoError::Interrupted`] if the
+/// caller asks the download to stop.
+fn sleep_unless_stopped(wait: Duration, opts: &DownloadOptions) -> Result<(), AsvoError> {
+    if opts.should_stop.is_none() {
+        std::thread::sleep(wait);
+        return Ok(());
+    }
+    let deadline = Instant::now() + wait;
+    loop {
+        if stop_requested(opts) {
+            return Err(AsvoError::Interrupted);
+        }
+        let now = Instant::now();
+        if now >= deadline {
+            return Ok(());
+        }
+        std::thread::sleep((deadline - now).min(STOP_CHECK_INTERVAL));
+    }
+}
+
 fn download_backoff(retry_duration: Duration) -> backoff::ExponentialBackoff {
     ExponentialBackoffBuilder::new()
         .with_max_elapsed_time(Some(retry_duration))
@@ -485,15 +538,20 @@ fn report_started(
     );
 }
 
-/// Buffered copy from `reader` to `writer`, reporting progress.
+/// Buffered copy from `reader` to `writer`, reporting progress. Before
+/// each chunk it asks [`DownloadOptions::should_stop`], and stops with
+/// [`AsvoError::Interrupted`] if the caller asks.
 fn copy_with_progress(
     reader: impl Read,
     writer: &mut impl Write,
     buffer_size: usize,
     opts: &DownloadOptions,
-) -> Result<(), std::io::Error> {
+) -> Result<(), AsvoError> {
     let mut buf = BufReader::with_capacity(buffer_size, reader);
     loop {
+        if stop_requested(opts) {
+            return Err(AsvoError::Interrupted);
+        }
         let data = buf.fill_buf()?;
         let len = data.len();
         if len == 0 {
