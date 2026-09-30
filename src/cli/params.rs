@@ -17,47 +17,47 @@ use clap::ArgAction;
 
 use crate::asvo::apiv2::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadJobParamsDownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
+    DownloadJobParamsDownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, Output,
+    OutputMode, Polarization, VoltageJobParams, Weighting,
 };
+use crate::asvo::apiv2::validate::{self, Bounds};
 use crate::asvo::AsvoApiError;
 
-/// Builds a clap value parser that only accepts an f64 within `[min, max]`
-/// inclusive - used for the imaging job parameters that have a documented
-/// range in the MWA ASVO schema, so out-of-range values are rejected
-/// immediately by the CLI rather than only server-side.
-pub fn parse_f64_range(min: f64, max: f64) -> impl Fn(&str) -> Result<f64, String> + Clone {
+/// Builds a clap value parser that only accepts an f64 within `bounds`.
+/// The bounds are the library's ([`crate::asvo::apiv2::validate`]), which
+/// come from the MWA ASVO schema, so a value that is out of range is
+/// rejected by the CLI at once rather than by the server.
+pub fn parse_f64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<f64, String> + Clone {
     move |s: &str| {
         let v: f64 = s.parse().map_err(|e| format!("not a valid number: {e}"))?;
-        if v < min || v > max {
-            Err(format!("must be between {min} and {max} (got {v})"))
-        } else {
+        if bounds.contains(v) {
             Ok(v)
+        } else {
+            Err(bounds.describe(v))
         }
     }
 }
 
-/// As [parse_f64_range], but for i64 fields.
-pub fn parse_i64_range(min: i64, max: i64) -> impl Fn(&str) -> Result<i64, String> + Clone {
+/// As [parse_f64_bounds], but for i64 fields.
+pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> + Clone {
     move |s: &str| {
         let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-        if v < min || v > max {
-            Err(format!("must be between {min} and {max} (got {v})"))
-        } else {
+        if bounds.contains(v as f64) {
             Ok(v)
+        } else {
+            Err(bounds.describe(v as f64))
         }
     }
 }
 
 /// Validates a WSClean image size against the MWA ASVO API's fixed set of
-/// allowed sizes (mirrors the generated `ImageSizes` type's own
-/// `TryFrom<i64>`, which has no string parser we could use directly as a
-/// clap value parser).
+/// allowed sizes (see [`validate::image_size`]).
 pub fn parse_image_size(s: &str) -> Result<i64, String> {
     let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-    ImageSizes::try_from(v)
-        .map(i64::from)
-        .map_err(|e| e.to_string())
+    validate::image_size(v).map(i64::from).map_err(|e| match e {
+        AsvoApiError::InvalidParameter { message, .. } => message,
+        other => other.to_string(),
+    })
 }
 
 /// Validates a polarisation against the MWA ASVO API's `Polarization` type
@@ -315,24 +315,24 @@ pub struct ImagingJobArgs {
     pub apply_primary_beam: bool,
 
     /// WSClean -auto-mask value.
-    #[arg(long, default_value_t = imaging1_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
+    #[arg(long, default_value_t = imaging1_defaults().auto_mask, value_parser = parse_i64_bounds(validate::AUTO_MASK))]
     pub auto_mask: i64,
 
     /// WSClean -auto-threshold value.
-    #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
+    #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
     /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
     /// unless explicitly set.
-    #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+    #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
     pub abs_threshold: f64,
 
     /// Frequency resolution to average to before imaging (kHz).
-    #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_range(0.0, 1280.0))]
+    #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
     pub avg_freq_res: f64,
 
     /// Time resolution to average to before imaging (s).
-    #[arg(long, default_value_t = imaging1_defaults().avg_time_res, value_parser = parse_f64_range(0.0, f64::MAX))]
+    #[arg(long, default_value_t = imaging1_defaults().avg_time_res, value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
     pub avg_time_res: f64,
 
     /// Number of output channel groups.
@@ -340,26 +340,26 @@ pub struct ImagingJobArgs {
     pub channels_out: i64,
 
     /// WSClean -niter value (max clean iterations).
-    #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
+    #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
     /// WSClean cleaning threshold (Jy). Takes precedence over
     /// auto_threshold if set.
-    #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+    #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
     pub clean_threshold: f64,
 
     /// Custom phase centre declination (degrees). Requires
     /// --phase-center custom.
-    #[arg(long, value_parser = parse_f64_range(-90.0, 90.0))]
+    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
     pub custom_dec: Option<f64>,
 
     /// Custom phase centre right ascension (degrees). Requires
     /// --phase-center custom.
-    #[arg(long, value_parser = parse_f64_range(0.0, 359.999999))]
+    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
     pub custom_ra: Option<f64>,
 
     /// Width of frequency edge flagging (kHz).
-    #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_range(0.0, 640.0))]
+    #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
     pub flag_edge_width: f64,
 
     /// WSClean image size in pixels.
@@ -382,7 +382,7 @@ pub struct ImagingJobArgs {
     pub join_polarizations: bool,
 
     /// WSClean -mgain value.
-    #[arg(long, default_value_t = imaging1_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
+    #[arg(long, default_value_t = imaging1_defaults().mgain, value_parser = parse_f64_bounds(validate::MGAIN))]
     pub mgain: f64,
 
     /// Enable WSClean multiscale cleaning.
@@ -390,12 +390,12 @@ pub struct ImagingJobArgs {
     pub multiscale: bool,
 
     /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value_t = imaging1_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
+    #[arg(long, default_value_t = imaging1_defaults().nmiter.get() as i64, value_parser = parse_i64_bounds(validate::NMITER))]
     pub nmiter: i64,
 
     /// Number of w-projection layers. Leave unset to let the server
     /// decide.
-    #[arg(long, value_parser = parse_i64_range(32, 512))]
+    #[arg(long, value_parser = parse_i64_bounds(validate::NWLAYERS))]
     pub nwlayers: Option<i64>,
 
     /// The output mode / product to request.
@@ -407,7 +407,7 @@ pub struct ImagingJobArgs {
     pub phase_center: Centre,
 
     /// Pixel scale (arcsec/pixel).
-    #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
+    #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
     pub pixel_scale: f64,
 
     /// Polarisation to image: XX, YY or XXYY.
@@ -415,16 +415,16 @@ pub struct ImagingJobArgs {
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
-    #[arg(long, default_value_t = imaging1_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
+    #[arg(long, default_value_t = imaging1_defaults().robust, value_parser = parse_f64_bounds(validate::ROBUST))]
     pub robust: f64,
 
     /// Maximum uv distance to image, in wavelengths (upper bound on
     /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
+    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
     pub uvw_max: Option<f64>,
 
     /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value_t = imaging1_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
+    #[arg(long, default_value_t = imaging1_defaults().uvw_min, value_parser = parse_f64_bounds(validate::UVW_MIN))]
     pub uvw_min: f64,
 
     /// WSClean weighting scheme.
@@ -449,7 +449,7 @@ pub struct ImagingJobArgs {
 impl ImagingJobArgs {
     /// Build the request body for an imaging job for a single obsid.
     pub fn to_params(&self, obs_id: i64) -> Result<ImagingJobFlow1Params, AsvoApiError> {
-        let image_size = ImageSizes::try_from(self.image_size)?;
+        let image_size = validate::image_size(self.image_size)?;
         let nmiter = NonZeroU64::new(self.nmiter as u64)
             .expect("clap's range validator already ensures nmiter >= 1");
 
@@ -522,16 +522,16 @@ pub struct ImagingFromJobArgs {
     pub apply_primary_beam: bool,
 
     /// WSClean -auto-mask value.
-    #[arg(long, default_value_t = imaging2_defaults().auto_mask, value_parser = parse_i64_range(2, 512))]
+    #[arg(long, default_value_t = imaging2_defaults().auto_mask, value_parser = parse_i64_bounds(validate::AUTO_MASK))]
     pub auto_mask: i64,
 
     /// WSClean -auto-threshold value.
-    #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_range(0.1, 5.0))]
+    #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
     /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
     /// unless explicitly set.
-    #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_range(0.0, 10.0))]
+    #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
     pub abs_threshold: f64,
 
     /// Number of output channel groups.
@@ -539,12 +539,12 @@ pub struct ImagingFromJobArgs {
     pub channels_out: i64,
 
     /// WSClean -niter value (max clean iterations).
-    #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_range(0, 1_000_000))]
+    #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
     /// WSClean cleaning threshold (Jy). Takes precedence over
     /// auto_threshold if set.
-    #[arg(long, value_parser = parse_f64_range(0.0, 10.0))]
+    #[arg(long, value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
     pub clean_threshold: Option<f64>,
 
     /// WSClean image size in pixels.
@@ -567,7 +567,7 @@ pub struct ImagingFromJobArgs {
     pub join_polarizations: bool,
 
     /// WSClean -mgain value.
-    #[arg(long, default_value_t = imaging2_defaults().mgain, value_parser = parse_f64_range(0.1, 1.0))]
+    #[arg(long, default_value_t = imaging2_defaults().mgain, value_parser = parse_f64_bounds(validate::MGAIN))]
     pub mgain: f64,
 
     /// Enable WSClean multiscale cleaning.
@@ -575,12 +575,12 @@ pub struct ImagingFromJobArgs {
     pub multiscale: bool,
 
     /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value_t = imaging2_defaults().nmiter.get() as i64, value_parser = parse_i64_range(1, 500))]
+    #[arg(long, default_value_t = imaging2_defaults().nmiter.get() as i64, value_parser = parse_i64_bounds(validate::NMITER))]
     pub nmiter: i64,
 
     /// Number of w-projection layers. Leave unset to let the server
     /// decide.
-    #[arg(long, value_parser = parse_i64_range(32, 512))]
+    #[arg(long, value_parser = parse_i64_bounds(validate::NWLAYERS))]
     pub nwlayers: Option<i64>,
 
     /// The output mode / product to request.
@@ -588,7 +588,7 @@ pub struct ImagingFromJobArgs {
     pub output_mode: OutputMode,
 
     /// Pixel scale (arcsec/pixel).
-    #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_range(10.0, 120.0))]
+    #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
     pub pixel_scale: f64,
 
     /// Polarisations to image. This endpoint takes a free-form string
@@ -597,16 +597,16 @@ pub struct ImagingFromJobArgs {
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
-    #[arg(long, default_value_t = imaging2_defaults().robust, value_parser = parse_f64_range(-2.0, 2.0))]
+    #[arg(long, default_value_t = imaging2_defaults().robust, value_parser = parse_f64_bounds(validate::ROBUST))]
     pub robust: f64,
 
     /// Maximum uv distance to image, in wavelengths (upper bound on
     /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_range(1.0, 5000.0))]
+    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
     pub uvw_max: Option<f64>,
 
     /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value_t = imaging2_defaults().uvw_min, value_parser = parse_f64_range(f64::MIN, 100.0))]
+    #[arg(long, default_value_t = imaging2_defaults().uvw_min, value_parser = parse_f64_bounds(validate::UVW_MIN))]
     pub uvw_min: f64,
 
     /// WSClean weighting scheme.
@@ -626,7 +626,7 @@ pub struct ImagingFromJobArgs {
 impl ImagingFromJobArgs {
     /// Build the request body for an image-from-job submission.
     pub fn to_params(&self, obs_id: i64) -> Result<ImagingJobFlow2Params, AsvoApiError> {
-        let image_size = ImageSizes::try_from(self.image_size)?;
+        let image_size = validate::image_size(self.image_size)?;
         let nmiter = NonZeroU64::new(self.nmiter as u64)
             .expect("clap's range validator already ensures nmiter >= 1");
 

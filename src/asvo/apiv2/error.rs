@@ -30,6 +30,17 @@ pub enum AsvoApiError {
     #[error("{0}")]
     Conversion(#[from] ConversionError),
 
+    /// A job argument is outside what the MWA ASVO OpenAPI schema allows.
+    /// Found before any request is sent; see [`super::validate`].
+    #[error("Invalid {name}: {message}")]
+    InvalidParameter {
+        /// The OpenAPI field name of the argument.
+        name: &'static str,
+        /// What is wrong with it, for example `must be between 0.1 and 1
+        /// (got 1.5)`.
+        message: String,
+    },
+
     /// Failed to deserialise JSON returned by the MWA ASVO.
     #[error("Couldn't decode JSON from the MWA ASVO response: {0}")]
     BadJson(#[from] serde_json::Error),

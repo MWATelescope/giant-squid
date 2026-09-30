@@ -9,6 +9,12 @@
 //! schema default. This layer adds no defaults of its own, the same rule as
 //! the CLI's.
 //!
+//! Numbers are checked against the limits in the MWA ASVO schema before a
+//! request body is returned, with the library's checks
+//! ([`crate::asvo::apiv2::validate`]), the same ones the CLI and the Rust
+//! client use. An argument that is out of range raises `ValueError`, and
+//! nothing is sent.
+//!
 //! There is one argument struct per job type. The submit methods build it
 //! from their keyword arguments; step 2.3's `*_params` functions will do the
 //! same.
@@ -16,8 +22,6 @@
 //! The Python argument names are the OpenAPI field names. The CLI-only
 //! options `mode` (beamformer) and the voltage `delivery_format` are not
 //! arguments, because the CLI does not expose them either.
-
-use std::num::NonZeroU64;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -29,6 +33,7 @@ use crate::asvo::apiv2::openapi::{
     self as api, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
     ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
 };
+use crate::asvo::apiv2::validate;
 use crate::obsid::Obsid;
 
 /// Validate an obsid and give it the type the request bodies use.
@@ -41,14 +46,9 @@ pub(super) fn obs_id_to_i64(obs_id: u64) -> PyResult<i64> {
     Ok(i64::try_from(u64::from(obsid)).expect("Obsid's validated range always fits in i64"))
 }
 
-/// A non-zero job ID from a Python integer.
-fn non_zero(name: &str, value: u64) -> PyResult<NonZeroU64> {
-    NonZeroU64::new(value)
-        .ok_or_else(|| PyValueError::new_err(format!("{name} must be greater than zero")))
-}
-
-/// An error from a request builder, as a `ValueError`.
-fn builder_error(e: impl std::fmt::Display) -> PyErr {
+/// An error from the library's checks or from a request builder, as a
+/// `ValueError`. The message names the argument.
+fn value_error(e: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
 
@@ -80,7 +80,7 @@ impl DownloadArgs {
             delivery_format => self.delivery_format.map(api::DeliveryFormat::from),
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        builder.try_into().map_err(value_error)
     }
 }
 
@@ -127,22 +127,8 @@ impl ConversionArgs {
             no_passband_gains => self.no_passband_gains,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        builder.try_into().map_err(value_error)
     }
-}
-
-/// The image size, checked against the sizes the API accepts.
-fn image_size(value: i64) -> PyResult<api::ImageSizes> {
-    api::ImageSizes::try_from(value).map_err(|_| {
-        PyValueError::new_err(format!(
-            "image_size={value} is not one of the sizes the MWA ASVO accepts"
-        ))
-    })
-}
-
-/// The `nmiter` value, which the API requires to be greater than zero.
-fn nmiter(value: u64) -> PyResult<NonZeroU64> {
-    non_zero("nmiter", value)
 }
 
 /// The arguments of an imaging job that starts from an obsid (flow 1).
@@ -204,12 +190,12 @@ impl ImagingArgs {
             custom_centre_dec => self.custom_centre_dec,
             custom_centre_ra => self.custom_centre_ra,
             flag_edge_width => self.flag_edge_width,
-            image_size => self.image_size.map(image_size).transpose()?,
+            image_size => self.image_size.map(validate::image_size).transpose().map_err(value_error)?,
             join_channels => self.join_channels,
             join_polarizations => self.join_polarizations,
             mgain => self.mgain,
             multiscale => self.multiscale,
-            nmiter => self.nmiter.map(nmiter).transpose()?,
+            nmiter => self.nmiter.map(validate::nmiter).transpose().map_err(value_error)?,
             no_apply_amps => self.no_apply_amps,
             nwlayers => self.nwlayers,
             output_mode => self.output_mode.map(api::OutputMode::from),
@@ -222,7 +208,9 @@ impl ImagingArgs {
             wstack_nwlayers => self.wstack_nwlayers,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        let params: ImagingJobFlow1Params = builder.try_into().map_err(value_error)?;
+        validate::validate_imaging_params(&params).map_err(value_error)?;
+        Ok(params)
     }
 }
 
@@ -267,7 +255,7 @@ impl ImageFromJobArgs {
     ) -> PyResult<ImagingJobFlow2Params> {
         let mut builder = ImagingJobFlow2Params::builder()
             .obs_id(obs_id_to_i64(obs_id)?)
-            .source_job_id(non_zero("source_job_id", source_job_id)?);
+            .source_job_id(validate::source_job_id(source_job_id).map_err(value_error)?);
         set_if_some!(
             builder,
             delivery => self.delivery.map(api::Delivery::from),
@@ -279,12 +267,12 @@ impl ImageFromJobArgs {
             channels_out => self.channels_out,
             clean_iterations => self.clean_iterations,
             clean_threshold => self.clean_threshold,
-            image_size => self.image_size.map(image_size).transpose()?,
+            image_size => self.image_size.map(validate::image_size).transpose().map_err(value_error)?,
             join_channels => self.join_channels,
             join_polarizations => self.join_polarizations,
             mgain => self.mgain,
             multiscale => self.multiscale,
-            nmiter => self.nmiter.map(nmiter).transpose()?,
+            nmiter => self.nmiter.map(validate::nmiter).transpose().map_err(value_error)?,
             nwlayers => self.nwlayers,
             output_mode => self.output_mode.map(api::OutputMode::from),
             pixel_scale => self.pixel_scale,
@@ -296,7 +284,9 @@ impl ImageFromJobArgs {
             wstack_nwlayers => self.wstack_nwlayers,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        let params: ImagingJobFlow2Params = builder.try_into().map_err(value_error)?;
+        validate::validate_image_from_job_params(&params).map_err(value_error)?;
+        Ok(params)
     }
 }
 
@@ -329,7 +319,7 @@ impl VoltageArgs {
             to_channel => self.to_channel,
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        builder.try_into().map_err(value_error)
     }
 }
 
@@ -350,6 +340,6 @@ impl BeamformerArgs {
             delivery_format => self.delivery_format.map(api::DeliveryFormat::from),
             allow_resubmit => self.allow_resubmit,
         );
-        builder.try_into().map_err(builder_error)
+        builder.try_into().map_err(value_error)
     }
 }

@@ -583,6 +583,28 @@ fn submit_image_rejects_out_of_range_values() {
     }
 }
 
+/// The CLI's range errors are the library's, so they read the same in the
+/// CLI, the Rust client and the Python module.
+#[test]
+fn submit_image_range_errors_carry_the_librarys_message() {
+    for (flag, value, expected) in [
+        ("--mgain", "1.5", "must be between 0.1 and 1 (got 1.5)"),
+        ("--uvw-min", "101", "must be at most 100 (got 101)"),
+        ("--avg-time-res", "-1", "must be at least 0 (got -1)"),
+        (
+            "--image-size",
+            "1000",
+            "must be one of 512, 1024, 2048, 3072, 4096, 8192",
+        ),
+    ] {
+        let err = parse_err(&["giant-squid", "submit-image", flag, value, TEST_OBSID]);
+        assert!(
+            err.to_string().contains(expected),
+            "{flag} {value}: expected {expected:?} in {err}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // submit-image-from-job
 // ---------------------------------------------------------------------------
@@ -854,4 +876,36 @@ fn cli_definition_is_internally_consistent() {
     // including any introduced by the flattened argument groups.
     use clap::CommandFactory;
     Args::command().debug_assert();
+}
+
+#[test]
+fn submit_image_from_job_rejects_out_of_range_values() {
+    for bad in [
+        vec!["--auto-mask", "1"],
+        vec!["--auto-mask", "513"],
+        vec!["--auto-threshold", "0.05"],
+        vec!["--mgain", "1.5"],
+        vec!["--nmiter", "0"],
+        vec!["--nmiter", "501"],
+        vec!["--robust", "-2.5"],
+        vec!["--pixel-scale", "9"],
+        vec!["--nwlayers", "16"],
+        vec!["--uvw-max", "0.5"],
+        vec!["--image-size", "1000"],
+    ] {
+        let mut argv = vec![
+            "giant-squid",
+            "submit-image-from-job",
+            "--source-job-id",
+            TEST_JOBID,
+        ];
+        argv.extend_from_slice(&bad);
+        argv.push(TEST_OBSID);
+        let err = parse_err(&argv);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "expected {bad:?} to be rejected"
+        );
+    }
 }

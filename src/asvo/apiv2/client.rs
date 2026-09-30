@@ -41,6 +41,7 @@ use super::openapi::{
     JobDetailResponse, JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login,
     TokenResponse, UserResponse, VoltageJobParams,
 };
+use super::validate::{validate_image_from_job_params, validate_imaging_params};
 
 /// The default timeout for a single MWA ASVO API request.
 pub const DEFAULT_API_TIMEOUT: Duration = Duration::from_secs(60);
@@ -723,10 +724,15 @@ impl AsvoClient {
     ///
     /// Like every other v2 submit endpoint, a success returns a
     /// `JobSubmittedResponse` carrying the new job's ID.
+    ///
+    /// The numbers in `params` are checked against the schema's limits
+    /// first ([`validate_imaging_params`]); nothing is sent if one is out
+    /// of range, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_imaging_job(
         &self,
         params: &ImagingJobFlow1Params,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_imaging_params(params)?;
         debug!("Submitting an imaging job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {
@@ -739,10 +745,17 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Submit an MWA ASVO v2 imaging job (flow 2: from a conversion job).
+    ///
+    /// The numbers in `params` are checked against the schema's limits
+    /// first ([`validate_image_from_job_params`]); nothing is sent if one
+    /// is out of range, and the error is
+    /// [`AsvoApiError::InvalidParameter`].
     pub fn submit_image_from_job(
         &self,
         params: &ImagingJobFlow2Params,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_image_from_job_params(params)?;
         debug!("Submitting an image-from-job to MWA ASVO v2");
 
         let body = self.send_authed(|client| {

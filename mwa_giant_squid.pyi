@@ -450,8 +450,9 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: ``obs_id`` is not a valid obsid, ``image_size`` is not a valid size, or ``nmiter`` is
-                zero.
+            ValueError: ``obs_id`` is not a valid obsid, or an argument is outside what the MWA ASVO accepts
+                (for example ``mgain`` above 1, or an ``image_size`` that is not a supported size). The message
+                names the argument and its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_image_from_job(
@@ -501,8 +502,8 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: ``obs_id`` is not a valid obsid, ``source_job_id`` or ``nmiter`` is zero, or
-                ``image_size`` is not a valid size.
+            ValueError: ``obs_id`` is not a valid obsid, ``source_job_id`` is zero, or an argument is outside
+                what the MWA ASVO accepts (see ``submit_imaging_job``). Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_voltage_job(

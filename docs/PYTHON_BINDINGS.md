@@ -94,10 +94,38 @@
   as the CLI does. `pol` is a `Polarization` for `submit_imaging_job` and a
   free-form `str` for `submit_image_from_job`, as in the schema. A bad
   obsid, a zero `source_job_id` or `nmiter`, or an `image_size` that the
-  API does not accept raises `ValueError` before any request. The CLI's
-  numeric range checks are not repeated: the server checks them and the
-  error is an `AsvoApiError`. 33 new pytest tests (the mock checks each
-  request body), 49 in total.
+  API does not accept raises `ValueError` before any request. (The range
+  checks that this entry first left to the server moved into the library
+  in step 2.2b, below.) 33 new pytest tests (the mock checks each request
+  body), 49 in total.
+- 2026-09-30: step 2.2b done (approved: move the common validation into
+  the library). New module `src/asvo/apiv2/validate.rs` holds the limits
+  of the imaging request bodies once: a `Bounds` type, one named constant
+  per limited field (`MGAIN`, `NMITER`, ...) and `IMAGE_SIZES`.
+  `validate_imaging_params` and `validate_image_from_job_params` check a
+  request body, and `image_size`, `nmiter` and `source_job_id` give the
+  typed values. `AsvoClient::submit_imaging_job` and `submit_image_from_job`
+  call them, so an out-of-range body is never sent, whoever the caller is.
+  A new variant `AsvoApiError::InvalidParameter { name, message }` carries
+  the fault. The CLI's `clap` value parsers now use the same constants (the
+  private `parse_f64_range` and `parse_i64_range` are replaced by
+  `parse_f64_bounds` and `parse_i64_bounds`), and the Python builders call
+  the same checks and raise `ValueError`; `InvalidParameter` also maps to
+  `ValueError` if it reaches the exception conversion. All three show one
+  message, for example `Invalid mgain: must be between 0.1 and 1 (got
+  1.5)`. Each constant is hand-written, and a unit test compares every
+  one with `openapi-schema.json`, so a regenerated schema with different
+  limits fails the tests until the constant is changed. One limit is not in
+  the schema: `clean_iterations` has no minimum there, and the CLI's
+  minimum of 0 is kept (the test names this exemption). Small changes in
+  behaviour: `NaN` is now rejected, and the message for a one-sided limit
+  reads `must be at most 100`, not a range that ends at the largest float.
+  Not checked, as before, although the schema has limits for them:
+  conversion jobs (`avg_freq_res`, `avg_time_res`, `flag_edge_width`,
+  `custom_centre_ra`, `custom_centre_dec`), `wstack_nwlayers` (32 to 512)
+  and the voltage `offset` (0 to 5400). 16 new library tests (including
+  the schema comparison), 4 new CLI and client tests, 28 new pytest tests
+  (77 in total).
 - Next step: Phase 2, step 2.3 (`cancel_job`,
   `parse_many_jobids_or_obsids` and the `*_params` builders). Start from a
   fresh clone of `apiv2`, one diff per step, and update this section after
@@ -167,6 +195,10 @@ the same names, `AsvoApiError` and `AsvoError`. Each has a `kind` attribute
 with the Rust variant name (for example `"ApiError"`, `"MissingAuthKey"`)
 plus that variant's fields (`error_code`, `message`, `detail`,
 `suggestion`, `code`). This keeps every name identical to Rust.
+
+A job argument that is outside what the schema allows is not an API failure:
+it is found before any request. In Rust it is `AsvoApiError::InvalidParameter`;
+in Python it is a `ValueError`, as Python practice suggests for a bad argument.
 
 ## Phase 0: make the Rust library a clean public API (Rust only)
 

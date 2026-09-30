@@ -10,5 +10,6 @@ mod error;
 // declaration, so it survives regeneration of openapi.rs itself.
 #[allow(dead_code)]
 pub mod openapi;
+pub mod validate;
 
 pub use error::AsvoApiError;

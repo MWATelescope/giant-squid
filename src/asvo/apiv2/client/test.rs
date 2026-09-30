@@ -663,6 +663,67 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
     assert_eq!(resp.job_id.get(), 780);
 }
 
+/// A body the schema does not allow is refused by the library, so no
+/// caller (the CLI, Python or another Rust program) can send it.
+#[test]
+fn an_out_of_range_imaging_job_is_not_sent() {
+    let env = TestEnv::with_session();
+    let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow1Params =
+        crate::asvo::apiv2::openapi::ImagingJobFlow1Params::builder()
+            .obs_id(TEST_OBSID_I64)
+            .try_into()
+            .expect("defaults build");
+    params.mgain = 1.5;
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/imaging_job");
+        then.status(200).json_body(job_submitted_response(1));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .submit_imaging_job(&params)
+        .expect_err("expected the submission to be refused");
+
+    assert!(
+        matches!(err, AsvoApiError::InvalidParameter { name: "mgain", .. }),
+        "got {err:?}"
+    );
+    assert_eq!(submit.calls(), 0);
+}
+
+#[test]
+fn an_out_of_range_image_from_job_is_not_sent() {
+    let env = TestEnv::with_session();
+    let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow2Params =
+        crate::asvo::apiv2::openapi::ImagingJobFlow2Params::builder()
+            .obs_id(TEST_OBSID_I64)
+            .source_job_id(std::num::NonZeroU64::new(12345).unwrap())
+            .try_into()
+            .expect("defaults build");
+    params.pixel_scale = 5.0;
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/image_from_job");
+        then.status(200).json_body(job_submitted_response(1));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .submit_image_from_job(&params)
+        .expect_err("expected the submission to be refused");
+
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "pixel_scale",
+                ..
+            }
+        ),
+        "got {err:?}"
+    );
+    assert_eq!(submit.calls(), 0);
+}
+
 // ---------------------------------------------------------------------------
 // Playback of a recording captured from a live MWA ASVO
 // ---------------------------------------------------------------------------

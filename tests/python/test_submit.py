@@ -41,6 +41,7 @@ TO_CHANNEL = 9
 FREQ_RES = 10.0
 CUSTOM_RA = 12.5
 CUSTOM_DEC = -26.7
+CLEAN_THRESHOLD_JY = 0.5
 NMITER = 7
 VALID_IMAGE_SIZE = 1024
 INVALID_IMAGE_SIZE = 100
@@ -237,7 +238,7 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
         weighting=gs.Weighting.Natural,
         uvw_max=FREQ_RES,
         wstack_nwlayers=NMITER,
-        clean_threshold=CUSTOM_RA,
+        clean_threshold=CLEAN_THRESHOLD_JY,
         join_polarizations=True,
         allow_resubmit=True,
     )
@@ -254,7 +255,7 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
     assert body["weighting"] == "natural"
     assert body["uvw_max"] == FREQ_RES
     assert body["wstack_nwlayers"] == NMITER
-    assert body["clean_threshold"] == CUSTOM_RA
+    assert body["clean_threshold"] == CLEAN_THRESHOLD_JY
     assert body["join_polarizations"] is True
     assert body["allow_resubmit"] is True
 
@@ -458,3 +459,90 @@ def test_the_response_has_a_readable_repr(client: gs.AsvoClient, httpserver: HTT
 
     assert repr(response).startswith("JobSubmittedResponse(")
     assert str(NEW_JOB_ID) in repr(response)
+
+
+# Arguments that are outside the schema's limits: (method, keyword arguments, the name the error must give).
+OUT_OF_RANGE = [
+    ("submit_imaging_job", {"mgain": 1.5}, "mgain"),
+    ("submit_imaging_job", {"mgain": 0.05}, "mgain"),
+    ("submit_imaging_job", {"nmiter": 501}, "nmiter"),
+    ("submit_imaging_job", {"auto_mask": 1}, "auto_mask"),
+    ("submit_imaging_job", {"auto_threshold": 6.0}, "auto_threshold"),
+    ("submit_imaging_job", {"pixel_scale": 9.0}, "pixel_scale"),
+    ("submit_imaging_job", {"robust": -2.5}, "robust"),
+    ("submit_imaging_job", {"clean_iterations": 1_000_001}, "clean_iterations"),
+    ("submit_imaging_job", {"clean_iterations": -1}, "clean_iterations"),
+    ("submit_imaging_job", {"abs_threshold": 11.0}, "abs_threshold"),
+    ("submit_imaging_job", {"nwlayers": 16}, "nwlayers"),
+    ("submit_imaging_job", {"uvw_max": 0.5}, "uvw_max"),
+    ("submit_imaging_job", {"uvw_min": 101.0}, "uvw_min"),
+    ("submit_imaging_job", {"avg_freq_res": 1281.0}, "avg_freq_res"),
+    ("submit_imaging_job", {"avg_time_res": -1.0}, "avg_time_res"),
+    ("submit_imaging_job", {"flag_edge_width": 641.0}, "flag_edge_width"),
+    ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
+    ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_dec": -91.0}, "custom_centre_dec"),
+    ("submit_imaging_job", {"mgain": float("nan")}, "mgain"),
+    ("submit_image_from_job", {"mgain": 1.5}, "mgain"),
+    ("submit_image_from_job", {"nmiter": 501}, "nmiter"),
+    ("submit_image_from_job", {"pixel_scale": 121.0}, "pixel_scale"),
+    ("submit_image_from_job", {"clean_threshold": 10.5}, "clean_threshold"),
+    ("submit_image_from_job", {"nwlayers": 513}, "nwlayers"),
+]
+
+
+def imaging_args(method: str) -> tuple[int, ...]:
+    """The positional arguments of an imaging submit method.
+
+    Args:
+        method: The method name.
+
+    Returns:
+        The obsid, and the source job ID for ``submit_image_from_job``.
+    """
+    return (TEST_OBSID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBSID,)
+
+
+@pytest.mark.parametrize(("method", "kwargs", "name"), OUT_OF_RANGE)
+def test_an_argument_outside_the_schema_limits_is_rejected_before_any_request(
+    client: gs.AsvoClient, httpserver: HTTPServer, method: str, kwargs: dict[str, Any], name: str
+) -> None:
+    """A number outside the schema's limits raises ValueError that names the argument, and nothing is sent."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match=name):
+        getattr(client, method)(*imaging_args(method), **kwargs)
+
+    assert len(httpserver.log) == requests_before
+
+
+def test_the_error_message_gives_the_limits(client: gs.AsvoClient) -> None:
+    """The message is the library's: the same text the CLI and the Rust client give."""
+    with pytest.raises(ValueError) as err:
+        client.submit_imaging_job(TEST_OBSID, mgain=1.5)
+
+    assert str(err.value) == "Invalid mgain: must be between 0.1 and 1 (got 1.5)"
+
+
+def test_the_supported_image_sizes_are_listed_in_the_error(client: gs.AsvoClient) -> None:
+    """An unsupported image size is reported with the sizes that the MWA ASVO accepts."""
+    with pytest.raises(ValueError, match="512, 1024, 2048, 3072, 4096, 8192"):
+        client.submit_imaging_job(TEST_OBSID, image_size=INVALID_IMAGE_SIZE)
+
+
+@pytest.mark.parametrize("method", ["submit_imaging_job", "submit_image_from_job"])
+def test_values_at_the_limits_are_accepted_and_sent(client: gs.AsvoClient, httpserver: HTTPServer, method: str) -> None:
+    """The ends of each range are valid."""
+    path = IMAGING_PATH if method == "submit_imaging_job" else IMAGE_FROM_JOB_PATH
+    submitted(httpserver, path)
+
+    getattr(client, method)(
+        *imaging_args(method), mgain=1.0, nmiter=500, pixel_scale=10.0, robust=-2.0, uvw_min=100.0, auto_mask=512
+    )
+
+    body = body_sent_to(httpserver, path)
+    assert body["mgain"] == 1.0
+    assert body["nmiter"] == 500
+    assert body["pixel_scale"] == 10.0
+    assert body["robust"] == -2.0
+    assert body["uvw_min"] == 100.0
+    assert body["auto_mask"] == 512

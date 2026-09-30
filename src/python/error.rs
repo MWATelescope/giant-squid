@@ -9,7 +9,7 @@
 //! attribute for each of that variant's fields. The exception's message is
 //! the Rust error's message.
 
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use super::types::PyAsvoJobState;
@@ -70,6 +70,11 @@ fn build<T: pyo3::PyTypeInfo>(
 }
 
 /// Convert a library [`lib::AsvoApiError`] to a Python `AsvoApiError`.
+///
+/// `lib::AsvoApiError::InvalidParameter` (a job argument the schema does
+/// not allow, found before any request) becomes a `ValueError`, as the
+/// Python submit methods raise for the same fault when they build the
+/// request body.
 pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
     let (kind, fields) = match e {
@@ -78,6 +83,9 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
             "AuthenticationFailed",
             vec![("message", Field::Str(message))],
         ),
+        lib::AsvoApiError::InvalidParameter { .. } => {
+            return PyValueError::new_err(message);
+        }
         lib::AsvoApiError::Conversion(_) => ("Conversion", vec![]),
         lib::AsvoApiError::BadJson(_) => ("BadJson", vec![]),
         lib::AsvoApiError::Reqwest(_) => ("Reqwest", vec![]),
