@@ -11,6 +11,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
+
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -20,10 +22,10 @@ use super::params::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
 use super::types::{
-    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput,
-    PyOutputMode, PyPolarization, PyWeighting,
+    PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
+    PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId};
+use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -74,17 +76,49 @@ impl PyAsvoClient {
         Ok(Self { inner, host })
     }
 
-    /// Get your jobs.
+    /// Get your jobs. The server filters them; every filter that is `None`
+    /// does not filter.
     ///
     /// Args:
     ///     days: Only the jobs from the past `days` days. `None` gets your
     ///         full job history.
+    ///     job_state: Only the jobs in this state. The server takes one
+    ///         state; to filter by several, use `AsvoJobVec.filter`.
+    ///         `AsvoJobState.Expired` cannot be filtered by.
+    ///     job_type: Only the jobs of this type. `AsvoJobType.Unknown`
+    ///         cannot be filtered by.
+    ///     date_from: Only the jobs created at or after this time. It must
+    ///         have a time zone.
+    ///     date_to: Only the jobs created at or before this time. It must
+    ///         have a time zone.
+    ///     sort_by: The column to sort the jobs by, for example "id".
+    ///         `None` uses the server's default order.
     ///
     /// Raises:
+    ///     ValueError: `job_state` or `job_type` cannot be filtered by.
+    ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
-    #[pyo3(signature = (days=None))]
-    fn get_jobs(&self, py: Python<'_>, days: Option<i64>) -> PyResult<PyAsvoJobVec> {
-        py.detach(|| self.inner.get_jobs(days))
+    #[pyo3(signature = (days=None, *, job_state=None, job_type=None, date_from=None, date_to=None, sort_by=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn get_jobs(
+        &self,
+        py: Python<'_>,
+        days: Option<i64>,
+        job_state: Option<PyAsvoJobState>,
+        job_type: Option<PyAsvoJobType>,
+        date_from: Option<DateTime<Utc>>,
+        date_to: Option<DateTime<Utc>>,
+        sort_by: Option<String>,
+    ) -> PyResult<PyAsvoJobVec> {
+        let filter = JobsFilter {
+            days,
+            job_state: job_state.map(Into::into),
+            job_type: job_type.map(Into::into),
+            date_from,
+            date_to,
+            sort_by,
+        };
+        py.detach(|| self.inner.get_jobs(&filter))
             .map(PyAsvoJobVec::from)
             .map_err(|e| api_error(py, e))
     }
@@ -180,6 +214,8 @@ impl PyAsvoClient {
     ///     no_flag_dc: Do not flag the DC channel.
     ///     no_geometry_delay: Do not apply the geometric delay corrections.
     ///     no_passband_gains: Do not apply the passband gain corrections.
+    ///     no_cable_delay: Do not apply the cable delay corrections.
+    ///     no_rfi: Do not flag RFI.
     ///     allow_resubmit: Submit the job even if an identical one has
     ///         completed.
     ///
@@ -210,6 +246,8 @@ impl PyAsvoClient {
         no_flag_dc=None,
         no_geometry_delay=None,
         no_passband_gains=None,
+        no_cable_delay=None,
+        no_rfi=None,
         allow_resubmit=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -232,6 +270,8 @@ impl PyAsvoClient {
         no_flag_dc: Option<bool>,
         no_geometry_delay: Option<bool>,
         no_passband_gains: Option<bool>,
+        no_cable_delay: Option<bool>,
+        no_rfi: Option<bool>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = ConversionArgs {
@@ -250,6 +290,8 @@ impl PyAsvoClient {
             no_flag_dc,
             no_geometry_delay,
             no_passband_gains,
+            no_cable_delay,
+            no_rfi,
             allow_resubmit,
         }
         .into_params(obs_id)?;

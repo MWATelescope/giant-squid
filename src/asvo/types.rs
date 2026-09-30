@@ -114,8 +114,9 @@ pub type AsvoJobId = u64;
 
 /// All of the metadata associated with an ASVO job.
 ///
-/// In JSON the keys are the field names, which are the OpenAPI names:
-/// `obs_id`, `job_id`, `job_type`, `job_state`, `files` and `completed`.
+/// In JSON the keys are the field names, which are the OpenAPI names of a
+/// `JobDetailResponse`. Two differ in form: `obs_id` is read from
+/// `job_params`, and `files` is the `product`'s file list.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoJob {
     pub obs_id: ObsId,
@@ -123,13 +124,31 @@ pub struct AsvoJob {
     pub job_type: AsvoJobType,
     pub job_state: AsvoJobState,
     pub files: Option<Vec<AsvoFilesArray>>,
+    /// When the job was created (UTC).
+    pub created: DateTime<Utc>,
+    /// When the job started, or `None` if it has not started.
+    pub started: Option<DateTime<Utc>>,
     pub completed: Option<DateTime<Utc>>,
+    /// When the job was last changed, or `None`.
+    pub modified: Option<DateTime<Utc>>,
+    /// The server's error message, or `None`. For a job in the `Error`
+    /// state it is also in [`AsvoJobState::Error`].
+    pub error_text: Option<String>,
+    /// The ID of the user who submitted the job.
+    pub user_id: i64,
+    /// The first name of the user who submitted the job.
+    pub first_name: String,
+    /// The last name of the user who submitted the job.
+    pub last_name: String,
+    /// The job's parameters as the server gives them (`obs_id`, delivery,
+    /// processing options), untyped because they differ by job type.
+    pub job_params: serde_json::Map<String, serde_json::Value>,
 }
 
 /// A vector of ASVO jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {

@@ -1197,6 +1197,12 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
     let completed = chrono::DateTime::parse_from_rfc3339("2026-09-08T06:00:00Z")
         .expect("a valid time")
         .with_timezone(&chrono::Utc);
+    let created = chrono::DateTime::parse_from_rfc3339("2026-09-08T05:41:54Z")
+        .expect("a valid time")
+        .with_timezone(&chrono::Utc);
+    let mut job_params = serde_json::Map::new();
+    job_params.insert("obs_id".to_string(), serde_json::json!(1065880128));
+    job_params.insert("delivery".to_string(), serde_json::json!("acacia"));
     AsvoJobVec(vec![
         AsvoJob {
             obs_id,
@@ -1221,7 +1227,15 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
                     format: None,
                 },
             ]),
+            created,
+            started: Some(created),
             completed: Some(completed),
+            modified: Some(completed),
+            error_text: None,
+            user_id: 4242,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params,
         },
         AsvoJob {
             obs_id,
@@ -1229,7 +1243,15 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             job_type: AsvoJobType::Conversion,
             job_state: AsvoJobState::Queued,
             files: None,
+            created,
+            started: None,
             completed: None,
+            modified: None,
+            error_text: None,
+            user_id: 4242,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params: serde_json::Map::new(),
         },
         AsvoJob {
             obs_id,
@@ -1237,7 +1259,15 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             job_type: AsvoJobType::Imaging,
             job_state: AsvoJobState::Error("the \"conversion\" failed".to_string()),
             files: Some(vec![]),
+            created,
+            started: None,
             completed: None,
+            modified: None,
+            error_text: Some("the \"conversion\" failed".to_string()),
+            user_id: 4242,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params: serde_json::Map::new(),
         },
     ])
 }
@@ -1256,7 +1286,7 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 /// `--json` prints the OpenAPI names, with the same values.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
+    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}],"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 
@@ -1279,4 +1309,31 @@ fn legacy_json_and_json_cannot_be_given_together() {
             "{command}"
         );
     }
+}
+
+#[test]
+fn submit_conv_sends_no_cable_delay_and_no_rfi() {
+    let (args, _) = conv_args(&[
+        "giant-squid",
+        "submit-conv",
+        "--no-cable-delay",
+        "--no-rfi",
+        TEST_OBS_ID,
+    ]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+    assert_eq!(json["no_cable_delay"], true);
+    assert_eq!(json["no_rfi"], true);
+
+    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+    assert_eq!(json["no_cable_delay"], false);
+    assert_eq!(json["no_rfi"], false);
 }

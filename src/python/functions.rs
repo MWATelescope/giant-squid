@@ -153,6 +153,8 @@ pub fn download_meta_job_params<'py>(
     no_flag_dc=None,
     no_geometry_delay=None,
     no_passband_gains=None,
+    no_cable_delay=None,
+    no_rfi=None,
     allow_resubmit=None,
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -174,6 +176,8 @@ pub fn conversion_job_params<'py>(
     no_flag_dc: Option<bool>,
     no_geometry_delay: Option<bool>,
     no_passband_gains: Option<bool>,
+    no_cable_delay: Option<bool>,
+    no_rfi: Option<bool>,
     allow_resubmit: Option<bool>,
 ) -> PyResult<Bound<'py, PyDict>> {
     let params = ConversionArgs {
@@ -192,6 +196,8 @@ pub fn conversion_job_params<'py>(
         no_flag_dc,
         no_geometry_delay,
         no_passband_gains,
+        no_cable_delay,
+        no_rfi,
         allow_resubmit,
     }
     .into_params(obs_id)?;

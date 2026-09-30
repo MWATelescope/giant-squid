@@ -534,11 +534,12 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}],"completed":"2026-09-08T06:00:00Z"},"325431":{"obs_id":1090528432,"job_id":325431,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null}}
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}],"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
 ```
 
 The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
-`job_state`, `files` and `completed`, which are the MWA ASVO API's (OpenAPI) names. Each file has
+`job_state`, `files`, `created`, `started`, `completed`, `modified`, `error_text`, `user_id`,
+`first_name`, `last_name` and `job_params`, which are the MWA ASVO API's (OpenAPI) names. Each file has
 `type` (where it is delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and
 `format` (as the MWA ASVO gives it, or `null`).
 
@@ -816,7 +817,7 @@ use std::time::Duration;
 use mwa_giant_squid::asvo::apiv2::openapi::DownloadJobParams;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, DownloadOptions,
-    DownloadProgress, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    DownloadProgress, JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
@@ -826,10 +827,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     config.token_cache_path = Some(default_token_cache_path(Path::new("/home/me")));
     let client = AsvoClient::new(config)?;
 
-    // List the ready jobs from the past 7 days.
-    let ready = client
-        .get_jobs(Some(7))?
-        .filter(&[], &[], &[], &[AsvoJobState::Ready]);
+    // List the ready jobs from the past 7 days. The server filters them;
+    // `AsvoJobVec::filter` can then filter by several states or types.
+    let ready = client.get_jobs(&JobsFilter {
+        days: Some(7),
+        job_state: Some(AsvoJobState::Ready),
+        ..JobsFilter::default()
+    })?;
     for job in &ready.0 {
         println!("{} {} {}", job.job_id, job.obs_id, job.job_state);
     }
@@ -843,7 +847,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let job_id = resp.job_id.get();
 
     // Wait for it: the library checks once, the caller loops and sleeps.
-    while !client.get_jobs(None)?.all_ready(&[job_id])? {
+    while !client.get_jobs(&JobsFilter::default())?.all_ready(&[job_id])? {
         sleep(Duration::from_secs(60));
     }
 

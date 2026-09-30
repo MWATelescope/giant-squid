@@ -80,6 +80,8 @@ def conversion_job_params(
     no_flag_dc: bool | None = None,
     no_geometry_delay: bool | None = None,
     no_passband_gains: bool | None = None,
+    no_cable_delay: bool | None = None,
+    no_rfi: bool | None = None,
     allow_resubmit: bool | None = None,
 ) -> dict[str, Any]:
     """The request body that ``AsvoClient.submit_conversion_job`` sends, as a dict. Makes no request.
@@ -207,6 +209,10 @@ class AsvoApiError(Exception):
     """ApiError."""
     suggestion: str | None
     """ApiError."""
+    field_errors: list[dict[str, str]]
+    """ApiError: the fields that failed validation, each as ``{"field": ..., "message": ...}``. Can be empty."""
+    request_id: str | None
+    """ApiError: the server's ID for the request, for a support request."""
     code: int
     """BadStatus: the HTTP status code."""
 
@@ -357,13 +363,34 @@ class AsvoJob:
         """The job state."""
     @property
     def error_text(self) -> str | None:
-        """The error message if the state is Error, otherwise None."""
+        """The server's error message, or None. A job in the Error state has its message here."""
     @property
     def files(self) -> list[AsvoFilesArray] | None:
         """The job's files, or None if the job has no product yet."""
     @property
     def completed(self) -> datetime.datetime | None:
         """When the job completed (UTC), or None."""
+    @property
+    def created(self) -> datetime.datetime:
+        """When the job was created (UTC)."""
+    @property
+    def started(self) -> datetime.datetime | None:
+        """When the job started (UTC), or None if it has not started."""
+    @property
+    def modified(self) -> datetime.datetime | None:
+        """When the job was last changed (UTC), or None."""
+    @property
+    def user_id(self) -> int:
+        """The ID of the user who submitted the job."""
+    @property
+    def first_name(self) -> str:
+        """The first name of the user who submitted the job."""
+    @property
+    def last_name(self) -> str:
+        """The last name of the user who submitted the job."""
+    @property
+    def job_params(self) -> dict[str, Any]:
+        """The job's parameters as the server gives them."""
 
 class DownloadProgress:
     """A download progress event, given to the ``progress`` callback of the download methods.
@@ -451,8 +478,10 @@ class AsvoJobVec:
     def json(self) -> str:
         """The jobs as a JSON object keyed by job ID, as ``giant-squid list --json`` prints.
 
-        The keys are the OpenAPI names: ``obs_id``, ``job_id``, ``job_type``, ``job_state``, ``files`` and
-        ``completed``; and ``type``, ``url``, ``path``, ``size`` and ``sha1`` for each file.
+        The keys are the OpenAPI names: ``obs_id``, ``job_id``, ``job_type``, ``job_state``, ``files``,
+        ``created``, ``started``, ``completed``, ``modified``, ``error_text``, ``user_id``, ``first_name``,
+        ``last_name`` and ``job_params``; and ``type``, ``url``, ``path``, ``size``, ``sha1`` and ``format`` for
+        each file.
         """
 
 class AsvoClient:
@@ -480,13 +509,30 @@ class AsvoClient:
         api_timeout: float | None = None,
         token_cache_path: str | os.PathLike[str] | None = None,
     ) -> None: ...
-    def get_jobs(self, days: int | None = None) -> AsvoJobVec:
-        """Get your jobs.
+    def get_jobs(
+        self,
+        days: int | None = None,
+        *,
+        job_state: AsvoJobState | None = None,
+        job_type: AsvoJobType | None = None,
+        date_from: datetime.datetime | None = None,
+        date_to: datetime.datetime | None = None,
+        sort_by: str | None = None,
+    ) -> AsvoJobVec:
+        """Get your jobs. The server filters them; every filter that is None does not filter.
 
         Args:
             days: Only the jobs from the past ``days`` days. None gets your full job history.
+            job_state: Only the jobs in this state. The server takes one state; to filter by several, use
+                ``AsvoJobVec.filter``. ``AsvoJobState.Expired`` cannot be filtered by.
+            job_type: Only the jobs of this type. ``AsvoJobType.Unknown`` cannot be filtered by.
+            date_from: Only the jobs created at or after this time. It must have a time zone.
+            date_to: Only the jobs created at or before this time. It must have a time zone.
+            sort_by: The column to sort the jobs by, for example "id". None uses the server's default order.
 
         Raises:
+            ValueError: ``job_state`` or ``job_type`` cannot be filtered by.
+            TypeError: ``date_from`` or ``date_to`` has no time zone.
             AsvoApiError: The request failed.
         """
 
@@ -550,6 +596,8 @@ class AsvoClient:
         no_flag_dc: bool | None = None,
         no_geometry_delay: bool | None = None,
         no_passband_gains: bool | None = None,
+        no_cable_delay: bool | None = None,
+        no_rfi: bool | None = None,
         allow_resubmit: bool | None = None,
     ) -> JobSubmittedResponse:
         """Submit a conversion (preprocessing) job.
@@ -574,6 +622,8 @@ class AsvoClient:
             no_flag_dc: Do not flag the DC channel.
             no_geometry_delay: Do not apply the geometric delay corrections.
             no_passband_gains: Do not apply the passband gain corrections.
+            no_cable_delay: Do not apply the cable delay corrections.
+            no_rfi: Do not flag RFI.
             allow_resubmit: Submit the job even if an identical one has completed.
 
         Returns:

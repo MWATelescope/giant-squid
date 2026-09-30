@@ -204,7 +204,7 @@ def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: H
         "no_geometry_delay": True,
         "no_passband_gains": True,
         "allow_resubmit": True,
-        # Not arguments of the Python method, so the schema defaults apply.
+        # Not given, so the schema defaults apply.
         "no_cable_delay": False,
         "no_rfi": False,
     }
@@ -646,3 +646,14 @@ def test_a_negative_job_id_is_rejected_before_any_request(client: gs.AsvoClient,
         client.cancel_job(-1)
 
     assert len(httpserver.log) == requests_before
+
+
+def test_conversion_job_sends_no_cable_delay_and_no_rfi(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """The two conversion options reach the request body."""
+    submitted(httpserver, CONVERSION_PATH)
+
+    client.submit_conversion_job(TEST_OBS_ID, no_cable_delay=True, no_rfi=True)
+
+    body = body_sent_to(httpserver, CONVERSION_PATH)
+    assert body["no_cable_delay"] is True
+    assert body["no_rfi"] is True

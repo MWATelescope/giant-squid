@@ -246,6 +246,14 @@ pub struct ConversionJobArgs {
     #[arg(long)]
     pub no_passband_gains: bool,
 
+    /// Whether to skip applying cable delay corrections.
+    #[arg(long)]
+    pub no_cable_delay: bool,
+
+    /// Whether to skip RFI flagging.
+    #[arg(long)]
+    pub no_rfi: bool,
+
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
     pub allow_resubmit: bool,
@@ -271,6 +279,8 @@ impl ConversionJobArgs {
             .no_flag_dc(self.no_flag_dc)
             .no_geometry_delay(self.no_geometry_delay)
             .no_passband_gains(self.no_passband_gains)
+            .no_cable_delay(self.no_cable_delay)
+            .no_rfi(self.no_rfi)
             .allow_resubmit(self.allow_resubmit)
             .try_into()?;
 

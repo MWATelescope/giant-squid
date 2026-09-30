@@ -1,0 +1,7 @@
+# `AsvoApiError::ApiError` keeps every field of the API's `ErrorResponse`
+# (error code, message, detail, suggestion, field errors, request ID), which
+# makes `AsvoApiError`, and `AsvoError` that wraps it, 144 bytes: over the
+# default limit (128) of `clippy::result_large_err`. Boxing the fields would
+# make the public error type harder to match on, for no measurable gain in
+# a network client. This limit still catches real growth.
+large-error-threshold = 160

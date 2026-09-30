@@ -15,7 +15,9 @@ use httpmock::prelude::*;
 use serde_json::json;
 
 use crate::asvo::apiv2::openapi::DownloadJobParams;
-use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery};
+use crate::asvo::{
+    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobsFilter,
+};
 use crate::cli::config::client_config_from_env;
 use crate::cli::Args;
 use crate::test_common::*;
@@ -62,7 +64,11 @@ fn one_client_can_be_used_from_several_threads_at_once() {
 
     std::thread::scope(|scope| {
         for _ in 0..4 {
-            scope.spawn(|| client.get_jobs(None).expect("get_jobs should succeed"));
+            scope.spawn(|| {
+                client
+                    .get_jobs(&JobsFilter::default())
+                    .expect("get_jobs should succeed")
+            });
         }
     });
 
@@ -84,7 +90,9 @@ fn a_valid_cached_session_is_reused_without_logging_in() {
     let get_jobs = env.mock_get_jobs(vec![]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
 
     assert!(jobs.0.is_empty());
     assert_eq!(login.calls(), 0, "a cached session should not log in");
@@ -189,7 +197,7 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let Err(err) = client.get_jobs(None) else {
+    let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
 
@@ -247,7 +255,9 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
         for _ in 0..CONCURRENT_THREADS {
             scope.spawn(|| {
                 start.wait();
-                client.get_jobs(None).expect("get_jobs should succeed");
+                client
+                    .get_jobs(&JobsFilter::default())
+                    .expect("get_jobs should succeed");
             });
         }
     });
@@ -280,7 +290,7 @@ fn a_structured_error_body_becomes_an_api_error() {
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let Err(err) = client.get_jobs(None) else {
+    let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
 
@@ -308,7 +318,7 @@ fn a_non_json_error_body_becomes_a_bad_status() {
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let Err(err) = client.get_jobs(None) else {
+    let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
 
@@ -336,7 +346,9 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     )]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
 
     assert_eq!(get_jobs.calls(), 1);
     assert_eq!(jobs.0.len(), 1);
@@ -378,7 +390,9 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
 
     assert_eq!(first.calls(), 1);
     assert_eq!(second.calls(), 1, "the second page should be requested");
@@ -394,7 +408,9 @@ fn an_errored_job_carries_the_servers_error_text() {
     env.mock_get_jobs(vec![detail]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
 
     assert_eq!(
         jobs.0[0].job_state,
@@ -420,7 +436,9 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     env.mock_get_jobs(vec![no_obs_id, unknown_state, bad_obs_id, good]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("get_jobs should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
     assert_eq!(jobs.0[0].job_id, TEST_JOB_ID);
@@ -821,7 +839,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     // The recording was made with --days 30, and the recorded request is
     // the matching criteria, so the same argument is required here.
     let jobs = client
-        .get_jobs(Some(30))
+        .get_jobs(&JobsFilter::days(30))
         .expect("the recorded listing should be served");
 
     assert_eq!(jobs.0.len(), 1);
@@ -847,7 +865,7 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
-        .get_jobs(Some(30))
+        .get_jobs(&JobsFilter::days(30))
         .expect("the recorded listing should be served");
 
     let files = jobs.0[0]
@@ -928,7 +946,7 @@ fn record_login_and_get_jobs() {
 
     let client = AsvoClient::new(config).expect("could not authenticate with the target server");
     let jobs = client
-        .get_jobs(Some(30))
+        .get_jobs(&JobsFilter::days(30))
         .expect("could not list jobs on the target server");
     println!("recorded a login and a listing of {} jobs", jobs.0.len());
 
@@ -949,7 +967,9 @@ fn a_product_file_keeps_its_format() {
     env.mock_get_jobs(vec![detail]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("the listing should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("the listing should succeed");
 
     let files = jobs.0[0].files.as_ref().expect("the job has files");
     assert_eq!(files[0].format.as_deref(), Some("tar"));
@@ -966,8 +986,204 @@ fn a_product_without_files_does_not_fail_the_listing() {
     env.mock_get_jobs(vec![empty, other]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client.get_jobs(None).expect("the listing should succeed");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("the listing should succeed");
 
     assert_eq!(jobs.0.len(), 2);
     assert!(jobs.0[0].files.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// get_jobs filters, the full job detail, and API error details
+// ---------------------------------------------------------------------------
+
+/// Every filter reaches the request body under its OpenAPI name, with the
+/// API's own values (a `Ready` job is `completed`; a type is its number).
+#[test]
+fn get_jobs_sends_every_filter_to_the_server() {
+    let env = TestEnv::with_session();
+    let filtered = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(
+                r#"{ "days": 7, "job_state": "completed", "job_type": 6,
+                 "date_from": "2026-09-01T00:00:00Z", "date_to": "2026-09-30T00:00:00Z",
+                 "sort_by": "created" }"#,
+            );
+        then.status(200)
+            .json_body(json!({ "jobs": [], "total_count": 0 }));
+    });
+
+    let filter = JobsFilter {
+        days: Some(7),
+        job_state: Some(AsvoJobState::Ready),
+        job_type: Some(AsvoJobType::Imaging),
+        date_from: Some("2026-09-01T00:00:00Z".parse().expect("a valid time")),
+        date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
+        sort_by: Some("created".to_string()),
+    };
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .get_jobs(&filter)
+        .expect("the listing should succeed");
+
+    assert_eq!(filtered.calls(), 1);
+}
+
+/// With no filter, nothing is filtered: `days` is null, and the schema's
+/// default order (`id`) is used.
+#[test]
+fn get_jobs_with_no_filter_asks_for_everything() {
+    let env = TestEnv::with_session();
+    let unfiltered = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(r#"{ "days": null, "sort_by": "id" }"#)
+            .is_true(|req| {
+                let body: serde_json::Value =
+                    serde_json::from_slice(req.body().as_ref()).unwrap_or_default();
+                ["job_state", "job_type", "date_from", "date_to"]
+                    .iter()
+                    .all(|key| body.get(key).is_none())
+            });
+        then.status(200)
+            .json_body(json!({ "jobs": [], "total_count": 0 }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .get_jobs(&JobsFilter::default())
+        .expect("the listing should succeed");
+
+    assert_eq!(unfiltered.calls(), 1);
+}
+
+/// A state or a type that the API cannot filter by is refused before any
+/// request.
+#[test]
+fn get_jobs_refuses_a_filter_the_api_does_not_have() {
+    let env = TestEnv::with_session();
+    let listing = env.mock_get_jobs(vec![]);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    for (filter, name) in [
+        (
+            JobsFilter {
+                job_state: Some(AsvoJobState::Expired),
+                ..JobsFilter::default()
+            },
+            "job_state",
+        ),
+        (
+            JobsFilter {
+                job_type: Some(AsvoJobType::Unknown),
+                ..JobsFilter::default()
+            },
+            "job_type",
+        ),
+    ] {
+        let err = client
+            .get_jobs(&filter)
+            .expect_err("the filter should be refused");
+        assert!(
+            matches!(err, AsvoApiError::InvalidParameter { name: n, .. } if n == name),
+            "got {err:?}"
+        );
+    }
+    assert_eq!(listing.calls(), 0);
+}
+
+/// Every field of the job detail reaches `AsvoJob`.
+#[test]
+fn a_listed_job_has_every_field_of_the_job_detail() {
+    let env = TestEnv::with_session();
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "error", 1);
+    detail["error_text"] = json!("it failed");
+    detail["started"] = json!("2026-09-08T05:50:00");
+    detail["modified"] = json!("2026-09-08T05:55:00Z");
+    env.mock_get_jobs(vec![detail]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("the listing should succeed");
+    let job = &jobs.0[0];
+
+    assert_eq!(job.created.to_rfc3339(), "2026-09-08T05:41:54.757232+00:00");
+    assert_eq!(
+        job.started.map(|t| t.to_rfc3339()),
+        Some("2026-09-08T05:50:00+00:00".to_string())
+    );
+    assert_eq!(
+        job.modified.map(|t| t.to_rfc3339()),
+        Some("2026-09-08T05:55:00+00:00".to_string())
+    );
+    assert_eq!(job.error_text.as_deref(), Some("it failed"));
+    assert_eq!(job.job_state, AsvoJobState::Error("it failed".to_string()));
+    assert_eq!(job.user_id, TEST_USER_ID);
+    assert_eq!(job.first_name, "Test");
+    assert_eq!(job.last_name, "User");
+    assert_eq!(job.job_params["delivery"], "acacia");
+}
+
+/// An API error keeps its field errors and request ID, and shows them in
+/// its message.
+#[test]
+fn an_api_error_keeps_its_field_errors_and_request_id() {
+    let env = TestEnv::with_session();
+    let mut body = error_response("VALIDATION_ERROR", "Invalid parameters");
+    body["field_errors"] = json!([
+        { "field": "mgain", "message": "must be at most 1" },
+        { "field": "robust", "message": "must be at least -2" }
+    ]);
+    body["request_id"] = json!("req-1234");
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(422).json_body(body);
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("expected the listing to fail");
+
+    match &err {
+        AsvoApiError::ApiError {
+            field_errors,
+            request_id,
+            ..
+        } => {
+            let fields: Vec<&str> = field_errors.iter().map(|e| e.field.as_str()).collect();
+            assert_eq!(fields, ["mgain", "robust"]);
+            assert_eq!(request_id.as_deref(), Some("req-1234"));
+        }
+        other => panic!("expected ApiError, got {other:?}"),
+    }
+    assert_eq!(
+        err.to_string(),
+        "MWA ASVO returned an error (VALIDATION_ERROR): Invalid parameters\n  mgain: must be at \
+         most 1\n  robust: must be at least -2\n  (request ID: req-1234)"
+    );
+}
+
+/// An error with no field errors or request ID has the old message.
+#[test]
+fn an_api_error_without_details_has_the_plain_message() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(400)
+            .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("expected the listing to fail");
+
+    assert_eq!(
+        err.to_string(),
+        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
+    );
 }

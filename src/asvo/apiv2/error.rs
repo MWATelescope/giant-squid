@@ -12,6 +12,7 @@
 use thiserror::Error;
 
 use super::openapi::error::ConversionError;
+use super::openapi::FieldError;
 
 #[derive(Error, Debug)]
 pub enum AsvoApiError {
@@ -53,12 +54,23 @@ pub enum AsvoApiError {
     /// structured `ErrorResponse` shape. The fields are copied out of
     /// `super::openapi::ErrorResponse` individually rather than wrapping it
     /// directly, since thiserror needs a plain `Display` to format on.
-    #[error("MWA ASVO returned an error ({error_code}): {message}")]
+    ///
+    /// The message has the field errors and the request ID, if the server
+    /// gave them, after the error code and message.
+    #[error(
+        "MWA ASVO returned an error ({error_code}): {message}{}",
+        api_error_extra(field_errors, request_id.as_deref())
+    )]
     ApiError {
         error_code: String,
         message: String,
         detail: Option<String>,
         suggestion: Option<String>,
+        /// The fields that failed validation, and why. Empty if the server
+        /// gave none.
+        field_errors: Vec<FieldError>,
+        /// The server's ID for the request, for a support request.
+        request_id: Option<String>,
     },
 
     /// The server responded with a non-success status code, but the body
@@ -68,4 +80,17 @@ pub enum AsvoApiError {
         code: reqwest::StatusCode,
         message: String,
     },
+}
+
+/// The part of an [`AsvoApiError::ApiError`] message after the error code
+/// and message: one line for each field error, then the request ID.
+fn api_error_extra(field_errors: &[FieldError], request_id: Option<&str>) -> String {
+    let mut extra = String::new();
+    for e in field_errors {
+        extra.push_str(&format!("\n  {}: {}", e.field, e.message));
+    }
+    if let Some(id) = request_id {
+        extra.push_str(&format!("\n  (request ID: {id})"));
+    }
+    extra
 }

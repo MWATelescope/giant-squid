@@ -23,6 +23,7 @@ fi
 # After running this script, regenerate + review + commit with:
 #
 #     cargo build --features regen-openapi
+#     cargo fmt
 #     git diff src/asvo/apiv2/openapi.rs
 #
 # It assumes:
@@ -119,6 +120,11 @@ cargo check
 
 # Allow dirty is ok here as the only file that could be modified is Cargo.lock or the openapi.rs which we regenerated anyway!
 cargo clippy --fix --allow-dirty
+
+# typify's output is not rustfmt-formatted, and CI checks the formatting
+# (`cargo fmt --check`), so format the regenerated file (and anything the
+# clippy fixes touched).
+cargo fmt
 
 cargo check
 

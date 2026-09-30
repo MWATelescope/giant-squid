@@ -15,6 +15,16 @@ const JOB_ID_C: AsvoJobId = 103;
 /// Another obsid, for the filter tests.
 const OTHER_OBS_ID: u64 = 1090008640;
 
+/// The user ID of the test jobs.
+const TEST_USER_ID: i64 = 4242;
+
+/// When the test jobs were created.
+fn test_created() -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::parse_from_rfc3339("2026-09-08T05:41:54Z")
+        .expect("a valid time")
+        .with_timezone(&chrono::Utc)
+}
+
 /// A job with the given ID and state.
 fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
     AsvoJob {
@@ -23,7 +33,15 @@ fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
         job_type: AsvoJobType::DownloadVisibilities,
         job_state: state,
         files: None,
+        created: test_created(),
+        started: None,
         completed: None,
+        modified: None,
+        error_text: None,
+        user_id: TEST_USER_ID,
+        first_name: "Test".to_string(),
+        last_name: "User".to_string(),
+        job_params: serde_json::Map::new(),
     }
 }
 
@@ -123,7 +141,15 @@ fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: AsvoJo
         job_type,
         job_state: state,
         files: None,
+        created: test_created(),
+        started: None,
         completed: None,
+        modified: None,
+        error_text: None,
+        user_id: TEST_USER_ID,
+        first_name: "Test".to_string(),
+        last_name: "User".to_string(),
+        job_params: serde_json::Map::new(),
     }
 }
 
@@ -229,11 +255,19 @@ fn the_json_output_keys_are_the_openapi_names() {
         keys,
         [
             "completed",
+            "created",
+            "error_text",
             "files",
+            "first_name",
             "job_id",
+            "job_params",
             "job_state",
             "job_type",
-            "obs_id"
+            "last_name",
+            "modified",
+            "obs_id",
+            "started",
+            "user_id"
         ]
     );
     let file_keys: Vec<&str> = entry["files"][0]

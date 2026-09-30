@@ -101,6 +101,8 @@ pub(super) struct ConversionArgs {
     pub no_flag_dc: Option<bool>,
     pub no_geometry_delay: Option<bool>,
     pub no_passband_gains: Option<bool>,
+    pub no_cable_delay: Option<bool>,
+    pub no_rfi: Option<bool>,
     pub allow_resubmit: Option<bool>,
 }
 
@@ -125,6 +127,8 @@ impl ConversionArgs {
             no_flag_dc => self.no_flag_dc,
             no_geometry_delay => self.no_geometry_delay,
             no_passband_gains => self.no_passband_gains,
+            no_cable_delay => self.no_cable_delay,
+            no_rfi => self.no_rfi,
             allow_resubmit => self.allow_resubmit,
         );
         let params: ConversionJobParams = builder.try_into().map_err(value_error)?;

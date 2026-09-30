@@ -13,7 +13,7 @@ mod test;
 
 use crate::check_file_sha1_hash;
 use crate::obs_id::ObsId;
-pub use apiv2::client::{AsvoClient, AsvoClientConfig, DEFAULT_API_TIMEOUT};
+pub use apiv2::client::{AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT};
 pub use apiv2::AsvoApiError;
 pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};

@@ -27,7 +27,8 @@ use std::error::Error;
 use std::path::Path;
 
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, DEFAULT_ASVO_HOST,
+    default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, JobsFilter,
+    DEFAULT_ASVO_HOST,
 };
 
 /// The environment variable that holds the API key.
@@ -48,7 +49,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|home| default_token_cache_path(Path::new(&home)));
 
     let client = AsvoClient::new(config)?;
-    let jobs = client.get_jobs(days)?;
+    let jobs = client.get_jobs(&JobsFilter {
+        days,
+        ..JobsFilter::default()
+    })?;
 
     if jobs.0.is_empty() {
         println!("You have no jobs.");

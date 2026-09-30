@@ -240,7 +240,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
     loop {
         // `None` here mirrors `list`'s own default: fetch full history
         // rather than relying on the (unconfirmed) server-side default.
-        let jobs = client.get_jobs(None)?;
+        let jobs = client.get_jobs(&JobsFilter::default())?;
         let all_ready = jobs.all_ready(job_ids)?;
 
         // Log if there was a change in state. `all_ready` has already
@@ -291,7 +291,10 @@ fn main() -> Result<(), anyhow::Error> {
             }
             let client = connect()?;
             let jobs = client
-                .get_jobs(days)?
+                .get_jobs(&JobsFilter {
+                    days,
+                    ..JobsFilter::default()
+                })?
                 .filter(&job_ids, &obs_ids, &job_types, &job_states);
 
             if legacy_json {
@@ -790,9 +793,10 @@ fn main() -> Result<(), anyhow::Error> {
             // they're all ready.
             wait_loop(&client, &parsed_job_ids)?;
 
-            let jobs = client
-                .get_jobs(None)?
-                .filter(&parsed_job_ids, &[], &[], &[]);
+            let jobs =
+                client
+                    .get_jobs(&JobsFilter::default())?
+                    .filter(&parsed_job_ids, &[], &[], &[]);
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");

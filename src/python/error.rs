@@ -11,6 +11,7 @@
 
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 use super::types::PyAsvoJobState;
 // The library's error enums have the same names as the Python exceptions,
@@ -40,6 +41,8 @@ enum Field {
     OptStr(Option<String>),
     Int(u64),
     State(PyAsvoJobState),
+    /// A list of `{"field": ..., "message": ...}` dicts.
+    ErrorDicts(Vec<lib::apiv2::openapi::FieldError>),
 }
 
 /// Make an exception of type `T` with the message of `message`, and set
@@ -59,6 +62,18 @@ fn build<T: pyo3::PyTypeInfo>(
             Field::OptStr(s) => value.setattr(name, s),
             Field::Int(n) => value.setattr(name, n),
             Field::State(s) => value.setattr(name, s),
+            Field::ErrorDicts(errors) => {
+                let list = errors
+                    .into_iter()
+                    .map(|e| {
+                        let dict = PyDict::new(py);
+                        dict.set_item("field", e.field)?;
+                        dict.set_item("message", e.message)?;
+                        Ok(dict)
+                    })
+                    .collect::<PyResult<Vec<_>>>();
+                list.and_then(|list| value.setattr(name, list))
+            }
         });
     }
     // Setting an attribute on a new exception instance does not fail in
@@ -94,6 +109,8 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
             message,
             detail,
             suggestion,
+            field_errors,
+            request_id,
         } => (
             "ApiError",
             vec![
@@ -101,6 +118,8 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
                 ("message", Field::Str(message)),
                 ("detail", Field::OptStr(detail)),
                 ("suggestion", Field::OptStr(suggestion)),
+                ("field_errors", Field::ErrorDicts(field_errors)),
+                ("request_id", Field::OptStr(request_id)),
             ],
         ),
         lib::AsvoApiError::BadStatus { code, message } => (

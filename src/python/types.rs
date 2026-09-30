@@ -319,13 +319,11 @@ impl PyAsvoJob {
         PyAsvoJobState::from(&self.0.job_state)
     }
 
-    /// The error message if the state is `Error`, otherwise `None`.
+    /// The server's error message, or `None`. A job in the `Error` state
+    /// has its message here.
     #[getter]
     fn error_text(&self) -> Option<String> {
-        match &self.0.job_state {
-            AsvoJobState::Error(e) => Some(e.clone()),
-            _ => None,
-        }
+        self.0.error_text.clone()
     }
 
     /// The job's files, or `None` if the job has no product yet.
@@ -341,6 +339,50 @@ impl PyAsvoJob {
     #[getter]
     fn completed(&self) -> Option<DateTime<Utc>> {
         self.0.completed
+    }
+
+    /// When the job was created (UTC).
+    #[getter]
+    fn created(&self) -> DateTime<Utc> {
+        self.0.created
+    }
+
+    /// When the job started (UTC), or `None` if it has not started.
+    #[getter]
+    fn started(&self) -> Option<DateTime<Utc>> {
+        self.0.started
+    }
+
+    /// When the job was last changed (UTC), or `None`.
+    #[getter]
+    fn modified(&self) -> Option<DateTime<Utc>> {
+        self.0.modified
+    }
+
+    /// The ID of the user who submitted the job.
+    #[getter]
+    fn user_id(&self) -> i64 {
+        self.0.user_id
+    }
+
+    /// The first name of the user who submitted the job.
+    #[getter]
+    fn first_name(&self) -> String {
+        self.0.first_name.clone()
+    }
+
+    /// The last name of the user who submitted the job.
+    #[getter]
+    fn last_name(&self) -> String {
+        self.0.last_name.clone()
+    }
+
+    /// The job's parameters as the server gives them, as a `dict`.
+    #[getter]
+    fn job_params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let json = serde_json::to_string(&self.0.job_params)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        py.import("json")?.call_method1("loads", (json,))
     }
 
     fn __repr__(&self) -> String {
@@ -543,8 +585,10 @@ impl PyAsvoJobVec {
 
     /// The jobs as a JSON object keyed by job ID, as `giant-squid list
     /// --json` prints. The keys are the OpenAPI names (`obs_id`, `job_id`,
-    /// `job_type`, `job_state`, `files`, `completed`; and `type`, `url`,
-    /// `path`, `size`, `sha1` for each file).
+    /// `job_type`, `job_state`, `files`, `created`, `started`, `completed`,
+    /// `modified`, `error_text`, `user_id`, `first_name`, `last_name`,
+    /// `job_params`; and `type`, `url`, `path`, `size`, `sha1`, `format` for
+    /// each file).
     fn json(&self) -> PyResult<String> {
         self.0
             .clone()

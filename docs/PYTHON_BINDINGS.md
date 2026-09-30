@@ -303,6 +303,41 @@
   keyword arguments: every name matches, and the only fields with neither
   are conversion `no_cable_delay` and `no_rfi`, voltage `delivery_format`
   and beamformer `mode`, as decided before.
+- 2026-09-30: step 2.9 done (approved). Added the schema fields that
+  were missing. Conversion: `no_cable_delay` and `no_rfi` (CLI flags
+  `--no-cable-delay`, `--no-rfi`; Python keywords). `AsvoJob` has every
+  field of `JobDetailResponse`: `created`, `started`, `modified`,
+  `error_text`, `user_id`, `first_name`, `last_name` and `job_params` (an
+  untyped map, as in the schema), in Rust, Python (as properties;
+  `job_params` is a `dict`) and the `--json` output (`--legacy-json` is
+  unchanged). Python `AsvoJob.error_text` is now the server's
+  `error_text`, not derived from the state; for an `Error` job it is the
+  same message. `AsvoClient::get_jobs(&JobsFilter)` takes every
+  `JobsByUserRequest` filter: `days`, `job_state`, `job_type`,
+  `date_from`, `date_to` and `sort_by` (`limit` and `offset` stay
+  internal: the client pages through all results). `job_state` and
+  `job_type` are the library's `AsvoJobState` and `AsvoJobType`, converted
+  to the API's values (`Ready` is `completed`; a type is its number);
+  `Expired` and `Unknown`, which the API cannot filter by, are an
+  `InvalidParameter` error before any request. The request is built with
+  the generated builder, so unset fields take the schema defaults, except
+  `days`, which is still sent as `null` when unset (the null-means-all
+  assumption is still to be confirmed). Python: `get_jobs(days=None, *,
+  job_state, job_type, date_from, date_to, sort_by)`; a datetime without
+  a time zone is a `TypeError`. The CLI `list` still filters by several
+  states and types on the client, and has no date filters. `AsvoApiError::
+  ApiError` has `field_errors` (a `Vec` of the schema's `FieldError`) and
+  `request_id`, also in its message (one line per field error, then the
+  request ID; the message is unchanged when there are none) and as Python
+  attributes (`field_errors` is a list of `{"field", "message"}` dicts).
+  This makes `AsvoApiError` (and `AsvoError`) 144 bytes, over clippy's
+  `result_large_err` limit of 128; a new `clippy.toml` sets the limit to
+  160 with the reason, rather than boxing the fields. `AsvoJobVec` derives
+  `Debug`. `tools/generate_openapi.sh` runs `cargo fmt` after it
+  regenerates `openapi.rs`. Tests changed only where the new fields
+  required it (struct literals, the JSON key and golden tests); one test
+  comment changed. 6 new client tests, 1 new CLI test, 9 new pytest tests
+  (147 in total).
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section
@@ -451,7 +486,7 @@ logins a minute.
 
 | Python (same name as Rust) | CLI command |
 |---|---|
-| `get_jobs(days=None) -> AsvoJobVec` | `list` |
+| `get_jobs(days=None, *, job_state=None, job_type=None, date_from=None, date_to=None, sort_by=None) -> AsvoJobVec` | `list` |
 | `submit_download_vis_job(obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None)` | `submit-vis` |
 | `submit_download_meta_job(obs_id, ...)` | `submit-meta` |
 | `submit_conversion_job(obs_id, *, ...)` | `submit-conv` |
