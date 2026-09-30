@@ -484,19 +484,7 @@
           "default": false
         },
         "download_type": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "vis",
-                "meta"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Download Type",
+          "$ref": "#/definitions/DownloadType",
           "default": "vis"
         }
       },
@@ -506,6 +494,14 @@
       ],
       "title": "DownloadJobParams",
       "description": "Parameters for download job submission"
+    },
+    "DownloadType": {
+      "type": "string",
+      "enum": [
+        "vis",
+        "meta"
+      ],
+      "title": "DownloadType"
     },
     "ErrorResponse": {
       "properties": {
@@ -1073,7 +1069,8 @@
               "type": "null"
             }
           ],
-          "title": "Clean Threshold"
+          "title": "Clean Threshold",
+          "default": 0.001
         },
         "auto_threshold": {
           "type": "number",
@@ -1124,7 +1121,9 @@
         "wstack_nwlayers": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
             },
             {
               "type": "null"
@@ -1172,9 +1171,8 @@
           "default": true
         },
         "pol": {
-          "type": "string",
-          "title": "Pol",
-          "default": "XX,YY"
+          "$ref": "#/definitions/Polarization",
+          "default": "XXYY"
         },
         "output_mode": {
           "type": "string",
@@ -1253,14 +1251,12 @@
         "product": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/definitions/JobProduct"
             },
             {
               "type": "null"
             }
           ],
-          "title": "Product",
           "description": "Job output/results when completed (file listings, download links)"
         },
         "created": {
@@ -1345,6 +1341,71 @@
       "title": "JobDetailResponse",
       "description": "Complete job details response"
     },
+    "JobFile": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "title": "Type"
+        },
+        "size": {
+          "type": "integer",
+          "title": "Size"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Path",
+          "description": "/scratch file path"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Url",
+          "description": "acacia signed url"
+        },
+        "sha1": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sha1",
+          "deescription": "acacia checksum"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Format"
+        }
+      },
+      "type": "object",
+      "required": [
+        "type",
+        "size"
+      ],
+      "title": "JobFile"
+    },
     "JobPriorityUpdate": {
       "properties": {
         "job_id": {
@@ -1364,6 +1425,23 @@
       ],
       "title": "JobPriorityUpdate",
       "description": "Priority score update for a job"
+    },
+    "JobProduct": {
+      "properties": {
+        "files": {
+          "items": {
+            "$ref": "#/definitions/JobFile"
+          },
+          "type": "array",
+          "title": "Files"
+        }
+      },
+      "type": "object",
+      "required": [
+        "files"
+      ],
+      "title": "JobProduct",
+      "description": "Model for the artifacts metadata of a completed job"
     },
     "JobState": {
       "type": "string",
@@ -1487,14 +1565,13 @@
         "job_type": {
           "anyOf": [
             {
-              "type": "integer"
+              "$ref": "#/definitions/JobType"
             },
             {
               "type": "null"
             }
           ],
-          "title": "Job Type",
-          "description": "a numeric representation of the job type: 0 = conversion, 1 = vis_download, 2 = meta_download, 3 = voltage, 4 = cancel, 5 = beamformer, 6 = imaging"
+          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
         },
         "date_from": {
           "anyOf": [
@@ -1537,8 +1614,7 @@
       "properties": {
         "jobs": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "$ref": "#/definitions/JobDetailResponse"
           },
           "type": "array",
           "title": "Jobs",
@@ -1685,7 +1761,8 @@
           "title": "User Id"
         },
         "job_type": {
-          "$ref": "#/definitions/JobType"
+          "$ref": "#/definitions/JobType",
+          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
         },
         "job_params": {
           "additionalProperties": true,
