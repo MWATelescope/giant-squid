@@ -503,18 +503,19 @@ Use this command to view the state of all of your MWA ASVO jobs.
 ```text
 List your current and recent MWA ASVO jobs
 
-Usage: giant-squid list [OPTIONS] [JOBID_OR_OBSID]...
+Usage: giant-squid list [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOBID_OR_OBSID]...  job IDs or obsids to filter by. Files containing job IDs or obsids are also accepted
+  [JOB_ID_OR_OBS_ID]...  job IDs or obsids to filter by. Files containing job IDs or obsids are also accepted
 
 Options:
-  -j, --json            Print the jobs as a simple JSON
-  -v, --verbosity...    The verbosity of the program. The default is to print high-level information
-      --states <STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
-      --types <TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltage or cancel_job
-  -n, --no-colour       Disables colouring of output. Useful when you have a non-black terminal background for example
-  -h, --help            Print help
+  -j, --json                    Print the jobs as a simple JSON
+  -v, --verbosity...            The verbosity of the program. The default is to print high-level information
+      --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
+      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltage or cancel_job
+  -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
+      --days <DAYS>             Only fetch jobs from the past N days. If not given, fetches your full job history
+  -h, --help                    Print help
 ```
 
 Example:
@@ -585,7 +586,8 @@ Out[3]: dict_keys(['216087', '216241', '217628'])
 `giant-squid list` takes an optional list of identifiers that can be used to filter the job listing,
 these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
 
-Additionally, the `--states` and `--types` options can be used to further filter the output.
+Additionally, the `--job-states` and `--job-types` options can be used to further filter the output.
+(The older names `--states` and `--types` still work.)
 
 These both taks a comma-separated, case-insensitive list of values from the `jobType` and
 `jobState` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
@@ -599,8 +601,8 @@ example: show only jobs that match both of the following conditions:
 
 ```bash
 giant-squid list \
-   --types download_visibilities,download-metadata,CANCELJOB \
-   --states preprocessing, Queued \
+   --job-types download_visibilities,download-metadata,CANCELJOB \
+   --job-states preprocessing, Queued \
    1234567890 1234567891
 ```
 
@@ -612,7 +614,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 
 ```bash
 set -eux
-giant-squid list --json --types download_visibilities --states ready \
+giant-squid list --json --job-types download_visibilities --job-states ready \
   | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
@@ -817,7 +819,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .get_jobs(Some(7))?
         .filter(&[], &[], &[], &[AsvoJobState::Ready]);
     for job in &ready.0 {
-        println!("{} {} {}", job.jobid, job.obsid, job.state);
+        println!("{} {} {}", job.job_id, job.obs_id, job.job_state);
     }
 
     // Submit a visibility download job. Fields you do not set use the
@@ -826,10 +828,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .obs_id(1090008640)
         .try_into()?;
     let resp = client.submit_download_vis_job(&params)?;
-    let jobid = u32::try_from(resp.job_id.get())?;
+    let job_id = u32::try_from(resp.job_id.get())?;
 
     // Wait for it: the library checks once, the caller loops and sleeps.
-    while !client.get_jobs(None)?.all_ready(&[jobid])? {
+    while !client.get_jobs(None)?.all_ready(&[job_id])? {
         sleep(Duration::from_secs(60));
     }
 
@@ -851,7 +853,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         retry_duration: DEFAULT_DOWNLOAD_RETRY_DURATION,
         should_stop: None,
     };
-    client.download_jobid(jobid, &opts)?;
+    client.download_job(job_id, &opts)?;
     Ok(())
 }
 ```

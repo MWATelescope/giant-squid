@@ -59,10 +59,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     for job in &jobs.0 {
         println!(
             "{:>10}  {:>10}  {:<24}  {}",
-            job.jobid,
-            job.obsid,
-            job.jtype.to_string(),
-            job.state
+            job.job_id,
+            job.obs_id,
+            job.job_type.to_string(),
+            job.job_state
         );
     }
 

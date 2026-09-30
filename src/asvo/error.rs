@@ -5,62 +5,62 @@
 //! Errors when interfacing with the MWA ASVO.
 use thiserror::Error;
 
-use super::{AsvoApiError, AsvoJobID, AsvoJobState};
-use crate::obsid::Obsid;
+use super::{AsvoApiError, AsvoJobId, AsvoJobState};
+use crate::obs_id::ObsId;
 
 #[derive(Error, Debug)]
 pub enum AsvoError {
     /// Tried to download (or check) a job that doesn't exist.
     #[error("MWA ASVO job ID {0} wasn't found in your list of jobs.")]
-    NoAsvoJob(AsvoJobID),
+    NoAsvoJob(AsvoJobId),
 
     /// A checked job is in an error state.
-    #[error("MWA ASVO job ID {jobid} (obsid: {obsid}) has an error: {error}")]
+    #[error("MWA ASVO job ID {job_id} (obsid: {obs_id}) has an error: {error}")]
     JobFailed {
-        jobid: AsvoJobID,
-        obsid: Obsid,
+        job_id: AsvoJobId,
+        obs_id: ObsId,
         error: String,
     },
 
     /// A checked job has expired.
     #[error("MWA ASVO job ID {0} has expired.")]
-    JobExpired(AsvoJobID),
+    JobExpired(AsvoJobId),
 
     /// A checked job has been cancelled.
     #[error("MWA ASVO job ID {0} has been cancelled.")]
-    JobCancelled(AsvoJobID),
+    JobCancelled(AsvoJobId),
 
     /// Tried to download an obsid that doesn't exist.
     #[error("Obsid {0} wasn't found in your list of jobs.")]
-    NoObsid(Obsid),
+    NoObsId(ObsId),
 
     /// Tried to download an obsid where >1 jobs exist but none are ready.
     #[error("No job for Obsid {0} is ready for download.")]
-    NoJobReadyForObsid(Obsid),
+    NoJobReadyForObsId(ObsId),
 
     /// Tried to download an obsid, but it's associated with multiple jobs.
     #[error(
         "Obsid {0} is associated with multiple ready jobs; cannot continue due to ambiguity. Try specifying the JobID instead of the ObsId in this case."
     )]
-    TooManyObsids(Obsid),
+    TooManyObsIds(ObsId),
 
     /// Tried to download a job that wasn't ready.
-    #[error("MWA ASVO job ID {jobid} isn't ready; current status: {state}")]
+    #[error("MWA ASVO job ID {job_id} isn't ready; current status: {job_state}")]
     NotReady {
-        jobid: AsvoJobID,
-        state: AsvoJobState,
+        job_id: AsvoJobId,
+        job_state: AsvoJobState,
     },
 
     /// Tried to download a job with an empty file product array.
     #[error(
         "MWA ASVO job ID {0} doesn't have any files associated with it! This shouldn't happen."
     )]
-    NoFiles(AsvoJobID),
+    NoFiles(AsvoJobId),
 
     /// ASVO SHA1 hash for a file didn't match our hash.
-    #[error("Hash mismatch for MWA ASVO job ID {jobid} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
+    #[error("Hash mismatch for MWA ASVO job ID {job_id} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
     HashMismatch {
-        jobid: AsvoJobID,
+        job_id: AsvoJobId,
         file: String,
         calculated_hash: String,
         expected_hash: String,
@@ -94,11 +94,11 @@ pub enum AsvoError {
 
     // Error determining url for Acacia job
     #[error("Could not determine url for job {job_id:?}")]
-    NoUrl { job_id: u32 },
+    NoUrl { job_id: AsvoJobId },
 
     // Error determining path for Astro job
     #[error("Could not determine path for job {job_id:?}")]
-    NoPath { job_id: u32 },
+    NoPath { job_id: AsvoJobId },
 
     // HTTP error code when downloading
     #[error("HTTP error {status} downloading file: {message}")]
@@ -106,5 +106,5 @@ pub enum AsvoError {
 
     // HTTP 404 error code when downloading
     #[error("The file for job {job_id:?} you are trying to download no longer exists. It may have expired or been removed. Please contact support if think this is in error")]
-    Http404Error { job_id: u32 },
+    Http404Error { job_id: AsvoJobId },
 }

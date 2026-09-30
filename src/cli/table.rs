@@ -36,12 +36,12 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
 
         for j in jobs.0 {
             table.add_row(Row::new(vec![
-                Cell::new(j.jobid.to_string().as_str()),
-                Cell::new(j.obsid.to_string().as_str()),
-                Cell::new(j.jtype.to_string().as_str())
-                    .style_spec(&job_type_table_style(j.jtype, no_colour)),
-                Cell::new(j.state.to_string().as_str())
-                    .style_spec(&job_state_table_style(j.state, no_colour)),
+                Cell::new(j.job_id.to_string().as_str()),
+                Cell::new(j.obs_id.to_string().as_str()),
+                Cell::new(j.job_type.to_string().as_str())
+                    .style_spec(&job_type_table_style(j.job_type, no_colour)),
+                Cell::new(j.job_state.to_string().as_str())
+                    .style_spec(&job_state_table_style(j.job_state, no_colour)),
                 Cell::new(
                     match &j.files {
                         None => "".to_string(),
@@ -71,7 +71,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
             ]));
 
             // If has_unknown_job_type is already True, stay true. If False, but this job is unknown set to True.
-            has_unknown_job_type |= j.jtype == AsvoJobType::Unknown;
+            has_unknown_job_type |= j.job_type == AsvoJobType::Unknown;
         }
 
         table.printstd();

@@ -16,7 +16,7 @@ TEST_USER_LOGIN = "test_user"
 TEST_USER_EMAIL = "test_user@example.org"
 
 # An obsid used across the tests.
-TEST_OBSID = 1065880128
+TEST_OBS_ID = 1065880128
 
 # The MWA ASVO endpoints the mock serves.
 LOGIN_PATH = "/api/v2/api_login"
@@ -76,7 +76,7 @@ def job_detail(job_id: int, job_state: str, **extra: Any) -> dict[str, Any]:
         "created": "2026-09-08T05:41:54.757232",
         "first_name": "Test",
         "id": job_id,
-        "job_params": {"obs_id": str(TEST_OBSID), "delivery": "acacia"},
+        "job_params": {"obs_id": str(TEST_OBS_ID), "delivery": "acacia"},
         "job_state": job_state,
         "job_type": JOB_TYPE_DOWNLOAD_VISIBILITIES,
         "last_name": "User",

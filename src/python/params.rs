@@ -34,7 +34,7 @@ use crate::asvo::apiv2::openapi::{
     ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
 };
 use crate::asvo::apiv2::validate;
-use crate::obsid::Obsid;
+use crate::obs_id::ObsId;
 
 /// Validate an obsid and give it the type the request bodies use.
 ///
@@ -42,8 +42,8 @@ use crate::obsid::Obsid;
 ///
 /// `ValueError` if `obs_id` is not a valid obsid.
 pub(super) fn obs_id_to_i64(obs_id: u64) -> PyResult<i64> {
-    let obsid = Obsid::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    Ok(i64::try_from(u64::from(obsid)).expect("Obsid's validated range always fits in i64"))
+    let obs_id = ObsId::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(i64::try_from(u64::from(obs_id)).expect("Obsid's validated range always fits in i64"))
 }
 
 /// An error from the library's checks or from a request builder, as a

@@ -28,11 +28,11 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    download_by_jobid, download_by_obsid, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobID,
+    download_by_job_id, download_by_obs_id, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId,
     AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
-use crate::obsid::Obsid;
+use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
 use super::openapi::{
@@ -336,7 +336,7 @@ impl AsvoClient {
     /// pool.
     ///
     /// NOTE: currently has no callers - the download path now goes through
-    /// `download_jobid` / `download_obsid` - so this is a candidate for
+    /// `download_job` / `download_obs` - so this is a candidate for
     /// deletion.
     pub fn http_client(&self) -> Client {
         self.current_session().0
@@ -363,21 +363,17 @@ impl AsvoClient {
     /// Download the MWA ASVO job with the given job ID.
     /// Fetches the current job list, locates the job, and downloads its
     /// files according to the supplied options.
-    pub fn download_jobid(
-        &self,
-        jobid: AsvoJobID,
-        opts: &DownloadOptions,
-    ) -> Result<(), AsvoError> {
+    pub fn download_job(&self, job_id: AsvoJobId, opts: &DownloadOptions) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        download_by_jobid(&self.current_session().0, jobs, jobid, opts)
+        download_by_job_id(&self.current_session().0, jobs, job_id, opts)
     }
 
     /// Download the MWA ASVO job associated with the given obsid.
     /// Fetches the current job list, locates the single ready job for
     /// the obsid, and downloads its files according to the supplied options.
-    pub fn download_obsid(&self, obsid: Obsid, opts: &DownloadOptions) -> Result<(), AsvoError> {
+    pub fn download_obs(&self, obs_id: ObsId, opts: &DownloadOptions) -> Result<(), AsvoError> {
         let jobs = self.get_jobs(None)?;
-        download_by_obsid(&self.current_session().0, jobs, obsid, opts)
+        download_by_obs_id(&self.current_session().0, jobs, obs_id, opts)
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
@@ -872,7 +868,7 @@ impl AsvoClient {
         Ok(resp)
     }
 
-    pub fn cancel_job(&self, job_id: AsvoJobID) -> Result<JobSubmittedResponse, AsvoApiError> {
+    pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
         let body = self.send_authed(|client| {
@@ -940,14 +936,14 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 ///   "completed" and "error" special-cased (see comment at the match
 ///   below) - confirmed "staging"/"staged" round-trip correctly via real
 ///   responses, but the full vocabulary isn't confirmed.
-/// - `obsid` is looked for at `job_params["obs_id"]` (an untyped JSON
+/// - `obs_id` is looked for at `job_params["obs_id"]` (an untyped JSON
 ///   map). CONFIRMED against a real response: the key name is right, but
 ///   the value is a JSON string, not a number - handled below.
 /// - `files` comes from `product["files"]`, mapped by
 ///   [`product_to_files`]. `product` is typed in the schema as a
 ///   free-form object, so the mapping is deliberately tolerant.
 fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
-    let jobid = match AsvoJobID::try_from(detail.id) {
+    let job_id = match AsvoJobId::try_from(detail.id) {
         Ok(id) => id,
         Err(_) => {
             warn!(
@@ -966,13 +962,13 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
             .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
     });
 
-    let obsid = match obs_id_value {
-        Some(o) => match Obsid::validate(o) {
-            Ok(obsid) => obsid,
+    let obs_id = match obs_id_value {
+        Some(o) => match ObsId::validate(o) {
+            Ok(obs_id) => obs_id,
             Err(e) => {
                 warn!(
                     "Skipping MWA ASVO job {}: invalid obs_id in job_params: {}",
-                    jobid, e
+                    job_id, e
                 );
                 return None;
             }
@@ -980,13 +976,13 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         None => {
             warn!(
                 "Skipping MWA ASVO job {}: couldn't find a usable obs_id in job_params",
-                jobid
+                job_id
             );
             return None;
         }
     };
 
-    let jtype = match *detail.job_type {
+    let job_type = match *detail.job_type {
         0 => AsvoJobType::Conversion,
         1 => AsvoJobType::DownloadVisibilities,
         2 => AsvoJobType::DownloadMetadata,
@@ -1004,7 +1000,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
     // CLI argument parsing also uses). Also: since JobDetailResponse
     // separately carries `error_text`, use it to populate
     // AsvoJobState::Error's message instead of discarding it.
-    let state = match detail.job_state.as_str() {
+    let job_state = match detail.job_state.as_str() {
         "completed" => AsvoJobState::Ready,
         "error" => AsvoJobState::Error(detail.error_text.unwrap_or_default()),
         other => match AsvoJobState::from_str(other) {
@@ -1012,7 +1008,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
             Err(_) => {
                 warn!(
                     "Skipping MWA ASVO job {}: unrecognised job_state {:?}",
-                    jobid, other
+                    job_id, other
                 );
                 return None;
             }
@@ -1020,11 +1016,11 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
     };
 
     Some(AsvoJob {
-        obsid,
-        jobid,
-        jtype,
-        state,
-        files: product_to_files(jobid, detail.product.as_ref()),
+        obs_id,
+        job_id,
+        job_type,
+        job_state,
+        files: product_to_files(job_id, detail.product.as_ref()),
         completed: detail.completed,
     })
 }
@@ -1050,7 +1046,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
 /// that hasn't completed), which the download path reports as
 /// [`crate::asvo::AsvoError::NoFiles`].
 fn product_to_files(
-    jobid: AsvoJobID,
+    job_id: AsvoJobId,
     product: Option<&serde_json::Map<String, serde_json::Value>>,
 ) -> Option<Vec<AsvoFilesArray>> {
     let files = product?.get("files")?.as_array()?;
@@ -1068,7 +1064,7 @@ fn product_to_files(
                     other => {
                         warn!(
                             "MWA ASVO job {}: skipping a file with unrecognised delivery type {:?}",
-                            jobid, other
+                            job_id, other
                         );
                         return None;
                     }
@@ -1076,7 +1072,7 @@ fn product_to_files(
                 None => {
                     warn!(
                         "MWA ASVO job {}: skipping a file with no delivery type in product",
-                        jobid
+                        job_id
                     );
                     return None;
                 }
@@ -1088,7 +1084,7 @@ fn product_to_files(
                     // Only used for progress and throughput reporting, so a
                     // missing size is worth noting but not worth dropping
                     // the file over.
-                    debug!("MWA ASVO job {}: file has no size in product", jobid);
+                    debug!("MWA ASVO job {}: file has no size in product", job_id);
                     0
                 }
             };
@@ -1112,7 +1108,7 @@ fn product_to_files(
     if mapped.is_empty() {
         warn!(
             "MWA ASVO job {}: product carried a file list, but none of it was usable",
-            jobid
+            job_id
         );
         return None;
     }

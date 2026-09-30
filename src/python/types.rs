@@ -19,10 +19,10 @@ use crate::asvo::apiv2::openapi::{
     Weighting,
 };
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
     DownloadProgress,
 };
-use crate::obsid::Obsid;
+use crate::obs_id::ObsId;
 
 /// Define a Python enum with the same members as a fieldless library enum,
 /// and conversions in both directions.
@@ -291,32 +291,32 @@ pub struct PyAsvoJob(AsvoJob);
 impl PyAsvoJob {
     /// The job ID.
     #[getter]
-    fn jobid(&self) -> AsvoJobID {
-        self.0.jobid
+    fn job_id(&self) -> AsvoJobId {
+        self.0.job_id
     }
 
     /// The obsid.
     #[getter]
-    fn obsid(&self) -> u64 {
-        u64::from(self.0.obsid)
+    fn obs_id(&self) -> u64 {
+        u64::from(self.0.obs_id)
     }
 
     /// The job type.
     #[getter]
-    fn jtype(&self) -> PyAsvoJobType {
-        self.0.jtype.into()
+    fn job_type(&self) -> PyAsvoJobType {
+        self.0.job_type.into()
     }
 
     /// The job state.
     #[getter]
-    fn state(&self) -> PyAsvoJobState {
-        PyAsvoJobState::from(&self.0.state)
+    fn job_state(&self) -> PyAsvoJobState {
+        PyAsvoJobState::from(&self.0.job_state)
     }
 
     /// The error message if the state is `Error`, otherwise `None`.
     #[getter]
     fn error_text(&self) -> Option<String> {
-        match &self.0.state {
+        match &self.0.job_state {
             AsvoJobState::Error(e) => Some(e.clone()),
             _ => None,
         }
@@ -339,14 +339,14 @@ impl PyAsvoJob {
 
     fn __repr__(&self) -> String {
         format!(
-            "AsvoJob(jobid={}, obsid={}, jtype={}, state={})",
-            self.0.jobid, self.0.obsid, self.0.jtype, self.0.state
+            "AsvoJob(job_id={}, obs_id={}, job_type={}, job_state={})",
+            self.0.job_id, self.0.obs_id, self.0.job_type, self.0.job_state
         )
     }
 }
 
 /// A download progress event, given to the `progress` callback of
-/// `AsvoClient.download_jobid` and `AsvoClient.download_obsid`.
+/// `AsvoClient.download_job` and `AsvoClient.download_obs`.
 ///
 /// For each file there are one or more `Started` events, then zero or more
 /// `Advanced` events, then one `Finished` event. A second `Started` for the
@@ -361,12 +361,12 @@ impl PyAsvoJob {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyDownloadProgress {
-    /// A file download starts, or starts again. `jobid` is the MWA ASVO job
+    /// A file download starts, or starts again. `job_id` is the MWA ASVO job
     /// ID, `label` a human-readable label (for example `Job ID 123 (obsid:
     /// 1234567890) [1/2]:`), `total_bytes` the file size, and `position`
     /// the bytes already on disk (not zero for a resumed download).
     Started {
-        jobid: AsvoJobID,
+        job_id: AsvoJobId,
         label: String,
         total_bytes: u64,
         position: u64,
@@ -383,12 +383,12 @@ impl PyDownloadProgress {
     fn __repr__(&self) -> String {
         match self {
             Self::Started {
-                jobid,
+                job_id,
                 label,
                 total_bytes,
                 position,
             } => format!(
-                "DownloadProgress.Started(jobid={jobid}, label={label:?}, total_bytes={total_bytes}, position={position})"
+                "DownloadProgress.Started(job_id={job_id}, label={label:?}, total_bytes={total_bytes}, position={position})"
             ),
             Self::Advanced { bytes } => format!("DownloadProgress.Advanced(bytes={bytes})"),
             Self::Finished {} => "DownloadProgress.Finished()".to_string(),
@@ -400,12 +400,12 @@ impl From<DownloadProgress> for PyDownloadProgress {
     fn from(event: DownloadProgress) -> Self {
         match event {
             DownloadProgress::Started {
-                jobid,
+                job_id,
                 label,
                 total_bytes,
                 position,
             } => Self::Started {
-                jobid,
+                job_id,
                 label,
                 total_bytes,
                 position,
@@ -496,43 +496,43 @@ impl PyAsvoJobVec {
     /// Keep only the jobs that match every given filter. A filter that is
     /// `None` or empty does not filter. States compare by kind only, so
     /// `AsvoJobState.Error` matches every job with an error.
-    #[pyo3(signature = (jobids=None, obsids=None, jtypes=None, states=None))]
+    #[pyo3(signature = (job_ids=None, obs_ids=None, job_types=None, job_states=None))]
     fn filter(
         &self,
-        jobids: Option<Vec<AsvoJobID>>,
-        obsids: Option<Vec<u64>>,
-        jtypes: Option<Vec<PyAsvoJobType>>,
-        states: Option<Vec<PyAsvoJobState>>,
+        job_ids: Option<Vec<AsvoJobId>>,
+        obs_ids: Option<Vec<u64>>,
+        job_types: Option<Vec<PyAsvoJobType>>,
+        job_states: Option<Vec<PyAsvoJobState>>,
     ) -> PyResult<Self> {
-        let obsids = obsids
+        let obs_ids = obs_ids
             .unwrap_or_default()
             .into_iter()
-            .map(|o| Obsid::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
-            .collect::<PyResult<Vec<Obsid>>>()?;
-        let jtypes: Vec<AsvoJobType> = jtypes
+            .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
+            .collect::<PyResult<Vec<ObsId>>>()?;
+        let job_types: Vec<AsvoJobType> = job_types
             .unwrap_or_default()
             .into_iter()
             .map(Into::into)
             .collect();
-        let states: Vec<AsvoJobState> = states
+        let job_states: Vec<AsvoJobState> = job_states
             .unwrap_or_default()
             .into_iter()
             .map(Into::into)
             .collect();
         Ok(Self(self.0.clone().filter(
-            &jobids.unwrap_or_default(),
-            &obsids,
-            &jtypes,
-            &states,
+            &job_ids.unwrap_or_default(),
+            &obs_ids,
+            &job_types,
+            &job_states,
         )))
     }
 
-    /// Whether all of `jobids` are ready for download. `False` means some
+    /// Whether all of `job_ids` are ready for download. `False` means some
     /// are still in progress. Raises `AsvoError` if one is missing, has an
     /// error, has expired or has been cancelled. This makes no request: to
     /// wait, call `AsvoClient.get_jobs` and this in a loop.
-    fn all_ready(&self, py: Python<'_>, jobids: Vec<AsvoJobID>) -> PyResult<bool> {
-        self.0.all_ready(&jobids).map_err(|e| asvo_error(py, e))
+    fn all_ready(&self, py: Python<'_>, job_ids: Vec<AsvoJobId>) -> PyResult<bool> {
+        self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))
     }
 
     /// The jobs as a JSON object keyed by job ID, as `giant-squid list

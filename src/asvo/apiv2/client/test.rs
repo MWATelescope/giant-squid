@@ -34,7 +34,7 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
         Args::SubmitVis { download, .. } => download
-            .to_vis_params(TEST_OBSID_I64)
+            .to_vis_params(TEST_OBS_ID_I64)
             .expect("params should build"),
         _ => panic!("expected submit-vis"),
     }
@@ -329,8 +329,8 @@ fn a_non_json_error_body_becomes_a_bad_status() {
 fn a_job_listing_is_mapped_from_the_api_response() {
     let env = TestEnv::with_session();
     let get_jobs = env.mock_get_jobs(vec![job_detail(
-        TEST_JOBID as i64,
-        TEST_OBSID,
+        TEST_JOB_ID as i64,
+        TEST_OBS_ID,
         "completed",
         1,
     )]);
@@ -341,11 +341,11 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(get_jobs.calls(), 1);
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.jobid, TEST_JOBID);
-    assert_eq!(job.obsid.get(), TEST_OBSID_I64 as u64);
-    assert_eq!(job.jtype, AsvoJobType::DownloadVisibilities);
+    assert_eq!(job.job_id, TEST_JOB_ID);
+    assert_eq!(job.obs_id.get(), TEST_OBS_ID_I64 as u64);
+    assert_eq!(job.job_type, AsvoJobType::DownloadVisibilities);
     // The API says "completed" where the rest of giant-squid says "ready".
-    assert_eq!(job.state, AsvoJobState::Ready);
+    assert_eq!(job.job_state, AsvoJobState::Ready);
 }
 
 /// The listing endpoint is paged 100 at a time, so a larger history has to
@@ -356,7 +356,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     let total = 150;
     let page = |from: i64, count: i64| -> Vec<serde_json::Value> {
         (from..from + count)
-            .map(|id| job_detail(id, TEST_OBSID, "completed", 1))
+            .map(|id| job_detail(id, TEST_OBS_ID, "completed", 1))
             .collect()
     };
 
@@ -383,13 +383,13 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     assert_eq!(first.calls(), 1);
     assert_eq!(second.calls(), 1, "the second page should be requested");
     assert_eq!(jobs.0.len(), total as usize);
-    assert_eq!(jobs.0.last().expect("there should be jobs").jobid, 150);
+    assert_eq!(jobs.0.last().expect("there should be jobs").job_id, 150);
 }
 
 #[test]
 fn an_errored_job_carries_the_servers_error_text() {
     let env = TestEnv::with_session();
-    let mut detail = job_detail(TEST_JOBID as i64, TEST_OBSID, "error", 0);
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "error", 0);
     detail["error_text"] = json!("Observation has no data files");
     env.mock_get_jobs(vec![detail]);
 
@@ -397,34 +397,34 @@ fn an_errored_job_carries_the_servers_error_text() {
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(
-        jobs.0[0].state,
+        jobs.0[0].job_state,
         AsvoJobState::Error("Observation has no data files".to_string())
     );
-    assert_eq!(jobs.0[0].jtype, AsvoJobType::Conversion);
+    assert_eq!(jobs.0[0].job_type, AsvoJobType::Conversion);
 }
 
 #[test]
 fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     let env = TestEnv::with_session();
 
-    let mut no_obsid = job_detail(1, TEST_OBSID, "completed", 1);
-    no_obsid["job_params"] = json!({ "delivery": "acacia" });
+    let mut no_obs_id = job_detail(1, TEST_OBS_ID, "completed", 1);
+    no_obs_id["job_params"] = json!({ "delivery": "acacia" });
 
-    let unknown_state = job_detail(2, TEST_OBSID, "wibble", 1);
+    let unknown_state = job_detail(2, TEST_OBS_ID, "wibble", 1);
 
-    let mut bad_obsid = job_detail(3, TEST_OBSID, "completed", 1);
-    bad_obsid["job_params"] = json!({ "obs_id": "42" });
+    let mut bad_obs_id = job_detail(3, TEST_OBS_ID, "completed", 1);
+    bad_obs_id["job_params"] = json!({ "obs_id": "42" });
 
-    let good = job_detail(TEST_JOBID as i64, TEST_OBSID, "queued", 1);
+    let good = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "queued", 1);
 
-    env.mock_get_jobs(vec![no_obsid, unknown_state, bad_obsid, good]);
+    env.mock_get_jobs(vec![no_obs_id, unknown_state, bad_obs_id, good]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client.get_jobs(None).expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
-    assert_eq!(jobs.0[0].jobid, TEST_JOBID);
-    assert_eq!(jobs.0[0].state, AsvoJobState::Queued);
+    assert_eq!(jobs.0[0].job_id, TEST_JOB_ID);
+    assert_eq!(jobs.0[0].job_state, AsvoJobState::Queued);
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +434,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
 #[test]
 fn a_visibility_job_posts_the_body_the_cli_built() {
     let env = TestEnv::with_session();
-    let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBSID]);
+    let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBS_ID]);
     let expected = serde_json::to_value(&params).expect("params should serialise");
 
     let submit = env.server.mock(|when, then| {
@@ -458,11 +458,11 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
 #[test]
 fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
     let env = TestEnv::with_session();
-    let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBSID])
+    let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
     {
         Args::SubmitMeta { download, .. } => download
-            .to_meta_params(TEST_OBSID_I64)
+            .to_meta_params(TEST_OBS_ID_I64)
             .expect("params should build"),
         _ => panic!("expected submit-meta"),
     };
@@ -488,7 +488,7 @@ fn a_metadata_job_method_always_sends_a_meta_download_type() {
     let env = TestEnv::with_session();
     // Start from visibility params: the metadata method must replace the
     // download type.
-    let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBSID]);
+    let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBS_ID]);
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
@@ -511,11 +511,11 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
     let env = TestEnv::with_session();
     // Start from metadata params: the visibility method must replace the
     // download type.
-    let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBSID])
+    let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
     {
         Args::SubmitMeta { download, .. } => download
-            .to_meta_params(TEST_OBSID_I64)
+            .to_meta_params(TEST_OBS_ID_I64)
             .expect("params should build"),
         _ => panic!("expected submit-meta"),
     };
@@ -539,19 +539,19 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
 #[test]
 fn a_conversion_job_posts_to_the_conversion_endpoint() {
     let env = TestEnv::with_session();
-    let params = match Args::try_parse_from(["giant-squid", "submit-conv", TEST_OBSID])
+    let params = match Args::try_parse_from(["giant-squid", "submit-conv", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitConv { conv, .. } => {
-            conv.to_params(TEST_OBSID_I64).expect("params should build")
-        }
+        Args::SubmitConv { conv, .. } => conv
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
         _ => panic!("expected submit-conv"),
     };
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
             .path("/api/v2/conversion_job")
-            .json_body_includes(format!(r#"{{ "obs_id": {TEST_OBSID_I64} }}"#));
+            .json_body_includes(format!(r#"{{ "obs_id": {TEST_OBS_ID_I64} }}"#));
         then.status(200).json_body(job_submitted_response(779));
     });
 
@@ -569,19 +569,19 @@ fn a_cancellation_deletes_the_job_resource() {
     let env = TestEnv::with_session();
     let cancel = env.server.mock(|when, then| {
         when.method(DELETE)
-            .path(format!("/api/v2/jobs/{TEST_JOBID}"));
+            .path(format!("/api/v2/jobs/{TEST_JOB_ID}"));
         then.status(200)
             .header("content-type", "application/json")
-            .json_body(job_submitted_response(TEST_JOBID as u64));
+            .json_body(job_submitted_response(TEST_JOB_ID as u64));
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .cancel_job(TEST_JOBID)
+        .cancel_job(TEST_JOB_ID)
         .expect("cancellation should succeed");
 
     assert_eq!(cancel.calls(), 1);
-    assert_eq!(resp.job_id.get(), TEST_JOBID as u64);
+    assert_eq!(resp.job_id.get(), TEST_JOB_ID as u64);
     assert_eq!(resp.message, "Job submitted");
 }
 
@@ -608,11 +608,11 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
 #[test]
 fn an_imaging_job_returns_a_job_submitted_response() {
     let env = TestEnv::with_session();
-    let params = match Args::try_parse_from(["giant-squid", "submit-image", TEST_OBSID])
+    let params = match Args::try_parse_from(["giant-squid", "submit-image", TEST_OBS_ID])
         .expect("arguments should parse")
     {
         Args::SubmitImage { image, .. } => image
-            .to_params(TEST_OBSID_I64)
+            .to_params(TEST_OBS_ID_I64)
             .expect("params should build"),
         _ => panic!("expected submit-image"),
     };
@@ -639,12 +639,12 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
         "submit-image-from-job",
         "--source-job-id",
         "12345",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ])
     .expect("arguments should parse")
     {
         Args::SubmitImageFromJob { image, .. } => image
-            .to_params(TEST_OBSID_I64)
+            .to_params(TEST_OBS_ID_I64)
             .expect("params should build"),
         _ => panic!("expected submit-image-from-job"),
     };
@@ -670,7 +670,7 @@ fn an_out_of_range_imaging_job_is_not_sent() {
     let env = TestEnv::with_session();
     let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow1Params =
         crate::asvo::apiv2::openapi::ImagingJobFlow1Params::builder()
-            .obs_id(TEST_OBSID_I64)
+            .obs_id(TEST_OBS_ID_I64)
             .try_into()
             .expect("defaults build");
     params.mgain = 1.5;
@@ -696,7 +696,7 @@ fn an_out_of_range_image_from_job_is_not_sent() {
     let env = TestEnv::with_session();
     let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow2Params =
         crate::asvo::apiv2::openapi::ImagingJobFlow2Params::builder()
-            .obs_id(TEST_OBSID_I64)
+            .obs_id(TEST_OBS_ID_I64)
             .source_job_id(std::num::NonZeroU64::new(12345).unwrap())
             .try_into()
             .expect("defaults build");
@@ -729,7 +729,7 @@ fn an_out_of_range_conversion_job_is_not_sent() {
     let env = TestEnv::with_session();
     let mut params: crate::asvo::apiv2::openapi::ConversionJobParams =
         crate::asvo::apiv2::openapi::ConversionJobParams::builder()
-            .obs_id(TEST_OBSID_I64)
+            .obs_id(TEST_OBS_ID_I64)
             .try_into()
             .expect("defaults build");
     params.avg_freq_res = 5000.0;
@@ -761,7 +761,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
     let env = TestEnv::with_session();
     let params: crate::asvo::apiv2::openapi::VoltageJobParams =
         crate::asvo::apiv2::openapi::VoltageJobParams::builder()
-            .obs_id(TEST_OBSID_I64)
+            .obs_id(TEST_OBS_ID_I64)
             .offset(9999_i64)
             .duration(8_u64)
             .try_into()
@@ -803,7 +803,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
 /// Values from the recorded response, so a re-record that changes them
 /// fails loudly here rather than silently weakening the test.
 const RECORDED_JOB_ID: u32 = 30000517;
-const RECORDED_OBSID: u64 = 1115977528;
+const RECORDED_OBS_ID: u64 = 1115977528;
 const RECORDED_SIZE: u64 = 117016360960;
 const RECORDED_SHA1: &str = "ce32e0aeec0b7c64dec4deeb89881ba4452a6330";
 
@@ -826,10 +826,10 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
 
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.jobid, RECORDED_JOB_ID);
-    assert_eq!(job.obsid.get(), RECORDED_OBSID);
-    assert_eq!(job.jtype, AsvoJobType::DownloadMetadata);
-    assert_eq!(job.state, AsvoJobState::Ready);
+    assert_eq!(job.job_id, RECORDED_JOB_ID);
+    assert_eq!(job.obs_id.get(), RECORDED_OBS_ID);
+    assert_eq!(job.job_type, AsvoJobType::DownloadMetadata);
+    assert_eq!(job.job_state, AsvoJobState::Ready);
     assert!(job.completed.is_some(), "completed should be parsed");
 }
 

@@ -1,4 +1,4 @@
-"""Tests for AsvoClient.download_jobid and download_obsid, against a local mock MWA ASVO.
+"""Tests for AsvoClient.download_job and download_obs, against a local mock MWA ASVO.
 
 The mock serves the job's file as well as the API, so a download runs end to end: the bytes are fetched, written
 or unpacked, and the SHA-1 is checked. Nothing is fetched from Acacia. The Ctrl-C tests send SIGINT to this
@@ -22,11 +22,11 @@ from werkzeug import Request, Response
 
 import mwa_giant_squid as gs
 
-from .conftest import TEST_API_KEY, TEST_OBSID, job_detail
+from .conftest import TEST_API_KEY, TEST_OBS_ID, job_detail
 
 # The job that the mock says is ready, and the name its file is served and saved under.
-JOBID = 12345
-FILE_NAME = f"{TEST_OBSID}_{JOBID}_vis.tar"
+JOB_ID = 12345
+FILE_NAME = f"{TEST_OBS_ID}_{JOB_ID}_vis.tar"
 FILE_PATH = f"/downloads/{FILE_NAME}"
 
 # The file inside the tar.
@@ -72,7 +72,7 @@ def ready_job(httpserver: HTTPServer, size: int, sha1: str) -> dict[str, Any]:
         The job, as the server sends it.
     """
     product = {"files": [{"type": "acacia", "url": httpserver.url_for(FILE_PATH), "size": size, "sha1": sha1}]}
-    return job_detail(JOBID, "completed", product=product)
+    return job_detail(JOB_ID, "completed", product=product)
 
 
 @pytest.fixture
@@ -139,28 +139,28 @@ def send_sigint_soon() -> threading.Timer:
     return timer
 
 
-def test_download_jobid_keeps_the_tar_and_checks_the_hash(
+def test_download_job_id_keeps_the_tar_and_checks_the_hash(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """With keep_tar, the tar file is saved as it is."""
-    client.download_jobid(JOBID, tmp_path, keep_tar=True)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True)
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
 
-def test_download_jobid_unpacks_the_tar_by_default(
+def test_download_job_id_unpacks_the_tar_by_default(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """Without keep_tar, the tar is unpacked into the directory while it downloads."""
-    client.download_jobid(JOBID, tmp_path)
+    client.download_job(JOB_ID, tmp_path)
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / FILE_NAME).exists()
 
 
-def test_download_obsid_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:
-    """download_obsid downloads the one ready job of the obsid."""
-    client.download_obsid(TEST_OBSID, str(tmp_path), keep_tar=True)
+def test_download_obs_id_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:
+    """download_obs downloads the one ready job of the obsid."""
+    client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True)
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
@@ -171,11 +171,11 @@ def test_progress_reports_every_byte_between_started_and_finished(
     """The events are Started, then Advanced, then Finished, and the Advanced bytes add up to the file size."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_jobid(JOBID, tmp_path, keep_tar=True, progress=events.append)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append)
 
     first, *middle, last = events
     assert isinstance(first, gs.DownloadProgress.Started)
-    assert first.jobid == JOBID
+    assert first.job_id == JOB_ID
     assert first.total_bytes == len(served_tar)
     assert first.position == 0
     assert "[1/1]" in first.label
@@ -188,7 +188,7 @@ def test_progress_combines_the_advanced_events(client: gs.AsvoClient, slow_file:
     """A slow download of many chunks gives far fewer Advanced events than chunks, with every byte counted."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_jobid(JOBID, tmp_path, keep_tar=True, progress=events.append)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append)
 
     advanced = [event for event in events if isinstance(event, gs.DownloadProgress.Advanced)]
     assert 0 < len(advanced) < CHUNKS
@@ -201,7 +201,7 @@ def test_the_label_numbers_the_download_in_a_series(
     """download_number and download_count go into the label."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_jobid(JOBID, tmp_path, keep_tar=True, progress=events.append, download_number=2, download_count=3)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append, download_number=2, download_count=3)
 
     started = events[0]
     assert isinstance(started, gs.DownloadProgress.Started)
@@ -222,7 +222,7 @@ def test_an_exception_in_the_callback_stops_the_download_and_is_raised(
 
     started = time.monotonic()
     with pytest.raises(StopHere):
-        client.download_jobid(JOBID, tmp_path, keep_tar=True, progress=progress)
+        client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress)
 
     assert time.monotonic() - started < CHUNKS * CHUNK_DELAY
 
@@ -236,7 +236,7 @@ def test_ctrl_c_stops_a_download(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_jobid(JOBID, tmp_path, keep_tar=True, progress=progress)
+            client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress)
     finally:
         timer.cancel()
 
@@ -256,7 +256,7 @@ def test_ctrl_c_stops_the_wait_before_a_retry(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_jobid(JOBID, tmp_path, keep_tar=True, retry_duration=LONG_RETRY)
+            client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=LONG_RETRY)
     finally:
         timer.cancel()
 
@@ -272,10 +272,10 @@ def test_a_hash_mismatch_raises_asvo_error(
     httpserver.expect_request(FILE_PATH, method="GET").respond_with_data(data)
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_jobid(JOBID, tmp_path, keep_tar=True, retry_duration=0)
+        client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=0)
 
     assert err.value.kind == "HashMismatch"
-    assert err.value.jobid == JOBID
+    assert err.value.job_id == JOB_ID
 
 
 def test_an_unknown_job_raises_asvo_error(
@@ -285,32 +285,32 @@ def test_an_unknown_job_raises_asvo_error(
     serve_jobs([])
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_jobid(JOBID, tmp_path)
+        client.download_job(JOB_ID, tmp_path)
 
     assert err.value.kind == "NoAsvoJob"
 
 
-def test_an_obsid_with_no_ready_job_raises_asvo_error(
+def test_an_obs_id_with_no_ready_job_raises_asvo_error(
     client: gs.AsvoClient, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
 ) -> None:
-    """An obsid whose only job is still queued raises AsvoError with kind NoJobReadyForObsid."""
-    serve_jobs([job_detail(JOBID, "queued")])
+    """An obsid whose only job is still queued raises AsvoError with kind NoJobReadyForObsId."""
+    serve_jobs([job_detail(JOB_ID, "queued")])
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_obsid(TEST_OBSID, tmp_path)
+        client.download_obs(TEST_OBS_ID, tmp_path)
 
-    assert err.value.kind == "NoJobReadyForObsid"
-    assert err.value.obsid == TEST_OBSID
+    assert err.value.kind == "NoJobReadyForObsId"
+    assert err.value.obs_id == TEST_OBS_ID
 
 
-def test_an_invalid_obsid_is_rejected_before_any_request(
+def test_an_invalid_obs_id_is_rejected_before_any_request(
     client: gs.AsvoClient, httpserver: HTTPServer, tmp_path: pathlib.Path
 ) -> None:
-    """download_obsid checks the obsid first."""
+    """download_obs checks the obsid first."""
     requests_before = len(httpserver.log)
 
     with pytest.raises(ValueError, match="obsid"):
-        client.download_obsid(1, tmp_path)
+        client.download_obs(1, tmp_path)
 
     assert len(httpserver.log) == requests_before
 
@@ -318,7 +318,7 @@ def test_an_invalid_obsid_is_rejected_before_any_request(
 def test_a_bad_retry_duration_is_rejected(client: gs.AsvoClient, tmp_path: pathlib.Path) -> None:
     """A negative retry_duration raises ValueError."""
     with pytest.raises(ValueError, match="retry_duration"):
-        client.download_jobid(JOBID, tmp_path, retry_duration=-1.0)
+        client.download_job(JOB_ID, tmp_path, retry_duration=-1.0)
 
 
 def test_the_progress_events_have_readable_reprs() -> None:

@@ -39,7 +39,7 @@ fn check_file_sha1_hash_err() {
 fn a_missing_file_of_ids_names_the_file() {
     let missing = std::env::temp_dir().join("giant-squid-no-such-file-of-ids.txt");
 
-    let err = parse_jobids_and_obsids_from_file(&missing).expect_err("the file does not exist");
+    let err = parse_job_ids_and_obs_ids_from_file(&missing).expect_err("the file does not exist");
 
     match &err {
         ParseError::IO { file, source } => {

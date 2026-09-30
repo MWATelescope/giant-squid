@@ -23,8 +23,8 @@ use super::types::{
     PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput,
     PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobID};
-use crate::obsid::Obsid;
+use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId};
+use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
@@ -654,7 +654,7 @@ impl PyAsvoClient {
     ///     OverflowError: `job_id` is negative or too large to be a job ID.
     ///     AsvoApiError: The request failed, for example because there is
     ///         no such job.
-    fn cancel_job(&self, py: Python<'_>, job_id: AsvoJobID) -> PyResult<PyJobSubmittedResponse> {
+    fn cancel_job(&self, py: Python<'_>, job_id: AsvoJobId) -> PyResult<PyJobSubmittedResponse> {
         py.detach(|| self.inner.cancel_job(job_id))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -696,7 +696,7 @@ impl PyAsvoClient {
     ///     ValueError: `download_dir` or `retry_duration` is not valid.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     #[pyo3(signature = (
-        jobid,
+        job_id,
         download_dir,
         *,
         keep_tar=false,
@@ -709,10 +709,10 @@ impl PyAsvoClient {
         download_count=1,
     ))]
     #[allow(clippy::too_many_arguments)]
-    fn download_jobid(
+    fn download_job(
         &self,
         py: Python<'_>,
-        jobid: AsvoJobID,
+        job_id: AsvoJobId,
         download_dir: PathBuf,
         keep_tar: bool,
         no_resume: bool,
@@ -734,25 +734,25 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_jobid(jobid, opts))
+        run_download(py, args, |opts| self.inner.download_job(job_id, opts))
     }
 
     /// Download the files of the one ready job for an obsid.
     ///
     /// The arguments, and the way the download runs, are those of
-    /// `download_jobid`.
+    /// `download_job`.
     ///
     /// Args:
     ///     obsid: The obsid. There must be exactly one ready job for it.
     ///
     /// Raises:
-    ///     ValueError: `obsid` is not a valid obsid.
+    ///     ValueError: `obs_id` is not a valid obsid.
     ///     AsvoError: No job, no ready job, or more than one ready job has
-    ///         this obsid, or the download failed (see `download_jobid`).
+    ///         this obsid, or the download failed (see `download_job`).
     ///     AsvoApiError: Getting the job list failed.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     #[pyo3(signature = (
-        obsid,
+        obs_id,
         download_dir,
         *,
         keep_tar=false,
@@ -765,10 +765,10 @@ impl PyAsvoClient {
         download_count=1,
     ))]
     #[allow(clippy::too_many_arguments)]
-    fn download_obsid(
+    fn download_obs(
         &self,
         py: Python<'_>,
-        obsid: u64,
+        obs_id: u64,
         download_dir: PathBuf,
         keep_tar: bool,
         no_resume: bool,
@@ -779,7 +779,7 @@ impl PyAsvoClient {
         download_number: usize,
         download_count: usize,
     ) -> PyResult<()> {
-        let obsid = Obsid::validate(obsid).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let obs_id = ObsId::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let args = PyDownloadArgs {
             download_dir,
             keep_tar,
@@ -791,7 +791,7 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_obsid(obsid, opts))
+        run_download(py, args, |opts| self.inner.download_obs(obs_id, opts))
     }
 
     fn __repr__(&self) -> String {

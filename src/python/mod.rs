@@ -49,7 +49,7 @@ mod module {
     use super::functions::{
         beamformer_job_params, conversion_job_params, download_meta_job_params,
         download_vis_job_params, image_from_job_params, imaging_job_params,
-        parse_many_jobids_or_obsids, voltage_job_params,
+        parse_many_job_ids_or_obs_ids, voltage_job_params,
     };
     #[pymodule_export]
     use super::types::{

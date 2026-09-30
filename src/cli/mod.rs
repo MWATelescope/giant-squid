@@ -46,14 +46,14 @@ pub enum Args {
 
         /// show only jobs matching the provided states, case insensitive.
         /// Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
-        #[arg(long, id = "STATE", value_delimiter = ',')]
-        states: Vec<AsvoJobState>,
+        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',')]
+        job_states: Vec<AsvoJobState>,
 
         /// filter job list by type, case insensitive with underscores. Options:
         /// conversion, download_visibilities, download_metadata,
         /// download_voltage or cancel_job
-        #[arg(long, id = "TYPE", value_delimiter = ',')]
-        types: Vec<AsvoJobType>,
+        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',')]
+        job_types: Vec<AsvoJobType>,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example
         #[arg(short, long)]
@@ -66,8 +66,8 @@ pub enum Args {
 
         /// job IDs or obsids to filter by. Files containing job IDs or
         /// obsids are also accepted.
-        #[arg(id = "JOBID_OR_OBSID")]
-        jobids_or_obsids: Vec<String>,
+        #[arg(id = "JOB_ID_OR_OBS_ID")]
+        job_ids_or_obs_ids: Vec<String>,
     },
 
     /// Download an MWA ASVO job
@@ -109,8 +109,8 @@ pub enum Args {
 
         /// The job IDs or obsids to be downloaded. Files containing job IDs or
         /// obsids are also accepted.
-        #[arg(id = "JOBID_OR_OBSID")]
-        jobids_or_obsids: Vec<String>,
+        #[arg(id = "JOB_ID_OR_OBS_ID")]
+        job_ids_or_obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA raw visibilities
@@ -141,13 +141,13 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO preprocessing/conversion jobs
     // Declination and robustness are legitimately negative, and without
-    // this clap reads "--custom-dec -26.7" as an unknown "-2" flag.
+    // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
     #[command(alias = "sc", allow_negative_numbers = true)]
     SubmitConv {
         #[command(flatten)]
@@ -175,13 +175,13 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO imaging jobs
     // Declination and robustness are legitimately negative, and without
-    // this clap reads "--custom-dec -26.7" as an unknown "-2" flag.
+    // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
     #[command(alias = "si", allow_negative_numbers = true)]
     SubmitImage {
         #[command(flatten)]
@@ -210,15 +210,15 @@ pub enum Args {
         /// The obsids to submit for imaging. Files containing obsids are
         /// also accepted. All obsids in one invocation share the same
         /// parameters above.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO imaging jobs from an existing conversion job.
     /// Unlike submit-image, this skips the conversion step and images
     /// directly from the output of a previous conversion job.
     // Declination and robustness are legitimately negative, and without
-    // this clap reads "--custom-dec -26.7" as an unknown "-2" flag.
+    // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
     #[command(alias = "sifj", allow_negative_numbers = true)]
     SubmitImageFromJob {
         #[command(flatten)]
@@ -246,8 +246,8 @@ pub enum Args {
 
         /// The obsid to image. Exactly one obsid is required (the
         /// source_job_id identifies the conversion job for this obsid).
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs
@@ -279,8 +279,8 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID"
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA voltages
@@ -313,8 +313,8 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
@@ -345,8 +345,8 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBSID")]
-        obsids: Vec<String>,
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
     },
 
     /// Wait for MWA ASVO jobs to complete, return the urls
@@ -367,7 +367,7 @@ pub enum Args {
 
         /// The jobs to wait for. Files containing jobs are also
         /// accepted.
-        #[arg(id = "JOB")]
+        #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },
 
@@ -386,7 +386,7 @@ pub enum Args {
 
         /// The jobs to be cancelled. Files containing obsids are also
         /// accepted.
-        #[arg(id = "JOB")]
+        #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },
 }

@@ -70,15 +70,15 @@ const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
 const TYPE_ENFORCED: [(&str, &str, &str); 10] = [
-    ("DownloadJobParams", "obs_id", "Obsid::validate is stricter"),
-    (CONVERSION, "obs_id", "Obsid::validate is stricter"),
-    (FLOW1, "obs_id", "Obsid::validate is stricter"),
-    (FLOW2, "obs_id", "Obsid::validate is stricter"),
-    (VOLTAGE, "obs_id", "Obsid::validate is stricter"),
+    ("DownloadJobParams", "obs_id", "ObsId::validate is stricter"),
+    (CONVERSION, "obs_id", "ObsId::validate is stricter"),
+    (FLOW1, "obs_id", "ObsId::validate is stricter"),
+    (FLOW2, "obs_id", "ObsId::validate is stricter"),
+    (VOLTAGE, "obs_id", "ObsId::validate is stricter"),
     (
         "BeamformerJobParams",
         "obs_id",
-        "Obsid::validate is stricter",
+        "ObsId::validate is stricter",
     ),
     (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
     (VOLTAGE, "duration", "u64 has minimum 0"),
@@ -96,9 +96,9 @@ const INTEGER_FIELDS: [&str; 6] = [
     "offset",
 ];
 
-/// The smallest obsid [`Obsid::validate`](crate::obsid::Obsid::validate)
+/// The smallest obsid [`ObsId::validate`](crate::obs_id::ObsId::validate)
 /// accepts. The schema's own minimum must not be above it.
-const SMALLEST_VALID_OBSID: f64 = 1e9;
+const SMALLEST_VALID_OBS_ID: f64 = 1e9;
 
 /// Limits this module has that the schema does not state, as
 /// `(schema type, field, "minimum" or "maximum")`. See
@@ -486,7 +486,7 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
         let obs_id_min = schema_limit(&schema_properties(body)["obs_id"], "minimum")
             .unwrap_or_else(|| panic!("{body}.obs_id has no minimum"));
         assert!(
-            obs_id_min <= SMALLEST_VALID_OBSID,
+            obs_id_min <= SMALLEST_VALID_OBS_ID,
             "{body}.obs_id: the schema minimum is above what Obsid accepts"
         );
     }

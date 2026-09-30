@@ -7,21 +7,21 @@
 use super::*;
 
 /// An obsid used by these tests.
-const OBSID: u64 = 1065880128;
+const OBS_ID: u64 = 1065880128;
 /// Job IDs used by these tests.
-const JOBID_A: AsvoJobID = 101;
-const JOBID_B: AsvoJobID = 102;
-const JOBID_C: AsvoJobID = 103;
+const JOB_ID_A: AsvoJobId = 101;
+const JOB_ID_B: AsvoJobId = 102;
+const JOB_ID_C: AsvoJobId = 103;
 /// Another obsid, for the filter tests.
-const OTHER_OBSID: u64 = 1090008640;
+const OTHER_OBS_ID: u64 = 1090008640;
 
 /// A job with the given ID and state.
-fn job(jobid: AsvoJobID, state: AsvoJobState) -> AsvoJob {
+fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
     AsvoJob {
-        obsid: Obsid::validate(OBSID).expect("the test obsid should be valid"),
-        jobid,
-        jtype: AsvoJobType::DownloadVisibilities,
-        state,
+        obs_id: ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
+        job_id,
+        job_type: AsvoJobType::DownloadVisibilities,
+        job_state: state,
         files: None,
         completed: None,
     }
@@ -30,40 +30,40 @@ fn job(jobid: AsvoJobID, state: AsvoJobState) -> AsvoJob {
 #[test]
 fn all_ready_is_true_when_every_job_is_ready() {
     let jobs = AsvoJobVec(vec![
-        job(JOBID_A, AsvoJobState::Ready),
-        job(JOBID_B, AsvoJobState::Ready),
+        job(JOB_ID_A, AsvoJobState::Ready),
+        job(JOB_ID_B, AsvoJobState::Ready),
     ]);
     assert!(jobs
-        .all_ready(&[JOBID_A, JOBID_B])
+        .all_ready(&[JOB_ID_A, JOB_ID_B])
         .expect("no job has failed"));
 }
 
 #[test]
 fn all_ready_is_false_while_a_job_is_in_progress() {
     let jobs = AsvoJobVec(vec![
-        job(JOBID_A, AsvoJobState::Ready),
-        job(JOBID_B, AsvoJobState::Queued),
+        job(JOB_ID_A, AsvoJobState::Ready),
+        job(JOB_ID_B, AsvoJobState::Queued),
     ]);
     assert!(!jobs
-        .all_ready(&[JOBID_A, JOBID_B])
+        .all_ready(&[JOB_ID_A, JOB_ID_B])
         .expect("no job has failed"));
 }
 
 #[test]
 fn all_ready_ignores_jobs_that_were_not_asked_about() {
     let jobs = AsvoJobVec(vec![
-        job(JOBID_A, AsvoJobState::Ready),
-        job(JOBID_B, AsvoJobState::Cancelled),
+        job(JOB_ID_A, AsvoJobState::Ready),
+        job(JOB_ID_B, AsvoJobState::Cancelled),
     ]);
-    assert!(jobs.all_ready(&[JOBID_A]).expect("no job has failed"));
+    assert!(jobs.all_ready(&[JOB_ID_A]).expect("no job has failed"));
 }
 
 #[test]
 fn all_ready_reports_an_unknown_job() {
-    let jobs = AsvoJobVec(vec![job(JOBID_A, AsvoJobState::Ready)]);
-    let err = jobs.all_ready(&[JOBID_B]).expect_err("expected an error");
+    let jobs = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Ready)]);
+    let err = jobs.all_ready(&[JOB_ID_B]).expect_err("expected an error");
     assert!(
-        matches!(err, AsvoError::NoAsvoJob(jobid) if jobid == JOBID_B),
+        matches!(err, AsvoError::NoAsvoJob(job_id) if job_id == JOB_ID_B),
         "got {err:?}"
     );
 }
@@ -71,17 +71,17 @@ fn all_ready_reports_an_unknown_job() {
 #[test]
 fn all_ready_reports_a_failed_job_with_its_error() {
     let jobs = AsvoJobVec(vec![job(
-        JOBID_A,
+        JOB_ID_A,
         AsvoJobState::Error("the conversion failed".to_string()),
     )]);
-    match jobs.all_ready(&[JOBID_A]) {
+    match jobs.all_ready(&[JOB_ID_A]) {
         Err(AsvoError::JobFailed {
-            jobid,
-            obsid,
+            job_id,
+            obs_id,
             error,
         }) => {
-            assert_eq!(jobid, JOBID_A);
-            assert_eq!(u64::from(obsid), OBSID);
+            assert_eq!(job_id, JOB_ID_A);
+            assert_eq!(u64::from(obs_id), OBS_ID);
             assert_eq!(error, "the conversion failed");
         }
         other => panic!("expected JobFailed, got {other:?}"),
@@ -90,38 +90,38 @@ fn all_ready_reports_a_failed_job_with_its_error() {
 
 #[test]
 fn all_ready_reports_an_expired_or_cancelled_job() {
-    let expired = AsvoJobVec(vec![job(JOBID_A, AsvoJobState::Expired)]);
+    let expired = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Expired)]);
     assert!(matches!(
-        expired.all_ready(&[JOBID_A]),
-        Err(AsvoError::JobExpired(JOBID_A))
+        expired.all_ready(&[JOB_ID_A]),
+        Err(AsvoError::JobExpired(JOB_ID_A))
     ));
 
-    let cancelled = AsvoJobVec(vec![job(JOBID_A, AsvoJobState::Cancelled)]);
+    let cancelled = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Cancelled)]);
     assert!(matches!(
-        cancelled.all_ready(&[JOBID_A]),
-        Err(AsvoError::JobCancelled(JOBID_A))
+        cancelled.all_ready(&[JOB_ID_A]),
+        Err(AsvoError::JobCancelled(JOB_ID_A))
     ));
 }
 
 #[test]
 fn all_ready_reports_the_first_failure_in_the_order_asked() {
     let jobs = AsvoJobVec(vec![
-        job(JOBID_A, AsvoJobState::Expired),
-        job(JOBID_B, AsvoJobState::Cancelled),
+        job(JOB_ID_A, AsvoJobState::Expired),
+        job(JOB_ID_B, AsvoJobState::Cancelled),
     ]);
     assert!(matches!(
-        jobs.all_ready(&[JOBID_B, JOBID_A]),
-        Err(AsvoError::JobCancelled(JOBID_B))
+        jobs.all_ready(&[JOB_ID_B, JOB_ID_A]),
+        Err(AsvoError::JobCancelled(JOB_ID_B))
     ));
 }
 
 /// A job with the given ID, obsid, type and state, for the filter tests.
-fn job_with(jobid: AsvoJobID, obsid: u64, jtype: AsvoJobType, state: AsvoJobState) -> AsvoJob {
+fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: AsvoJobState) -> AsvoJob {
     AsvoJob {
-        obsid: Obsid::validate(obsid).expect("the test obsid should be valid"),
-        jobid,
-        jtype,
-        state,
+        obs_id: ObsId::validate(obs_id).expect("the test obsid should be valid"),
+        job_id,
+        job_type,
+        job_state: state,
         files: None,
         completed: None,
     }
@@ -130,16 +130,21 @@ fn job_with(jobid: AsvoJobID, obsid: u64, jtype: AsvoJobType, state: AsvoJobStat
 /// Three jobs that differ in job ID, obsid, type and state.
 fn mixed_jobs() -> AsvoJobVec {
     AsvoJobVec(vec![
-        job_with(JOBID_A, OBSID, AsvoJobType::Conversion, AsvoJobState::Ready),
         job_with(
-            JOBID_B,
-            OTHER_OBSID,
+            JOB_ID_A,
+            OBS_ID,
+            AsvoJobType::Conversion,
+            AsvoJobState::Ready,
+        ),
+        job_with(
+            JOB_ID_B,
+            OTHER_OBS_ID,
             AsvoJobType::DownloadVisibilities,
             AsvoJobState::Error("failed".to_string()),
         ),
         job_with(
-            JOBID_C,
-            OBSID,
+            JOB_ID_C,
+            OBS_ID,
             AsvoJobType::DownloadMetadata,
             AsvoJobState::Queued,
         ),
@@ -147,33 +152,33 @@ fn mixed_jobs() -> AsvoJobVec {
 }
 
 /// The job IDs in `jobs`, in order.
-fn ids(jobs: &AsvoJobVec) -> Vec<AsvoJobID> {
-    jobs.0.iter().map(|j| j.jobid).collect()
+fn ids(jobs: &AsvoJobVec) -> Vec<AsvoJobId> {
+    jobs.0.iter().map(|j| j.job_id).collect()
 }
 
 #[test]
 fn filter_with_no_criteria_keeps_every_job() {
     let jobs = mixed_jobs().filter(&[], &[], &[], &[]);
-    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_B, JOBID_C]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_A, JOB_ID_B, JOB_ID_C]);
 }
 
 #[test]
-fn filter_by_jobid() {
-    let jobs = mixed_jobs().filter(&[JOBID_B, JOBID_C], &[], &[], &[]);
-    assert_eq!(ids(&jobs), vec![JOBID_B, JOBID_C]);
+fn filter_by_job_id() {
+    let jobs = mixed_jobs().filter(&[JOB_ID_B, JOB_ID_C], &[], &[], &[]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_B, JOB_ID_C]);
 }
 
 #[test]
-fn filter_by_obsid() {
-    let obsid = Obsid::validate(OBSID).expect("the test obsid should be valid");
-    let jobs = mixed_jobs().filter(&[], &[obsid], &[], &[]);
-    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_C]);
+fn filter_by_obs_id() {
+    let obs_id = ObsId::validate(OBS_ID).expect("the test obsid should be valid");
+    let jobs = mixed_jobs().filter(&[], &[obs_id], &[], &[]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_A, JOB_ID_C]);
 }
 
 #[test]
 fn filter_by_job_type() {
     let jobs = mixed_jobs().filter(&[], &[], &[AsvoJobType::DownloadMetadata], &[]);
-    assert_eq!(ids(&jobs), vec![JOBID_C]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_C]);
 }
 
 #[test]
@@ -184,12 +189,61 @@ fn filter_by_state_matches_any_error() {
         &[],
         &[AsvoJobState::Error(String::new()), AsvoJobState::Ready],
     );
-    assert_eq!(ids(&jobs), vec![JOBID_A, JOBID_B]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_A, JOB_ID_B]);
 }
 
 #[test]
 fn filter_criteria_are_combined() {
-    let obsid = Obsid::validate(OBSID).expect("the test obsid should be valid");
-    let jobs = mixed_jobs().filter(&[], &[obsid], &[], &[AsvoJobState::Queued]);
-    assert_eq!(ids(&jobs), vec![JOBID_C]);
+    let obs_id = ObsId::validate(OBS_ID).expect("the test obsid should be valid");
+    let jobs = mixed_jobs().filter(&[], &[obs_id], &[], &[AsvoJobState::Queued]);
+    assert_eq!(ids(&jobs), vec![JOB_ID_C]);
+}
+
+/// `giant-squid list --json` prints these keys, and scripts depend on
+/// them. They are not the OpenAPI names; changing them is a separate
+/// decision (see docs/PYTHON_BINDINGS.md), so this test pins them.
+#[test]
+fn the_json_output_keys_are_unchanged() {
+    let mut ready = job(JOB_ID_A, AsvoJobState::Ready);
+    ready.files = Some(vec![AsvoFilesArray {
+        r#type: Delivery::Acacia,
+        url: Some("https://example.org/f.tar".to_string()),
+        path: None,
+        size: 1,
+        sha1: Some("0".repeat(40)),
+    }]);
+
+    let json: serde_json::Value =
+        serde_json::from_str(&AsvoJobVec(vec![ready]).json().expect("the jobs serialise"))
+            .expect("the output is JSON");
+    let entry = &json[JOB_ID_A.to_string()];
+
+    let keys: Vec<&str> = entry
+        .as_object()
+        .expect("each job is an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    // serde_json sorts the keys of a parsed object, so compare sorted.
+    assert_eq!(
+        keys,
+        [
+            "completed",
+            "files",
+            "jobId",
+            "jobState",
+            "jobType",
+            "obsid"
+        ]
+    );
+    let file_keys: Vec<&str> = entry["files"][0]
+        .as_object()
+        .expect("each file is an object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        file_keys,
+        ["fileHash", "filePath", "fileSize", "fileUrl", "jobType"]
+    );
 }

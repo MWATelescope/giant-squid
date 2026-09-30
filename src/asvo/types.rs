@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
 
-use crate::{obsid::Obsid, AsvoError};
+use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
 ///
@@ -107,18 +107,20 @@ pub struct AsvoFilesArray {
 
 /// A simple type alias. Not using a newtype, because that would produce
 /// unnecessary complexity.
-pub type AsvoJobID = u32;
+pub type AsvoJobId = u32;
 
 /// All of the metadata associated with an ASVO job.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoJob {
-    pub obsid: Obsid,
+    // JSON key kept as "obsid" for `list --json` compatibility.
+    #[serde(rename = "obsid")]
+    pub obs_id: ObsId,
     #[serde(rename = "jobId")]
-    pub jobid: AsvoJobID,
+    pub job_id: AsvoJobId,
     #[serde(rename = "jobType")]
-    pub jtype: AsvoJobType,
+    pub job_type: AsvoJobType,
     #[serde(rename = "jobState")]
-    pub state: AsvoJobState,
+    pub job_state: AsvoJobState,
     pub files: Option<Vec<AsvoFilesArray>>,
     pub completed: Option<DateTime<Utc>>,
 }
@@ -148,36 +150,36 @@ impl AsvoJobVec {
         AsvoJobMap::from(self)
     }
 
-    /// Check whether all of `jobids` are ready for download, in this job
+    /// Check whether all of `job_ids` are ready for download, in this job
     /// list. This makes no request: to wait for jobs, the caller gets the
     /// job list ([`AsvoClient::get_jobs`](crate::AsvoClient::get_jobs)),
     /// calls this, and sleeps and repeats while it returns `Ok(false)`.
     ///
     /// Returns `Ok(true)` if every job is `Ready`, and `Ok(false)` if every
     /// job is ready or still in progress (queued, processing and so on).
-    /// Returns an error for the first job (in the order of `jobids`) that
+    /// Returns an error for the first job (in the order of `job_ids`) that
     /// is not in the list ([`AsvoError::NoAsvoJob`]), has an error
     /// ([`AsvoError::JobFailed`]), has expired ([`AsvoError::JobExpired`])
     /// or has been cancelled ([`AsvoError::JobCancelled`]).
-    pub fn all_ready(&self, jobids: &[AsvoJobID]) -> Result<bool, AsvoError> {
+    pub fn all_ready(&self, job_ids: &[AsvoJobId]) -> Result<bool, AsvoError> {
         let mut all_ready = true;
-        for jobid in jobids {
+        for job_id in job_ids {
             let job = self
                 .0
                 .iter()
-                .find(|j| j.jobid == *jobid)
-                .ok_or(AsvoError::NoAsvoJob(*jobid))?;
-            match &job.state {
+                .find(|j| j.job_id == *job_id)
+                .ok_or(AsvoError::NoAsvoJob(*job_id))?;
+            match &job.job_state {
                 AsvoJobState::Ready => (),
                 AsvoJobState::Error(e) => {
                     return Err(AsvoError::JobFailed {
-                        jobid: *jobid,
-                        obsid: job.obsid,
+                        job_id: *job_id,
+                        obs_id: job.obs_id,
                         error: e.clone(),
                     });
                 }
-                AsvoJobState::Expired => return Err(AsvoError::JobExpired(*jobid)),
-                AsvoJobState::Cancelled => return Err(AsvoError::JobCancelled(*jobid)),
+                AsvoJobState::Expired => return Err(AsvoError::JobExpired(*job_id)),
+                AsvoJobState::Cancelled => return Err(AsvoError::JobCancelled(*job_id)),
                 _ => all_ready = false,
             }
         }
@@ -187,26 +189,26 @@ impl AsvoJobVec {
     /// Keep only the jobs that match every non-empty filter. An empty slice
     /// does not filter.
     ///
-    /// - `jobids`: the job ID is one of these.
-    /// - `obsids`: the obsid is one of these.
-    /// - `jtypes`: the job type is one of these.
+    /// - `job_ids`: the job ID is one of these.
+    /// - `obs_ids`: the obsid is one of these.
+    /// - `job_types`: the job type is one of these.
     /// - `states`: the job state is one of these. Only the kind of state is
     ///   compared, so any `AsvoJobState::Error(..)` matches every other.
     pub fn filter(
         self,
-        jobids: &[AsvoJobID],
-        obsids: &[Obsid],
-        jtypes: &[AsvoJobType],
+        job_ids: &[AsvoJobId],
+        obs_ids: &[ObsId],
+        job_types: &[AsvoJobType],
         states: &[AsvoJobState],
     ) -> Self {
         self.retain(|j| {
-            (jobids.is_empty() || jobids.contains(&j.jobid))
-                && (obsids.is_empty() || obsids.contains(&j.obsid))
-                && (jtypes.is_empty() || jtypes.contains(&j.jtype))
+            (job_ids.is_empty() || job_ids.contains(&j.job_id))
+                && (obs_ids.is_empty() || obs_ids.contains(&j.obs_id))
+                && (job_types.is_empty() || job_types.contains(&j.job_type))
                 && (states.is_empty()
                     || states
                         .iter()
-                        .any(|s| std::mem::discriminant(s) == std::mem::discriminant(&j.state)))
+                        .any(|s| std::mem::discriminant(s) == std::mem::discriminant(&j.job_state)))
         })
     }
 
@@ -224,13 +226,13 @@ impl AsvoJobVec {
 ///
 /// By using a custom type, custom methods can be easily defined and used.
 #[derive(Serialize, PartialEq, Eq, Debug)]
-pub struct AsvoJobMap(pub BTreeMap<AsvoJobID, AsvoJob>);
+pub struct AsvoJobMap(pub BTreeMap<AsvoJobId, AsvoJob>);
 
 impl From<AsvoJobVec> for AsvoJobMap {
     fn from(job_vec: AsvoJobVec) -> AsvoJobMap {
         let mut tree = BTreeMap::new();
         for j in job_vec.0.into_iter() {
-            tree.insert(j.jobid, j);
+            tree.insert(j.job_id, j);
         }
         AsvoJobMap(tree)
     }
@@ -284,11 +286,11 @@ impl std::fmt::Display for AsvoJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Job ID: {jobid}, obsid: {obsid}, type: {type}, state: {state}, product_array: {files:?}",
-            obsid=self.obsid,
-            jobid=self.jobid,
-            type=self.jtype,
-            state=self.state,
+            "Job ID: {job_id}, obsid: {obs_id}, type: {type}, state: {state}, product_array: {files:?}",
+            obs_id=self.obs_id,
+            job_id=self.job_id,
+            type=self.job_type,
+            state=self.job_state,
             files=self.files,
         )
     }
@@ -333,7 +335,7 @@ pub enum DownloadProgress {
     /// A file download starts, or starts again.
     Started {
         /// The MWA ASVO job ID.
-        jobid: AsvoJobID,
+        job_id: AsvoJobId,
         /// A human-readable label for the download, for example
         /// `Job ID 123 (obsid: 1234567890) [1/2]:`.
         label: String,

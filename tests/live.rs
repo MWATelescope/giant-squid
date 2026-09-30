@@ -64,13 +64,13 @@ const ENV_API_KEY: &str = "MWA_ASVO_API_KEY";
 const PRODUCTION_HOST: &str = "asvo.mwatelescope.org";
 
 /// A small obsid, cheap for the server to process.
-const LIVE_TEST_OBSID: &str = "1384357952";
+const LIVE_TEST_OBS_ID: &str = "1384357952";
 /// An obsid with voltage data.
-const LIVE_VOLTAGE_OBSID: &str = "1360706032";
+const LIVE_VOLTAGE_OBS_ID: &str = "1360706032";
 /// An obsid with beamformer data.
-const LIVE_BEAMFORMER_OBSID: &str = "1455599472";
+const LIVE_BEAMFORMER_OBS_ID: &str = "1455599472";
 /// A well-formed obsid with no data behind it.
-const LIVE_NO_DATA_OBSID: &str = "1000000000";
+const LIVE_NO_DATA_OBS_ID: &str = "1000000000";
 /// A job ID that no user has.
 const LIVE_UNKNOWN_JOB_ID: &str = "999999999";
 /// Voltage job range: a short slice from the start of the observation.
@@ -248,12 +248,12 @@ impl LiveEnv {
         job
     }
 
-    /// Check that `id` is listed as a live job of `job_type` for `obsid`.
-    fn assert_submitted(&self, id: u64, obsid: &str, job_type: &str) {
+    /// Check that `id` is listed as a live job of `job_type` for `obs_id`.
+    fn assert_submitted(&self, id: u64, obs_id: &str, job_type: &str) {
         let job = self.listed_job(id);
         assert_eq!(
             job["obsid"].as_u64().map(|o| o.to_string()).as_deref(),
-            Some(obsid),
+            Some(obs_id),
             "job: {job}"
         );
         assert_eq!(job["jobType"], job_type, "job: {job}");
@@ -392,10 +392,10 @@ fn state_name(job: &Value) -> String {
     }
 }
 
-/// A temporary file holding `obsid`, for the obsids-from-a-file form.
-fn obsid_file(obsid: &str) -> NamedTempFile {
+/// A temporary file holding `obs_id`, for the obsids-from-a-file form.
+fn obs_id_file(obs_id: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().expect("could not create an obsid file");
-    writeln!(file, "{obsid}").expect("could not write the obsid file");
+    writeln!(file, "{obs_id}").expect("could not write the obsid file");
     file
 }
 
@@ -447,15 +447,15 @@ fn live_list_forms() {
 fn live_submit_vis() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
-    let file = obsid_file(LIVE_TEST_OBSID);
+    let file = obs_id_file(LIVE_TEST_OBS_ID);
     let file = file.path().to_str().unwrap();
 
     for args in [
-        vec!["submit-vis", "-r", LIVE_TEST_OBSID],
+        vec!["submit-vis", "-r", LIVE_TEST_OBS_ID],
         vec!["sv", "-r", file],
     ] {
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_DOWNLOAD_VIS);
+            env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_DOWNLOAD_VIS);
         }
     }
 }
@@ -467,11 +467,11 @@ fn live_submit_meta() {
     let mut guard = JobGuard::new(&env);
 
     for args in [
-        vec!["submit-meta", "-r", LIVE_TEST_OBSID],
-        vec!["sm", "-r", LIVE_TEST_OBSID],
+        vec!["submit-meta", "-r", LIVE_TEST_OBS_ID],
+        vec!["sm", "-r", LIVE_TEST_OBS_ID],
     ] {
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_DOWNLOAD_META);
+            env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_DOWNLOAD_META);
         }
     }
 }
@@ -488,7 +488,7 @@ fn live_submit_conv() {
             "-r",
             "--delivery-format",
             "tar",
-            LIVE_TEST_OBSID,
+            LIVE_TEST_OBS_ID,
         ],
         vec![
             "sc",
@@ -497,11 +497,11 @@ fn live_submit_conv() {
             "ms",
             "--delivery-format",
             "tar",
-            LIVE_TEST_OBSID,
+            LIVE_TEST_OBS_ID,
         ],
     ] {
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_CONVERSION);
+            env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_CONVERSION);
         }
     }
 }
@@ -513,11 +513,11 @@ fn live_submit_image() {
     let mut guard = JobGuard::new(&env);
 
     for args in [
-        vec!["submit-image", "-r", LIVE_TEST_OBSID],
-        vec!["si", "-r", LIVE_TEST_OBSID],
+        vec!["submit-image", "-r", LIVE_TEST_OBS_ID],
+        vec!["si", "-r", LIVE_TEST_OBS_ID],
     ] {
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_IMAGING);
+            env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_IMAGING);
         }
     }
 }
@@ -537,9 +537,9 @@ fn live_submit_volt() {
     for command in ["submit-volt", "st"] {
         let mut args = vec![command, "-r"];
         args.extend(range);
-        args.push(LIVE_VOLTAGE_OBSID);
+        args.push(LIVE_VOLTAGE_OBS_ID);
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_VOLTAGE_OBSID, TYPE_DOWNLOAD_VOLTAGE);
+            env.assert_submitted(id, LIVE_VOLTAGE_OBS_ID, TYPE_DOWNLOAD_VOLTAGE);
         }
     }
 }
@@ -551,11 +551,11 @@ fn live_submit_bf() {
     let mut guard = JobGuard::new(&env);
 
     for args in [
-        vec!["submit-bf", "-r", LIVE_BEAMFORMER_OBSID],
-        vec!["sb", "-r", LIVE_BEAMFORMER_OBSID],
+        vec!["submit-bf", "-r", LIVE_BEAMFORMER_OBS_ID],
+        vec!["sb", "-r", LIVE_BEAMFORMER_OBS_ID],
     ] {
         for id in env.submit(&mut guard, &args) {
-            env.assert_submitted(id, LIVE_BEAMFORMER_OBSID, TYPE_DOWNLOAD_BEAMFORMER);
+            env.assert_submitted(id, LIVE_BEAMFORMER_OBS_ID, TYPE_DOWNLOAD_BEAMFORMER);
         }
     }
 }
@@ -571,9 +571,9 @@ fn live_delivery_env_defaults() {
     let mut cmd = env.command();
     cmd.env("GIANT_SQUID_DELIVERY", "acacia")
         .env("GIANT_SQUID_DELIVERY_FORMAT", "tar")
-        .args(["submit-meta", "-r", "--json", LIVE_TEST_OBSID]);
+        .args(["submit-meta", "-r", "--json", LIVE_TEST_OBS_ID]);
     for id in env.submit_command(&mut guard, cmd) {
-        env.assert_submitted(id, LIVE_TEST_OBSID, TYPE_DOWNLOAD_META);
+        env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_DOWNLOAD_META);
     }
 }
 
@@ -588,17 +588,17 @@ fn live_duplicate_submission_is_rejected_without_allow_resubmit() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
 
-    env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBSID]);
-    env.submit_expecting_rejection(&mut guard, &["submit-meta", LIVE_TEST_OBSID]);
+    env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBS_ID]);
+    env.submit_expecting_rejection(&mut guard, &["submit-meta", LIVE_TEST_OBS_ID]);
 }
 
 #[test]
 #[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
-fn live_submission_for_an_obsid_with_no_data_is_rejected() {
+fn live_submission_for_an_obs_id_with_no_data_is_rejected() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
 
-    env.submit_expecting_rejection(&mut guard, &["submit-vis", "-r", LIVE_NO_DATA_OBSID]);
+    env.submit_expecting_rejection(&mut guard, &["submit-vis", "-r", LIVE_NO_DATA_OBS_ID]);
 }
 
 /// Imaging from a job needs a completed conversion job; one just
@@ -616,7 +616,7 @@ fn live_image_from_an_unfinished_conversion_is_rejected() {
             "-r",
             "--delivery-format",
             "tar",
-            LIVE_TEST_OBSID,
+            LIVE_TEST_OBS_ID,
         ],
     )[0]
     .to_string();
@@ -627,7 +627,7 @@ fn live_image_from_an_unfinished_conversion_is_rejected() {
             "-r",
             "--source-job-id",
             &conv_id,
-            LIVE_TEST_OBSID,
+            LIVE_TEST_OBS_ID,
         ],
     );
 }
@@ -645,7 +645,7 @@ fn live_image_from_an_unknown_job_is_rejected() {
             "-r",
             "--source-job-id",
             LIVE_UNKNOWN_JOB_ID,
-            LIVE_TEST_OBSID,
+            LIVE_TEST_OBS_ID,
         ],
     );
 }
@@ -659,7 +659,7 @@ fn live_image_from_an_unknown_job_is_rejected() {
 fn live_cancel() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
-    let id = env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBSID])[0];
+    let id = env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBS_ID])[0];
     let id_str = id.to_string();
 
     let result = env.run(&["cancel", &id_str]);
@@ -702,7 +702,7 @@ fn live_cancelling_an_unknown_job_reports_job_not_found() {
 fn live_wait_on_a_cancelled_job_fails() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
-    let id = env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBSID])[0];
+    let id = env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBS_ID])[0];
     let id_str = id.to_string();
 
     let result = env.run(&["cancel", &id_str]);

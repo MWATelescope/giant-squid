@@ -21,7 +21,7 @@ def reset_logging() -> None:
     ``setLevel``), if the module has already logged.
     """
 
-def parse_many_jobids_or_obsids(strings: list[str]) -> tuple[list[int], list[int]]:
+def parse_many_job_ids_or_obs_ids(strings: list[str]) -> tuple[list[int], list[int]]:
     """Sort job IDs and obsids, as the CLI does with its arguments.
 
     A string that is an integer is an obsid if it is a valid obsid, and a job ID if not. Any other string is the
@@ -219,13 +219,14 @@ class AsvoError(Exception):
 
     kind: str
     """The variant, for example "NoAsvoJob", "JobFailed", "NotReady", "HashMismatch" or "Interrupted"."""
-    jobid: int
-    """NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles and HashMismatch."""
-    obsid: int
-    """JobFailed, NoObsid, NoJobReadyForObsid and TooManyObsids."""
+    job_id: int
+    """NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and
+    Http404Error."""
+    obs_id: int
+    """JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."""
     error: str
     """JobFailed: the job's error message."""
-    state: AsvoJobState
+    job_state: AsvoJobState
     """NotReady: the job's state."""
     file: str
     """HashMismatch."""
@@ -233,8 +234,6 @@ class AsvoError(Exception):
     """HashMismatch."""
     expected_hash: str
     """HashMismatch."""
-    job_id: int
-    """NoUrl, NoPath and Http404Error."""
     status: int
     """HttpError: the HTTP status code."""
     message: str
@@ -342,16 +341,16 @@ class AsvoJob:
     """An MWA ASVO job."""
 
     @property
-    def jobid(self) -> int:
+    def job_id(self) -> int:
         """The job ID."""
     @property
-    def obsid(self) -> int:
+    def obs_id(self) -> int:
         """The obsid."""
     @property
-    def jtype(self) -> AsvoJobType:
+    def job_type(self) -> AsvoJobType:
         """The job type."""
     @property
-    def state(self) -> AsvoJobState:
+    def job_state(self) -> AsvoJobState:
         """The job state."""
     @property
     def error_text(self) -> str | None:
@@ -375,10 +374,10 @@ class DownloadProgress:
     class Started(DownloadProgress):
         """A file download starts, or starts again."""
 
-        __match_args__ = ("jobid", "label", "total_bytes", "position")
-        def __init__(self, jobid: int, label: str, total_bytes: int, position: int) -> None: ...
+        __match_args__ = ("job_id", "label", "total_bytes", "position")
+        def __init__(self, job_id: int, label: str, total_bytes: int, position: int) -> None: ...
         @property
-        def jobid(self) -> int:
+        def job_id(self) -> int:
             """The MWA ASVO job ID."""
         @property
         def label(self) -> str:
@@ -425,10 +424,10 @@ class AsvoJobVec:
     def __iter__(self) -> Iterator[AsvoJob]: ...
     def filter(
         self,
-        jobids: list[int] | None = None,
-        obsids: list[int] | None = None,
-        jtypes: list[AsvoJobType] | None = None,
-        states: list[AsvoJobState] | None = None,
+        job_ids: list[int] | None = None,
+        obs_ids: list[int] | None = None,
+        job_types: list[AsvoJobType] | None = None,
+        job_states: list[AsvoJobState] | None = None,
     ) -> AsvoJobVec:
         """Keep only the jobs that match every given filter.
 
@@ -438,8 +437,8 @@ class AsvoJobVec:
         Raises:
             ValueError: An obsid is not valid.
         """
-    def all_ready(self, jobids: list[int]) -> bool:
-        """Whether all of ``jobids`` are ready for download. False means some are still in progress.
+    def all_ready(self, job_ids: list[int]) -> bool:
+        """Whether all of ``job_ids`` are ready for download. False means some are still in progress.
 
         This makes no request: to wait, call ``AsvoClient.get_jobs`` and this in a loop.
 
@@ -782,9 +781,9 @@ class AsvoClient:
             OverflowError: ``job_id`` is negative or too large to be a job ID.
             AsvoApiError: The request failed, for example because there is no such job.
         """
-    def download_jobid(
+    def download_job(
         self,
-        jobid: int,
+        job_id: int,
         download_dir: str | os.PathLike[str],
         *,
         keep_tar: bool = False,
@@ -804,7 +803,7 @@ class AsvoClient:
         ``no_resume``).
 
         Args:
-            jobid: The job ID.
+            job_id: The job ID.
             download_dir: The directory for the files. It must exist.
             keep_tar: Keep the tar file as it is. False unpacks it into ``download_dir`` while it downloads
                 (then there is no resume).
@@ -827,9 +826,9 @@ class AsvoClient:
             ValueError: ``download_dir`` or ``retry_duration`` is not valid.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
-    def download_obsid(
+    def download_obs(
         self,
-        obsid: int,
+        obs_id: int,
         download_dir: str | os.PathLike[str],
         *,
         keep_tar: bool = False,
@@ -843,15 +842,15 @@ class AsvoClient:
     ) -> None:
         """Download the files of the one ready job for an obsid.
 
-        The arguments, and the way the download runs, are those of ``download_jobid``.
+        The arguments, and the way the download runs, are those of ``download_job``.
 
         Args:
-            obsid: The obsid. There must be exactly one ready job for it.
+            obs_id: The obsid. There must be exactly one ready job for it.
 
         Raises:
-            ValueError: ``obsid`` is not a valid obsid.
+            ValueError: ``obs_id`` is not a valid obsid.
             AsvoError: No job, no ready job, or more than one ready job has this obsid, or the download failed
-                (see ``download_jobid``).
+                (see ``download_job``).
             AsvoApiError: Getting the job list failed.
             KeyboardInterrupt: Ctrl-C was pressed.
         """

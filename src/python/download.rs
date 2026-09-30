@@ -180,7 +180,7 @@ impl Hooks {
 
 /// Run `download` with the options in `args`, with the GIL released.
 ///
-/// `download` is the library call (`download_jobid` or `download_obsid`).
+/// `download` is the library call (`download_job` or `download_obs`).
 /// An exception from the progress callback or from Ctrl-C is raised in
 /// place of any error of the download.
 ///

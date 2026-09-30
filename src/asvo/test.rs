@@ -31,7 +31,7 @@ const DOWNLOAD_FILE: &str = "1065880128_12345_meta.tar";
 /// A completed job whose `product` points at the mock server, in the shape
 /// a real completed job uses.
 fn ready_job_serving(url: &str, size: u64, sha1: &str) -> Value {
-    let mut detail = job_detail(TEST_JOBID as i64, TEST_OBSID, "completed", 1);
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
     detail["product"] = json!({
         "files": [{ "type": "acacia", "url": url, "size": size, "sha1": sha1 }]
     });
@@ -88,11 +88,11 @@ fn downloading_an_unknown_job_id_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoAsvoJob(jobid) => assert_eq!(jobid, TEST_JOBID),
+        AsvoError::NoAsvoJob(job_id) => assert_eq!(job_id, TEST_JOB_ID),
         other => panic!("expected NoAsvoJob, got {other:?}"),
     }
 }
@@ -110,7 +110,7 @@ fn a_failed_job_listing_is_reported_as_an_api_error() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -122,16 +122,21 @@ fn a_failed_job_listing_is_reported_as_an_api_error() {
 #[test]
 fn downloading_a_job_that_is_not_ready_is_reported() {
     let env = TestEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(TEST_JOBID as i64, TEST_OBSID, "queued", 1)]);
+    env.mock_get_jobs(vec![job_detail(
+        TEST_JOB_ID as i64,
+        TEST_OBS_ID,
+        "queued",
+        1,
+    )]);
     let dir = TempDir::new().expect("could not create a download directory");
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NotReady { jobid, .. } => assert_eq!(jobid, TEST_JOBID),
+        AsvoError::NotReady { job_id, .. } => assert_eq!(job_id, TEST_JOB_ID),
         other => panic!("expected NotReady, got {other:?}"),
     }
 }
@@ -143,8 +148,8 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
 fn a_ready_job_reports_that_it_has_no_files() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![job_detail(
-        TEST_JOBID as i64,
-        TEST_OBSID,
+        TEST_JOB_ID as i64,
+        TEST_OBS_ID,
         "completed",
         1,
     )]);
@@ -152,11 +157,11 @@ fn a_ready_job_reports_that_it_has_no_files() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoFiles(jobid) => assert_eq!(jobid, TEST_JOBID),
+        AsvoError::NoFiles(job_id) => assert_eq!(job_id, TEST_JOB_ID),
         other => panic!("expected NoFiles, got {other:?}"),
     }
     assert_eq!(
@@ -169,60 +174,60 @@ fn a_ready_job_reports_that_it_has_no_files() {
 }
 
 #[test]
-fn downloading_an_unknown_obsid_is_reported() {
+fn downloading_an_unknown_obs_id_is_reported() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![job_detail(1, "1061311664", "completed", 1)]);
     let dir = TempDir::new().expect("could not create a download directory");
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(obsid, &options(&dir.path().display().to_string()))
+        .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    assert!(matches!(err, AsvoError::NoObsid(_)), "expected NoObsid");
+    assert!(matches!(err, AsvoError::NoObsId(_)), "expected NoObsid");
 }
 
 #[test]
-fn an_obsid_whose_only_job_is_unfinished_is_reported() {
+fn an_obs_id_whose_only_job_is_unfinished_is_reported() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![job_detail(
-        TEST_JOBID as i64,
-        TEST_OBSID,
+        TEST_JOB_ID as i64,
+        TEST_OBS_ID,
         "staging",
         1,
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(obsid, &options(&dir.path().display().to_string()))
+        .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, AsvoError::NoJobReadyForObsid(_)),
+        matches!(err, AsvoError::NoJobReadyForObsId(_)),
         "expected NoJobReadyForObsid"
     );
 }
 
 #[test]
-fn an_obsid_with_several_ready_jobs_is_ambiguous() {
+fn an_obs_id_with_several_ready_jobs_is_ambiguous() {
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![
-        job_detail(1, TEST_OBSID, "completed", 1),
-        job_detail(2, TEST_OBSID, "completed", 0),
+        job_detail(1, TEST_OBS_ID, "completed", 1),
+        job_detail(2, TEST_OBS_ID, "completed", 0),
     ]);
     let dir = TempDir::new().expect("could not create a download directory");
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let obsid = TEST_OBSID.parse().expect("the test obsid should parse");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
-        .download_obsid(obsid, &options(&dir.path().display().to_string()))
+        .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, AsvoError::TooManyObsids(_)),
+        matches!(err, AsvoError::TooManyObsIds(_)),
         "expected TooManyObsids"
     );
 }
@@ -233,14 +238,14 @@ fn an_obsid_with_several_ready_jobs_is_ambiguous() {
 #[test]
 fn a_job_listing_with_an_empty_product_is_not_downloadable() {
     let env = TestEnv::with_session();
-    let mut detail = job_detail(TEST_JOBID as i64, TEST_OBSID, "completed", 1);
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
     detail["product"] = json!({});
     env.mock_get_jobs(vec![detail]);
     let dir = TempDir::new().expect("could not create a download directory");
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir.path().display().to_string()))
+        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
@@ -271,7 +276,7 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -305,18 +310,18 @@ fn a_download_reports_its_progress_to_the_callback() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let events = events.into_inner().unwrap();
     match events.first() {
         Some(DownloadProgress::Started {
-            jobid,
+            job_id,
             total_bytes,
             position,
             ..
         }) => {
-            assert_eq!(*jobid, TEST_JOBID);
+            assert_eq!(*job_id, TEST_JOB_ID);
             assert_eq!(*total_bytes, payload.len() as u64);
             assert_eq!(*position, 0);
         }
@@ -357,7 +362,7 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &options(&dir_path))
+        .download_job(TEST_JOB_ID, &options(&dir_path))
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -391,17 +396,17 @@ fn a_hash_mismatch_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect_err("the hash check should fail");
 
     match err {
         AsvoError::HashMismatch {
-            jobid,
+            job_id,
             expected_hash,
             calculated_hash,
             ..
         } => {
-            assert_eq!(jobid, TEST_JOBID);
+            assert_eq!(job_id, TEST_JOB_ID);
             assert_eq!(expected_hash, "0000000000000000000000000000000000000000");
             assert_eq!(calculated_hash, sha1_hex(payload.as_bytes()));
         }
@@ -433,11 +438,11 @@ fn an_expired_download_url_is_reported_as_gone() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect_err("a 404 should fail the download");
 
     match err {
-        AsvoError::Http404Error { job_id } => assert_eq!(job_id, TEST_JOBID),
+        AsvoError::Http404Error { job_id } => assert_eq!(job_id, TEST_JOB_ID),
         other => panic!("expected Http404Error, got {other:?}"),
     }
 }
@@ -464,7 +469,7 @@ fn a_forbidden_download_fails_without_retrying() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect_err("a 403 should fail the download");
 
     assert_eq!(file.calls(), 1, "a permanent error must not be retried");
@@ -480,7 +485,7 @@ fn a_forbidden_download_fails_without_retrying() {
 #[test]
 fn a_file_with_an_unknown_delivery_type_is_skipped() {
     let env = TestEnv::with_session();
-    let mut detail = job_detail(TEST_JOBID as i64, TEST_OBSID, "completed", 1);
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
     detail["product"] = json!({
         "files": [{ "type": "some_new_delivery", "url": "https://example.org/x.tar", "size": 1 }]
     });
@@ -491,7 +496,7 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &options(&dir_path))
+        .download_job(TEST_JOB_ID, &options(&dir_path))
         .expect_err("expected the download to fail");
 
     assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
@@ -529,7 +534,7 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the resumed download should succeed");
 
     assert_eq!(file.calls(), 1, "the range request should be made once");
@@ -562,7 +567,7 @@ fn a_complete_and_verified_file_is_not_fetched_again() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("an already-complete file should be a no-op");
 
     assert_eq!(requests.calls(), 0, "nothing should have been fetched");
@@ -592,7 +597,7 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the download should restart and succeed");
 
     assert_eq!(file.calls(), 1);
@@ -625,7 +630,7 @@ fn a_partial_file_is_left_alone_when_no_resume_is_set() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("--no-resume should skip the file, not fail");
 
     assert_eq!(requests.calls(), 0, "nothing should have been fetched");
@@ -659,7 +664,7 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the restarted download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -703,7 +708,7 @@ fn a_download_stops_when_the_caller_asks() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect_err("the download should stop");
 
     assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
@@ -742,7 +747,7 @@ fn a_download_that_is_not_stopped_completes() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
@@ -789,7 +794,7 @@ fn a_stop_ends_the_wait_before_a_retry() {
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let started = std::time::Instant::now();
     let err = client
-        .download_jobid(TEST_JOBID, &opts)
+        .download_job(TEST_JOB_ID, &opts)
         .expect_err("the download should stop");
 
     assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");

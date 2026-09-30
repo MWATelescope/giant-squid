@@ -11,7 +11,7 @@ pub mod asvo;
 #[cfg(feature = "bin")]
 pub mod cli;
 mod helpers;
-pub mod obsid;
+pub mod obs_id;
 // The Python module. Built by maturin; see pyproject.toml.
 #[cfg(feature = "python")]
 mod python;
@@ -23,7 +23,7 @@ mod test_config;
 // Re-exports.
 pub use asvo::*;
 pub use helpers::*;
-pub use obsid::Obsid;
+pub use obs_id::ObsId;
 
 // Include the generated-file as a separate module
 pub mod built_info {

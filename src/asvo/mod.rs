@@ -12,13 +12,13 @@ mod types;
 mod test;
 
 use crate::check_file_sha1_hash;
-use crate::obsid::Obsid;
+use crate::obs_id::ObsId;
 pub use apiv2::client::{AsvoClient, AsvoClientConfig, DEFAULT_API_TIMEOUT};
 pub use apiv2::AsvoApiError;
 pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{
-    AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobState, AsvoJobType, AsvoJobVec,
     Delivery, DownloadOptions, DownloadProgress,
 };
 
@@ -58,17 +58,17 @@ pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
 const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Look up a single job by job ID from the supplied list and download it.
-pub(crate) fn download_by_jobid(
+pub(crate) fn download_by_job_id(
     http_client: &Client,
     jobs: AsvoJobVec,
-    jobid: AsvoJobID,
+    job_id: AsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
     let mut jobs = jobs;
-    debug!("Attempting to download job {}", jobid);
-    jobs.0.retain(|j| j.jobid == jobid);
+    debug!("Attempting to download job {}", job_id);
+    jobs.0.retain(|j| j.job_id == job_id);
     match jobs.0.len() {
-        0 => Err(AsvoError::NoAsvoJob(jobid)),
+        0 => Err(AsvoError::NoAsvoJob(job_id)),
         1 => download_job(http_client, &jobs.0[0], opts),
         _ => unreachable!(),
     }
@@ -76,30 +76,30 @@ pub(crate) fn download_by_jobid(
 
 /// Look up a single ready job by obsid from the supplied list and download it.
 /// Fails if zero, or more than one, ready jobs match the obsid.
-pub(crate) fn download_by_obsid(
+pub(crate) fn download_by_obs_id(
     http_client: &Client,
     jobs: AsvoJobVec,
-    obsid: Obsid,
+    obs_id: ObsId,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
     let mut all_jobs = jobs.clone();
 
-    debug!("Attempting to download obsid {}", obsid);
+    debug!("Attempting to download obsid {}", obs_id);
     let mut ready_jobs = jobs;
     ready_jobs
         .0
-        .retain(|j| j.obsid == obsid && j.state == AsvoJobState::Ready);
+        .retain(|j| j.obs_id == obs_id && j.job_state == AsvoJobState::Ready);
 
     match ready_jobs.0.len() {
         0 => {
-            all_jobs.0.retain(|j| j.obsid == obsid);
+            all_jobs.0.retain(|j| j.obs_id == obs_id);
             match all_jobs.0.len() {
-                0 => Err(AsvoError::NoObsid(obsid)),
-                _ => Err(AsvoError::NoJobReadyForObsid(obsid)),
+                0 => Err(AsvoError::NoObsId(obs_id)),
+                _ => Err(AsvoError::NoJobReadyForObsId(obs_id)),
             }
         }
         1 => download_job(http_client, &ready_jobs.0[0], opts),
-        _ => Err(AsvoError::TooManyObsids(obsid)),
+        _ => Err(AsvoError::TooManyObsIds(obs_id)),
     }
 }
 
@@ -109,22 +109,22 @@ fn download_job(
     job: &AsvoJob,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
-    if job.state != AsvoJobState::Ready {
+    if job.job_state != AsvoJobState::Ready {
         return Err(AsvoError::NotReady {
-            jobid: job.jobid,
-            state: job.state.clone(),
+            job_id: job.job_id,
+            job_state: job.job_state.clone(),
         });
     }
 
     let files = match &job.files {
-        None => return Err(AsvoError::NoFiles(job.jobid)),
-        Some(f) if f.is_empty() => return Err(AsvoError::NoFiles(job.jobid)),
+        None => return Err(AsvoError::NoFiles(job.job_id)),
+        Some(f) if f.is_empty() => return Err(AsvoError::NoFiles(job.job_id)),
         Some(f) => f,
     };
 
     let log_prefix = format!(
         "Job ID {} (obsid: {}) [{}/{}]:",
-        job.jobid, job.obsid, opts.download_number, opts.download_count
+        job.job_id, job.obs_id, opts.download_number, opts.download_count
     );
 
     let start_time = Instant::now();
@@ -135,7 +135,7 @@ fn download_job(
                 let url = f
                     .url
                     .as_deref()
-                    .ok_or(AsvoError::NoUrl { job_id: job.jobid })?;
+                    .ok_or(AsvoError::NoUrl { job_id: job.job_id })?;
 
                 debug!("{} Downloading from url {}", log_prefix, url);
                 let url_obj = reqwest::Url::parse(url).unwrap();
@@ -147,7 +147,7 @@ fn download_job(
                         |e| match &e {
                             AsvoError::IO(_) | AsvoError::Interrupted => Error::permanent(e),
                             AsvoError::HttpError { status: 404, .. } => {
-                                Error::permanent(AsvoError::Http404Error { job_id: job.jobid })
+                                Error::permanent(AsvoError::Http404Error { job_id: job.job_id })
                             }
                             AsvoError::HttpError {
                                 status: 401 | 403, ..
@@ -200,7 +200,7 @@ fn download_job(
                 let path = f
                     .path
                     .as_deref()
-                    .ok_or(AsvoError::NoPath { job_id: job.jobid })?;
+                    .ok_or(AsvoError::NoPath { job_id: job.job_id })?;
                 let path_obj = Path::new(path);
                 let folder_name = path_obj
                     .components()
@@ -258,7 +258,7 @@ fn try_download(
     info!(
         "{} Download starting (type: {}, {})",
         log_prefix,
-        job.jtype,
+        job.job_type,
         bytesize::ByteSize(file_info.size).display().iec(),
     );
 
@@ -274,7 +274,7 @@ fn try_download(
             opts.no_resume,
             file_info,
             mwa_asvo_hash,
-            job.jobid,
+            job.job_id,
             log_prefix,
         )? {
             OutputTarget::AlreadyDone { reason } => {
@@ -400,14 +400,14 @@ fn try_download(
             // The tee only saw the bytes fetched this time, so its hash
             // describes the tail rather than the file. Read the assembled
             // file back instead - slower, but only on a resumed download.
-            check_file_sha1_hash(out_path, mwa_asvo_hash, job.jobid)?;
+            check_file_sha1_hash(out_path, mwa_asvo_hash, job.job_id)?;
         } else {
             let (_, hasher) = tee.into_inner();
             let hash = format!("{:x}", hasher.finalize());
             debug!("{} Our hash: {}", log_prefix, hash);
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
-                    jobid: job.jobid,
+                    job_id: job.job_id,
                     file: url.to_string(),
                     calculated_hash: hash,
                     expected_hash: mwa_asvo_hash.to_string(),
@@ -530,7 +530,7 @@ fn report_started(
     report(
         opts,
         DownloadProgress::Started {
-            jobid: job.jobid,
+            job_id: job.job_id,
             label: label.to_string(),
             total_bytes,
             position,
@@ -600,7 +600,7 @@ fn prepare_output_file(
     no_resume: bool,
     file_info: &AsvoFilesArray,
     mwa_asvo_hash: &str,
-    jobid: AsvoJobID,
+    job_id: AsvoJobId,
     log_prefix: &str,
 ) -> Result<OutputTarget, AsvoError> {
     if !out_path.try_exists()? {
@@ -624,7 +624,7 @@ fn prepare_output_file(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
         );
-        match check_file_sha1_hash(out_path, mwa_asvo_hash, jobid) {
+        match check_file_sha1_hash(out_path, mwa_asvo_hash, job_id) {
             Ok(()) => {
                 return Ok(OutputTarget::AlreadyDone {
                     reason: "File exists, is the correct size and matches the MWA ASVO hash.",

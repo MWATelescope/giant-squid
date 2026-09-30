@@ -17,15 +17,15 @@ from .conftest import (
     GET_JOBS_PATH,
     LOGIN_PATH,
     TEST_API_KEY,
-    TEST_OBSID,
+    TEST_OBS_ID,
     error_response,
     job_detail,
 )
 
 # Job IDs used by these tests.
-JOBID_READY = 101
-JOBID_QUEUED = 102
-JOBID_FAILED = 103
+JOB_ID_READY = 101
+JOB_ID_QUEUED = 102
+JOB_ID_FAILED = 103
 
 # A completion time the mock sends (naive, as the real server sends it) and what it means (UTC).
 COMPLETED_TEXT = "2026-09-08T06:00:00"
@@ -66,9 +66,9 @@ def mixed_jobs() -> list[dict[str, Any]]:
     """
     product = {"files": [{"type": "acacia", "url": FILE_URL, "size": FILE_SIZE, "sha1": FILE_SHA1}]}
     return [
-        job_detail(JOBID_READY, "completed", completed=COMPLETED_TEXT, product=product),
-        job_detail(JOBID_QUEUED, "queued"),
-        job_detail(JOBID_FAILED, "error", error_text="the conversion failed"),
+        job_detail(JOB_ID_READY, "completed", completed=COMPLETED_TEXT, product=product),
+        job_detail(JOB_ID_QUEUED, "queued"),
+        job_detail(JOB_ID_FAILED, "error", error_text="the conversion failed"),
     ]
 
 
@@ -82,10 +82,10 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
 
     assert len(jobs) == len(mixed_jobs())
     ready = jobs[0]
-    assert ready.jobid == JOBID_READY
-    assert ready.obsid == TEST_OBSID
-    assert ready.jtype == gs.AsvoJobType.DownloadVisibilities
-    assert ready.state == gs.AsvoJobState.Ready
+    assert ready.job_id == JOB_ID_READY
+    assert ready.obs_id == TEST_OBS_ID
+    assert ready.job_type == gs.AsvoJobType.DownloadVisibilities
+    assert ready.job_state == gs.AsvoJobState.Ready
     assert ready.error_text is None
     assert ready.completed == COMPLETED_UTC
     assert ready.files is not None
@@ -96,9 +96,9 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert file.sha1 == FILE_SHA1
     assert file.path is None
 
-    assert jobs[1].state == gs.AsvoJobState.Queued
+    assert jobs[1].job_state == gs.AsvoJobState.Queued
     assert jobs[1].files is None
-    assert jobs[-1].state == gs.AsvoJobState.Error
+    assert jobs[-1].job_state == gs.AsvoJobState.Error
     assert jobs[-1].error_text == "the conversion failed"
 
 
@@ -108,7 +108,7 @@ def test_a_job_list_supports_iteration_and_rejects_a_bad_index(host: str, serve_
     serve_jobs(mixed_jobs())
     jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
-    assert [job.jobid for job in jobs] == [JOBID_READY, JOBID_QUEUED, JOBID_FAILED]
+    assert [job.job_id for job in jobs] == [JOB_ID_READY, JOB_ID_QUEUED, JOB_ID_FAILED]
     with pytest.raises(IndexError):
         jobs[len(mixed_jobs())]
 
@@ -120,13 +120,13 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
     assert len(jobs.filter()) == len(mixed_jobs())
-    assert [j.jobid for j in jobs.filter(jobids=[JOBID_QUEUED])] == [JOBID_QUEUED]
-    assert len(jobs.filter(obsids=[TEST_OBSID])) == len(mixed_jobs())
-    assert len(jobs.filter(jtypes=[gs.AsvoJobType.Conversion])) == 0
-    errors_and_ready = jobs.filter(states=[gs.AsvoJobState.Error, gs.AsvoJobState.Ready])
-    assert [j.jobid for j in errors_and_ready] == [JOBID_READY, JOBID_FAILED]
+    assert [j.job_id for j in jobs.filter(job_ids=[JOB_ID_QUEUED])] == [JOB_ID_QUEUED]
+    assert len(jobs.filter(obs_ids=[TEST_OBS_ID])) == len(mixed_jobs())
+    assert len(jobs.filter(job_types=[gs.AsvoJobType.Conversion])) == 0
+    errors_and_ready = jobs.filter(job_states=[gs.AsvoJobState.Error, gs.AsvoJobState.Ready])
+    assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
     with pytest.raises(ValueError, match="obsid"):
-        jobs.filter(obsids=[1])
+        jobs.filter(obs_ids=[1])
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -135,13 +135,13 @@ def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., No
     serve_jobs(mixed_jobs())
     jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
-    assert jobs.all_ready([JOBID_READY])
-    assert not jobs.all_ready([JOBID_READY, JOBID_QUEUED])
+    assert jobs.all_ready([JOB_ID_READY])
+    assert not jobs.all_ready([JOB_ID_READY, JOB_ID_QUEUED])
 
     with pytest.raises(gs.AsvoError) as failed:
-        jobs.all_ready([JOBID_FAILED])
+        jobs.all_ready([JOB_ID_FAILED])
     assert failed.value.kind == "JobFailed"
-    assert failed.value.jobid == JOBID_FAILED
+    assert failed.value.job_id == JOB_ID_FAILED
     assert failed.value.error == "the conversion failed"
 
     with pytest.raises(gs.AsvoError) as missing:
@@ -157,7 +157,7 @@ def test_json_is_keyed_by_job_id(host: str, serve_jobs: Callable[..., None]) -> 
 
     parsed = json.loads(jobs.json())
 
-    assert parsed[str(JOBID_READY)]["jobId"] == JOBID_READY
+    assert parsed[str(JOB_ID_READY)]["jobId"] == JOB_ID_READY
 
 
 def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:

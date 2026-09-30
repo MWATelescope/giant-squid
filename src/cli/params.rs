@@ -217,17 +217,17 @@ pub struct ConversionJobArgs {
     pub apply_di_cal: bool,
 
     /// Phase centre mode: "phase", "pointing", or "custom".
-    /// If "custom", also supply --phase-centre-ra and --phase-centre-dec.
+    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
     #[arg(long, default_value_t = conversion_defaults().centre)]
     pub centre: Centre,
 
     /// Custom phase centre right ascension (degrees). Requires --centre custom.
-    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
-    pub phase_centre_ra: Option<f64>,
+    #[arg(long, alias = "phase-centre-ra", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
+    pub custom_centre_ra: Option<f64>,
 
     /// Custom phase centre declination (degrees). Requires --centre custom.
-    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
-    pub phase_centre_dec: Option<f64>,
+    #[arg(long, alias = "phase-centre-dec", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
+    pub custom_centre_dec: Option<f64>,
 
     /// Whether to skip applying amplitude calibration solutions.
     #[arg(long)]
@@ -267,8 +267,8 @@ impl ConversionJobArgs {
             .flag_edge_width(self.flag_edge_width)
             .apply_di_cal(self.apply_di_cal)
             .centre(self.centre)
-            .custom_centre_ra(self.phase_centre_ra)
-            .custom_centre_dec(self.phase_centre_dec)
+            .custom_centre_ra(self.custom_centre_ra)
+            .custom_centre_dec(self.custom_centre_dec)
             .no_apply_amps(self.no_apply_amps)
             .no_digital_gains(self.no_digital_gains)
             .no_flag_dc(self.no_flag_dc)
@@ -348,15 +348,13 @@ pub struct ImagingJobArgs {
     #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
     pub clean_threshold: f64,
 
-    /// Custom phase centre declination (degrees). Requires
-    /// --phase-center custom.
-    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
-    pub custom_dec: Option<f64>,
+    /// Custom phase centre declination (degrees). Requires --centre custom.
+    #[arg(long, alias = "custom-dec", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
+    pub custom_centre_dec: Option<f64>,
 
-    /// Custom phase centre right ascension (degrees). Requires
-    /// --phase-center custom.
-    #[arg(long, value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
-    pub custom_ra: Option<f64>,
+    /// Custom phase centre right ascension (degrees). Requires --centre custom.
+    #[arg(long, alias = "custom-ra", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
+    pub custom_centre_ra: Option<f64>,
 
     /// Width of frequency edge flagging (kHz).
     #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
@@ -402,9 +400,10 @@ pub struct ImagingJobArgs {
     #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode)]
     pub output_mode: OutputMode,
 
-    /// Where to centre the image.
-    #[arg(long, default_value_t = imaging1_defaults().centre)]
-    pub phase_center: Centre,
+    /// Where to centre the image: "phase", "pointing", or "custom".
+    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
+    #[arg(long, alias = "phase-center", default_value_t = imaging1_defaults().centre)]
+    pub centre: Centre,
 
     /// Pixel scale (arcsec/pixel).
     #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
@@ -467,8 +466,8 @@ impl ImagingJobArgs {
             .channels_out(self.channels_out)
             .clean_iterations(self.clean_iterations)
             .clean_threshold(self.clean_threshold)
-            .custom_centre_dec(self.custom_dec)
-            .custom_centre_ra(self.custom_ra)
+            .custom_centre_dec(self.custom_centre_dec)
+            .custom_centre_ra(self.custom_centre_ra)
             .flag_edge_width(self.flag_edge_width)
             .image_size(image_size)
             .join_channels(self.join_channels)
@@ -479,7 +478,7 @@ impl ImagingJobArgs {
             .no_apply_amps(self.no_apply_amps)
             .nwlayers(self.nwlayers)
             .output_mode(self.output_mode)
-            .centre(self.phase_center)
+            .centre(self.centre)
             .pixel_scale(self.pixel_scale)
             .pol(self.pol.clone())
             .robust(self.robust)

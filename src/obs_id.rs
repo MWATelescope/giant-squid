@@ -13,23 +13,23 @@ use thiserror::Error;
 /// A newtype representing an MWA observation ID ("obsid"). Using this type
 /// instead of a [u64] ensures that things work correctly at compile time.
 #[derive(Serialize, PartialEq, Eq, Clone, Copy)]
-pub struct Obsid(u64);
+pub struct ObsId(u64);
 
-impl Obsid {
-    /// Given a [u64], return it as an MWA [Obsid] if it is valid.
-    pub fn validate(o: u64) -> Result<Obsid, ObsidError> {
+impl ObsId {
+    /// Given a [u64], return it as an MWA [`ObsId`] if it is valid.
+    pub fn validate(o: u64) -> Result<ObsId, ObsIdError> {
         // Valid obsids are between 1e9 and 1e10.
         if o >= 1e9 as u64 && o < 1e10 as u64 {
-            Ok(Obsid(o))
+            Ok(ObsId(o))
         } else {
-            Err(ObsidError::WrongNumDigits(o))
+            Err(ObsIdError::WrongNumDigits(o))
         }
     }
 
     /// Convert a string of whitespace-delimited (e.g. spaces, tabs, newlines)
-    /// integers to a [Vec<Obsid>]. If any of the integers are invalid as
+    /// integers to a [`Vec<ObsId>`]. If any of the integers are invalid as
     /// obsids, an error is returned.
-    pub fn from_string(s: &str) -> Result<Vec<Obsid>, ObsidError> {
+    pub fn from_string(s: &str) -> Result<Vec<ObsId>, ObsIdError> {
         s.split_whitespace().map(|i| i.parse()).collect()
     }
 
@@ -39,35 +39,35 @@ impl Obsid {
     }
 }
 
-impl From<Obsid> for u64 {
-    fn from(o: Obsid) -> u64 {
+impl From<ObsId> for u64 {
+    fn from(o: ObsId) -> u64 {
         o.0
     }
 }
 
-impl FromStr for Obsid {
-    type Err = ObsidError;
+impl FromStr for ObsId {
+    type Err = ObsIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let int: u64 = s.parse()?;
-        Obsid::validate(int)
+        ObsId::validate(int)
     }
 }
 
-impl std::fmt::Display for Obsid {
+impl std::fmt::Display for ObsId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl std::fmt::Debug for Obsid {
+impl std::fmt::Debug for ObsId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
 #[derive(Error, Debug)]
-pub enum ObsidError {
+pub enum ObsIdError {
     /// If an int doesn't have 10 digits, it's not a valid obsid.
     #[error("'{0}' doesn't have 10 digits and cannot be used as an MWA obsid")]
     WrongNumDigits(u64),

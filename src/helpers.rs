@@ -12,24 +12,24 @@ use sha1::{Digest, Sha1};
 use thiserror::Error;
 
 use crate::asvo::*;
-use crate::obsid::Obsid;
+use crate::obs_id::ObsId;
 
-enum ObsidOrJobID {
+enum ObsIdOrJobId {
     /// This is an obsid.
-    O(Obsid),
+    O(ObsId),
     /// This is a job ID.
-    J(AsvoJobID),
+    J(AsvoJobId),
 }
 
-fn parse_jobid_or_obsid(s: &str) -> Option<ObsidOrJobID> {
+fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
     match s.parse::<u64>() {
         // We successfully parsed an int.
         Ok(i) => {
-            match Obsid::validate(i) {
+            match ObsId::validate(i) {
                 // This int is an obsid.
-                Ok(o) => Some(ObsidOrJobID::O(o)),
+                Ok(o) => Some(ObsIdOrJobId::O(o)),
                 // This int isn't an obsid; assume it is a jobid.
-                Err(_) => Some(ObsidOrJobID::J(i as AsvoJobID)),
+                Err(_) => Some(ObsIdOrJobId::J(i as AsvoJobId)),
             }
         }
         // Could not parse the string as an int; we must fail.
@@ -39,11 +39,11 @@ fn parse_jobid_or_obsid(s: &str) -> Option<ObsidOrJobID> {
 
 /// Read a file, and return two vectors of ASVO job IDs and obsids. Fail if any
 /// string in the file cannot be parsed as either.
-pub fn parse_jobids_and_obsids_from_file<T: AsRef<Path>>(
+pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     f: T,
-) -> Result<(Vec<AsvoJobID>, Vec<Obsid>), ParseError> {
-    let mut obsids = vec![];
-    let mut jobids = vec![];
+) -> Result<(Vec<AsvoJobId>, Vec<ObsId>), ParseError> {
+    let mut obs_ids = vec![];
+    let mut job_ids = vec![];
 
     // An IO error keeps the path, so the caller can say which file failed.
     let io_error = |source: io::Error| ParseError::IO {
@@ -60,9 +60,9 @@ pub fn parse_jobids_and_obsids_from_file<T: AsRef<Path>>(
         // obsids. Fail if whitespace-delimited text
         // can't be parsed into an int.
         for text in line.split_whitespace() {
-            match parse_jobid_or_obsid(text) {
-                Some(ObsidOrJobID::O(obsid)) => obsids.push(obsid),
-                Some(ObsidOrJobID::J(jobid)) => jobids.push(jobid),
+            match parse_job_id_or_obs_id(text) {
+                Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
+                Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
                 // `text` could not be parsed; so we must fail.
                 None => {
                     return Err(ParseError::InsideFile {
@@ -75,34 +75,34 @@ pub fn parse_jobids_and_obsids_from_file<T: AsRef<Path>>(
         line.clear();
     }
 
-    Ok((jobids, obsids))
+    Ok((job_ids, obs_ids))
 }
 
 /// Parse a string of ASVO job IDs, obsids, or files containing job IDs or
 /// obsids into two vectors of job IDs and obsids.
-pub fn parse_many_jobids_or_obsids(
+pub fn parse_many_job_ids_or_obs_ids(
     strings: &[String],
-) -> Result<(Vec<AsvoJobID>, Vec<Obsid>), ParseError> {
+) -> Result<(Vec<AsvoJobId>, Vec<ObsId>), ParseError> {
     // Attempt to parse all arguments as ints. If they aren't 10
     // digits long, assume they are ASVO job IDs. If any argument is
     // not an int, assume it is a file. Exit on any error.
-    let mut jobids = vec![];
-    let mut obsids = vec![];
+    let mut job_ids = vec![];
+    let mut obs_ids = vec![];
     for s in strings {
-        match parse_jobid_or_obsid(s) {
-            Some(ObsidOrJobID::O(obsid)) => obsids.push(obsid),
-            Some(ObsidOrJobID::J(jobid)) => jobids.push(jobid),
+        match parse_job_id_or_obs_id(s) {
+            Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
+            Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
             // Could not parse the string as an int; assume it is a
             // file and unpack it.
             None => {
-                let (mut j, mut o) = parse_jobids_and_obsids_from_file(s)?;
-                jobids.append(&mut j);
-                obsids.append(&mut o);
+                let (mut j, mut o) = parse_job_ids_and_obs_ids_from_file(s)?;
+                job_ids.append(&mut j);
+                obs_ids.append(&mut o);
             }
         }
     }
 
-    Ok((jobids, obsids))
+    Ok((job_ids, obs_ids))
 }
 
 #[derive(Error, Debug)]
@@ -139,7 +139,7 @@ pub fn check_file_sha1_hash(
         Ok(())
     } else {
         Err(AsvoError::HashMismatch {
-            jobid: job_id,
+            job_id,
             file: filename.display().to_string(),
             calculated_hash: hash,
             expected_hash: expected_hash.to_string(),

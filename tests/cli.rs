@@ -59,7 +59,7 @@ fn version_and_help_need_no_server() {
 fn an_unknown_command_exits_with_a_failure() {
     let env = CliEnv::with_session();
     let mut cmd = env.command();
-    cmd.args(["submit-nothing", TEST_OBSID]);
+    cmd.args(["submit-nothing", TEST_OBS_ID]);
 
     let result = run(cmd);
 
@@ -81,7 +81,7 @@ fn a_dry_run_submission_contacts_no_server() {
     let requests = catch_all(&env);
 
     let mut cmd = env.command();
-    cmd.args(["submit-vis", "--dry-run", TEST_OBSID]);
+    cmd.args(["submit-vis", "--dry-run", TEST_OBS_ID]);
     let result = run(cmd);
 
     assert!(result.success, "output: {}", result.combined());
@@ -108,7 +108,7 @@ fn a_dry_run_prints_the_endpoint_and_the_request_body() {
         "scratch",
         "--avg-freq-res",
         "40",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     let result = run(cmd);
 
@@ -129,7 +129,7 @@ fn a_dry_run_prints_the_endpoint_and_the_request_body() {
 }
 
 #[test]
-fn a_dry_run_prints_one_body_per_obsid() {
+fn a_dry_run_prints_one_body_per_obs_id() {
     let env = CliEnv::with_session();
     let requests = catch_all(&env);
 
@@ -201,7 +201,7 @@ fn a_submission_reaches_the_server_and_reports_the_job_id() {
     });
 
     let mut cmd = env.command();
-    cmd.args(["submit-vis", TEST_OBSID]);
+    cmd.args(["submit-vis", TEST_OBS_ID]);
     let result = run(cmd);
 
     assert!(result.success, "output: {}", result.combined());
@@ -214,7 +214,7 @@ fn a_submission_reaches_the_server_and_reports_the_job_id() {
 }
 
 #[test]
-fn several_obsids_are_submitted_one_request_each() {
+fn several_obs_ids_are_submitted_one_request_each() {
     let env = CliEnv::with_session();
     let submit = env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/download_vis_job");
@@ -234,7 +234,7 @@ fn several_obsids_are_submitted_one_request_each() {
 /// `--json` prints the server's `JobSubmittedResponse` for each submitted
 /// job, one compact object per line, so scripts need not parse log text.
 #[test]
-fn json_prints_one_submitted_response_per_obsid() {
+fn json_prints_one_submitted_response_per_obs_id() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/download_vis_job");
@@ -277,7 +277,7 @@ fn json_works_for_image_from_job_submissions() {
         "--json",
         "--source-job-id",
         "12345",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     let result = run(cmd);
 
@@ -303,7 +303,7 @@ fn the_delivery_environment_variables_supply_the_defaults() {
     let mut cmd = env.command();
     cmd.env("GIANT_SQUID_DELIVERY", "scratch")
         .env("GIANT_SQUID_DELIVERY_FORMAT", "tar")
-        .args(["submit-vis", TEST_OBSID]);
+        .args(["submit-vis", TEST_OBS_ID]);
     let result = run(cmd);
 
     assert!(result.success, "output: {}", result.combined());
@@ -327,7 +327,7 @@ fn a_command_line_flag_beats_the_environment() {
         "submit-vis",
         "--delivery",
         "acacia",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     let result = run(cmd);
 
@@ -336,7 +336,7 @@ fn a_command_line_flag_beats_the_environment() {
 }
 
 #[test]
-fn a_job_id_where_an_obsid_is_required_is_rejected_before_any_request() {
+fn a_job_id_where_an_obs_id_is_required_is_rejected_before_any_request() {
     let env = CliEnv::with_session();
     let requests = catch_all(&env);
 
@@ -354,7 +354,7 @@ fn a_job_id_where_an_obsid_is_required_is_rejected_before_any_request() {
 }
 
 #[test]
-fn submitting_with_no_obsids_is_rejected() {
+fn submitting_with_no_obs_ids_is_rejected() {
     let env = CliEnv::with_session();
     let requests = catch_all(&env);
 
@@ -374,7 +374,7 @@ fn submitting_with_no_obsids_is_rejected() {
 /// A failing obsid must not hide the ones after it: every obsid is
 /// attempted, each failure is reported, and the run fails at the end.
 #[test]
-fn one_failing_obsid_does_not_stop_the_others() {
+fn one_failing_obs_id_does_not_stop_the_others() {
     let env = CliEnv::with_session();
     let rejected = env.server.mock(|when, then| {
         when.method(POST)
@@ -432,10 +432,10 @@ fn every_failure_is_listed_at_the_end() {
     let output = result.combined();
     assert_eq!(rejected.calls(), 3, "all three should be attempted");
     assert!(!result.success);
-    for obsid in ["1115977528", "1061311664", "1061311784"] {
+    for obs_id in ["1115977528", "1061311664", "1061311784"] {
         assert!(
-            output.contains(obsid),
-            "{obsid} should appear in the failure report: {output}"
+            output.contains(obs_id),
+            "{obs_id} should appear in the failure report: {output}"
         );
     }
     assert!(output.contains("3 of 3 obsids failed"), "output: {output}");
@@ -452,7 +452,7 @@ fn a_server_error_on_submission_fails_the_run() {
     });
 
     let mut cmd = env.command();
-    cmd.args(["submit-vis", TEST_OBSID]);
+    cmd.args(["submit-vis", TEST_OBS_ID]);
     let result = run(cmd);
 
     assert!(!result.success, "the run should fail");
@@ -470,7 +470,7 @@ fn a_server_error_on_submission_fails_the_run() {
 #[test]
 fn list_json_prints_the_jobs_keyed_by_job_id() {
     let env = CliEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(12345, TEST_OBSID, "completed", 1)]);
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
 
     let mut cmd = env.command();
     cmd.args(["list", "--json"]);
@@ -486,7 +486,7 @@ fn list_json_prints_the_jobs_keyed_by_job_id() {
 #[test]
 fn list_prints_the_jobs_as_a_table() {
     let env = CliEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(12345, TEST_OBSID, "completed", 1)]);
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
 
     let mut cmd = env.command();
     cmd.args(["list", "--no-colour"]);
@@ -499,7 +499,7 @@ fn list_prints_the_jobs_as_a_table() {
         result.stdout
     );
     assert!(
-        result.stdout.contains("12345") && result.stdout.contains(TEST_OBSID),
+        result.stdout.contains("12345") && result.stdout.contains(TEST_OBS_ID),
         "expected the job in the table: {}",
         result.stdout
     );
@@ -525,7 +525,7 @@ fn list_reports_when_there_are_no_jobs() {
 #[test]
 fn wait_returns_when_the_job_is_ready() {
     let env = CliEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(12345, TEST_OBSID, "completed", 1)]);
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
 
     let mut cmd = env.command();
     cmd.args(["wait", "--json", "12345"]);
@@ -539,7 +539,7 @@ fn wait_returns_when_the_job_is_ready() {
 #[test]
 fn wait_fails_when_the_job_has_an_error() {
     let env = CliEnv::with_session();
-    let mut job = job_detail(12345, TEST_OBSID, "error", 1);
+    let mut job = job_detail(12345, TEST_OBS_ID, "error", 1);
     job["error_text"] = serde_json::json!("the conversion failed");
     env.mock_get_jobs(vec![job]);
 
@@ -577,12 +577,12 @@ fn list_filters_by_state() {
 }
 
 #[test]
-fn list_rejects_job_ids_and_obsids_together() {
+fn list_rejects_job_ids_and_obs_ids_together() {
     let env = CliEnv::with_session();
     env.mock_get_jobs(vec![]);
 
     let mut cmd = env.command();
-    cmd.args(["list", "12345", TEST_OBSID]);
+    cmd.args(["list", "12345", TEST_OBS_ID]);
     let result = run(cmd);
 
     assert!(!result.success);

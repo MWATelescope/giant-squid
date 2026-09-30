@@ -121,41 +121,44 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
 /// the caller can catch every API failure in the same way.
 pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
-    let jobid = |id: u32| ("jobid", Field::Int(u64::from(id)));
-    let obsid = |o: crate::Obsid| ("obsid", Field::Int(u64::from(o)));
+    let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(u64::from(id)));
+    let obs_id = |o: crate::ObsId| ("obs_id", Field::Int(u64::from(o)));
     let (kind, fields) = match e {
         lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
-        lib::AsvoError::NoAsvoJob(id) => ("NoAsvoJob", vec![jobid(id)]),
+        lib::AsvoError::NoAsvoJob(id) => ("NoAsvoJob", vec![job_id(id)]),
         lib::AsvoError::JobFailed {
-            jobid: id,
-            obsid: o,
+            job_id: id,
+            obs_id: o,
             error,
         } => (
             "JobFailed",
-            vec![jobid(id), obsid(o), ("error", Field::Str(error))],
+            vec![job_id(id), obs_id(o), ("error", Field::Str(error))],
         ),
-        lib::AsvoError::JobExpired(id) => ("JobExpired", vec![jobid(id)]),
-        lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![jobid(id)]),
-        lib::AsvoError::NoObsid(o) => ("NoObsid", vec![obsid(o)]),
-        lib::AsvoError::NoJobReadyForObsid(o) => ("NoJobReadyForObsid", vec![obsid(o)]),
-        lib::AsvoError::TooManyObsids(o) => ("TooManyObsids", vec![obsid(o)]),
-        lib::AsvoError::NotReady { jobid: id, state } => (
+        lib::AsvoError::JobExpired(id) => ("JobExpired", vec![job_id(id)]),
+        lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![job_id(id)]),
+        lib::AsvoError::NoObsId(o) => ("NoObsId", vec![obs_id(o)]),
+        lib::AsvoError::NoJobReadyForObsId(o) => ("NoJobReadyForObsId", vec![obs_id(o)]),
+        lib::AsvoError::TooManyObsIds(o) => ("TooManyObsIds", vec![obs_id(o)]),
+        lib::AsvoError::NotReady {
+            job_id: id,
+            job_state,
+        } => (
             "NotReady",
             vec![
-                jobid(id),
-                ("state", Field::State(PyAsvoJobState::from(&state))),
+                job_id(id),
+                ("job_state", Field::State(PyAsvoJobState::from(&job_state))),
             ],
         ),
-        lib::AsvoError::NoFiles(id) => ("NoFiles", vec![jobid(id)]),
+        lib::AsvoError::NoFiles(id) => ("NoFiles", vec![job_id(id)]),
         lib::AsvoError::HashMismatch {
-            jobid: id,
+            job_id: id,
             file,
             calculated_hash,
             expected_hash,
         } => (
             "HashMismatch",
             vec![
-                jobid(id),
+                job_id(id),
                 ("file", Field::Str(file)),
                 ("calculated_hash", Field::Str(calculated_hash)),
                 ("expected_hash", Field::Str(expected_hash)),

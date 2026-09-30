@@ -70,23 +70,23 @@ fn connect() -> anyhow::Result<AsvoClient> {
     Ok(AsvoClient::new(client_config_from_env()?)?)
 }
 
-fn run_jobid_download(jobid: AsvoJobID, opts: &DownloadOptions) -> anyhow::Result<()> {
+fn run_job_id_download(job_id: AsvoJobId, opts: &DownloadOptions) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let client = connect()?;
-    client.download_jobid(jobid, opts)?;
+    client.download_job(job_id, opts)?;
     Ok(())
 }
 
-fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()> {
+fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<()> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let client = connect()?;
-    client.download_obsid(obsid, opts)?;
+    client.download_obs(obs_id, opts)?;
     Ok(())
 }
 
@@ -97,17 +97,17 @@ fn run_obsid_download(obsid: Obsid, opts: &DownloadOptions) -> anyhow::Result<()
 /// the successes still go through, and the run ends with a summary. An
 /// error is returned when anything failed, so the exit code still signals
 /// it, but only after every obsid has been attempted.
-fn submit_each_obsid<F>(
-    obsids: &[Obsid],
+fn submit_each_obs_id<F>(
+    obs_ids: &[ObsId],
     description: &str,
     mut submit: F,
 ) -> Result<(), anyhow::Error>
 where
-    F: FnMut(&Obsid, i64) -> Result<(), anyhow::Error>,
+    F: FnMut(&ObsId, i64) -> Result<(), anyhow::Error>,
 {
     let mut failures: Vec<String> = Vec::new();
 
-    for o in obsids {
+    for o in obs_ids {
         let obs_id_i64 =
             i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
 
@@ -117,11 +117,11 @@ where
         }
     }
 
-    let submitted = obsids.len() - failures.len();
+    let submitted = obs_ids.len() - failures.len();
     info!(
         "Submitted {} of {} obsids for {}.",
         submitted,
-        obsids.len(),
+        obs_ids.len(),
         description
     );
 
@@ -132,7 +132,7 @@ where
     bail!(
         "{} of {} obsids failed:\n  {}",
         failures.len(),
-        obsids.len(),
+        obs_ids.len(),
         failures.join("\n  ")
     );
 }
@@ -156,14 +156,14 @@ fn print_submitted_json(resp: &JobSubmittedResponse, json: bool) -> Result<(), a
 /// the argument-to-request mapping rather than just echoing arguments.
 fn report_dry_run_submissions<T, F>(
     endpoint: &str,
-    obsids: &[Obsid],
+    obs_ids: &[ObsId],
     build_params: F,
 ) -> Result<(), anyhow::Error>
 where
     T: serde::Serialize,
     F: Fn(i64) -> Result<T, AsvoApiError>,
 {
-    for o in obsids {
+    for o in obs_ids {
         let obs_id_i64 =
             i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
         let params = build_params(obs_id_i64)?;
@@ -177,7 +177,7 @@ where
 
     info!(
         "[dry run] Would have submitted {} obsids to {}. Nothing was sent.",
-        obsids.len(),
+        obs_ids.len(),
         endpoint
     );
     Ok(())
@@ -223,12 +223,12 @@ const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
 /// queue is hopefully current.
 const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
 
-/// Poll the job list until all of `jobids` are ready, logging each job's
+/// Poll the job list until all of `job_ids` are ready, logging each job's
 /// state when it changes. Fails as soon as a job is missing, has an error,
 /// has expired or has been cancelled (see `AsvoJobVec::all_ready`).
-fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
-    info!("Waiting for {} jobs to be ready...", jobids.len());
-    let mut last_state = BTreeMap::<AsvoJobID, AsvoJobState>::new();
+fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
+    info!("Waiting for {} jobs to be ready...", job_ids.len());
+    let mut last_state = BTreeMap::<AsvoJobId, AsvoJobState>::new();
     // Offer the MWA ASVO a kindness by waiting a moment, so that the
     // user's queue is hopefully current.
     std::thread::sleep(WAIT_INITIAL_DELAY);
@@ -236,21 +236,21 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
         // `None` here mirrors `list`'s own default: fetch full history
         // rather than relying on the (unconfirmed) server-side default.
         let jobs = client.get_jobs(None)?;
-        let all_ready = jobs.all_ready(jobids)?;
+        let all_ready = jobs.all_ready(job_ids)?;
 
         // Log if there was a change in state. `all_ready` has already
         // checked that every job is in the list.
-        for job in jobids
+        for job in job_ids
             .iter()
-            .filter_map(|id| jobs.0.iter().find(|j| j.jobid == *id))
+            .filter_map(|id| jobs.0.iter().find(|j| j.job_id == *id))
         {
-            let log_prefix = format!("Job ID {} (obsid: {}):", job.jobid, job.obsid);
-            match last_state.insert(job.jobid, job.state.clone()) {
-                Some(last_state) if last_state != job.state => {
-                    info!("{} is {}", log_prefix, job.state);
+            let log_prefix = format!("Job ID {} (obsid: {}):", job.job_id, job.obs_id);
+            match last_state.insert(job.job_id, job.job_state.clone()) {
+                Some(last_state) if last_state != job.job_state => {
+                    info!("{} is {}", log_prefix, job.job_state);
                 }
                 Some(_) => (), // State did not change from last_state
-                None => info!("{} is {}", log_prefix, job.state), // First time just report current state
+                None => info!("{} is {}", log_prefix, job.job_state), // First time just report current state
             }
         }
 
@@ -259,7 +259,10 @@ fn wait_loop(client: &AsvoClient, jobids: &[AsvoJobID]) -> anyhow::Result<()> {
         }
         std::thread::sleep(WAIT_POLL_INTERVAL);
     }
-    info!("All {} MWA ASVO jobs are ready for download.", jobids.len());
+    info!(
+        "All {} MWA ASVO jobs are ready for download.",
+        job_ids.len()
+    );
     Ok(())
 }
 
@@ -268,22 +271,22 @@ fn main() -> Result<(), anyhow::Error> {
         Args::List {
             verbosity,
             json,
-            jobids_or_obsids,
-            states,
+            job_ids_or_obs_ids,
+            job_states,
             no_colour,
             days,
-            types: job_types,
+            job_types,
         } => {
             init_logger(verbosity);
 
-            let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
-            if !jobids.is_empty() && !obsids.is_empty() {
+            let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
+            if !job_ids.is_empty() && !obs_ids.is_empty() {
                 bail!("You can't specify both job IDs and obsIDs. Please use one or the other.")
             }
             let client = connect()?;
             let jobs = client
                 .get_jobs(days)?
-                .filter(&jobids, &obsids, &job_types, &states);
+                .filter(&job_ids, &obs_ids, &job_types, &job_states);
 
             if json {
                 println!("{}", jobs.json()?);
@@ -293,17 +296,17 @@ fn main() -> Result<(), anyhow::Error> {
         }
 
         Args::Download {
-            keep_tar: keep_zip,
+            keep_tar,
             no_resume,
             concurrent_downloads,
             skip_hash,
             dry_run,
             verbosity,
-            jobids_or_obsids,
+            job_ids_or_obs_ids,
             download_dir,
             ..
         } => {
-            if jobids_or_obsids.is_empty() {
+            if job_ids_or_obs_ids.is_empty() {
                 bail!("No jobs or obsids specified!");
             }
 
@@ -327,37 +330,37 @@ fn main() -> Result<(), anyhow::Error> {
                 .build_global()
                 .unwrap();
 
-            let (jobids, obsids) = parse_many_jobids_or_obsids(&jobids_or_obsids)?;
+            let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let hash = !skip_hash;
             let buffer_size = download_buffer_size_from_env()?;
             let retry_duration = download_retry_duration_from_env();
             if dry_run {
-                if !jobids.is_empty() {
-                    debug!("Parsed job IDs: {:#?}", jobids);
+                if !job_ids.is_empty() {
+                    debug!("Parsed job IDs: {:#?}", job_ids);
                 }
-                if !obsids.is_empty() {
-                    debug!("Parsed obsids: {:#?}", obsids);
+                if !obs_ids.is_empty() {
+                    debug!("Parsed obsids: {:#?}", obs_ids);
                 }
                 info!(
-                    "Parsed {} jobids and {} obsids for download. keep_zip={:?}, hash={:?}",
-                    jobids.len(),
-                    obsids.len(),
-                    keep_zip,
+                    "Parsed {} jobids and {} obsids for download. keep_tar={:?}, hash={:?}",
+                    job_ids.len(),
+                    obs_ids.len(),
+                    keep_tar,
                     hash,
                 );
             } else {
                 // Each download will report an error if there is one, so no need to do anything with
                 // the results (I think)
-                let t: usize = jobids.len() + obsids.len();
+                let t: usize = job_ids.len() + obs_ids.len();
 
-                let mut jobids_results: Vec<anyhow::Result<()>> = jobids
+                let mut job_ids_results: Vec<anyhow::Result<()>> = job_ids
                     .par_iter()
                     .enumerate()
                     .map(|(c, j)| {
                         let pb = create_progress_bar(&mpb);
                         let progress = |event| update_progress_bar(&pb, event);
                         let opts = DownloadOptions {
-                            keep_tar: keep_zip,
+                            keep_tar,
                             no_resume,
                             hash,
                             download_dir: &download_dir,
@@ -369,18 +372,18 @@ fn main() -> Result<(), anyhow::Error> {
                             // Ctrl-C ends the CLI process, as before.
                             should_stop: None,
                         };
-                        run_jobid_download(*j, &opts)
+                        run_job_id_download(*j, &opts)
                     })
                     .collect();
 
-                let mut obsids_results: Vec<anyhow::Result<()>> = obsids
+                let mut obs_ids_results: Vec<anyhow::Result<()>> = obs_ids
                     .par_iter()
                     .enumerate()
                     .map(|(c, o)| {
                         let pb = create_progress_bar(&mpb);
                         let progress = |event| update_progress_bar(&pb, event);
                         let opts = DownloadOptions {
-                            keep_tar: keep_zip,
+                            keep_tar,
                             no_resume,
                             hash,
                             download_dir: &download_dir,
@@ -392,7 +395,7 @@ fn main() -> Result<(), anyhow::Error> {
                             // Ctrl-C ends the CLI process, as before.
                             should_stop: None,
                         };
-                        run_obsid_download(*o, &opts)
+                        run_obs_id_download(*o, &opts)
                     })
                     .collect();
 
@@ -401,9 +404,9 @@ fn main() -> Result<(), anyhow::Error> {
                 // each error, then fail the run as a whole so a script can
                 // tell something went wrong.
                 let mut failures = 0;
-                for job_result in jobids_results
+                for job_result in job_ids_results
                     .iter_mut()
-                    .chain(obsids_results.iter_mut())
+                    .chain(obs_ids_results.iter_mut())
                     .filter(|o| o.is_err())
                 {
                     error!("{}", job_result.as_mut().unwrap_err());
@@ -428,48 +431,52 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
             init_logger(verbosity);
 
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
             // There shouldn't be any job IDs here.
-            if !parsed_jobids.is_empty() {
+            if !parsed_job_ids.is_empty() {
                 bail!(
                     "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_jobids
+                    parsed_job_ids
                 );
             }
-            if parsed_obsids.is_empty() {
+            if parsed_obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obs_ids, |obs_id| {
                     download.to_vis_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&parsed_obsids, "visibility download", |o, id| {
-                    let params = download.to_vis_params(id)?;
-                    let resp = client.submit_download_vis_job(&params)?;
-                    print_submitted_json(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                let outcome = submit_each_obs_id(
+                    &parsed_obs_ids,
+                    "visibility download",
+                    |o, id| {
+                        let params = download.to_vis_params(id)?;
+                        let resp = client.submit_download_vis_job(&params)?;
+                        print_submitted_json(&resp, json)?;
+                        let job_id = resp.job_id;
+                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
                         ),
                     }
-                    Ok(())
-                });
+                        Ok(())
+                    },
+                );
 
                 if wait {
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -482,37 +489,37 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
             // There shouldn't be any job IDs here.
-            if !parsed_jobids.is_empty() {
+            if !parsed_job_ids.is_empty() {
                 bail!(
                     "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_jobids
+                    parsed_job_ids
                 );
             }
-            if parsed_obsids.is_empty() {
+            if parsed_obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_CONVERSION_JOB, &parsed_obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_CONVERSION_JOB, &parsed_obs_ids, |obs_id| {
                     conv.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&parsed_obsids, "conversion", |o, id| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", |o, id| {
                     let params = conv.to_params(id)?;
                     let resp = client.submit_conversion_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                    match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
@@ -522,7 +529,7 @@ fn main() -> Result<(), anyhow::Error> {
                 });
 
                 if wait {
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -535,14 +542,14 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            if obsids.is_empty() {
+            if obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
 
-            let (jobids_from_input, obsids) = parse_many_jobids_or_obsids(&obsids)?;
-            if !jobids_from_input.is_empty() {
+            let (job_ids_from_input, obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
+            if !job_ids_from_input.is_empty() {
                 bail!(
                     "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead."
                 );
@@ -551,21 +558,21 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obs_ids, |obs_id| {
                     image.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&obsids, "imaging", |o, id| {
+                let outcome = submit_each_obs_id(&obs_ids, "imaging", |o, id| {
                     let params = image.to_params(id)?;
                     let resp = client.submit_imaging_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                    match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
@@ -579,7 +586,7 @@ fn main() -> Result<(), anyhow::Error> {
                     // they're all ready. Reuses the v2 client's own
                     // get_jobs, so this polls the same v2 API we just
                     // submitted to.
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -592,18 +599,18 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            if obsids.is_empty() {
+            if obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
 
-            let (jobids_from_input, obsids) = parse_many_jobids_or_obsids(&obsids)?;
-            if !jobids_from_input.is_empty() {
+            let (job_ids_from_input, obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
+            if !job_ids_from_input.is_empty() {
                 bail!("This command only accepts obsids, not job IDs.");
             }
 
-            if obsids.len() != 1 {
+            if obs_ids.len() != 1 {
                 bail!(
                     "submit-image-from-job requires exactly one obsid \
                      (the source_job_id identifies the conversion job for that obsid)."
@@ -613,13 +620,13 @@ fn main() -> Result<(), anyhow::Error> {
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obs_ids, |obs_id| {
                     image.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
 
-                let o = &obsids[0];
+                let o = &obs_ids[0];
                 let obs_id_i64 = i64::try_from(u64::from(*o))
                     .expect("Obsid's validated range always fits in i64");
 
@@ -631,7 +638,7 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
 
                 if wait {
-                    match AsvoJobID::try_from(u64::from(job_id)) {
+                    match AsvoJobId::try_from(u64::from(job_id)) {
                         Ok(id) => wait_loop(&client, &[id])?,
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; cannot --wait",
@@ -648,37 +655,37 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
             // There shouldn't be any job IDs here.
-            if !parsed_jobids.is_empty() {
+            if !parsed_job_ids.is_empty() {
                 bail!(
                     "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_jobids
+                    parsed_job_ids
                 );
             }
-            if parsed_obsids.is_empty() {
+            if parsed_obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obs_ids, |obs_id| {
                     download.to_meta_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&parsed_obsids, "metadata download", |o, id| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", |o, id| {
                     let params = download.to_meta_params(id)?;
                     let resp = client.submit_download_meta_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                    match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
@@ -688,7 +695,7 @@ fn main() -> Result<(), anyhow::Error> {
                 });
 
                 if wait {
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -701,37 +708,37 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
             // There shouldn't be any job IDs here.
-            if !parsed_jobids.is_empty() {
+            if !parsed_job_ids.is_empty() {
                 bail!(
                     "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_jobids
+                    parsed_job_ids
                 );
             }
-            if parsed_obsids.is_empty() {
+            if parsed_obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_VOLTAGE_JOB, &parsed_obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_VOLTAGE_JOB, &parsed_obs_ids, |obs_id| {
                     volt.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&parsed_obsids, "voltage download", |o, id| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", |o, id| {
                     let params = volt.to_params(id)?;
                     let resp = client.submit_voltage_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                    match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
@@ -741,7 +748,7 @@ fn main() -> Result<(), anyhow::Error> {
                 });
 
                 if wait {
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -754,47 +761,51 @@ fn main() -> Result<(), anyhow::Error> {
             dry_run,
             json,
             verbosity,
-            obsids,
+            obs_ids,
         } => {
-            let (parsed_jobids, parsed_obsids) = parse_many_jobids_or_obsids(&obsids)?;
+            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
             // There shouldn't be any job IDs here.
-            if !parsed_jobids.is_empty() {
+            if !parsed_job_ids.is_empty() {
                 bail!(
                     "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_jobids
+                    parsed_job_ids
                 );
             }
-            if parsed_obsids.is_empty() {
+            if parsed_obs_ids.is_empty() {
                 bail!("No obsids specified!");
             }
             init_logger(verbosity);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_BEAMFORMER_JOB, &parsed_obsids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_BEAMFORMER_JOB, &parsed_obs_ids, |obs_id| {
                     bf.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
-                let mut jobids: Vec<AsvoJobID> = Vec::with_capacity(obsids.len());
+                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obsid(&parsed_obsids, "beamformer download", |o, id| {
-                    let params = bf.to_params(id)?;
-                    let resp = client.submit_beamformer_job(&params)?;
-                    print_submitted_json(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobID::try_from(u64::from(job_id)) {
-                        Ok(id) => jobids.push(id),
+                let outcome = submit_each_obs_id(
+                    &parsed_obs_ids,
+                    "beamformer download",
+                    |o, id| {
+                        let params = bf.to_params(id)?;
+                        let resp = client.submit_beamformer_job(&params)?;
+                        print_submitted_json(&resp, json)?;
+                        let job_id = resp.job_id;
+                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        match AsvoJobId::try_from(u64::from(job_id)) {
+                        Ok(id) => job_ids.push(id),
                         Err(_) => warn!(
                             "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
                             job_id
                         ),
                     }
-                    Ok(())
-                });
+                        Ok(())
+                    },
+                );
 
                 if wait {
-                    wait_loop(&client, &jobids)?;
+                    wait_loop(&client, &job_ids)?;
                 }
 
                 outcome?;
@@ -807,17 +818,19 @@ fn main() -> Result<(), anyhow::Error> {
             json,
             no_colour,
         } => {
-            let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
-            if parsed_jobids.is_empty() {
+            let (parsed_job_ids, _) = parse_many_job_ids_or_obs_ids(&jobs)?;
+            if parsed_job_ids.is_empty() {
                 bail!("No jobids specified!");
             }
             init_logger(verbosity);
             let client = connect()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
-            wait_loop(&client, &parsed_jobids)?;
+            wait_loop(&client, &parsed_job_ids)?;
 
-            let jobs = client.get_jobs(None)?.filter(&parsed_jobids, &[], &[], &[]);
+            let jobs = client
+                .get_jobs(None)?
+                .filter(&parsed_job_ids, &[], &[], &[]);
 
             if json {
                 println!("{}", jobs.json()?);
@@ -831,25 +844,25 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             jobs,
         } => {
-            let (parsed_jobids, _) = parse_many_jobids_or_obsids(&jobs)?;
-            if parsed_jobids.is_empty() {
+            let (parsed_job_ids, _) = parse_many_job_ids_or_obs_ids(&jobs)?;
+            if parsed_job_ids.is_empty() {
                 bail!("No jobids specified!");
             }
             init_logger(verbosity);
 
             if dry_run {
-                for j in &parsed_jobids {
+                for j in &parsed_job_ids {
                     info!("[dry run] Would DELETE {}/{}", ENDPOINT_JOBS, j);
                 }
                 info!(
                     "[dry run] Would have cancelled {} jobids. Nothing was sent.",
-                    parsed_jobids.len()
+                    parsed_job_ids.len()
                 );
             } else {
                 let client = connect()?;
 
                 let mut cancelled_count = 0;
-                for j in parsed_jobids {
+                for j in parsed_job_ids {
                     match client.cancel_job(j) {
                         Ok(resp) => {
                             info!("Cancelled MWA ASVO job ID {} ({})", j, resp.message);

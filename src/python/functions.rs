@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The module functions: `parse_many_jobids_or_obsids`, and one `*_params`
+//! The module functions: `parse_many_job_ids_or_obs_ids`, and one `*_params`
 //! function per job type.
 //!
 //! A `*_params` function takes the same arguments as the `AsvoClient` submit
@@ -25,7 +25,7 @@ use super::types::{
     PyCentre, PyDelivery, PyDeliveryFormat, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
 use crate::asvo::apiv2::openapi::DownloadJobParamsDownloadType;
-use crate::asvo::AsvoJobID;
+use crate::asvo::AsvoJobId;
 use crate::ParseError;
 
 /// A request body as a Python `dict`, with the same keys and values as the
@@ -71,12 +71,12 @@ fn os_error(py: Python<'_>, file: &std::path::Path, source: &std::io::Error) -> 
 ///     ValueError: Text in a file is not an integer.
 ///     OSError: A file cannot be read (for example `FileNotFoundError`).
 #[pyfunction]
-pub fn parse_many_jobids_or_obsids(
+pub fn parse_many_job_ids_or_obs_ids(
     py: Python<'_>,
     strings: Vec<String>,
-) -> PyResult<(Vec<AsvoJobID>, Vec<u64>)> {
-    match crate::parse_many_jobids_or_obsids(&strings) {
-        Ok((jobids, obsids)) => Ok((jobids, obsids.into_iter().map(u64::from).collect())),
+) -> PyResult<(Vec<AsvoJobId>, Vec<u64>)> {
+    match crate::parse_many_job_ids_or_obs_ids(&strings) {
+        Ok((job_ids, obs_ids)) => Ok((job_ids, obs_ids.into_iter().map(u64::from).collect())),
         Err(ParseError::IO { file, source }) => Err(os_error(py, &file, &source)),
         Err(e @ ParseError::InsideFile { .. }) => Err(PyValueError::new_err(e.to_string())),
     }

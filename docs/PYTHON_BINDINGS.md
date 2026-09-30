@@ -210,6 +210,33 @@
   a retry wait after one real retry); 16 new pytest tests (136 in total),
   including SIGINT sent from a timer thread during a slow download and
   during a retry wait. **Phase 2 is complete.**
+- 2026-09-30: step 2.5 done (decision 10, approved). Names follow the
+  OpenAPI schema everywhere, and types follow Rust naming (`Id`, not
+  `ID`). Rust and Python: `AsvoJobID` is now `AsvoJobId`, `Obsid` is
+  `ObsId` (module `obs_id`, error `ObsIdError`); `AsvoJob` fields are
+  `job_id`, `obs_id`, `job_type` and `job_state`; `DownloadProgress`
+  `Started.job_id`; `AsvoError` fields and Python attributes are `job_id`,
+  `obs_id` and `job_state` (before, some kinds had `jobid` and others
+  `job_id`); variants `NoObsId`, `NoJobReadyForObsId` and `TooManyObsIds`
+  (the Python `kind` strings change with them). `download_jobid` and
+  `download_obsid` are now `download_job(job_id, ...)` and
+  `download_obs(obs_id, ...)`; `parse_many_jobids_or_obsids` is
+  `parse_many_job_ids_or_obs_ids`, and `parse_jobids_and_obsids_from_file`
+  is `parse_job_ids_and_obs_ids_from_file`; `AsvoJobVec::filter` takes
+  `job_ids`, `obs_ids`, `job_types` and `job_states`, and `all_ready` takes
+  `job_ids`. CLI: `--custom-centre-ra` and `--custom-centre-dec`
+  (`submit-conv` and `submit-image`), `--centre` (`submit-image`),
+  `--job-states` and `--job-types` (`list`); the old names
+  (`--phase-centre-ra`, `--phase-centre-dec`, `--custom-ra`, `--custom-dec`,
+  `--phase-center`, `--states`, `--types`) are hidden aliases, and the
+  existing CLI tests, which use them, pass unchanged. Argument placeholders
+  are `JOB_ID_OR_OBS_ID`, `OBS_ID` and `JOB_ID`. Not changed: the `list`
+  and `wait` `--json` keys (`obsid`, `jobId`, `jobType`, `jobState`,
+  `fileUrl`, ...), pinned by a new test until that is decided, and prose
+  such as log messages and the table header "Obsid". The renames were made
+  with a token-aware script, so strings and comments changed only where
+  they name code. Tests changed only by the renames, no assertion changed;
+  5 new CLI tests and 1 new library test.
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section
@@ -238,7 +265,7 @@ import mwa_giant_squid
 client = mwa_giant_squid.AsvoClient(api_key="...", host="https://asvo.mwatelescope.org:443")
 resp = client.submit_download_vis_job(1234567890, allow_resubmit=True)
 for job in client.get_jobs(days=7):
-    print(job.jobid, job.obsid, job.jtype, job.state)
+    print(job.job_id, job.obs_id, job.job_type, job.job_state)
 client.cancel_job(resp.job_id)
 ```
 
@@ -260,6 +287,13 @@ client.cancel_job(resp.job_id)
    The library gives single checks; the caller does the loop and the
    sleep. This keeps Ctrl-C, timeouts and progress output in the
    caller's hands.
+10. Names follow the OpenAPI schema (added 2026-09-30): `job_id`, not
+    `jobid`; `obs_id`, not `obsid`; `job_type` and `job_state`. This
+    applies to the Rust library, the Python module, the CLI flags and the
+    JSON output. Rust type names follow Rust naming (`AsvoJobId`, `ObsId`).
+    Where the schema is itself inconsistent (for example `id` for a job ID
+    in `JobDetailResponse`), the majority name is used and the
+    inconsistency is raised with the API developer.
 
 Also kept from the first draft: optional job arguments default to `None`,
 meaning "use the OpenAPI schema default", so neither layer adds defaults of
@@ -361,13 +395,13 @@ logins a minute.
 | `submit_beamformer_job(obs_id, *, ...)` | `submit-bf` |
 | `cancel_job(job_id) -> JobSubmittedResponse` | `cancel` |
 | `get_jobs()` then `AsvoJobVec.all_ready(jobids)`, in a loop the caller writes | `wait` |
-| `download_jobid(jobid, download_dir, *, keep_tar=False, no_resume=False, hash=True, progress=None)` | `download` |
-| `download_obsid(obsid, ...)` | `download` |
+| `download_job(job_id, download_dir, *, keep_tar=False, no_resume=False, hash=True, progress=None, ...)` | `download` |
+| `download_obs(obs_id, ...)` | `download` |
 
 Keyword names are the OpenAPI field names (for example `avg_freq_res`), so
 they match the schema and the Rust builder methods.
 
-Module functions: `parse_many_jobids_or_obsids`, and one `*_params`
+Module functions: `parse_many_job_ids_or_obs_ids`, and one `*_params`
 builder per job type that returns the request body as a `dict` (for a
 caller's own dry run). A builder's name is its submit method's name without
 `submit_`, plus `_params` (for example `imaging_job_params`).
@@ -384,7 +418,7 @@ with `time.sleep`) handles Ctrl-C as normal Python code.
 
 Exceptions: `AsvoError::AsvoApi` (an API failure inside a download) is
 raised as `AsvoApiError`, so a caller catches every API failure in one
-way. The tuple variants' values are named attributes: `jobid` or `obsid`.
+way. The tuple variants' values are named attributes: `job_id` or `obs_id`.
 
 Steps:
 

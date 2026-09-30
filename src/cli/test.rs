@@ -20,15 +20,15 @@ use super::params::{
     ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
 use super::Args;
-use crate::parse_many_jobids_or_obsids;
+use crate::parse_many_job_ids_or_obs_ids;
 
 /// An obsid used throughout these tests, and its `i64` form as the request
 /// bodies carry it.
-const TEST_OBSID: &str = "1065880128";
-const TEST_OBSID_I64: i64 = 1065880128;
+const TEST_OBS_ID: &str = "1065880128";
+const TEST_OBS_ID_I64: i64 = 1065880128;
 
 /// A job ID, which is distinguishable from an obsid by not having 10 digits.
-const TEST_JOBID: &str = "12345";
+const TEST_JOB_ID: &str = "12345";
 
 fn parse(args: &[&str]) -> Args {
     Args::try_parse_from(args).expect("expected these arguments to parse")
@@ -41,8 +41,8 @@ fn parse_err(args: &[&str]) -> clap::Error {
 fn vis_args(args: &[&str]) -> (DownloadJobArgs, Vec<String>) {
     match parse(args) {
         Args::SubmitVis {
-            download, obsids, ..
-        } => (download, obsids),
+            download, obs_ids, ..
+        } => (download, obs_ids),
         other => panic!("expected SubmitVis, got {other:?}"),
     }
 }
@@ -50,43 +50,43 @@ fn vis_args(args: &[&str]) -> (DownloadJobArgs, Vec<String>) {
 fn meta_args(args: &[&str]) -> (DownloadJobArgs, Vec<String>) {
     match parse(args) {
         Args::SubmitMeta {
-            download, obsids, ..
-        } => (download, obsids),
+            download, obs_ids, ..
+        } => (download, obs_ids),
         other => panic!("expected SubmitMeta, got {other:?}"),
     }
 }
 
 fn conv_args(args: &[&str]) -> (ConversionJobArgs, Vec<String>) {
     match parse(args) {
-        Args::SubmitConv { conv, obsids, .. } => (conv, obsids),
+        Args::SubmitConv { conv, obs_ids, .. } => (conv, obs_ids),
         other => panic!("expected SubmitConv, got {other:?}"),
     }
 }
 
 fn image_args(args: &[&str]) -> (ImagingJobArgs, Vec<String>) {
     match parse(args) {
-        Args::SubmitImage { image, obsids, .. } => (image, obsids),
+        Args::SubmitImage { image, obs_ids, .. } => (image, obs_ids),
         other => panic!("expected SubmitImage, got {other:?}"),
     }
 }
 
 fn image_from_job_args(args: &[&str]) -> (ImagingFromJobArgs, Vec<String>) {
     match parse(args) {
-        Args::SubmitImageFromJob { image, obsids, .. } => (image, obsids),
+        Args::SubmitImageFromJob { image, obs_ids, .. } => (image, obs_ids),
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     }
 }
 
 fn volt_args(args: &[&str]) -> (VoltageJobArgs, Vec<String>) {
     match parse(args) {
-        Args::SubmitVolt { volt, obsids, .. } => (volt, obsids),
+        Args::SubmitVolt { volt, obs_ids, .. } => (volt, obs_ids),
         other => panic!("expected SubmitVolt, got {other:?}"),
     }
 }
 
 fn bf_args(args: &[&str]) -> (BeamformerJobArgs, Vec<String>) {
     match parse(args) {
-        Args::SubmitBf { bf, obsids, .. } => (bf, obsids),
+        Args::SubmitBf { bf, obs_ids, .. } => (bf, obs_ids),
         other => panic!("expected SubmitBf, got {other:?}"),
     }
 }
@@ -103,19 +103,19 @@ fn json_of<T: serde::Serialize>(params: &T) -> Value {
 fn every_command_alias_resolves_to_its_command() {
     assert!(matches!(parse(&["giant-squid", "l"]), Args::List { .. }));
     assert!(matches!(
-        parse(&["giant-squid", "d", TEST_JOBID]),
+        parse(&["giant-squid", "d", TEST_JOB_ID]),
         Args::Download { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "sv", TEST_OBSID]),
+        parse(&["giant-squid", "sv", TEST_OBS_ID]),
         Args::SubmitVis { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "sc", TEST_OBSID]),
+        parse(&["giant-squid", "sc", TEST_OBS_ID]),
         Args::SubmitConv { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "si", TEST_OBSID]),
+        parse(&["giant-squid", "si", TEST_OBS_ID]),
         Args::SubmitImage { .. }
     ));
     assert!(matches!(
@@ -123,13 +123,13 @@ fn every_command_alias_resolves_to_its_command() {
             "giant-squid",
             "sifj",
             "--source-job-id",
-            TEST_JOBID,
-            TEST_OBSID
+            TEST_JOB_ID,
+            TEST_OBS_ID
         ]),
         Args::SubmitImageFromJob { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "sm", TEST_OBSID]),
+        parse(&["giant-squid", "sm", TEST_OBS_ID]),
         Args::SubmitMeta { .. }
     ));
     assert!(matches!(
@@ -140,33 +140,33 @@ fn every_command_alias_resolves_to_its_command() {
             "0",
             "--duration",
             "8",
-            TEST_OBSID
+            TEST_OBS_ID
         ]),
         Args::SubmitVolt { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "sb", TEST_OBSID]),
+        parse(&["giant-squid", "sb", TEST_OBS_ID]),
         Args::SubmitBf { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "w", TEST_JOBID]),
+        parse(&["giant-squid", "w", TEST_JOB_ID]),
         Args::Wait { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "c", TEST_JOBID]),
+        parse(&["giant-squid", "c", TEST_JOB_ID]),
         Args::Cancel { .. }
     ));
 }
 
 #[test]
 fn unknown_command_is_rejected() {
-    let err = parse_err(&["giant-squid", "submit-nothing", TEST_OBSID]);
+    let err = parse_err(&["giant-squid", "submit-nothing", TEST_OBS_ID]);
     assert_eq!(err.kind(), clap::error::ErrorKind::InvalidSubcommand);
 }
 
 #[test]
 fn verbosity_counts_repeats() {
-    match parse(&["giant-squid", "submit-vis", "-vv", TEST_OBSID]) {
+    match parse(&["giant-squid", "submit-vis", "-vv", TEST_OBS_ID]) {
         Args::SubmitVis { verbosity, .. } => assert_eq!(verbosity, 2),
         other => panic!("expected SubmitVis, got {other:?}"),
     }
@@ -177,24 +177,24 @@ fn verbosity_counts_repeats() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn single_obsid_is_collected() {
-    let (_, obsids) = vis_args(&["giant-squid", "submit-vis", TEST_OBSID]);
-    assert_eq!(obsids, vec![TEST_OBSID.to_string()]);
+fn single_obs_id_is_collected() {
+    let (_, obs_ids) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
+    assert_eq!(obs_ids, vec![TEST_OBS_ID.to_string()]);
 }
 
 #[test]
-fn many_obsids_are_collected() {
-    let (_, obsids) = vis_args(&[
+fn many_obs_ids_are_collected() {
+    let (_, obs_ids) = vis_args(&[
         "giant-squid",
         "submit-vis",
         "1061311664",
         "1061311784",
         "1061312032",
     ]);
-    assert_eq!(obsids.len(), 3);
+    assert_eq!(obs_ids.len(), 3);
 
-    let (jobids, parsed) = parse_many_jobids_or_obsids(&obsids).expect("obsids should parse");
-    assert!(jobids.is_empty());
+    let (job_ids, parsed) = parse_many_job_ids_or_obs_ids(&obs_ids).expect("obsids should parse");
+    assert!(job_ids.is_empty());
     assert_eq!(
         parsed.iter().map(|o| o.get()).collect::<Vec<_>>(),
         vec![1061311664, 1061311784, 1061312032]
@@ -202,26 +202,26 @@ fn many_obsids_are_collected() {
 }
 
 #[test]
-fn obsids_can_come_from_a_file() {
+fn obs_ids_can_come_from_a_file() {
     let mut file = NamedTempFile::new().expect("could not create tmp file");
     writeln!(file, "1061311664 1061311784\n1061312032").expect("could not write tmp file");
     file.flush().expect("could not flush tmp file");
     let path = file.path().display().to_string();
 
-    let (_, obsids) = vis_args(&["giant-squid", "submit-vis", &path]);
-    let (jobids, parsed) = parse_many_jobids_or_obsids(&obsids).expect("file should parse");
-    assert!(jobids.is_empty());
+    let (_, obs_ids) = vis_args(&["giant-squid", "submit-vis", &path]);
+    let (job_ids, parsed) = parse_many_job_ids_or_obs_ids(&obs_ids).expect("file should parse");
+    assert!(job_ids.is_empty());
     assert_eq!(parsed.len(), 3);
 }
 
 #[test]
-fn a_job_id_is_distinguished_from_an_obsid() {
+fn a_job_id_is_distinguished_from_an_obs_id() {
     // The submit commands reject job IDs; the check itself lives in the
     // binary, but it relies on this classification.
-    let (jobids, obsids) =
-        parse_many_jobids_or_obsids(&[TEST_JOBID.to_string()]).expect("job ID should parse");
-    assert_eq!(jobids.len(), 1);
-    assert!(obsids.is_empty());
+    let (job_ids, obs_ids) =
+        parse_many_job_ids_or_obs_ids(&[TEST_JOB_ID.to_string()]).expect("job ID should parse");
+    assert_eq!(job_ids.len(), 1);
+    assert!(obs_ids.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -230,7 +230,7 @@ fn a_job_id_is_distinguished_from_an_obsid() {
 
 #[test]
 fn submit_vis_defaults_come_from_the_schema() {
-    let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBSID]);
+    let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
     assert_eq!(args.delivery, download_defaults().delivery);
     assert_eq!(args.delivery_format, download_defaults().delivery_format);
     assert!(!args.allow_resubmit);
@@ -238,22 +238,22 @@ fn submit_vis_defaults_come_from_the_schema() {
 
 #[test]
 fn submit_vis_builds_a_vis_download_body() {
-    let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBSID]);
+    let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
     let params = args
-        .to_vis_params(TEST_OBSID_I64)
+        .to_vis_params(TEST_OBS_ID_I64)
         .expect("params should build");
     let json = json_of(&params);
 
-    assert_eq!(json["obs_id"], TEST_OBSID_I64);
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     assert_eq!(json["download_type"], "vis");
     assert_eq!(json["allow_resubmit"], false);
 }
 
 #[test]
 fn submit_meta_builds_a_meta_download_body() {
-    let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBSID]);
+    let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBS_ID]);
     let params = args
-        .to_meta_params(TEST_OBSID_I64)
+        .to_meta_params(TEST_OBS_ID_I64)
         .expect("params should build");
     assert_eq!(json_of(&params)["download_type"], "meta");
 }
@@ -267,20 +267,20 @@ fn delivery_and_format_can_be_overridden() {
         "scratch",
         "--delivery-format",
         "tar",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     let params = args
-        .to_vis_params(TEST_OBSID_I64)
+        .to_vis_params(TEST_OBS_ID_I64)
         .expect("params should build");
     assert_eq!(json_of(&params)["delivery"], "scratch");
 }
 
 #[test]
 fn allow_resubmit_reaches_the_request_body() {
-    let (args, _) = vis_args(&["giant-squid", "submit-vis", "-r", TEST_OBSID]);
+    let (args, _) = vis_args(&["giant-squid", "submit-vis", "-r", TEST_OBS_ID]);
     assert!(args.allow_resubmit);
     let params = args
-        .to_vis_params(TEST_OBSID_I64)
+        .to_vis_params(TEST_OBS_ID_I64)
         .expect("params should build");
     assert_eq!(json_of(&params)["allow_resubmit"], true);
 }
@@ -291,7 +291,7 @@ fn allow_resubmit_reaches_the_request_body() {
 
 #[test]
 fn submit_conv_defaults_come_from_the_schema() {
-    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBSID]);
+    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
     assert_eq!(args.output, conversion_defaults().output);
     assert_eq!(args.centre, conversion_defaults().centre);
     assert_eq!(args.delivery, conversion_defaults().delivery);
@@ -299,7 +299,11 @@ fn submit_conv_defaults_come_from_the_schema() {
 
     // The numeric defaults are checked through the request body, so that
     // floats are compared as JSON values rather than directly.
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
     assert_eq!(json["avg_freq_res"], conversion_defaults().avg_freq_res);
     assert_eq!(json["avg_time_res"], conversion_defaults().avg_time_res);
     assert_eq!(
@@ -310,11 +314,13 @@ fn submit_conv_defaults_come_from_the_schema() {
 
 #[test]
 fn submit_conv_builds_a_conversion_body() {
-    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBSID]);
-    let params = args.to_params(TEST_OBSID_I64).expect("params should build");
+    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
+    let params = args
+        .to_params(TEST_OBS_ID_I64)
+        .expect("params should build");
     let json = json_of(&params);
 
-    assert_eq!(json["obs_id"], TEST_OBSID_I64);
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     assert_eq!(json["avg_freq_res"], conversion_defaults().avg_freq_res);
 }
 
@@ -329,9 +335,11 @@ fn submit_conv_custom_phase_centre_is_passed_through() {
         "10.5",
         "--phase-centre-dec",
         "-26.7",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    let params = args.to_params(TEST_OBSID_I64).expect("params should build");
+    let params = args
+        .to_params(TEST_OBS_ID_I64)
+        .expect("params should build");
     let json = json_of(&params);
 
     assert_eq!(json["custom_centre_ra"], 10.5);
@@ -347,9 +355,13 @@ fn submit_conv_output_can_be_overridden() {
         "ms",
         "--avg-freq-res",
         "40",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
     assert_eq!(json["output"], "ms");
     assert_eq!(json["avg_freq_res"], 40.0);
 }
@@ -360,7 +372,7 @@ fn submit_conv_output_can_be_overridden() {
 
 #[test]
 fn submit_image_defaults_come_from_the_schema() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
     assert_eq!(args.image_size, *imaging1_defaults().image_size);
     assert_eq!(args.weighting, imaging1_defaults().weighting);
     assert_eq!(args.output_mode, imaging1_defaults().output_mode);
@@ -370,10 +382,14 @@ fn submit_image_defaults_come_from_the_schema() {
 
 #[test]
 fn submit_image_builds_an_imaging_body() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
 
-    assert_eq!(json["obs_id"], TEST_OBSID_I64);
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     assert_eq!(json["image_size"], *imaging1_defaults().image_size);
     assert_eq!(json["pol"], imaging1_defaults().pol.to_string());
 }
@@ -383,16 +399,20 @@ fn submit_image_builds_an_imaging_body() {
 /// submit-image run fail when the request body was built.
 #[test]
 fn submit_image_default_pol_comes_from_the_schema() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
     assert_eq!(args.pol, imaging1_defaults().pol.to_string());
-    assert!(args.to_params(TEST_OBSID_I64).is_ok());
+    assert!(args.to_params(TEST_OBS_ID_I64).is_ok());
 }
 
 #[test]
 fn submit_image_accepts_each_supported_polarisation() {
     for pol in ["XX", "YY", "XXYY"] {
-        let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", pol, TEST_OBSID]);
-        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", pol, TEST_OBS_ID]);
+        let json = json_of(
+            &args
+                .to_params(TEST_OBS_ID_I64)
+                .expect("params should build"),
+        );
         assert_eq!(json["pol"], pol);
     }
 }
@@ -400,7 +420,7 @@ fn submit_image_accepts_each_supported_polarisation() {
 #[test]
 fn submit_image_rejects_an_unsupported_polarisation() {
     for bad in ["XX,YY", "xx", "Q"] {
-        let err = parse_err(&["giant-squid", "submit-image", "--pol", bad, TEST_OBSID]);
+        let err = parse_err(&["giant-squid", "submit-image", "--pol", bad, TEST_OBS_ID]);
         assert_eq!(
             err.kind(),
             clap::error::ErrorKind::ValueValidation,
@@ -420,9 +440,13 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
         "10.5",
         "--custom-dec",
         "-26.7",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
 
     assert_eq!(json["custom_centre_ra"], 10.5);
     assert_eq!(json["custom_centre_dec"], -26.7);
@@ -444,18 +468,22 @@ fn negative_values_are_accepted_in_either_form() {
             "-26.7",
             "--robust",
             "-1.5",
-            TEST_OBSID,
+            TEST_OBS_ID,
         ],
         vec![
             "giant-squid",
             "submit-image",
             "--custom-dec=-26.7",
             "--robust=-1.5",
-            TEST_OBSID,
+            TEST_OBS_ID,
         ],
     ] {
         let (args, _) = image_args(&argv);
-        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        let json = json_of(
+            &args
+                .to_params(TEST_OBS_ID_I64)
+                .expect("params should build"),
+        );
         assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
         assert_eq!(json["robust"], -1.5, "argv: {argv:?}");
     }
@@ -468,7 +496,7 @@ fn negative_values_are_accepted_in_either_form() {
             "custom",
             "--phase-centre-dec",
             "-26.7",
-            TEST_OBSID,
+            TEST_OBS_ID,
         ],
         vec![
             "giant-squid",
@@ -476,11 +504,15 @@ fn negative_values_are_accepted_in_either_form() {
             "--centre",
             "custom",
             "--phase-centre-dec=-26.7",
-            TEST_OBSID,
+            TEST_OBS_ID,
         ],
     ] {
         let (args, _) = conv_args(&argv);
-        let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+        let json = json_of(
+            &args
+                .to_params(TEST_OBS_ID_I64)
+                .expect("params should build"),
+        );
         assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
     }
 }
@@ -489,7 +521,7 @@ fn negative_values_are_accepted_in_either_form() {
 /// those same commands.
 #[test]
 fn allowing_negative_numbers_does_not_break_short_flags() {
-    match parse(&["giant-squid", "submit-image", "-n", "-vv", TEST_OBSID]) {
+    match parse(&["giant-squid", "submit-image", "-n", "-vv", TEST_OBS_ID]) {
         Args::SubmitImage {
             dry_run,
             verbosity,
@@ -506,8 +538,12 @@ fn allowing_negative_numbers_does_not_break_short_flags() {
 
 #[test]
 fn submit_image_optional_fields_are_omitted_when_unset() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBSID]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
 
     assert!(json.get("nwlayers").is_none());
     assert!(json.get("uvw_max").is_none());
@@ -521,13 +557,13 @@ fn submit_image_boolean_flags_require_equals() {
         "submit-image",
         "--apply-di-cal=false",
         "--join-channels=false",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert!(!args.apply_di_cal);
     assert!(!args.join_channels);
 
     // Given without a value, the flag takes its default_missing_value.
-    let (args, _) = image_args(&["giant-squid", "submit-image", "--apply-di-cal", TEST_OBSID]);
+    let (args, _) = image_args(&["giant-squid", "submit-image", "--apply-di-cal", TEST_OBS_ID]);
     assert!(args.apply_di_cal);
 }
 
@@ -538,7 +574,7 @@ fn submit_image_rejects_an_unsupported_image_size() {
         "submit-image",
         "--image-size",
         "1000",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -551,7 +587,7 @@ fn submit_image_accepts_every_supported_image_size() {
             "submit-image",
             "--image-size",
             size,
-            TEST_OBSID,
+            TEST_OBS_ID,
         ]);
         assert_eq!(args.image_size.to_string(), size);
     }
@@ -573,7 +609,7 @@ fn submit_image_rejects_out_of_range_values() {
     ] {
         let mut argv = vec!["giant-squid", "submit-image"];
         argv.extend_from_slice(&bad);
-        argv.push(TEST_OBSID);
+        argv.push(TEST_OBS_ID);
         let err = parse_err(&argv);
         assert_eq!(
             err.kind(),
@@ -597,7 +633,7 @@ fn submit_image_range_errors_carry_the_librarys_message() {
             "must be one of 512, 1024, 2048, 3072, 4096, 8192",
         ),
     ] {
-        let err = parse_err(&["giant-squid", "submit-image", flag, value, TEST_OBSID]);
+        let err = parse_err(&["giant-squid", "submit-image", flag, value, TEST_OBS_ID]);
         assert!(
             err.to_string().contains(expected),
             "{flag} {value}: expected {expected:?} in {err}"
@@ -611,26 +647,30 @@ fn submit_image_range_errors_carry_the_librarys_message() {
 
 #[test]
 fn submit_image_from_job_requires_a_source_job_id() {
-    let err = parse_err(&["giant-squid", "submit-image-from-job", TEST_OBSID]);
+    let err = parse_err(&["giant-squid", "submit-image-from-job", TEST_OBS_ID]);
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
 #[test]
 fn submit_image_from_job_builds_a_flow2_body() {
-    let (args, obsids) = image_from_job_args(&[
+    let (args, obs_ids) = image_from_job_args(&[
         "giant-squid",
         "submit-image-from-job",
         "--source-job-id",
         "4242",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    assert_eq!(obsids.len(), 1);
+    assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
     assert_eq!(args.pol, imaging2_defaults().pol);
 
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
     assert_eq!(json["source_job_id"], 4242);
-    assert_eq!(json["obs_id"], TEST_OBSID_I64);
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     // clean_threshold is optional here, unlike the flow 1 imaging job.
     assert!(json.get("clean_threshold").is_none());
 }
@@ -642,7 +682,7 @@ fn submit_image_from_job_rejects_a_zero_source_job_id() {
         "submit-image-from-job",
         "--source-job-id",
         "0",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -653,7 +693,7 @@ fn submit_image_from_job_rejects_a_zero_source_job_id() {
 
 #[test]
 fn submit_volt_requires_offset_and_duration() {
-    let err = parse_err(&["giant-squid", "submit-volt", TEST_OBSID]);
+    let err = parse_err(&["giant-squid", "submit-volt", TEST_OBS_ID]);
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
@@ -666,7 +706,7 @@ fn submit_volt_delivery_default_comes_from_the_schema() {
         "0",
         "--duration",
         "8",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(args.delivery, voltage_defaults().delivery);
 }
@@ -680,9 +720,13 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         "16",
         "--duration",
         "8",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
     assert_eq!(json["channel_range"], false);
     assert_eq!(json["offset"], 16);
     assert_eq!(json["duration"], 8);
@@ -696,9 +740,13 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         "8",
         "--from-channel",
         "109",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
     assert_eq!(json["channel_range"], true);
     assert_eq!(json["from_channel"], 109);
     assert!(json.get("to_channel").is_none());
@@ -715,7 +763,7 @@ fn submit_volt_rejects_a_channel_above_the_receiver_range() {
         "8",
         "--to-channel",
         "256",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -726,12 +774,16 @@ fn submit_volt_rejects_a_channel_above_the_receiver_range() {
 
 #[test]
 fn submit_bf_builds_a_beamformer_body() {
-    let (args, _) = bf_args(&["giant-squid", "submit-bf", TEST_OBSID]);
+    let (args, _) = bf_args(&["giant-squid", "submit-bf", TEST_OBS_ID]);
     assert_eq!(args.delivery, beamformer_defaults().delivery);
     assert_eq!(args.delivery_format, beamformer_defaults().delivery_format);
 
-    let json = json_of(&args.to_params(TEST_OBSID_I64).expect("params should build"));
-    assert_eq!(json["obs_id"], TEST_OBSID_I64);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
 }
 
 // ---------------------------------------------------------------------------
@@ -750,21 +802,21 @@ fn list_filters_parse() {
         "--days",
         "7",
         "--json",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]) {
         Args::List {
-            states,
-            types,
+            job_states: states,
+            job_types: types,
             days,
             json,
-            jobids_or_obsids,
+            job_ids_or_obs_ids,
             ..
         } => {
             assert_eq!(states.len(), 2);
             assert_eq!(types.len(), 2);
             assert_eq!(days, Some(7));
             assert!(json);
-            assert_eq!(jobids_or_obsids, vec![TEST_OBSID.to_string()]);
+            assert_eq!(job_ids_or_obs_ids, vec![TEST_OBS_ID.to_string()]);
         }
         other => panic!("expected List, got {other:?}"),
     }
@@ -778,7 +830,7 @@ fn list_rejects_an_unknown_state() {
 
 #[test]
 fn download_defaults_and_aliases_parse() {
-    match parse(&["giant-squid", "download", TEST_JOBID]) {
+    match parse(&["giant-squid", "download", TEST_JOB_ID]) {
         Args::Download {
             download_dir,
             concurrent_downloads,
@@ -810,7 +862,7 @@ fn download_defaults_and_aliases_parse() {
         "--skip-hash",
         "--no-resume",
         "-n",
-        TEST_JOBID,
+        TEST_JOB_ID,
     ]) {
         Args::Download {
             download_dir,
@@ -833,15 +885,15 @@ fn download_defaults_and_aliases_parse() {
 }
 
 #[test]
-fn download_accepts_obsids_as_well_as_job_ids() {
-    match parse(&["giant-squid", "download", TEST_OBSID, TEST_JOBID]) {
+fn download_accepts_obs_ids_as_well_as_job_ids() {
+    match parse(&["giant-squid", "download", TEST_OBS_ID, TEST_JOB_ID]) {
         Args::Download {
-            jobids_or_obsids, ..
+            job_ids_or_obs_ids, ..
         } => {
-            let (jobids, obsids) =
-                parse_many_jobids_or_obsids(&jobids_or_obsids).expect("arguments should parse");
-            assert_eq!(jobids.len(), 1);
-            assert_eq!(obsids.len(), 1);
+            let (job_ids, obs_ids) =
+                parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids).expect("arguments should parse");
+            assert_eq!(job_ids.len(), 1);
+            assert_eq!(obs_ids.len(), 1);
         }
         other => panic!("expected Download, got {other:?}"),
     }
@@ -849,17 +901,17 @@ fn download_accepts_obsids_as_well_as_job_ids() {
 
 #[test]
 fn wait_and_cancel_take_job_ids() {
-    match parse(&["giant-squid", "wait", "--json", TEST_JOBID]) {
+    match parse(&["giant-squid", "wait", "--json", TEST_JOB_ID]) {
         Args::Wait { jobs, json, .. } => {
-            assert_eq!(jobs, vec![TEST_JOBID.to_string()]);
+            assert_eq!(jobs, vec![TEST_JOB_ID.to_string()]);
             assert!(json);
         }
         other => panic!("expected Wait, got {other:?}"),
     }
 
-    match parse(&["giant-squid", "cancel", "-n", TEST_JOBID]) {
+    match parse(&["giant-squid", "cancel", "-n", TEST_JOB_ID]) {
         Args::Cancel { jobs, dry_run, .. } => {
-            assert_eq!(jobs, vec![TEST_JOBID.to_string()]);
+            assert_eq!(jobs, vec![TEST_JOB_ID.to_string()]);
             assert!(dry_run);
         }
         other => panic!("expected Cancel, got {other:?}"),
@@ -897,10 +949,10 @@ fn submit_image_from_job_rejects_out_of_range_values() {
             "giant-squid",
             "submit-image-from-job",
             "--source-job-id",
-            TEST_JOBID,
+            TEST_JOB_ID,
         ];
         argv.extend_from_slice(&bad);
-        argv.push(TEST_OBSID);
+        argv.push(TEST_OBS_ID);
         let err = parse_err(&argv);
         assert_eq!(
             err.kind(),
@@ -922,7 +974,7 @@ fn submit_conv_rejects_out_of_range_values() {
     ] {
         let mut argv = vec!["giant-squid", "submit-conv"];
         argv.extend_from_slice(&bad);
-        argv.push(TEST_OBSID);
+        argv.push(TEST_OBS_ID);
         let err = parse_err(&argv);
         assert_eq!(
             err.kind(),
@@ -942,7 +994,7 @@ fn submit_volt_rejects_an_offset_outside_the_observation() {
             offset,
             "--duration",
             "8",
-            TEST_OBSID,
+            TEST_OBS_ID,
         ]);
         assert_eq!(
             err.kind(),
@@ -959,7 +1011,7 @@ fn submit_image_rejects_an_out_of_range_wstack_nwlayers() {
         "submit-image",
         "--wstack-nwlayers",
         "16",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -971,10 +1023,10 @@ fn submit_image_from_job_accepts_any_wstack_nwlayers() {
         "giant-squid",
         "submit-image-from-job",
         "--source-job-id",
-        TEST_JOBID,
+        TEST_JOB_ID,
         "--wstack-nwlayers",
         "16",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(args.wstack_nwlayers, Some(16));
 }
@@ -990,7 +1042,7 @@ fn submit_volt_reads_a_negative_offset_as_a_value() {
         "-1",
         "--duration",
         "8",
-        TEST_OBSID,
+        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
     assert!(
@@ -998,4 +1050,131 @@ fn submit_volt_reads_a_negative_offset_as_a_value() {
             .contains("must be between 0 and 5400 (got -1)"),
         "{err}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Flag names follow the OpenAPI schema; the old names are hidden aliases
+// ---------------------------------------------------------------------------
+
+#[test]
+fn submit_conv_takes_the_schema_names_for_a_custom_centre() {
+    let (args, _) = conv_args(&[
+        "giant-squid",
+        "submit-conv",
+        "--centre",
+        "custom",
+        "--custom-centre-ra",
+        "10.5",
+        "--custom-centre-dec",
+        "-26.7",
+        TEST_OBS_ID,
+    ]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+
+    assert_eq!(json["centre"], "custom");
+    assert_eq!(json["custom_centre_ra"], 10.5);
+    assert_eq!(json["custom_centre_dec"], -26.7);
+}
+
+#[test]
+fn submit_image_takes_the_schema_names_for_the_centre() {
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--centre",
+        "custom",
+        "--custom-centre-ra",
+        "10.5",
+        "--custom-centre-dec",
+        "-26.7",
+        TEST_OBS_ID,
+    ]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+
+    assert_eq!(json["centre"], "custom");
+    assert_eq!(json["custom_centre_ra"], 10.5);
+    assert_eq!(json["custom_centre_dec"], -26.7);
+}
+
+#[test]
+fn list_takes_the_schema_names_for_its_filters() {
+    match parse(&[
+        "giant-squid",
+        "list",
+        "--job-states",
+        "queued,error",
+        "--job-types",
+        "conversion",
+    ]) {
+        Args::List {
+            job_states,
+            job_types,
+            ..
+        } => {
+            assert_eq!(job_states.len(), 2);
+            assert_eq!(job_types.len(), 1);
+        }
+        other => panic!("expected List, got {other:?}"),
+    }
+}
+
+/// The old names still work (the tests above this section use them), but
+/// `--help` shows only the schema names.
+#[test]
+fn the_old_flag_names_are_not_shown_in_help() {
+    use clap::CommandFactory;
+
+    for (command, old_flags) in [
+        (
+            "submit-conv",
+            &["--phase-centre-ra", "--phase-centre-dec"][..],
+        ),
+        (
+            "submit-image",
+            &["--custom-ra", "--custom-dec", "--phase-center"][..],
+        ),
+        ("list", &["--states", "--types"][..]),
+    ] {
+        let mut cli = Args::command();
+        let help = cli
+            .find_subcommand_mut(command)
+            .unwrap_or_else(|| panic!("no {command} command"))
+            .render_long_help()
+            .to_string();
+        for old in old_flags {
+            assert!(
+                !help.contains(&format!("{old} ")),
+                "{command} --help shows {old}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_argument_placeholders_use_the_schema_names() {
+    use clap::CommandFactory;
+
+    for (command, placeholder) in [
+        ("list", "[JOB_ID_OR_OBS_ID]..."),
+        ("download", "[JOB_ID_OR_OBS_ID]..."),
+        ("submit-vis", "[OBS_ID]..."),
+        ("wait", "[JOB_ID]..."),
+        ("cancel", "[JOB_ID]..."),
+    ] {
+        let mut cli = Args::command();
+        let usage = cli
+            .find_subcommand_mut(command)
+            .unwrap_or_else(|| panic!("no {command} command"))
+            .render_usage()
+            .to_string();
+        assert!(usage.contains(placeholder), "{command}: {usage}");
+    }
 }
