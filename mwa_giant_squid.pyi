@@ -108,6 +108,46 @@ class Delivery(enum.Enum):
     Dug = ...
     Scratch = ...
 
+class DeliveryFormat(enum.Enum):
+    """How the MWA ASVO packages a job's files: one tar file, or separate files. ``str()`` is the API value."""
+
+    Tar = ...
+    Files = ...
+
+class Output(enum.Enum):
+    """The format of a conversion job's output. ``str()`` is the API value."""
+
+    Ms = ...
+    Uvfits = ...
+
+class Centre(enum.Enum):
+    """Where to put the phase centre of a conversion job or an imaging job. ``str()`` is the API value."""
+
+    Phase = ...
+    Pointing = ...
+    Custom = ...
+
+class OutputMode(enum.Enum):
+    """The products an imaging job returns. ``str()`` is the API value."""
+
+    Fits = ...
+    AllFits = ...
+    AllFiles = ...
+
+class Weighting(enum.Enum):
+    """The WSClean weighting scheme of an imaging job. ``str()`` is the API value."""
+
+    Briggs = ...
+    Uniform = ...
+    Natural = ...
+
+class Polarization(enum.Enum):
+    """The polarisation an imaging job (from an obsid) images. ``str()`` is the API value."""
+
+    Xx = ...
+    Yy = ...
+    Xxyy = ...
+
 class AsvoFilesArray:
     """One file of a job's product."""
 
@@ -151,6 +191,19 @@ class AsvoJob:
     @property
     def completed(self) -> datetime.datetime | None:
         """When the job completed (UTC), or None."""
+
+class JobSubmittedResponse:
+    """The MWA ASVO's reply to a job submission or to a cancellation."""
+
+    @property
+    def job_id(self) -> int:
+        """The ID of the job that was submitted (or cancelled)."""
+    @property
+    def message(self) -> str:
+        """The server's message."""
+    @property
+    def status(self) -> str:
+        """The server's status for the request: "success" or "failed"."""
 
 class AsvoJobVec:
     """A list of MWA ASVO jobs. Supports ``len()``, indexing and iteration."""
@@ -216,5 +269,288 @@ class AsvoClient:
             days: Only the jobs from the past ``days`` days. None gets your full job history.
 
         Raises:
+            AsvoApiError: The request failed.
+        """
+
+    def submit_download_vis_job(
+        self,
+        obs_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit a job to download an observation's raw visibilities.
+
+        Every keyword argument that is None uses the MWA ASVO's default.
+
+        Args:
+            obs_id: The obsid.
+            delivery: Where the MWA ASVO delivers the data.
+            delivery_format: How the MWA ASVO packages the files.
+            allow_resubmit: Submit the job even if an identical one has completed.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid.
+            AsvoApiError: The request failed.
+        """
+    def submit_download_meta_job(
+        self,
+        obs_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit a job to download an observation's metadata.
+
+        The arguments are those of ``submit_download_vis_job``.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid.
+            AsvoApiError: The request failed.
+        """
+    def submit_conversion_job(
+        self,
+        obs_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        output: Output | None = None,
+        avg_freq_res: float | None = None,
+        avg_time_res: float | None = None,
+        flag_edge_width: float | None = None,
+        apply_di_cal: bool | None = None,
+        centre: Centre | None = None,
+        custom_centre_ra: float | None = None,
+        custom_centre_dec: float | None = None,
+        no_apply_amps: bool | None = None,
+        no_digital_gains: bool | None = None,
+        no_flag_dc: bool | None = None,
+        no_geometry_delay: bool | None = None,
+        no_passband_gains: bool | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit a conversion (preprocessing) job.
+
+        Every keyword argument that is None uses the MWA ASVO's default.
+
+        Args:
+            obs_id: The obsid.
+            delivery: Where the MWA ASVO delivers the data.
+            delivery_format: How the MWA ASVO packages the files.
+            output: The output format.
+            avg_freq_res: The frequency resolution to average to (kHz).
+            avg_time_res: The time resolution to average to (s).
+            flag_edge_width: The width of the frequency edge flagging (kHz).
+            apply_di_cal: Apply the DI calibration solution.
+            centre: The phase centre mode. ``Centre.Custom`` needs ``custom_centre_ra`` and
+                ``custom_centre_dec``.
+            custom_centre_ra: The custom phase centre's right ascension (degrees).
+            custom_centre_dec: The custom phase centre's declination (degrees).
+            no_apply_amps: Do not apply the amplitude calibration solutions.
+            no_digital_gains: Do not apply the digital gains.
+            no_flag_dc: Do not flag the DC channel.
+            no_geometry_delay: Do not apply the geometric delay corrections.
+            no_passband_gains: Do not apply the passband gain corrections.
+            allow_resubmit: Submit the job even if an identical one has completed.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid.
+            AsvoApiError: The request failed.
+        """
+    def submit_imaging_job(
+        self,
+        obs_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        apply_di_cal: bool | None = None,
+        apply_primary_beam: bool | None = None,
+        auto_mask: int | None = None,
+        auto_threshold: float | None = None,
+        abs_threshold: float | None = None,
+        avg_freq_res: float | None = None,
+        avg_time_res: float | None = None,
+        channels_out: int | None = None,
+        clean_iterations: int | None = None,
+        clean_threshold: float | None = None,
+        centre: Centre | None = None,
+        custom_centre_dec: float | None = None,
+        custom_centre_ra: float | None = None,
+        flag_edge_width: float | None = None,
+        image_size: int | None = None,
+        join_channels: bool | None = None,
+        join_polarizations: bool | None = None,
+        mgain: float | None = None,
+        multiscale: bool | None = None,
+        nmiter: int | None = None,
+        no_apply_amps: bool | None = None,
+        nwlayers: int | None = None,
+        output_mode: OutputMode | None = None,
+        pixel_scale: float | None = None,
+        pol: Polarization | None = None,
+        robust: float | None = None,
+        uvw_max: float | None = None,
+        uvw_min: float | None = None,
+        weighting: Weighting | None = None,
+        wstack_nwlayers: int | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit an imaging job that starts from an obsid.
+
+        Every keyword argument that is None uses the MWA ASVO's default.
+
+        Args:
+            obs_id: The obsid.
+            delivery: Where the MWA ASVO delivers the data.
+            delivery_format: How the MWA ASVO packages the files.
+            apply_di_cal: Apply the DI calibration solution.
+            apply_primary_beam: Apply the primary beam correction.
+            auto_mask: The WSClean -auto-mask value.
+            auto_threshold: The WSClean -auto-threshold value.
+            abs_threshold: The absolute cleaning threshold (Jy).
+            avg_freq_res: The frequency resolution to average to before imaging (kHz).
+            avg_time_res: The time resolution to average to before imaging (s).
+            channels_out: The number of output channel groups.
+            clean_iterations: The WSClean -niter value.
+            clean_threshold: The WSClean cleaning threshold (Jy). This field is deprecated in the API: use
+                ``abs_threshold``.
+            centre: Where to centre the image. ``Centre.Custom`` needs ``custom_centre_ra`` and
+                ``custom_centre_dec``.
+            custom_centre_dec: The custom phase centre's declination (degrees).
+            custom_centre_ra: The custom phase centre's right ascension (degrees).
+            flag_edge_width: The width of the frequency edge flagging (kHz).
+            image_size: The WSClean image size in pixels. Only the sizes that the MWA ASVO accepts are valid.
+            join_channels: Join the output channel groups for cleaning.
+            join_polarizations: Join the polarisations for cleaning.
+            mgain: The WSClean -mgain value.
+            multiscale: Use WSClean multiscale cleaning.
+            nmiter: The WSClean -nmiter value. Must be greater than zero.
+            no_apply_amps: Do not apply the amplitude calibration solutions.
+            nwlayers: The number of w-projection layers. This field is deprecated in the API: use
+                ``wstack_nwlayers``.
+            output_mode: The products to return.
+            pixel_scale: The pixel scale (arcsec per pixel).
+            pol: The polarisation to image.
+            robust: The WSClean -robust value.
+            uvw_max: The maximum uv distance to image (wavelengths).
+            uvw_min: The minimum uv distance to image (wavelengths).
+            weighting: The WSClean weighting scheme.
+            wstack_nwlayers: The number of w-stacking layers.
+            allow_resubmit: Submit the job even if an identical one has completed.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid, ``image_size`` is not a valid size, or ``nmiter`` is
+                zero.
+            AsvoApiError: The request failed.
+        """
+    def submit_image_from_job(
+        self,
+        obs_id: int,
+        source_job_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        apply_primary_beam: bool | None = None,
+        auto_mask: int | None = None,
+        auto_threshold: float | None = None,
+        abs_threshold: float | None = None,
+        channels_out: int | None = None,
+        clean_iterations: int | None = None,
+        clean_threshold: float | None = None,
+        image_size: int | None = None,
+        join_channels: bool | None = None,
+        join_polarizations: bool | None = None,
+        mgain: float | None = None,
+        multiscale: bool | None = None,
+        nmiter: int | None = None,
+        nwlayers: int | None = None,
+        output_mode: OutputMode | None = None,
+        pixel_scale: float | None = None,
+        pol: str | None = None,
+        robust: float | None = None,
+        uvw_max: float | None = None,
+        uvw_min: float | None = None,
+        weighting: Weighting | None = None,
+        wstack_nwlayers: int | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit an imaging job that starts from an existing conversion job.
+
+        Every keyword argument that is None uses the MWA ASVO's default. The arguments are those of
+        ``submit_imaging_job``, except that the data come from a conversion job, so there are no
+        calibration, averaging, flagging or phase centre arguments, and ``pol`` is a free-form string, not a
+        ``Polarization``.
+
+        Args:
+            obs_id: The obsid.
+            source_job_id: The ID of the conversion job to image. Must be greater than zero.
+            pol: The polarisations to image, for example "XX,YY".
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid, ``source_job_id`` or ``nmiter`` is zero, or
+                ``image_size`` is not a valid size.
+            AsvoApiError: The request failed.
+        """
+    def submit_voltage_job(
+        self,
+        obs_id: int,
+        offset: int,
+        duration: int,
+        *,
+        delivery: str | None = None,
+        from_channel: int | None = None,
+        to_channel: int | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit a job to download an observation's voltage data.
+
+        Every keyword argument that is None uses the MWA ASVO's default.
+
+        Args:
+            obs_id: The obsid.
+            offset: The offset in seconds from the start GPS time of the observation.
+            duration: The duration to download, in seconds.
+            delivery: Where the MWA ASVO delivers the data. The only valid value is "scratch", which needs
+                the "mwavcs" Pawsey Group on your MWA ASVO profile.
+            from_channel: The first receiver channel number (0 to 255).
+            to_channel: The last receiver channel number (0 to 255).
+            allow_resubmit: Submit the job even if an identical one has completed.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid.
+            OverflowError: A channel number is not from 0 to 255.
+            AsvoApiError: The request failed.
+        """
+    def submit_beamformer_job(
+        self,
+        obs_id: int,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        allow_resubmit: bool | None = None,
+    ) -> JobSubmittedResponse:
+        """Submit a job to download an observation's beamformer data.
+
+        The arguments are those of ``submit_download_vis_job``.
+
+        Raises:
+            ValueError: ``obs_id`` is not a valid obsid.
             AsvoApiError: The request failed.
         """

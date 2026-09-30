@@ -76,9 +76,32 @@
   `AsvoJobState` and `Delivery`, and the exceptions `AsvoApiError` and
   `AsvoError`. `editable-profile = "dev"`. 16 pytest tests against a local
   mock server (`pytest-httpserver`), including the log bridge.
-- Next step: Phase 2, step 2.2 (the submit methods and
-  `JobSubmittedResponse`). Start from a fresh clone of `apiv2`, one diff
-  per step, and update this section after each.
+- 2026-09-30: step 2.2 done. `AsvoClient` has `submit_download_vis_job`,
+  `submit_download_meta_job`, `submit_conversion_job`,
+  `submit_imaging_job`, `submit_image_from_job`, `submit_voltage_job` and
+  `submit_beamformer_job`. Each returns `JobSubmittedResponse` (`job_id`,
+  `message`, and `status` as the text "success" or "failed"). New enums:
+  `DeliveryFormat`, `Output`, `Centre`, `OutputMode`, `Weighting` and
+  `Polarization`; the existing `Delivery` is also the type of the
+  `delivery` argument. `str()` of a member is the API value. A `None`
+  argument is left out of the request builder, so the schema default
+  applies. The Python layer adds no default. The request bodies are built
+  in `src/python/params.rs`, one argument struct per job type; step 2.3
+  reuses them for the `*_params` functions. The arguments are the ones the
+  CLI has, under their OpenAPI names. Not arguments: beamformer `mode`,
+  voltage `delivery_format`, and conversion `no_cable_delay` and `no_rfi`.
+  `submit_voltage_job` sets `channel_range` when a channel bound is given,
+  as the CLI does. `pol` is a `Polarization` for `submit_imaging_job` and a
+  free-form `str` for `submit_image_from_job`, as in the schema. A bad
+  obsid, a zero `source_job_id` or `nmiter`, or an `image_size` that the
+  API does not accept raises `ValueError` before any request. The CLI's
+  numeric range checks are not repeated: the server checks them and the
+  error is an `AsvoApiError`. 33 new pytest tests (the mock checks each
+  request body), 49 in total.
+- Next step: Phase 2, step 2.3 (`cancel_job`,
+  `parse_many_jobids_or_obsids` and the `*_params` builders). Start from a
+  fresh clone of `apiv2`, one diff per step, and update this section after
+  each.
 
 ## Goal
 
@@ -251,7 +274,7 @@ Steps:
 | Step | Content |
 |---|---|
 | 2.1 | `AsvoClient(...)`, `get_jobs`, the job types and enums, the two exceptions (done) |
-| 2.2 | The seven submit methods, `JobSubmittedResponse`, and the enums the job arguments need |
+| 2.2 | The seven submit methods, `JobSubmittedResponse`, and the enums the job arguments need (done) |
 | 2.3 | `cancel_job`, `parse_many_jobids_or_obsids`, and the `*_params` builders |
 | 2.4 | `download_jobid`, `download_obsid` and the progress callback, with Ctrl-C between chunks |
 

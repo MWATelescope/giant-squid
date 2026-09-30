@@ -14,6 +14,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyIterator, PyList};
 
 use super::error::asvo_error;
+use crate::asvo::apiv2::openapi::{
+    self as api, Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization,
+    Weighting,
+};
 use crate::asvo::{
     AsvoFilesArray, AsvoJob, AsvoJobID, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
 };
@@ -78,6 +82,70 @@ py_enum!(
     "Delivery",
     Delivery,
     [Acacia, Dug, Scratch]
+);
+
+impl From<PyDelivery> for api::Delivery {
+    /// `Delivery` is also the type of the `delivery` argument of the job
+    /// submit methods, which the library types as the OpenAPI enum.
+    fn from(d: PyDelivery) -> Self {
+        match d {
+            PyDelivery::Acacia => Self::Acacia,
+            PyDelivery::Dug => Self::Dug,
+            PyDelivery::Scratch => Self::Scratch,
+        }
+    }
+}
+
+// The enums below are the job arguments of the submit methods. Their
+// members are those of the OpenAPI schema, and `str()` of a member is the
+// value the API uses (for example "uvfits").
+
+py_enum!(
+    /// How the MWA ASVO packages a job's files: one tar file, or separate files.
+    PyDeliveryFormat,
+    "DeliveryFormat",
+    DeliveryFormat,
+    [Tar, Files]
+);
+
+py_enum!(
+    /// The format of a conversion job's output.
+    PyOutput,
+    "Output",
+    Output,
+    [Ms, Uvfits]
+);
+
+py_enum!(
+    /// Where to put the phase centre of a conversion job or an imaging job.
+    PyCentre,
+    "Centre",
+    Centre,
+    [Phase, Pointing, Custom]
+);
+
+py_enum!(
+    /// The products an imaging job returns.
+    PyOutputMode,
+    "OutputMode",
+    OutputMode,
+    [Fits, AllFits, AllFiles]
+);
+
+py_enum!(
+    /// The WSClean weighting scheme of an imaging job.
+    PyWeighting,
+    "Weighting",
+    Weighting,
+    [Briggs, Uniform, Natural]
+);
+
+py_enum!(
+    /// The polarisation an imaging job (from an obsid) images.
+    PyPolarization,
+    "Polarization",
+    Polarization,
+    [Xx, Yy, Xxyy]
 );
 
 /// The state of an MWA ASVO job. For `Error`, the message is in
@@ -272,6 +340,52 @@ impl PyAsvoJob {
         format!(
             "AsvoJob(jobid={}, obsid={}, jtype={}, state={})",
             self.0.jobid, self.0.obsid, self.0.jtype, self.0.state
+        )
+    }
+}
+
+/// The MWA ASVO's reply to a job submission or to a cancellation.
+#[pyclass(
+    frozen,
+    skip_from_py_object,
+    name = "JobSubmittedResponse",
+    module = "mwa_giant_squid"
+)]
+#[derive(Clone)]
+pub struct PyJobSubmittedResponse(JobSubmittedResponse);
+
+impl From<JobSubmittedResponse> for PyJobSubmittedResponse {
+    fn from(response: JobSubmittedResponse) -> Self {
+        Self(response)
+    }
+}
+
+#[pymethods]
+impl PyJobSubmittedResponse {
+    /// The ID of the job that was submitted (or cancelled).
+    #[getter]
+    fn job_id(&self) -> u64 {
+        self.0.job_id.get()
+    }
+
+    /// The server's message.
+    #[getter]
+    fn message(&self) -> String {
+        self.0.message.clone()
+    }
+
+    /// The server's status for the request: "success" or "failed".
+    #[getter]
+    fn status(&self) -> String {
+        self.0.status.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "JobSubmittedResponse(job_id={}, status={:?}, message={:?})",
+            self.0.job_id,
+            self.0.status.to_string(),
+            self.0.message
         )
     }
 }

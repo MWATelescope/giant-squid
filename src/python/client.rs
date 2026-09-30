@@ -15,7 +15,13 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 use super::error::api_error;
-use super::types::PyAsvoJobVec;
+use super::params::{
+    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
+};
+use super::types::{
+    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput,
+    PyOutputMode, PyPolarization, PyWeighting,
+};
 use crate::asvo::{AsvoClient, AsvoClientConfig};
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -78,6 +84,551 @@ impl PyAsvoClient {
     fn get_jobs(&self, py: Python<'_>, days: Option<i64>) -> PyResult<PyAsvoJobVec> {
         py.detach(|| self.inner.get_jobs(days))
             .map(PyAsvoJobVec::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit a job to download an observation's raw visibilities.
+    ///
+    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    ///
+    /// Args:
+    ///     obs_id: The obsid.
+    ///     delivery: Where the MWA ASVO delivers the data.
+    ///     delivery_format: How the MWA ASVO packages the files.
+    ///     allow_resubmit: Submit the job even if an identical one has
+    ///         completed.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    fn submit_download_vis_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = DownloadArgs {
+            delivery,
+            delivery_format,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_download_vis_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit a job to download an observation's metadata.
+    ///
+    /// The arguments are those of `submit_download_vis_job`.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    fn submit_download_meta_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = DownloadArgs {
+            delivery,
+            delivery_format,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_download_meta_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit a conversion (preprocessing) job.
+    ///
+    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    ///
+    /// Args:
+    ///     obs_id: The obsid.
+    ///     delivery: Where the MWA ASVO delivers the data.
+    ///     delivery_format: How the MWA ASVO packages the files.
+    ///     output: The output format.
+    ///     avg_freq_res: The frequency resolution to average to (kHz).
+    ///     avg_time_res: The time resolution to average to (s).
+    ///     flag_edge_width: The width of the frequency edge flagging (kHz).
+    ///     apply_di_cal: Apply the DI calibration solution.
+    ///     centre: The phase centre mode. `Centre.Custom` needs
+    ///         `custom_centre_ra` and `custom_centre_dec`.
+    ///     custom_centre_ra: The custom phase centre's right ascension
+    ///         (degrees).
+    ///     custom_centre_dec: The custom phase centre's declination
+    ///         (degrees).
+    ///     no_apply_amps: Do not apply the amplitude calibration solutions.
+    ///     no_digital_gains: Do not apply the digital gains.
+    ///     no_flag_dc: Do not flag the DC channel.
+    ///     no_geometry_delay: Do not apply the geometric delay corrections.
+    ///     no_passband_gains: Do not apply the passband gain corrections.
+    ///     allow_resubmit: Submit the job even if an identical one has
+    ///         completed.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (
+        obs_id,
+        *,
+        delivery=None,
+        delivery_format=None,
+        output=None,
+        avg_freq_res=None,
+        avg_time_res=None,
+        flag_edge_width=None,
+        apply_di_cal=None,
+        centre=None,
+        custom_centre_ra=None,
+        custom_centre_dec=None,
+        no_apply_amps=None,
+        no_digital_gains=None,
+        no_flag_dc=None,
+        no_geometry_delay=None,
+        no_passband_gains=None,
+        allow_resubmit=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn submit_conversion_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        output: Option<PyOutput>,
+        avg_freq_res: Option<f64>,
+        avg_time_res: Option<f64>,
+        flag_edge_width: Option<f64>,
+        apply_di_cal: Option<bool>,
+        centre: Option<PyCentre>,
+        custom_centre_ra: Option<f64>,
+        custom_centre_dec: Option<f64>,
+        no_apply_amps: Option<bool>,
+        no_digital_gains: Option<bool>,
+        no_flag_dc: Option<bool>,
+        no_geometry_delay: Option<bool>,
+        no_passband_gains: Option<bool>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = ConversionArgs {
+            delivery,
+            delivery_format,
+            output,
+            avg_freq_res,
+            avg_time_res,
+            flag_edge_width,
+            apply_di_cal,
+            centre,
+            custom_centre_ra,
+            custom_centre_dec,
+            no_apply_amps,
+            no_digital_gains,
+            no_flag_dc,
+            no_geometry_delay,
+            no_passband_gains,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_conversion_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit an imaging job that starts from an obsid.
+    ///
+    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    ///
+    /// Args:
+    ///     obs_id: The obsid.
+    ///     delivery: Where the MWA ASVO delivers the data.
+    ///     delivery_format: How the MWA ASVO packages the files.
+    ///     apply_di_cal: Apply the DI calibration solution.
+    ///     apply_primary_beam: Apply the primary beam correction.
+    ///     auto_mask: The WSClean -auto-mask value.
+    ///     auto_threshold: The WSClean -auto-threshold value.
+    ///     abs_threshold: The absolute cleaning threshold (Jy).
+    ///     avg_freq_res: The frequency resolution to average to before
+    ///         imaging (kHz).
+    ///     avg_time_res: The time resolution to average to before imaging
+    ///         (s).
+    ///     channels_out: The number of output channel groups.
+    ///     clean_iterations: The WSClean -niter value.
+    ///     clean_threshold: The WSClean cleaning threshold (Jy). This
+    ///         field is deprecated in the API: use `abs_threshold`.
+    ///     centre: Where to centre the image. `Centre.Custom` needs
+    ///         `custom_centre_ra` and `custom_centre_dec`.
+    ///     custom_centre_dec: The custom phase centre's declination
+    ///         (degrees).
+    ///     custom_centre_ra: The custom phase centre's right ascension
+    ///         (degrees).
+    ///     flag_edge_width: The width of the frequency edge flagging (kHz).
+    ///     image_size: The WSClean image size in pixels. Only the sizes
+    ///         that the MWA ASVO accepts are valid.
+    ///     join_channels: Join the output channel groups for cleaning.
+    ///     join_polarizations: Join the polarisations for cleaning.
+    ///     mgain: The WSClean -mgain value.
+    ///     multiscale: Use WSClean multiscale cleaning.
+    ///     nmiter: The WSClean -nmiter value. Must be greater than zero.
+    ///     no_apply_amps: Do not apply the amplitude calibration solutions.
+    ///     nwlayers: The number of w-projection layers. This field is
+    ///         deprecated in the API: use `wstack_nwlayers`.
+    ///     output_mode: The products to return.
+    ///     pixel_scale: The pixel scale (arcsec per pixel).
+    ///     pol: The polarisation to image.
+    ///     robust: The WSClean -robust value.
+    ///     uvw_max: The maximum uv distance to image (wavelengths).
+    ///     uvw_min: The minimum uv distance to image (wavelengths).
+    ///     weighting: The WSClean weighting scheme.
+    ///     wstack_nwlayers: The number of w-stacking layers.
+    ///     allow_resubmit: Submit the job even if an identical one has
+    ///         completed.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid, `image_size` is not
+    ///         a valid size, or `nmiter` is zero.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (
+        obs_id,
+        *,
+        delivery=None,
+        delivery_format=None,
+        apply_di_cal=None,
+        apply_primary_beam=None,
+        auto_mask=None,
+        auto_threshold=None,
+        abs_threshold=None,
+        avg_freq_res=None,
+        avg_time_res=None,
+        channels_out=None,
+        clean_iterations=None,
+        clean_threshold=None,
+        centre=None,
+        custom_centre_dec=None,
+        custom_centre_ra=None,
+        flag_edge_width=None,
+        image_size=None,
+        join_channels=None,
+        join_polarizations=None,
+        mgain=None,
+        multiscale=None,
+        nmiter=None,
+        no_apply_amps=None,
+        nwlayers=None,
+        output_mode=None,
+        pixel_scale=None,
+        pol=None,
+        robust=None,
+        uvw_max=None,
+        uvw_min=None,
+        weighting=None,
+        wstack_nwlayers=None,
+        allow_resubmit=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn submit_imaging_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        apply_di_cal: Option<bool>,
+        apply_primary_beam: Option<bool>,
+        auto_mask: Option<i64>,
+        auto_threshold: Option<f64>,
+        abs_threshold: Option<f64>,
+        avg_freq_res: Option<f64>,
+        avg_time_res: Option<f64>,
+        channels_out: Option<i64>,
+        clean_iterations: Option<i64>,
+        clean_threshold: Option<f64>,
+        centre: Option<PyCentre>,
+        custom_centre_dec: Option<f64>,
+        custom_centre_ra: Option<f64>,
+        flag_edge_width: Option<f64>,
+        image_size: Option<i64>,
+        join_channels: Option<bool>,
+        join_polarizations: Option<bool>,
+        mgain: Option<f64>,
+        multiscale: Option<bool>,
+        nmiter: Option<u64>,
+        no_apply_amps: Option<bool>,
+        nwlayers: Option<i64>,
+        output_mode: Option<PyOutputMode>,
+        pixel_scale: Option<f64>,
+        pol: Option<PyPolarization>,
+        robust: Option<f64>,
+        uvw_max: Option<f64>,
+        uvw_min: Option<f64>,
+        weighting: Option<PyWeighting>,
+        wstack_nwlayers: Option<i64>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = ImagingArgs {
+            delivery,
+            delivery_format,
+            apply_di_cal,
+            apply_primary_beam,
+            auto_mask,
+            auto_threshold,
+            abs_threshold,
+            avg_freq_res,
+            avg_time_res,
+            channels_out,
+            clean_iterations,
+            clean_threshold,
+            centre,
+            custom_centre_dec,
+            custom_centre_ra,
+            flag_edge_width,
+            image_size,
+            join_channels,
+            join_polarizations,
+            mgain,
+            multiscale,
+            nmiter,
+            no_apply_amps,
+            nwlayers,
+            output_mode,
+            pixel_scale,
+            pol,
+            robust,
+            uvw_max,
+            uvw_min,
+            weighting,
+            wstack_nwlayers,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_imaging_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit an imaging job that starts from an existing conversion job.
+    ///
+    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// The arguments are those of `submit_imaging_job`, except that the
+    /// data come from a conversion job, so there are no calibration,
+    /// averaging, flagging or phase centre arguments, and `pol` is a
+    /// free-form string, not a `Polarization`.
+    ///
+    /// Args:
+    ///     obs_id: The obsid.
+    ///     source_job_id: The ID of the conversion job to image. Must be
+    ///         greater than zero.
+    ///     pol: The polarisations to image, for example "XX,YY".
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid, `source_job_id` or
+    ///         `nmiter` is zero, or `image_size` is not a valid size.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (
+        obs_id,
+        source_job_id,
+        *,
+        delivery=None,
+        delivery_format=None,
+        apply_primary_beam=None,
+        auto_mask=None,
+        auto_threshold=None,
+        abs_threshold=None,
+        channels_out=None,
+        clean_iterations=None,
+        clean_threshold=None,
+        image_size=None,
+        join_channels=None,
+        join_polarizations=None,
+        mgain=None,
+        multiscale=None,
+        nmiter=None,
+        nwlayers=None,
+        output_mode=None,
+        pixel_scale=None,
+        pol=None,
+        robust=None,
+        uvw_max=None,
+        uvw_min=None,
+        weighting=None,
+        wstack_nwlayers=None,
+        allow_resubmit=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn submit_image_from_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        source_job_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        apply_primary_beam: Option<bool>,
+        auto_mask: Option<i64>,
+        auto_threshold: Option<f64>,
+        abs_threshold: Option<f64>,
+        channels_out: Option<i64>,
+        clean_iterations: Option<i64>,
+        clean_threshold: Option<f64>,
+        image_size: Option<i64>,
+        join_channels: Option<bool>,
+        join_polarizations: Option<bool>,
+        mgain: Option<f64>,
+        multiscale: Option<bool>,
+        nmiter: Option<u64>,
+        nwlayers: Option<i64>,
+        output_mode: Option<PyOutputMode>,
+        pixel_scale: Option<f64>,
+        pol: Option<String>,
+        robust: Option<f64>,
+        uvw_max: Option<f64>,
+        uvw_min: Option<f64>,
+        weighting: Option<PyWeighting>,
+        wstack_nwlayers: Option<i64>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = ImageFromJobArgs {
+            delivery,
+            delivery_format,
+            apply_primary_beam,
+            auto_mask,
+            auto_threshold,
+            abs_threshold,
+            channels_out,
+            clean_iterations,
+            clean_threshold,
+            image_size,
+            join_channels,
+            join_polarizations,
+            mgain,
+            multiscale,
+            nmiter,
+            nwlayers,
+            output_mode,
+            pixel_scale,
+            pol,
+            robust,
+            uvw_max,
+            uvw_min,
+            weighting,
+            wstack_nwlayers,
+            allow_resubmit,
+        }
+        .into_params(obs_id, source_job_id)?;
+        py.detach(|| self.inner.submit_image_from_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit a job to download an observation's voltage data.
+    ///
+    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    ///
+    /// Args:
+    ///     obs_id: The obsid.
+    ///     offset: The offset in seconds from the start GPS time of the
+    ///         observation.
+    ///     duration: The duration to download, in seconds.
+    ///     delivery: Where the MWA ASVO delivers the data. The only valid
+    ///         value is "scratch", which needs the "mwavcs" Pawsey Group
+    ///         on your MWA ASVO profile.
+    ///     from_channel: The first receiver channel number (0 to 255).
+    ///     to_channel: The last receiver channel number (0 to 255).
+    ///     allow_resubmit: Submit the job even if an identical one has
+    ///         completed.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     OverflowError: A channel number is not from 0 to 255.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (
+        obs_id,
+        offset,
+        duration,
+        *,
+        delivery=None,
+        from_channel=None,
+        to_channel=None,
+        allow_resubmit=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn submit_voltage_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        offset: i64,
+        duration: u64,
+        delivery: Option<String>,
+        from_channel: Option<u8>,
+        to_channel: Option<u8>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = VoltageArgs {
+            offset,
+            duration,
+            delivery,
+            from_channel,
+            to_channel,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_voltage_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit a job to download an observation's beamformer data.
+    ///
+    /// The arguments are those of `submit_download_vis_job`.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: `obs_id` is not a valid obsid.
+    ///     AsvoApiError: The request failed.
+    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    fn submit_beamformer_job(
+        &self,
+        py: Python<'_>,
+        obs_id: u64,
+        delivery: Option<PyDelivery>,
+        delivery_format: Option<PyDeliveryFormat>,
+        allow_resubmit: Option<bool>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = BeamformerArgs {
+            delivery,
+            delivery_format,
+            allow_resubmit,
+        }
+        .into_params(obs_id)?;
+        py.detach(|| self.inner.submit_beamformer_job(&params))
+            .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
 

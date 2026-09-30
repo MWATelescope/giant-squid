@@ -1,0 +1,460 @@
+"""Tests for the submit methods, against a local mock MWA ASVO.
+
+Each test checks the request body the mock receives, because that is what the MWA ASVO acts on. A keyword
+argument that is left out must be absent from what the module sets, so that the schema default applies: those
+tests compare with the default the schema gives, never with a value the module chose.
+"""
+
+import json
+from collections.abc import Callable
+from typing import Any
+
+import pytest
+from pytest_httpserver import HTTPServer
+
+import mwa_giant_squid as gs
+
+from .conftest import TEST_API_KEY, TEST_OBSID, error_response
+
+# The endpoint of each job type.
+DOWNLOAD_PATH = "/api/v2/download_vis_job"
+CONVERSION_PATH = "/api/v2/conversion_job"
+IMAGING_PATH = "/api/v2/imaging_job"
+IMAGE_FROM_JOB_PATH = "/api/v2/image_from_job"
+VOLTAGE_PATH = "/api/v2/voltage_job"
+BEAMFORMER_PATH = "/api/v2/beamformer_job"
+
+# The job the mock says it created.
+NEW_JOB_ID = 777
+NEW_JOB_MESSAGE = "Job submitted"
+
+# A conversion job to image from.
+SOURCE_JOB_ID = 555
+
+# Voltage job values.
+VOLTAGE_OFFSET = 10
+VOLTAGE_DURATION = 32
+FROM_CHANNEL = 3
+TO_CHANNEL = 9
+
+# Values the tests send that differ from the schema defaults.
+FREQ_RES = 10.0
+CUSTOM_RA = 12.5
+CUSTOM_DEC = -26.7
+NMITER = 7
+VALID_IMAGE_SIZE = 1024
+INVALID_IMAGE_SIZE = 100
+INVALID_OBSID = 1
+
+
+def submitted(httpserver: HTTPServer, path: str) -> None:
+    """Serve a successful submission at ``path``.
+
+    Args:
+        httpserver: The pytest-httpserver server.
+        path: The endpoint.
+    """
+    httpserver.expect_request(path, method="POST").respond_with_json(
+        {"job_id": NEW_JOB_ID, "message": NEW_JOB_MESSAGE, "status": "success"}
+    )
+
+
+def body_sent_to(httpserver: HTTPServer, path: str) -> dict[str, Any]:
+    """The JSON body of the one request the mock received at ``path``.
+
+    Args:
+        httpserver: The pytest-httpserver server.
+        path: The endpoint.
+
+    Returns:
+        The body.
+    """
+    (request,) = [request for request, _ in httpserver.log if request.path == path]
+    return json.loads(request.get_data())
+
+
+@pytest.fixture
+def client(host: str, mock_login: None) -> gs.AsvoClient:
+    """A client that has logged in to the mock.
+
+    Args:
+        host: The mock's base URL.
+        mock_login: Serves the login.
+
+    Returns:
+        The client.
+    """
+    return gs.AsvoClient(host, TEST_API_KEY)
+
+
+def assert_response(response: gs.JobSubmittedResponse) -> None:
+    """Check that ``response`` is the one that ``submitted`` serves.
+
+    Args:
+        response: What the submit method returned.
+    """
+    assert response.job_id == NEW_JOB_ID
+    assert response.message == NEW_JOB_MESSAGE
+    assert response.status == "success"
+
+
+# The methods that take only delivery, delivery_format and allow_resubmit, with their endpoint.
+DOWNLOAD_LIKE_METHODS = [
+    ("submit_download_vis_job", DOWNLOAD_PATH),
+    ("submit_download_meta_job", DOWNLOAD_PATH),
+    ("submit_beamformer_job", BEAMFORMER_PATH),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), DOWNLOAD_LIKE_METHODS)
+def test_download_like_jobs_send_the_arguments_and_return_the_response(
+    client: gs.AsvoClient, httpserver: HTTPServer, method: str, path: str
+) -> None:
+    """Each argument reaches the request body, and the reply is a JobSubmittedResponse."""
+    submitted(httpserver, path)
+
+    response = getattr(client, method)(
+        TEST_OBSID, delivery=gs.Delivery.Dug, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
+    )
+
+    assert_response(response)
+    body = body_sent_to(httpserver, path)
+    assert body["obs_id"] == TEST_OBSID
+    assert body["delivery"] == "dug"
+    assert body["delivery_format"] == "files"
+    assert body["allow_resubmit"] is True
+
+
+@pytest.mark.parametrize(("method", "path"), DOWNLOAD_LIKE_METHODS)
+def test_download_like_jobs_use_the_schema_defaults_when_arguments_are_left_out(
+    client: gs.AsvoClient, httpserver: HTTPServer, method: str, path: str
+) -> None:
+    """With no optional arguments, the body has the schema's defaults."""
+    submitted(httpserver, path)
+
+    getattr(client, method)(TEST_OBSID)
+
+    body = body_sent_to(httpserver, path)
+    assert body["delivery"] == "acacia"
+    assert body["delivery_format"] == "tar"
+    assert body["allow_resubmit"] is False
+
+
+def test_vis_and_meta_jobs_differ_only_in_download_type(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """Both use the download endpoint, and the library sets download_type."""
+    httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(
+        {"job_id": NEW_JOB_ID, "message": NEW_JOB_MESSAGE, "status": "success"}
+    )
+
+    client.submit_download_vis_job(TEST_OBSID)
+    client.submit_download_meta_job(TEST_OBSID)
+
+    types = [
+        json.loads(request.get_data())["download_type"]
+        for request, _ in httpserver.log
+        if request.path == DOWNLOAD_PATH
+    ]
+    assert types == ["vis", "meta"]
+
+
+def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """Every conversion argument reaches the request body under its OpenAPI name."""
+    submitted(httpserver, CONVERSION_PATH)
+
+    response = client.submit_conversion_job(
+        TEST_OBSID,
+        delivery=gs.Delivery.Scratch,
+        delivery_format=gs.DeliveryFormat.Files,
+        output=gs.Output.Uvfits,
+        avg_freq_res=FREQ_RES,
+        avg_time_res=FREQ_RES,
+        flag_edge_width=FREQ_RES,
+        apply_di_cal=True,
+        centre=gs.Centre.Custom,
+        custom_centre_ra=CUSTOM_RA,
+        custom_centre_dec=CUSTOM_DEC,
+        no_apply_amps=True,
+        no_digital_gains=True,
+        no_flag_dc=True,
+        no_geometry_delay=True,
+        no_passband_gains=True,
+        allow_resubmit=True,
+    )
+
+    assert_response(response)
+    assert body_sent_to(httpserver, CONVERSION_PATH) == {
+        "obs_id": TEST_OBSID,
+        "delivery": "scratch",
+        "delivery_format": "files",
+        "output": "uvfits",
+        "avg_freq_res": FREQ_RES,
+        "avg_time_res": FREQ_RES,
+        "flag_edge_width": FREQ_RES,
+        "apply_di_cal": True,
+        "centre": "custom",
+        "custom_centre_ra": CUSTOM_RA,
+        "custom_centre_dec": CUSTOM_DEC,
+        "no_apply_amps": True,
+        "no_digital_gains": True,
+        "no_flag_dc": True,
+        "no_geometry_delay": True,
+        "no_passband_gains": True,
+        "allow_resubmit": True,
+        # Not arguments of the Python method, so the schema defaults apply.
+        "no_cable_delay": False,
+        "no_rfi": False,
+    }
+
+
+def test_conversion_job_uses_the_schema_defaults_when_arguments_are_left_out(
+    client: gs.AsvoClient, httpserver: HTTPServer
+) -> None:
+    """The module adds no defaults of its own; the schema's apply."""
+    submitted(httpserver, CONVERSION_PATH)
+
+    client.submit_conversion_job(TEST_OBSID)
+
+    body = body_sent_to(httpserver, CONVERSION_PATH)
+    assert body["output"] == "ms"
+    assert body["centre"] == "phase"
+    assert body["apply_di_cal"] is False
+    assert "custom_centre_ra" not in body
+    assert "custom_centre_dec" not in body
+
+
+def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """Enum and numeric imaging arguments reach the request body."""
+    submitted(httpserver, IMAGING_PATH)
+
+    response = client.submit_imaging_job(
+        TEST_OBSID,
+        apply_di_cal=False,
+        centre=gs.Centre.Pointing,
+        image_size=VALID_IMAGE_SIZE,
+        nmiter=NMITER,
+        output_mode=gs.OutputMode.AllFits,
+        pol=gs.Polarization.Xx,
+        weighting=gs.Weighting.Natural,
+        uvw_max=FREQ_RES,
+        wstack_nwlayers=NMITER,
+        clean_threshold=CUSTOM_RA,
+        join_polarizations=True,
+        allow_resubmit=True,
+    )
+
+    assert_response(response)
+    body = body_sent_to(httpserver, IMAGING_PATH)
+    assert body["obs_id"] == TEST_OBSID
+    assert body["apply_di_cal"] is False
+    assert body["centre"] == "pointing"
+    assert body["image_size"] == VALID_IMAGE_SIZE
+    assert body["nmiter"] == NMITER
+    assert body["output_mode"] == "all_fits"
+    assert body["pol"] == "XX"
+    assert body["weighting"] == "natural"
+    assert body["uvw_max"] == FREQ_RES
+    assert body["wstack_nwlayers"] == NMITER
+    assert body["clean_threshold"] == CUSTOM_RA
+    assert body["join_polarizations"] is True
+    assert body["allow_resubmit"] is True
+
+
+def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
+    client: gs.AsvoClient, httpserver: HTTPServer
+) -> None:
+    """Optional fields with no schema default are not sent."""
+    submitted(httpserver, IMAGING_PATH)
+
+    client.submit_imaging_job(TEST_OBSID)
+
+    body = body_sent_to(httpserver, IMAGING_PATH)
+    assert body["pol"] == "XXYY"
+    assert body["weighting"] == "briggs"
+    assert body["apply_di_cal"] is True
+    for name in ("custom_centre_ra", "custom_centre_dec", "uvw_max", "nwlayers", "wstack_nwlayers"):
+        assert name not in body
+
+
+def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """The source job ID and the arguments reach the request body."""
+    submitted(httpserver, IMAGE_FROM_JOB_PATH)
+
+    response = client.submit_image_from_job(
+        TEST_OBSID,
+        SOURCE_JOB_ID,
+        pol="YY",
+        weighting=gs.Weighting.Uniform,
+        output_mode=gs.OutputMode.AllFiles,
+        image_size=VALID_IMAGE_SIZE,
+        nmiter=NMITER,
+        allow_resubmit=True,
+    )
+
+    assert_response(response)
+    body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
+    assert body["obs_id"] == TEST_OBSID
+    assert body["source_job_id"] == SOURCE_JOB_ID
+    assert body["pol"] == "YY"
+    assert body["weighting"] == "uniform"
+    assert body["output_mode"] == "all_files"
+    assert body["image_size"] == VALID_IMAGE_SIZE
+    assert body["nmiter"] == NMITER
+    assert body["allow_resubmit"] is True
+
+
+def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
+    client: gs.AsvoClient, httpserver: HTTPServer
+) -> None:
+    """The flow 2 schema default for pol is a string, not the flow 1 enum's default."""
+    submitted(httpserver, IMAGE_FROM_JOB_PATH)
+
+    client.submit_image_from_job(TEST_OBSID, SOURCE_JOB_ID)
+
+    body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
+    assert body["pol"] == "XX,YY"
+    assert body["weighting"] == "briggs"
+
+
+def test_voltage_job_sends_the_arguments_and_derives_channel_range(
+    client: gs.AsvoClient, httpserver: HTTPServer
+) -> None:
+    """A channel bound sets channel_range, as in the CLI."""
+    submitted(httpserver, VOLTAGE_PATH)
+
+    response = client.submit_voltage_job(
+        TEST_OBSID,
+        VOLTAGE_OFFSET,
+        VOLTAGE_DURATION,
+        delivery="scratch",
+        from_channel=FROM_CHANNEL,
+        to_channel=TO_CHANNEL,
+        allow_resubmit=True,
+    )
+
+    assert_response(response)
+    body = body_sent_to(httpserver, VOLTAGE_PATH)
+    assert body["obs_id"] == TEST_OBSID
+    assert body["offset"] == VOLTAGE_OFFSET
+    assert body["duration"] == VOLTAGE_DURATION
+    assert body["delivery"] == "scratch"
+    assert body["from_channel"] == FROM_CHANNEL
+    assert body["to_channel"] == TO_CHANNEL
+    assert body["channel_range"] is True
+    assert body["allow_resubmit"] is True
+
+
+def test_voltage_job_without_channels_has_no_channel_range(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """With no channel bound, channel_range is false and no channel is sent."""
+    submitted(httpserver, VOLTAGE_PATH)
+
+    client.submit_voltage_job(TEST_OBSID, VOLTAGE_OFFSET, VOLTAGE_DURATION)
+
+    body = body_sent_to(httpserver, VOLTAGE_PATH)
+    assert body["channel_range"] is False
+    assert "from_channel" not in body
+    assert "to_channel" not in body
+    assert body["delivery"] == "scratch"
+
+
+def test_a_server_error_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """An error reply to a submission has the server's error fields."""
+    httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(
+        error_response("JOB_ALREADY_EXISTS", "An identical job exists"), status=409
+    )
+
+    with pytest.raises(gs.AsvoApiError) as err:
+        client.submit_download_vis_job(TEST_OBSID)
+
+    assert err.value.kind == "ApiError"
+    assert err.value.error_code == "JOB_ALREADY_EXISTS"
+
+
+# Every submit method, called with only what it needs, so that one call shows an argument problem.
+ALL_SUBMITS: list[tuple[str, Callable[[gs.AsvoClient, int], object]]] = [
+    ("download_vis", lambda c, obsid: c.submit_download_vis_job(obsid)),
+    ("download_meta", lambda c, obsid: c.submit_download_meta_job(obsid)),
+    ("conversion", lambda c, obsid: c.submit_conversion_job(obsid)),
+    ("imaging", lambda c, obsid: c.submit_imaging_job(obsid)),
+    ("image_from_job", lambda c, obsid: c.submit_image_from_job(obsid, SOURCE_JOB_ID)),
+    ("voltage", lambda c, obsid: c.submit_voltage_job(obsid, VOLTAGE_OFFSET, VOLTAGE_DURATION)),
+    ("beamformer", lambda c, obsid: c.submit_beamformer_job(obsid)),
+]
+
+
+@pytest.mark.parametrize(("name", "submit"), ALL_SUBMITS, ids=[name for name, _ in ALL_SUBMITS])
+def test_an_invalid_obsid_is_rejected_before_any_submission(
+    client: gs.AsvoClient, httpserver: HTTPServer, name: str, submit: Callable[[gs.AsvoClient, int], object]
+) -> None:
+    """Every submit method raises ValueError for a bad obsid, and sends nothing."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="obsid"):
+        submit(client, INVALID_OBSID)
+
+    assert len(httpserver.log) == requests_before, name
+
+
+@pytest.mark.parametrize("method", ["submit_imaging_job", "submit_image_from_job"])
+def test_an_invalid_image_size_is_rejected(client: gs.AsvoClient, httpserver: HTTPServer, method: str) -> None:
+    """An image size the API does not accept raises ValueError, and nothing is sent."""
+    args = (TEST_OBSID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBSID,)
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="image_size"):
+        getattr(client, method)(*args, image_size=INVALID_IMAGE_SIZE)
+
+    assert len(httpserver.log) == requests_before
+
+
+@pytest.mark.parametrize("method", ["submit_imaging_job", "submit_image_from_job"])
+def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, method: str) -> None:
+    """nmiter must be greater than zero."""
+    args = (TEST_OBSID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBSID,)
+
+    with pytest.raises(ValueError, match="nmiter"):
+        getattr(client, method)(*args, nmiter=0)
+
+
+def test_a_zero_source_job_id_is_rejected(client: gs.AsvoClient) -> None:
+    """source_job_id must be greater than zero."""
+    with pytest.raises(ValueError, match="source_job_id"):
+        client.submit_image_from_job(TEST_OBSID, 0)
+
+
+def test_a_channel_number_out_of_range_is_rejected(client: gs.AsvoClient) -> None:
+    """A voltage channel number must fit in one byte."""
+    with pytest.raises(OverflowError):
+        client.submit_voltage_job(TEST_OBSID, VOLTAGE_OFFSET, VOLTAGE_DURATION, from_channel=256)
+
+
+def test_optional_arguments_must_be_given_by_keyword(client: gs.AsvoClient) -> None:
+    """Optional arguments are keyword-only."""
+    with pytest.raises(TypeError):
+        client.submit_download_vis_job(TEST_OBSID, gs.Delivery.Acacia)  # ty: ignore[too-many-positional-arguments]
+
+
+def test_a_delivery_of_the_wrong_type_is_rejected(client: gs.AsvoClient) -> None:
+    """The delivery argument is an enum member, not a string."""
+    with pytest.raises(TypeError):
+        client.submit_download_vis_job(TEST_OBSID, delivery="acacia")  # ty: ignore[invalid-argument-type]
+
+
+def test_the_new_enums_use_the_api_values_as_their_text() -> None:
+    """str() of a member is the value the API uses."""
+    assert str(gs.DeliveryFormat.Tar) == "tar"
+    assert str(gs.Output.Uvfits) == "uvfits"
+    assert str(gs.Centre.Custom) == "custom"
+    assert str(gs.OutputMode.AllFits) == "all_fits"
+    assert str(gs.Weighting.Briggs) == "briggs"
+    assert str(gs.Polarization.Xxyy) == "XXYY"
+    assert gs.Output.Ms != gs.Output.Uvfits
+
+
+def test_the_response_has_a_readable_repr(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """repr() names the class and shows the job ID."""
+    submitted(httpserver, DOWNLOAD_PATH)
+
+    response = client.submit_download_vis_job(TEST_OBSID)
+
+    assert repr(response).startswith("JobSubmittedResponse(")
+    assert str(NEW_JOB_ID) in repr(response)

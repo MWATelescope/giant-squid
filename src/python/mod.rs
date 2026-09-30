@@ -20,6 +20,7 @@
 
 mod client;
 mod error;
+mod params;
 mod types;
 
 use std::sync::OnceLock;
@@ -44,7 +45,9 @@ mod module {
     use super::error::{AsvoApiError, AsvoError};
     #[pymodule_export]
     use super::types::{
-        PyAsvoFilesArray, PyAsvoJob, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyDelivery,
+        PyAsvoFilesArray, PyAsvoJob, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre,
+        PyDelivery, PyDeliveryFormat, PyJobSubmittedResponse, PyOutput, PyOutputMode,
+        PyPolarization, PyWeighting,
     };
 
     /// Make Python see changes to its logging configuration.
