@@ -35,7 +35,7 @@ const JOB_BODIES: [&str; 6] = [
 ];
 
 /// The limits of the fields both imaging request bodies have.
-const SHARED_LIMITS: [(&str, Bounds); 12] = [
+const SHARED_LIMITS: [(&str, Bounds); 13] = [
     ("abs_threshold", ABS_THRESHOLD),
     ("auto_mask", AUTO_MASK),
     ("auto_threshold", AUTO_THRESHOLD),
@@ -48,6 +48,7 @@ const SHARED_LIMITS: [(&str, Bounds); 12] = [
     ("robust", ROBUST),
     ("uvw_max", UVW_MAX),
     ("uvw_min", UVW_MIN),
+    ("wstack_nwlayers", WSTACK_NWLAYERS),
 ];
 
 /// The limits of the fields that the imaging (flow 1) and the conversion
@@ -59,9 +60,6 @@ const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("custom_centre_ra", CUSTOM_CENTRE_RA),
     ("flag_edge_width", FLAG_EDGE_WIDTH),
 ];
-
-/// The limits that only the imaging (flow 1) body has.
-const FLOW1_ONLY_LIMITS: [(&str, Bounds); 1] = [("wstack_nwlayers", WSTACK_NWLAYERS)];
 
 /// The limits of the voltage body that this module checks.
 const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
@@ -272,19 +270,8 @@ fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
 }
 
 #[test]
-fn wstack_nwlayers_is_not_limited_in_the_image_from_job_body() {
-    // The schema has no limit for it there; see WSTACK_NWLAYERS.
-    let params = with_field(&flow2_defaults(), "wstack_nwlayers", json!(1));
-    validate_image_from_job_params(&params).expect("no limit in flow 2");
-}
-
-#[test]
 fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
-    for (field, bounds) in SHARED_LIMITS
-        .iter()
-        .chain(CONVERSION_LIMITS.iter())
-        .chain(FLOW1_ONLY_LIMITS.iter())
-    {
+    for (field, bounds) in SHARED_LIMITS.iter().chain(CONVERSION_LIMITS.iter()) {
         if let Some(max) = bounds.max {
             let params = with_field(&flow1_defaults(), field, field_value(field, max));
             validate_imaging_params(&params)
@@ -435,7 +422,6 @@ fn limit_tables() -> Vec<(&'static str, &'static [(&'static str, Bounds)])> {
         (FLOW2, &SHARED_LIMITS),
         (FLOW1, &CONVERSION_LIMITS),
         (CONVERSION, &CONVERSION_LIMITS),
-        (FLOW1, &FLOW1_ONLY_LIMITS),
         (VOLTAGE, &VOLTAGE_LIMITS),
     ]
 }
@@ -500,15 +486,6 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
             Some(f64::from(u8::MAX))
         );
     }
-}
-
-#[test]
-fn wstack_nwlayers_has_no_limit_in_the_image_from_job_schema() {
-    // When this fails, the API has added the limit: add ("wstack_nwlayers",
-    // WSTACK_NWLAYERS) to the checks for flow 2 and remove this test.
-    let field = &schema_properties(FLOW2)["wstack_nwlayers"];
-    assert_eq!(schema_limit(field, "minimum"), None);
-    assert_eq!(schema_limit(field, "maximum"), None);
 }
 
 #[test]

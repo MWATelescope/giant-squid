@@ -275,6 +275,34 @@
   new CLI test: the whole of `list --json` stdout parses as one JSON
   document, and the non-default-host warning is on stderr; it fails with
   the old logger.
+- 2026-09-30: step 2.8 done: the code follows schema v1.11 (commit
+  `38f7de0`). Changes in the schema and what they needed:
+  `JobDetailResponse.product` is typed (`JobProduct`, `JobFile`) and
+  `JobsByUserResponse.jobs` is `Vec<JobDetailResponse>`, so `get_jobs`
+  reads each page as `RawJobsPage` (untyped jobs) and still runs
+  `normalize_job_value` on each job before it parses it, and
+  `product_to_files` maps the typed `JobFile`. `normalize_job_value` has a
+  third, defensive fix: a `product` without `files` (for example `{}`) is
+  treated as no product, because the typed `JobProduct` requires `files`
+  and one such job would otherwise fail the whole listing. `JobFile` has a
+  new field `format`, now in `AsvoFilesArray`, the Python `AsvoFilesArray`
+  and the `--json` output (not in `--legacy-json`, which is unchanged).
+  `download_type` is the shared `DownloadType` enum and is no longer an
+  `Option`. Image-from-job (flow 2): `pol` is the `Polarization` enum
+  (default `XXYY`; it was the string `"XX,YY"`), in the CLI (validated, as
+  for `submit-image`) and in Python (`Polarization`, not `str`);
+  `clean_threshold` has a default (0.001), so the CLI takes it from the
+  schema, as for flow 1 (before, an unset value was sent as `null`);
+  `wstack_nwlayers` has the limits 32 to 512, so it is a shared imaging
+  limit and the CLI checks it. Tests: the two library tests and the CLI and
+  Python tests that asserted the old flow 2 schema (no `wstack_nwlayers`
+  limit, a string `pol`, no `clean_threshold`) are replaced or updated to
+  the new schema; the JSON key tests have the new `format` key. 2 new
+  client tests, 2 new pytest tests (138 in total). A new audit script
+  compares each job body's schema fields with the CLI flags and the Python
+  keyword arguments: every name matches, and the only fields with neither
+  are conversion `no_cable_delay` and `no_rfi`, voltage `delivery_format`
+  and beamformer `mode`, as decided before.
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section

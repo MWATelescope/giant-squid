@@ -67,7 +67,7 @@ BUILDERS: list[tuple[str, str, str, tuple[Any, ...], dict[str, Any]]] = [
         "submit_image_from_job",
         "/api/v2/image_from_job",
         (TEST_OBS_ID, SOURCE_JOB_ID),
-        {"pol": "YY", "output_mode": gs.OutputMode.AllFiles, "nmiter": 7},
+        {"pol": gs.Polarization.Yy, "output_mode": gs.OutputMode.AllFiles, "nmiter": 7},
     ),
     (
         "voltage_job_params",

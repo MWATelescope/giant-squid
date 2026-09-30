@@ -142,7 +142,7 @@ py_enum!(
 );
 
 py_enum!(
-    /// The polarisation an imaging job (from an obsid) images.
+    /// The polarisation an imaging job images.
     PyPolarization,
     "Polarization",
     Polarization,
@@ -267,6 +267,12 @@ impl PyAsvoFilesArray {
     #[getter]
     fn sha1(&self) -> Option<String> {
         self.0.sha1.clone()
+    }
+
+    /// The file's format, as the MWA ASVO gives it, or `None`.
+    #[getter]
+    fn format(&self) -> Option<String> {
+        self.0.format.clone()
     }
 
     fn __repr__(&self) -> String {

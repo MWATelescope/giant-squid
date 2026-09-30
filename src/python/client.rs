@@ -439,14 +439,12 @@ impl PyAsvoClient {
     /// Every keyword argument that is `None` uses the MWA ASVO's default.
     /// The arguments are those of `submit_imaging_job`, except that the
     /// data come from a conversion job, so there are no calibration,
-    /// averaging, flagging or phase centre arguments, and `pol` is a
-    /// free-form string, not a `Polarization`.
+    /// averaging, flagging or phase centre arguments.
     ///
     /// Args:
     ///     obs_id: The obsid.
     ///     source_job_id: The ID of the conversion job to image. Must be
     ///         greater than zero.
-    ///     pol: The polarisations to image, for example "XX,YY".
     ///
     /// Returns:
     ///     The server's reply, with the new job's ID.
@@ -510,7 +508,7 @@ impl PyAsvoClient {
         nwlayers: Option<i64>,
         output_mode: Option<PyOutputMode>,
         pixel_scale: Option<f64>,
-        pol: Option<String>,
+        pol: Option<PyPolarization>,
         robust: Option<f64>,
         uvw_max: Option<f64>,
         uvw_min: Option<f64>,

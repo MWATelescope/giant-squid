@@ -237,9 +237,7 @@ pub(super) struct ImageFromJobArgs {
     pub nwlayers: Option<i64>,
     pub output_mode: Option<PyOutputMode>,
     pub pixel_scale: Option<f64>,
-    /// Free-form, as in the schema: this endpoint does not use the
-    /// `Polarization` enum.
-    pub pol: Option<String>,
+    pub pol: Option<PyPolarization>,
     pub robust: Option<f64>,
     pub uvw_max: Option<f64>,
     pub uvw_min: Option<f64>,
@@ -278,7 +276,7 @@ impl ImageFromJobArgs {
             nwlayers => self.nwlayers,
             output_mode => self.output_mode.map(api::OutputMode::from),
             pixel_scale => self.pixel_scale,
-            pol => self.pol,
+            pol => self.pol.map(api::Polarization::from),
             robust => self.robust,
             uvw_max => self.uvw_max,
             uvw_min => self.uvw_min,

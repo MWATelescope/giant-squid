@@ -92,8 +92,8 @@ impl FromStr for AsvoJobState {
 
 /// A single file provided by an ASVO job.
 ///
-/// In JSON the keys are the field names, which are the keys of a file in
-/// the MWA ASVO job's `product`: `type`, `url`, `path`, `size` and `sha1`.
+/// In JSON the keys are the field names, which are the OpenAPI names of a
+/// `JobFile`: `type`, `url`, `path`, `size`, `sha1` and `format`.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoFilesArray {
     /// Where the file is delivered.
@@ -102,6 +102,9 @@ pub struct AsvoFilesArray {
     pub path: Option<String>,
     pub size: u64,
     pub sha1: Option<String>,
+    /// The file's format, as the MWA ASVO gives it, or `None`. The schema
+    /// (v1.11) types it as a free string and does not document its values.
+    pub format: Option<String>,
 }
 
 /// An MWA ASVO job ID. A `u64`, as the OpenAPI schema's `job_id` is a

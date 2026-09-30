@@ -252,3 +252,20 @@ def test_the_enums_have_readable_names() -> None:
     """str() of an enum member is the library's display name."""
     assert str(gs.AsvoJobState.Ready) == "Ready"
     assert gs.AsvoJobState.Ready != gs.AsvoJobState.Queued
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_a_file_has_the_format_the_server_gives(host: str, serve_jobs: Callable[..., None]) -> None:
+    """Since schema v1.11 a product file has a format; a file without one has None."""
+    product = {
+        "files": [
+            {"type": "acacia", "url": FILE_URL, "size": FILE_SIZE, "sha1": FILE_SHA1, "format": "tar"},
+            {"type": "acacia", "url": FILE_URL, "size": FILE_SIZE, "sha1": FILE_SHA1},
+        ]
+    }
+    serve_jobs([job_detail(JOB_ID_READY, "completed", completed=COMPLETED_TEXT, product=product)])
+
+    (job,) = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
+
+    assert job.files is not None
+    assert [file.format for file in job.files] == ["tar", None]

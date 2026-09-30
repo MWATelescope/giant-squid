@@ -210,6 +210,7 @@ fn the_json_output_keys_are_the_openapi_names() {
         path: None,
         size: 1,
         sha1: Some("0".repeat(40)),
+        format: None,
     }]);
 
     let json: serde_json::Value =
@@ -241,5 +242,5 @@ fn the_json_output_keys_are_the_openapi_names() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(file_keys, ["path", "sha1", "size", "type", "url"]);
+    assert_eq!(file_keys, ["format", "path", "sha1", "size", "type", "url"]);
 }

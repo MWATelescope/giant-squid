@@ -151,7 +151,7 @@ def image_from_job_params(
     nwlayers: int | None = None,
     output_mode: OutputMode | None = None,
     pixel_scale: float | None = None,
-    pol: str | None = None,
+    pol: Polarization | None = None,
     robust: float | None = None,
     uvw_max: float | None = None,
     uvw_min: float | None = None,
@@ -312,7 +312,7 @@ class Weighting(enum.Enum):
     Natural = ...
 
 class Polarization(enum.Enum):
-    """The polarisation an imaging job (from an obsid) images. ``str()`` is the API value."""
+    """The polarisation an imaging job images. ``str()`` is the API value."""
 
     Xx = ...
     Yy = ...
@@ -336,6 +336,9 @@ class AsvoFilesArray:
     @property
     def sha1(self) -> str | None:
         """The file's SHA-1 hash, or None."""
+    @property
+    def format(self) -> str | None:
+        """The file's format, as the MWA ASVO gives it, or None."""
 
 class AsvoJob:
     """An MWA ASVO job."""
@@ -695,7 +698,7 @@ class AsvoClient:
         nwlayers: int | None = None,
         output_mode: OutputMode | None = None,
         pixel_scale: float | None = None,
-        pol: str | None = None,
+        pol: Polarization | None = None,
         robust: float | None = None,
         uvw_max: float | None = None,
         uvw_min: float | None = None,
@@ -707,13 +710,11 @@ class AsvoClient:
 
         Every keyword argument that is None uses the MWA ASVO's default. The arguments are those of
         ``submit_imaging_job``, except that the data come from a conversion job, so there are no
-        calibration, averaging, flagging or phase centre arguments, and ``pol`` is a free-form string, not a
-        ``Polarization``.
+        calibration, averaging, flagging or phase centre arguments.
 
         Args:
             obs_id: The obsid.
             source_job_id: The ID of the conversion job to image. Must be greater than zero.
-            pol: The polarisations to image, for example "XX,YY".
 
         Returns:
             The server's reply, with the new job's ID.

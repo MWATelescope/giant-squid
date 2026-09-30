@@ -24,7 +24,7 @@ use super::params::{
 use super::types::{
     PyCentre, PyDelivery, PyDeliveryFormat, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::apiv2::openapi::DownloadJobParamsDownloadType;
+use crate::asvo::apiv2::openapi::DownloadType;
 use crate::asvo::AsvoJobId;
 use crate::ParseError;
 
@@ -104,7 +104,7 @@ pub fn download_vis_job_params<'py>(
     .into_params(obs_id)?;
     // The client sets this when it submits; set it here so that the body
     // is the one that is sent.
-    params.download_type = Some(DownloadJobParamsDownloadType::Vis);
+    params.download_type = DownloadType::Vis;
     to_dict(py, &params)
 }
 
@@ -128,7 +128,7 @@ pub fn download_meta_job_params<'py>(
         allow_resubmit,
     }
     .into_params(obs_id)?;
-    params.download_type = Some(DownloadJobParamsDownloadType::Meta);
+    params.download_type = DownloadType::Meta;
     to_dict(py, &params)
 }
 
@@ -371,7 +371,7 @@ pub fn image_from_job_params<'py>(
     nwlayers: Option<i64>,
     output_mode: Option<PyOutputMode>,
     pixel_scale: Option<f64>,
-    pol: Option<String>,
+    pol: Option<PyPolarization>,
     robust: Option<f64>,
     uvw_max: Option<f64>,
     uvw_min: Option<f64>,

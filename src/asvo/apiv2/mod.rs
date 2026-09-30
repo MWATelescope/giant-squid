@@ -4,11 +4,14 @@
 
 pub mod client;
 mod error;
-// Generated code: typify emits a serde default helper for every schema
-// default, and not every one of them is reachable from the types we
-// actually use (e.g. `default_i64`). Allowed here, on the module
-// declaration, so it survives regeneration of openapi.rs itself.
-#[allow(dead_code)]
+// Generated code. Lints are allowed here, on the module declaration, so
+// that the allows survive regeneration of openapi.rs itself:
+// - `dead_code`: typify emits a serde default helper for every schema
+//   default, and not every one of them is reachable from the types we
+//   actually use (e.g. `default_i64`).
+// - `clippy::derivable_impls`: the typify used for schema v1.11 writes
+//   `impl Default` by hand for enums with a default variant.
+#[allow(dead_code, clippy::derivable_impls)]
 pub mod openapi;
 pub mod validate;
 

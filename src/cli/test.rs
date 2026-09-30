@@ -662,7 +662,7 @@ fn submit_image_from_job_builds_a_flow2_body() {
     ]);
     assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
-    assert_eq!(args.pol, imaging2_defaults().pol);
+    assert_eq!(args.pol, imaging2_defaults().pol.to_string());
 
     let json = json_of(
         &args
@@ -671,8 +671,12 @@ fn submit_image_from_job_builds_a_flow2_body() {
     );
     assert_eq!(json["source_job_id"], 4242);
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    // clean_threshold is optional here, unlike the flow 1 imaging job.
-    assert!(json.get("clean_threshold").is_none());
+    // Since schema v1.11 clean_threshold has a default here, as in the flow
+    // 1 imaging job, and the CLI sends it.
+    assert_eq!(
+        json["clean_threshold"],
+        imaging2_defaults().clean_threshold.unwrap()
+    );
 }
 
 #[test]
@@ -1017,9 +1021,9 @@ fn submit_image_rejects_an_out_of_range_wstack_nwlayers() {
 }
 
 #[test]
-fn submit_image_from_job_accepts_any_wstack_nwlayers() {
-    // The schema has no limit for it in the image-from-job body.
-    let (args, _) = image_from_job_args(&[
+fn submit_image_from_job_rejects_an_out_of_range_wstack_nwlayers() {
+    // Since schema v1.11 the image-from-job body limits it too.
+    let err = parse_err(&[
         "giant-squid",
         "submit-image-from-job",
         "--source-job-id",
@@ -1028,7 +1032,7 @@ fn submit_image_from_job_accepts_any_wstack_nwlayers() {
         "16",
         TEST_OBS_ID,
     ]);
-    assert_eq!(args.wstack_nwlayers, Some(16));
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
 
 #[test]
@@ -1206,6 +1210,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
                     path: None,
                     size: 1234,
                     sha1: Some("ab".repeat(20)),
+                    format: None,
                 },
                 AsvoFilesArray {
                     r#type: Delivery::Scratch,
@@ -1213,6 +1218,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
                     path: Some("/scratch/mwa/x".to_string()),
                     size: 5,
                     sha1: None,
+                    format: None,
                 },
             ]),
             completed: Some(completed),
@@ -1250,7 +1256,7 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 /// `--json` prints the OpenAPI names, with the same values.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab"},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
+    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 

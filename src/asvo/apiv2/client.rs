@@ -37,9 +37,9 @@ use crate::obs_id::ObsId;
 use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
-    DownloadJobParamsDownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    JobDetailResponse, JobSubmittedResponse, JobsByUserRequest, JobsByUserResponse, Login,
-    TokenResponse, UserResponse, VoltageJobParams,
+    DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
+    JobProduct, JobSubmittedResponse, JobsByUserRequest, Login, TokenResponse, UserResponse,
+    VoltageJobParams,
 };
 use super::validate::{
     validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
@@ -692,7 +692,11 @@ impl AsvoClient {
                     .post(format!("{}{}", self.config.host, ENDPOINT_GET_JOBS))
                     .json(&request)
             })?;
-            let page: JobsByUserResponse = serde_json::from_str(&body)?;
+            // Not parsed as `JobsByUserResponse` at once: since schema
+            // v1.11 its `jobs` are typed, and `normalize_job_value` must
+            // patch two server quirks into each job first. The page shape
+            // is still the schema's.
+            let page: RawJobsPage = serde_json::from_str(&body)?;
 
             let page_len = page.jobs.len() as u64;
             for mut job_value in page.jobs {
@@ -773,7 +777,7 @@ impl AsvoClient {
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        self.submit_download_job(params, DownloadJobParamsDownloadType::Vis)
+        self.submit_download_job(params, DownloadType::Vis)
     }
 
     /// Submit a metadata download job. Any `download_type` in `params` is
@@ -782,7 +786,7 @@ impl AsvoClient {
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        self.submit_download_job(params, DownloadJobParamsDownloadType::Meta)
+        self.submit_download_job(params, DownloadType::Meta)
     }
 
     /// Submit a download job of `download_type`. Visibility and metadata
@@ -791,12 +795,12 @@ impl AsvoClient {
     fn submit_download_job(
         &self,
         params: &DownloadJobParams,
-        download_type: DownloadJobParamsDownloadType,
+        download_type: DownloadType,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a download-{} job to MWA ASVO v2", download_type);
 
         let mut params = params.clone();
-        params.download_type = Some(download_type);
+        params.download_type = download_type;
 
         let body = self.send_authed(|client| {
             client
@@ -900,6 +904,14 @@ impl AsvoClient {
 ///    Fixed by appending `Z` to any of these four fields' string values
 ///    that don't already have a timezone marker (assuming UTC, which
 ///    matches the schema's own `DateTime<Utc>` typing).
+///
+/// And one defensive fix, not seen from the real server:
+///
+/// 3. Since schema v1.11 `product` is a typed `JobProduct`, which requires
+///    `files`. A `product` without `files` (for example `{}`) would make
+///    this job, and so the whole listing, fail to parse. It means "no
+///    files", so it is replaced with `null`, and the download path reports
+///    `NoFiles` for that one job.
 fn normalize_job_value(job_value: &mut serde_json::Map<String, serde_json::Value>) {
     for key in ["completed", "started", "modified"] {
         job_value.entry(key).or_insert(serde_json::Value::Null);
@@ -910,6 +922,13 @@ fn normalize_job_value(job_value: &mut serde_json::Map<String, serde_json::Value
             if looks_like_naive_timestamp(s) {
                 s.push('Z');
             }
+        }
+    }
+
+    if let Some(serde_json::Value::Object(product)) = job_value.get("product") {
+        if !product.contains_key("files") {
+            debug!("A job's product has no files; treating it as no product");
+            job_value.insert("product".to_string(), serde_json::Value::Null);
         }
     }
 }
@@ -1025,82 +1044,57 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
     })
 }
 
-/// Map a job's `product` object to the file list the download path uses.
+/// Map a job's `product` to the file list the download path uses.
 ///
-/// The schema types `product` as a free-form object
-/// (`additionalProperties: true`), so nothing here can be relied on by
-/// type. A real completed job looks like:
-///
-/// ```text
-/// "product": { "files": [ { "type": "acacia",
-///                           "url": "https://.../1115977528_..._meta.tar?...",
-///                           "size": 117016360960,
-///                           "sha1": "ce32e0ae..." } ] }
-/// ```
-///
-/// Scratch and DUG deliveries carry a `path` instead of a `url`. Anything
-/// that can't be understood is skipped with a warning rather than failing
-/// the whole listing: a job we can't describe is better than no listing.
+/// Since schema v1.11 `product` is typed (`JobProduct`, a list of
+/// `JobFile`). A file's `type` is a free string in the schema, so a type
+/// that this client does not know is skipped with a warning, rather than
+/// failing the whole listing: a job we can't describe is better than no
+/// listing. Scratch and DUG deliveries carry a `path` instead of a `url`.
 ///
 /// Returns `None` when there is no file list at all (for instance a job
 /// that hasn't completed), which the download path reports as
 /// [`crate::asvo::AsvoError::NoFiles`].
 fn product_to_files(
     job_id: AsvoJobId,
-    product: Option<&serde_json::Map<String, serde_json::Value>>,
+    product: Option<&JobProduct>,
 ) -> Option<Vec<AsvoFilesArray>> {
-    let files = product?.get("files")?.as_array()?;
+    let files = &product?.files;
 
     let mapped: Vec<AsvoFilesArray> = files
         .iter()
         .filter_map(|file| {
-            let file = file.as_object()?;
-
-            let delivery = match file.get("type").and_then(|t| t.as_str()) {
-                Some(t) => match t.to_ascii_lowercase().as_str() {
-                    "acacia" => Delivery::Acacia,
-                    "dug" => Delivery::Dug,
-                    "scratch" => Delivery::Scratch,
-                    other => {
-                        warn!(
-                            "MWA ASVO job {}: skipping a file with unrecognised delivery type {:?}",
-                            job_id, other
-                        );
-                        return None;
-                    }
-                },
-                None => {
+            let delivery = match file.type_.to_ascii_lowercase().as_str() {
+                "acacia" => Delivery::Acacia,
+                "dug" => Delivery::Dug,
+                "scratch" => Delivery::Scratch,
+                other => {
                     warn!(
-                        "MWA ASVO job {}: skipping a file with no delivery type in product",
-                        job_id
+                        "MWA ASVO job {}: skipping a file with unrecognised delivery type {:?}",
+                        job_id, other
                     );
                     return None;
                 }
             };
 
-            let size = match file.get("size").and_then(|s| s.as_u64()) {
-                Some(size) => size,
-                None => {
-                    // Only used for progress and throughput reporting, so a
-                    // missing size is worth noting but not worth dropping
-                    // the file over.
-                    debug!("MWA ASVO job {}: file has no size in product", job_id);
-                    0
-                }
-            };
+            // The schema types the size as a signed integer. Only used for
+            // progress and throughput reporting, so a negative size is
+            // worth noting but not worth dropping the file over.
+            let size = u64::try_from(file.size).unwrap_or_else(|_| {
+                debug!(
+                    "MWA ASVO job {}: file has a negative size ({}) in product",
+                    job_id, file.size
+                );
+                0
+            });
 
             Some(AsvoFilesArray {
                 r#type: delivery,
-                url: file.get("url").and_then(|u| u.as_str()).map(str::to_string),
-                path: file
-                    .get("path")
-                    .and_then(|p| p.as_str())
-                    .map(str::to_string),
+                url: file.url.clone(),
+                path: file.path.clone(),
                 size,
-                sha1: file
-                    .get("sha1")
-                    .and_then(|h| h.as_str())
-                    .map(str::to_string),
+                sha1: file.sha1.clone(),
+                format: file.format.clone(),
             })
         })
         .collect();
@@ -1114,6 +1108,15 @@ fn product_to_files(
     }
 
     Some(mapped)
+}
+
+/// One page of `get_jobs`, with each job left untyped so that
+/// [`normalize_job_value`] can patch it before it is parsed as a
+/// `JobDetailResponse`. The fields are those of `JobsByUserResponse`.
+#[derive(serde::Deserialize)]
+struct RawJobsPage {
+    jobs: Vec<serde_json::Map<String, serde_json::Value>>,
+    total_count: i64,
 }
 
 #[cfg(test)]

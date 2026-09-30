@@ -17,8 +17,8 @@ use clap::ArgAction;
 
 use crate::asvo::apiv2::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadJobParamsDownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, Output,
-    OutputMode, Polarization, VoltageJobParams, Weighting,
+    DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode, Polarization,
+    VoltageJobParams, Weighting,
 };
 use crate::asvo::apiv2::validate::{self, Bounds};
 use crate::asvo::AsvoApiError;
@@ -61,13 +61,10 @@ pub fn parse_image_size(s: &str) -> Result<i64, String> {
 }
 
 /// Validates a polarisation against the MWA ASVO API's `Polarization` type
-/// and returns it in the string form the request body carries. The imaging
-/// (flow 1) endpoint takes the enum, so an unsupported value is rejected by
-/// the CLI rather than only when the request body is built.
-///
-/// NOTE: the image-from-job (flow 2) endpoint types the same field as a
-/// free-form string with a default of "XX,YY", so it is deliberately not
-/// validated here. That inconsistency is worth raising with the API dev.
+/// and returns it in the string form the request body carries. Both
+/// imaging endpoints take the enum (flow 2 since schema v1.11), so an
+/// unsupported value is rejected by the CLI rather than only when the
+/// request body is built.
 pub fn parse_polarization(s: &str) -> Result<String, String> {
     Polarization::try_from(s)
         .map(|p| p.to_string())
@@ -160,22 +157,22 @@ pub struct DownloadJobArgs {
 impl DownloadJobArgs {
     /// Build the request body for a raw visibility download job.
     pub fn to_vis_params(&self, obs_id: i64) -> Result<DownloadJobParams, AsvoApiError> {
-        self.to_params(obs_id, DownloadJobParamsDownloadType::Vis)
+        self.to_params(obs_id, DownloadType::Vis)
     }
 
     /// Build the request body for a metadata download job.
     pub fn to_meta_params(&self, obs_id: i64) -> Result<DownloadJobParams, AsvoApiError> {
-        self.to_params(obs_id, DownloadJobParamsDownloadType::Meta)
+        self.to_params(obs_id, DownloadType::Meta)
     }
 
     fn to_params(
         &self,
         obs_id: i64,
-        download_type: DownloadJobParamsDownloadType,
+        download_type: DownloadType,
     ) -> Result<DownloadJobParams, AsvoApiError> {
         let params: DownloadJobParams = DownloadJobParams::builder()
             .obs_id(obs_id)
-            .download_type(Some(download_type))
+            .download_type(download_type)
             .delivery(self.delivery)
             .delivery_format(self.delivery_format)
             .allow_resubmit(Some(self.allow_resubmit))
@@ -543,8 +540,8 @@ pub struct ImagingFromJobArgs {
 
     /// WSClean cleaning threshold (Jy). Takes precedence over
     /// auto_threshold if set.
-    #[arg(long, value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
-    pub clean_threshold: Option<f64>,
+    #[arg(long, default_value_t = imaging2_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
+    pub clean_threshold: f64,
 
     /// WSClean image size in pixels.
     #[arg(long, default_value_t = *imaging2_defaults().image_size, value_parser = parse_image_size)]
@@ -590,9 +587,8 @@ pub struct ImagingFromJobArgs {
     #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
     pub pixel_scale: f64,
 
-    /// Polarisations to image. This endpoint takes a free-form string
-    /// rather than the fixed set submit-image accepts.
-    #[arg(long, default_value_t = imaging2_defaults().pol)]
+    /// Polarisation to image: XX, YY or XXYY.
+    #[arg(long, default_value_t = imaging2_defaults().pol.to_string(), value_parser = parse_polarization)]
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
@@ -614,7 +610,7 @@ pub struct ImagingFromJobArgs {
 
     /// Number of w-stacking layers. Leave unset to let the server
     /// decide.
-    #[arg(long)]
+    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
     pub wstack_nwlayers: Option<i64>,
 
     /// Allow resubmitting a job even if an identical one has completed.

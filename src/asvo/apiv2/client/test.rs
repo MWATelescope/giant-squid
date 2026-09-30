@@ -936,3 +936,38 @@ fn record_login_and_get_jobs() {
     println!("raw recording: {}", path.display());
     println!("scrub it before committing - see the section notes in src/asvo/apiv2/client/test.rs");
 }
+
+/// Since schema v1.11 a product file has a `format`, which is kept.
+#[test]
+fn a_product_file_keeps_its_format() {
+    let env = TestEnv::with_session();
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
+    detail["product"] = json!({
+        "files": [{ "type": "acacia", "url": "https://example.org/x.tar", "size": 3,
+                    "sha1": "0000000000000000000000000000000000000000", "format": "tar" }]
+    });
+    env.mock_get_jobs(vec![detail]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client.get_jobs(None).expect("the listing should succeed");
+
+    let files = jobs.0[0].files.as_ref().expect("the job has files");
+    assert_eq!(files[0].format.as_deref(), Some("tar"));
+    assert_eq!(files[0].size, 3);
+}
+
+/// A product with no `files` means no files: it does not fail the listing.
+#[test]
+fn a_product_without_files_does_not_fail_the_listing() {
+    let env = TestEnv::with_session();
+    let mut empty = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
+    empty["product"] = json!({});
+    let other = job_detail(TEST_JOB_ID as i64 + 1, TEST_OBS_ID, "queued", 1);
+    env.mock_get_jobs(vec![empty, other]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client.get_jobs(None).expect("the listing should succeed");
+
+    assert_eq!(jobs.0.len(), 2);
+    assert!(jobs.0[0].files.is_none());
+}

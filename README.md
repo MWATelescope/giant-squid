@@ -534,12 +534,13 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}],"completed":"2026-09-08T06:00:00Z"},"325431":{"obs_id":1090528432,"job_id":325431,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null}}
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}],"completed":"2026-09-08T06:00:00Z"},"325431":{"obs_id":1090528432,"job_id":325431,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null}}
 ```
 
 The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
 `job_state`, `files` and `completed`, which are the MWA ASVO API's (OpenAPI) names. Each file has
-`type` (where it is delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size` and `sha1`.
+`type` (where it is delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and
+`format` (as the MWA ASVO gives it, or `null`).
 
 Before giant-squid 3.0.0 the keys were different (`obsid`, `jobId`, `jobType`, `jobState`, and
 `fileUrl`, `filePath`, `fileSize`, `fileHash` for each file; the delivery type was also under

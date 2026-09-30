@@ -44,6 +44,8 @@ CUSTOM_DEC = -26.7
 CLEAN_THRESHOLD_JY = 0.5
 NMITER = 7
 WSTACK_LAYERS = 64
+# The schema default of clean_threshold for an image-from-job (flow 2) job, since v1.11.
+FLOW2_CLEAN_THRESHOLD_DEFAULT = 0.001
 VALID_IMAGE_SIZE = 1024
 INVALID_IMAGE_SIZE = 100
 INVALID_OBS_ID = 1
@@ -284,7 +286,7 @@ def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.Asvo
     response = client.submit_image_from_job(
         TEST_OBS_ID,
         SOURCE_JOB_ID,
-        pol="YY",
+        pol=gs.Polarization.Yy,
         weighting=gs.Weighting.Uniform,
         output_mode=gs.OutputMode.AllFiles,
         image_size=VALID_IMAGE_SIZE,
@@ -307,13 +309,14 @@ def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.Asvo
 def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
     client: gs.AsvoClient, httpserver: HTTPServer
 ) -> None:
-    """The flow 2 schema default for pol is a string, not the flow 1 enum's default."""
+    """The flow 2 default for pol is the Polarization default, as for flow 1 (since schema v1.11)."""
     submitted(httpserver, IMAGE_FROM_JOB_PATH)
 
     client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID)
 
     body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
-    assert body["pol"] == "XX,YY"
+    assert body["pol"] == "XXYY"
+    assert body["clean_threshold"] == FLOW2_CLEAN_THRESHOLD_DEFAULT
     assert body["weighting"] == "briggs"
 
 
@@ -588,14 +591,20 @@ def test_a_voltage_offset_outside_the_observation_is_rejected(
     assert len(httpserver.log) == requests_before
 
 
-def test_image_from_job_accepts_any_wstack_nwlayers(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """The schema has no limit for wstack_nwlayers in the image-from-job body, so it is sent as given."""
-    submitted(httpserver, IMAGE_FROM_JOB_PATH)
-    small = 16
+def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """Since schema v1.11 the image-from-job body limits wstack_nwlayers too, and nothing is sent."""
+    requests_before = len(httpserver.log)
 
-    client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID, wstack_nwlayers=small)
+    with pytest.raises(ValueError, match="wstack_nwlayers"):
+        client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID, wstack_nwlayers=16)
 
-    assert body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)["wstack_nwlayers"] == small
+    assert len(httpserver.log) == requests_before
+
+
+def test_image_from_job_rejects_a_polarisation_string(client: gs.AsvoClient) -> None:
+    """Since schema v1.11 pol is a Polarization for both imaging jobs, not a string."""
+    with pytest.raises(TypeError):
+        client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID, pol="XX,YY")  # ty: ignore[invalid-argument-type]
 
 
 # The endpoint that cancels a job: DELETE <CANCEL_PATH>/<job id>.
