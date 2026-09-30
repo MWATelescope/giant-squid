@@ -6,3 +6,7 @@
 __pycache__/
 *.so
 /dist/
+
+# Working files
+g.patch
+run_live_tests.sh
