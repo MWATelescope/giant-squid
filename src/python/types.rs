@@ -536,7 +536,9 @@ impl PyAsvoJobVec {
     }
 
     /// The jobs as a JSON object keyed by job ID, as `giant-squid list
-    /// --json` prints.
+    /// --json` prints. The keys are the OpenAPI names (`obs_id`, `job_id`,
+    /// `job_type`, `job_state`, `files`, `completed`; and `type`, `url`,
+    /// `path`, `size`, `sha1` for each file).
     fn json(&self) -> PyResult<String> {
         self.0
             .clone()

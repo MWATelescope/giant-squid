@@ -199,11 +199,10 @@ fn filter_criteria_are_combined() {
     assert_eq!(ids(&jobs), vec![JOB_ID_C]);
 }
 
-/// `giant-squid list --json` prints these keys, and scripts depend on
-/// them. They are not the OpenAPI names; changing them is a separate
-/// decision (see docs/PYTHON_BINDINGS.md), so this test pins them.
+/// `giant-squid list --json` and `AsvoJobVec::json` use the OpenAPI names
+/// (decision 10). `--legacy-json` keeps the old keys; see `cli::legacy_json`.
 #[test]
-fn the_json_output_keys_are_unchanged() {
+fn the_json_output_keys_are_the_openapi_names() {
     let mut ready = job(JOB_ID_A, AsvoJobState::Ready);
     ready.files = Some(vec![AsvoFilesArray {
         r#type: Delivery::Acacia,
@@ -230,10 +229,10 @@ fn the_json_output_keys_are_unchanged() {
         [
             "completed",
             "files",
-            "jobId",
-            "jobState",
-            "jobType",
-            "obsid"
+            "job_id",
+            "job_state",
+            "job_type",
+            "obs_id"
         ]
     );
     let file_keys: Vec<&str> = entry["files"][0]
@@ -242,8 +241,5 @@ fn the_json_output_keys_are_unchanged() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(
-        file_keys,
-        ["fileHash", "filePath", "fileSize", "fileUrl", "jobType"]
-    );
+    assert_eq!(file_keys, ["path", "sha1", "size", "type", "url"]);
 }

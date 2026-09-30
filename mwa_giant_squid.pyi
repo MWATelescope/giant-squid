@@ -446,7 +446,11 @@ class AsvoJobVec:
             AsvoError: A job is missing, has an error, has expired or has been cancelled.
         """
     def json(self) -> str:
-        """The jobs as a JSON object keyed by job ID, as ``giant-squid list --json`` prints."""
+        """The jobs as a JSON object keyed by job ID, as ``giant-squid list --json`` prints.
+
+        The keys are the OpenAPI names: ``obs_id``, ``job_id``, ``job_type``, ``job_state``, ``files`` and
+        ``completed``; and ``type``, ``url``, ``path``, ``size`` and ``sha1`` for each file.
+        """
 
 class AsvoClient:
     """A client for the MWA ASVO. It logs in when it is created.

@@ -11,6 +11,7 @@
 //! and I/O only.
 
 pub mod config;
+pub mod legacy_json;
 pub mod params;
 pub mod table;
 
@@ -38,6 +39,13 @@ pub enum Args {
         /// Print the jobs as a simple JSON
         #[arg(short, long)]
         json: bool,
+
+        /// Print the jobs as JSON in the old format of giant-squid before
+        /// 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl,
+        /// ...). Deprecated: this option will be removed in the release
+        /// after 3.0.0. Use --json.
+        #[arg(long, conflicts_with = "json")]
+        legacy_json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.
@@ -279,7 +287,7 @@ pub enum Args {
 
         /// The obsids to be submitted. Files containing obsids are also
         /// accepted.
-        #[arg(id = "OBS_ID"
+        #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
     },
 
@@ -355,6 +363,13 @@ pub enum Args {
         /// Print the jobs as a simple JSON after waiting
         #[arg(short, long)]
         json: bool,
+
+        /// Print the jobs as JSON in the old format of giant-squid before
+        /// 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl,
+        /// ...). Deprecated: this option will be removed in the release
+        /// after 3.0.0. Use --json.
+        #[arg(long, conflicts_with = "json")]
+        legacy_json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.

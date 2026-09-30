@@ -9,7 +9,7 @@ use std::{thread, time};
 
 use anyhow::bail;
 use clap::Parser;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use simplelog::*;
 
 use rayon::prelude::*;
@@ -26,6 +26,7 @@ use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::cli::config::{
     client_config_from_env, download_buffer_size_from_env, download_retry_duration_from_env,
 };
+use mwa_giant_squid::cli::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use mwa_giant_squid::cli::table::print_jobs_table;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
@@ -271,6 +272,7 @@ fn main() -> Result<(), anyhow::Error> {
         Args::List {
             verbosity,
             json,
+            legacy_json,
             job_ids_or_obs_ids,
             job_states,
             no_colour,
@@ -288,7 +290,13 @@ fn main() -> Result<(), anyhow::Error> {
                 .get_jobs(days)?
                 .filter(&job_ids, &obs_ids, &job_types, &job_states);
 
-            if json {
+            if legacy_json {
+                // Not a log record: the logger writes to stdout, and a
+                // line there would break the JSON for a script (for
+                // example `giant-squid list --legacy-json | jq`).
+                eprintln!("Warning: {LEGACY_JSON_WARNING}");
+                println!("{}", to_legacy_json(&jobs)?);
+            } else if json {
                 println!("{}", jobs.json()?);
             } else {
                 print_jobs_table(jobs, no_colour);
@@ -455,25 +463,16 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(
-                    &parsed_obs_ids,
-                    "visibility download",
-                    |o, id| {
+                let outcome =
+                    submit_each_obs_id(&parsed_obs_ids, "visibility download", |o, id| {
                         let params = download.to_vis_params(id)?;
                         let resp = client.submit_download_vis_job(&params)?;
                         print_submitted_json(&resp, json)?;
                         let job_id = resp.job_id;
                         info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                        job_ids.push(job_id.get());
                         Ok(())
-                    },
-                );
+                    });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;
@@ -518,13 +517,7 @@ fn main() -> Result<(), anyhow::Error> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                    job_ids.push(job_id.get());
                     Ok(())
                 });
 
@@ -571,13 +564,7 @@ fn main() -> Result<(), anyhow::Error> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                    job_ids.push(job_id.get());
                     Ok(())
                 });
 
@@ -638,13 +625,7 @@ fn main() -> Result<(), anyhow::Error> {
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
 
                 if wait {
-                    match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => wait_loop(&client, &[id])?,
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; cannot --wait",
-                            job_id
-                        ),
-                    }
+                    wait_loop(&client, &[job_id.get()])?;
                 }
             }
         }
@@ -684,13 +665,7 @@ fn main() -> Result<(), anyhow::Error> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                    job_ids.push(job_id.get());
                     Ok(())
                 });
 
@@ -737,13 +712,7 @@ fn main() -> Result<(), anyhow::Error> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                    job_ids.push(job_id.get());
                     Ok(())
                 });
 
@@ -784,25 +753,16 @@ fn main() -> Result<(), anyhow::Error> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(
-                    &parsed_obs_ids,
-                    "beamformer download",
-                    |o, id| {
+                let outcome =
+                    submit_each_obs_id(&parsed_obs_ids, "beamformer download", |o, id| {
                         let params = bf.to_params(id)?;
                         let resp = client.submit_beamformer_job(&params)?;
                         print_submitted_json(&resp, json)?;
                         let job_id = resp.job_id;
                         info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        match AsvoJobId::try_from(u64::from(job_id)) {
-                        Ok(id) => job_ids.push(id),
-                        Err(_) => warn!(
-                            "MWA ASVO job ID {} doesn't fit in the expected range; --wait won't track it",
-                            job_id
-                        ),
-                    }
+                        job_ids.push(job_id.get());
                         Ok(())
-                    },
-                );
+                    });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;
@@ -816,6 +776,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             jobs,
             json,
+            legacy_json,
             no_colour,
         } => {
             let (parsed_job_ids, _) = parse_many_job_ids_or_obs_ids(&jobs)?;
@@ -832,7 +793,13 @@ fn main() -> Result<(), anyhow::Error> {
                 .get_jobs(None)?
                 .filter(&parsed_job_ids, &[], &[], &[]);
 
-            if json {
+            if legacy_json {
+                // Not a log record: the logger writes to stdout, and a
+                // line there would break the JSON for a script (for
+                // example `giant-squid list --legacy-json | jq`).
+                eprintln!("Warning: {LEGACY_JSON_WARNING}");
+                println!("{}", to_legacy_json(&jobs)?);
+            } else if json {
                 println!("{}", jobs.json()?);
             } else {
                 print_jobs_table(jobs, no_colour);

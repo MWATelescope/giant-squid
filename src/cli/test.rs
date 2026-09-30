@@ -1178,3 +1178,99 @@ fn the_argument_placeholders_use_the_schema_names() {
         assert!(usage.contains(placeholder), "{command}: {usage}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// The job JSON: the OpenAPI names by default, the old format for
+// --legacy-json
+// ---------------------------------------------------------------------------
+
+/// Three jobs that between them have every kind of value: files with a
+/// URL and with a path, no files, an empty file list, a completion time,
+/// and an error state with a message that needs escaping.
+fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
+    use crate::asvo::{AsvoFilesArray, AsvoJob, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery};
+    let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
+    let completed = chrono::DateTime::parse_from_rfc3339("2026-09-08T06:00:00Z")
+        .expect("a valid time")
+        .with_timezone(&chrono::Utc);
+    AsvoJobVec(vec![
+        AsvoJob {
+            obs_id,
+            job_id: 101,
+            job_type: AsvoJobType::DownloadVisibilities,
+            job_state: AsvoJobState::Ready,
+            files: Some(vec![
+                AsvoFilesArray {
+                    r#type: Delivery::Acacia,
+                    url: Some("https://example.org/a.tar".to_string()),
+                    path: None,
+                    size: 1234,
+                    sha1: Some("ab".repeat(20)),
+                },
+                AsvoFilesArray {
+                    r#type: Delivery::Scratch,
+                    url: None,
+                    path: Some("/scratch/mwa/x".to_string()),
+                    size: 5,
+                    sha1: None,
+                },
+            ]),
+            completed: Some(completed),
+        },
+        AsvoJob {
+            obs_id,
+            job_id: 102,
+            job_type: AsvoJobType::Conversion,
+            job_state: AsvoJobState::Queued,
+            files: None,
+            completed: None,
+        },
+        AsvoJob {
+            obs_id,
+            job_id: 103,
+            job_type: AsvoJobType::Imaging,
+            job_state: AsvoJobState::Error("the \"conversion\" failed".to_string()),
+            files: Some(vec![]),
+            completed: None,
+        },
+    ])
+}
+
+/// `--legacy-json` prints exactly what `--json` printed before 3.0.0. The
+/// expected text was captured from the old code for the same jobs.
+#[test]
+fn legacy_json_is_the_old_output_byte_for_byte() {
+    let expected = r#"{"101":{"obsid":1065880128,"jobId":101,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"jobType":"Acacia","fileUrl":"https://example.org/a.tar","filePath":null,"fileSize":1234,"fileHash":"abababababababababababababababababababab"},{"jobType":"Scratch","fileUrl":null,"filePath":"/scratch/mwa/x","fileSize":5,"fileHash":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obsid":1065880128,"jobId":102,"jobType":"Conversion","jobState":"Queued","files":null,"completed":null},"103":{"obsid":1065880128,"jobId":103,"jobType":"Imaging","jobState":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
+
+    let output = super::legacy_json::to_legacy_json(&json_sample_jobs()).expect("serialises");
+
+    assert_eq!(output, expected);
+}
+
+/// `--json` prints the OpenAPI names, with the same values.
+#[test]
+fn json_uses_the_openapi_names() {
+    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab"},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
+
+    let output = json_sample_jobs().json().expect("serialises");
+
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn legacy_json_and_json_cannot_be_given_together() {
+    for command in ["list", "wait"] {
+        let err = parse_err(&[
+            "giant-squid",
+            command,
+            "--json",
+            "--legacy-json",
+            TEST_JOB_ID,
+        ]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{command}"
+        );
+    }
+}

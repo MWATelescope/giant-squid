@@ -128,7 +128,7 @@ pub enum ParseError {
 pub fn check_file_sha1_hash(
     filename: &PathBuf,
     expected_hash: &str,
-    job_id: u32,
+    job_id: AsvoJobId,
 ) -> Result<(), AsvoError> {
     let mut file = fs::File::open(filename)?;
     let mut hasher = Sha1::new();

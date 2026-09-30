@@ -480,7 +480,37 @@ fn list_json_prints_the_jobs_keyed_by_job_id() {
     let parsed = result.stdout_json();
     let jobs = parsed.as_object().expect("a map keyed by job ID");
     assert_eq!(jobs.len(), 1);
+    assert_eq!(parsed["12345"]["job_id"], 12345);
+}
+
+/// `--legacy-json` prints the old keys, for one release, and says on
+/// stderr that it is deprecated.
+#[test]
+fn list_legacy_json_prints_the_old_keys_and_a_warning() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--legacy-json"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let parsed = result.stdout_json();
     assert_eq!(parsed["12345"]["jobId"], 12345);
+    assert_eq!(parsed["12345"]["obsid"], 1065880128_u64);
+    assert!(parsed["12345"].get("job_id").is_none());
+    // On stderr, so that stdout is only the JSON a script reads.
+    assert!(
+        !result.stdout.contains("deprecated"),
+        "stdout: {}",
+        result.stdout
+    );
+    assert!(
+        result.stderr.contains("--legacy-json is deprecated"),
+        "stderr: {}\nstdout: {}",
+        result.stderr,
+        result.stdout
+    );
 }
 
 #[test]
@@ -533,7 +563,7 @@ fn wait_returns_when_the_job_is_ready() {
 
     assert!(result.success, "output: {}", result.combined());
     let parsed = result.stdout_json();
-    assert_eq!(parsed["12345"]["jobId"], 12345);
+    assert_eq!(parsed["12345"]["job_id"], 12345);
 }
 
 #[test]

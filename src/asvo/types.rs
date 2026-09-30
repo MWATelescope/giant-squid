@@ -91,35 +91,33 @@ impl FromStr for AsvoJobState {
 }
 
 /// A single file provided by an ASVO job.
+///
+/// In JSON the keys are the field names, which are the keys of a file in
+/// the MWA ASVO job's `product`: `type`, `url`, `path`, `size` and `sha1`.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoFilesArray {
-    #[serde(rename = "jobType")]
+    /// Where the file is delivered.
     pub r#type: Delivery,
-    #[serde(rename = "fileUrl")]
     pub url: Option<String>,
-    #[serde(rename = "filePath")]
     pub path: Option<String>,
-    #[serde(rename = "fileSize")]
     pub size: u64,
-    #[serde(rename = "fileHash")]
     pub sha1: Option<String>,
 }
 
-/// A simple type alias. Not using a newtype, because that would produce
-/// unnecessary complexity.
-pub type AsvoJobId = u32;
+/// An MWA ASVO job ID. A `u64`, as the OpenAPI schema's `job_id` is a
+/// 64-bit integer. A type alias, not a newtype, because a newtype would add
+/// complexity for no gain.
+pub type AsvoJobId = u64;
 
 /// All of the metadata associated with an ASVO job.
+///
+/// In JSON the keys are the field names, which are the OpenAPI names:
+/// `obs_id`, `job_id`, `job_type`, `job_state`, `files` and `completed`.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct AsvoJob {
-    // JSON key kept as "obsid" for `list --json` compatibility.
-    #[serde(rename = "obsid")]
     pub obs_id: ObsId,
-    #[serde(rename = "jobId")]
     pub job_id: AsvoJobId,
-    #[serde(rename = "jobType")]
     pub job_type: AsvoJobType,
-    #[serde(rename = "jobState")]
     pub job_state: AsvoJobState,
     pub files: Option<Vec<AsvoFilesArray>>,
     pub completed: Option<DateTime<Utc>>,
@@ -132,7 +130,9 @@ pub struct AsvoJob {
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
-    /// Get a vector of ASVO jobs in JSON form.
+    /// Get a vector of ASVO jobs in JSON form: an object keyed by job ID,
+    /// whose values have the keys shown on [`AsvoJob`]. `giant-squid list
+    /// --json` prints this.
     ///
     /// If the situation should arise that your job listing has an ASVO job ID
     /// more than once, only one of them will be visible in the output of this

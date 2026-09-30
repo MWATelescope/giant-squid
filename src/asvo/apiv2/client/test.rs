@@ -15,7 +15,7 @@ use httpmock::prelude::*;
 use serde_json::json;
 
 use crate::asvo::apiv2::openapi::DownloadJobParams;
-use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobState, AsvoJobType, Delivery};
+use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery};
 use crate::cli::config::client_config_from_env;
 use crate::cli::Args;
 use crate::test_common::*;
@@ -572,7 +572,7 @@ fn a_cancellation_deletes_the_job_resource() {
             .path(format!("/api/v2/jobs/{TEST_JOB_ID}"));
         then.status(200)
             .header("content-type", "application/json")
-            .json_body(job_submitted_response(TEST_JOB_ID as u64));
+            .json_body(job_submitted_response(TEST_JOB_ID));
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -581,7 +581,7 @@ fn a_cancellation_deletes_the_job_resource() {
         .expect("cancellation should succeed");
 
     assert_eq!(cancel.calls(), 1);
-    assert_eq!(resp.job_id.get(), TEST_JOB_ID as u64);
+    assert_eq!(resp.job_id.get(), TEST_JOB_ID);
     assert_eq!(resp.message, "Job submitted");
 }
 
@@ -802,7 +802,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
 
 /// Values from the recorded response, so a re-record that changes them
 /// fails loudly here rather than silently weakening the test.
-const RECORDED_JOB_ID: u32 = 30000517;
+const RECORDED_JOB_ID: AsvoJobId = 30000517;
 const RECORDED_OBS_ID: u64 = 1115977528;
 const RECORDED_SIZE: u64 = 117016360960;
 const RECORDED_SHA1: &str = "ce32e0aeec0b7c64dec4deeb89881ba4452a6330";

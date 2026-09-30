@@ -157,7 +157,7 @@ def test_json_is_keyed_by_job_id(host: str, serve_jobs: Callable[..., None]) -> 
 
     parsed = json.loads(jobs.json())
 
-    assert parsed[str(JOB_ID_READY)]["jobId"] == JOB_ID_READY
+    assert parsed[str(JOB_ID_READY)]["job_id"] == JOB_ID_READY
 
 
 def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:

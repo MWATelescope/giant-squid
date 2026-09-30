@@ -121,7 +121,7 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
 /// the caller can catch every API failure in the same way.
 pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
-    let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(u64::from(id)));
+    let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(id));
     let obs_id = |o: crate::ObsId| ("obs_id", Field::Int(u64::from(o)));
     let (kind, fields) = match e {
         lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
@@ -173,12 +173,8 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::Reqwest(_) => ("Reqwest", vec![]),
         lib::AsvoError::IO(_) => ("IO", vec![]),
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
-        lib::AsvoError::NoUrl { job_id } => {
-            ("NoUrl", vec![("job_id", Field::Int(u64::from(job_id)))])
-        }
-        lib::AsvoError::NoPath { job_id } => {
-            ("NoPath", vec![("job_id", Field::Int(u64::from(job_id)))])
-        }
+        lib::AsvoError::NoUrl { job_id } => ("NoUrl", vec![("job_id", Field::Int(job_id))]),
+        lib::AsvoError::NoPath { job_id } => ("NoPath", vec![("job_id", Field::Int(job_id))]),
         lib::AsvoError::HttpError { status, message } => (
             "HttpError",
             vec![
@@ -186,10 +182,9 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 ("message", Field::Str(message)),
             ],
         ),
-        lib::AsvoError::Http404Error { job_id } => (
-            "Http404Error",
-            vec![("job_id", Field::Int(u64::from(job_id)))],
-        ),
+        lib::AsvoError::Http404Error { job_id } => {
+            ("Http404Error", vec![("job_id", Field::Int(job_id))])
+        }
     };
     build::<AsvoError>(py, message, kind, fields)
 }

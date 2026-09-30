@@ -42,7 +42,7 @@ pub const TEST_USER_EMAIL: &str = "test_user@example.org";
 /// An obsid and job ID used across the tests.
 pub const TEST_OBS_ID: &str = "1065880128";
 pub const TEST_OBS_ID_I64: i64 = 1065880128;
-pub const TEST_JOB_ID: u32 = 12345;
+pub const TEST_JOB_ID: u64 = 12345;
 
 /// A mock MWA ASVO, plus the values a client config needs to reach it.
 ///

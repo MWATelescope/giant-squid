@@ -256,7 +256,7 @@ impl LiveEnv {
             Some(obs_id),
             "job: {job}"
         );
-        assert_eq!(job["jobType"], job_type, "job: {job}");
+        assert_eq!(job["job_type"], job_type, "job: {job}");
         let state = state_name(&job);
         assert!(
             state != STATE_ERROR && state != STATE_CANCELLED,
@@ -385,7 +385,7 @@ fn api_error_code(output: &str) -> Option<String> {
 /// A listed job's state name. `Error` carries its message, so it
 /// serialises as `{"Error": "..."}` rather than a plain string.
 fn state_name(job: &Value) -> String {
-    match &job["jobState"] {
+    match &job["job_state"] {
         Value::String(s) => s.clone(),
         Value::Object(o) => o.keys().next().cloned().unwrap_or_default(),
         other => other.to_string(),
@@ -434,7 +434,10 @@ fn live_list_forms() {
     let result = env.run(&["list", "--json", "--types", "download_metadata"]);
     assert!(result.success, "{}", result.combined());
     for job in result.stdout_json().as_object().unwrap().values() {
-        assert_eq!(job["jobType"], TYPE_DOWNLOAD_META, "unexpected type: {job}");
+        assert_eq!(
+            job["job_type"], TYPE_DOWNLOAD_META,
+            "unexpected type: {job}"
+        );
     }
 }
 

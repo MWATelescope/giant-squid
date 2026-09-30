@@ -237,6 +237,31 @@
   with a token-aware script, so strings and comments changed only where
   they name code. Tests changed only by the renames, no assertion changed;
   5 new CLI tests and 1 new library test.
+- 2026-09-30: step 2.6 done (approved: option C, and `AsvoJobId` is a
+  `u64`). `list --json`, `wait --json` and `AsvoJobVec::json` (Rust and
+  Python) print the OpenAPI names: `obs_id`, `job_id`, `job_type`,
+  `job_state`, `files`, `completed`, and `type`, `url`, `path`, `size`,
+  `sha1` for each file. This also fixes the old key `jobType` for a file's
+  delivery type. The values do not change (`DownloadVisibilities`,
+  `Ready`, `{"Error": "..."}`). `list` and `wait` have `--legacy-json`,
+  which prints the old format byte for byte (a golden test, whose text was
+  captured from the old code) and a deprecation warning on stderr; it
+  conflicts with `--json`. It is only in the CLI (`src/cli/legacy_json.rs`)
+  and is to be removed, with the module, in the release after 3.0.0. The
+  warning uses `eprintln!`, not the logger, because the CLI logger
+  (`SimpleLogger`) writes every record to stdout, where a line would break
+  the JSON for a script. `AsvoJobId` is a `u64`, as the schema's `job_id`
+  is; the CLI no longer converts submitted job IDs to `u32` (the "doesn't
+  fit" warnings are gone), and `check_file_sha1_hash` takes an
+  `AsvoJobId`. The six test assertions on the old `--json` keys now check
+  the new keys, as the approved change requires; no other assertion
+  changed. The README JSON section is rewritten (it showed a `fileName`
+  key that did not exist, and an `"Error: text"` state format that was
+  wrong), and its `jq` recipe is fixed (`do` for `done`, and escaped
+  `\$sha1` and `\$hash` that compared literal text). Also fixed: a missing
+  `)]` in `src/cli/mod.rs` (`submit-meta`) in the pushed 2.5 commit, which
+  stopped the crate from building. 3 new CLI unit tests, 1 new CLI test;
+  the 2.5 key-pinning test now pins the new keys.
 - Next step: Phase 3 (stubs from `pyo3-stub-gen`, docstrings,
   `docs/PYTHON.md`, the example Python CLI, CI wheels and pytest). Start
   from a fresh clone of `apiv2`, one diff per step, and update this section

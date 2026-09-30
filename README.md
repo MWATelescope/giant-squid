@@ -510,6 +510,7 @@ Arguments:
 
 Options:
   -j, --json                    Print the jobs as a simple JSON
+      --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltage or cancel_job
@@ -532,11 +533,21 @@ giant-squid list --json
 Example output:
 
 ```bash
-giant-squid list --json 
-{"325430":{"obsid":1090528304,"jobId":325430,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528304_vis.tar","fileSize":10762878689,"fileHash":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}]},"325431":{"obsid":1090528432,"jobId":325431,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"fileName":"1090528432_vis.tar","fileSize":10762875021,"fileHash":"9d9c3c0f56a2bb4e851aa63cdfb79095b29c66c9"}]}}
+giant-squid list --json
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da"}],"completed":"2026-09-08T06:00:00Z"},"325431":{"obs_id":1090528432,"job_id":325431,"job_type":"Conversion","job_state":"Queued","files":null,"completed":null}}
 ```
 
-`jobType` is allowed to be any of:
+The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
+`job_state`, `files` and `completed`, which are the MWA ASVO API's (OpenAPI) names. Each file has
+`type` (where it is delivered: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size` and `sha1`.
+
+Before giant-squid 3.0.0 the keys were different (`obsid`, `jobId`, `jobType`, `jobState`, and
+`fileUrl`, `filePath`, `fileSize`, `fileHash` for each file; the delivery type was also under
+`jobType`). For one release, `--legacy-json` (on `list` and `wait`) prints the old format, with
+a warning on stderr. It will be removed in the release after 3.0.0, so update scripts to the new
+keys.
+
+`job_type` is any of:
 
 - `Conversion`
 - `DownloadVisibilities`
@@ -547,7 +558,7 @@ giant-squid list --json
 - `Imaging`
 - `Unknown`
 
-`jobState` is allowed to be any of:
+`job_state` is any of:
 
 - `Queued`
 - `WaitCal`
@@ -558,7 +569,7 @@ giant-squid list --json
 - `Imaging`
 - `Delivering`
 - `Ready`
-- `Error: Text` (e.g. "Error: some error message")
+- `Error`, which carries the error message, so it is an object: `{"Error": "some error message"}`
 - `Expired`
 - `Cancelled`
 
@@ -589,15 +600,15 @@ these identifiers can either be a list of jobIDs or a list of obsIDs, but not bo
 Additionally, the `--job-states` and `--job-types` options can be used to further filter the output.
 (The older names `--states` and `--types` still work.)
 
-These both taks a comma-separated, case-insensitive list of values from the `jobType` and
-`jobState` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
+These both take a comma-separated, case-insensitive list of values from the `job_type` and
+`job_state` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
 `kebab-case`, `snake_case`, or even `SPoNgeBOb-CAse`
 
 example: show only jobs that match both of the following conditions:
 
 - obsid is `1234567890` or `1234567891`
-- jobType is `DownloadVisibilities`, `DownloadMetadata` or `CancelJob`
-- jobState is `Preprocessing` or `Queued`
+- job_type is `DownloadVisibilities`, `DownloadMetadata` or `CancelJob`
+- job_state is `Preprocessing` or `Queued`
 
 ```bash
 giant-squid list \
@@ -615,18 +626,18 @@ but with the extra overhead of storing the tar to disk (`-k`).
 ```bash
 set -eux
 giant-squid list --json --job-types download_visibilities --job-states ready \
-  | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv' \
+  | jq -r '.[]|[.job_id,.files[0].url//"",.files[0].size//"",.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
    # note: it's a good idea to check you have enough disk space here using $size.
    wget $url -O ${jobid}.tar --progress=dot:giga --wait=60 --random-wait
    sha1=$(sha1sum ${jobid}.tar | cut -d' ' -f1)
-   if [ "\$sha1" != "\$hash" ]; then
+   if [ "$sha1" != "$hash" ]; then
       echo "Download failed, hash mismatch. Expected $hash, got $sha1"
       exit 1
    fi
    tar -xf ${jobid}.tar
-do < ready.tsv
+done < ready.tsv
 ```
 
 ### Download MWA ASVO jobs
@@ -828,7 +839,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .obs_id(1090008640)
         .try_into()?;
     let resp = client.submit_download_vis_job(&params)?;
-    let job_id = u32::try_from(resp.job_id.get())?;
+    let job_id = resp.job_id.get();
 
     // Wait for it: the library checks once, the caller loops and sleeps.
     while !client.get_jobs(None)?.all_ready(&[job_id])? {
