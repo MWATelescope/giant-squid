@@ -1,5 +1,150 @@
 # Plan: giant-squid as a Rust library and a Python library (PyO3)
 
+## Handoff (read this first)
+
+Written 2026-10-01 at the end of the day. Branch `apiv2` at `adca984`. The
+entries under "Status" below are the detailed log; this section is the
+summary and the list of what to do next.
+
+### Where things are
+
+- Phases 0 to 3 of the plan are done: the Rust library, the Python module
+  (`mwa_giant_squid`), the `.pyi` stubs, `docs/PYTHON.md`, the installed
+  Python `giant-squid` command (`mwa_giant_squid_cli/`), and the CI workflow
+  `.github/workflows/python.yaml`.
+- The API developer's new schema (1.12.2) is applied: `days` (1 to 30,
+  `validate::DAYS`), `error_code` (on `AsvoJob`, in the JSON, in the Python
+  module and in the failed-job message), the `status` field documented as
+  display-only, and the conversion `delivery_format` default (`tar`).
+  `staging_count` and `RestageRequest` are deliberately not exposed.
+- The README submit sections are rewritten from the real 3.0 `--help`.
+  `docs/V3_MIGRATION.md` is current except for the open
+  **(check this)** markers (conversion defaults, imaging defaults, log
+  output on standard error, `list --json` keys): they need a read-through
+  by you.
+- Tests at the last run: Rust 181 unit and 33 CLI tests; pytest 270; clippy,
+  `ruff`, `ty` and stubtest clean. The live tests (`tests/live.rs`, run by
+  hand against test-asvo) passed 11 of 19 before the `obs_id` key fix and
+  the `live_cancel` change; they have **not been run since**.
+
+### Decisions in force
+
+- The OpenAPI schema is the standard: defaults, names and limits come from
+  it, and a wrong schema is fixed in the API, not in giant-squid.
+- The library has no unused API calls or fields.
+- Success or failure of a call is the HTTP status. The response `status`
+  text ("success"/"failed") is descriptive, like `message`.
+- A refused cancel (for example, of a job that is already cancelled) stays
+  HTTP 200 with `status: failed` (API developer's decision, 2026-10-01).
+  Neither CLI can tell it from a success except by the message, and both
+  still log `Cancelled MWA ASVO job ID N (<message>)`.
+- The Python package installs a `giant-squid` command with the same
+  commands and options as the Rust one.
+- One diff per step, each from a fresh clone of the latest `apiv2`. You
+  commit and push; I never do.
+
+### Open items, in the order I would take them
+
+1. **Run the live tests** (`run_live_tests.sh`) and send the log. Expected:
+   all 19 pass, now that the `obs_id` key and `live_cancel` are fixed.
+2. **`--delivery dug` on conversion and imaging.** The schema offers only
+   `acacia` and `scratch` for `ConversionJobParams` and both imaging
+   bodies, but the generated `Delivery` type has `dug` too, so
+   `submit-conv`, `submit-image` and `submit-image-from-job` accept it and
+   the server would refuse it. Options: refuse it in the library's
+   `validate_*` functions (before any request, like the other limits), or
+   ask the API developer for separate enums. The README already says DUG is
+   for visibility, metadata and beamformer jobs only.
+3. **`--help` does not list the allowed values** of `--delivery`,
+   `--delivery-format`, `--output`, `--centre`, `--pol`, `--weighting` and
+   `--output-mode` (the README tables do). Make clap list them. The Python
+   command should follow, because it copies the Rust help.
+4. **Cancel log wording.** Change `Cancelled MWA ASVO job ID N (<message>)`
+   and `Cancelled N jobs.` to something that does not claim success (for
+   example `Cancel request for job N: <message>`), in both CLIs, with the
+   tests and README. Needs your decision.
+5. **`days: null`.** Does the server read the `null` that `list` sends
+   without `--days` as "no limit" or as 30? The live probe
+   `live_list_without_days_probe` was inconclusive (133 jobs both ways, so
+   no job in the test account is older than 30 days). Ask the API developer.
+6. **CI drift check.** The workflow `openapi-drift-check` regenerates
+   `openapi.rs`, runs `cargo fmt` and fails on a diff. I could not check it.
+   My `rustfmt` (1.91) would rewrite about 2000 lines of the committed
+   file, even in older commits, so I never ran `cargo fmt` on it (do not,
+   or revert it with `git checkout src/asvo/apiv2/openapi.rs`). Please
+   confirm that the check is green for `ed3c063`.
+7. **`docs/V3_MIGRATION.md`**: remove the **(check this)** markers after you
+   have read those sections. The new delivery-format row in the conversion
+   table is inferred from the 2.x README (2.x gave individual files for
+   Scratch and DUG unless `tar` was asked for): please confirm it.
+8. README has no sections for `wait` and `cancel`. Add them if you want
+   them.
+
+### For the API developer (not yet raised, unless marked)
+
+- `JobDetailResponse.id` and `QueuedJob.id` should be `job_id`;
+  `CalibrationReadyCallback.asvo_job_id` should be `job_id` (raised
+  2026-09-30, not fixed).
+- `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types
+  have `first_name`/`last_name` (raised, not fixed).
+- Which response model does cancel return: `JobCancelledResponse` or
+  `JobSubmittedResponse`? Our code parses the second (the fields match).
+- What do the `error_code` values mean? They are undocumented.
+- Queued jobs have `started` set a few milliseconds after `created`, but
+  the field is documented as "when the job began processing".
+- `staging_count` is set by the processor (it was 1 on a job in the
+  `Staging` state), and it is in the public request bodies. Should the
+  server ignore or reject it when a client sends it? `RestageRequest` and
+  `staging_count` are processor-only items in the public spec.
+- The conversion `job_params` of a listed job has `flags: []`, which is not
+  in the request schema (harmless).
+- Conversion and imaging offer `acacia` and `scratch` only: confirm that is
+  intended (see open item 2).
+- A refused cancel: confirm the 200 is final (the API developer has said it
+  stays; the consequence is that no client can detect a refusal except from
+  `message`).
+
+### Release checklist (yours; none of it is started)
+
+- Run the new `python.yaml` workflow on GitHub for the first time and fix
+  what breaks (the manylinux build and `aws-lc-sys`, the macOS and aarch64
+  runners, the three action versions I did not check:
+  `PyO3/maturin-action@v1`, `actions/upload-artifact@v4`,
+  `astral-sh/setup-uv@v10.0.1` was confirmed).
+- Try a wheel against the real MWA ASVO and on an older HPC system.
+- PyPI: check that `mwa-giant-squid` is free, then publish (a release
+  workflow with trusted publishing, or by hand). Decide whether
+  `releases.yaml` should also attach the wheels.
+- `Cargo.toml` `exclude` has only `.github/*`, so the crates.io package
+  includes `mwa_giant_squid_cli/` and `tests/python/`. Add them if you do
+  not want that.
+- The Python package version follows `Cargo.toml`.
+- Still undecided from earlier: an astroquery module as an alternative or
+  addition, and a CI step that regenerates the stub and fails on a diff.
+
+### Working notes for the next session
+
+- Set-up in a fresh sandbox: `apt-get install -y rustc-1.91 cargo-1.91
+  rustfmt-1.91 rust-1.91-clippy python3-dev`; link `rustc`, `cargo`,
+  `rustfmt`, `cargo-fmt`, `cargo-clippy` and `clippy-driver` from
+  `/usr/lib/rust-1.91/bin` into `~/bin`; `export PATH=~/bin:$PATH
+  CARGO_HOME=/home/claude/.cargo`; `pip install uv`; then `uv sync
+  --locked`. `rustdoc` is not on the path, so doctests cannot run here.
+- A command is limited to 300 s: start long builds with `setsid nohup`.
+  A full Rust build is 3 to 5 minutes. Each `target/` is 1.2 to 2 GB and the
+  disk fills up, so delete old clones.
+- Checks before a diff: `cargo fmt` (then revert `openapi.rs`), `cargo test
+  --locked`, `cargo clippy --locked --all-targets`, `uv run ruff format
+  --check .`, `uv run ruff check .`, `uv run ty check`, `uv run pytest`,
+  `tools/run_stubtest.sh`. After any change to a docstring or signature in
+  `src/python/`, run `tools/generate_stubs.sh` and commit the new `.pyi`.
+- The README option tables and help blocks were generated from the built
+  binary and the schema with a throwaway script that is not in the
+  repository. Rebuild the binary and redo them by hand if an option
+  changes.
+- Do not edit an existing test to make it pass without asking (the
+  `live_cancel` and `obs_id` key changes were approved).
+
 ## Status
 
 - 2026-09-24: plan reviewed and all questions answered. No code written
@@ -638,9 +783,7 @@
   and `submit-image-from-job` accept `--delivery dug` and the server would
   refuse it. The `--delivery` help does not list the values (nor do
   `--output`, `--centre`, `--pol` or `--weighting`).
-- Next step: Phase 3 is done. What is left is yours: run the workflow, then
-  publish (a release workflow for PyPI, trusted publishing, or by hand) and
-  decide whether `releases.yaml` should also attach the wheels.
+- Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal
 
