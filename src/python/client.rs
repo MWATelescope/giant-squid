@@ -21,6 +21,7 @@ use super::error::api_error;
 use super::params::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
+use super::typed::ProgressCallback;
 use super::types::{
     PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
     PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
@@ -45,12 +46,14 @@ use crate::obs_id::ObsId;
 /// Raises:
 ///     AsvoApiError: The API key is empty, or the login failed.
 ///     ValueError: `api_timeout` is negative or not finite.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "AsvoClient", module = "mwa_giant_squid")]
 pub struct PyAsvoClient {
     inner: AsvoClient,
     host: String,
 }
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoClient {
     #[new]
@@ -785,7 +788,7 @@ impl PyAsvoClient {
     /// a new call resumes it (unless `no_resume`).
     ///
     /// Args:
-    ///     jobid: The job ID.
+    ///     job_id: The job ID.
     ///     download_dir: The directory for the files. It must exist.
     ///     keep_tar: Keep the tar file as it is. `False` unpacks it into
     ///         `download_dir` while it downloads (then there is no resume).
@@ -833,7 +836,7 @@ impl PyAsvoClient {
         keep_tar: bool,
         no_resume: bool,
         hash: bool,
-        progress: Option<Py<PyAny>>,
+        progress: Option<ProgressCallback>,
         buffer_size: Option<usize>,
         retry_duration: Option<f64>,
         download_number: usize,
@@ -844,7 +847,7 @@ impl PyAsvoClient {
             keep_tar,
             no_resume,
             hash,
-            progress,
+            progress: progress.map(|p| p.0),
             buffer_size,
             retry_duration,
             download_number,
@@ -859,7 +862,7 @@ impl PyAsvoClient {
     /// `download_job`.
     ///
     /// Args:
-    ///     obsid: The obsid. There must be exactly one ready job for it.
+    ///     obs_id: The obsid. There must be exactly one ready job for it.
     ///
     /// Raises:
     ///     ValueError: `obs_id` is not a valid obsid.
@@ -889,7 +892,7 @@ impl PyAsvoClient {
         keep_tar: bool,
         no_resume: bool,
         hash: bool,
-        progress: Option<Py<PyAny>>,
+        progress: Option<ProgressCallback>,
         buffer_size: Option<usize>,
         retry_duration: Option<f64>,
         download_number: usize,
@@ -901,7 +904,7 @@ impl PyAsvoClient {
             keep_tar,
             no_resume,
             hash,
-            progress,
+            progress: progress.map(|p| p.0),
             buffer_size,
             retry_duration,
             download_number,

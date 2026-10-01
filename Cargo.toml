@@ -33,10 +33,21 @@ regen-openapi = ["dep:typify", "dep:schemars", "dep:syn", "dep:prettyplease"]
 # The Python module (`import mwa_giant_squid`). Built by maturin, which reads
 # its settings from pyproject.toml: `maturin develop` or `maturin build`.
 python = ["pyo3", "pyo3-log"]
+# Generates the Python type stubs (`mwa_giant_squid.pyi`) with pyo3-stub-gen.
+# Only for maintainers, when the Python API changes:
+#   cargo run --no-default-features --features python-stubgen --bin stub_gen
+# The published crate and the wheel do not use it. pyo3-stub-gen depends on
+# chrono, so a build with this feature has chrono in it; other builds do not.
+python-stubgen = ["python", "dep:pyo3-stub-gen"]
 
 [[bin]]
 name = "giant-squid"
 required-features = ["bin"]
+
+[[bin]]
+name = "stub_gen"
+doc = false
+required-features = ["python-stubgen"]
 
 [profile.release]
 lto = "thin"
@@ -89,6 +100,12 @@ time-core = { version = "0.1", optional = true }
 # Dependencies only for the Python module ("python" feature).
 pyo3 = { version = "0.29", features = ["abi3-py310", "jiff-02"], optional = true }
 pyo3-log = { version = "0.13", optional = true }
+# Dependencies only for the Python stub generator ("python-stubgen" feature).
+# `jiff-02` maps `jiff::Timestamp` to `datetime.datetime`. The default
+# features are off because they add `numpy`, which this crate does not use;
+# `infer_signature` writes the default values of arguments (for example
+# `keep_tar=False`) in the stubs.
+pyo3-stub-gen = { version = "0.23.1", default-features = false, features = ["infer_signature", "jiff-02"], optional = true }
 
 [dev-dependencies]
 tempfile = "3.20"

@@ -18,19 +18,100 @@ use super::types::PyAsvoJobState;
 // so they are used through this path.
 use crate::asvo as lib;
 
-pyo3::create_exception!(
+// With the "python-stubgen" feature, pyo3-stub-gen's `create_exception!`
+// wraps pyo3's and also registers the exception for the stubs.
+#[cfg(not(feature = "python-stubgen"))]
+use pyo3::create_exception;
+#[cfg(feature = "python-stubgen")]
+use pyo3_stub_gen::create_exception;
+
+create_exception!(
     mwa_giant_squid,
     AsvoApiError,
     PyException,
-    "An MWA ASVO API call failed. `kind` is the Rust `AsvoApiError` variant."
+    "An MWA ASVO API call failed. `kind` is the Rust `AsvoApiError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown."
 );
 
-pyo3::create_exception!(
+create_exception!(
     mwa_giant_squid,
     AsvoError,
     PyException,
-    "A download or job check failed. `kind` is the Rust `AsvoError` variant."
+    "A download or job check failed. `kind` is the Rust `AsvoError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this."
 );
+
+/// The attributes of the two exceptions, for the stubs. `build` sets them
+/// at run time, so pyo3-stub-gen cannot see them.
+#[cfg(feature = "python-stubgen")]
+mod stub_attributes {
+    use std::collections::HashMap;
+
+    use pyo3_stub_gen::type_info::{MemberInfo, PyMethodsInfo};
+    use pyo3_stub_gen::PyStubType;
+
+    use super::super::types::PyAsvoJobState;
+    use super::{AsvoApiError, AsvoError};
+
+    /// One attribute: its name, its Rust type (for the Python type) and its
+    /// docstring.
+    macro_rules! attr {
+        ($name:literal, $ty:ty, $doc:literal) => {
+            MemberInfo {
+                name: $name,
+                r#type: <$ty as PyStubType>::type_output,
+                doc: $doc,
+                default: None,
+                deprecated: None,
+            }
+        };
+    }
+
+    pyo3_stub_gen::inventory::submit! {
+        PyMethodsInfo {
+            struct_id: std::any::TypeId::of::<AsvoApiError>,
+            attrs: &[
+                attr!("kind", String, "\"MissingAuthKey\", \"AuthenticationFailed\", \"Conversion\", \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\"."),
+                attr!("message", String, "AuthenticationFailed, ApiError and BadStatus."),
+                attr!("error_code", String, "ApiError: the server's machine-readable error code."),
+                attr!("detail", Option<String>, "ApiError."),
+                attr!("suggestion", Option<String>, "ApiError."),
+                attr!("field_errors", Vec<HashMap<String, String>>, "ApiError: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
+                attr!("request_id", Option<String>, "ApiError: the server's ID for the request, for a support request."),
+                attr!("code", u16, "BadStatus: the HTTP status code."),
+            ],
+            getters: &[],
+            setters: &[],
+            methods: &[],
+            file: file!(),
+            line: line!(),
+            column: column!(),
+        }
+    }
+
+    pyo3_stub_gen::inventory::submit! {
+        PyMethodsInfo {
+            struct_id: std::any::TypeId::of::<AsvoError>,
+            attrs: &[
+                attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
+                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error."),
+                attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
+                attr!("error", String, "JobFailed: the job's error message."),
+                attr!("job_state", PyAsvoJobState, "NotReady: the job's state."),
+                attr!("file", String, "HashMismatch."),
+                attr!("calculated_hash", String, "HashMismatch."),
+                attr!("expected_hash", String, "HashMismatch."),
+                attr!("status", u16, "HttpError: the HTTP status code."),
+                attr!("message", String, "HttpError."),
+                attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
+            ],
+            getters: &[],
+            setters: &[],
+            methods: &[],
+            file: file!(),
+            line: line!(),
+            column: column!(),
+        }
+    }
+}
 
 /// The name of the attribute that holds the Rust variant name.
 const KIND: &str = "kind";

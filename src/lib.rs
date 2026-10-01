@@ -15,6 +15,10 @@ pub mod obs_id;
 // The Python module. Built by maturin; see pyproject.toml.
 #[cfg(feature = "python")]
 mod python;
+/// Collects the Python stub information for the `stub_gen` binary.
+#[cfg(feature = "python-stubgen")]
+#[doc(hidden)]
+pub use python::stub_info;
 #[cfg(test)]
 mod test_common;
 #[cfg(test)]

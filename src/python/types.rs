@@ -11,9 +11,10 @@
 use jiff::Timestamp;
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyIterator, PyList};
+use pyo3::types::{PyDict, PyList};
 
 use super::error::asvo_error;
+use super::typed::{JobIterator, JsonDict};
 use crate::asvo::apiv2::openapi::{
     self as api, Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization,
     Weighting,
@@ -29,6 +30,7 @@ use crate::obs_id::ObsId;
 macro_rules! py_enum {
     ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident, [$($variant:ident),+ $(,)?]) => {
         $(#[$doc])*
+        #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass_enum)]
         #[pyclass(eq, eq_int, frozen, hash, from_py_object, name = $name, module = "mwa_giant_squid")]
         #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
         pub enum $py {
@@ -51,6 +53,7 @@ macro_rules! py_enum {
             }
         }
 
+        #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
         #[pymethods]
         impl $py {
             fn __str__(&self) -> String {
@@ -102,7 +105,8 @@ impl From<PyDelivery> for api::Delivery {
 // value the API uses (for example "uvfits").
 
 py_enum!(
-    /// How the MWA ASVO packages a job's files: one tar file, or separate files.
+    /// How the MWA ASVO packages a job's files: one tar file, or separate
+    /// files. `str()` is the API value.
     PyDeliveryFormat,
     "DeliveryFormat",
     DeliveryFormat,
@@ -110,7 +114,7 @@ py_enum!(
 );
 
 py_enum!(
-    /// The format of a conversion job's output.
+    /// The format of a conversion job's output. `str()` is the API value.
     PyOutput,
     "Output",
     Output,
@@ -119,6 +123,7 @@ py_enum!(
 
 py_enum!(
     /// Where to put the phase centre of a conversion job or an imaging job.
+    /// `str()` is the API value.
     PyCentre,
     "Centre",
     Centre,
@@ -126,7 +131,7 @@ py_enum!(
 );
 
 py_enum!(
-    /// The products an imaging job returns.
+    /// The products an imaging job returns. `str()` is the API value.
     PyOutputMode,
     "OutputMode",
     OutputMode,
@@ -134,7 +139,8 @@ py_enum!(
 );
 
 py_enum!(
-    /// The WSClean weighting scheme of an imaging job.
+    /// The WSClean weighting scheme of an imaging job. `str()` is the API
+    /// value.
     PyWeighting,
     "Weighting",
     Weighting,
@@ -142,7 +148,7 @@ py_enum!(
 );
 
 py_enum!(
-    /// The polarisation an imaging job images.
+    /// The polarisation an imaging job images. `str()` is the API value.
     PyPolarization,
     "Polarization",
     Polarization,
@@ -151,6 +157,10 @@ py_enum!(
 
 /// The state of an MWA ASVO job. For `Error`, the message is in
 /// `AsvoJob.error_text`.
+#[cfg_attr(
+    feature = "python-stubgen",
+    pyo3_stub_gen::derive::gen_stub_pyclass_enum
+)]
 #[pyclass(
     eq,
     eq_int,
@@ -219,6 +229,7 @@ impl From<PyAsvoJobState> for AsvoJobState {
     }
 }
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJobState {
     fn __str__(&self) -> String {
@@ -227,6 +238,7 @@ impl PyAsvoJobState {
 }
 
 /// One file of a job's product.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
@@ -236,6 +248,7 @@ impl PyAsvoJobState {
 #[derive(Clone)]
 pub struct PyAsvoFilesArray(AsvoFilesArray);
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoFilesArray {
     /// Where the file is delivered.
@@ -284,6 +297,7 @@ impl PyAsvoFilesArray {
 }
 
 /// The product of a completed job: its files.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
@@ -293,6 +307,7 @@ impl PyAsvoFilesArray {
 #[derive(Clone)]
 pub struct PyAsvoJobProduct(AsvoJobProduct);
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJobProduct {
     /// The job's files.
@@ -307,6 +322,7 @@ impl PyAsvoJobProduct {
 }
 
 /// An MWA ASVO job.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
@@ -316,6 +332,7 @@ impl PyAsvoJobProduct {
 #[derive(Clone)]
 pub struct PyAsvoJob(AsvoJob);
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJob {
     /// The job ID.
@@ -399,10 +416,14 @@ impl PyAsvoJob {
 
     /// The job's parameters as the server gives them, as a `dict`.
     #[getter]
-    fn job_params<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn job_params<'py>(&self, py: Python<'py>) -> PyResult<JsonDict<'py>> {
         let json = serde_json::to_string(&self.0.job_params)
             .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        py.import("json")?.call_method1("loads", (json,))
+        py.import("json")?
+            .call_method1("loads", (json,))?
+            .cast_into::<PyDict>()
+            .map(JsonDict)
+            .map_err(PyErr::from)
     }
 
     fn __repr__(&self) -> String {
@@ -421,6 +442,10 @@ impl PyAsvoJob {
 /// same file means that the download started again (for example, the
 /// server did not honour a resume request), so reset the count. Each
 /// variant is a subclass, so `isinstance` and `match` work.
+#[cfg_attr(
+    feature = "python-stubgen",
+    pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
+)]
 #[pyclass(
     frozen,
     skip_from_py_object,
@@ -429,23 +454,30 @@ impl PyAsvoJob {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyDownloadProgress {
-    /// A file download starts, or starts again. `job_id` is the MWA ASVO job
-    /// ID, `label` a human-readable label (for example `Job ID 123 (obsid:
-    /// 1234567890) [1/2]:`), `total_bytes` the file size, and `position`
-    /// the bytes already on disk (not zero for a resumed download).
+    /// A file download starts, or starts again.
     Started {
+        /// The MWA ASVO job ID.
         job_id: AsvoJobId,
+        /// A human-readable label, for example `Job ID 123 (obsid:
+        /// 1234567890) [1/2]:`.
         label: String,
+        /// The size of the file in bytes.
         total_bytes: u64,
+        /// The bytes already on disk (not zero for a resumed download).
         position: u64,
     },
-    /// `bytes` more bytes were written.
-    Advanced { bytes: u64 },
+    /// `bytes` more bytes were written. Events are combined, so there are
+    /// about 10 a second at most.
+    Advanced {
+        /// The number of bytes written since the last `Advanced` event.
+        bytes: u64,
+    },
     /// The file download is complete, or was skipped because the file is
     /// already on disk.
     Finished {},
 }
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyDownloadProgress {
     fn __repr__(&self) -> String {
@@ -485,6 +517,7 @@ impl From<DownloadProgress> for PyDownloadProgress {
 }
 
 /// The MWA ASVO's reply to a job submission or to a cancellation.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
@@ -500,6 +533,7 @@ impl From<JobSubmittedResponse> for PyJobSubmittedResponse {
     }
 }
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyJobSubmittedResponse {
     /// The ID of the job that was submitted (or cancelled).
@@ -531,6 +565,7 @@ impl PyJobSubmittedResponse {
 }
 
 /// A list of MWA ASVO jobs. Supports `len()`, indexing and iteration.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "AsvoJobVec", module = "mwa_giant_squid")]
 pub struct PyAsvoJobVec(AsvoJobVec);
 
@@ -540,6 +575,7 @@ impl From<AsvoJobVec> for PyAsvoJobVec {
     }
 }
 
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJobVec {
     fn __len__(&self) -> usize {
@@ -556,14 +592,17 @@ impl PyAsvoJobVec {
         }
     }
 
-    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<JobIterator<'py>> {
         let jobs: Vec<PyAsvoJob> = self.0 .0.iter().cloned().map(PyAsvoJob).collect();
-        PyList::new(py, jobs)?.try_iter()
+        PyList::new(py, jobs)?.try_iter().map(JobIterator)
     }
 
     /// Keep only the jobs that match every given filter. A filter that is
     /// `None` or empty does not filter. States compare by kind only, so
     /// `AsvoJobState.Error` matches every job with an error.
+    ///
+    /// Raises:
+    ///     ValueError: An obsid is not valid.
     #[pyo3(signature = (job_ids=None, obs_ids=None, job_types=None, job_states=None))]
     fn filter(
         &self,
@@ -596,9 +635,14 @@ impl PyAsvoJobVec {
     }
 
     /// Whether all of `job_ids` are ready for download. `False` means some
-    /// are still in progress. Raises `AsvoError` if one is missing, has an
-    /// error, has expired or has been cancelled. This makes no request: to
-    /// wait, call `AsvoClient.get_jobs` and this in a loop.
+    /// are still in progress.
+    ///
+    /// This makes no request: to wait, call `AsvoClient.get_jobs` and this
+    /// in a loop.
+    ///
+    /// Raises:
+    ///     AsvoError: A job is missing, has an error, has expired or has
+    ///         been cancelled.
     fn all_ready(&self, py: Python<'_>, job_ids: Vec<AsvoJobId>) -> PyResult<bool> {
         self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))
     }

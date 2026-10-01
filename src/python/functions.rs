@@ -21,6 +21,7 @@ use serde::Serialize;
 use super::params::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
+use super::typed::JsonDict;
 use super::types::{
     PyCentre, PyDelivery, PyDeliveryFormat, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
@@ -30,11 +31,12 @@ use crate::ParseError;
 
 /// A request body as a Python `dict`, with the same keys and values as the
 /// JSON that the client sends.
-fn to_dict<'py>(py: Python<'py>, params: &impl Serialize) -> PyResult<Bound<'py, PyDict>> {
+fn to_dict<'py>(py: Python<'py>, params: &impl Serialize) -> PyResult<JsonDict<'py>> {
     let json = serde_json::to_string(params).map_err(|e| PyValueError::new_err(e.to_string()))?;
     py.import("json")?
         .call_method1("loads", (json,))?
         .cast_into::<PyDict>()
+        .map(JsonDict)
         .map_err(PyErr::from)
 }
 
@@ -70,6 +72,7 @@ fn os_error(py: Python<'_>, file: &std::path::Path, source: &std::io::Error) -> 
 /// Raises:
 ///     ValueError: Text in a file is not an integer.
 ///     OSError: A file cannot be read (for example `FileNotFoundError`).
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 pub fn parse_many_job_ids_or_obs_ids(
     py: Python<'_>,
@@ -82,11 +85,12 @@ pub fn parse_many_job_ids_or_obs_ids(
     }
 }
 
-/// The request body of `AsvoClient.submit_download_vis_job`, as a `dict`.
-/// Makes no request.
+/// The request body that `AsvoClient.submit_download_vis_job` sends, as a
+/// `dict`. Makes no request.
 ///
-/// Raises:
-///     ValueError: `obs_id` is not a valid obsid.
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
 pub fn download_vis_job_params<'py>(
@@ -95,7 +99,7 @@ pub fn download_vis_job_params<'py>(
     delivery: Option<PyDelivery>,
     delivery_format: Option<PyDeliveryFormat>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let mut params = DownloadArgs {
         delivery,
         delivery_format,
@@ -108,11 +112,12 @@ pub fn download_vis_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_download_meta_job`, as a
+/// The request body that `AsvoClient.submit_download_meta_job` sends, as a
 /// `dict`. Makes no request.
 ///
-/// Raises:
-///     ValueError: `obs_id` is not a valid obsid.
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
 pub fn download_meta_job_params<'py>(
@@ -121,7 +126,7 @@ pub fn download_meta_job_params<'py>(
     delivery: Option<PyDelivery>,
     delivery_format: Option<PyDeliveryFormat>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let mut params = DownloadArgs {
         delivery,
         delivery_format,
@@ -132,8 +137,12 @@ pub fn download_meta_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_conversion_job`, as a `dict`.
-/// Makes no request. The arguments and errors are those of the method.
+/// The request body that `AsvoClient.submit_conversion_job` sends, as a
+/// `dict`. Makes no request.
+///
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (
     obs_id,
@@ -179,7 +188,7 @@ pub fn conversion_job_params<'py>(
     no_cable_delay: Option<bool>,
     no_rfi: Option<bool>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let params = ConversionArgs {
         delivery,
         delivery_format,
@@ -204,8 +213,12 @@ pub fn conversion_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_imaging_job`, as a `dict`. Makes
-/// no request. The arguments and errors are those of the method.
+/// The request body that `AsvoClient.submit_imaging_job` sends, as a
+/// `dict`. Makes no request.
+///
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (
     obs_id,
@@ -281,7 +294,7 @@ pub fn imaging_job_params<'py>(
     weighting: Option<PyWeighting>,
     wstack_nwlayers: Option<i64>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let params = ImagingArgs {
         delivery,
         delivery_format,
@@ -321,8 +334,12 @@ pub fn imaging_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_image_from_job`, as a `dict`.
-/// Makes no request. The arguments and errors are those of the method.
+/// The request body that `AsvoClient.submit_image_from_job` sends, as a
+/// `dict`. Makes no request.
+///
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (
     obs_id,
@@ -384,7 +401,7 @@ pub fn image_from_job_params<'py>(
     weighting: Option<PyWeighting>,
     wstack_nwlayers: Option<i64>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let params = ImageFromJobArgs {
         delivery,
         delivery_format,
@@ -416,8 +433,12 @@ pub fn image_from_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_voltage_job`, as a `dict`. Makes
-/// no request. The arguments and errors are those of the method.
+/// The request body that `AsvoClient.submit_voltage_job` sends, as a
+/// `dict`. Makes no request.
+///
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (
     obs_id,
@@ -439,7 +460,7 @@ pub fn voltage_job_params<'py>(
     from_channel: Option<u8>,
     to_channel: Option<u8>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let params = VoltageArgs {
         offset,
         duration,
@@ -452,11 +473,12 @@ pub fn voltage_job_params<'py>(
     to_dict(py, &params)
 }
 
-/// The request body of `AsvoClient.submit_beamformer_job`, as a `dict`.
-/// Makes no request.
+/// The request body that `AsvoClient.submit_beamformer_job` sends, as a
+/// `dict`. Makes no request.
 ///
-/// Raises:
-///     ValueError: `obs_id` is not a valid obsid.
+/// The arguments, the defaults and the argument errors (`ValueError`,
+/// `OverflowError`) are those of the method.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
 #[pyfunction]
 #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
 pub fn beamformer_job_params<'py>(
@@ -465,7 +487,7 @@ pub fn beamformer_job_params<'py>(
     delivery: Option<PyDelivery>,
     delivery_format: Option<PyDeliveryFormat>,
     allow_resubmit: Option<bool>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<JsonDict<'py>> {
     let params = BeamformerArgs {
         delivery,
         delivery_format,
