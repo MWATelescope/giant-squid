@@ -135,6 +135,18 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
+        },
         "mode": {
           "anyOf": [
             {
@@ -274,7 +286,7 @@
             "files"
           ],
           "title": "Delivery Format",
-          "default": "files"
+          "default": "tar"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -288,6 +300,18 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
         },
         "output": {
           "type": "string",
@@ -482,6 +506,18 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
         },
         "download_type": {
           "$ref": "#/definitions/DownloadType",
@@ -716,6 +752,18 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
         },
         "apply_di_cal": {
           "type": "boolean",
@@ -1004,6 +1052,18 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
         },
         "source_job_id": {
           "type": "integer",
@@ -1304,6 +1364,18 @@
           "title": "Modified",
           "description": "Timestamp of when the job was last modified"
         },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Code",
+          "description": "Error code"
+        },
         "error_text": {
           "anyOf": [
             {
@@ -1385,7 +1457,7 @@
             }
           ],
           "title": "Sha1",
-          "deescription": "acacia checksum"
+          "description": "acacia checksum"
         },
         "format": {
           "anyOf": [
@@ -1511,7 +1583,7 @@
             {
               "type": "integer",
               "maximum": 30.0,
-              "exclusiveMinimum": 1.0
+              "minimum": 1.0
             },
             {
               "type": "null"
@@ -1860,6 +1932,27 @@
         "jobs"
       ],
       "title": "QueuedJobsResponse"
+    },
+    "RestageRequest": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Job Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "job_id"
+      ],
+      "title": "RestageRequest",
+      "description": "Request from processor to restage a job"
     },
     "StagingCallback": {
       "properties": {
@@ -2290,6 +2383,18 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "staging_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Staging Count",
+          "description": "number of restage attempts by the processor"
         },
         "offset": {
           "type": "integer",
