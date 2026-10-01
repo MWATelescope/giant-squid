@@ -27,6 +27,8 @@ from .conftest import (
 JOB_ID_READY = 101
 JOB_ID_QUEUED = 102
 JOB_ID_FAILED = 103
+# The server's error code for the failed job.
+FAILED_ERROR_CODE = 7
 
 # A completion time the mock sends (naive, as the real server sends it) and what it means (UTC).
 COMPLETED_TEXT = "2026-09-08T06:00:00"
@@ -69,7 +71,7 @@ def mixed_jobs() -> list[dict[str, Any]]:
     return [
         job_detail(JOB_ID_READY, "completed", completed=COMPLETED_TEXT, product=product),
         job_detail(JOB_ID_QUEUED, "queued"),
-        job_detail(JOB_ID_FAILED, "error", error_text="the conversion failed"),
+        job_detail(JOB_ID_FAILED, "error", error_code=FAILED_ERROR_CODE, error_text="the conversion failed"),
     ]
 
 
@@ -88,6 +90,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert ready.job_type == gs.AsvoJobType.DownloadVisibilities
     assert ready.job_state == gs.AsvoJobState.Ready
     assert ready.error_text is None
+    assert ready.error_code is None
     assert ready.completed == COMPLETED_UTC
     assert ready.product is not None
     (file,) = ready.product.files
@@ -101,6 +104,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert jobs[1].product is None
     assert jobs[-1].job_state == gs.AsvoJobState.Error
     assert jobs[-1].error_text == "the conversion failed"
+    assert jobs[-1].error_code == FAILED_ERROR_CODE
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -144,6 +148,8 @@ def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., No
     assert failed.value.kind == "JobFailed"
     assert failed.value.job_id == JOB_ID_FAILED
     assert failed.value.error == "the conversion failed"
+    assert failed.value.error_code == FAILED_ERROR_CODE
+    assert f"has an error (code {FAILED_ERROR_CODE}): the conversion failed" in str(failed.value)
 
     with pytest.raises(gs.AsvoError) as missing:
         jobs.all_ready([999])

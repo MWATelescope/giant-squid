@@ -612,6 +612,29 @@ fn wait_fails_when_the_job_has_an_error() {
     );
 }
 
+/// The error code of a failed job is in the error that `wait` reports.
+#[test]
+fn wait_shows_the_error_code_of_a_failed_job() {
+    let env = CliEnv::with_session();
+    let mut job = job_detail(12345, TEST_OBS_ID, "error", 1);
+    job["error_code"] = serde_json::json!(7);
+    job["error_text"] = serde_json::json!("the conversion failed");
+    env.mock_get_jobs(vec![job]);
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "12345"]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    assert!(
+        result.combined().contains(
+            "MWA ASVO job ID 12345 (obsid: 1065880128) has an error (code 7): the conversion failed"
+        ),
+        "output: {}",
+        result.combined()
+    );
+}
+
 #[test]
 fn list_filters_by_state() {
     let env = CliEnv::with_session();

@@ -50,6 +50,7 @@ FAILED_JOB_ID = 33
 OTHER_OBS_ID = 1065880248
 THIRD_OBS_ID = 1065880368
 SUBMITTED_JOB_ID = 777
+FAILED_ERROR_CODE = 7
 SOURCE_JOB_ID = 555
 
 # One GiB and a half, as bytes, and how the table shows it.
@@ -161,7 +162,13 @@ def three_jobs(mock_login: None, serve_jobs: Callable[[list[dict[str, Any]]], No
                 job_type=0,
                 job_params={"obs_id": str(OTHER_OBS_ID)},
             ),
-            job_detail(FAILED_JOB_ID, "error", error_text="boom", job_params={"obs_id": str(THIRD_OBS_ID)}),
+            job_detail(
+                FAILED_JOB_ID,
+                "error",
+                error_code=FAILED_ERROR_CODE,
+                error_text="boom",
+                job_params={"obs_id": str(THIRD_OBS_ID)},
+            ),
         ]
     )
 
@@ -244,6 +251,8 @@ def test_list_json_is_the_library_json(run: Callable[..., Result], three_jobs: N
     jobs = json.loads(result.out)
     assert list(jobs) == [str(LISTED_JOB_ID), str(QUEUED_JOB_ID), str(FAILED_JOB_ID)]
     assert jobs[str(FAILED_JOB_ID)]["error_text"] == "boom"
+    assert jobs[str(FAILED_JOB_ID)]["error_code"] == FAILED_ERROR_CODE
+    assert jobs[str(LISTED_JOB_ID)]["error_code"] is None
 
 
 @pytest.mark.parametrize(
@@ -587,7 +596,7 @@ def test_wait_fails_for_a_job_with_an_error(
     result = run("wait", str(FAILED_JOB_ID))
 
     assert result.code == EXIT_FAILED
-    assert "boom" in result.err
+    assert f"has an error (code {FAILED_ERROR_CODE}): boom" in result.err
 
 
 def test_wait_needs_a_job_id(run: Callable[..., Result]) -> None:

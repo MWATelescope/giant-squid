@@ -140,6 +140,11 @@ pub struct AsvoJob {
     pub completed: Option<Timestamp>,
     /// When the job was last changed, or `None`.
     pub modified: Option<Timestamp>,
+    /// The server's error code, or `None`. The schema gives it as an
+    /// integer and does not document its values, so this library passes it
+    /// on and does not interpret it. It is also in the message of
+    /// [`AsvoError::JobFailed`].
+    pub error_code: Option<i64>,
     /// The server's error message, or `None`. For a job in the `Error`
     /// state it is also in [`AsvoJobState::Error`].
     pub error_text: Option<String>,
@@ -207,6 +212,7 @@ impl AsvoJobVec {
                         job_id: *job_id,
                         obs_id: job.obs_id,
                         error: e.clone(),
+                        error_code: job.error_code,
                     });
                 }
                 AsvoJobState::Expired => return Err(AsvoError::JobExpired(*job_id)),

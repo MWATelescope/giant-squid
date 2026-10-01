@@ -151,7 +151,10 @@ filters a list that you already have, without a request. `json()` returns the sa
 Notes:
 
 - Job states compare by kind. `AsvoJobState.Error` matches every job that has an error. The message is in
-  `AsvoJob.error_text`.
+  `AsvoJob.error_text`, and the server's error code (an integer, or `None`) is in `AsvoJob.error_code`. The
+  MWA ASVO does not document the codes. `AsvoJobVec.all_ready` raises `AsvoError` of kind `JobFailed` for a
+  failed job; its message includes the code, for example `has an error (code 7): the conversion failed`, and
+  the exception has the attribute `error_code`.
 - Times (`created`, `started`, `completed`, `modified`) are `datetime.datetime` objects with a time zone.
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
 - The files of a ready job are in `job.product.files`. Each `AsvoFilesArray` has `type`, `url`, `path`,

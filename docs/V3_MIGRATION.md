@@ -201,7 +201,7 @@ more of them:
 | `files[].fileHash` | `product.files[].sha1` |
 | `completed` | `completed` |
 
-New keys: `created`, `started`, `modified`, `error_text`, `user_id`,
+New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
 values of `job_type` and `job_state` are unchanged (for example
 `DownloadVisibilities`, `Ready`).

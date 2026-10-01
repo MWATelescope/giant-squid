@@ -577,6 +577,30 @@
   developer: `JobDetailResponse.id`, `QueuedJob.id` and
   `CalibrationReadyCallback.asvo_job_id` (should be `job_id`), `firstname`
   and `lastname`, the cancel response model, and what `error_code` means.
+- 2026-10-01: API change 2 of 4 (`error_code`, schema 1.12.2). `AsvoJob`
+  has `error_code: Option<i64>` (before `error_text`), from
+  `JobDetailResponse.error_code`. The library passes it on and does not
+  interpret it: the schema does not document its values. It is in the
+  `list --json` and `wait --json` output (key `error_code`, null when the
+  server gives none), in the Python `AsvoJob.error_code`, and in
+  `AsvoError::JobFailed { error_code }`, whose message reads `has an error
+  (code N): <error_text>` when there is a code, and as before when there is
+  none (decided without the user's answer on the exact wording: it is one
+  small function, `error_code_suffix` in `src/asvo/error.rs`, to change).
+  `AsvoJobState::Error(String)`, the job table and the `wait` log lines
+  show the error text only, as before. The Python `AsvoError` has the
+  attribute `error_code` for kind `JobFailed` (`int | None`). A job JSON
+  without an `error_code` key reads as `None` (serde). The `--legacy-json`
+  output is unchanged. Tests: one types test (the message, with and
+  without a code), one client test extended (every field reaches
+  `AsvoJob`), one asserted in the errored-job test, the key list and the
+  golden JSON in the existing tests, one CLI test (`wait` shows the code),
+  pytest assertions in the existing client and CLI tests. No existing
+  assertion changed except the key lists and the golden JSON string, which
+  gain `error_code`. The stub is regenerated and stubtest passes. Not done,
+  by decision: nothing uses `staging_count` or `RestageRequest`. Still open
+  with the API developer: the meaning of `error_code`, and the `status` of
+  a cancel (a refused cancel returns 200 with `status: failed`).
 - Next step: Phase 3 is done. What is left is yours: run the workflow, then
   publish (a release workflow for PyPI, trusted publishing, or by hand) and
   decide whether `releases.yaml` should also attach the wheels.

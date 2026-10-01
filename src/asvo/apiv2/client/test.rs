@@ -426,6 +426,8 @@ fn an_errored_job_carries_the_servers_error_text() {
         AsvoJobState::Error("Observation has no data files".to_string())
     );
     assert_eq!(jobs.0[0].job_type, AsvoJobType::Conversion);
+    // The server sent no `error_code` key, which is the same as null.
+    assert_eq!(jobs.0[0].error_code, None);
 }
 
 #[test]
@@ -1160,6 +1162,7 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
 fn a_listed_job_has_every_field_of_the_job_detail() {
     let env = TestEnv::with_session();
     let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "error", 1);
+    detail["error_code"] = json!(7);
     detail["error_text"] = json!("it failed");
     detail["started"] = json!("2026-09-08T05:50:00");
     detail["modified"] = json!("2026-09-08T05:55:00Z");
@@ -1175,6 +1178,7 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
     assert_eq!(job.created, utc("2026-09-08T05:41:54.757232Z"));
     assert_eq!(job.started, Some(utc("2026-09-08T05:50:00Z")));
     assert_eq!(job.modified, Some(utc("2026-09-08T05:55:00Z")));
+    assert_eq!(job.error_code, Some(7));
     assert_eq!(job.error_text.as_deref(), Some("it failed"));
     assert_eq!(job.job_state, AsvoJobState::Error("it failed".to_string()));
     assert_eq!(job.user_id, TEST_USER_ID);

@@ -1254,6 +1254,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             started: Some(created),
             completed: Some(completed),
             modified: Some(completed),
+            error_code: None,
             error_text: None,
             user_id: 4242,
             first_name: "Test".to_string(),
@@ -1270,6 +1271,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             started: None,
             completed: None,
             modified: None,
+            error_code: None,
             error_text: None,
             user_id: 4242,
             first_name: "Test".to_string(),
@@ -1286,6 +1288,7 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
             started: None,
             completed: None,
             modified: None,
+            error_code: Some(12),
             error_text: Some("the \"conversion\" failed".to_string()),
             user_id: 4242,
             first_name: "Test".to_string(),
@@ -1309,7 +1312,7 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 /// `--json` prints the OpenAPI names, with the same values.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","product":{"files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}]},"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","product":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"product":{"files":[]},"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
+    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":"DownloadVisibilities","job_state":"Ready","product":{"files":[{"type":"Acacia","url":"https://example.org/a.tar","path":null,"size":1234,"sha1":"abababababababababababababababababababab","format":null},{"type":"Scratch","url":null,"path":"/scratch/mwa/x","size":5,"sha1":null,"format":null}]},"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":"Conversion","job_state":"Queued","product":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_code":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":"Imaging","job_state":{"Error":"the \"conversion\" failed"},"product":{"files":[]},"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_code":12,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 

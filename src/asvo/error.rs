@@ -14,12 +14,15 @@ pub enum AsvoError {
     #[error("MWA ASVO job ID {0} wasn't found in your list of jobs.")]
     NoAsvoJob(AsvoJobId),
 
-    /// A checked job is in an error state.
-    #[error("MWA ASVO job ID {job_id} (obsid: {obs_id}) has an error: {error}")]
+    /// A checked job is in an error state. `error_code` is the server's
+    /// code for the error, if it gave one; the message shows it as
+    /// `(code N)`.
+    #[error("MWA ASVO job ID {job_id} (obsid: {obs_id}) has an error{}: {error}", error_code_suffix(.error_code))]
     JobFailed {
         job_id: AsvoJobId,
         obs_id: ObsId,
         error: String,
+        error_code: Option<i64>,
     },
 
     /// A checked job has expired.
@@ -107,4 +110,14 @@ pub enum AsvoError {
     // HTTP 404 error code when downloading
     #[error("The file for job {job_id:?} you are trying to download no longer exists. It may have expired or been removed. Please contact support if think this is in error")]
     Http404Error { job_id: AsvoJobId },
+}
+
+/// The text that follows "has an error" in the message of
+/// [`AsvoError::JobFailed`]: ` (code N)`, or nothing if the server gave no
+/// code.
+fn error_code_suffix(error_code: &Option<i64>) -> String {
+    match error_code {
+        Some(code) => format!(" (code {code})"),
+        None => String::new(),
+    }
 }

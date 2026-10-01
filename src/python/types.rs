@@ -359,6 +359,13 @@ impl PyAsvoJob {
         PyAsvoJobState::from(&self.0.job_state)
     }
 
+    /// The server's error code, or `None`. The MWA ASVO does not document
+    /// its values, so it is given as it is.
+    #[getter]
+    fn error_code(&self) -> Option<i64> {
+        self.0.error_code
+    }
+
     /// The server's error message, or `None`. A job in the `Error` state
     /// has its message here.
     #[getter]
@@ -650,7 +657,7 @@ impl PyAsvoJobVec {
     /// The jobs as a JSON object keyed by job ID, as `giant-squid list
     /// --json` prints. The keys are the OpenAPI names (`obs_id`, `job_id`,
     /// `job_type`, `job_state`, `product`, `created`, `started`,
-    /// `completed`, `modified`, `error_text`, `user_id`, `first_name`,
+    /// `completed`, `modified`, `error_code`, `error_text`, `user_id`, `first_name`,
     /// `last_name`, `job_params`; and, in `product.files`, `type`, `url`,
     /// `path`, `size`, `sha1`, `format` for each file).
     fn json(&self) -> PyResult<String> {

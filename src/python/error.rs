@@ -95,6 +95,7 @@ mod stub_attributes {
                 attr!("job_id", u64, "NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error."),
                 attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("error", String, "JobFailed: the job's error message."),
+                attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyAsvoJobState, "NotReady: the job's state."),
                 attr!("file", String, "HashMismatch."),
                 attr!("calculated_hash", String, "HashMismatch."),
@@ -121,6 +122,7 @@ enum Field {
     Str(String),
     OptStr(Option<String>),
     Int(u64),
+    OptInt(Option<i64>),
     State(PyAsvoJobState),
     /// A list of `{"field": ..., "message": ...}` dicts.
     ErrorDicts(Vec<lib::apiv2::openapi::FieldError>),
@@ -142,6 +144,7 @@ fn build<T: pyo3::PyTypeInfo>(
             Field::Str(s) => value.setattr(name, s),
             Field::OptStr(s) => value.setattr(name, s),
             Field::Int(n) => value.setattr(name, n),
+            Field::OptInt(n) => value.setattr(name, n),
             Field::State(s) => value.setattr(name, s),
             Field::ErrorDicts(errors) => {
                 let list = errors
@@ -230,9 +233,15 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             job_id: id,
             obs_id: o,
             error,
+            error_code,
         } => (
             "JobFailed",
-            vec![job_id(id), obs_id(o), ("error", Field::Str(error))],
+            vec![
+                job_id(id),
+                obs_id(o),
+                ("error", Field::Str(error)),
+                ("error_code", Field::OptInt(error_code)),
+            ],
         ),
         lib::AsvoError::JobExpired(id) => ("JobExpired", vec![job_id(id)]),
         lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![job_id(id)]),

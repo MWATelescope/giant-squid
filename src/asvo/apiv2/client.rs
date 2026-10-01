@@ -1077,6 +1077,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         started: detail.started,
         completed: detail.completed,
         modified: detail.modified,
+        error_code: detail.error_code,
         error_text: detail.error_text,
         user_id: detail.user_id,
         first_name: detail.first_name,

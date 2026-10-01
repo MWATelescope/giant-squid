@@ -37,6 +37,7 @@ fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
         started: None,
         completed: None,
         modified: None,
+        error_code: None,
         error_text: None,
         user_id: TEST_USER_ID,
         first_name: "Test".to_string(),
@@ -97,13 +98,52 @@ fn all_ready_reports_a_failed_job_with_its_error() {
             job_id,
             obs_id,
             error,
+            error_code,
         }) => {
             assert_eq!(job_id, JOB_ID_A);
             assert_eq!(u64::from(obs_id), OBS_ID);
             assert_eq!(error, "the conversion failed");
+            assert_eq!(error_code, None);
         }
         other => panic!("expected JobFailed, got {other:?}"),
     }
+}
+
+/// A failed job's error code is in the error, and in its message as
+/// `(code N)`; with no code the message has no such text.
+#[test]
+fn a_failed_jobs_error_code_is_in_the_error_message() {
+    let mut failed = job(
+        JOB_ID_A,
+        AsvoJobState::Error("the conversion failed".to_string()),
+    );
+    failed.error_code = Some(7);
+    let jobs = AsvoJobVec(vec![failed.clone()]);
+
+    let err = jobs.all_ready(&[JOB_ID_A]).expect_err("the job has failed");
+    assert!(
+        matches!(
+            &err,
+            AsvoError::JobFailed {
+                error_code: Some(7),
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.to_string(),
+        format!("MWA ASVO job ID {JOB_ID_A} (obsid: {OBS_ID}) has an error (code 7): the conversion failed")
+    );
+
+    failed.error_code = None;
+    let err = AsvoJobVec(vec![failed])
+        .all_ready(&[JOB_ID_A])
+        .expect_err("the job has failed");
+    assert_eq!(
+        err.to_string(),
+        format!("MWA ASVO job ID {JOB_ID_A} (obsid: {OBS_ID}) has an error: the conversion failed")
+    );
 }
 
 #[test]
@@ -145,6 +185,7 @@ fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: AsvoJo
         started: None,
         completed: None,
         modified: None,
+        error_code: None,
         error_text: None,
         user_id: TEST_USER_ID,
         first_name: "Test".to_string(),
@@ -258,6 +299,7 @@ fn the_json_output_keys_are_the_openapi_names() {
         [
             "completed",
             "created",
+            "error_code",
             "error_text",
             "first_name",
             "job_id",
