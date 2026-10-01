@@ -50,6 +50,40 @@ jobs:
     - name: Check mwa_giant_squid.pyi against the module (stubtest)
       run: tools/run_stubtest.sh
 
+  stubs:
+    name: Stub drift (mwa_giant_squid.pyi)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    # A uv-managed Python is used so that its libpython is available: stub_gen embeds Python.
+    - name: Install uv and Python
+      uses: astral-sh/setup-uv@v10.0.1
+      with:
+        python-version: "3.14"
+
+    # `uv run ruff` in tools/generate_stubs.sh needs the project environment, so this builds the module.
+    - name: Build the module and install the dev tools
+      run: uv sync --locked
+
+    - name: Regenerate the stub
+      env:
+        PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
+      run: tools/generate_stubs.sh
+
+    - name: Fail if the regenerated stub differs from the committed one
+      run: |
+        if ! git diff --exit-code -- mwa_giant_squid.pyi; then
+          echo "::error::mwa_giant_squid.pyi is out of date relative to src/python. Run tools/generate_stubs.sh locally and commit the result."
+          exit 1
+        fi
+
   test:
     name: Test ${{ matrix.os }} Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}

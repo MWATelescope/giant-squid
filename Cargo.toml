@@ -14,7 +14,7 @@ readme = "README.md"
 description = "MWA ASVO command line client"
 repository = "https://github.com/MWATelescope/giant-squid"
 homepage = "https://github.com/MWATelescope/giant-squid"
-exclude = [".github/*"]
+exclude = [".github/*", "mwa_giant_squid_cli/*", "tests/python/*"]
 
 # When selecting dependency versions, it prefers versions whose own rust-version (MSRV) is compatible with yours, rather than always picking the newest release.
 # It still respects semver constraints as the primary filter — MSRV compatibility is the tiebreaker among eligible versions.
