@@ -555,7 +555,11 @@ impl PyJobSubmittedResponse {
         self.0.message.clone()
     }
 
-    /// The server's status for the request: "success" or "failed".
+    /// The server's status text for the request, "success" or "failed". It
+    /// describes the reply, like `message`; it is for display only. Success
+    /// or failure of a call is decided by the HTTP status, so a call that
+    /// fails raises `AsvoApiError`, and this text is not to be used to
+    /// decide whether a call worked.
     #[getter]
     fn status(&self) -> String {
         self.0.status.to_string()

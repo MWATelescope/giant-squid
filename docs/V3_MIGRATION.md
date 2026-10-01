@@ -77,6 +77,7 @@ defaults for a conversion job. In 3.0.0 the defaults are the MWA ASVO API's:
 | Frequency averaging | 80 kHz | 40 kHz (`--avg-freq-res 40`) |
 | Time averaging | none (correlator resolution) | 2 s (`--avg-time-res 2`) |
 | Edge flagging | 80 kHz | 80 kHz (unchanged) |
+| Delivery format (Scratch or DUG) | individual files (`tar` only if asked for) | `tar` (`--delivery-format files` for individual files) |
 
 So a 2.x command with no options gives different files in 3.0.0. To get
 the 2.x result, give the options:
@@ -136,13 +137,17 @@ see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
 ## Other submit commands
 
 `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf` take the same
-options as in 2.x. `submit-volt --offset` must now be from 0 to 5400, and a
+options as in 2.x. The default delivery format is now `tar` for every job
+except voltage jobs, whatever the delivery: in 2.x a Scratch or DUG delivery
+gave individual files unless you asked for `tar`. Add `--delivery-format files`
+to get the individual files. `submit-volt --offset` must now be from 0 to 5400, and a
 negative value (`--offset -1`) is rejected with that range.
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
 `{"job_id":12345,"message":"...","status":"success"}`. Use it in scripts;
-see the next section.
+see the next section. The `status` text and the `message` describe the reply; the exit code of
+`giant-squid` and the HTTP status of the MWA ASVO tell you whether a submission worked.
 
 `--dry-run` now prints the request body that would be sent, as JSON, for
 each obsid.

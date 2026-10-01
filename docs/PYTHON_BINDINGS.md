@@ -601,6 +601,43 @@
   by decision: nothing uses `staging_count` or `RestageRequest`. Still open
   with the API developer: the meaning of `error_code`, and the `status` of
   a cancel (a refused cancel returns 200 with `status: failed`).
+- 2026-10-01: API changes 3 and 4 (`status`, README, docs). Decisions from
+  the API developer: the response `status` ("success" or "failed") is
+  descriptive text, like `message`, and callers must use the HTTP status,
+  which the client already did. It stays exposed, documented as for
+  display only: the Python `JobSubmittedResponse.status` docstring, the
+  Rust `AsvoClient::cancel_job` doc, `docs/PYTHON.md` and
+  `docs/V3_MIGRATION.md` say so. Cancel: the API developer says a refused
+  cancel (for example, of a job that is already cancelled) stays HTTP 200
+  with `status: failed` and a message such as "Unable to cancel job N".
+  So the client cannot tell such a refusal from success, except by the
+  message; `cancel` logs `Cancelled MWA ASVO job ID N (<message>)` and
+  `Cancelled 1 jobs.` for it, as before. The Python `cancel_job` and the
+  Rust `cancel_job` docs now say this. `live_cancel` is changed to match:
+  its second cancel expects the server's message (the new constant
+  `CANCEL_REFUSED_MESSAGE`) and not a structured error. README: the
+  "Submit MWA ASVO jobs" sections are rewritten (they were the 2.x text,
+  with the `-p/--parameters` help and key/value tables). Each submit
+  command has its real 3.0 `--help` block, a table of the options that
+  every submit command has, and an options table for `submit-conv` and
+  `submit-image` (the meaning, the allowed values from the schema, and the
+  default from the real help). There is a new section for
+  `submit-image-from-job`. The delivery notes say that the default
+  delivery format is `tar` (use `--delivery-format files` for individual
+  files), that `GIANT_SQUID_DELIVERY_FORMAT` sets it, and that only
+  visibility, metadata and beamformer jobs can go to DUG. The dry-run
+  example and the `download` help block are the real output. The tables
+  and help blocks were generated from the built binary and the schema
+  with a throwaway script (not committed), so they match this commit. In
+  `V3_MIGRATION.md` the conversion table gains the delivery format row
+  (inferred from the 2.x README, which said 2.x gave individual files for
+  Scratch and DUG unless asked for `tar`). Not done: README sections for
+  `wait` and `cancel` (there are none). Found, not fixed: the schema offers
+  only `acacia` and `scratch` for conversion and imaging jobs, but the
+  generated `Delivery` type has `dug` too, so `submit-conv`, `submit-image`
+  and `submit-image-from-job` accept `--delivery dug` and the server would
+  refuse it. The `--delivery` help does not list the values (nor do
+  `--output`, `--centre`, `--pol` or `--weighting`).
 - Next step: Phase 3 is done. What is left is yours: run the workflow, then
   publish (a release workflow for PyPI, trusted publishing, or by hand) and
   decide whether `releases.yaml` should also attach the wheels.

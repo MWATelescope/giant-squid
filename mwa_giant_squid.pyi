@@ -513,7 +513,10 @@ class AsvoClient:
             job_id: The ID of the job to cancel.
 
         Returns:
-            The server's reply. Its `job_id` is the cancelled job.
+            The server's reply. Its `job_id` is the cancelled job. The MWA
+            ASVO answers a cancellation that it refuses, for a job that is
+            already cancelled for example, with a normal reply and not an
+            error, so no exception is raised. The reason is in `message`.
 
         Raises:
             OverflowError: `job_id` is negative or too large to be a job ID.
@@ -924,7 +927,11 @@ class JobSubmittedResponse:
     @property
     def status(self) -> builtins.str:
         r"""
-        The server's status for the request: "success" or "failed".
+        The server's status text for the request, "success" or "failed". It
+        describes the reply, like `message`; it is for display only. Success
+        or failure of a call is decided by the HTTP status, so a call that
+        fails raises `AsvoApiError`, and this text is not to be used to
+        decide whether a call worked.
         """
 
 @typing.final

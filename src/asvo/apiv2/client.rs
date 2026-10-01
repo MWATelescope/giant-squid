@@ -904,6 +904,19 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Cancel a job.
+    ///
+    /// The reply's `status` and `message` describe what happened, and the
+    /// `status` is not to be used to decide whether the call worked: the
+    /// HTTP status decides that (the API developer's rule). The MWA ASVO
+    /// answers a cancellation that it refuses, for a job that is already
+    /// cancelled for example, with a normal (HTTP 200) reply whose message
+    /// says so, so such a refusal is `Ok` here. Read the `message`.
+    ///
+    /// # Errors
+    ///
+    /// The error from the request, for example `JOB_NOT_FOUND` for a job
+    /// that does not exist.
     pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 

@@ -78,6 +78,10 @@ const LIVE_VOLTAGE_OFFSET_SECS: &str = "0";
 const LIVE_VOLTAGE_DURATION_SECS: &str = "8";
 /// A look-back window for `list --days`.
 const LIVE_LIST_DAYS: &str = "7";
+
+/// The start of the server's message when it refuses to cancel a job (for
+/// example, one that is already cancelled).
+const CANCEL_REFUSED_MESSAGE: &str = "Unable to cancel job";
 /// A short look-back window, for the one request that primes the session.
 /// The smallest value the server accepts: the schema limits `days` to
 /// more than 1 and at most 30.
@@ -716,13 +720,19 @@ fn live_cancel() {
     guard.forget(id);
     assert_eq!(state_name(&env.listed_job(id)), STATE_CANCELLED);
 
-    // A second cancellation is refused by the server; the CLI logs it and
-    // carries on rather than failing the run.
+    // A second cancellation is refused by the server, but with a normal
+    // (HTTP 200) reply whose `status` is "failed" and whose message says
+    // why. The API developer's rule is that `status` is descriptive and
+    // success is the HTTP status, so this is not an error to the client:
+    // the CLI logs the server's message and carries on. The message is
+    // the only sign of the refusal.
     let result = env.run(&["cancel", &id_str]);
     assert!(result.success, "{}", result.combined());
-    let code = api_error_code(&result.combined())
-        .unwrap_or_else(|| panic!("expected a structured error: {}", result.combined()));
-    eprintln!("second cancellation rejected with {code}");
+    assert!(
+        result.combined().contains(CANCEL_REFUSED_MESSAGE),
+        "expected the server's message about the refusal: {}",
+        result.combined()
+    );
 }
 
 #[test]

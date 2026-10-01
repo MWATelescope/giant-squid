@@ -68,8 +68,10 @@ suit users for a few reasons:
   - [Print the giant-squid version](#print-the-giant-squid-version)
   - [Submit MWA ASVO jobs](#submit-mwa-asvo-jobs)
     - [A Note On Delivery Options](#a-note-on-delivery-options)    
+    - [Options that every submit command has](#options-that-every-submit-command-has)
     - [Conversion downloads](#conversion-downloads)
     - [Imaging downloads](#imaging-downloads)
+    - [Imaging from a conversion job](#imaging-from-a-conversion-job)
     - [Metadata downloads](#metadata-downloads)
     - [Visibility downloads](#visibility-downloads)
     - [Beamformer downloads](#beamformer-downloads)
@@ -144,14 +146,52 @@ giant-squid --version
 
 ### Submit MWA ASVO jobs
 
-For any job submission commands, if you want to check that your command works without actually submitting the
-obsids, then you can use the `--dry-run` option. 
+If you upgrade from giant-squid 2.x, the job options changed: see the [3.0 migration guide](docs/V3_MIGRATION.md).
+
+Each kind of job has its own command, and each command has a short name:
+
+| Command | Short name | Job |
+|---|---|---|
+| `submit-vis` | `sv` | [Visibility download](#visibility-downloads) |
+| `submit-meta` | `sm` | [Metadata download](#metadata-downloads) |
+| `submit-conv` | `sc` | [Conversion](#conversion-downloads) |
+| `submit-image` | `si` | [Imaging](#imaging-downloads) |
+| `submit-image-from-job` | `sifj` | [Imaging from a conversion job](#imaging-from-a-conversion-job) |
+| `submit-bf` | `sb` | [Beamformer download](#beamformer-downloads) |
+| `submit-volt` | `st` | [Voltage download](#voltage-downloads) |
+
+Every submit command takes one or more obsids, or text files that hold obsids. It submits one job for
+each obsid and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
+
+#### Options that every submit command has
+
+| Option | Meaning |
+|---|---|
+| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). `submit-volt` takes `scratch` only |
+| `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have it, because voltage data is always delivered as files |
+| `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed: see [Resubmitting jobs](#resubmitting-jobs) |
+| `-w`, `--wait` | Do not exit until the jobs are ready for download |
+| `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each obsid |
+| `-j`, `--json` | Print the MWA ASVO's reply for each submitted job as one line of JSON on standard output |
+| `-v`, `--verbosity` | Show more log messages. Repeat it for more |
+
+Log messages go to standard error, so standard output has only the output of the command (for example, the
+`--json` lines). To check that your command works without submitting anything, use `--dry-run`:
 
 ```bash
 $ giant-squid submit-vis 1065880128 --dry-run
-13:10:06 [WARN] Using 'acacia' for MWA ASVO delivery
-13:10:06 [INFO] Would have submitted 1 obsids for visibility download
+13:10:06 [INFO] [dry run] Would POST /api/v2/download_vis_job for obsid 1065880128:
+{
+  "allow_resubmit": false,
+  "delivery": "acacia",
+  "delivery_format": "tar",
+  "download_type": "vis",
+  "obs_id": 1065880128
+}
+13:10:06 [INFO] [dry run] Would have submitted 1 obsids to /api/v2/download_vis_job. Nothing was sent.
 ```
+
+The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them.
 
 #### A Note On Delivery Options
 
@@ -168,7 +208,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 
 - You can request that your job's files be delivered to Pawsey's /scratch filesystem.
 - To submit a job with the scratch delivery option, specify `--delivery=scratch` on any job submission command.
-- You can also optionally pass `--delivery-format=tar` to instruct MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+- MWA ASVO delivers a tar of the files by default. To get the individual files instead, pass `--delivery-format=files`.
 - This option is only available to users who have a Pawsey account with MWA group access and your `Pawsey Group` has been set in your MWA ASVO profile by an MWA ASVO administrator.
   - Please contact support to request this.  
 - NOTE: all Pawsey users in the specified Pawsey Group can access your job's files. If you prefer to keep your data private to only you, you should choose the `acacia` delivery option as only you have the download URL.
@@ -176,9 +216,9 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 ##### Delivery: Down Under Geosolutions (DUG) Filesystem
 
 - You can request that your job's files be delivered to DUG's filesystem.
-- You can also optionally pass `--delivery-format=tar` to instruct MWA ASVO to deliver a tar of the files, rather than all of the individual files.
+- MWA ASVO delivers a tar of the files by default. To get the individual files instead, pass `--delivery-format=files`.
 - To submit a job with the DUG delivery option, specify `--delivery=dug` on any job submission command.
-- `Voltage` jobs are not able to be delivered to DUG currently.
+- Only visibility, metadata and beamformer downloads can be delivered to DUG. `Voltage`, conversion and imaging jobs cannot.
 - This option is only open to users who have a Curtin University DUG account and your `DUG Group` has been set in your MWA ASVO profile by an MWA administrator.
   - Please contact support to request this.
 - NOTE: all DUG users in the specified DUG Group can access your job's files. If you prefer to keep your data private to only you, you should choose the `acacia` delivery option as only you have the download URL.
@@ -186,6 +226,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 ##### Changing Your Default Delivery Option
 
 - You can set the environment variable `GIANT_SQUID_DELIVERY` to `acacia`, `scratch` or `dug` if you don't want to keep specifying the delivery option on the command line.
+- In the same way, `GIANT_SQUID_DELIVERY_FORMAT` (`tar` or `files`) sets the default delivery format.
 
 #### Conversion downloads
 
@@ -196,24 +237,54 @@ Conversion jobs use the Birli software package to preprocess MWA raw visibilitie
 ```text
 Submit MWA ASVO preprocessing/conversion jobs
 
-Usage: giant-squid submit-conv [OPTIONS] [OBSID]...
+Usage: giant-squid submit-conv [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBSID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
 
 Options:
-  -p, --parameters <PARAMETERS>
-          The Birli parameters used. If any of the default parameters are not overwritten, then they remain. If the delivery option is specified here, it is ignored; delivery must be passed in as a command-line argument. Default: avg_freq_res=80, flag_edge_width=80, output=uvfits
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+  -o, --output <OUTPUT>
+          Output format: "ms" (measurement set) or "uvfits" [default: ms]
+      --avg-freq-res <AVG_FREQ_RES>
+          Frequency resolution to average to (kHz) [default: 40]
+      --avg-time-res <AVG_TIME_RES>
+          Time resolution to average to (s) [default: 2]
+      --flag-edge-width <FLAG_EDGE_WIDTH>
+          Width of frequency edge flagging (kHz) [default: 80]
+      --apply-di-cal
+          Whether to apply the DI calibration solution
+      --centre <CENTRE>
+          Phase centre mode: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase]
+      --custom-centre-ra <CUSTOM_CENTRE_RA>
+          Custom phase centre right ascension (degrees). Requires --centre custom
+      --custom-centre-dec <CUSTOM_CENTRE_DEC>
+          Custom phase centre declination (degrees). Requires --centre custom
+      --no-apply-amps
+          Whether to skip applying amplitude calibration solutions
+      --no-digital-gains
+          Whether to skip applying digital gains
+      --no-flag-dc
+          Whether to skip flagging the DC channel
+      --no-geometry-delay
+          Whether to skip applying geometric delay corrections
+      --no-passband-gains
+          Whether to skip applying passband gain corrections
+      --no-cable-delay
+          Whether to skip applying cable delay corrections
+      --no-rfi
+          Whether to skip RFI flagging
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
   -w, --wait
           Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
-  -r, --allow-resubmit
-          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
   -h, --help
@@ -228,120 +299,272 @@ giant-squid submit-conv 1065880128
 
 Text files containing obsids may be used too.
 
-The default conversion options can be found by running the help text:
+To change the conversion options, give them as options. For example, to average to 0.5 s and 10 kHz and write a
+UVFITS file:
 
 ```bash
-giant-squid submit-conv --help
+giant-squid submit-conv 1065880128 --output uvfits --avg-time-res 0.5 --avg-freq-res 10
 ```
 
-To change the default conversion options and/or specify more options, specify
-comma-separated key-value pairs like so:
+To use a custom phase centre:
 
 ```bash
-giant-squid submit-conv 1065880128 --parameters=avg_time_res=0.5,avg_freq_res=10
+giant-squid submit-conv 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
 ```
 
-##### Key/Value Pairs for Conversion Job -p / --parameters
+Conversion jobs can be delivered to Acacia or Scratch (not DUG).
 
-| key | Meaning | Values | Default |
+##### Options for conversion jobs
+
+In addition to the [options that every submit command has](#options-that-every-submit-command-has):
+
+| Option | Meaning | Values | Default |
 |---|---|---|---|
-|output | Output data format (CASA measurement set or UVFITS) | 'ms', 'uvfits'| 'ms'
-|avg_time_res | Output time resolution in seconds (must be multiple of, or equal to, correlator time resolution) | 0.5 - 32.0 | omitted (will use correlator time resolution)
-|avg_freq_res | Output frequency resolution in kHz (must be multiple of, or equal to, correlator frequency resolution). if omitted  (will use correlator frequency resolution) | 0.4 - 1280.0 | 80.0
-|flag_edge_width | Width (in kHz) to flag at each coarse channel edge. Must be multiple of, or equal to, correlator frequency resolution. If omitted (will not flag edge channels) | 0.2 - 640.0 | 80.0
-|centre | Phase centre to use | 'phase' (use observation phase centre), 'pointing' (use pointing centre), 'custom' (use custom phase centre) | 'phase'
-|phase_centre_ra | If 'custom' phase centre, the right ascension  (in decimal degrees) of the new phase centre | 0-360 | omitted
-|phase_centre_dec | If 'custom' phase centre, the declination (in decimal degrees) of the new phase centre | -90.0 - +90.0  | omitted
-|apply_di_cal | Apply basic direction-independent calibration solution (if available)| true or omit it | omitted (will not apply calibration)
-|no_rfi| Will disable radio frequency interference (RFI) flagging | true or omit it | ommitted (will perform RFI flagging)
-|no_geometric_delay | Do not correct geometric delays (only applicable if not already applied by correlator)| true or omit it | omitted (will correct geometric delays)
-|no_cable_delay | Do not correct cable length delays (only applicable if not already applied by correlator)| true or omit it | omitted (will correct cable length delays)
-|no_digital_gains | Do not correct the digital gains|true or omit it | omitted (will correct for digital gains)
-|no_flag_dc | Do not flag the DC channel | true or omit it| omitted (will flag DC channel)
-|no_passband_gains | Do not correct the passband gains |true or omit it | omitted (will correct passband gains)
+| `-o`, `--output` | Output data format (CASA measurement set or UVFITS) | one of `ms`, `uvfits` | ms |
+| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
+| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
+| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
+| `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available) | flag | off |
+| `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
+| `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
+| `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
+| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag | off |
+| `--no-digital-gains` | Do not correct the digital gains | flag | off |
+| `--no-flag-dc` | Do not flag the DC channel | flag | off |
+| `--no-geometry-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-passband-gains` | Do not correct the passband gains | flag | off |
+| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
 
 #### Imaging downloads
 
-An "imaging download job" takes raw visibilities or an existing completed conversion job and produces an image. If an obsid is passed then the raw visibilities are converted to a CASA measurement set first, just like a regular [Conversion](#conversion-downloads) job.
+An "imaging download job" takes the raw visibilities of an obsid and produces an image. The raw visibilities are converted to a CASA measurement set first, just like a regular [Conversion](#conversion-downloads) job. To image an existing, completed conversion job instead, see [Imaging from a conversion job](#imaging-from-a-conversion-job).
 
 The MWA ASVO imaging features uses the WSClean software by André Offringa to generated images from CASA measurement sets. For comprehensive documentation about WSClean, please see: [WSClean readthedocs](https://wsclean.readthedocs.io/).
 
 ```text
 Submit MWA ASVO imaging jobs
 
-Usage: giant-squid submit-image [OPTIONS] [JOBID_OR_OBSID]...
+Usage: giant-squid submit-image [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [JOBID_OR_OBSID]...
-          The job IDs or obsids to be downloaded. Files containing job IDs or obsids are also accepted. Specifying an obsid will preprocess the raw visibilities (so be sure to include conversion job parameters in your --parameters argument); specifying a job id wll attempt to image an already completed conversion job (if possible)
+  [OBS_ID]...  The obsids to submit for imaging. Files containing obsids are also accepted. All obsids in one invocation share the same parameters above
 
 Options:
-  -p, --parameters <PARAMETERS>
-          The imaging parameters to use. Specify as comma separated `key=value`. If you specify an ObsID you should include conversion job parameters in addition to imaging parameters. If you specify an existing JobID you only need to include the imaging parameters. Conversion Job and Imaging Job parameters reference can be found in the README.md file
-
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
-
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
-
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+      --apply-di-cal[=<APPLY_DI_CAL>]
+          Whether to apply the DI calibration solution [default: true] [possible values: true, false]
+      --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
+          Whether to apply the primary beam correction [default: true] [possible values: true, false]
+      --auto-mask <AUTO_MASK>
+          WSClean -auto-mask value [default: 3]
+      --auto-threshold <AUTO_THRESHOLD>
+          WSClean -auto-threshold value [default: 0.5]
+      --abs-threshold <ABS_THRESHOLD>
+          Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set [default: 0.001]
+      --avg-freq-res <AVG_FREQ_RES>
+          Frequency resolution to average to before imaging (kHz) [default: 40]
+      --avg-time-res <AVG_TIME_RES>
+          Time resolution to average to before imaging (s) [default: 2]
+      --channels-out <CHANNELS_OUT>
+          Number of output channel groups [default: 4]
+      --clean-iterations <CLEAN_ITERATIONS>
+          WSClean -niter value (max clean iterations) [default: 100000]
+      --clean-threshold <CLEAN_THRESHOLD>
+          WSClean cleaning threshold (Jy). Takes precedence over auto_threshold if set [default: 0.001]
+      --custom-centre-dec <CUSTOM_CENTRE_DEC>
+          Custom phase centre declination (degrees). Requires --centre custom
+      --custom-centre-ra <CUSTOM_CENTRE_RA>
+          Custom phase centre right ascension (degrees). Requires --centre custom
+      --flag-edge-width <FLAG_EDGE_WIDTH>
+          Width of frequency edge flagging (kHz) [default: 80]
+      --image-size <IMAGE_SIZE>
+          WSClean image size in pixels [default: 3072]
+      --join-channels[=<JOIN_CHANNELS>]
+          Join output channel groups for cleaning [default: true] [possible values: true, false]
+      --join-polarizations
+          Join polarisations for cleaning
+      --mgain <MGAIN>
+          WSClean -mgain value [default: 0.8]
+      --multiscale
+          Enable WSClean multiscale cleaning
+      --nmiter <NMITER>
+          WSClean -nmiter value (max major cleaning iterations) [default: 10]
+      --nwlayers <NWLAYERS>
+          Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
-          Possible values:
-          - fits:      Deliver only the final image
-          - all_fits:  Deliver the final image plus auxiliary fits files
-          - all_files: Deliver all fits files plus the CASA measurement set
-
-          [default: fits]
-
+          The output mode / product to request [default: fits]
+      --centre <CENTRE>
+          Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase]
+      --pixel-scale <PIXEL_SCALE>
+          Pixel scale (arcsec/pixel) [default: 20]
+      --pol <POL>
+          Polarisation to image: XX, YY or XXYY [default: XXYY]
+      --robust <ROBUST>
+          WSClean -robust (Briggs robustness) value [default: -0.5]
+      --uvw-max <UVW_MAX>
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+      --uvw-min <UVW_MIN>
+          Minimum uv distance to image, in wavelengths [default: 75]
+      --weighting <WEIGHTING>
+          WSClean weighting scheme [default: briggs]
+      --wstack-nwlayers <WSTACK_NWLAYERS>
+          Number of w-stacking layers. Leave unset to let the server decide
+      --no-apply-amps
+          Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
   -w, --wait
           Do not exit giant-squid until the specified obsids are ready for download
-
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
-
-  -r, --allow-resubmit
-          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
-
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
-
   -h, --help
-          Print help (see a summary with '-h')
+          Print help
 ```
 
-To submit an imaging download job for the obsid 1065880128, specify the obsid and any conversion parameters as well as imaging parameters:
+To submit an imaging job for the obsid 1065880128, give any conversion options as well as imaging options:
 
 ```bash
-giant-squid submit-image 1065880128 --parameters=avg_time_res=0.5,avg_freq_res=10,image_size=2048,multiscale=true
+giant-squid submit-image 1065880128 --avg-time-res 0.5 --avg-freq-res 10 --image-size 2048 --multiscale
 ```
 
-To submit an imaging download job for your existing conversion job 12345:
+Imaging jobs can be delivered to Acacia or Scratch (not DUG).
+
+##### Options for imaging jobs
+
+In addition to the [options that every submit command has](#options-that-every-submit-command-has):
+
+| Option | Meaning | Values | Default |
+|---|---|---|---|
+| `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available) | `true` or `false`, given as `--apply-di-cal=false` | true |
+| `--apply-primary-beam` | Calculate and apply the primary beam and save images for the Jones components, with weighting identical to the weighting as used by the imager | `true` or `false`, given as `--apply-primary-beam=false` | true |
+| `--auto-mask` | WSClean -auto-mask value | 2 to 512 | 3 |
+| `--auto-threshold` | Relative clean threshold. Estimate noise level using a robust estimator and stop at sigma x stddev | 0.1 to 5 | 0.5 |
+| `--abs-threshold` | Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set | 0 to 10 | 0.001 |
+| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
+| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
+| `--channels-out` | Number of output channel groups | any whole number | 4 |
+| `--clean-iterations` | Maximum number of clean iterations to perform | 0 to 1000000 | 100000 |
+| `--clean-threshold` | Absolute stopping clean thresholding in Jy | 0 to 10 | 0.001 |
+| `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
+| `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
+| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
+| `--image-size` | width and height in pixels of output image | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | 3072 |
+| `--join-channels` | Join output channel groups for cleaning | `true` or `false`, given as `--join-channels=false` | true |
+| `--join-polarizations` | Join polarisations for cleaning | flag | off |
+| `--mgain` | WSClean -mgain value | 0.1 to 1 | 0.8 |
+| `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag | off |
+| `--nmiter` | WSClean -nmiter value (max major cleaning iterations) | 1 to 500 | 10 |
+| `--nwlayers` | Number of w-layers to use | 32 to 512 | none |
+| `-o`, `--output-mode` | The output mode / product to request | one of `fits`, `all_fits`, `all_files` | fits |
+| `--centre` | Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec | one of `phase`, `pointing`, `custom` | phase |
+| `--pixel-scale` | Number of arcsecs per pixel | 10 to 120 | 20 |
+| `--pol` | Polarisation to image: XX, YY or XXYY | one of `XX`, `YY`, `XXYY` | XXYY |
+| `--robust` | Robustness parameter- only used if `weighting=briggs` | -2 to 2 | -0.5 |
+| `--uvw-max` | Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) | 1 to 5000 | none |
+| `--uvw-min` | Minimum uv distance to image, in wavelengths | up to 100 | 75 |
+| `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
+| `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
+| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag | off |
+
+The options `--apply-di-cal`, `--apply-primary-beam` and `--join-channels` are true by default. To turn one off,
+join the value to the option with an equals sign, for example `--join-channels=false`.
+
+#### Imaging from a conversion job
+
+`submit-image-from-job` makes an image from a conversion job that has already completed. It skips the conversion
+step, so it takes none of the conversion options. It needs exactly one obsid (the obsid of the conversion job)
+and the ID of the conversion job:
 
 ```bash
-giant-squid submit-image 12345 --parameters=image_size=2048,multiscale=true
+giant-squid submit-image-from-job --source-job-id 12345 1065880128 --image-size 2048 --multiscale
 ```
 
-Some notes about submiting an imaging job based on an existing conversion job:
-* conversion job parameters are invalid as your existing job has already been converted.
+```text
+Submit MWA ASVO imaging jobs from an existing conversion job. Unlike submit-image, this skips the conversion step and images directly from the output of a previous conversion job
+
+Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID> [OBS_ID]...
+
+Arguments:
+  [OBS_ID]...  The obsid to image. Exactly one obsid is required (the source_job_id identifies the conversion job for this obsid)
+
+Options:
+      --source-job-id <SOURCE_JOB_ID>
+          The MWA ASVO conversion job ID to image from. Required
+  -d, --delivery <DELIVERY>
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
+  -f, --delivery-format <DELIVERY_FORMAT>
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+      --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
+          Whether to apply the primary beam correction [default: true] [possible values: true, false]
+      --auto-mask <AUTO_MASK>
+          WSClean -auto-mask value [default: 3]
+      --auto-threshold <AUTO_THRESHOLD>
+          WSClean -auto-threshold value [default: 0.5]
+      --abs-threshold <ABS_THRESHOLD>
+          Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set [default: 0.001]
+      --channels-out <CHANNELS_OUT>
+          Number of output channel groups [default: 4]
+      --clean-iterations <CLEAN_ITERATIONS>
+          WSClean -niter value (max clean iterations) [default: 100000]
+      --clean-threshold <CLEAN_THRESHOLD>
+          WSClean cleaning threshold (Jy). Takes precedence over auto_threshold if set [default: 0.001]
+      --image-size <IMAGE_SIZE>
+          WSClean image size in pixels [default: 3072]
+      --join-channels[=<JOIN_CHANNELS>]
+          Join output channel groups for cleaning [default: true] [possible values: true, false]
+      --join-polarizations
+          Join polarisations for cleaning
+      --mgain <MGAIN>
+          WSClean -mgain value [default: 0.8]
+      --multiscale
+          Enable WSClean multiscale cleaning
+      --nmiter <NMITER>
+          WSClean -nmiter value (max major cleaning iterations) [default: 10]
+      --nwlayers <NWLAYERS>
+          Number of w-projection layers. Leave unset to let the server decide
+  -o, --output-mode <OUTPUT_MODE>
+          The output mode / product to request [default: fits]
+      --pixel-scale <PIXEL_SCALE>
+          Pixel scale (arcsec/pixel) [default: 20]
+      --pol <POL>
+          Polarisation to image: XX, YY or XXYY [default: XXYY]
+      --robust <ROBUST>
+          WSClean -robust (Briggs robustness) value [default: -0.5]
+      --uvw-max <UVW_MAX>
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+      --uvw-min <UVW_MIN>
+          Minimum uv distance to image, in wavelengths [default: 75]
+      --weighting <WEIGHTING>
+          WSClean weighting scheme [default: briggs]
+      --wstack-nwlayers <WSTACK_NWLAYERS>
+          Number of w-stacking layers. Leave unset to let the server decide
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
+  -w, --wait
+          Do not exit giant-squid until the specified obsids are ready for download
+  -n, --dry-run
+          Don't actually submit; print information on what would've happened instead
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+  -v, --verbosity...
+          The verbosity of the program. The default is to print high-level information
+  -h, --help
+          Print help
+```
+
+It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps` excepted), and `--source-job-id`, which is required.
+
+Some notes about imaging a conversion job:
 * only conversion jobs which output a CASA measurement set are able to be imaged.
 * only conversion jobs where the data was delivered to Acacia or Scratch are able to be imaged.
-
-##### Key/Value Pairs for Imaging Job -p / --parameters
-
-In addition to the conversion job parameters [See: Conversion Downloads](#conversion-downloads), imaging jobs take the following parameters:
-
-| key | Meaning | Values | Default |
-|---|---|---|---|
-|image_size | width and height in pixels of output image | One of 512, 1024, 2048, 3072, 4096 or 8192 | 3072
-|pixel_scale | Number of arcsecs per pixel | 10.0 - 120.0 | 20.0
-|weighting | Type of weighting to apply | One of natural, uniform, briggs | briggs
-|robust | Robustness parameter- only used if `weighting=briggs` | -2.0 to 2.0 | -0.5 
-|clean_iterations | Maximum number of clean iterations to perform | 0 to 1000000 | 100000
-|clean_threshold | Absolute stopping clean thresholding in Jy. | 0.0 to 10.0 | 0.001
-|auto_threshold | Relative clean threshold. Estimate noise level using a robust estimator and stop at sigma x stddev | 0.1 to 5.0 | 0.5
-|nwlayers | Number of w-layers to use | 32 to 512 | 128
-|multiscale | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017). | true or false | true
-|apply_primary_beam | Calculate and apply the primary beam and save images for the Jones components, with weighting identical to the weighting as used by the imager. | true or false | true
 
 #### Metadata downloads
 
@@ -349,24 +572,26 @@ A "metadata download job" refers to a job which provides a tar containing a
 metafits file and cotter flags for a single obsid.
 
 ```text
-Submit MWA ASVO jobs to download MWA metadata- metafits (with PPDs for each tile) and RFI flags (if available)
+Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs for each tile) and RFI flags (if available)
 
-Usage: giant-squid submit-meta [OPTIONS] [OBSID]...
+Usage: giant-squid submit-meta [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBSID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
   -w, --wait
           Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
-  -r, --allow-resubmit
-          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
   -h, --help
@@ -389,22 +614,24 @@ raw visibility files, a metafits file and flags for a single obsid. This type of
 ```text
 Submit MWA ASVO jobs to download MWA raw visibilities
 
-Usage: giant-squid submit-vis [OPTIONS] [OBSID]...
+Usage: giant-squid submit-vis [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBSID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
   -w, --wait
           Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
-  -r, --allow-resubmit
-          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
   -h, --help
@@ -426,22 +653,24 @@ A "beamformer download job" refers to a job which provides a tar containing beam
 ```text
 Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
 
-Usage: giant-squid submit-bf [OPTIONS] [OBSID]...
+Usage: giant-squid submit-bf [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBSID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The default is "acacia", which provides a download URL which you can download with giant-squid, wget, etc. Other options are: "dug" and "scratch", to deliver data directly to a target filesystem, but these are only available when your MWA ASVO profile has a "DUG Group" or "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Available value(s): `tar`. NOTE: this option does not apply if delivery = `acacia` which is always `tar`
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar]
+  -r, --allow-resubmit
+          Allow resubmitting a job even if an identical one has completed
   -w, --wait
           Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
-  -r, --allow-resubmit
-          Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
   -h, --help
@@ -463,23 +692,24 @@ A "voltage download job" refers to a job which provides the raw voltages for one
 ```text
 Submit MWA ASVO jobs to download MWA voltages
 
-Usage: giant-squid submit-volt [OPTIONS] --offset <OFFSET> --duration <DURATION> [OBSID]...
+Usage: giant-squid submit-volt [OPTIONS] --offset <OFFSET> --duration <DURATION> [OBS_ID]...
 
 Arguments:
-  [OBSID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
 
 Options:
-  -d, --delivery <DELIVERY>          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", but this is only available when your MWA ASVO profile has the "mwavcs" "Pawsey Group" set. Please see README.md for more information on delivery options. The default can be overridden with the environment variable GIANT_SQUID_DELIVERY
+  -d, --delivery <DELIVERY>          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", which requires the "mwavcs" Pawsey Group on your MWA ASVO profile [env: GIANT_SQUID_DELIVERY=] [default: scratch]
   -o, --offset <OFFSET>              The offset in seconds from the start GPS time of the observation
   -u, --duration <DURATION>          The duration (in seconds) to download
   -f, --from-channel <FROM_CHANNEL>  The 'from' receiver channel number (0-255)
   -t, --to-channel <TO_CHANNEL>      The 'to' receiver channel number (0-255)
+  -r, --allow-resubmit               Allow resubmitting a job even if an identical one has completed
   -w, --wait                         Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run                      Don't actually submit; print information on what would've happened instead
-  -r, --allow-resubmit               Allow resubmit- if exact same job params already in your queue allow submission anyway. Default: allow resubmit is False / not present
+  -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...                 The verbosity of the program. The default is to print high-level information
   -h, --help                         Print help
-  ```
+```
 
 To submit a voltage download job for the obsid 1065880128:
 
@@ -489,7 +719,7 @@ giant-squid submit-volt --delivery scratch --offset 0 --duration 8 1065880128
 
 Text files containing obsids may be used too.
 
-For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from_channel` and `--to_channel` to restrict the job to
+For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` (`-f`) and `--to-channel` (`-t`) to restrict the job to
 only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
 will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
 
@@ -497,7 +727,6 @@ Unlike other jobs, you cannot choose to have your files tarred up and uploaded t
 download or DUG's filesystem, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
 a job with the /scratch option, set the environment variable `GIANT_SQUID_DELIVERY=scratch` or pass `--delivery scratch`.
-
 
 #### Resubmitting jobs
 
@@ -664,16 +893,16 @@ Once an MWA ASVO job is "ready" the data is ready to be downloaded. If you set `
 ```text
 Download an MWA ASVO job
 
-Usage: giant-squid download [OPTIONS] [JOBID_OR_OBSID]...
+Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOBID_OR_OBSID]...  The job IDs or obsids to be downloaded. Files containing job IDs or obsids are also accepted
+  [JOB_ID_OR_OBS_ID]...  The job IDs or obsids to be downloaded. Files containing job IDs or obsids are also accepted
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
           Which dir should downloads be written to [default: .]
   -k, --keep-tar
-          Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off [aliases: --keep-zip]
+          Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off [alias: --keep-zip]
   -r, --no-resume
           Do not attempt to resume a partial download. Leave the partial file alone
   -c, --concurrent-downloads <CONCURRENT_DOWNLOADS>

@@ -196,7 +196,13 @@ print(reply.job_id, reply.status, reply.message)
 The methods check the arguments before they send a request. A value outside the MWA ASVO limits raises
 `ValueError` (or `OverflowError`) that names the argument. Nothing is sent.
 
-Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`.
+Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
+text ("success" or "failed") and the `message` describe the reply and are for display. A call that fails
+raises an exception, so do not use `status` to decide whether a call worked.
+
+`cancel_job` returns the same class. The MWA ASVO answers a cancellation that it refuses (for example, of
+a job that is already cancelled) with a normal reply, not an error, so no exception is raised. The reason is
+in `message`.
 
 ### Check a request without sending it
 
