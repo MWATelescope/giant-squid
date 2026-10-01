@@ -15,9 +15,11 @@
 #
 # stub_gen is a normal program that embeds Python, so it is linked against
 # a libpython. The script gives pyo3 the project's Python (the one uv uses,
-# usually .venv) and puts that Python's library directory on the library
-# path: a uv-managed Python keeps libpython in its own directory, which the
-# dynamic loader does not search.
+# usually .venv). build.rs puts that Python's library directory in the rpath
+# of stub_gen, so no LD_LIBRARY_PATH is needed, even for a uv-managed Python
+# (which keeps libpython in its own directory). After a build with
+# `cargo build --no-default-features --features python-stubgen`, you can
+# also run target/debug/stub_gen yourself.
 
 # Fail the script on any error
 set -euo pipefail
@@ -28,9 +30,6 @@ readonly STUB_FILE="mwa_giant_squid.pyi"
 
 PYO3_PYTHON="$(uv python find)"
 export PYO3_PYTHON
-python_lib_dir="$("${PYO3_PYTHON}" -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
-export LD_LIBRARY_PATH="${python_lib_dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-
 cargo run --no-default-features --features python-stubgen --bin stub_gen
 uv run ruff check --fix --quiet "${STUB_FILE}"
 uv run ruff format --quiet "${STUB_FILE}"

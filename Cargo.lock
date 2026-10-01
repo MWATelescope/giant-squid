@@ -1523,6 +1523,7 @@ dependencies = [
  "prettyplease",
  "prettytable-rs",
  "pyo3",
+ "pyo3-build-config",
  "pyo3-log",
  "pyo3-stub-gen",
  "rand 0.10.3",

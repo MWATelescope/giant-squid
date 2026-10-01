@@ -3,10 +3,19 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Writes the Python type stubs, `mwa_giant_squid.pyi`, from the
-//! annotations in `src/python`. Run it with `tools/generate_stubs.sh`, not
-//! with `cargo run` alone: the program embeds Python, and the script makes
-//! sure that it finds the `libpython` of the project's Python.
+//! annotations in `src/python`. Run it with `tools/generate_stubs.sh`, or
+//! build with `--features python-stubgen` and run `target/debug/stub_gen`
+//! from the crate directory.
+
+use std::env;
 
 fn main() -> pyo3_stub_gen::Result<()> {
+    // pyo3-stub-gen reads CARGO_MANIFEST_DIR when it runs, to find where to
+    // write the stub. `cargo run` sets it; running the binary directly does
+    // not, so use the directory of this crate when it is missing.
+    if env::var_os("CARGO_MANIFEST_DIR").is_none() {
+        // SAFETY: set before any other thread starts.
+        unsafe { env::set_var("CARGO_MANIFEST_DIR", env!("CARGO_MANIFEST_DIR")) };
+    }
     mwa_giant_squid::stub_info()?.generate()
 }

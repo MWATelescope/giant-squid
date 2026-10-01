@@ -433,6 +433,23 @@
   `stub_gen` build with Rust 1.89 (older than 1.91, where `TypeId::of`
   became const-callable), and that `stub_gen` writes the same stub. No 1.88
   toolchain was available for the test.
+- 2026-10-01: `stub_gen` runs on its own. `build.rs` (feature
+  `python-stubgen` only) adds the library directory of pyo3's Python to
+  the rpath of `stub_gen` (`cargo:rustc-link-arg-bin`), using
+  `pyo3-build-config` (new optional build-dependency, same version as
+  pyo3). So `cargo build --no-default-features --features python-stubgen`
+  followed by `target/debug/stub_gen` works with a uv-managed Python, and
+  `tools/generate_stubs.sh` no longer sets `LD_LIBRARY_PATH` (it still sets
+  `PYO3_PYTHON`). `stub_gen` also sets `CARGO_MANIFEST_DIR` when it is not
+  set: pyo3-stub-gen reads it when it runs, and only `cargo run` sets it.
+  Why mwalib did not need this: its `stub_gen` build links without
+  libpython (pyo3 has `extension-module`, and nothing in the binary needs
+  a Python symbol). giant-squid's does need them (`Py_True`, `PyDict_Next`
+  and others), so `pyo3/extension-module` must not be used here: the link
+  fails with undefined symbols. Tested with Rust 1.89 and a uv-managed
+  Python 3.14.4: `NEEDED libpython3.14.so.1.0` with a `RUNPATH` to uv's
+  `lib` directory; run from another directory it writes the same
+  `mwa_giant_squid.pyi` as the committed one (after ruff).
 - Next step: the rest of Phase 3 (`docs/PYTHON.md`, the example Python
   CLI, CI wheels, pytest and stubtest). Start from a fresh clone of
   `apiv2`, one diff per step, and update this section after each.

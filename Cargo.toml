@@ -35,11 +35,20 @@ regen-openapi = ["dep:typify", "dep:schemars", "dep:syn", "dep:prettyplease"]
 python = ["pyo3", "pyo3-log"]
 # Generates the Python type stubs (`mwa_giant_squid.pyi`) with pyo3-stub-gen.
 # Only for maintainers, when the Python API changes: run
-# tools/generate_stubs.sh (it builds and runs the `stub_gen` binary with the
-# project's Python, then formats the stub).
+# tools/generate_stubs.sh, or build with this feature and run the binary:
+#   cargo build --no-default-features --features python-stubgen
+#   target/debug/stub_gen
+# `stub_gen` embeds Python, so it is linked to a libpython. build.rs gives
+# it an rpath to the library directory of the Python that pyo3 builds for
+# (`PYO3_PYTHON`, or the first `python3` on the PATH), so it runs without
+# `LD_LIBRARY_PATH` even when that Python is a uv-managed one (those keep
+# libpython in a directory that the dynamic loader does not search).
+# The rpath is an absolute path on the build machine: do not ship the binary.
+# Do not use `pyo3/extension-module` here: it removes libpython from the
+# link, and `stub_gen` then fails with undefined `Py*` symbols.
 # The published crate and the wheel do not use it. pyo3-stub-gen depends on
 # chrono, so a build with this feature has chrono in it; other builds do not.
-python-stubgen = ["python", "dep:pyo3-stub-gen"]
+python-stubgen = ["python", "dep:pyo3-stub-gen", "dep:pyo3-build-config"]
 
 [[bin]]
 name = "giant-squid"
@@ -120,6 +129,9 @@ httpmock = { version = "0.8", features = ["record"] }
 [build-dependencies]
 built = "0.8"
 serde_json = "1.0"
+# Only for the `python-stubgen` feature: finds the libpython directory for
+# the rpath of the `stub_gen` binary. The same version as pyo3.
+pyo3-build-config = { version = "0.29", features = ["resolve-config"], optional = true }
 # Only needed to regenerate src/asvo/apiv2/openapi.rs - see the
 # regen-openapi feature above.
 prettyplease = { version = "0.3", optional = true }

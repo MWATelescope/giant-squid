@@ -142,6 +142,7 @@ fn download_job(
                 let out_path = Path::new(opts.download_dir)
                     .join(url_obj.path_segments().unwrap().next_back().unwrap());
 
+                #[allow(clippy::result_large_err)]
                 let op = || {
                     try_download(http_client, url, f, job, &out_path, &log_prefix, opts).map_err(
                         |e| match &e {
