@@ -252,7 +252,7 @@ impl LiveEnv {
     fn assert_submitted(&self, id: u64, obs_id: &str, job_type: &str) {
         let job = self.listed_job(id);
         assert_eq!(
-            job["obsid"].as_u64().map(|o| o.to_string()).as_deref(),
+            job["obs_id"].as_u64().map(|o| o.to_string()).as_deref(),
             Some(obs_id),
             "job: {job}"
         );
