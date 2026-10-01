@@ -441,6 +441,47 @@ fn live_list_forms() {
     }
 }
 
+/// The most `--days` the API takes, and a day count past it, for the probe
+/// below.
+const MAX_LIST_DAYS: i64 = 30;
+
+/// Probe for the one open question about `list`: does `days: null` (what
+/// `list` sends without `--days`) mean "no limit"? Not a pass/fail test of
+/// the server, because only an account with a job older than
+/// `MAX_LIST_DAYS` days can tell. It always checks that the full listing
+/// has at least the jobs of the last `MAX_LIST_DAYS` days, and it prints its
+/// verdict; run it with `--nocapture` and read the last lines.
+#[test]
+#[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
+fn live_list_without_days_probe() {
+    let env = LiveEnv::new();
+
+    let all = env.run(&["list", "--json"]);
+    assert!(all.success, "{}", all.combined());
+    let recent = env.run(&["list", "--json", "--days", &MAX_LIST_DAYS.to_string()]);
+    assert!(recent.success, "{}", recent.combined());
+
+    let all_count = all.stdout_json().as_object().unwrap().len();
+    let recent_count = recent.stdout_json().as_object().unwrap().len();
+    assert!(
+        all_count >= recent_count,
+        "the full listing ({all_count} jobs) has fewer jobs than --days {MAX_LIST_DAYS} ({recent_count})"
+    );
+
+    // `--days 31` must be refused by giant-squid, without a request.
+    let too_many = env.run(&["list", "--days", &(MAX_LIST_DAYS + 1).to_string()]);
+    assert!(!too_many.success, "{}", too_many.combined());
+
+    if all_count > recent_count {
+        println!("PROBE: null days is NOT limited to {MAX_LIST_DAYS} days ({all_count} jobs against {recent_count}).");
+    } else {
+        println!(
+            "PROBE: inconclusive. Both listings have {all_count} jobs; null days is limited to \
+             {MAX_LIST_DAYS} days, or this account has no older job."
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Submission, one test per command
 // ---------------------------------------------------------------------------

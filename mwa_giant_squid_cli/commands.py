@@ -207,16 +207,21 @@ def cmd_list(args: argparse.Namespace) -> None:
         msg = "Invalid job_ids: can't specify both job IDs and obsids; use one or the other"
         raise ValueError(msg)
     client = connect()
-    jobs = client.list_jobs(
-        job_ids or None,
-        obs_ids or None,
-        args.job_types or None,
-        args.job_states or None,
-        days=args.days,
-        date_from=args.date_from,
-        date_to=args.date_to,
-        sort_by=args.sort_by,
-    )
+    try:
+        jobs = client.list_jobs(
+            job_ids or None,
+            obs_ids or None,
+            args.job_types or None,
+            args.job_states or None,
+            days=args.days,
+            date_from=args.date_from,
+            date_to=args.date_to,
+            sort_by=args.sort_by,
+        )
+    except ValueError as e:
+        # The module checks the limits of the MWA ASVO (for example --days, 1 to 30) after the login. The Rust
+        # command checks them first, and both report a usage error.
+        raise UsageError(str(e)) from e
     print_jobs(jobs, args.json, args.no_colour)
 
 

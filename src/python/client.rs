@@ -83,8 +83,8 @@ impl PyAsvoClient {
     /// does not filter.
     ///
     /// Args:
-    ///     days: Only the jobs from the past `days` days. `None` gets your
-    ///         full job history.
+    ///     days: Only the jobs from the past `days` days, from 1 to 30.
+    ///         `None` gets your full job history.
     ///     job_state: Only the jobs in this state. The server takes one
     ///         state; to filter by several, use `AsvoJobVec.filter`.
     ///         `AsvoJobState.Expired` cannot be filtered by.
@@ -98,7 +98,8 @@ impl PyAsvoClient {
     ///         `None` uses the server's default order.
     ///
     /// Raises:
-    ///     ValueError: `job_state` or `job_type` cannot be filtered by.
+    ///     ValueError: `days` is not from 1 to 30, or `job_state` or
+    ///         `job_type` cannot be filtered by.
     ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (days=None, *, job_state=None, job_type=None, date_from=None, date_to=None, sort_by=None))]
@@ -137,8 +138,8 @@ impl PyAsvoClient {
     ///     job_states: Only the jobs in these states. States compare by
     ///         kind, so `AsvoJobState.Error` matches every job with an
     ///         error. `AsvoJobState.Expired` works here too.
-    ///     days: Only the jobs from the past `days` days. `None` gets your
-    ///         full job history.
+    ///     days: Only the jobs from the past `days` days, from 1 to 30.
+    ///         `None` gets your full job history.
     ///     date_from: Only the jobs created at or after this time. It must
     ///         have a time zone.
     ///     date_to: Only the jobs created at or before this time. It must
@@ -146,8 +147,8 @@ impl PyAsvoClient {
     ///     sort_by: The column to sort the jobs by, for example "id".
     ///
     /// Raises:
-    ///     ValueError: Both `job_ids` and `obs_ids` are given, or an obsid
-    ///         is not valid.
+    ///     ValueError: Both `job_ids` and `obs_ids` are given, an obsid is
+    ///         not valid, or `days` is not from 1 to 30.
     ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (

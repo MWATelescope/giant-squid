@@ -111,6 +111,11 @@ impl Bounds {
 // gives that field the same limits in each. The unit tests check this for
 // every body.
 
+/// `days` of a job listing (`JobsByUserRequest`): the past number of days to
+/// list. The schema gives it a minimum of 1 and a maximum of 30. (Before
+/// schema v1.12 the minimum was an `exclusiveMinimum` of 1, which the API
+/// developer has fixed.)
+pub const DAYS: Bounds = Bounds::between(1.0, 30.0);
 /// `abs_threshold`: the absolute cleaning threshold (Jy).
 pub const ABS_THRESHOLD: Bounds = Bounds::between(0.0, 10.0);
 /// `auto_mask`: the WSClean -auto-mask value.
@@ -310,6 +315,19 @@ pub fn nmiter(value: u64) -> Result<NonZeroU64, AsvoApiError> {
     NMITER.check("nmiter", value as f64)?;
     // NMITER's lower limit is 1, so a value that passed is not zero.
     Ok(NonZeroU64::new(value).expect("NMITER excludes zero"))
+}
+
+/// A `days` value for a job listing, checked against [`DAYS`]. The type of
+/// the request field enforces the lower limit; this makes the message the
+/// same as for any other limit.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if `value` is outside [`DAYS`].
+pub fn days(value: i64) -> Result<NonZeroU64, AsvoApiError> {
+    DAYS.check("days", value as f64)?;
+    // DAYS' lower limit is 1, so a value that passed is positive.
+    Ok(NonZeroU64::new(value as u64).expect("DAYS excludes zero"))
 }
 
 /// A job ID for `source_job_id`, which the schema requires to be at least

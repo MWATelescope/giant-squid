@@ -474,6 +474,35 @@ def test_list_jobs_sends_a_single_state_and_type_to_the_server(
 
 
 @pytest.mark.usefixtures("mock_login")
+@pytest.mark.parametrize("days", [-1, 0, 31])
+def test_days_outside_one_to_thirty_raise_value_error_before_any_request(
+    host: str, httpserver: HTTPServer, days: int
+) -> None:
+    """`get_jobs` and `list_jobs` take the schema's 1 to 30 for ``days``, and the message gives the limits."""
+    client = gs.AsvoClient(host, TEST_API_KEY)
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="days.*between 1 and 30"):
+        client.get_jobs(days)
+    with pytest.raises(ValueError, match="days.*between 1 and 30"):
+        client.list_jobs(days=days)
+
+    assert len(httpserver.log) == requests_before
+
+
+@pytest.mark.usefixtures("mock_login")
+@pytest.mark.parametrize("days", [1, 30])
+def test_the_ends_of_the_days_range_are_sent(
+    host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None], days: int
+) -> None:
+    """``days`` of 1 and of 30 are accepted and sent as they are."""
+    serve_jobs([])
+    gs.AsvoClient(host, TEST_API_KEY).get_jobs(days)
+
+    assert get_jobs_body(httpserver)["days"] == days
+
+
+@pytest.mark.usefixtures("mock_login")
 def test_list_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
     """Job IDs and obsids together raise ValueError before any listing."""
     client = gs.AsvoClient(host, TEST_API_KEY)

@@ -43,7 +43,7 @@ use super::openapi::{
     TokenResponse, UserResponse, VoltageJobParams,
 };
 use super::validate::{
-    validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
+    self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
     validate_voltage_params,
 };
 
@@ -656,10 +656,11 @@ impl AsvoClient {
     /// server takes one state and one type at most; to filter by several,
     /// use [`AsvoJobVec::filter`] on the result.
     ///
-    /// With `filter.days` unset, `days: null` is sent to ask for the full
+    /// `filter.days` must be from 1 to 30 ([`validate::DAYS`], the schema's
+    /// limits). With it unset, `days: null` is sent to ask for the full
     /// history. ASSUMPTION, not yet confirmed against the real server: that
     /// the server takes a null `days` as "no limit" rather than as its own
-    /// default (30).
+    /// default (30). `tests/live.rs` has a probe for it.
     ///
     /// Individual jobs that can't be reliably converted (an obs_id we
     /// can't find/parse in the untyped `job_params`, or a job_state we
@@ -668,13 +669,14 @@ impl AsvoClient {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] before any request, for a
-    /// `job_state` or `job_type` that the API cannot filter by
-    /// (`AsvoJobState::Expired`, `AsvoJobType::Unknown`); otherwise the
-    /// error from the request.
+    /// [`AsvoApiError::InvalidParameter`] before any request, for a `days`
+    /// outside 1 to 30, or for a `job_state` or `job_type` that the API
+    /// cannot filter by (`AsvoJobState::Expired`, `AsvoJobType::Unknown`);
+    /// otherwise the error from the request.
     pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
         const PAGE_SIZE: u64 = 100;
 
+        let days = filter.days.map(validate::days).transpose()?;
         let job_state = filter.job_state.as_ref().map(api_job_state).transpose()?;
         let job_type = filter.job_type.map(api_job_type).transpose()?;
 
@@ -684,7 +686,7 @@ impl AsvoClient {
         loop {
             // The builder starts from the schema defaults.
             let mut builder = JobsByUserRequest::builder()
-                .days(filter.days)
+                .days(days)
                 .job_state(job_state)
                 .job_type(job_type.clone())
                 .date_from(filter.date_from)
@@ -1158,7 +1160,8 @@ fn product_to_files(
 /// `completed` in the API, and so on.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JobsFilter {
-    /// Only the jobs from the past `days` days.
+    /// Only the jobs from the past `days` days, from 1 to 30
+    /// ([`validate::DAYS`]).
     pub days: Option<i64>,
     /// Only the jobs in this state. The kind of state is used, so any
     /// `AsvoJobState::Error` matches every job with an error.
@@ -1201,7 +1204,8 @@ pub struct JobQuery {
     /// Only the jobs in these states. States compare by kind, so any
     /// `AsvoJobState::Error` matches every job with an error.
     pub job_states: Vec<AsvoJobState>,
-    /// Only the jobs from the past `days` days.
+    /// Only the jobs from the past `days` days, from 1 to 30
+    /// ([`validate::DAYS`]).
     pub days: Option<i64>,
     /// Only the jobs created at or after this time.
     pub date_from: Option<Timestamp>,
@@ -1217,13 +1221,16 @@ impl JobQuery {
     /// # Errors
     ///
     /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids`
-    /// are given.
+    /// are given, or `days` is outside 1 to 30.
     pub fn validate(&self) -> Result<(), AsvoApiError> {
         if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
             return Err(AsvoApiError::InvalidParameter {
                 name: "job_ids",
                 message: "can't specify both job IDs and obsids; use one or the other".to_string(),
             });
+        }
+        if let Some(days) = self.days {
+            validate::days(days)?;
         }
         Ok(())
     }

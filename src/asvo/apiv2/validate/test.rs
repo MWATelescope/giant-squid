@@ -365,6 +365,15 @@ fn nmiter_is_limited_to_the_schema_range() {
 }
 
 #[test]
+fn days_is_limited_to_the_schema_range() {
+    assert_eq!(days(1).unwrap().get(), 1);
+    assert_eq!(days(30).unwrap().get(), 30);
+    for bad in [i64::MIN, -1, 0, 31, i64::MAX] {
+        assert_eq!(invalid_name(days(bad).map(|_| ())), "days", "{bad}");
+    }
+}
+
+#[test]
 fn a_source_job_id_of_zero_is_rejected() {
     assert_eq!(source_job_id(12345).unwrap().get(), 12345);
     assert_eq!(invalid_name(source_job_id(0).map(|_| ())), "source_job_id");
@@ -433,6 +442,13 @@ fn the_limits_are_the_schema_limits() {
             assert_matches_schema(body, field, *bounds);
         }
     }
+}
+
+/// `days` is not in a job body but in the job listing's request, so it has
+/// its own check against the schema.
+#[test]
+fn the_days_limit_is_the_schema_limit() {
+    assert_matches_schema("JobsByUserRequest", "days", DAYS);
 }
 
 #[test]

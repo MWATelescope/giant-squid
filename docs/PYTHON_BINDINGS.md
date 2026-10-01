@@ -545,6 +545,38 @@
   crates.io still includes `mwa_giant_squid_cli/` and `tests/python/`
   (`Cargo.toml` `exclude` has only `.github/*`); add them to `exclude` if
   you do not want that.
+- 2026-10-01: API change 1 of 4 (new `openapi.rs` and `openapi-schema.json`,
+  commit `ed3c063`; they are the same schema, and the build is broken until
+  this step). The new schema: `JobsByUserRequest.days` is `NonZeroU64`
+  (minimum 1, maximum 30; the API developer fixed the earlier
+  `exclusiveMinimum: 1`), and every job body has an optional
+  `staging_count` (processor only), `JobDetailResponse` has `error_code`,
+  the conversion `delivery_format` default is `tar` (was `files`), and
+  there is a new `RestageRequest` (processor only). Decision: the library
+  has no unused API calls, so `staging_count` and `RestageRequest` are
+  not used and not exposed (the generated types keep them; nothing sets
+  `staging_count`, and it is not sent when `None`). This step: `days`.
+  `validate::DAYS` (1 to 30) and `validate::days(i64)`. `get_jobs` and
+  `JobQuery::validate` refuse a `days` outside the limits with
+  `InvalidParameter` before any request (so `list_jobs` and Python
+  `ValueError` do too). `JobsFilter.days` and `JobQuery.days` stay `i64`,
+  like the other validated numbers. The CLI's `--days` uses
+  `parse_i64_bounds(validate::DAYS)`, so clap refuses it at parse time. The
+  Python command reports it as a usage error after the login (the module
+  has the check, and the program does not repeat the limits). Tests: one
+  client test, two validate tests (one compares `DAYS` with the schema's
+  `JobsByUserRequest.days`), one CLI test, three pytest tests and one
+  Python command test (7 new pytest tests; 270 in total; 180 Rust unit
+  tests). `tests/live.rs` has `live_list_without_days_probe`, which checks
+  the open question below as far as an account's jobs allow and prints a
+  verdict. The stub docstrings are regenerated and stubtest passes. Still
+  not confirmed: that `days: null` (what `list` sends without `--days`)
+  means no limit, not 30. Left for the other steps: `error_code` (step 2,
+  with the failed-job message), the `delivery_format` default in the docs
+  (step 3), and the status notes (step 4). Still open with the API
+  developer: `JobDetailResponse.id`, `QueuedJob.id` and
+  `CalibrationReadyCallback.asvo_job_id` (should be `job_id`), `firstname`
+  and `lastname`, the cancel response model, and what `error_code` means.
 - Next step: Phase 3 is done. What is left is yours: run the workflow, then
   publish (a release workflow for PyPI, trusted publishing, or by hand) and
   decide whether `releases.yaml` should also attach the wheels.

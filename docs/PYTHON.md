@@ -69,6 +69,8 @@ The Python command differs from the Rust command in these ways:
 - The limits of the MWA ASVO (for example `--avg-freq-res`) are checked before the program logs in. The
   error is a usage error (exit code 2), as in the Rust command, but its text is the module's.
 - `--job-states` and `--job-types` accept several values separated by commas. Give the option once.
+- `list --days` takes 1 to 30. The module checks it, so the Python command reports a bad value (a usage
+  error, exit code 2) after it has logged in. The Rust command refuses it first.
 
 The command is the `mwa_giant_squid_cli` package. It uses only the public API in the
 rest of this guide, so it is also an example of how to write your own client.
@@ -124,7 +126,7 @@ does not filter.
 ```python
 from mwa_giant_squid import AsvoJobState
 
-jobs = client.get_jobs(days=7, job_state=AsvoJobState.Ready)
+jobs = client.get_jobs(days=7, job_state=AsvoJobState.Ready)  # days: 1 to 30
 for job in jobs:
     print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
 ```

@@ -522,7 +522,7 @@ Options:
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltage or cancel_job
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
-      --days <DAYS>             Only fetch jobs from the past N days. If not given, fetches your full job history
+      --days <DAYS>             Only fetch jobs from the past N days (1 to 30). If not given, fetches your full job history
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
       --sort-by <SORT_BY>       The column to sort the jobs by, for example "id"
@@ -612,7 +612,7 @@ Out[3]: dict_keys(['216087', '216241', '217628'])
 these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
 
 Additionally, the `--job-states` and `--job-types` options can be used to further filter the output.
-(The older names `--states` and `--types` still work.) `--days`, `--date-from` and `--date-to`
+(The older names `--states` and `--types` still work.) `--days` (1 to 30), `--date-from` and `--date-to`
 (a date such as `2026-09-01`, which is midnight UTC, or an RFC 3339 time such as
 `2026-09-01T12:00:00Z`) limit the listing by when the jobs were created, and `--sort-by` sets the
 order.

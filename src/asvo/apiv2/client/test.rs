@@ -1113,6 +1113,48 @@ fn get_jobs_refuses_a_filter_the_api_does_not_have() {
     assert_eq!(listing.calls(), 0);
 }
 
+/// A `days` outside the schema's 1 to 30 is refused before any request, by
+/// `get_jobs` and by `list_jobs` (and `JobQuery::validate`); the ends are
+/// accepted.
+#[test]
+fn days_outside_the_schema_limits_are_refused_before_any_request() {
+    let env = TestEnv::with_session();
+    let listing = env.mock_get_jobs(vec![]);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    for days in [-1, 0, 31, i64::MAX] {
+        let err = client
+            .get_jobs(&JobsFilter::days(days))
+            .expect_err("days should be refused");
+        assert!(
+            matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
+            "got {err:?}"
+        );
+        assert!(
+            err.to_string().contains("between 1 and 30"),
+            "the message should give the limits: {err}"
+        );
+
+        let query = JobQuery {
+            days: Some(days),
+            ..JobQuery::default()
+        };
+        assert!(matches!(
+            query.validate(),
+            Err(AsvoApiError::InvalidParameter { name: "days", .. })
+        ));
+        assert!(client.list_jobs(&query).is_err());
+    }
+    assert_eq!(listing.calls(), 0);
+
+    for days in [1, 30] {
+        client
+            .get_jobs(&JobsFilter::days(days))
+            .expect("the end of the range should be accepted");
+    }
+    assert_eq!(listing.calls(), 2);
+}
+
 /// Every field of the job detail reaches `AsvoJob`.
 #[test]
 fn a_listed_job_has_every_field_of_the_job_detail() {

@@ -826,6 +826,29 @@ fn list_filters_parse() {
     }
 }
 
+/// `--days` takes the schema's 1 to 30, and says so when it is outside it.
+#[test]
+fn list_days_is_limited_to_the_schema_range() {
+    for days in ["1", "30"] {
+        match parse(&["giant-squid", "list", "--days", days]) {
+            Args::List { days: parsed, .. } => assert_eq!(parsed, Some(days.parse().unwrap())),
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
+    for days in ["0", "31", "many"] {
+        let err = parse_err(&["giant-squid", "list", "--days", days]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "{days}"
+        );
+    }
+    // `list` does not take negative numbers as values, so clap reads this one as a flag.
+    parse_err(&["giant-squid", "list", "--days", "-3"]);
+    let err = parse_err(&["giant-squid", "list", "--days", "31"]);
+    assert!(err.to_string().contains("between 1 and 30"), "{err}");
+}
+
 #[test]
 fn list_rejects_an_unknown_state() {
     let err = parse_err(&["giant-squid", "list", "--states", "nonsense"]);

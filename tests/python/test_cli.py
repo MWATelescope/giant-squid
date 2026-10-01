@@ -293,6 +293,17 @@ def test_list_refuses_a_bad_value_with_a_usage_error(
     assert option in result.err
 
 
+@pytest.mark.parametrize("days", ["0", "31"])
+def test_list_days_outside_one_to_thirty_is_a_usage_error(
+    run: Callable[..., Result], three_jobs: None, days: str
+) -> None:
+    """The module refuses ``--days`` outside the schema's 1 to 30, and the program reports it as a usage error."""
+    result = run("list", "--days", days)
+
+    assert result.code == EXIT_USAGE
+    assert "error: Invalid days: must be between 1 and 30" in result.err
+
+
 def test_list_accepts_dates_and_times(run: Callable[..., Result], three_jobs: None) -> None:
     """A date, and an RFC 3339 time with ``Z`` or an offset, are accepted."""
     result = run("list", "-n", "--date-from", "2026-09-01", "--date-to", "2026-09-30T00:00:00Z")

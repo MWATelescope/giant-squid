@@ -179,7 +179,8 @@ The filter options have the API's names. The 2.x names still work:
 
 New options: `--date-from` and `--date-to` (a date such as `2026-09-01`,
 which is midnight UTC, or a time such as `2026-09-01T12:00:00Z`) and
-`--sort-by`. `--days` is as in 2.x.
+`--sort-by`. `--days` is as in 2.x, but takes 1 to 30, the limits of the MWA ASVO API; other
+values are refused before any request.
 
 ## JSON output (`list --json`, `wait --json`)
 
