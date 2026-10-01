@@ -4,15 +4,15 @@
 [giant-squid](https://github.com/MWATelescope/giant-squid) Rust library with Python bindings. You
 can use it to list, submit, cancel and download MWA ASVO jobs from your own Python code.
 
+The package also installs the `giant-squid` command, written in Python on the module. It has the same
+commands and options as the Rust `giant-squid` command (see [The giant-squid command](#the-giant-squid-command)).
+
 - Install name: `mwa-giant-squid`. Import name: `mwa_giant_squid`.
 - Python 3.10 or later.
-- The module has no Python dependencies.
+- The package has no Python dependencies.
 - The module has type information (`.pyi` stubs and `py.typed`).
 
-The module has the same API as the Rust library, with the same names. It does not install a command.
-For the `giant-squid` command, see the
-[README](https://github.com/MWATelescope/giant-squid/blob/main/README.md). An example program that uses
-the module is in the `examples/` directory of the repository.
+The module has the same API as the Rust library, with the same names.
 
 ## Install
 
@@ -20,14 +20,58 @@ the module is in the `examples/` directory of the repository.
 pip install mwa-giant-squid
 ```
 
+`pip install` puts the `giant-squid` command on your `PATH` (in a virtual environment, in its `bin`
+directory). If you also have the Rust `giant-squid`, the one that is first on `PATH` runs. Both read the
+same environment variables and use the same session cache, so you can use either.
+
 To build from source, you need Rust and [uv](https://docs.astral.sh/uv/):
 
 ```bash
 git clone https://github.com/MWATelescope/giant-squid.git
 cd giant-squid
 uv sync
-uv run python -c "import mwa_giant_squid; print(mwa_giant_squid.__version__)"
+uv run giant-squid --version
 ```
+
+## The giant-squid command
+
+```bash
+export MWA_ASVO_API_KEY="your-api-key-here"
+giant-squid list
+giant-squid submit-vis 1065880128
+giant-squid wait 12345
+giant-squid download 12345
+```
+
+The command has the same sub-commands, short names, options, defaults, environment variables and output
+as the Rust `giant-squid` command. For what each one does, see the
+[README](https://github.com/MWATelescope/giant-squid/blob/main/README.md) or run `giant-squid --help` and
+`giant-squid <command> --help`. The commands are `list` (`l`), `download` (`d`), `submit-vis` (`sv`),
+`submit-conv` (`sc`), `submit-image` (`si`), `submit-image-from-job` (`sifj`), `submit-meta` (`sm`),
+`submit-volt` (`st`), `submit-bf` (`sb`), `wait` (`w`) and `cancel` (`c`).
+
+The environment variables are `MWA_ASVO_API_KEY` (required), `MWA_ASVO_HOST`, `MWA_ASVO_API_TIMEOUT`,
+`GIANT_SQUID_DELIVERY`, `GIANT_SQUID_DELIVERY_FORMAT`, `GIANT_SQUID_BUF_SIZE` and
+`GIANT_SQUID_DOWNLOAD_RETRY_SECS`. The session is cached in `$HOME/.mwa-asvo/tokens.json`.
+
+The defaults of the job options come from the MWA ASVO schema, through the `*_params` functions of the
+module, so they are the same as the Rust command's.
+
+The Python command differs from the Rust command in these ways:
+
+- It has no `--legacy-json` option. That option of the Rust command is deprecated.
+- The progress bars of `download` are drawn by the program itself, with no extra package, and look
+  different from the Rust command's. As in the Rust command, they show only when standard error is a
+  terminal.
+- `-v` and `-vv` both show debug messages. The module sends no trace messages to Python.
+- The downloads share one login. With `-c`/`--concurrent-downloads` above 1, Ctrl-C ends the program with
+  exit code 130. A partial file stays on disk, and a new `download --keep-tar` resumes it.
+- The limits of the MWA ASVO (for example `--avg-freq-res`) are checked before the program logs in. The
+  error is a usage error (exit code 2), as in the Rust command, but its text is the module's.
+- `--job-states` and `--job-types` accept several values separated by commas. Give the option once.
+
+The command is the `mwa_giant_squid_cli` package. It uses only the public API in the
+rest of this guide, so it is also an example of how to write your own client.
 
 ## Authentication
 
@@ -295,4 +339,3 @@ logs in again. The other threads use its new session.
 
 - There is no `async` API. Use `asyncio.to_thread` or a thread pool to run calls in the background.
 - There are no wheels for free-threaded Python and no wheels for Windows.
-- The module installs no command.

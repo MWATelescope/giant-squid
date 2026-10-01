@@ -274,6 +274,24 @@ def test_a_file_has_the_format_the_server_gives(host: str, serve_jobs: Callable[
 
 # The filter values of the get_jobs test, and what the server receives for them.
 FILTER_DAYS = 7
+# The suffix that RFC 3339 gives to UTC. Python 3.10's `fromisoformat` does not read it (3.11 and later do).
+UTC_SUFFIX = "Z"
+
+
+def parse_rfc3339(text: str) -> datetime.datetime:
+    """Parse the time in a request body.
+
+    Args:
+        text: An RFC 3339 time, with a ``Z`` or an offset.
+
+    Returns:
+        The time, with a time zone.
+    """
+    return datetime.datetime.fromisoformat(
+        text.removesuffix(UTC_SUFFIX) + "+00:00" if text.endswith(UTC_SUFFIX) else text
+    )
+
+
 FILTER_FROM = datetime.datetime(2026, 9, 1, tzinfo=datetime.timezone.utc)
 FILTER_TO = datetime.datetime(2026, 9, 30, tzinfo=datetime.timezone.utc)
 FILTER_SORT = "created"
@@ -313,8 +331,8 @@ def test_get_jobs_sends_every_filter_to_the_server(
     assert body["days"] == FILTER_DAYS
     assert body["job_state"] == "completed"
     assert body["job_type"] == IMAGING_JOB_TYPE_NUMBER
-    assert datetime.datetime.fromisoformat(body["date_from"]) == FILTER_FROM
-    assert datetime.datetime.fromisoformat(body["date_to"]) == FILTER_TO
+    assert parse_rfc3339(body["date_from"]) == FILTER_FROM
+    assert parse_rfc3339(body["date_to"]) == FILTER_TO
     assert body["sort_by"] == FILTER_SORT
 
 

@@ -758,6 +758,13 @@ would use 50 MiB of memory to cache the download before writing.
 
 Have a look at the [GitHub releases page](https://github.com/MWATelescope/giant-squid/releases).
 
+### Python (pip)
+
+- Run `pip install mwa-giant-squid`
+
+  - This installs the `giant-squid` command, with the same commands and options as the Rust program,
+    and the `mwa_giant_squid` Python module. See [docs/PYTHON.md](docs/PYTHON.md).
+
 ### Building from crates.io
 
 - Install [Rust](https://www.rust-lang.org/tools/install)

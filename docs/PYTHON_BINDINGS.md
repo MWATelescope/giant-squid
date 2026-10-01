@@ -463,10 +463,91 @@
   also shows that `field_errors` and `request_id` exist only for that
   `kind`. No code and no test changed. The guide says `pip install
   mwa-giant-squid`, which works only after the first PyPI release.
-- Next step: the rest of Phase 3 (step 3.3 the example Python CLI with its
-  smoke test, step 3.4 CI wheels, pytest, ruff, ty and stubtest). Start
-  from a fresh clone of `apiv2`, one diff per step, and update this
-  section after each.
+- 2026-10-01: step 3.3 done (revised: the example CLI is now the installed
+  `giant-squid` command; decision 7 changed). New package
+  `mwa_giant_squid_cli/` at the repository root, listed in `pyproject.toml`
+  as `python-packages` and as `[project.scripts] giant-squid`. maturin
+  puts it in the wheel and the sdist next to the unchanged native module
+  `mwa_giant_squid` (no `python-source`; the module keeps its name, its
+  stub and `py.typed`). Checked: a wheel built with maturin installs the
+  command in a clean venv. The program has the Rust command's 11
+  sub-commands and short names (`l`, `d`, `sv`, `sc`, `si`, `sifj`, `sm`,
+  `st`, `sb`, `w`, `c`), options, short options, aliases, environment
+  variables (`MWA_ASVO_*`, `GIANT_SQUID_DELIVERY`,
+  `GIANT_SQUID_DELIVERY_FORMAT`, `GIANT_SQUID_BUF_SIZE`,
+  `GIANT_SQUID_DOWNLOAD_RETRY_SECS`), log lines (`HH:MM:SS [INFO] ...` on
+  stderr), job table, `--json` and `--dry-run` output, and exit codes. The
+  option defaults are taken from the module's `*_params` functions, as the
+  Rust command takes them from the schema. A list of the options of each
+  command was compared with `giant-squid <command> --help` of the Rust
+  binary, and the output of about 35 invocations (stdout, stderr without the
+  time, exit code) was compared with the Rust binary running against the
+  same mock server. The differences are: no `--legacy-json` (deprecated);
+  the boolean options `--apply-di-cal`, `--apply-primary-beam` and
+  `--join-channels` take a value only as `--flag=false`, as in Rust (a
+  small step turns a bare flag into `--flag=true`, because argparse would
+  otherwise take the next argument); `-vv` is the same as `-v`; the
+  range errors have the module's text but the same exit code, 2; the
+  downloads share one login and one client; a download with
+  `--concurrent-downloads` above 1 runs in daemon threads, and Ctrl-C
+  ends the program with exit code 130 (a single download runs in the main
+  thread and the module stops it at the next chunk); the progress bars are
+  drawn with ANSI codes and need no package (shown on a terminal only);
+  `--job-states`/`--job-types` take the names `downloading` and
+  `preparing` that the Rust parser takes (its help text still lists
+  `retrieving`, which it does not parse: a bug in the Rust help). The
+  download numbers `[n/N]` run on across job IDs and obsids (the Rust
+  command restarts at 1 for the obsids). 113 new pytest tests (81 in
+  `tests/python/test_cli.py`, 32 in `test_cli_units.py`; the suite is 263).
+  They run `main()` in the process against the mock server, with a few
+  subprocess tests (`python -m`, and Ctrl-C during two concurrent
+  downloads). The suite also passes on Python 3.10 with the built wheel,
+  except one existing test (below). The earlier step 3.3 diff (an
+  `examples/python/asvo_cli.py` example and its test) was not committed
+  and is replaced by this one. `docs/PYTHON.md` has
+  a section on the command and the README has a pip section. The package
+  has no Python dependencies. Not changed: the Rust code and the existing
+  tests. Found, not fixed: `tests/python/test_client.py::
+  test_get_jobs_sends_every_filter_to_the_server` fails on Python 3.10,
+  because `datetime.fromisoformat` there does not read a trailing `Z`
+  (Python 3.11 and later do). The CI matrix (step 3.4) will run 3.10.
+- 2026-10-01: step 3.4 done. `.github/workflows/python.yaml` (one file, four
+  jobs; it runs on the same triggers as `run-tests.yaml`). `check`: `uv sync
+  --locked`, `ruff check`, `ruff format --check`, `ty check` and stubtest.
+  `test`: `uv run pytest` on Python 3.10 and 3.14 for each of the four
+  `run-tests.yaml` platforms (ubuntu x86_64 and aarch64, macOS Intel and
+  Apple silicon), and on 3.11, 3.12 and 3.13 on Linux x86_64 (the wheel is
+  abi3, so it is the same module for each). `wheels`: `PyO3/maturin-action`
+  builds a release wheel on each of the four platforms (Linux in a manylinux
+  container, `manylinux: auto`), installs it in a new environment without
+  the source and runs `giant-squid --version`, then uploads it as an
+  artifact. `sdist`: builds the sdist and uploads it. Nothing is published:
+  PyPI stays your step. Stubtest: `tools/run_stubtest.sh` runs
+  `mypy.stubtest mwa_giant_squid` with mypy pinned (2.3.1) and
+  `tools/stubtest_allowlist.txt`. With mypy 2.3.1 there are 44 findings, not
+  41: the 40 enum members and `AsvoJobVec.__getitem__` as before, plus
+  three that this mypy adds or that were not counted: the `mwa_giant_squid.
+  mwa_giant_squid` submodule that has no stub of its own, `__all__` (the
+  run-time `__all__` has `__version__`, the generated one does not), and
+  `DownloadProgress` (`@disjoint_base`, which mypy asks for since 1.19 and
+  pyo3-stub-gen does not write). Each entry in the allowlist has the reason
+  as a comment, and stubtest fails on an entry that matches nothing. The one
+  existing test that failed on Python 3.10 (`test_get_jobs_sends_every_
+  filter_to_the_server`) is fixed: the test reads the `Z` of an RFC 3339 time
+  with a small helper `parse_rfc3339`, and no assertion changed. Checked
+  here: the whole suite (263 tests) passes on Python 3.10, 3.11, 3.12, 3.13
+  and 3.14; `ruff`, `ty` and stubtest pass; `uv sync --locked` works with
+  the committed `uv.lock`; `actionlint` 1.7.12 finds nothing in the workflow.
+  Not checked, because it needs GitHub: the workflow run itself, the
+  manylinux build (`aws-lc-sys` in the container), the macOS and aarch64
+  runners, and the action versions (`astral-sh/setup-uv@v10.0.1`,
+  `PyO3/maturin-action@v1`, `actions/upload-artifact@v4`). The crate on
+  crates.io still includes `mwa_giant_squid_cli/` and `tests/python/`
+  (`Cargo.toml` `exclude` has only `.github/*`); add them to `exclude` if
+  you do not want that.
+- Next step: Phase 3 is done. What is left is yours: run the workflow, then
+  publish (a release workflow for PyPI, trusted publishing, or by hand) and
+  decide whether `releases.yaml` should also attach the wheels.
 
 ## Goal
 
@@ -504,8 +585,10 @@ client.cancel_job(resp.job_id)
 4. No free-threaded wheels for now.
 5. PyPI name `mwa-giant-squid`, import name `mwa_giant_squid`.
 6. Same crate, behind a `python` Cargo feature (as mwalib).
-7. The Python package installs no command of its own for now. An example
-   CLI in `examples/python/` shows how to build one.
+7. The Python package installs a `giant-squid` command (changed
+   2026-10-01; before, it installed none). It is written in Python on the
+   module, with the same commands, options, defaults and output as the
+   Rust command (step 3.3).
 8. The in-process tests may change how they build the client (from an
    `AsvoClientConfig` instead of environment variables). Their assertions
    stay the same.
@@ -660,11 +743,12 @@ Steps:
 - `.pyi` stubs from `pyo3-stub-gen` and docstrings (step 3.1, done), and
   `docs/PYTHON.md` (step 3.2, done).
 - pytest suite against a local mock server (`pytest-httpserver`), never a
-  real server. `examples/python/` holds a small Python CLI (`list`,
-  `submit-vis`, `cancel`) that shows how to build one on the module, and
-  CI runs it as a smoke test.
-- CI builds wheels for the `run-tests.yaml` platforms (Linux
-  x86_64/aarch64, macOS x86_64/arm64) plus an sdist, and runs pytest;
+  real server. The `giant-squid` command (`mwa_giant_squid_cli/`) is
+  tested in the same suite (step 3.3, done), so CI needs no separate smoke
+  test.
+- CI (step 3.4, done: `.github/workflows/python.yaml`) builds wheels for the
+  `run-tests.yaml` platforms (Linux x86_64/aarch64, macOS x86_64/arm64) plus
+  an sdist, and runs pytest;
   `ruff check`, `ruff format` (line length 120) and `ty check` on the
   Python code. Publishing to PyPI stays your step.
 
@@ -694,5 +778,4 @@ Notes for Phase 3, found during Phases 1 and 2:
 
 ## Out of scope for now
 
-An `async` API, free-threaded wheels, Windows wheels, and an installed
-Python command.
+An `async` API, free-threaded wheels, and Windows wheels.

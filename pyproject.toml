@@ -33,6 +33,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.scripts]
+giant-squid = "mwa_giant_squid_cli:main"
+
 [dependency-groups]
 dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
 
@@ -47,6 +50,8 @@ build-backend = "maturin"
 
 [tool.maturin]
 module-name = "mwa_giant_squid"
+# The command line program, which the wheel installs as the `giant-squid` command.
+python-packages = ["mwa_giant_squid_cli"]
 bindings = "pyo3"
 # Only the Python module: not the default "bin" feature, which adds the CLI
 # (clap, indicatif and others) to the library.

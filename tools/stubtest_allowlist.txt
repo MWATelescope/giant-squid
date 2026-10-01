@@ -1,0 +1,63 @@
+# Known findings of `mypy.stubtest mwa_giant_squid` (see tools/run_stubtest.sh). Every entry is a difference
+# between the generated stub and the run-time module that is not a mistake in the stub. stubtest fails on an
+# entry that no longer matches anything, so remove an entry when its cause is fixed.
+
+# The `mwa_giant_squid` package is the native module re-exported by maturin's __init__.py. It has no stub of its
+# own: the stub is for the package.
+mwa_giant_squid.mwa_giant_squid
+
+# A pyo3 enum is not an `enum.Enum` at run time: its members are class attributes of the enum's own type, while
+# the stub (as pyo3-stub-gen writes it) declares them as `Name = ...` inside an `enum.Enum`. Checkers read the stub
+# correctly. 40 members.
+mwa_giant_squid.AsvoJobState.Cancelled
+mwa_giant_squid.AsvoJobState.Delivering
+mwa_giant_squid.AsvoJobState.Downloading
+mwa_giant_squid.AsvoJobState.Error
+mwa_giant_squid.AsvoJobState.Expired
+mwa_giant_squid.AsvoJobState.Imaging
+mwa_giant_squid.AsvoJobState.Preparing
+mwa_giant_squid.AsvoJobState.Preprocessing
+mwa_giant_squid.AsvoJobState.Queued
+mwa_giant_squid.AsvoJobState.Ready
+mwa_giant_squid.AsvoJobState.Staged
+mwa_giant_squid.AsvoJobState.Staging
+mwa_giant_squid.AsvoJobState.WaitCal
+mwa_giant_squid.AsvoJobType.CancelJob
+mwa_giant_squid.AsvoJobType.Conversion
+mwa_giant_squid.AsvoJobType.DownloadBeamformer
+mwa_giant_squid.AsvoJobType.DownloadMetadata
+mwa_giant_squid.AsvoJobType.DownloadVisibilities
+mwa_giant_squid.AsvoJobType.DownloadVoltage
+mwa_giant_squid.AsvoJobType.Imaging
+mwa_giant_squid.AsvoJobType.Unknown
+mwa_giant_squid.Centre.Custom
+mwa_giant_squid.Centre.Phase
+mwa_giant_squid.Centre.Pointing
+mwa_giant_squid.Delivery.Acacia
+mwa_giant_squid.Delivery.Dug
+mwa_giant_squid.Delivery.Scratch
+mwa_giant_squid.DeliveryFormat.Files
+mwa_giant_squid.DeliveryFormat.Tar
+mwa_giant_squid.Output.Ms
+mwa_giant_squid.Output.Uvfits
+mwa_giant_squid.OutputMode.AllFiles
+mwa_giant_squid.OutputMode.AllFits
+mwa_giant_squid.OutputMode.Fits
+mwa_giant_squid.Polarization.Xx
+mwa_giant_squid.Polarization.Xxyy
+mwa_giant_squid.Polarization.Yy
+mwa_giant_squid.Weighting.Briggs
+mwa_giant_squid.Weighting.Natural
+mwa_giant_squid.Weighting.Uniform
+
+# `AsvoJobVec.__getitem__`: pyo3 does not permit a `signature` on a magic method, so `index` is positional-only at
+# run time, while the stub names it.
+mwa_giant_squid.AsvoJobVec.__getitem__
+
+# The run-time `__all__` has `__version__` (the module adds it); pyo3-stub-gen's `__all__` lists the classes and
+# functions, and declares `__version__` separately.
+mwa_giant_squid.__all__
+
+# `DownloadProgress` is the base of the three event classes, and pyo3 makes it a "disjoint base" (it has its own
+# layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which pyo3-stub-gen does not write.
+mwa_giant_squid.DownloadProgress

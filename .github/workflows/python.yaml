@@ -1,0 +1,144 @@
+---
+name: Python
+permissions:
+  contents: read
+
+# The Python package (mwa-giant-squid): lint, test, build wheels. See docs/PYTHON_BINDINGS.md.
+# Publishing to PyPI is not done here.
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - "**"
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # No MWA ASVO credentials here on purpose: every test runs against a local mock server (see docs/TESTING.md).
+
+jobs:
+  check:
+    name: Lint, types and stubs
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.0.1
+
+    # `ty` needs the module to be installed, so this builds it.
+    - name: Build the module and install the dev tools
+      run: uv sync --locked
+
+    - name: ruff check
+      run: uv run ruff check .
+
+    - name: ruff format
+      run: uv run ruff format --check .
+
+    - name: ty check
+      run: uv run ty check
+
+    - name: Check mwa_giant_squid.pyi against the module (stubtest)
+      run: tools/run_stubtest.sh
+
+  test:
+    name: Test ${{ matrix.os }} Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest and the newest Python on every platform; the ones between on Linux only. The wheel is
+        # abi3, so it is the same module for each.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macOS-15-intel, macOS-15]
+        python: ["3.10", "3.14"]
+        include:
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.12" }
+          - { os: ubuntu-latest, python: "3.13" }
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install uv and Python ${{ matrix.python }}
+      uses: astral-sh/setup-uv@v10.0.1
+      with:
+        python-version: ${{ matrix.python }}
+
+    - name: Build the module and install the dev tools
+      run: uv sync --locked
+
+    - name: Run pytest
+      run: uv run pytest
+
+  wheels:
+    name: Wheel ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macOS-15-intel, macOS-15]
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    # On Linux this runs in a manylinux container, so the wheel installs on older systems (many HPC systems).
+    # The container has the C toolchain that aws-lc-sys needs.
+    - name: Build the wheel
+      uses: PyO3/maturin-action@v1
+      with:
+        command: build
+        args: --release --out dist
+        manylinux: auto
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.0.1
+
+    # The wheel is installed in a new environment, without the source or the dev tools, and run once.
+    - name: Test the wheel
+      shell: bash
+      run: |
+        uv venv --python 3.12 "$RUNNER_TEMP/wheel-test"
+        uv pip install --python "$RUNNER_TEMP/wheel-test/bin/python" dist/*.whl
+        "$RUNNER_TEMP/wheel-test/bin/giant-squid" --version
+        "$RUNNER_TEMP/wheel-test/bin/python" -c "import mwa_giant_squid, mwa_giant_squid_cli; print(mwa_giant_squid.__version__)"
+
+    - name: Upload the wheel
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheel-${{ matrix.os }}
+        path: dist/*.whl
+        if-no-files-found: error
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Build the sdist
+      uses: PyO3/maturin-action@v1
+      with:
+        command: sdist
+        args: --out dist
+
+    - name: Upload the sdist
+      uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: dist/*.tar.gz
+        if-no-files-found: error
