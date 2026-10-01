@@ -1,5 +1,6 @@
 {
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "rust-analyzer.check.command": "clippy"
+    "rust-analyzer.check.command": "clippy",
+    "rust-analyzer.cargo.features": ["bin", "python", "python-stubgen", "regen-openapi"]
 }

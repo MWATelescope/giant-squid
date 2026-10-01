@@ -24,12 +24,9 @@
 # Fail the script on any error
 set -euo pipefail
 
-cd "$(dirname "$0")/.."
-
 readonly STUB_FILE="mwa_giant_squid.pyi"
 
-PYO3_PYTHON="$(uv python find)"
-export PYO3_PYTHON
-cargo run --no-default-features --features python-stubgen --bin stub_gen
+cargo build --no-default-features --features python-stubgen
+target/debug/stub_gen
 uv run ruff check --fix --quiet "${STUB_FILE}"
 uv run ruff format --quiet "${STUB_FILE}"
