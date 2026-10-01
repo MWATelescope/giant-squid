@@ -450,9 +450,23 @@
   Python 3.14.4: `NEEDED libpython3.14.so.1.0` with a `RUNPATH` to uv's
   `lib` directory; run from another directory it writes the same
   `mwa_giant_squid.pyi` as the committed one (after ruff).
-- Next step: the rest of Phase 3 (`docs/PYTHON.md`, the example Python
-  CLI, CI wheels, pytest and stubtest). Start from a fresh clone of
-  `apiv2`, one diff per step, and update this section after each.
+- 2026-10-01: step 3.2 done. `docs/PYTHON.md` is the user guide for the
+  Python module: install, authentication (the caller reads the
+  environment; `token_cache_path` and the shared `tokens.json`), listing,
+  the submit methods and the `*_params` dry-run functions, the caller's
+  wait loop, downloads (progress with `match`, resume, Ctrl-C), errors,
+  logging, threads and limits. `readme` in `pyproject.toml` is now
+  `docs/PYTHON.md`, so the PyPI page describes the Python module. The
+  links in the guide are absolute, because PyPI does not resolve relative
+  links. Each code example was run against the pytest mock server (in a
+  scratch test that is not committed); the guide's `ApiError` example
+  also shows that `field_errors` and `request_id` exist only for that
+  `kind`. No code and no test changed. The guide says `pip install
+  mwa-giant-squid`, which works only after the first PyPI release.
+- Next step: the rest of Phase 3 (step 3.3 the example Python CLI with its
+  smoke test, step 3.4 CI wheels, pytest, ruff, ty and stubtest). Start
+  from a fresh clone of `apiv2`, one diff per step, and update this
+  section after each.
 
 ## Goal
 
@@ -644,7 +658,7 @@ Steps:
 ## Phase 3: stubs, docs, tests, CI
 
 - `.pyi` stubs from `pyo3-stub-gen` and docstrings (step 3.1, done), and
-  `docs/PYTHON.md`.
+  `docs/PYTHON.md` (step 3.2, done).
 - pytest suite against a local mock server (`pytest-httpserver`), never a
   real server. `examples/python/` holds a small Python CLI (`list`,
   `submit-vis`, `cancel`) that shows how to build one on the module, and
@@ -675,8 +689,8 @@ Notes for Phase 3, found during Phases 1 and 2:
 - The wheel links `reqwest`, `rustls` and `aws-lc-rs` (about 2.4 MB).
   `aws-lc-sys` compiles C code, so each wheel build environment needs a C
   toolchain. The standard maturin images have one.
-- Set `readme` in `pyproject.toml` to `docs/PYTHON.md`, so that the PyPI
-  page describes the Python module and not the CLI.
+- `readme` in `pyproject.toml` is `docs/PYTHON.md`, so that the PyPI
+  page describes the Python module and not the CLI (step 3.2, done).
 
 ## Out of scope for now
 

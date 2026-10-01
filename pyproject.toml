@@ -9,7 +9,7 @@
 name = "mwa-giant-squid"
 description = "Python bindings for giant-squid, a client for the MWA ASVO"
 dynamic = ["version"]
-readme = "README.md"
+readme = "docs/PYTHON.md"
 requires-python = ">=3.10"
 license = "MPL-2.0"
 keywords = ["MWA", "MWA ASVO", "radioastronomy"]
