@@ -415,6 +415,24 @@
   `incompatible_msrv` for the `TypeId::of` function pointers in the
   pyo3-stub-gen statics; it is allowed in `src/python`, for
   `python-stubgen` builds only. No test changed.
+- 2026-10-01: fixes after step 3.1. `tools/generate_stubs.sh` failed
+  with a uv-managed Python ("libpython3.14.so.1.0: cannot open shared
+  object file"): `stub_gen` embeds Python and is linked against the
+  `libpython` of the Python that pyo3 builds for, and uv keeps that library
+  in its own directory, which the dynamic loader does not search. The
+  script now sets `PYO3_PYTHON` to `uv python find` and puts that Python's
+  `LIBDIR` on `LD_LIBRARY_PATH` (Linux only). Run the script, not `cargo
+  run --bin stub_gen` alone. `cargo clippy --no-default-features
+  --all-targets` failed in `src/asvo/apiv2/client/test.rs`, which uses
+  `clap` and `crate::cli`: the imports, the `vis_params_from_cli` helper,
+  `TARGET_ENV` and the eight tests that use them (seven that build a body
+  from a command line, and the ignored recording test) now have
+  `#[cfg(feature = "bin")]`. No test body or assertion changed; with the
+  default features the same tests run. The `incompatible_msrv` allow
+  (step 3.1) is a false positive: the `python-stubgen` library and
+  `stub_gen` build with Rust 1.89 (older than 1.91, where `TypeId::of`
+  became const-callable), and that `stub_gen` writes the same stub. No 1.88
+  toolchain was available for the test.
 - Next step: the rest of Phase 3 (`docs/PYTHON.md`, the example Python
   CLI, CI wheels, pytest and stubtest). Start from a fresh clone of
   `apiv2`, one diff per step, and update this section after each.

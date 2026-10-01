@@ -10,15 +10,23 @@
 //! end replay a recording captured from a live server, and the one recording
 //! test is `#[ignore]`d. See docs/TESTING.md.
 
+// The tests that build a request body from a command line (and the
+// recording test, which reads its config as the CLI does) need the CLI, so
+// they compile only with the "bin" feature. The other tests in this file
+// also run without it.
+#[cfg(feature = "bin")]
 use clap::Parser;
 use httpmock::prelude::*;
 use serde_json::json;
 
+#[cfg(feature = "bin")]
 use crate::asvo::apiv2::openapi::DownloadJobParams;
 use crate::asvo::{
     AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobQuery, JobsFilter,
 };
+#[cfg(feature = "bin")]
 use crate::cli::config::client_config_from_env;
+#[cfg(feature = "bin")]
 use crate::cli::Args;
 use crate::test_common::*;
 use crate::test_config::client_config;
@@ -33,6 +41,7 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 
 /// Parse a CLI invocation and build the visibility download body it implies,
 /// so these tests exercise the same path a user's command line takes.
+#[cfg(feature = "bin")]
 fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
         Args::SubmitVis { download, .. } => download
@@ -449,6 +458,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
 // Submission and cancellation
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "bin")]
 #[test]
 fn a_visibility_job_posts_the_body_the_cli_built() {
     let env = TestEnv::with_session();
@@ -473,6 +483,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
     assert_eq!(resp.job_id.get(), 777);
 }
 
+#[cfg(feature = "bin")]
 #[test]
 fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
     let env = TestEnv::with_session();
@@ -501,6 +512,7 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
     assert_eq!(resp.job_id.get(), 778);
 }
 
+#[cfg(feature = "bin")]
 #[test]
 fn a_metadata_job_method_always_sends_a_meta_download_type() {
     let env = TestEnv::with_session();
@@ -524,6 +536,7 @@ fn a_metadata_job_method_always_sends_a_meta_download_type() {
     assert_eq!(resp.job_id.get(), 779);
 }
 
+#[cfg(feature = "bin")]
 #[test]
 fn a_visibility_job_method_always_sends_a_vis_download_type() {
     let env = TestEnv::with_session();
@@ -554,6 +567,7 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
     assert_eq!(resp.job_id.get(), 780);
 }
 
+#[cfg(feature = "bin")]
 #[test]
 fn a_conversion_job_posts_to_the_conversion_endpoint() {
     let env = TestEnv::with_session();
@@ -623,6 +637,7 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
 
 /// Imaging submissions return a `JobSubmittedResponse`, like every other
 /// v2 submit endpoint, not a bare job ID.
+#[cfg(feature = "bin")]
 #[test]
 fn an_imaging_job_returns_a_job_submitted_response() {
     let env = TestEnv::with_session();
@@ -649,6 +664,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
     assert_eq!(resp.job_id.get(), 779);
 }
 
+#[cfg(feature = "bin")]
 #[test]
 fn an_image_from_job_submission_returns_a_job_submitted_response() {
     let env = TestEnv::with_session();
@@ -918,8 +934,10 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
 // create a real job on the target server, so that is deliberately not
 // automated here.
 
+#[cfg(feature = "bin")]
 const TARGET_ENV: &str = "MWA_ASVO_RECORD_TARGET";
 
+#[cfg(feature = "bin")]
 #[test]
 #[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
 fn record_login_and_get_jobs() {

@@ -34,8 +34,9 @@ regen-openapi = ["dep:typify", "dep:schemars", "dep:syn", "dep:prettyplease"]
 # its settings from pyproject.toml: `maturin develop` or `maturin build`.
 python = ["pyo3", "pyo3-log"]
 # Generates the Python type stubs (`mwa_giant_squid.pyi`) with pyo3-stub-gen.
-# Only for maintainers, when the Python API changes:
-#   cargo run --no-default-features --features python-stubgen --bin stub_gen
+# Only for maintainers, when the Python API changes: run
+# tools/generate_stubs.sh (it builds and runs the `stub_gen` binary with the
+# project's Python, then formats the stub).
 # The published crate and the wheel do not use it. pyo3-stub-gen depends on
 # chrono, so a build with this feature has chrono in it; other builds do not.
 python-stubgen = ["python", "dep:pyo3-stub-gen"]

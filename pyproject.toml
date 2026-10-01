@@ -5,10 +5,6 @@
 #   uv run pytest           # run the Python tests
 #   maturin build --release # build a wheel
 
-[build-system]
-requires = ["maturin>=1.9.4,<2.0"]
-build-backend = "maturin"
-
 [project]
 name = "mwa-giant-squid"
 description = "Python bindings for giant-squid, a client for the MWA ASVO"
@@ -37,13 +33,17 @@ classifiers = [
 ]
 dependencies = []
 
+[dependency-groups]
+dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
+
 [project.urls]
 "Homepage" = "https://github.com/MWATelescope/giant-squid"
 "Bug Reports" = "https://github.com/MWATelescope/giant-squid/issues"
 "Source" = "https://github.com/MWATelescope/giant-squid"
 
-[dependency-groups]
-dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
+[build-system]
+requires = ["maturin>=1.9.4,<2.0"]
+build-backend = "maturin"
 
 [tool.maturin]
 module-name = "mwa_giant_squid"
@@ -69,3 +69,4 @@ testpaths = ["tests/python"]
 
 [tool.ruff]
 line-length = 120
+
