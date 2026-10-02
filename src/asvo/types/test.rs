@@ -25,6 +25,42 @@ fn test_created() -> jiff::Timestamp {
         .expect("a valid time")
 }
 
+/// Every job type with a name is parsed from its name in any case and
+/// spelling of the separators.
+#[test]
+fn a_job_type_is_parsed_from_its_name() {
+    let cases = [
+        ("conversion", AsvoJobType::Conversion),
+        ("download_visibilities", AsvoJobType::DownloadVisibilities),
+        ("DownloadVisibilities", AsvoJobType::DownloadVisibilities),
+        ("download-metadata", AsvoJobType::DownloadMetadata),
+        ("download_voltages", AsvoJobType::DownloadVoltage),
+        ("download_voltage", AsvoJobType::DownloadVoltage),
+        ("DOWNLOAD VOLTAGE", AsvoJobType::DownloadVoltage),
+        ("download_beamformer", AsvoJobType::DownloadBeamformer),
+        ("cancel_job", AsvoJobType::CancelJob),
+        ("imaging", AsvoJobType::Imaging),
+    ];
+    for (name, expected) in cases {
+        assert_eq!(name.parse::<AsvoJobType>().ok(), Some(expected), "{name}");
+    }
+}
+
+/// Text that is not a job type is an error. "unknown" is one: `Unknown` is
+/// for the job types of a newer server, and cannot be asked for.
+#[test]
+fn text_that_is_not_a_job_type_is_an_error() {
+    for text in ["", "convertion", "unknown", "download", "downloadvoltagess"] {
+        let err = text
+            .parse::<AsvoJobType>()
+            .expect_err("this is not a job type");
+        assert!(
+            matches!(&err, AsvoError::InvalidJobType { str } if str == text),
+            "{text}: {err:?}"
+        );
+    }
+}
+
 /// A job with the given ID and state.
 fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
     AsvoJob {

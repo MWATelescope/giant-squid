@@ -32,6 +32,18 @@ pub enum AsvoJobType {
     Unknown,
 }
 
+/// Parses the name of a job type: the case, spaces, hyphens and underscores
+/// do not matter, so `download_visibilities` and `DownloadVisibilities` are
+/// the same type. `download_voltage` and `download_voltages` both give
+/// [`AsvoJobType::DownloadVoltage`].
+///
+/// # Errors
+///
+/// [`AsvoError::InvalidJobType`] for any other text, including "unknown":
+/// [`AsvoJobType::Unknown`] stands for a job type that the MWA ASVO has and
+/// this version does not, so it has no name to ask for. (Before 3.0.0 any
+/// other text gave `Unknown`, so a misspelt name in `list --job-types`
+/// quietly matched no job.)
 impl FromStr for AsvoJobType {
     type Err = AsvoError;
 
@@ -40,11 +52,11 @@ impl FromStr for AsvoJobType {
             "conversion" => Ok(AsvoJobType::Conversion),
             "downloadvisibilities" => Ok(AsvoJobType::DownloadVisibilities),
             "downloadmetadata" => Ok(AsvoJobType::DownloadMetadata),
-            "downloadvoltages" => Ok(AsvoJobType::DownloadVoltage),
+            "downloadvoltage" | "downloadvoltages" => Ok(AsvoJobType::DownloadVoltage),
             "downloadbeamformer" => Ok(AsvoJobType::DownloadBeamformer),
             "canceljob" => Ok(AsvoJobType::CancelJob),
             "imaging" => Ok(AsvoJobType::Imaging),
-            _ => Ok(AsvoJobType::Unknown),
+            _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
         }
     }
 }

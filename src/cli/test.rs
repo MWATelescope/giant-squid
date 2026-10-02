@@ -1153,6 +1153,35 @@ fn list_takes_the_schema_names_for_its_filters() {
     }
 }
 
+/// A job type that is not one of the names is an error, not a filter that
+/// quietly matches nothing. The error names the text that was given.
+#[test]
+fn list_refuses_a_job_type_that_does_not_exist() {
+    for bad in ["convertion", "unknown", "download"] {
+        let err = parse_err(&["giant-squid", "list", "--job-types", bad]);
+
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation, "{bad}");
+        let text = err.to_string();
+        assert!(text.contains("--job-types"), "error: {text}");
+        assert!(text.contains(bad), "error: {text}");
+    }
+}
+
+/// The singular name works too, as well as the plural that the help lists.
+#[test]
+fn list_takes_the_singular_and_the_plural_voltage_type() {
+    use crate::asvo::AsvoJobType;
+
+    for name in ["download_voltage", "download_voltages", "DownloadVoltage"] {
+        match parse(&["giant-squid", "list", "--job-types", name]) {
+            Args::List { job_types, .. } => {
+                assert_eq!(job_types, [AsvoJobType::DownloadVoltage], "{name}");
+            }
+            other => panic!("expected List, got {other:?}"),
+        }
+    }
+}
+
 /// The old names still work (the tests above this section use them), but
 /// `--help` shows only the schema names.
 #[test]
@@ -1477,9 +1506,7 @@ fn the_help_of_job_states_offers_the_states_the_parser_accepts() {
     }
 }
 
-/// The parser takes any text that is not a job type as the "unknown" type,
-/// so a name in the help that is not a type would not be an error: it would
-/// quietly match no job. Every name in the help must be a real type.
+/// Every name in the help must be a job type that the parser accepts.
 #[test]
 fn the_help_of_job_types_offers_the_types_the_parser_accepts() {
     use crate::asvo::AsvoJobType;
@@ -1500,10 +1527,8 @@ fn the_help_of_job_types_offers_the_types_the_parser_accepts() {
         ]
     );
     for name in &offered {
-        let parsed = AsvoJobType::from_str(name).expect("a job type never fails to parse");
-        assert_ne!(
-            parsed,
-            AsvoJobType::Unknown,
+        assert!(
+            AsvoJobType::from_str(name).is_ok(),
             "the help offers {name}, which is not a job type"
         );
     }

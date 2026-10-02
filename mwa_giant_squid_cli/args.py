@@ -537,7 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disables colouring of output. Useful when you have a non-black terminal background for example",
     )
     wait.add_argument(
-        "jobs", nargs="*", metavar="JOB_ID", help="The jobs to wait for. Files containing jobs are also accepted."
+        "jobs", nargs="*", metavar="JOB_ID", help="The job IDs to wait for. Files containing job IDs are also accepted."
     )
 
     cancel = add("cancel", "c", "Cancel MWA ASVO job")
@@ -549,6 +549,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_verbosity(cancel)
     cancel.add_argument(
-        "jobs", nargs="*", metavar="JOB_ID", help="The jobs to be cancelled. Files containing obsids are also accepted."
+        "jobs",
+        nargs="*",
+        metavar="JOB_ID",
+        help="The job IDs to be cancelled. Files containing job IDs are also accepted.",
     )
     return parser

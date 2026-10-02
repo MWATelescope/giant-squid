@@ -81,6 +81,8 @@ suit users for a few reasons:
   - [List MWA ASVO jobs in JSON](#list-mwa-asvo-jobs-in-json)
   - [Filter MWA ASVO job listing](#filter-mwa-asvo-job-listing)
   - [Example: manual hash validation with Bash and jq](#example-manual-hash-validation-with-bash-and-jq)
+  - [Wait for MWA ASVO jobs](#wait-for-mwa-asvo-jobs)
+  - [Cancel MWA ASVO jobs](#cancel-mwa-asvo-jobs)
   - [Download MWA ASVO jobs](#download-mwa-asvo-jobs)
 - [Installation](#installation)
   - [Pre-compiled](#pre-compiled)
@@ -885,6 +887,86 @@ while read -r jobid url size hash; do
    tar -xf ${jobid}.tar
 done < ready.tsv
 ```
+
+### Wait for MWA ASVO jobs
+
+Use this command to wait until MWA ASVO jobs are ready for download. It checks your job list once a minute and
+logs a job's state when it changes. When every job is ready it prints the jobs, as `list` does (as a table, or
+as JSON with `--json`), and exits.
+
+```text
+Wait for MWA ASVO jobs to complete, return the urls
+
+Usage: giant-squid wait [OPTIONS] [JOB_ID]...
+
+Arguments:
+  [JOB_ID]...  The job IDs to wait for. Files containing job IDs are also accepted
+
+Options:
+  -j, --json          Print the jobs as a simple JSON after waiting
+      --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
+  -v, --verbosity...  The verbosity of the program. The default is to print high-level information
+  -n, --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
+  -h, --help          Print help
+```
+
+Example:
+
+```bash
+$ giant-squid wait 31 32
+13:41:02 [INFO] Waiting for 2 jobs to be ready...
+13:41:04 [INFO] Job ID 31 (obsid: 1065880128): is Queued
+13:41:04 [INFO] Job ID 32 (obsid: 1065880248): is Preprocessing
+13:46:06 [INFO] Job ID 31 (obsid: 1065880128): is Ready
+13:52:08 [INFO] Job ID 32 (obsid: 1065880248): is Ready
+13:52:08 [INFO] All 2 MWA ASVO jobs are ready for download.
+```
+
+- `wait` takes job IDs, not obsids. The IDs can also be in files, as for the other commands.
+- It stops at once, with a non-zero exit code, if a job is not in your job list, has an error, has expired or
+  has been cancelled. Waiting longer would not change that.
+- It waits for as long as it takes. Press Ctrl-C to stop.
+- Every submit command has the same wait as the `-w`, `--wait` option.
+- Log messages go to standard error, so the standard output of `wait --json` is only the JSON.
+
+### Cancel MWA ASVO jobs
+
+Use this command to ask the MWA ASVO to cancel jobs.
+
+```text
+Cancel MWA ASVO job
+
+Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
+
+Arguments:
+  [JOB_ID]...  The job IDs to be cancelled. Files containing job IDs are also accepted
+
+Options:
+  -n, --dry-run       Don't actually cancel; print information on what would've happened instead
+  -v, --verbosity...  The verbosity of the program. The default is to print high-level information
+  -h, --help          Print help
+```
+
+Example:
+
+```bash
+$ giant-squid cancel 31 32
+13:20:41 [INFO] Cancel request for job 31: Job cancelled
+13:20:41 [INFO] Cancel request for job 32: Unable to cancel job 32
+13:20:41 [INFO] Cancel requests: 2 sent, 0 failed.
+```
+
+The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
+was cancelled:
+
+- If a job is already cancelled, the MWA ASVO replies as normal, and only the message says that it did not cancel
+  the job (job 32 above). Read the message of each job.
+- If the MWA ASVO refuses a request in any other way (for example, there is no such job), `giant-squid` logs
+  `Failed to cancel MWA ASVO job ID N: <reason>` and counts the request as failed. It carries on with the next
+  job, and the exit code is still zero.
+
+To check what `cancel` would send, without sending it, use `--dry-run`. To see the state of the jobs after a
+cancel, use [`list`](#list-mwa-asvo-jobs).
 
 ### Download MWA ASVO jobs
 

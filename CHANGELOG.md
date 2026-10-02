@@ -7,16 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # 3.0.0 - 2026-09-??
 
+giant-squid 3.0.0 uses version 2 of the MWA ASVO API. The job options, their names, their defaults and their
+limits now come from the API's OpenAPI schema, so giant-squid, the API and its documentation use the same names.
+Several defaults, option names and output formats changed: **read [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md)
+before you upgrade scripts.**
+
+### Changed in 3.0.0
+
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
   The resulting session is cached at `$HOME/.mwa-asvo/tokens.json` (shared with mwa-cli, so logging in with
   either tool covers both) and is automatically refreshed when it expires, avoiding a fresh login on every
   command. This is transparent to users - `MWA_ASVO_API_KEY` is still how you authenticate.
+* Every command except the file transfer of `download` uses the v2 API. The defaults and limits of the job
+  options are the API's, and a value outside a limit is refused before any request is sent. The defaults of
+  conversion and imaging jobs changed: see the migration guide.
+* The default delivery format is now `tar` for every job except voltage jobs, whatever the delivery. Use
+  `--delivery-format files` for individual files.
+* `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
+  option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
+  `--custom-ra`, `--custom-dec` and `--phase-center` still work.
+* `submit-image` takes obsids only. The new `submit-image-from-job` (alias `sifj`) images a completed conversion
+  job.
+* All the `submit-*` commands have a new `--json` option, which prints the MWA ASVO's reply for each job. With
+  `--dry-run` they print the request body that would be sent. The `status` text of a reply ("success" or
+  "failed") is for display; the exit code tells you whether a submission worked.
+* `list`: new options `--date-from`, `--date-to` and `--sort-by`. `--job-states` and `--job-types` are the new
+  names of `--states` and `--types`, which still work. `--days` takes 1 to 30.
+* `list --json` and `wait --json` use the API's key names (for example `job_id`, `obs_id`, `product.files`) and
+  have more keys. `--legacy-json` prints the old format for one release, and is deprecated: it will be removed in
+  the release after 3.0.0.
+* All log lines now go to standard error. Standard output has only the output of the command (the job table,
+  or JSON), so a script can read it.
+* `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
+  the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
+  cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message.
+* `list --job-types` refuses text that is not a job type, instead of matching no job. It accepts
+  `download_voltage` as well as `download_voltages`.
+* `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,
+  `--output-mode`, `--pol` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
+  names that the options accept (it listed `retrieving`, which is not a state).
+* A failed job reports the MWA ASVO's `error_code` as well as its error text.
 * `list` command now shows completed date time.
-* `-v` now shows all API requests and responses. `-vv` shows the full payload of requests and responses. 
+* `-v` now shows all API requests and responses. `-vv` shows the full payload of requests and responses.
+* The environment variable `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how long a failing download is retried.
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
-* Housekeeping:
-  * Tests moved into their own module.
+
+### Added in 3.0.0
+
+* giant-squid is now a Rust library with a public API that reads no environment variables and prints nothing
+  (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
+* A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
+  installs a `giant-squid` command with the same commands and options as the Rust one. See
+  [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.
+
+### Removed in 3.0.0
+
+* The version 1 API client, and the `-p` / `--parameters` option (see above).
+
+### Housekeeping in 3.0.0
+
+* Tests moved into their own module.
+* A test suite that runs offline against a mock MWA ASVO server (recorded responses are replayed), so that no
+  test submits or cancels a job or downloads data. See [docs/TESTING.md](docs/TESTING.md).
+* CI checks that the generated API types and the Python type stubs are up to date, builds and tests the Python
+  package on Linux and macOS, and attaches the wheels to releases.
+* The crates.io package does not include the files that only the Python package uses.
 
 # 2.5.1 - 2026-05-29
 

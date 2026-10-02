@@ -397,7 +397,7 @@ pub enum Args {
         #[arg(short, long)]
         no_colour: bool,
 
-        /// The jobs to wait for. Files containing jobs are also
+        /// The job IDs to wait for. Files containing job IDs are also
         /// accepted.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
@@ -416,7 +416,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
-        /// The jobs to be cancelled. Files containing obsids are also
+        /// The job IDs to be cancelled. Files containing job IDs are also
         /// accepted.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,

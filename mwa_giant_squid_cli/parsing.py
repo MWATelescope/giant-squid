@@ -32,8 +32,8 @@ JOB_STATE_NAMES = {
     "cancelled": AsvoJobState.Cancelled,
 }
 
-# The job types that `--job-types` accepts, in the same form. The Rust command takes any other text as the
-# "unknown" type, which cannot be filtered by, so this program refuses it.
+# The job types that `--job-types` accepts, in the same form (the same names as the Rust command). Any other text
+# is refused, "unknown" included: that type cannot be filtered by.
 JOB_TYPE_NAMES = {
     "conversion": AsvoJobType.Conversion,
     "downloadvisibilities": AsvoJobType.DownloadVisibilities,
