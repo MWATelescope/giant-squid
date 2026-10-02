@@ -27,9 +27,7 @@ use super::types::{
     PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
     PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{
-    client_config_from_env, AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter,
-};
+use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -77,30 +75,6 @@ impl PyAsvoClient {
         }
         config.token_cache_path = token_cache_path;
 
-        let inner = py
-            .detach(|| AsvoClient::new(config))
-            .map_err(|e| api_error(py, e))?;
-        Ok(Self { inner, host })
-    }
-
-    /// Make a client from the environment variables of the `giant-squid`
-    /// command, and log in.
-    ///
-    /// This is the one place where the module reads the environment, and it
-    /// does so only when you call it. `MWA_ASVO_API_KEY` is required.
-    /// `MWA_ASVO_HOST` is the host (default: the MWA ASVO), `MWA_ASVO_API_TIMEOUT`
-    /// is the time limit of a request in whole seconds, and the session is
-    /// cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid`
-    /// command. A value of `MWA_ASVO_API_TIMEOUT` that is not a whole number
-    /// of seconds is logged as a warning and the default is used.
-    ///
-    /// Raises:
-    ///     AsvoApiError: `MWA_ASVO_API_KEY` is not set, or the login failed.
-    #[staticmethod]
-    fn from_env(py: Python<'_>) -> PyResult<Self> {
-        connect_python_logging();
-        let config = client_config_from_env().map_err(|e| api_error(py, e))?;
-        let host = config.host.clone();
         let inner = py
             .detach(|| AsvoClient::new(config))
             .map_err(|e| api_error(py, e))?;
@@ -444,6 +418,12 @@ impl PyAsvoClient {
     ///     multiscale: Use WSClean multiscale cleaning.
     ///     nmiter: The WSClean -nmiter value. Must be greater than zero.
     ///     no_apply_amps: Do not apply the amplitude calibration solutions.
+    ///     no_digital_gains: Do not apply the digital gains.
+    ///     no_flag_dc: Do not flag the DC channel.
+    ///     no_geometry_delay: Do not apply the geometric delay corrections.
+    ///     no_passband_gains: Do not apply the passband gain corrections.
+    ///     no_cable_delay: Do not apply the cable delay corrections.
+    ///     no_rfi: Do not flag RFI.
     ///     nwlayers: The number of w-projection layers. This field is
     ///         deprecated in the API: use `wstack_nwlayers`.
     ///     output_mode: The products to return.
@@ -493,6 +473,12 @@ impl PyAsvoClient {
         multiscale=None,
         nmiter=None,
         no_apply_amps=None,
+        no_digital_gains=None,
+        no_flag_dc=None,
+        no_geometry_delay=None,
+        no_passband_gains=None,
+        no_cable_delay=None,
+        no_rfi=None,
         nwlayers=None,
         output_mode=None,
         pixel_scale=None,
@@ -532,6 +518,12 @@ impl PyAsvoClient {
         multiscale: Option<bool>,
         nmiter: Option<u64>,
         no_apply_amps: Option<bool>,
+        no_digital_gains: Option<bool>,
+        no_flag_dc: Option<bool>,
+        no_geometry_delay: Option<bool>,
+        no_passband_gains: Option<bool>,
+        no_cable_delay: Option<bool>,
+        no_rfi: Option<bool>,
         nwlayers: Option<i64>,
         output_mode: Option<PyOutputMode>,
         pixel_scale: Option<f64>,
@@ -567,6 +559,12 @@ impl PyAsvoClient {
             multiscale,
             nmiter,
             no_apply_amps,
+            no_digital_gains,
+            no_flag_dc,
+            no_geometry_delay,
+            no_passband_gains,
+            no_cable_delay,
+            no_rfi,
             nwlayers,
             output_mode,
             pixel_scale,

@@ -28,7 +28,6 @@
 mod client;
 mod download;
 mod error;
-mod functions;
 mod params;
 mod typed;
 mod types;
@@ -61,8 +60,7 @@ static LOG_RESET_HANDLE: OnceLock<pyo3_log::ResetHandle> = OnceLock::new();
 /// command (`_run_cli`) needs to install its own, with progress bars. So the
 /// module does not install `pyo3-log` when it is imported. It installs it
 /// here, the first time that something that can log is used: an `AsvoClient`
-/// is made, or the settings are read from the environment. Calls after the
-/// first do nothing.
+/// is made. Calls after the first do nothing.
 ///
 /// Another extension module in this process may have installed a Rust logger
 /// already (or the `giant-squid` command, in this process). Then the records
@@ -89,16 +87,10 @@ mod module {
     #[pymodule_export]
     use super::error::{AsvoApiError, AsvoError};
     #[pymodule_export]
-    use super::functions::{
-        beamformer_job_params, conversion_job_params, download_meta_job_params,
-        download_vis_job_params, image_from_job_params, imaging_job_params,
-        parse_many_job_ids_or_obs_ids, voltage_job_params,
-    };
-    #[pymodule_export]
     use super::types::{
         PyAsvoFilesArray, PyAsvoJob, PyAsvoJobProduct, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec,
-        PyCentre, PyDelivery, PyDeliveryFormat, PyDownloadProgress, PyDownloadSettings,
-        PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
+        PyCentre, PyDelivery, PyDeliveryFormat, PyDownloadProgress, PyJobSubmittedResponse,
+        PyOutput, PyOutputMode, PyPolarization, PyWeighting,
     };
 
     /// Make Python see changes to its logging configuration.
@@ -107,8 +99,8 @@ mod module {
     /// first time a Rust log record uses it. Call this after you change
     /// the logging configuration (for example, after `logging.basicConfig`
     /// or `setLevel`), if the module has already logged. The module connects
-    /// to Python's `logging` when you make the first `AsvoClient` or read the
-    /// settings from the environment, so until then there is nothing to reset.
+    /// to Python's `logging` when you make the first `AsvoClient`, so until
+    /// then there is nothing to reset.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
     #[pyfunction]
     fn reset_logging() {

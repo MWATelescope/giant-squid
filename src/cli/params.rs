@@ -461,6 +461,30 @@ pub struct ImagingJobArgs {
     #[arg(long)]
     pub no_apply_amps: bool,
 
+    /// Whether to skip applying digital gains.
+    #[arg(long)]
+    pub no_digital_gains: bool,
+
+    /// Whether to skip flagging the DC channel.
+    #[arg(long)]
+    pub no_flag_dc: bool,
+
+    /// Whether to skip applying geometric delay corrections.
+    #[arg(long)]
+    pub no_geometry_delay: bool,
+
+    /// Whether to skip applying passband gain corrections.
+    #[arg(long)]
+    pub no_passband_gains: bool,
+
+    /// Whether to skip applying cable delay corrections.
+    #[arg(long)]
+    pub no_cable_delay: bool,
+
+    /// Whether to skip RFI flagging.
+    #[arg(long)]
+    pub no_rfi: bool,
+
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
     pub allow_resubmit: bool,
@@ -497,6 +521,12 @@ impl ImagingJobArgs {
             .multiscale(self.multiscale)
             .nmiter(nmiter)
             .no_apply_amps(self.no_apply_amps)
+            .no_digital_gains(self.no_digital_gains)
+            .no_flag_dc(self.no_flag_dc)
+            .no_geometry_delay(self.no_geometry_delay)
+            .no_passband_gains(self.no_passband_gains)
+            .no_cable_delay(self.no_cable_delay)
+            .no_rfi(self.no_rfi)
             .nwlayers(self.nwlayers)
             .output_mode(self.output_mode)
             .centre(self.centre)

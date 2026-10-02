@@ -436,14 +436,12 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     let mut no_obs_id = job_detail(1, TEST_OBS_ID, "completed", 1);
     no_obs_id["job_params"] = json!({ "delivery": "acacia" });
 
-    let unknown_state = job_detail(2, TEST_OBS_ID, "wibble", 1);
-
     let mut bad_obs_id = job_detail(3, TEST_OBS_ID, "completed", 1);
     bad_obs_id["job_params"] = json!({ "obs_id": "42" });
 
     let good = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "queued", 1);
 
-    env.mock_get_jobs(vec![no_obs_id, unknown_state, bad_obs_id, good]);
+    env.mock_get_jobs(vec![no_obs_id, bad_obs_id, good]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
@@ -453,6 +451,48 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
     assert_eq!(jobs.0[0].job_id, TEST_JOB_ID);
     assert_eq!(jobs.0[0].job_state, AsvoJobState::Queued);
+}
+
+/// Since schema 1.13 the job state is the schema's `JobState`, not free text:
+/// a state that the schema does not list is a decode error of the whole
+/// listing, not a skipped job. (The user chose this over skipping the job.)
+#[test]
+fn a_job_state_the_schema_does_not_list_fails_the_listing() {
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![
+        job_detail(1, TEST_OBS_ID, "queued", 1),
+        job_detail(2, TEST_OBS_ID, "wibble", 1),
+    ]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("an unlisted state must fail the listing");
+
+    assert!(matches!(err, AsvoApiError::BadJson(_)), "{err:?}");
+    assert!(err.to_string().contains("wibble"), "{err}");
+}
+
+/// The server may give no `job_type` (schema 1.13); the job is `Unknown`.
+#[test]
+fn a_job_without_a_type_is_unknown() {
+    let env = TestEnv::with_session();
+    let mut typeless = job_detail(1, TEST_OBS_ID, "queued", 1);
+    typeless["job_type"] = serde_json::Value::Null;
+    let mut missing = job_detail(2, TEST_OBS_ID, "queued", 1);
+    missing
+        .as_object_mut()
+        .expect("a job is an object")
+        .remove("job_type");
+    env.mock_get_jobs(vec![typeless, missing]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
+
+    let types: Vec<AsvoJobType> = jobs.0.iter().map(|j| j.job_type).collect();
+    assert_eq!(types, [AsvoJobType::Unknown, AsvoJobType::Unknown]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1499,13 +1539,13 @@ fn an_api_error_with_only_a_suggestion_shows_only_the_suggestion() {
 // list_jobs: the listing that the CLI's list and wait use
 // ---------------------------------------------------------------------------
 
-/// Three jobs: a ready conversion, a queued imaging job and an expired
-/// visibility download.
+/// Three jobs: a ready conversion, a queued imaging job and a cancelled
+/// visibility download. (The API has no expired state since schema 1.13.)
 fn three_jobs() -> Vec<serde_json::Value> {
     vec![
         job_detail(1, TEST_OBS_ID, "completed", 0),
         job_detail(2, TEST_OBS_ID, "queued", 6),
-        job_detail(3, "1090008640", "expired", 1),
+        job_detail(3, "1090008640", "cancelled", 1),
     ]
 }
 
@@ -1564,7 +1604,8 @@ fn list_jobs_filters_several_states_on_the_client() {
 }
 
 /// The API cannot filter by `Expired`, so `list_jobs` (unlike `get_jobs`)
-/// filters by it on the client rather than failing.
+/// filters by it on the client rather than failing. The API has no expired
+/// state (schema 1.13), so no job matches.
 #[test]
 fn list_jobs_filters_expired_on_the_client() {
     let env = TestEnv::with_session();
@@ -1578,8 +1619,7 @@ fn list_jobs_filters_expired_on_the_client() {
         })
         .expect("the listing should succeed");
 
-    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
-    assert_eq!(ids, [3]);
+    assert!(jobs.0.is_empty(), "no job is expired");
 }
 
 /// Job IDs and obsids together are refused before any request.

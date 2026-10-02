@@ -16,7 +16,6 @@
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -39,8 +38,8 @@ use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
     DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
-    JobProduct, JobSubmittedResponse, JobType, JobsByUserRequest, JobsByUserRequestJobState, Login,
-    TokenResponse, UserResponse, VoltageJobParams,
+    JobProduct, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, TokenResponse,
+    Type as JobFileType, UserResponse, VoltageJobParams,
 };
 use super::validate::{
     self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
@@ -1000,12 +999,13 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// if a job can't be reliably converted; callers should skip that job and
 /// continue rather than fail the whole listing.
 ///
-/// - `job_type` codes we don't recognise become `AsvoJobType::Unknown`
-///   (existing forward-compat behaviour, never fails).
-/// - `job_state` is parsed via the existing `AsvoJobState::FromStr`, with
-///   "completed" and "error" special-cased (see comment at the match
-///   below) - confirmed "staging"/"staged" round-trip correctly via real
-///   responses, but the full vocabulary isn't confirmed.
+/// - `job_type` is `None` when the server gives no type (schema v1.13), and
+///   a code that this client does not know is `Unknown` as well: both become
+///   `AsvoJobType::Unknown`, which never fails.
+/// - `job_state` is the schema's `JobState` enum (since schema v1.13), so
+///   the match below covers every value of it, and a new value in the
+///   schema is a compile error here until it is handled. `completed` is
+///   `Ready`, and `error` carries the job's `error_text`.
 /// - `obs_id` is looked for at `job_params["obs_id"]` (an untyped JSON
 ///   map). CONFIRMED against a real response: the key name is right, but
 ///   the value is a JSON string, not a number - handled below.
@@ -1052,37 +1052,34 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         }
     };
 
-    let job_type = match *detail.job_type {
-        0 => AsvoJobType::Conversion,
-        1 => AsvoJobType::DownloadVisibilities,
-        2 => AsvoJobType::DownloadMetadata,
-        3 => AsvoJobType::DownloadVoltage,
-        4 => AsvoJobType::CancelJob,
-        5 => AsvoJobType::DownloadBeamformer,
-        6 => AsvoJobType::Imaging,
-        _ => AsvoJobType::Unknown,
+    let job_type = match detail.job_type.map(|job_type| *job_type) {
+        Some(0) => AsvoJobType::Conversion,
+        Some(1) => AsvoJobType::DownloadVisibilities,
+        Some(2) => AsvoJobType::DownloadMetadata,
+        Some(3) => AsvoJobType::DownloadVoltage,
+        Some(4) => AsvoJobType::CancelJob,
+        Some(5) => AsvoJobType::DownloadBeamformer,
+        Some(6) => AsvoJobType::Imaging,
+        Some(_) | None => AsvoJobType::Unknown,
     };
 
-    // The API's job_state vocabulary (JobsByUserRequestJobState) uses
-    // "completed" and has no "ready"/"expired" at all, whereas
-    // AsvoJobState::from_str expects "ready" for the same concept.
-    // Translated locally rather than changing AsvoJobState itself (which
-    // CLI argument parsing also uses). Also: since JobDetailResponse
-    // separately carries `error_text`, use it to populate
-    // AsvoJobState::Error's message instead of discarding it.
-    let job_state = match detail.job_state.as_str() {
-        "completed" => AsvoJobState::Ready,
-        "error" => AsvoJobState::Error(detail.error_text.clone().unwrap_or_default()),
-        other => match AsvoJobState::from_str(other) {
-            Ok(state) => state,
-            Err(_) => {
-                warn!(
-                    "Skipping MWA ASVO job {}: unrecognised job_state {:?}",
-                    job_id, other
-                );
-                return None;
-            }
-        },
+    // The API's `JobState` uses "completed" where `AsvoJobState` has
+    // `Ready`, and has no `Expired`. Since `JobDetailResponse` separately
+    // carries `error_text`, it populates `AsvoJobState::Error`'s message
+    // instead of being discarded. The match has no wildcard on purpose.
+    let job_state = match detail.job_state {
+        JobState::Queued => AsvoJobState::Queued,
+        JobState::Waitcal => AsvoJobState::WaitCal,
+        JobState::Staging => AsvoJobState::Staging,
+        JobState::Staged => AsvoJobState::Staged,
+        JobState::Preparing => AsvoJobState::Preparing,
+        JobState::Downloading => AsvoJobState::Downloading,
+        JobState::Preprocessing => AsvoJobState::Preprocessing,
+        JobState::Imaging => AsvoJobState::Imaging,
+        JobState::Delivering => AsvoJobState::Delivering,
+        JobState::Completed => AsvoJobState::Ready,
+        JobState::Error => AsvoJobState::Error(detail.error_text.clone().unwrap_or_default()),
+        JobState::Cancelled => AsvoJobState::Cancelled,
     };
 
     Some(AsvoJob {
@@ -1108,10 +1105,9 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
 /// Map a job's `product` to the file list the download path uses.
 ///
 /// Since schema v1.11 `product` is typed (`JobProduct`, a list of
-/// `JobFile`). A file's `type` is a free string in the schema, so a type
-/// that this client does not know is skipped with a warning, rather than
-/// failing the whole listing: a job we can't describe is better than no
-/// listing. Scratch and DUG deliveries carry a `path` instead of a `url`.
+/// `JobFile`), and since v1.13 a file's `type` is the enum `acacia`,
+/// `scratch` or `dug`, so every file has a delivery that this client knows.
+/// Scratch and DUG deliveries carry a `path` instead of a `url`.
 ///
 /// Returns `None` when there is no file list at all (for instance a job
 /// that hasn't completed), which the download path reports as
@@ -1124,18 +1120,11 @@ fn product_to_files(
 
     let mapped: Vec<AsvoFilesArray> = files
         .iter()
-        .filter_map(|file| {
-            let delivery = match file.type_.to_ascii_lowercase().as_str() {
-                "acacia" => Delivery::Acacia,
-                "dug" => Delivery::Dug,
-                "scratch" => Delivery::Scratch,
-                other => {
-                    warn!(
-                        "MWA ASVO job {}: skipping a file with unrecognised delivery type {:?}",
-                        job_id, other
-                    );
-                    return None;
-                }
+        .map(|file| {
+            let delivery = match file.type_ {
+                JobFileType::Acacia => Delivery::Acacia,
+                JobFileType::Dug => Delivery::Dug,
+                JobFileType::Scratch => Delivery::Scratch,
             };
 
             // The schema types the size as a signed integer. Only used for
@@ -1149,14 +1138,14 @@ fn product_to_files(
                 0
             });
 
-            Some(AsvoFilesArray {
+            AsvoFilesArray {
                 r#type: delivery,
                 url: file.url.clone(),
                 path: file.path.clone(),
                 size,
                 sha1: file.sha1.clone(),
                 format: file.format.clone(),
-            })
+            }
         })
         .collect();
 
@@ -1279,8 +1268,8 @@ impl JobQuery {
 }
 
 /// The API's filter value for a job state.
-fn api_job_state(state: &AsvoJobState) -> Result<JobsByUserRequestJobState, AsvoApiError> {
-    use JobsByUserRequestJobState as Api;
+fn api_job_state(state: &AsvoJobState) -> Result<JobState, AsvoApiError> {
+    use JobState as Api;
     Ok(match state {
         AsvoJobState::Queued => Api::Queued,
         AsvoJobState::WaitCal => Api::Waitcal,

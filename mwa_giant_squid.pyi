@@ -25,21 +25,12 @@ __all__ = [
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
-    "DownloadSettings",
     "JobSubmittedResponse",
     "Output",
     "OutputMode",
     "Polarization",
     "Weighting",
-    "beamformer_job_params",
-    "conversion_job_params",
-    "download_meta_job_params",
-    "download_vis_job_params",
-    "image_from_job_params",
-    "imaging_job_params",
-    "parse_many_job_ids_or_obs_ids",
     "reset_logging",
-    "voltage_job_params",
 ]
 
 __version__: builtins.str
@@ -113,23 +104,6 @@ class AsvoClient:
         api_timeout: builtins.float | None = None,
         token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
     ) -> AsvoClient: ...
-    @staticmethod
-    def from_env() -> AsvoClient:
-        r"""
-        Make a client from the environment variables of the `giant-squid`
-        command, and log in.
-
-        This is the one place where the module reads the environment, and it
-        does so only when you call it. `MWA_ASVO_API_KEY` is required.
-        `MWA_ASVO_HOST` is the host (default: the MWA ASVO), `MWA_ASVO_API_TIMEOUT`
-        is the time limit of a request in whole seconds, and the session is
-        cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid`
-        command. A value of `MWA_ASVO_API_TIMEOUT` that is not a whole number
-        of seconds is logged as a warning and the default is used.
-
-        Raises:
-            AsvoApiError: `MWA_ASVO_API_KEY` is not set, or the login failed.
-        """
     def get_jobs(
         self,
         days: builtins.int | None = None,
@@ -340,6 +314,12 @@ class AsvoClient:
         multiscale: builtins.bool | None = None,
         nmiter: builtins.int | None = None,
         no_apply_amps: builtins.bool | None = None,
+        no_digital_gains: builtins.bool | None = None,
+        no_flag_dc: builtins.bool | None = None,
+        no_geometry_delay: builtins.bool | None = None,
+        no_passband_gains: builtins.bool | None = None,
+        no_cable_delay: builtins.bool | None = None,
+        no_rfi: builtins.bool | None = None,
         nwlayers: builtins.int | None = None,
         output_mode: OutputMode | None = None,
         pixel_scale: builtins.float | None = None,
@@ -388,6 +368,12 @@ class AsvoClient:
             multiscale: Use WSClean multiscale cleaning.
             nmiter: The WSClean -nmiter value. Must be greater than zero.
             no_apply_amps: Do not apply the amplitude calibration solutions.
+            no_digital_gains: Do not apply the digital gains.
+            no_flag_dc: Do not flag the DC channel.
+            no_geometry_delay: Do not apply the geometric delay corrections.
+            no_passband_gains: Do not apply the passband gain corrections.
+            no_cable_delay: Do not apply the cable delay corrections.
+            no_rfi: Do not flag RFI.
             nwlayers: The number of w-projection layers. This field is
                 deprecated in the API: use `wstack_nwlayers`.
             output_mode: The products to return.
@@ -857,15 +843,6 @@ class AsvoJobVec:
             AsvoError: A job is missing, has an error, has expired or has
                 been cancelled.
         """
-    def json(self) -> builtins.str:
-        r"""
-        The jobs as a JSON object keyed by job ID, as `giant-squid list
-        --json` prints. The keys are the OpenAPI names (`obs_id`, `job_id`,
-        `job_type`, `job_state`, `product`, `created`, `started`,
-        `completed`, `modified`, `error_code`, `error_text`, `user_id`, `first_name`,
-        `last_name`, `job_params`; and, in `product.files`, `type`, `url`,
-        `path`, `size`, `sha1`, `format` for each file).
-        """
 
 class DownloadProgress:
     r"""
@@ -939,39 +916,6 @@ class DownloadProgress:
 
         __match_args__ = ()
         def __new__(cls) -> DownloadProgress.Finished: ...
-
-@typing.final
-class DownloadSettings:
-    r"""
-    The download settings that the `giant-squid` command reads from the
-    environment, to pass to `AsvoClient.download_job` and `download_obs`.
-    """
-    @property
-    def buffer_size(self) -> builtins.int:
-        r"""
-        How many bytes to hold in memory before they are written. Pass it as
-        `buffer_size`.
-        """
-    @property
-    def retry_duration(self) -> builtins.float:
-        r"""
-        How long to retry a failing download, in seconds. Pass it as
-        `retry_duration`.
-        """
-    @staticmethod
-    def from_env() -> DownloadSettings:
-        r"""
-        Read the settings from the environment.
-
-        `GIANT_SQUID_BUF_SIZE` is a whole number of MiB. `GIANT_SQUID_DOWNLOAD_RETRY_SECS`
-        is a whole number of seconds; a value that is not one is logged as a
-        warning and the default is used. A setting that is not set has the
-        library's default.
-
-        Raises:
-            AsvoError: `GIANT_SQUID_BUF_SIZE` is set but is not a whole
-                number of MiB, or is too large (kind `InvalidEnvironment`).
-        """
 
 @typing.final
 class JobSubmittedResponse:
@@ -1124,185 +1068,6 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
         of the process, not to `sys.stdout` and `sys.stderr`.
     """
 
-def beamformer_job_params(
-    obs_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_beamformer_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def conversion_job_params(
-    obs_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    output: Output | None = None,
-    avg_freq_res: builtins.float | None = None,
-    avg_time_res: builtins.float | None = None,
-    flag_edge_width: builtins.float | None = None,
-    apply_di_cal: builtins.bool | None = None,
-    centre: Centre | None = None,
-    custom_centre_ra: builtins.float | None = None,
-    custom_centre_dec: builtins.float | None = None,
-    no_apply_amps: builtins.bool | None = None,
-    no_digital_gains: builtins.bool | None = None,
-    no_flag_dc: builtins.bool | None = None,
-    no_geometry_delay: builtins.bool | None = None,
-    no_passband_gains: builtins.bool | None = None,
-    no_cable_delay: builtins.bool | None = None,
-    no_rfi: builtins.bool | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_conversion_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def download_meta_job_params(
-    obs_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_download_meta_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def download_vis_job_params(
-    obs_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_download_vis_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def image_from_job_params(
-    obs_id: builtins.int,
-    source_job_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    apply_primary_beam: builtins.bool | None = None,
-    auto_mask: builtins.int | None = None,
-    auto_threshold: builtins.float | None = None,
-    abs_threshold: builtins.float | None = None,
-    channels_out: builtins.int | None = None,
-    clean_iterations: builtins.int | None = None,
-    clean_threshold: builtins.float | None = None,
-    image_size: builtins.int | None = None,
-    join_channels: builtins.bool | None = None,
-    join_polarizations: builtins.bool | None = None,
-    mgain: builtins.float | None = None,
-    multiscale: builtins.bool | None = None,
-    nmiter: builtins.int | None = None,
-    nwlayers: builtins.int | None = None,
-    output_mode: OutputMode | None = None,
-    pixel_scale: builtins.float | None = None,
-    pol: Polarization | None = None,
-    robust: builtins.float | None = None,
-    uvw_max: builtins.float | None = None,
-    uvw_min: builtins.float | None = None,
-    weighting: Weighting | None = None,
-    wstack_nwlayers: builtins.int | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_image_from_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def imaging_job_params(
-    obs_id: builtins.int,
-    *,
-    delivery: Delivery | None = None,
-    delivery_format: DeliveryFormat | None = None,
-    apply_di_cal: builtins.bool | None = None,
-    apply_primary_beam: builtins.bool | None = None,
-    auto_mask: builtins.int | None = None,
-    auto_threshold: builtins.float | None = None,
-    abs_threshold: builtins.float | None = None,
-    avg_freq_res: builtins.float | None = None,
-    avg_time_res: builtins.float | None = None,
-    channels_out: builtins.int | None = None,
-    clean_iterations: builtins.int | None = None,
-    clean_threshold: builtins.float | None = None,
-    centre: Centre | None = None,
-    custom_centre_dec: builtins.float | None = None,
-    custom_centre_ra: builtins.float | None = None,
-    flag_edge_width: builtins.float | None = None,
-    image_size: builtins.int | None = None,
-    join_channels: builtins.bool | None = None,
-    join_polarizations: builtins.bool | None = None,
-    mgain: builtins.float | None = None,
-    multiscale: builtins.bool | None = None,
-    nmiter: builtins.int | None = None,
-    no_apply_amps: builtins.bool | None = None,
-    nwlayers: builtins.int | None = None,
-    output_mode: OutputMode | None = None,
-    pixel_scale: builtins.float | None = None,
-    pol: Polarization | None = None,
-    robust: builtins.float | None = None,
-    uvw_max: builtins.float | None = None,
-    uvw_min: builtins.float | None = None,
-    weighting: Weighting | None = None,
-    wstack_nwlayers: builtins.int | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_imaging_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
-    """
-
-def parse_many_job_ids_or_obs_ids(
-    strings: typing.Sequence[builtins.str],
-) -> tuple[builtins.list[builtins.int], builtins.list[builtins.int]]:
-    r"""
-    Sort job IDs and obsids, as the CLI does with its arguments.
-
-    A string that is an integer is an obsid if it is a valid obsid, and a job
-    ID if not. Any other string is the path of a file of job IDs and obsids,
-    separated by whitespace.
-
-    Args:
-        strings: The job IDs, obsids and file paths.
-
-    Returns:
-        The job IDs and the obsids, each in the order given.
-
-    Raises:
-        ValueError: Text in a file is not an integer.
-        OSError: A file cannot be read (for example `FileNotFoundError`).
-    """
-
 def reset_logging() -> None:
     r"""
     Make Python see changes to its logging configuration.
@@ -1311,24 +1076,6 @@ def reset_logging() -> None:
     first time a Rust log record uses it. Call this after you change
     the logging configuration (for example, after `logging.basicConfig`
     or `setLevel`), if the module has already logged. The module connects
-    to Python's `logging` when you make the first `AsvoClient` or read the
-    settings from the environment, so until then there is nothing to reset.
-    """
-
-def voltage_job_params(
-    obs_id: builtins.int,
-    offset: builtins.int,
-    duration: builtins.int,
-    *,
-    delivery: builtins.str | None = None,
-    from_channel: builtins.int | None = None,
-    to_channel: builtins.int | None = None,
-    allow_resubmit: builtins.bool | None = None,
-) -> builtins.dict[builtins.str, typing.Any]:
-    r"""
-    The request body that `AsvoClient.submit_voltage_job` sends, as a
-    `dict`. Makes no request.
-
-    The arguments, the defaults and the argument errors (`ValueError`,
-    `OverflowError`) are those of the method.
+    to Python's `logging` when you make the first `AsvoClient`, so until
+    then there is nothing to reset.
     """

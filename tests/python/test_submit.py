@@ -5,6 +5,7 @@ argument that is left out must be absent from what the module sets, so that the 
 tests compare with the default the schema gives, never with a value the module chose.
 """
 
+import inspect
 import json
 from collections.abc import Callable
 from typing import Any
@@ -15,6 +16,7 @@ from pytest_httpserver import HTTPServer
 import mwa_giant_squid as gs
 
 from .conftest import TEST_API_KEY, TEST_OBS_ID, error_response
+from .test_client import SCHEMA_PATH
 
 # The endpoint of each job type.
 DOWNLOAD_PATH = "/api/v2/download_vis_job"
@@ -277,6 +279,112 @@ def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
     assert body["apply_di_cal"] is True
     for name in ("custom_centre_ra", "custom_centre_dec", "uvw_max", "nwlayers", "wstack_nwlayers"):
         assert name not in body
+
+
+IMAGING_SWITCHES = (
+    "no_digital_gains",
+    "no_flag_dc",
+    "no_geometry_delay",
+    "no_passband_gains",
+    "no_cable_delay",
+    "no_rfi",
+)
+
+
+# Each submit method, its endpoint, the arguments of one call, and the schema that defines its request body. The two
+# tests below were the tests of the `*_params` functions (removed), which pinned these decisions for the same bodies.
+BODY_CASES: list[tuple[str, str, tuple[Any, ...], dict[str, Any], str]] = [
+    (
+        "submit_download_vis_job",
+        "/api/v2/download_vis_job",
+        (TEST_OBS_ID,),
+        {"allow_resubmit": True},
+        "DownloadJobParams",
+    ),
+    (
+        "submit_download_meta_job",
+        "/api/v2/download_vis_job",
+        (TEST_OBS_ID,),
+        {"allow_resubmit": True},
+        "DownloadJobParams",
+    ),
+    ("submit_conversion_job", "/api/v2/conversion_job", (TEST_OBS_ID,), {"avg_freq_res": 10.0}, "ConversionJobParams"),
+    ("submit_imaging_job", "/api/v2/imaging_job", (TEST_OBS_ID,), {"image_size": 1024}, "ImagingJobFlow1Params"),
+    ("submit_image_from_job", "/api/v2/image_from_job", (TEST_OBS_ID, 555), {"nmiter": 7}, "ImagingJobFlow2Params"),
+    ("submit_voltage_job", "/api/v2/voltage_job", (TEST_OBS_ID, 10, 32), {"from_channel": 3}, "VoltageJobParams"),
+    (
+        "submit_beamformer_job",
+        "/api/v2/beamformer_job",
+        (TEST_OBS_ID,),
+        {"allow_resubmit": True},
+        "BeamformerJobParams",
+    ),
+]
+BODY_CASE_IDS = [method for method, *_ in BODY_CASES]
+
+
+@pytest.mark.parametrize(("method", "path", "args", "kwargs", "schema_name"), BODY_CASES, ids=BODY_CASE_IDS)
+def test_every_field_of_a_body_is_in_the_schema(
+    client: gs.AsvoClient,
+    httpserver: HTTPServer,
+    method: str,
+    path: str,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    schema_name: str,
+) -> None:
+    """Only parameters that the API defines are sent: no `flags`, and nothing else the schema does not have."""
+    submitted(httpserver, path)
+    properties = json.loads(SCHEMA_PATH.read_text())["definitions"][schema_name]["properties"]
+
+    getattr(client, method)(*args, **kwargs)
+
+    body = body_sent_to(httpserver, path)
+    assert not [key for key in body if key not in properties]
+    assert "flags" not in body
+
+
+@pytest.mark.parametrize(("method", "path", "args", "kwargs", "schema_name"), BODY_CASES, ids=BODY_CASE_IDS)
+def test_staging_count_is_not_an_argument_and_not_in_a_body(
+    client: gs.AsvoClient,
+    httpserver: HTTPServer,
+    method: str,
+    path: str,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    schema_name: str,
+) -> None:
+    """``staging_count`` is for the MWA ASVO's processors, and the API will remove it: it is never sent or taken."""
+    submitted(httpserver, path)
+
+    getattr(client, method)(*args, **kwargs)
+
+    assert not [name for name in inspect.signature(getattr(client, method)).parameters if "staging" in name]
+    assert "staging_count" not in body_sent_to(httpserver, path)
+
+
+def test_imaging_job_sends_the_six_correction_and_flagging_switches(
+    client: gs.AsvoClient, httpserver: HTTPServer
+) -> None:
+    """Each switch reaches the body when it is given, and is ``False`` (the schema default) when it is not."""
+    submitted(httpserver, IMAGING_PATH)
+
+    client.submit_imaging_job(TEST_OBS_ID)
+    default_body = body_sent_to(httpserver, IMAGING_PATH)
+    client.submit_imaging_job(
+        TEST_OBS_ID,
+        no_digital_gains=True,
+        no_flag_dc=True,
+        no_geometry_delay=True,
+        no_passband_gains=True,
+        no_cable_delay=True,
+        no_rfi=True,
+    )
+    given_body = [json.loads(request.get_data()) for request, _ in httpserver.log if request.path == IMAGING_PATH][-1]
+
+    for name in IMAGING_SWITCHES:
+        assert default_body[name] is False, name
+        assert given_body[name] is True, name
 
 
 def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.AsvoClient, httpserver: HTTPServer) -> None:

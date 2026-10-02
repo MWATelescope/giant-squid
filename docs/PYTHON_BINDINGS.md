@@ -3,7 +3,7 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `5238319` (the commit of diff 29), plus diff 30 (below). The thin-client
+at the commit after diff 30 (`5297301`, the schema 1.13.0 commit, was broken), plus diff 31 (below). The thin-client
 refactor is finished: the Python `giant-squid` command is now the Rust
 command, run inside the module. The entries under "Status"
 below are the detailed log; this section is the summary and the list of what
@@ -27,8 +27,8 @@ item 1 (what is left of it), then item 3.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 30): 249 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 37 CLI tests; 185 pytest tests; 18 live tests
+- Tests at the last run (after diff 31): 257 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 37 CLI tests; 150 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -115,13 +115,11 @@ item 1 (what is left of it), then item 3.**
    (a) `--version` prints `mwa_giant_squid 3.0.0`, not `giant-squid 3.0.0`
    (clap uses the crate name); `#[command(name = "giant-squid")]` would fix
    it (the user said: later). (b) the second run of `_run_cli` in one
-   process keeps the logger of the first. (c) The Python API still has
-   functions that the deleted Python command used and nothing in the repo
-   calls now: `AsvoJobVec.json()`, `AsvoClient.from_env()`,
-   `DownloadSettings.from_env()`, `parse_many_job_ids_or_obs_ids` and the
-   `*_params` functions. Diff 30 removed the others (see Status) and left
-   these, which are documented for users; the standing rule says the library
-   has no unused API calls, so ask the user whether to keep them. Decision
+   process keeps the logger of the first. (c) Left in place, now unreachable from Python: the `InvalidEnvironment` and `MissingAuthKey` error
+   kinds of the exceptions (they came from the removed `from_env` methods), and the Rust library's
+   `AsvoJobState::Expired`: schema 1.13.0 has no expired job state, so no job from the API is
+   `Expired` (the Rust and Python `list --job-states expired` still parse and match nothing). Ask the
+   user whether to remove these. Decision
    history of the work:
    **Level 3, option A** (decided by the user: "stick with a thin
    python wrapper and see how we go with the challenges"). Level 1 is done
@@ -1124,6 +1122,31 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   the `parse_utc_time` tests (all in `test_module.py`), `test_state_text_...`
   (`test_client.py`) and the response `json()` test (`test_submit.py`). The
   `py_enum!` macro lost its extra-methods argument.
+- 2026-10-02 (diff 31): schema 1.13.0 (API developer's changes, committed by the user as `5297301`, which did not
+  build). In the schema: `ImagingJobFlow1Params` has six new switches (`no_cable_delay`, `no_digital_gains`,
+  `no_flag_dc`, `no_geometry_delay`, `no_passband_gains`, `no_rfi`; default false); `JobDetailResponse.job_state` and
+  `JobsByUserRequest.job_state` are the enum `JobState` (no `expired`); `job_type` of `JobDetailResponse` and
+  `QueuedJob` is optional; `JobFile.type` is an enum (`acacia`, `scratch`, `dug`); `UserUpdateProfileRequest`
+  renamed `firstname` and `lastname` (not used); new type `ObservationMetadata` (not used). `dug` is still not
+  allowed for conversion and imaging `delivery`, so the open item about it stays open. Done: the six switches are
+  options of `submit-image` (not of `submit-image-from-job`) and arguments of the Python imaging method; the client
+  matches `JobState` with no wildcard, reads `job_type` as optional (a missing type is `Unknown`), and matches the
+  file type enum. **Decision (user, option B): strict schema types.** A job state or file type that the schema does
+  not list now fails the whole listing with a decode error (`AsvoApiError::BadJson`), where before that job or file
+  was skipped with a warning. Tests changed for this (approved by the choice of B): the two tolerance tests were
+  replaced (`unusable_jobs_are_skipped...` lost its unknown-state job, and `a_file_with_an_unknown_delivery_type_is_skipped`
+  became `a_file_type_the_schema_does_not_list_fails_the_download`), and the `expired` job in the shared `three_jobs`
+  fixtures (Rust and Python) is `cancelled`, with the Expired-filter assertions now expecting no job.
+  New tests: `a_job_state_the_schema_does_not_list_fails_the_listing`, `a_job_without_a_type_is_unknown`,
+  `submit_image_sends_the_six_correction_and_flagging_switches`,
+  `submit_image_from_job_does_not_take_the_conversion_switches` and one Python test for the switches.
+  **Removed from the Python module (user decision): `AsvoJobVec.json()`, `AsvoClient.from_env()`,
+  `parse_many_job_ids_or_obs_ids` and the seven `*_params` functions, and also the class `DownloadSettings`**
+  (its only constructor was `from_env`, so it could not be built any more). The Python module now reads no
+  environment variable. `src/python/functions.rs` and `tests/python/test_functions.py` are deleted; the two tests
+  of that file that pinned decisions (no `staging_count`; every field of a body is in the schema) now run on the
+  submit methods in `test_submit.py`. The other tests of that file (the builders, `parse_many_...`) went with the
+  functions. The Rust library keeps all of its own versions.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

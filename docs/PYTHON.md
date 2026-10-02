@@ -75,8 +75,7 @@ What is particular to running the program from Python:
 You need an MWA ASVO API key. To get one, log in to the
 [MWA ASVO portal](https://asvo.mwatelescope.org/) and copy the key from your profile.
 
-The module reads no environment variable unless you ask it to (see below). Your program can read the key and
-give it to the client:
+The module reads no environment variable. Your program reads the key and gives it to the client:
 
 ```python
 import os
@@ -114,30 +113,6 @@ client = mwa_giant_squid.AsvoClient(
 
 To use a different MWA ASVO server (for example, to test a new feature), give its URL as `host`.
 
-### The environment, if you want it
-
-`AsvoClient.from_env()` makes a client from the environment variables of the `giant-squid` command, and logs in.
-It is the only place where the module reads the environment, and it does so only when you call it:
-
-| Variable | Meaning |
-|---|---|
-| `MWA_ASVO_API_KEY` | Your API key. Required. Without it, `from_env` raises `AsvoApiError` (kind `MissingAuthKey`). |
-| `MWA_ASVO_HOST` | The MWA ASVO URL. Default: the MWA ASVO. |
-| `MWA_ASVO_API_TIMEOUT` | The time limit of a request, in whole seconds. A value that is not a whole number is logged as a warning and the default is used. |
-| `HOME` | The session is cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid` command. Without it, the session is not cached. |
-
-`DownloadSettings.from_env()` reads the two download settings the same way. Pass them to the download methods:
-
-```python
-settings = mwa_giant_squid.DownloadSettings.from_env()
-client.download_job(job_id, "/data/mwa", buffer_size=settings.buffer_size, retry_duration=settings.retry_duration)
-```
-
-`GIANT_SQUID_BUF_SIZE` is a whole number of MiB. A value that is not one raises `AsvoError` (kind
-`InvalidEnvironment`, with the attributes `name`, `value` and `problem`). `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is a
-whole number of seconds; a value that is not one is a warning, and the default is used. The messages are the same in
-the Rust and the Python `giant-squid` command, because both come from the library.
-
 ## List jobs
 
 `get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
@@ -168,8 +143,7 @@ jobs = client.list_jobs(
 ```
 
 The result is an `AsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
-filters a list that you already have, without a request. `json()` returns the same JSON as
-`giant-squid list --json`.
+filters a list that you already have, without a request.
 
 Notes:
 
@@ -226,26 +200,6 @@ raises an exception, so do not use `status` to decide whether a call worked.
 `cancel_job` returns the same class. The MWA ASVO answers the cancellation of a job that is already cancelled
 with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
 is an error and raises `AsvoApiError`.
-
-### Check a request without sending it
-
-For each submit method there is a module function that returns the request body as a `dict`. Its name
-is the method name without `submit_`, plus `_params`. It makes no request. It applies the same checks.
-
-```python
-body = mwa_giant_squid.conversion_job_params(1065880128, output=Output.Ms)
-print(body)
-```
-
-### Job IDs and obsids from text
-
-`parse_many_job_ids_or_obs_ids` sorts strings as the `giant-squid` arguments are sorted. An integer
-string is an obsid if it is a valid obsid, and a job ID if not. Other strings are paths of files that
-hold whitespace-separated numbers.
-
-```python
-job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(["1065880128", "123", "ids.txt"])
-```
 
 ## Wait for jobs
 
@@ -356,8 +310,7 @@ except AsvoApiError as e:
 The module sends its log records to the Python `logging` module. The logger names start with
 `mwa_giant_squid`. Records below `DEBUG` are not sent, because they can contain tokens.
 
-The module connects to `logging` when you make the first `AsvoClient` (or call `AsvoClient.from_env()` or
-`DownloadSettings.from_env()`), not when you import it. A Rust program can have only one log destination per
+The module connects to `logging` when you make the first `AsvoClient`, not when you import it. A Rust program can have only one log destination per
 process, and the `giant-squid` command needs its own. A log record that something else makes before that point
 is not sent anywhere. If another extension module has already set the Rust log destination in the process, the
 records go there and `reset_logging()` does nothing.

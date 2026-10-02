@@ -59,11 +59,14 @@ before you upgrade scripts.**
 
 ### Added in 3.0.0
 
+* `submit-image` takes six more options, as the MWA ASVO API (schema 1.13.0) does: `--no-digital-gains`, `--no-flag-dc`,
+  `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi`, the same as `submit-conv` has. In
+  Python they are the arguments of `submit_imaging_job`.
 * giant-squid is now a Rust library with a public API that reads no environment variables and prints nothing
   (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
 * The environment variables of the `giant-squid` command are read in the library, in one place, for both commands:
-  the Rust function `client_config_from_env` and `DownloadSettings::from_env`, and in Python `AsvoClient.from_env()`
-  and `DownloadSettings.from_env()`. The messages about a bad value are the same for the command and the Python module. A
+  the Rust functions `client_config_from_env` and `DownloadSettings::from_env`. The Python module does not read the
+  environment. A
   `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning (the command ignored it
   silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused.
 * The names of the job states and job types (`queued`, `download_visibilities` and so on) are listed once, in the

@@ -1421,6 +1421,68 @@ fn submit_conv_sends_no_cable_delay_and_no_rfi() {
     assert_eq!(json["no_rfi"], false);
 }
 
+/// The six correction and flagging switches of the conversion job are on the
+/// imaging job too (schema v1.13). Each is off unless it is given, and the
+/// body carries `false` then, the schema's default.
+#[test]
+fn submit_image_sends_the_six_correction_and_flagging_switches() {
+    const SWITCHES: [&str; 6] = [
+        "no_digital_gains",
+        "no_flag_dc",
+        "no_geometry_delay",
+        "no_passband_gains",
+        "no_cable_delay",
+        "no_rfi",
+    ];
+
+    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+    for name in SWITCHES {
+        assert_eq!(json[name], false, "{name} is off by default");
+    }
+
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--no-digital-gains",
+        "--no-flag-dc",
+        "--no-geometry-delay",
+        "--no-passband-gains",
+        "--no-cable-delay",
+        "--no-rfi",
+        TEST_OBS_ID,
+    ]);
+    let json = json_of(
+        &args
+            .to_params(TEST_OBS_ID_I64)
+            .expect("params should build"),
+    );
+    for name in SWITCHES {
+        assert_eq!(json[name], true, "{name} is on when given");
+    }
+}
+
+/// The imaging job from a conversion job does not take the switches: the
+/// conversion job it starts from has already applied them or not.
+#[test]
+fn submit_image_from_job_does_not_take_the_conversion_switches() {
+    for flag in ["--no-digital-gains", "--no-rfi"] {
+        let result = Args::try_parse_from([
+            "giant-squid",
+            "submit-image-from-job",
+            "--source-job-id",
+            "5",
+            flag,
+            TEST_OBS_ID,
+        ]);
+        assert!(result.is_err(), "{flag} must be refused");
+    }
+}
+
 /// A UTC time, for the expected values below.
 fn utc(time: &str) -> jiff::Timestamp {
     time.parse().expect("a valid time")

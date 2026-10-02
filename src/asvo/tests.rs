@@ -18,7 +18,8 @@ use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
 use crate::asvo::{
-    AsvoClient, AsvoError, DownloadOptions, DownloadProgress, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    AsvoApiError, AsvoClient, AsvoError, DownloadOptions, DownloadProgress,
+    DEFAULT_DOWNLOAD_BUFFER_SIZE,
 };
 use crate::test_common::*;
 use crate::test_config::client_config;
@@ -479,11 +480,11 @@ fn a_forbidden_download_fails_without_retrying() {
     }
 }
 
-/// A file entry whose delivery type the client doesn't understand is
-/// skipped, and a job left with nothing usable reports no files rather
-/// than half-downloading.
+/// Since schema 1.13 a file's `type` is `acacia`, `scratch` or `dug`. A type
+/// that the schema does not list fails the listing, and so the download
+/// (it does not skip the file). The user chose this over skipping the file.
 #[test]
-fn a_file_with_an_unknown_delivery_type_is_skipped() {
+fn a_file_type_the_schema_does_not_list_fails_the_download() {
     let env = TestEnv::with_session();
     let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
     detail["product"] = json!({
@@ -499,7 +500,11 @@ fn a_file_with_an_unknown_delivery_type_is_skipped() {
         .download_job(TEST_JOB_ID, &options(&dir_path))
         .expect_err("expected the download to fail");
 
-    assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
+    assert!(
+        matches!(&err, AsvoError::AsvoApi(AsvoApiError::BadJson(_))),
+        "expected a decode error, got {err:?}"
+    );
+    assert!(err.to_string().contains("some_new_delivery"), "{err}");
 }
 
 // ---------------------------------------------------------------------------

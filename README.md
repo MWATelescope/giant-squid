@@ -417,6 +417,18 @@ Options:
           Number of w-stacking layers. Leave unset to let the server decide
       --no-apply-amps
           Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this
+      --no-digital-gains
+          Whether to skip applying digital gains
+      --no-flag-dc
+          Whether to skip flagging the DC channel
+      --no-geometry-delay
+          Whether to skip applying geometric delay corrections
+      --no-passband-gains
+          Whether to skip applying passband gain corrections
+      --no-cable-delay
+          Whether to skip applying cable delay corrections
+      --no-rfi
+          Whether to skip RFI flagging
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
@@ -475,6 +487,12 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag | off |
+| `--no-digital-gains` | Do not correct the digital gains | flag | off |
+| `--no-flag-dc` | Do not flag the DC channel | flag | off |
+| `--no-geometry-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-passband-gains` | Do not correct the passband gains | flag | off |
+| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
 
 The options `--apply-di-cal`, `--apply-primary-beam` and `--join-channels` are true by default. To turn one off,
 join the value to the option with an equals sign, for example `--join-channels=false`.
@@ -562,7 +580,7 @@ Options:
           Print help
 ```
 
-It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps` excepted), and `--source-job-id`, which is required.
+It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi` excepted), and `--source-job-id`, which is required.
 
 Some notes about imaging a conversion job:
 * only conversion jobs which output a CASA measurement set are able to be imaged.
