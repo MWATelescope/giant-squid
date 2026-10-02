@@ -123,11 +123,11 @@ pub enum Args {
         #[arg(short, long, default_value = ".")]
         download_dir: String,
 
-        /// Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off.
+        /// Acacia delivery jobs only: Don't untar the contents of your download.
         #[arg(short, long, visible_alias("keep-zip"))]
         keep_tar: bool,
 
-        /// Do not attempt to resume a partial download. Leave the partial file alone.
+        /// Do not resume a partial download: download it again from the start. A complete keep-tar file that matches the MWA ASVO hash is still skipped. Without this option, a rerun after an interruption carries on where it stopped, with or without --keep-tar.
         #[arg(short = 'r', long)]
         no_resume: bool,
 

@@ -569,7 +569,7 @@ class AsvoClient:
             job_id: The job ID.
             download_dir: The directory for the files. It must exist.
             keep_tar: Keep the tar file as it is. `False` unpacks it into
-                `download_dir` while it downloads (then there is no resume).
+                `download_dir` while it downloads.
             no_resume: Download the whole file again, even if part of it is
                 on disk.
             hash: Check the SHA-1 hash of the file against the MWA ASVO's.

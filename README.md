@@ -989,9 +989,9 @@ Options:
   -d, --download-dir <DOWNLOAD_DIR>
           Which dir should downloads be written to [default: .]
   -k, --keep-tar
-          Acacia delivery jobs only: Don't untar the contents of your download. NOTE: This option allows resuming downloads by rerunning giant-squid after an interruption. Giant-squid will resume where it left off [alias: --keep-zip]
+          Acacia delivery jobs only: Don't untar the contents of your download [alias: --keep-zip]
   -r, --no-resume
-          Do not attempt to resume a partial download. Leave the partial file alone
+          Do not resume a partial download: download it again from the start. A complete keep-tar file that matches the MWA ASVO hash is still skipped. Without this option, a rerun after an interruption carries on where it stopped, with or without --keep-tar
   -c, --concurrent-downloads <CONCURRENT_DOWNLOADS>
           Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has [default: 4]
       --skip-hash

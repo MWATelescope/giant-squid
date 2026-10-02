@@ -607,12 +607,15 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
     assert_eq!(written, RESUME_PAYLOAD);
 }
 
-#[test]
-fn a_partial_file_is_left_alone_when_no_resume_is_set() {
+/// Seed `contents` as the keep-tar output file, then download with
+/// `--no-resume`, from a server that sends the whole file only when it is
+/// asked for without a range. Returns the number of whole-file requests and
+/// what is on disk afterwards.
+fn keep_tar_no_resume_download(contents: &[u8]) -> (usize, String) {
     let env = TestEnv::with_session();
-    let requests = env.server.mock(|when, then| {
-        when.method(GET).path(DOWNLOAD_PATH);
-        then.status(500).body("should not have been asked for");
+    let whole = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH).header_missing("range");
+        then.status(200).body(RESUME_PAYLOAD);
     });
     env.mock_get_jobs(vec![ready_job_serving(
         &env.server.url(DOWNLOAD_PATH),
@@ -620,9 +623,8 @@ fn a_partial_file_is_left_alone_when_no_resume_is_set() {
         &sha1_hex(RESUME_PAYLOAD.as_bytes()),
     )]);
 
-    let (head, _) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
     let dir = TempDir::new().expect("could not create a download directory");
-    std::fs::write(dir.path().join(DOWNLOAD_FILE), head).expect("could not seed a partial file");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), contents).expect("could not seed a file");
     let dir_path = dir.path().display().to_string();
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
@@ -631,12 +633,76 @@ fn a_partial_file_is_left_alone_when_no_resume_is_set() {
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_job(TEST_JOB_ID, &opts)
-        .expect("--no-resume should skip the file, not fail");
+        .expect("the download should succeed");
 
-    assert_eq!(requests.calls(), 0, "nothing should have been fetched");
-    let written = std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE))
-        .expect("the partial file should still be there");
-    assert_eq!(written, head, "the partial file should be untouched");
+    let written =
+        std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE)).expect("the file should be there");
+    (whole.calls(), written)
+}
+
+#[test]
+fn a_partial_file_is_downloaded_again_when_no_resume_is_set() {
+    let (head, _) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
+
+    let (whole_requests, written) = keep_tar_no_resume_download(head.as_bytes());
+
+    assert_eq!(
+        whole_requests, 1,
+        "the whole file should be fetched, without a range"
+    );
+    assert_eq!(written, RESUME_PAYLOAD);
+}
+
+#[test]
+fn a_complete_and_verified_file_is_skipped_when_no_resume_is_set() {
+    let (whole_requests, written) = keep_tar_no_resume_download(RESUME_PAYLOAD.as_bytes());
+
+    assert_eq!(whole_requests, 0, "nothing should have been fetched");
+    assert_eq!(written, RESUME_PAYLOAD);
+}
+
+#[test]
+fn a_complete_file_with_the_wrong_contents_is_downloaded_again_when_no_resume_is_set() {
+    let wrong = "x".repeat(RESUME_PAYLOAD.len());
+
+    let (whole_requests, written) = keep_tar_no_resume_download(wrong.as_bytes());
+
+    assert_eq!(whole_requests, 1);
+    assert_eq!(written, RESUME_PAYLOAD);
+}
+
+#[test]
+fn a_file_larger_than_the_download_is_downloaded_again() {
+    let env = TestEnv::with_session();
+    let whole = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH).header_missing("range");
+        then.status(200).body(RESUME_PAYLOAD);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let larger = format!("{RESUME_PAYLOAD} and more");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), larger).expect("could not seed a file");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(TEST_JOB_ID, &opts)
+        .expect("the download should succeed");
+
+    assert_eq!(whole.calls(), 1);
+    let written =
+        std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE)).expect("the file should be there");
+    assert_eq!(
+        written, RESUME_PAYLOAD,
+        "the file should be replaced, not appended to"
+    );
 }
 
 /// A server may ignore a range request and answer 200 with the whole file.
@@ -1496,28 +1562,47 @@ mod reruns {
     }
 
     #[test]
-    fn without_a_hash_check_a_file_on_disk_is_used_on_its_size_alone() {
+    fn without_a_hash_check_a_reused_file_is_still_checked() {
         let archive = test_archive();
         let data = data_positions(&archive);
         let env = env_serving(&archive);
         mock_window(&env, 0, &archive);
         let rest = mock_rest(&env, data[1], &archive);
+        let whole = mock_whole(&env, &archive);
         let dir = TempDir::new().expect("could not create a download directory");
-        let wrong = vec![b'x'; 1000];
-        std::fs::write(dir.path().join("a.dat"), &wrong).expect("could not write a.dat");
+        // The right size, the wrong contents.
+        std::fs::write(dir.path().join("a.dat"), vec![b'x'; 1000]).expect("could not write a.dat");
 
-        download(&env, &dir, |opts| opts.hash = false).expect("the download should succeed");
+        download(&env, &dir, |opts| {
+            opts.hash = false;
+            opts.retry_duration = ONE_RETRY;
+        })
+        .expect("the retry should fetch the whole archive and succeed");
+
+        assert_eq!(rest.calls(), 1, "the first attempt used the file on disk");
+        assert_eq!(
+            whole.calls(),
+            1,
+            "the hash failed, so the retry fetched the whole archive"
+        );
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn without_a_hash_check_correct_files_on_disk_are_used() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        mock_window(&env, 0, &archive);
+        let rest = mock_rest(&env, data[1], &archive);
+        let whole = mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat"]);
+
+        download(&env, &dir, |opts| opts.hash = false).expect("the rerun should succeed");
 
         assert_eq!(rest.calls(), 1);
-        assert_eq!(
-            std::fs::read(dir.path().join("a.dat")).expect("a.dat"),
-            wrong
-        );
-        for (name, size) in &MEMBERS[1..] {
-            assert_eq!(
-                std::fs::read(dir.path().join(name)).expect("the member"),
-                member_contents(*size)
-            );
-        }
+        assert_eq!(whole.calls(), 0);
+        assert_members_written(&dir);
     }
 }

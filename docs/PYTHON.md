@@ -280,7 +280,7 @@ threads run during the download.
 
 | Argument | Meaning |
 |---|---|
-| `keep_tar` | Keep the tar file. By default the module unpacks it while it downloads. Then there is no resume. |
+| `keep_tar` | Keep the tar file. By default the module unpacks it while it downloads. |
 | `no_resume` | Download the whole file again, even if part of it is on disk. |
 | `hash` | Check the SHA-1 hash of the file. Default: `True`. |
 | `progress` | A function that receives `DownloadProgress` events. |

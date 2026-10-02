@@ -478,6 +478,10 @@ struct UntarCheckpoint {
     out_path: Option<PathBuf>,
     /// The size of the member's data, in bytes.
     size: u64,
+    /// The hasher includes files from an earlier run (see
+    /// [`untar_checkpoint_from_disk`]), so the hash is checked even when
+    /// [`DownloadOptions::hash`] is not set.
+    verify: bool,
 }
 
 /// Where one stream-untar attempt starts.
@@ -489,6 +493,8 @@ struct ResumePoint {
     /// The rest of the member that a failed attempt was in, or `None` when
     /// the attempt starts at the beginning of the archive.
     member: Option<MemberTail>,
+    /// The hash must be checked, as for [`UntarCheckpoint::verify`].
+    verify: bool,
 }
 
 impl ResumePoint {
@@ -498,6 +504,7 @@ impl ResumePoint {
             start: 0,
             hasher: Sha1::new(),
             member: None,
+            verify: false,
         }
     }
 }
@@ -537,7 +544,7 @@ fn try_download_untar(
     let unpack_path = Path::new(opts.download_dir);
 
     let mut resume = match checkpoint.as_ref() {
-        Some(cp) => resume_point(cp, opts.hash, log_prefix)?,
+        Some(cp) => resume_point(cp, opts.hash || cp.verify, log_prefix)?,
         None => ResumePoint::from_start(),
     };
 
@@ -574,6 +581,14 @@ fn try_download_untar(
 
     report_started(opts, job_id, log_prefix, file_info.size, resume.start);
 
+    let check_hash = opts.hash || resume.verify;
+    if !opts.hash && resume.verify {
+        info!(
+            "{} Files from an earlier download are used, so the hash is checked.",
+            log_prefix
+        );
+    }
+
     let hasher = untar_stream(
         response_reader(response),
         resume,
@@ -585,7 +600,7 @@ fn try_download_untar(
 
     report(opts, DownloadProgress::Finished);
 
-    if opts.hash {
+    if check_hash {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
@@ -627,6 +642,7 @@ fn untar_stream(
     checkpoint: &mut Option<UntarCheckpoint>,
 ) -> Result<Sha1, AsvoError> {
     let buffer_size = opts.buffer_size;
+    let verify = resume.verify;
     let hasher = RefCell::new(resume.hasher);
     let mut reader = HashingReader {
         inner: source,
@@ -673,6 +689,7 @@ fn untar_stream(
                 hasher: hasher.borrow().clone(),
                 out_path: (!is_dir).then(|| out_full.clone()),
                 size: entry.size(),
+                verify,
             });
 
             if !is_dir {
@@ -754,6 +771,7 @@ fn resume_point(
             remaining: cp.size - on_disk,
             size: cp.size,
         }),
+        verify: cp.verify,
     })
 }
 
@@ -810,8 +828,9 @@ impl<R: Read> Read for HashingReader<'_, R> {
 /// from the server, in byte ranges of at most [`EARLIER_FILES_WINDOW`] bytes.
 /// The member data that is on disk is read from the files. A file that has
 /// the right size but the wrong contents makes the hash check fail, and the
-/// retry then fetches the whole archive. When [`DownloadOptions::hash`] is
-/// not set, the files are not read and are used on their size alone.
+/// retry then fetches the whole archive. Because files from an earlier run
+/// are only trusted after this check, the hash is checked even when
+/// [`DownloadOptions::hash`] is not set (see [`UntarCheckpoint::verify`]).
 ///
 /// Returns `Ok(None)` when there is nothing to carry on from: the download
 /// directory is empty, the first member is not on disk, or the check failed
@@ -895,6 +914,7 @@ fn find_files_on_disk(
                 hasher: hasher.borrow().clone(),
                 out_path: (!is_dir).then(|| out_full.clone()),
                 size,
+                verify: true,
             });
 
             let on_disk = if is_dir {
@@ -913,16 +933,11 @@ fn find_files_on_disk(
             }
             files_on_disk += 1;
             if !is_dir && size > 0 {
-                // The member's data comes from its file (or is skipped, when
-                // there is no hash to check).
+                // The member's data comes from its file.
                 *local.borrow_mut() = Some(LocalData {
                     start: data_pos,
                     len: size,
-                    file: if opts.hash {
-                        Some(File::open(&out_full)?)
-                    } else {
-                        None
-                    },
+                    file: File::open(&out_full)?,
                 });
                 copy_with_progress(entry, &mut io::sink(), opts.buffer_size, opts)?;
                 bytes_on_disk += size;
@@ -966,9 +981,8 @@ struct LocalData {
     start: u64,
     /// The size of the member's data.
     len: u64,
-    /// The member's file, read from its start, or `None` to give zeros: the
-    /// bytes are then only counted, because there is no hash to check.
-    file: Option<File>,
+    /// The member's file, read from its start.
+    file: File,
 }
 
 /// A reader over an archive that is partly unpacked on disk. The data of the
@@ -1000,18 +1014,12 @@ impl SpliceReader<'_> {
             return None;
         }
         let want = buf.len().min((end - self.position) as usize);
-        let result = match data.file.as_mut() {
-            Some(file) => match file.read(&mut buf[..want]) {
-                Ok(0) => Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "a file on disk became shorter while it was read",
-                )),
-                other => other,
-            },
-            None => {
-                buf[..want].fill(0);
-                Ok(want)
-            }
+        let result = match data.file.read(&mut buf[..want]) {
+            Ok(0) => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "a file on disk became shorter while it was read",
+            )),
+            other => other,
         };
         Some(result)
     }
@@ -1329,9 +1337,6 @@ fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> 
     })
 }
 
-/// Prepare the output file for a keep-tar download, handling resume and
-/// existing-file-with-matching-hash short-circuits.  Returns the open file
-/// handle and the byte count already on disk (0 for a fresh download).
 /// What the output file on disk means for the download about to happen.
 ///
 /// This used to be signalled by returning an offset equal to the expected
@@ -1339,8 +1344,8 @@ fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> 
 /// caller never checked, so an already-complete file was downloaded again.
 /// An explicit outcome makes the "nothing to do" case impossible to miss.
 enum OutputTarget {
-    /// Nothing to fetch: the file is already complete and verified, or
-    /// `--no-resume` means it must be left as it is.
+    /// Nothing to fetch: the file is already complete and matches the MWA
+    /// ASVO hash.
     AlreadyDone { reason: &'static str },
 
     /// Fetch into this file, starting `offset` bytes in. An `offset` of 0
@@ -1348,6 +1353,14 @@ enum OutputTarget {
     Download { file: File, offset: u64 },
 }
 
+/// Prepare the output file for a keep-tar download, from the file that is
+/// already at `out_path`, if there is one.
+///
+/// A complete file that matches the MWA ASVO hash is not fetched again. Any
+/// other file is downloaded again from the start, except a partial file when
+/// `no_resume` is not set: that download carries on from the end of the file.
+/// A file that is larger than the download cannot be part of it, so it is
+/// downloaded again too.
 fn prepare_output_file(
     out_path: &PathBuf,
     no_resume: bool,
@@ -1356,51 +1369,51 @@ fn prepare_output_file(
     job_id: AsvoJobId,
     log_prefix: &str,
 ) -> Result<OutputTarget, AsvoError> {
-    if !out_path.try_exists()? {
-        return Ok(OutputTarget::Download {
+    let start_again = || -> Result<OutputTarget, AsvoError> {
+        Ok(OutputTarget::Download {
             file: create_file_logged(out_path, log_prefix)?,
             offset: 0,
-        });
+        })
+    };
+
+    if !out_path.try_exists()? {
+        return start_again();
     }
 
-    // File already exists.
     let file_size_bytes = std::fs::metadata(out_path)?.len();
-
-    if no_resume && file_size_bytes < file_info.size {
-        return Ok(OutputTarget::AlreadyDone {
-            reason: "Partial file exists, but --no-resume was set.",
-        });
-    }
 
     if file_size_bytes == file_info.size {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
         );
-        match check_file_sha1_hash(out_path, mwa_asvo_hash, job_id) {
-            Ok(()) => {
-                return Ok(OutputTarget::AlreadyDone {
-                    reason: "File exists, is the correct size and matches the MWA ASVO hash.",
-                });
-            }
-            Err(_) => {
-                if no_resume {
-                    return Ok(OutputTarget::AlreadyDone {
-                        reason: "File exists and is the correct size, but its hash does not \
-                                 match the MWA ASVO hash, and --no-resume was set.",
-                    });
-                }
-                warn!(
-                    "{} File exists and is the correct size, but the hash does not match \
-                     the provided MWA ASVO hash. Restarting download...",
-                    log_prefix
-                );
-                return Ok(OutputTarget::Download {
-                    file: create_file_logged(out_path, log_prefix)?,
-                    offset: 0,
-                });
-            }
+        if check_file_sha1_hash(out_path, mwa_asvo_hash, job_id).is_ok() {
+            return Ok(OutputTarget::AlreadyDone {
+                reason: "File exists, is the correct size and matches the MWA ASVO hash.",
+            });
         }
+        warn!(
+            "{} File exists and is the correct size, but the hash does not match \
+             the provided MWA ASVO hash. Restarting download...",
+            log_prefix
+        );
+        return start_again();
+    }
+
+    if file_size_bytes > file_info.size {
+        warn!(
+            "{} {:?} is larger than the file to download. Restarting download...",
+            log_prefix, out_path
+        );
+        return start_again();
+    }
+
+    if no_resume {
+        info!(
+            "{} Partial file exists, and --no-resume was set. Restarting download...",
+            log_prefix
+        );
+        return start_again();
     }
 
     // A partial file, and resuming is allowed: append to what's there.
