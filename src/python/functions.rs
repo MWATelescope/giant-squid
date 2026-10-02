@@ -2,8 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The module functions: `parse_many_job_ids_or_obs_ids` and the other parsers of
-//! command line values, and one `*_params`
+//! The module functions: `parse_many_job_ids_or_obs_ids`, and one `*_params`
 //! function per job type.
 //!
 //! A `*_params` function takes the same arguments as the `AsvoClient` submit
@@ -85,94 +84,14 @@ pub fn parse_many_job_ids_or_obs_ids(
     }
 }
 
-/// The name of the attribute of a parse `ValueError` that holds the kind
-/// of the error (the name of the Rust `ParseError` variant).
-const PARSE_ERROR_KIND: &str = "kind";
-
 /// The Python error for a [`ParseError`]: `OSError` for a file that cannot
-/// be read, `ValueError` for the others. A `ValueError` has the attribute
-/// `kind`, the name of the variant, so that a caller can tell the errors
-/// apart without reading the message.
+/// be read (as Python's own file functions raise it), `ValueError` for text
+/// in a file that is not a number.
 fn parse_error(py: Python<'_>, error: ParseError) -> PyErr {
-    let kind = match &error {
-        ParseError::IO { file, source } => return os_error(py, file, source),
-        ParseError::InsideFile { .. } => "InsideFile",
-        ParseError::JobIdsGiven { .. } => "JobIdsGiven",
-        ParseError::ObsIdsGiven { .. } => "ObsIdsGiven",
-        ParseError::NoObsIds => "NoObsIds",
-        ParseError::NoJobIds => "NoJobIds",
-        ParseError::InvalidTime => "InvalidTime",
-    };
-    let err = PyValueError::new_err(error.to_string());
-    // Setting an attribute on a new exception cannot fail in practice; if it
-    // does, the caller still gets the `ValueError` and its message.
-    let _ = err.value(py).setattr(PARSE_ERROR_KIND, kind);
-    err
-}
-
-/// Parse obsids and files of obsids, for a command that takes obsids only.
-/// Files are read as `parse_many_job_ids_or_obs_ids` reads them.
-///
-/// Args:
-///     strings: The obsids and the paths of files of obsids.
-///
-/// Returns:
-///     The obsids, in the order given.
-///
-/// Raises:
-///     ValueError: There is a job ID (attribute `kind` is `JobIdsGiven`,
-///         even when obsids are also given), there is no obsid (`kind` is
-///         `NoObsIds`), or text in a file is not an integer (`kind` is
-///         `InsideFile`).
-///     OSError: A file cannot be read (for example `FileNotFoundError`).
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
-#[pyfunction]
-pub fn parse_obs_ids_only(py: Python<'_>, strings: Vec<String>) -> PyResult<Vec<u64>> {
-    crate::parse_obs_ids_only(&strings)
-        .map(|obs_ids| obs_ids.into_iter().map(u64::from).collect())
-        .map_err(|e| parse_error(py, e))
-}
-
-/// Parse job IDs and files of job IDs, for a command that takes job IDs only
-/// (`wait` and `cancel`). Files are read as `parse_many_job_ids_or_obs_ids`
-/// reads them.
-///
-/// Args:
-///     strings: The job IDs and the paths of files of job IDs.
-///
-/// Returns:
-///     The job IDs, in the order given.
-///
-/// Raises:
-///     ValueError: There is an obsid (attribute `kind` is `ObsIdsGiven`,
-///         even when job IDs are also given), there is no job ID (`kind` is
-///         `NoJobIds`), or text in a file is not an integer (`kind` is
-///         `InsideFile`).
-///     OSError: A file cannot be read (for example `FileNotFoundError`).
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
-#[pyfunction]
-pub fn parse_job_ids_only(py: Python<'_>, strings: Vec<String>) -> PyResult<Vec<AsvoJobId>> {
-    crate::parse_job_ids_only(&strings).map_err(|e| parse_error(py, e))
-}
-
-/// Parse a time for the `date_from` and `date_to` arguments of a job
-/// listing.
-///
-/// Args:
-///     text: RFC 3339 (for example `2026-09-01T00:00:00Z`), or a date alone
-///         (`2026-09-01`), which is midnight UTC.
-///
-/// Returns:
-///     The time, with a time zone.
-///
-/// Raises:
-///     ValueError: The text is neither of these (`kind` is `InvalidTime`).
-///         A date and time with no offset (`2026-09-01T12:00:00`) is
-///         refused rather than guessed.
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
-#[pyfunction]
-pub fn parse_utc_time(py: Python<'_>, text: &str) -> PyResult<jiff::Timestamp> {
-    crate::parse_utc_time(text).map_err(|e| parse_error(py, e))
+    match error {
+        ParseError::IO { file, source } => os_error(py, &file, &source),
+        other => PyValueError::new_err(other.to_string()),
+    }
 }
 
 /// The request body that `AsvoClient.submit_download_vis_job` sends, as a

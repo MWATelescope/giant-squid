@@ -63,18 +63,16 @@ before you upgrade scripts.**
   (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
 * The environment variables of the `giant-squid` command are read in the library, in one place, for both commands:
   the Rust function `client_config_from_env` and `DownloadSettings::from_env`, and in Python `AsvoClient.from_env()`
-  and `DownloadSettings.from_env()`. The messages about a bad value are the same in both commands. A
-  `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning in both (the Rust command
-  ignored it silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused in both.
+  and `DownloadSettings.from_env()`. The messages about a bad value are the same for the command and the Python module. A
+  `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning (the command ignored it
+  silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused.
 * The names of the job states and job types (`queued`, `download_visibilities` and so on) are listed once, in the
-  library. The help of `list --job-states` and `--job-types` in both commands is built from that list, and the
-  Python module has `AsvoJobState.names()`, `AsvoJobState.parse(text)`, `AsvoJobType.names()`,
-  `AsvoJobType.parse(text)` and `AsvoJob.state_text`. The help no longer says "imaging or cancel_job" but
-  "imaging, cancel_job".
-* The checks of the IDs and times that both commands make are in the library, once: `parse_obs_ids_only`,
-  `parse_job_ids_only` and `parse_utc_time` (Rust, and in the Python module), and `JobSubmittedResponse.json()`
-  in Python. The message for a job ID given to a command that takes obsids now says `job IDs`, not
-  `exceptions`. `--image-size` shows the same message as the Python module (`Invalid image_size: ...`).
+  library, and the help of `list --job-states` and `--job-types` is built from that list. The help no longer says
+  "imaging or cancel_job" but "imaging, cancel_job".
+* The checks of the IDs and times that the command makes (`parse_obs_ids_only`, `parse_job_ids_only` and
+  `parse_utc_time`) are in the library, once. The message for a job ID given to a command that takes obsids
+  now says `job IDs`, not `exceptions`. `--image-size` shows the same message as the library
+  (`Invalid image_size: ...`).
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs the `giant-squid` command, which is the Rust program run inside the module, so it is the same
   program as the Rust one (the same commands, options, help, messages and exit codes). See

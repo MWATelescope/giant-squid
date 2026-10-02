@@ -27,11 +27,9 @@ use crate::asvo::{
 use crate::obs_id::ObsId;
 
 /// Define a Python enum with the same members as a fieldless library enum,
-/// and conversions in both directions. An optional last argument, in braces,
-/// adds methods to the Python class (a class can have only one block of
-/// methods).
+/// and conversions in both directions.
 macro_rules! py_enum {
-    ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident, [$($variant:ident),+ $(,)?] $(, { $($extra:tt)* })?) => {
+    ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident, [$($variant:ident),+ $(,)?]) => {
         $(#[$doc])*
         #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass_enum)]
         #[pyclass(eq, eq_int, frozen, hash, from_py_object, name = $name, module = "mwa_giant_squid")]
@@ -62,8 +60,6 @@ macro_rules! py_enum {
             fn __str__(&self) -> String {
                 $lib::from(*self).to_string()
             }
-
-            $($($extra)*)?
         }
     };
 }
@@ -82,31 +78,7 @@ py_enum!(
         DownloadBeamformer,
         Imaging,
         Unknown,
-    ],
-    {
-        /// The names of the job types that `parse` accepts (and that the
-        /// `--job-types` option of `giant-squid list` offers), in the order
-        /// the help lists them. `Unknown` has no name.
-        #[staticmethod]
-        fn names() -> Vec<String> {
-            AsvoJobType::names().into_iter().map(String::from).collect()
-        }
-
-        /// Get a job type from its name. The case, spaces, hyphens and
-        /// underscores do not matter, so `download_visibilities` and
-        /// `DownloadVisibilities` are the same type. `download_voltage` and
-        /// `download_voltages` both give `DownloadVoltage`.
-        ///
-        /// Raises:
-        ///     AsvoError: the text is not the name of a job type, `unknown`
-        ///         included (kind `InvalidJobType`).
-        #[staticmethod]
-        fn parse(py: Python<'_>, text: &str) -> PyResult<Self> {
-            text.parse::<AsvoJobType>()
-                .map(Self::from)
-                .map_err(|e| asvo_error(py, e))
-        }
-    }
+    ]
 );
 
 py_enum!(
@@ -264,31 +236,6 @@ impl PyAsvoJobState {
     fn __str__(&self) -> String {
         AsvoJobState::from(*self).to_string()
     }
-
-    /// The names of the job states that `parse` accepts (and that the
-    /// `--job-states` option of `giant-squid list` offers), in the order the
-    /// help lists them.
-    #[staticmethod]
-    fn names() -> Vec<String> {
-        AsvoJobState::names()
-            .into_iter()
-            .map(String::from)
-            .collect()
-    }
-
-    /// Get a job state from its name. The case, spaces, hyphens and
-    /// underscores do not matter, so `WAIT-CAL` and `waitcal` are the same
-    /// state.
-    ///
-    /// Raises:
-    ///     AsvoError: the text is not the name of a job state (kind
-    ///         `InvalidJobState`).
-    #[staticmethod]
-    fn parse(py: Python<'_>, text: &str) -> PyResult<Self> {
-        text.parse::<AsvoJobState>()
-            .map(|state| PyAsvoJobState::from(&state))
-            .map_err(|e| asvo_error(py, e))
-    }
 }
 
 /// One file of a job's product.
@@ -411,13 +358,6 @@ impl PyAsvoJob {
     #[getter]
     fn job_state(&self) -> PyAsvoJobState {
         PyAsvoJobState::from(&self.0.job_state)
-    }
-
-    /// The job state as text for a person: the state, and for a job in the
-    /// `Error` state `Error: <message>`.
-    #[getter]
-    fn state_text(&self) -> String {
-        self.0.job_state.to_string()
     }
 
     /// The server's error code, or `None`. The MWA ASVO does not document
@@ -679,12 +619,6 @@ impl PyJobSubmittedResponse {
     #[getter]
     fn status(&self) -> String {
         self.0.status.to_string()
-    }
-
-    /// The response as one line of JSON with the keys `job_id`, `message`
-    /// and `status`, as `giant-squid submit-vis --json` prints it.
-    fn json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.0).map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     fn __repr__(&self) -> String {

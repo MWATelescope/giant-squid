@@ -115,17 +115,6 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
 
 
 @pytest.mark.usefixtures("mock_login")
-def test_state_text_is_the_state_for_a_person(host: str, serve_jobs: Callable[..., None]) -> None:
-    """A job in the Error state shows its message, as the Rust command does."""
-    serve_jobs(mixed_jobs())
-    jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
-
-    assert jobs[0].state_text == "Ready"
-    assert jobs[1].state_text == "Queued"
-    assert jobs[-1].state_text == "Error: the conversion failed"
-
-
-@pytest.mark.usefixtures("mock_login")
 def test_a_job_list_supports_iteration_and_rejects_a_bad_index(host: str, serve_jobs: Callable[..., None]) -> None:
     """AsvoJobVec behaves like a read-only sequence."""
     serve_jobs(mixed_jobs())

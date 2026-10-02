@@ -3,7 +3,7 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `7428f72` (the commit of diff 28), plus diff 29 (below). The thin-client
+at `5238319` (the commit of diff 29), plus diff 30 (below). The thin-client
 refactor is finished: the Python `giant-squid` command is now the Rust
 command, run inside the module. The entries under "Status"
 below are the detailed log; this section is the summary and the list of what
@@ -27,8 +27,8 @@ item 1 (what is left of it), then item 3.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 29): 232 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 37 CLI tests; 205 pytest tests; 18 live tests
+- Tests at the last run (after diff 30): 249 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 37 CLI tests; 185 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -112,17 +112,17 @@ item 1 (what is left of it), then item 3.**
 
 1. **What is left of Level 3, option A (the Python `giant-squid` command is
    the Rust CLI, run inside the Python module).** Open points for the user:
-   (a) the Python module still has functions that only the deleted Python
-   command used: `parse_obs_ids_only`, `parse_job_ids_only`,
-   `parse_utc_time`, `JobSubmittedResponse.json()`, `AsvoJobState.names()` and
-   `parse()`, `AsvoJobType.names()` and `parse()`, `AsvoJob.state_text`, and
-   the `ENV_*`/`ENDPOINT_*`/wait constants. They stay because the goal is
-   that someone can write their own client in Python. Standing rule: the
-   library has no unused API calls. Keep them, or remove the ones that no
-   Python user needs? (b) `--version` prints `mwa_giant_squid 3.0.0`, not
-   `giant-squid 3.0.0` (clap uses the crate name); `#[command(name =
-   "giant-squid")]` would fix it. (c) the second run of `_run_cli` in one
-   process keeps the logger of the first. Decision history of the work:
+   (a) `--version` prints `mwa_giant_squid 3.0.0`, not `giant-squid 3.0.0`
+   (clap uses the crate name); `#[command(name = "giant-squid")]` would fix
+   it (the user said: later). (b) the second run of `_run_cli` in one
+   process keeps the logger of the first. (c) The Python API still has
+   functions that the deleted Python command used and nothing in the repo
+   calls now: `AsvoJobVec.json()`, `AsvoClient.from_env()`,
+   `DownloadSettings.from_env()`, `parse_many_job_ids_or_obs_ids` and the
+   `*_params` functions. Diff 30 removed the others (see Status) and left
+   these, which are documented for users; the standing rule says the library
+   has no unused API calls, so ask the user whether to keep them. Decision
+   history of the work:
    **Level 3, option A** (decided by the user: "stick with a thin
    python wrapper and see how we go with the challenges"). Level 1 is done
    (diffs 23 to 27, see Status). The plan, one diff per step:
@@ -1108,6 +1108,22 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   (Layer 4 table and the staging row), `README.md`, `CHANGELOG.md`. Comments
   in Rust that spoke of "the Python command" were reworded. No Rust code
   changed.
+- 2026-10-02 (diff 30): the user said "remove the unused stuff", and the
+  list given to them was removed from the Python module: the functions
+  `parse_obs_ids_only`, `parse_job_ids_only` and `parse_utc_time`;
+  `JobSubmittedResponse.json()`; `names()` and `parse()` of `AsvoJobState` and
+  `AsvoJobType`; `AsvoJob.state_text`; and the module constants
+  `ENV_GIANT_SQUID_DELIVERY`, `ENV_GIANT_SQUID_DELIVERY_FORMAT`,
+  `ENDPOINT_*`, `WAIT_POLL_INTERVAL_SECS`, `WAIT_INITIAL_DELAY_SECS` and
+  `DEFAULT_CONCURRENT_DOWNLOADS`. The `kind` attribute of the `ValueError`
+  of `parse_many_job_ids_or_obs_ids` went with them (it was added for the
+  new functions; the errors and messages of that function are as before
+  diff 26). The Rust library keeps all of its own versions: the Rust command
+  uses them. Their pytest tests were deleted with them: the constants test,
+  the job state and type name tests, the parse-error test, the guard tests,
+  the `parse_utc_time` tests (all in `test_module.py`), `test_state_text_...`
+  (`test_client.py`) and the response `json()` test (`test_submit.py`). The
+  `py_enum!` macro lost its extra-methods argument.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

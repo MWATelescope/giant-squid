@@ -51,40 +51,6 @@ pyo3_stub_gen::module_doc!(
 #[cfg(feature = "python-stubgen")]
 pyo3_stub_gen::module_variable!("mwa_giant_squid", "__version__", String);
 
-/// The constants that the module shares with the programs on top of it (the
-/// `giant-squid` command in Python is one). Each is `(name, value)`. They are
-/// the library's own constants, so a program does not repeat them.
-macro_rules! string_constants {
-    ($($name:ident),+ $(,)?) => {
-        /// The string constants of the module, by name.
-        const STRING_CONSTANTS: &[(&str, &str)] = &[$((stringify!($name), crate::$name)),+];
-
-        $(
-            #[cfg(feature = "python-stubgen")]
-            pyo3_stub_gen::module_variable!("mwa_giant_squid", stringify!($name), String);
-        )+
-    };
-}
-
-string_constants!(
-    ENV_GIANT_SQUID_DELIVERY,
-    ENV_GIANT_SQUID_DELIVERY_FORMAT,
-    ENDPOINT_JOBS,
-    ENDPOINT_CONVERSION_JOB,
-    ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_VOLTAGE_JOB,
-    ENDPOINT_BEAMFORMER_JOB,
-    ENDPOINT_IMAGING_JOB,
-    ENDPOINT_IMAGE_FROM_JOB,
-);
-
-#[cfg(feature = "python-stubgen")]
-pyo3_stub_gen::module_variable!("mwa_giant_squid", "WAIT_POLL_INTERVAL_SECS", f64);
-#[cfg(feature = "python-stubgen")]
-pyo3_stub_gen::module_variable!("mwa_giant_squid", "WAIT_INITIAL_DELAY_SECS", f64);
-#[cfg(feature = "python-stubgen")]
-pyo3_stub_gen::module_variable!("mwa_giant_squid", "DEFAULT_CONCURRENT_DOWNLOADS", usize);
-
 /// The handle that clears `pyo3-log`'s cache of Python loggers and levels.
 /// Set once, when [`connect_python_logging`] first runs.
 static LOG_RESET_HANDLE: OnceLock<pyo3_log::ResetHandle> = OnceLock::new();
@@ -125,8 +91,8 @@ mod module {
     #[pymodule_export]
     use super::functions::{
         beamformer_job_params, conversion_job_params, download_meta_job_params,
-        download_vis_job_params, image_from_job_params, imaging_job_params, parse_job_ids_only,
-        parse_many_job_ids_or_obs_ids, parse_obs_ids_only, parse_utc_time, voltage_job_params,
+        download_vis_job_params, image_from_job_params, imaging_job_params,
+        parse_many_job_ids_or_obs_ids, voltage_job_params,
     };
     #[pymodule_export]
     use super::types::{
@@ -177,21 +143,6 @@ mod module {
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-        for (name, value) in super::STRING_CONSTANTS {
-            m.add(*name, *value)?;
-        }
-        m.add(
-            "WAIT_POLL_INTERVAL_SECS",
-            crate::WAIT_POLL_INTERVAL.as_secs_f64(),
-        )?;
-        m.add(
-            "WAIT_INITIAL_DELAY_SECS",
-            crate::WAIT_INITIAL_DELAY.as_secs_f64(),
-        )?;
-        m.add(
-            "DEFAULT_CONCURRENT_DOWNLOADS",
-            crate::DEFAULT_CONCURRENT_DOWNLOADS,
-        )?;
         Ok(())
     }
 }

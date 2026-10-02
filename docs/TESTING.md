@@ -153,7 +153,7 @@ docs for details.
 
 ### Layer 4 - the Python module and the `giant-squid` launcher (pytest)
 
-`tests/python/` has the pytest suite (205 tests) for the `mwa_giant_squid`
+`tests/python/` has the pytest suite (185 tests) for the `mwa_giant_squid`
 module (`src/python/`) and for the `giant-squid` command, which is the Rust
 program run inside the module (`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
 goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
@@ -167,7 +167,7 @@ uv run pytest
 
 | File | What it covers |
 | --- | --- |
-| `test_module.py` | The import, `__version__`, `reset_logging`, the shared constants, the names and `parse` of job states and job types, the ID guards and `parse_utc_time` |
+| `test_module.py` | The import, `__version__`, `reset_logging` |
 | `test_client.py` | `AsvoClient`: login, `from_env` and `DownloadSettings.from_env`, `get_jobs` and `list_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request |

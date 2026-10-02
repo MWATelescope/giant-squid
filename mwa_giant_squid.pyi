@@ -12,18 +12,6 @@ import pathlib
 import typing
 
 __all__ = [
-    "DEFAULT_CONCURRENT_DOWNLOADS",
-    "ENDPOINT_BEAMFORMER_JOB",
-    "ENDPOINT_CONVERSION_JOB",
-    "ENDPOINT_DOWNLOAD_VIS_JOB",
-    "ENDPOINT_IMAGE_FROM_JOB",
-    "ENDPOINT_IMAGING_JOB",
-    "ENDPOINT_JOBS",
-    "ENDPOINT_VOLTAGE_JOB",
-    "ENV_GIANT_SQUID_DELIVERY",
-    "ENV_GIANT_SQUID_DELIVERY_FORMAT",
-    "WAIT_INITIAL_DELAY_SECS",
-    "WAIT_POLL_INTERVAL_SECS",
     "AsvoApiError",
     "AsvoClient",
     "AsvoError",
@@ -49,26 +37,11 @@ __all__ = [
     "download_vis_job_params",
     "image_from_job_params",
     "imaging_job_params",
-    "parse_job_ids_only",
     "parse_many_job_ids_or_obs_ids",
-    "parse_obs_ids_only",
-    "parse_utc_time",
     "reset_logging",
     "voltage_job_params",
 ]
 
-DEFAULT_CONCURRENT_DOWNLOADS: builtins.int
-ENDPOINT_BEAMFORMER_JOB: builtins.str
-ENDPOINT_CONVERSION_JOB: builtins.str
-ENDPOINT_DOWNLOAD_VIS_JOB: builtins.str
-ENDPOINT_IMAGE_FROM_JOB: builtins.str
-ENDPOINT_IMAGING_JOB: builtins.str
-ENDPOINT_JOBS: builtins.str
-ENDPOINT_VOLTAGE_JOB: builtins.str
-ENV_GIANT_SQUID_DELIVERY: builtins.str
-ENV_GIANT_SQUID_DELIVERY_FORMAT: builtins.str
-WAIT_INITIAL_DELAY_SECS: builtins.float
-WAIT_POLL_INTERVAL_SECS: builtins.float
 __version__: builtins.str
 
 class AsvoApiError(builtins.Exception):
@@ -781,12 +754,6 @@ class AsvoJob:
         The job state.
         """
     @property
-    def state_text(self) -> builtins.str:
-        r"""
-        The job state as text for a person: the state, and for a job in the
-        `Error` state `Error: <message>`.
-        """
-    @property
     def error_code(self) -> builtins.int | None:
         r"""
         The server's error code, or `None`. The MWA ASVO does not document
@@ -1030,11 +997,6 @@ class JobSubmittedResponse:
         fails raises `AsvoApiError`, and this text is not to be used to
         decide whether a call worked.
         """
-    def json(self) -> builtins.str:
-        r"""
-        The response as one line of JSON with the keys `job_id`, `message`
-        and `status`, as `giant-squid submit-vis --json` prints it.
-        """
 
 @typing.final
 class AsvoJobState(enum.Enum):
@@ -1057,25 +1019,6 @@ class AsvoJobState(enum.Enum):
     Expired = ...
     Cancelled = ...
 
-    @staticmethod
-    def names() -> builtins.list[builtins.str]:
-        r"""
-        The names of the job states that `parse` accepts (and that the
-        `--job-states` option of `giant-squid list` offers), in the order the
-        help lists them.
-        """
-    @staticmethod
-    def parse(text: builtins.str) -> AsvoJobState:
-        r"""
-        Get a job state from its name. The case, spaces, hyphens and
-        underscores do not matter, so `WAIT-CAL` and `waitcal` are the same
-        state.
-
-        Raises:
-            AsvoError: the text is not the name of a job state (kind
-                `InvalidJobState`).
-        """
-
 @typing.final
 class AsvoJobType(enum.Enum):
     r"""
@@ -1090,26 +1033,6 @@ class AsvoJobType(enum.Enum):
     DownloadBeamformer = ...
     Imaging = ...
     Unknown = ...
-
-    @staticmethod
-    def names() -> builtins.list[builtins.str]:
-        r"""
-        The names of the job types that `parse` accepts (and that the
-        `--job-types` option of `giant-squid list` offers), in the order
-        the help lists them. `Unknown` has no name.
-        """
-    @staticmethod
-    def parse(text: builtins.str) -> AsvoJobType:
-        r"""
-        Get a job type from its name. The case, spaces, hyphens and
-        underscores do not matter, so `download_visibilities` and
-        `DownloadVisibilities` are the same type. `download_voltage` and
-        `download_voltages` both give `DownloadVoltage`.
-
-        Raises:
-            AsvoError: the text is not the name of a job type, `unknown`
-                included (kind `InvalidJobType`).
-        """
 
 @typing.final
 class Centre(enum.Enum):
@@ -1359,26 +1282,6 @@ def imaging_job_params(
     `OverflowError`) are those of the method.
     """
 
-def parse_job_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[builtins.int]:
-    r"""
-    Parse job IDs and files of job IDs, for a command that takes job IDs only
-    (`wait` and `cancel`). Files are read as `parse_many_job_ids_or_obs_ids`
-    reads them.
-
-    Args:
-        strings: The job IDs and the paths of files of job IDs.
-
-    Returns:
-        The job IDs, in the order given.
-
-    Raises:
-        ValueError: There is an obsid (attribute `kind` is `ObsIdsGiven`,
-            even when job IDs are also given), there is no job ID (`kind` is
-            `NoJobIds`), or text in a file is not an integer (`kind` is
-            `InsideFile`).
-        OSError: A file cannot be read (for example `FileNotFoundError`).
-    """
-
 def parse_many_job_ids_or_obs_ids(
     strings: typing.Sequence[builtins.str],
 ) -> tuple[builtins.list[builtins.int], builtins.list[builtins.int]]:
@@ -1398,43 +1301,6 @@ def parse_many_job_ids_or_obs_ids(
     Raises:
         ValueError: Text in a file is not an integer.
         OSError: A file cannot be read (for example `FileNotFoundError`).
-    """
-
-def parse_obs_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[builtins.int]:
-    r"""
-    Parse obsids and files of obsids, for a command that takes obsids only.
-    Files are read as `parse_many_job_ids_or_obs_ids` reads them.
-
-    Args:
-        strings: The obsids and the paths of files of obsids.
-
-    Returns:
-        The obsids, in the order given.
-
-    Raises:
-        ValueError: There is a job ID (attribute `kind` is `JobIdsGiven`,
-            even when obsids are also given), there is no obsid (`kind` is
-            `NoObsIds`), or text in a file is not an integer (`kind` is
-            `InsideFile`).
-        OSError: A file cannot be read (for example `FileNotFoundError`).
-    """
-
-def parse_utc_time(text: builtins.str) -> datetime.datetime:
-    r"""
-    Parse a time for the `date_from` and `date_to` arguments of a job
-    listing.
-
-    Args:
-        text: RFC 3339 (for example `2026-09-01T00:00:00Z`), or a date alone
-            (`2026-09-01`), which is midnight UTC.
-
-    Returns:
-        The time, with a time zone.
-
-    Raises:
-        ValueError: The text is neither of these (`kind` is `InvalidTime`).
-            A date and time with no offset (`2026-09-01T12:00:00`) is
-            refused rather than guessed.
     """
 
 def reset_logging() -> None:
