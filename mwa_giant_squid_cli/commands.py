@@ -22,7 +22,7 @@ from mwa_giant_squid import AsvoApiError, AsvoClient, AsvoError, AsvoJobVec, Dow
 from .args import NON_PARAM_DESTS
 from .constants import OBS_ID_HINT
 from .progress import ProgressDisplay
-from .table import print_jobs_table, state_text
+from .table import print_jobs_table
 
 log = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ def wait_loop(client: AsvoClient, job_ids: Sequence[int]) -> None:
         for job_id in job_ids:
             job = by_id[job_id]
             if job_id not in last_state or last_state[job_id] != job.job_state:
-                log.info("Job ID %s (obsid: %s): is %s", job.job_id, job.obs_id, state_text(job))
+                log.info("Job ID %s (obsid: %s): is %s", job.job_id, job.obs_id, job.state_text)
             last_state[job_id] = job.job_state
         if all_ready:
             break

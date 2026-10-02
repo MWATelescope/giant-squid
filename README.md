@@ -751,7 +751,7 @@ Options:
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, downloading, preparing, preprocessing, imaging, delivering, ready, error, expired, cancelled
-      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltages, download_beamformer, imaging or cancel_job
+      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltages, download_beamformer, imaging, cancel_job
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30) [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)

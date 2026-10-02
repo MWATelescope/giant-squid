@@ -91,19 +91,6 @@ def use_colour(no_colour: bool) -> bool:
     return not no_colour and sys.stdout.isatty() and ENV_NO_COLOUR not in os.environ
 
 
-def state_text(job: AsvoJob) -> str:
-    """Make the text of a job's state. A job with an error shows its message, as in the Rust command.
-
-    Args:
-        job: The job.
-
-    Returns:
-        The state, for example ``Ready`` or ``Error: the message``.
-    """
-    state = str(job.job_state)
-    return f"{state}{job.error_text or ''}" if job.job_state == AsvoJobState.Error else state
-
-
 def job_cells(job: AsvoJob) -> list[str]:
     """Make the text of a job's row.
 
@@ -120,7 +107,7 @@ def job_cells(job: AsvoJob) -> list[str]:
         str(job.job_id),
         str(job.obs_id),
         str(job.job_type),
-        state_text(job),
+        job.state_text,
         format_size(sum(f.size for f in files)) if product is not None else "",
         str(files[0].type) if files else "",
         completed,

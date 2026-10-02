@@ -98,8 +98,8 @@ def test_positive_integers() -> None:
 
 def test_names_ignore_case_and_punctuation() -> None:
     """Job states and types are matched on their letters only, so ``Download_Visibilities`` works."""
-    parse_types = parsing.name_list_parser(parsing.JOB_TYPE_NAMES, "job type")
-    parse_states = parsing.name_list_parser(parsing.JOB_STATE_NAMES, "job state")
+    parse_types = parsing.name_list_parser(gs.AsvoJobType, "job type")
+    parse_states = parsing.name_list_parser(gs.AsvoJobState, "job state")
 
     assert parse_types("Download_Visibilities, conversion") == [
         gs.AsvoJobType.DownloadVisibilities,
@@ -112,16 +112,39 @@ def test_names_ignore_case_and_punctuation() -> None:
 
 def test_every_job_state_and_type_can_be_named() -> None:
     """The names cover every member of the two enums, except the unknown type, which cannot be filtered by."""
-    assert set(parsing.JOB_STATE_NAMES.values()) == {
+    parse_types = parsing.name_list_parser(gs.AsvoJobType, "job type")
+    parse_states = parsing.name_list_parser(gs.AsvoJobState, "job state")
+
+    assert set(parse_states(",".join(gs.AsvoJobState.names()))) == {
         getattr(gs.AsvoJobState, n)
         for n in dir(gs.AsvoJobState)
         if isinstance(getattr(gs.AsvoJobState, n), gs.AsvoJobState)
     }
-    assert set(parsing.JOB_TYPE_NAMES.values()) == {
+    assert set(parse_types(",".join(gs.AsvoJobType.names()))) == {
         getattr(gs.AsvoJobType, n)
         for n in dir(gs.AsvoJobType)
         if isinstance(getattr(gs.AsvoJobType, n), gs.AsvoJobType) and n != "Unknown"
     }
+
+
+@pytest.mark.parametrize(
+    ("enum_type", "description", "text"),
+    [
+        (gs.AsvoJobState, "job state", "bogus"),
+        (gs.AsvoJobType, "job type", "unknown"),
+    ],
+)
+def test_a_bad_job_name_lists_the_names_the_library_offers(
+    enum_type: type[gs.AsvoJobState] | type[gs.AsvoJobType], description: str, text: str
+) -> None:
+    """The error says what was refused and lists the library's names (R4)."""
+    parse = parsing.name_list_parser(enum_type, description)
+    expected = f"Invalid {description} '{text}': expected one of: {', '.join(enum_type.names())}"
+
+    with pytest.raises(argparse.ArgumentTypeError) as error:
+        parse(f"{enum_type.names()[0]},{text}")
+
+    assert str(error.value) == expected
 
 
 def test_enum_values_match_by_api_value_or_name() -> None:

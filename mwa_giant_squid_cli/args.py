@@ -13,7 +13,17 @@ import os
 from typing import Any
 
 import mwa_giant_squid
-from mwa_giant_squid import Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting
+from mwa_giant_squid import (
+    AsvoJobState,
+    AsvoJobType,
+    Centre,
+    Delivery,
+    DeliveryFormat,
+    Output,
+    OutputMode,
+    Polarization,
+    Weighting,
+)
 
 from .constants import (
     PLACEHOLDER_OBS_ID,
@@ -22,8 +32,6 @@ from .constants import (
     PLACEHOLDER_VOLTAGE_OFFSET,
 )
 from .parsing import (
-    JOB_STATE_NAMES,
-    JOB_TYPE_NAMES,
     default_text,
     enum_parser,
     enum_values,
@@ -380,20 +388,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--job-states",
         "--states",
         dest="job_states",
-        type=name_list_parser(JOB_STATE_NAMES, "job state"),
+        type=name_list_parser(AsvoJobState, "job state"),
         metavar="JOB_STATE",
-        help="show only jobs matching the provided states (comma-separated), case insensitive. Options: queued, "
-        "waitcal, staging, staged, downloading, preparing, preprocessing, imaging, delivering, ready, error, "
-        "expired, cancelled",
+        help="show only jobs matching the provided states (comma-separated), case insensitive. "
+        f"Options: {', '.join(AsvoJobState.names())}",
     )
     list_parser.add_argument(
         "--job-types",
         "--types",
         dest="job_types",
-        type=name_list_parser(JOB_TYPE_NAMES, "job type"),
+        type=name_list_parser(AsvoJobType, "job type"),
         metavar="JOB_TYPE",
-        help="filter job list by type (comma-separated), case insensitive with underscores. Options: conversion, "
-        "download_visibilities, download_metadata, download_voltages, download_beamformer, imaging or cancel_job",
+        help="filter job list by type (comma-separated), case insensitive with underscores. "
+        f"Options: {', '.join(AsvoJobType.names())}",
     )
     list_parser.add_argument(
         "-n",

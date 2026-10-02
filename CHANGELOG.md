@@ -66,6 +66,11 @@ before you upgrade scripts.**
   and `DownloadSettings.from_env()`. The messages about a bad value are the same in both commands. A
   `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning in both (the Rust command
   ignored it silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused in both.
+* The names of the job states and job types (`queued`, `download_visibilities` and so on) are listed once, in the
+  library. The help of `list --job-states` and `--job-types` in both commands is built from that list, and the
+  Python module has `AsvoJobState.names()`, `AsvoJobState.parse(text)`, `AsvoJobType.names()`,
+  `AsvoJobType.parse(text)` and `AsvoJob.state_text`. The help no longer says "imaging or cancel_job" but
+  "imaging, cancel_job". The Python command says `Invalid job state 'x': expected one of: ...` for a bad name.
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs a `giant-squid` command with the same commands and options as the Rust one. See
   [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.

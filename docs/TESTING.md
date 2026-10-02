@@ -153,7 +153,7 @@ docs for details.
 
 ### Layer 4 - the Python module and the Python command (pytest)
 
-`tests/python/` has the pytest suite (315 tests) for the `mwa_giant_squid`
+`tests/python/` has the pytest suite (324 tests) for the `mwa_giant_squid`
 module (`src/python/`) and for the `giant-squid` command written on it
 (`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
 goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
@@ -167,7 +167,7 @@ uv run pytest
 
 | File | What it covers |
 | --- | --- |
-| `test_module.py` | The import, `__version__`, `reset_logging`, the shared constants |
+| `test_module.py` | The import, `__version__`, `reset_logging`, the shared constants, the names and `parse` of job states and job types |
 | `test_client.py` | `AsvoClient`: login, `from_env` and `DownloadSettings.from_env`, `get_jobs` and `list_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request |
 | `test_functions.py` | `parse_many_job_ids_or_obs_ids`; each `*_params` builder is the body (and has the signature) of its submit method; every field of a body is in the schema |

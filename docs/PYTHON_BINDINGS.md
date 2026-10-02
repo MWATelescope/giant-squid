@@ -3,8 +3,8 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `dabd52a`, plus diffs 23 and 24 of the thin-client refactor (below), and
-the diffs 25 and 26 that were not yet written. The entries under "Status"
+at `db1fe31` (the commit of diffs 23 and 24), plus diff 25 of the thin-client
+refactor (below), and diff 26 that is not yet written. The entries under "Status"
 below are the detailed log; this section is the summary and the list of what
 to do next.
 
@@ -26,8 +26,8 @@ item 1.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 24): 213 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 36 CLI tests; 315 pytest tests; 18 live tests
+- Tests at the last run (after diff 25): 220 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 36 CLI tests; 324 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -108,16 +108,9 @@ item 1.**
 ### Open items, in the order I would take them
 
 1. **Finish Level 1 of the thin-client refactor** (the user said "start with
-   Level 1"). Diffs 23 and 24 are done (see Status). Still to do, each as one
+   Level 1"). Diffs 23, 24 and 25 are done (see Status). Still to do, as one
    diff from a fresh clone of the latest `apiv2`:
-   - **Diff 25: job state and job type names.** One list of names in the
-     library for `AsvoJobState` and `AsvoJobType`, used by `from_str`, by
-     the help of `list --job-states` and `--job-types` (built from it, not
-     typed), and exposed to Python as `names()` and `parse(text)`. Delete
-     `JOB_STATE_NAMES`, `JOB_TYPE_NAMES`, `enum_parser`/`name_list_parser`
-     duplicates and `state_text` from `mwa_giant_squid_cli`. The state text
-     (`Error: <message>`) comes from the library (an `AsvoJob` property).
-     The Python error wording is R4. Keep `download_voltage` accepted.
+   - **Diff 25: job state and job type names. Done.** See Status.
    - **Diff 26: guards, time parsing, submit JSON.** Move the obsid-only and
      job-ID-only guards and their messages into the library
      (`parse_obs_ids_only`, `parse_job_ids_only` and their `ParseError`
@@ -1013,6 +1006,20 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   `GIANT_SQUID_BUF_SIZE` is refused in both with the same message. Two Python
   tests changed only to read the wait times from the module. The library reads
   the environment only when asked.
+- 2026-10-02 (diff 25): the names of the job states and job types, once, in
+  the library (`src/asvo/types/mod.rs`): `AsvoJobState::names()` and
+  `AsvoJobType::names()`, and `FromStr` reads the same tables (`download_voltage`
+  stays accepted and is not listed). The help of `list --job-states` and
+  `--job-types` in the Rust command is built from `names()`; the Python module
+  has `names()` and `parse(text)` on both enums and `AsvoJob.state_text`
+  (`Error: <message>`). Deleted from `mwa_giant_squid_cli`: `JOB_STATE_NAMES`,
+  `JOB_TYPE_NAMES` and `state_text`; `name_list_parser` now takes the enum and
+  calls the module. R4: `Invalid job state 'x': expected one of: ...`. Two
+  existing pytest tests (`test_names_ignore_case_and_punctuation`,
+  `test_every_job_state_and_type_can_be_named`) were rewired to the new API
+  with the same assertions (needs the user's approval). The help now ends
+  `imaging, cancel_job` (no "or"). `enum_parser` (the schema enums in the
+  Python command, `choose from`) is not changed: open question for the user.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

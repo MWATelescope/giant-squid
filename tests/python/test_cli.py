@@ -855,6 +855,27 @@ def test_the_help_of_an_enum_option_lists_its_values(
     assert f"options: {values})" in text, text
 
 
+def test_the_help_of_list_offers_the_names_of_the_library(run: Callable[..., Result]) -> None:
+    """``list --help`` offers the job states and job types that the module lists, not a copy of them."""
+    result = run("list", "--help")
+
+    assert result.code == EXIT_OK
+    text = " ".join(result.out.split())
+    assert f"Options: {', '.join(gs.AsvoJobState.names())}" in text, text
+    assert f"Options: {', '.join(gs.AsvoJobType.names())}" in text, text
+
+
+@pytest.mark.parametrize("option", ["--job-states", "--job-types"])
+def test_list_names_the_accepted_values_when_a_job_name_is_bad(
+    run: Callable[..., Result], three_jobs: None, option: str
+) -> None:
+    """The usage error for a bad job state or job type says what the option accepts."""
+    result = run("list", option, "bogus")
+
+    assert result.code == EXIT_USAGE
+    assert f"Invalid job {'state' if option == '--job-states' else 'type'} 'bogus': expected one of: " in result.err
+
+
 def test_the_program_leaves_the_logging_set_up_as_it_found_it(run: Callable[..., Result]) -> None:
     """``main`` removes its log handler when it ends, so a program that calls it keeps its own logging.
 

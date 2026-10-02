@@ -32,6 +32,35 @@ pub enum AsvoJobType {
     Unknown,
 }
 
+/// The names of the job types that a caller can ask for, with the type of
+/// each, in the order that the help of the commands lists them.
+/// [`AsvoJobType::Unknown`] has no name: it stands for a job type that the
+/// MWA ASVO has and this version does not.
+const JOB_TYPE_NAMES: [(&str, AsvoJobType); 7] = [
+    ("conversion", AsvoJobType::Conversion),
+    ("download_visibilities", AsvoJobType::DownloadVisibilities),
+    ("download_metadata", AsvoJobType::DownloadMetadata),
+    ("download_voltages", AsvoJobType::DownloadVoltage),
+    ("download_beamformer", AsvoJobType::DownloadBeamformer),
+    ("imaging", AsvoJobType::Imaging),
+    ("cancel_job", AsvoJobType::CancelJob),
+];
+
+/// Names of job types that are accepted but not listed by
+/// [`AsvoJobType::names`]: the singular form of `download_voltages`.
+const JOB_TYPE_ALIASES: [(&str, AsvoJobType); 1] =
+    [("download_voltage", AsvoJobType::DownloadVoltage)];
+
+impl AsvoJobType {
+    /// The names of the job types that a caller can ask for (for example in
+    /// `list --job-types`), in the order that the help lists them.
+    /// [`AsvoJobType::Unknown`] has no name. [`FromStr`] accepts every name
+    /// in this list, and also `download_voltage`.
+    pub fn names() -> Vec<&'static str> {
+        JOB_TYPE_NAMES.iter().map(|(name, _)| *name).collect()
+    }
+}
+
 /// Parses the name of a job type: the case, spaces, hyphens and underscores
 /// do not matter, so `download_visibilities` and `DownloadVisibilities` are
 /// the same type. `download_voltage` and `download_voltages` both give
@@ -48,16 +77,13 @@ impl FromStr for AsvoJobType {
     type Err = AsvoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match _sanitize_identifier(s).as_str() {
-            "conversion" => Ok(AsvoJobType::Conversion),
-            "downloadvisibilities" => Ok(AsvoJobType::DownloadVisibilities),
-            "downloadmetadata" => Ok(AsvoJobType::DownloadMetadata),
-            "downloadvoltage" | "downloadvoltages" => Ok(AsvoJobType::DownloadVoltage),
-            "downloadbeamformer" => Ok(AsvoJobType::DownloadBeamformer),
-            "canceljob" => Ok(AsvoJobType::CancelJob),
-            "imaging" => Ok(AsvoJobType::Imaging),
-            _ => Err(AsvoError::InvalidJobType { str: s.to_string() }),
-        }
+        let wanted = _sanitize_identifier(s);
+        JOB_TYPE_NAMES
+            .iter()
+            .chain(JOB_TYPE_ALIASES.iter())
+            .find(|(name, _)| _sanitize_identifier(name) == wanted)
+            .map(|(_, job_type)| *job_type)
+            .ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
     }
 }
 
@@ -79,26 +105,51 @@ pub enum AsvoJobState {
     Cancelled,
 }
 
+/// The names of the job states that a caller can ask for, with the state of
+/// each, in the order that the help of the commands lists them. The name
+/// `error` stands for every job with an error: its state has no message.
+static JOB_STATE_NAMES: [(&str, AsvoJobState); 13] = [
+    ("queued", AsvoJobState::Queued),
+    ("waitcal", AsvoJobState::WaitCal),
+    ("staging", AsvoJobState::Staging),
+    ("staged", AsvoJobState::Staged),
+    ("downloading", AsvoJobState::Downloading),
+    ("preparing", AsvoJobState::Preparing),
+    ("preprocessing", AsvoJobState::Preprocessing),
+    ("imaging", AsvoJobState::Imaging),
+    ("delivering", AsvoJobState::Delivering),
+    ("ready", AsvoJobState::Ready),
+    ("error", AsvoJobState::Error(String::new())),
+    ("expired", AsvoJobState::Expired),
+    ("cancelled", AsvoJobState::Cancelled),
+];
+
+impl AsvoJobState {
+    /// The names of the job states that a caller can ask for (for example in
+    /// `list --job-states`), in the order that the help lists them.
+    /// [`FromStr`] accepts every name in this list.
+    pub fn names() -> Vec<&'static str> {
+        JOB_STATE_NAMES.iter().map(|(name, _)| *name).collect()
+    }
+}
+
+/// Parses the name of a job state: the case, spaces, hyphens and underscores
+/// do not matter, so `WAIT-CAL` and `waitcal` are the same state. `error`
+/// gives [`AsvoJobState::Error`] with an empty message.
+///
+/// # Errors
+///
+/// [`AsvoError::InvalidJobState`] for any other text.
 impl FromStr for AsvoJobState {
     type Err = AsvoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match _sanitize_identifier(s).as_str() {
-            "queued" => Ok(AsvoJobState::Queued),
-            "waitcal" => Ok(AsvoJobState::WaitCal),
-            "staging" => Ok(AsvoJobState::Staging),
-            "staged" => Ok(AsvoJobState::Staged),
-            "downloading" => Ok(AsvoJobState::Downloading),
-            "preparing" => Ok(AsvoJobState::Preparing),
-            "preprocessing" => Ok(AsvoJobState::Preprocessing),
-            "imaging" => Ok(AsvoJobState::Imaging),
-            "delivering" => Ok(AsvoJobState::Delivering),
-            "ready" => Ok(AsvoJobState::Ready),
-            "error" => Ok(AsvoJobState::Error(String::new())),
-            "expired" => Ok(AsvoJobState::Expired),
-            "cancelled" => Ok(AsvoJobState::Cancelled),
-            _ => Err(AsvoError::InvalidJobState { str: s.to_string() }),
-        }
+        let wanted = _sanitize_identifier(s);
+        JOB_STATE_NAMES
+            .iter()
+            .find(|(name, _)| _sanitize_identifier(name) == wanted)
+            .map(|(_, state)| state.clone())
+            .ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
     }
 }
 

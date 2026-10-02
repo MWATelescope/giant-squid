@@ -29,6 +29,30 @@ use params::{
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
 
+/// The help of `list --job-states`, before the list of states.
+const JOB_STATES_HELP: &str = "show only jobs matching the provided states, case insensitive.";
+
+/// The help of `list --job-types`, before the list of types.
+const JOB_TYPES_HELP: &str = "filter job list by type, case insensitive with underscores.";
+
+/// The help of `list --job-states`: the text above and the states that the
+/// library accepts, so that the help cannot differ from the parser.
+fn job_states_help() -> String {
+    format!(
+        "{JOB_STATES_HELP} Options: {}",
+        AsvoJobState::names().join(", ")
+    )
+}
+
+/// The help of `list --job-types`: the text above and the job types that the
+/// library accepts.
+fn job_types_help() -> String {
+    format!(
+        "{JOB_TYPES_HELP} Options: {}",
+        AsvoJobType::names().join(", ")
+    )
+}
+
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
@@ -55,15 +79,12 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
-        /// show only jobs matching the provided states, case insensitive.
-        /// Options: queued, waitcal, staging, staged, downloading, preparing, preprocessing, imaging, delivering, ready, error, expired, cancelled
-        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',')]
+        // The help is built from the library's names (see `job_states_help`).
+        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',', help = job_states_help())]
         job_states: Vec<AsvoJobState>,
 
-        /// filter job list by type, case insensitive with underscores. Options:
-        /// conversion, download_visibilities, download_metadata,
-        /// download_voltages, download_beamformer, imaging or cancel_job
-        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',')]
+        // The help is built from the library's names (see `job_types_help`).
+        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', help = job_types_help())]
         job_types: Vec<AsvoJobType>,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example

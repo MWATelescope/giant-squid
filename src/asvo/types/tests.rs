@@ -61,6 +61,176 @@ fn text_that_is_not_a_job_type_is_an_error() {
     }
 }
 
+/// Every job type. The `match` stops compiling when a type is added, so a
+/// new type cannot be left out of the tests of the names.
+fn every_job_type() -> [AsvoJobType; 8] {
+    let _all_types_are_listed: fn(AsvoJobType) = |job_type| match job_type {
+        AsvoJobType::Conversion
+        | AsvoJobType::DownloadVisibilities
+        | AsvoJobType::DownloadMetadata
+        | AsvoJobType::DownloadVoltage
+        | AsvoJobType::CancelJob
+        | AsvoJobType::DownloadBeamformer
+        | AsvoJobType::Imaging
+        | AsvoJobType::Unknown => (),
+    };
+    [
+        AsvoJobType::Conversion,
+        AsvoJobType::DownloadVisibilities,
+        AsvoJobType::DownloadMetadata,
+        AsvoJobType::DownloadVoltage,
+        AsvoJobType::CancelJob,
+        AsvoJobType::DownloadBeamformer,
+        AsvoJobType::Imaging,
+        AsvoJobType::Unknown,
+    ]
+}
+
+/// Every job state, with the same guard as [`every_job_type`].
+fn every_job_state() -> [AsvoJobState; 13] {
+    let _all_states_are_listed: fn(&AsvoJobState) = |state| match state {
+        AsvoJobState::Queued
+        | AsvoJobState::WaitCal
+        | AsvoJobState::Staging
+        | AsvoJobState::Staged
+        | AsvoJobState::Preparing
+        | AsvoJobState::Downloading
+        | AsvoJobState::Preprocessing
+        | AsvoJobState::Imaging
+        | AsvoJobState::Delivering
+        | AsvoJobState::Ready
+        | AsvoJobState::Error(_)
+        | AsvoJobState::Expired
+        | AsvoJobState::Cancelled => (),
+    };
+    [
+        AsvoJobState::Queued,
+        AsvoJobState::WaitCal,
+        AsvoJobState::Staging,
+        AsvoJobState::Staged,
+        AsvoJobState::Preparing,
+        AsvoJobState::Downloading,
+        AsvoJobState::Preprocessing,
+        AsvoJobState::Imaging,
+        AsvoJobState::Delivering,
+        AsvoJobState::Ready,
+        AsvoJobState::Error(String::new()),
+        AsvoJobState::Expired,
+        AsvoJobState::Cancelled,
+    ]
+}
+
+/// The list of job type names is in the order that the help shows it, with
+/// the plural `download_voltages`.
+#[test]
+fn the_job_type_names_are_listed_in_order() {
+    assert_eq!(
+        AsvoJobType::names(),
+        [
+            "conversion",
+            "download_visibilities",
+            "download_metadata",
+            "download_voltages",
+            "download_beamformer",
+            "imaging",
+            "cancel_job",
+        ]
+    );
+}
+
+/// Every job type except `Unknown` has exactly one name in the list, and
+/// each name parses to its type.
+#[test]
+fn every_job_type_but_unknown_has_one_name() {
+    let names = AsvoJobType::names();
+    for job_type in every_job_type() {
+        let named_so: Vec<_> = names
+            .iter()
+            .filter(|name| name.parse::<AsvoJobType>().ok() == Some(job_type))
+            .collect();
+        let expected = usize::from(job_type != AsvoJobType::Unknown);
+        assert_eq!(named_so.len(), expected, "{job_type:?}: {named_so:?}");
+    }
+}
+
+/// `download_voltage` is accepted, and is not listed.
+#[test]
+fn the_singular_voltage_type_is_accepted_and_not_listed() {
+    assert!(!AsvoJobType::names().contains(&"download_voltage"));
+    assert_eq!(
+        "download_voltage".parse::<AsvoJobType>().ok(),
+        Some(AsvoJobType::DownloadVoltage)
+    );
+}
+
+/// The list of job state names is in the order that the help shows it.
+#[test]
+fn the_job_state_names_are_listed_in_order() {
+    assert_eq!(
+        AsvoJobState::names(),
+        [
+            "queued",
+            "waitcal",
+            "staging",
+            "staged",
+            "downloading",
+            "preparing",
+            "preprocessing",
+            "imaging",
+            "delivering",
+            "ready",
+            "error",
+            "expired",
+            "cancelled",
+        ]
+    );
+}
+
+/// Every job state has exactly one name in the list, and each name parses to
+/// its state.
+#[test]
+fn every_job_state_has_one_name() {
+    let names = AsvoJobState::names();
+    for state in every_job_state() {
+        let named_so: Vec<_> = names
+            .iter()
+            .filter(|name| name.parse::<AsvoJobState>().ok().as_ref() == Some(&state))
+            .collect();
+        assert_eq!(named_so.len(), 1, "{state:?}: {named_so:?}");
+    }
+}
+
+/// A job state is parsed from its name in any case and spelling of the
+/// separators, and `error` has an empty message.
+#[test]
+fn a_job_state_is_parsed_from_its_name() {
+    let cases = [
+        ("queued", AsvoJobState::Queued),
+        ("WAIT-CAL", AsvoJobState::WaitCal),
+        ("wait_cal", AsvoJobState::WaitCal),
+        ("Ready", AsvoJobState::Ready),
+        ("error", AsvoJobState::Error(String::new())),
+        ("CANCELLED", AsvoJobState::Cancelled),
+    ];
+    for (name, expected) in cases {
+        assert_eq!(name.parse::<AsvoJobState>().ok(), Some(expected), "{name}");
+    }
+}
+
+/// Text that is not a job state is an error with the text in it.
+#[test]
+fn text_that_is_not_a_job_state_is_an_error() {
+    for text in ["", "bogus", "retrieving", "completed", "readyy"] {
+        let err = text
+            .parse::<AsvoJobState>()
+            .expect_err("this is not a job state");
+        assert!(
+            matches!(&err, AsvoError::InvalidJobState { str } if str == text),
+            "{text}: {err:?}"
+        );
+    }
+}
+
 /// A job with the given ID and state.
 fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
     AsvoJob {

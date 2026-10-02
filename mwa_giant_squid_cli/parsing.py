@@ -10,43 +10,15 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any, TypeVar
 
-from mwa_giant_squid import AsvoJobState, AsvoJobType
+from mwa_giant_squid import AsvoError, AsvoJobState, AsvoJobType
 
 from .constants import DATE_ONLY_FORMAT
 
-# The job states that `--job-states` accepts, by the name the Rust command accepts (letters only, lower case).
-# `AsvoJobState.Error` stands for every job with an error.
-JOB_STATE_NAMES = {
-    "queued": AsvoJobState.Queued,
-    "waitcal": AsvoJobState.WaitCal,
-    "staging": AsvoJobState.Staging,
-    "staged": AsvoJobState.Staged,
-    "downloading": AsvoJobState.Downloading,
-    "preparing": AsvoJobState.Preparing,
-    "preprocessing": AsvoJobState.Preprocessing,
-    "imaging": AsvoJobState.Imaging,
-    "delivering": AsvoJobState.Delivering,
-    "ready": AsvoJobState.Ready,
-    "error": AsvoJobState.Error,
-    "expired": AsvoJobState.Expired,
-    "cancelled": AsvoJobState.Cancelled,
-}
-
-# The job types that `--job-types` accepts, in the same form (the same names as the Rust command). Any other text
-# is refused, "unknown" included: that type cannot be filtered by.
-JOB_TYPE_NAMES = {
-    "conversion": AsvoJobType.Conversion,
-    "downloadvisibilities": AsvoJobType.DownloadVisibilities,
-    "downloadmetadata": AsvoJobType.DownloadMetadata,
-    "downloadvoltage": AsvoJobType.DownloadVoltage,
-    "downloadvoltages": AsvoJobType.DownloadVoltage,
-    "downloadbeamformer": AsvoJobType.DownloadBeamformer,
-    "canceljob": AsvoJobType.CancelJob,
-    "imaging": AsvoJobType.Imaging,
-}
-
-# The type of an enum member, and of a value in a table of names.
+# The type of an enum member.
 T = TypeVar("T")
+
+# The enums that have a list of names and a parser in the library.
+NamedEnum = type[AsvoJobState] | type[AsvoJobType]
 
 # Text that a boolean option accepts.
 TRUE_TEXT = frozenset({"true", "yes", "on", "1"})
@@ -108,24 +80,27 @@ def enum_parser(enum_type: type[T], description: str) -> Callable[[str], T]:
     return parse
 
 
-def name_list_parser(names: dict[str, T], description: str) -> Callable[[str], list[T]]:
-    """Make a parser for a comma-separated list of names, ignoring case, spaces, hyphens and underscores.
+def name_list_parser(enum_type: NamedEnum, description: str) -> Callable[[str], list[AsvoJobState | AsvoJobType]]:
+    """Make a parser for a comma-separated list of names of a job state or a job type.
+
+    The library decides which text is a name (it ignores case, spaces, hyphens and underscores). This function only
+    splits the text and words the error.
 
     Args:
-        names: The accepted names (letters only, lower case) and the value of each.
+        enum_type: ``AsvoJobState`` or ``AsvoJobType``.
         description: What the values are, for the error message.
 
     Returns:
-        A function that returns the values, or raises ``ArgumentTypeError``.
+        A function that returns the members, or raises ``ArgumentTypeError``.
     """
 
-    def parse(text: str) -> list[T]:
-        values = []
+    def parse(text: str) -> list[AsvoJobState | AsvoJobType]:
+        values: list[AsvoJobState | AsvoJobType] = []
         for item in text.split(","):
             try:
-                values.append(names[sanitize_identifier(item)])
-            except KeyError:
-                msg = f"invalid {description} '{item}'"
+                values.append(enum_type.parse(item))
+            except AsvoError:
+                msg = f"Invalid {description} '{item}': expected one of: {', '.join(enum_type.names())}"
                 raise argparse.ArgumentTypeError(msg) from None
         return values
 

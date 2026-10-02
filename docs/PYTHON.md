@@ -178,6 +178,12 @@ filters a list that you already have, without a request. `json()` returns the sa
 
 Notes:
 
+- `AsvoJobState.names()` and `AsvoJobType.names()` list the names that the `--job-states` and `--job-types`
+  options of `giant-squid list` accept. `AsvoJobState.parse(text)` and `AsvoJobType.parse(text)` get a member
+  from a name (the case, spaces, hyphens and underscores do not matter) and raise `AsvoError` (kind
+  `InvalidJobState` or `InvalidJobType`) for any other text. `AsvoJobType.Unknown` has no name.
+  `AsvoJob.state_text` is the state as the `giant-squid` command shows it: for a job with an error,
+  `Error: <message>`.
 - Job states compare by kind. `AsvoJobState.Error` matches every job that has an error. The message is in
   `AsvoJob.error_text`, and the server's error code (an integer, or `None`) is in `AsvoJob.error_code`. The
   MWA ASVO does not document the codes. `AsvoJobVec.all_ready` raises `AsvoError` of kind `JobFailed` for a

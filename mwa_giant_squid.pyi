@@ -778,6 +778,12 @@ class AsvoJob:
         The job state.
         """
     @property
+    def state_text(self) -> builtins.str:
+        r"""
+        The job state as text for a person: the state, and for a job in the
+        `Error` state `Error: <message>`.
+        """
+    @property
     def error_code(self) -> builtins.int | None:
         r"""
         The server's error code, or `None`. The MWA ASVO does not document
@@ -1043,6 +1049,25 @@ class AsvoJobState(enum.Enum):
     Expired = ...
     Cancelled = ...
 
+    @staticmethod
+    def names() -> builtins.list[builtins.str]:
+        r"""
+        The names of the job states that `parse` accepts (and that the
+        `--job-states` option of `giant-squid list` offers), in the order the
+        help lists them.
+        """
+    @staticmethod
+    def parse(text: builtins.str) -> AsvoJobState:
+        r"""
+        Get a job state from its name. The case, spaces, hyphens and
+        underscores do not matter, so `WAIT-CAL` and `waitcal` are the same
+        state.
+
+        Raises:
+            AsvoError: the text is not the name of a job state (kind
+                `InvalidJobState`).
+        """
+
 @typing.final
 class AsvoJobType(enum.Enum):
     r"""
@@ -1057,6 +1082,26 @@ class AsvoJobType(enum.Enum):
     DownloadBeamformer = ...
     Imaging = ...
     Unknown = ...
+
+    @staticmethod
+    def names() -> builtins.list[builtins.str]:
+        r"""
+        The names of the job types that `parse` accepts (and that the
+        `--job-types` option of `giant-squid list` offers), in the order
+        the help lists them. `Unknown` has no name.
+        """
+    @staticmethod
+    def parse(text: builtins.str) -> AsvoJobType:
+        r"""
+        Get a job type from its name. The case, spaces, hyphens and
+        underscores do not matter, so `download_visibilities` and
+        `DownloadVisibilities` are the same type. `download_voltage` and
+        `download_voltages` both give `DownloadVoltage`.
+
+        Raises:
+            AsvoError: the text is not the name of a job type, `unknown`
+                included (kind `InvalidJobType`).
+        """
 
 @typing.final
 class Centre(enum.Enum):
