@@ -805,3 +805,719 @@ fn a_stop_ends_the_wait_before_a_retry() {
         started.elapsed()
     );
 }
+
+// ---------------------------------------------------------------------------
+// Retries that carry on from a failed attempt
+// ---------------------------------------------------------------------------
+//
+// A dropped connection cannot be made with the mock server, so these tests
+// give the stream-untar code a reader that fails part way through, and then
+// check what the next attempt does.
+
+mod retries {
+    use std::io::{self, Read};
+
+    use httpmock::prelude::*;
+    use sha1::Digest;
+    use tempfile::TempDir;
+
+    use super::{options, sha1_hex};
+    use crate::asvo::{
+        is_network_read_error, network_error, resume_point, retry_class, try_download,
+        try_download_untar, untar_stream, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobState,
+        AsvoJobType, Delivery, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
+    };
+    use crate::obs_id::ObsId;
+    use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
+
+    /// The members of the test archive. Their sizes are not whole blocks,
+    /// so each member has padding, and the middle one spans several blocks.
+    const MEMBERS: [(&str, usize); 3] = [("a.dat", 1000), ("b.dat", 3000), ("c.dat", 700)];
+
+    /// Where the data of `b.dat` starts: after the header of `a.dat` (one
+    /// block), its data and padding (two blocks), and its own header.
+    const B_DATA_POS: u64 = 4 * 512;
+
+    /// Where the header of `c.dat` starts.
+    const C_HEADER_POS: u64 = 10 * 512;
+
+    /// The most bytes that the failing reader gives in one read, so that a
+    /// member is written in several chunks before the failure.
+    const READ_CHUNK: usize = 100;
+
+    /// A small copy buffer, so that a failure leaves part of a member on disk.
+    const TEST_BUFFER_SIZE: usize = 64;
+
+    const LOG_PREFIX: &str = "test:";
+
+    /// The contents of a member: ASCII digits, which differ from block to
+    /// block so that a misplaced block shows.
+    fn member_contents(size: usize) -> Vec<u8> {
+        (0..size).map(|i| b'0' + (i % 10) as u8).collect()
+    }
+
+    /// A tar archive of [`MEMBERS`].
+    fn test_archive() -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, size) in MEMBERS {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(size as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, member_contents(size).as_slice())
+                .expect("could not build the test tar");
+        }
+        builder.into_inner().expect("could not finish the test tar")
+    }
+
+    /// Check that every member was written, whole, into `dir`.
+    fn assert_members_written(dir: &TempDir) {
+        for (name, size) in MEMBERS {
+            let written =
+                std::fs::read(dir.path().join(name)).expect("the member should be on disk");
+            assert_eq!(
+                written,
+                member_contents(size),
+                "{name} has the wrong contents"
+            );
+        }
+    }
+
+    /// A reader that gives `data` in small chunks, then fails with a reset
+    /// connection at `fail_at`.
+    struct FailingReader<'a> {
+        data: &'a [u8],
+        position: usize,
+        fail_at: usize,
+    }
+
+    impl Read for FailingReader<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.position >= self.fail_at {
+                return Err(io::Error::from(io::ErrorKind::ConnectionReset));
+            }
+            let n = buf.len().min(READ_CHUNK).min(self.fail_at - self.position);
+            buf[..n].copy_from_slice(&self.data[self.position..self.position + n]);
+            self.position += n;
+            Ok(n)
+        }
+    }
+
+    /// Run a first attempt that fails at `fail_at`, the way a dropped
+    /// connection does, and return the checkpoint that it leaves.
+    fn failed_first_attempt(archive: &[u8], fail_at: u64, dir: &TempDir) -> UntarCheckpoint {
+        let dir_path = dir.path().display().to_string();
+        let mut opts = options(&dir_path);
+        opts.buffer_size = TEST_BUFFER_SIZE;
+        let source = NetworkReader::new(
+            FailingReader {
+                data: archive,
+                position: 0,
+                fail_at: fail_at as usize,
+            },
+            None,
+        );
+        let mut checkpoint = None;
+
+        let err = untar_stream(
+            source,
+            ResumePoint::from_start(),
+            dir.path(),
+            LOG_PREFIX,
+            &opts,
+            &mut checkpoint,
+        )
+        .expect_err("the first attempt should fail");
+
+        match &err {
+            AsvoError::IO(e) => assert!(is_network_read_error(e), "expected a network error"),
+            other => panic!("expected an IO error, got {other:?}"),
+        }
+        checkpoint.expect("the first attempt should leave a checkpoint")
+    }
+
+    /// The file entry for `archive`, served from `url`.
+    fn file_info(url: &str, archive: &[u8], sha1: &str) -> AsvoFilesArray {
+        AsvoFilesArray {
+            r#type: Delivery::Acacia,
+            url: Some(url.to_string()),
+            path: None,
+            size: archive.len() as u64,
+            sha1: Some(sha1.to_string()),
+            format: None,
+        }
+    }
+
+    /// A ready job, for the functions that take one.
+    fn ready_job() -> AsvoJob {
+        AsvoJob {
+            obs_id: ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
+                .expect("the test obsid should be valid"),
+            job_id: TEST_JOB_ID,
+            job_type: AsvoJobType::DownloadVisibilities,
+            job_state: AsvoJobState::Ready,
+            product: None,
+            created: jiff::Timestamp::UNIX_EPOCH,
+            started: None,
+            completed: None,
+            modified: None,
+            error_code: None,
+            error_text: None,
+            user_id: 1,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params: serde_json::Map::new(),
+        }
+    }
+
+    #[test]
+    fn a_retry_carries_on_inside_the_member_that_the_failure_stopped() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let fail_at = B_DATA_POS + 1234;
+
+        let checkpoint = failed_first_attempt(&archive, fail_at, &dir);
+        assert_eq!(checkpoint.data_pos, B_DATA_POS);
+        assert_eq!(checkpoint.size, 3000);
+
+        let resume = resume_point(&checkpoint, true, LOG_PREFIX).expect("a resume point");
+        let on_disk = std::fs::metadata(dir.path().join("b.dat"))
+            .expect("b.dat should be partly written")
+            .len();
+        assert!(on_disk > 0, "part of b.dat should be on disk");
+        assert_eq!(resume.start, B_DATA_POS + on_disk);
+        assert!(resume.start <= fail_at);
+
+        let dir_path = dir.path().display().to_string();
+        let mut checkpoint = Some(checkpoint);
+        let start = resume.start as usize;
+        let hasher = untar_stream(
+            &archive[start..],
+            resume,
+            dir.path(),
+            LOG_PREFIX,
+            &options(&dir_path),
+            &mut checkpoint,
+        )
+        .expect("the retry should succeed");
+
+        assert_members_written(&dir);
+        // The retry only fetched the tail, but the hash covers the archive.
+        assert_eq!(format!("{:x}", hasher.finalize()), sha1_hex(&archive));
+    }
+
+    #[test]
+    fn a_retry_after_a_failure_between_members_starts_after_the_finished_member() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        // Inside the header of c.dat: b.dat is finished, c.dat has not started.
+        let fail_at = C_HEADER_POS + 100;
+
+        let checkpoint = failed_first_attempt(&archive, fail_at, &dir);
+        assert_eq!(checkpoint.data_pos, B_DATA_POS);
+
+        let resume = resume_point(&checkpoint, true, LOG_PREFIX).expect("a resume point");
+        assert_eq!(resume.start, B_DATA_POS + 3000);
+
+        let dir_path = dir.path().display().to_string();
+        let mut checkpoint = Some(checkpoint);
+        let start = resume.start as usize;
+        let hasher = untar_stream(
+            &archive[start..],
+            resume,
+            dir.path(),
+            LOG_PREFIX,
+            &options(&dir_path),
+            &mut checkpoint,
+        )
+        .expect("the retry should succeed");
+
+        assert_members_written(&dir);
+        assert_eq!(format!("{:x}", hasher.finalize()), sha1_hex(&archive));
+    }
+
+    #[test]
+    fn a_retry_asks_the_server_for_the_rest_of_the_archive() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let mut checkpoint = Some(failed_first_attempt(&archive, B_DATA_POS + 1234, &dir));
+        let start = resume_point(checkpoint.as_ref().unwrap(), false, LOG_PREFIX)
+            .expect("a resume point")
+            .start;
+
+        let server = MockServer::start();
+        let tail = server.mock(|when, then| {
+            when.method(GET)
+                .path("/archive.tar")
+                .header("range", format!("bytes={start}-").as_str());
+            then.status(206).body(&archive[start as usize..]);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+
+        try_download_untar(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &archive, &sha1_hex(&archive)),
+            TEST_JOB_ID,
+            dir.path(),
+            LOG_PREFIX,
+            &options(&dir_path),
+            &sha1_hex(&archive),
+            &mut checkpoint,
+        )
+        .expect("the retry should succeed and match the hash");
+
+        assert_eq!(tail.calls(), 1, "the range request should be made once");
+        assert_members_written(&dir);
+        assert!(
+            checkpoint.is_none(),
+            "a finished download keeps no checkpoint"
+        );
+    }
+
+    #[test]
+    fn a_retry_starts_again_when_the_server_sends_the_whole_archive() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let mut checkpoint = Some(failed_first_attempt(&archive, B_DATA_POS + 1234, &dir));
+
+        let server = MockServer::start();
+        let whole = server.mock(|when, then| {
+            when.method(GET).path("/archive.tar");
+            then.status(200).body(&archive);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+
+        try_download_untar(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &archive, &sha1_hex(&archive)),
+            TEST_JOB_ID,
+            dir.path(),
+            LOG_PREFIX,
+            &options(&dir_path),
+            &sha1_hex(&archive),
+            &mut checkpoint,
+        )
+        .expect("the download should start again and succeed");
+
+        assert_eq!(whole.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_stream_untar_hash_mismatch_makes_the_retry_start_again() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/archive.tar");
+            then.status(200).body(&archive);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+        let wrong_hash = sha1_hex(b"not the archive");
+        let mut checkpoint = None;
+
+        let err = try_download_untar(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &archive, &wrong_hash),
+            TEST_JOB_ID,
+            dir.path(),
+            LOG_PREFIX,
+            &options(&dir_path),
+            &wrong_hash,
+            &mut checkpoint,
+        )
+        .expect_err("the hash should not match");
+
+        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+        assert!(
+            checkpoint.is_none(),
+            "the retry must fetch the whole archive"
+        );
+    }
+
+    #[test]
+    fn a_keep_tar_retry_resumes_its_own_partial_file_when_no_resume_is_set() {
+        let payload = member_contents(1000);
+        let split = 400;
+        let dir = TempDir::new().expect("could not create a download directory");
+        let out_path = dir.path().join("archive.tar");
+        // What the failed first attempt of this download wrote.
+        std::fs::write(&out_path, &payload[..split]).expect("could not seed a partial file");
+
+        let server = MockServer::start();
+        let tail = server.mock(|when, then| {
+            when.method(GET)
+                .path("/archive.tar")
+                .header("range", format!("bytes={split}-").as_str());
+            then.status(206).body(&payload[split..]);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+        let mut opts = options(&dir_path);
+        opts.keep_tar = true;
+        opts.no_resume = true;
+        let mut retry_state = RetryState {
+            wrote_tar: true,
+            untar_checkpoint: None,
+        };
+
+        try_download(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &payload, &sha1_hex(&payload)),
+            &ready_job(),
+            &out_path,
+            LOG_PREFIX,
+            &opts,
+            &mut retry_state,
+        )
+        .expect("the retry should resume the file and match the hash");
+
+        assert_eq!(tail.calls(), 1, "the range request should be made once");
+        assert_eq!(std::fs::read(&out_path).expect("the file"), payload);
+    }
+
+    #[test]
+    fn a_download_that_ends_before_its_length_is_a_network_error() {
+        let mut reader = NetworkReader::new(&b"abc"[..], Some(10));
+
+        let err = reader
+            .read_to_end(&mut Vec::new())
+            .expect_err("a short download should fail");
+
+        assert!(is_network_read_error(&err));
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn a_failed_read_of_the_download_is_retried_but_a_disk_error_is_not() {
+        let network = AsvoError::IO(network_error(io::Error::from(
+            io::ErrorKind::ConnectionReset,
+        )));
+        let disk = AsvoError::IO(io::Error::from(io::ErrorKind::PermissionDenied));
+
+        assert!(matches!(
+            retry_class(network, TEST_JOB_ID),
+            backoff::Error::Transient { .. }
+        ));
+        assert!(matches!(
+            retry_class(disk, TEST_JOB_ID),
+            backoff::Error::Permanent(_)
+        ));
+    }
+
+    #[test]
+    fn a_network_error_shows_as_the_error_that_it_wraps() {
+        let inner = io::Error::new(io::ErrorKind::ConnectionReset, "connection reset by peer");
+        let shown = inner.to_string();
+
+        assert_eq!(network_error(inner).to_string(), shown);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// A new run that carries on from the files of an earlier run
+// ---------------------------------------------------------------------------
+
+mod reruns {
+    use std::time::Duration;
+
+    use httpmock::prelude::*;
+    use tempfile::TempDir;
+
+    use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
+    use crate::asvo::{AsvoClient, AsvoError, EARLIER_FILES_WINDOW};
+    use crate::test_common::*;
+    use crate::test_config::client_config;
+
+    /// The members of the test archive. `b.dat` is larger than one range of
+    /// the check, so that the check needs more than one request.
+    const MEMBERS: [(&str, usize); 3] = [("a.dat", 1000), ("b.dat", 150_000), ("c.dat", 700)];
+
+    /// How much of `b.dat` a partly written file holds.
+    const PARTIAL_B: u64 = 40_000;
+
+    /// Long enough for one retry after a hash mismatch.
+    const ONE_RETRY: Duration = Duration::from_secs(30);
+
+    fn member_contents(size: usize) -> Vec<u8> {
+        (0..size).map(|i| b'0' + (i % 10) as u8).collect()
+    }
+
+    fn test_archive() -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, size) in MEMBERS {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(size as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, member_contents(size).as_slice())
+                .expect("could not build the test tar");
+        }
+        builder.into_inner().expect("could not finish the test tar")
+    }
+
+    /// The archive offset of each member's first data byte, in order.
+    fn data_positions(archive: &[u8]) -> Vec<u64> {
+        let mut tar = tar::Archive::new(archive);
+        tar.entries()
+            .expect("the test tar should be readable")
+            .map(|entry| entry.expect("a test tar entry").raw_file_position())
+            .collect()
+    }
+
+    /// The `Range` value of a closed range request of the check.
+    fn window(start: u64, archive: &[u8]) -> String {
+        let end = (start + EARLIER_FILES_WINDOW).min(archive.len() as u64);
+        format!("bytes={start}-{}", end - 1)
+    }
+
+    /// Write members into `dir` as an earlier run would have.
+    fn write_members(dir: &TempDir, names: &[&str]) {
+        for (name, size) in MEMBERS {
+            if names.contains(&name) {
+                std::fs::write(dir.path().join(name), member_contents(size))
+                    .expect("could not write a member");
+            }
+        }
+    }
+
+    fn assert_members_written(dir: &TempDir) {
+        for (name, size) in MEMBERS {
+            let written =
+                std::fs::read(dir.path().join(name)).expect("the member should be on disk");
+            assert_eq!(
+                written,
+                member_contents(size),
+                "{name} has the wrong contents"
+            );
+        }
+    }
+
+    /// A test environment whose ready job serves `archive`.
+    fn env_serving(archive: &[u8]) -> TestEnv {
+        let env = TestEnv::with_session();
+        env.mock_get_jobs(vec![ready_job_serving(
+            &env.server.url(DOWNLOAD_PATH),
+            archive.len() as u64,
+            &sha1_hex(archive),
+        )]);
+        env
+    }
+
+    /// Mock one closed range request of the check.
+    fn mock_window<'a>(env: &'a TestEnv, start: u64, archive: &[u8]) -> httpmock::Mock<'a> {
+        let end = (start + EARLIER_FILES_WINDOW).min(archive.len() as u64);
+        env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", window(start, archive).as_str());
+            then.status(206)
+                .body(&archive[start as usize..end as usize]);
+        })
+    }
+
+    /// Mock the open-ended range request of the download itself.
+    fn mock_rest<'a>(env: &'a TestEnv, start: u64, archive: &[u8]) -> httpmock::Mock<'a> {
+        env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", format!("bytes={start}-").as_str());
+            then.status(206).body(&archive[start as usize..]);
+        })
+    }
+
+    /// Mock a request for the whole archive.
+    fn mock_whole<'a>(env: &'a TestEnv, archive: &[u8]) -> httpmock::Mock<'a> {
+        env.server.mock(|when, then| {
+            when.method(GET).path(DOWNLOAD_PATH).header_missing("range");
+            then.status(200).body(archive);
+        })
+    }
+
+    fn download(
+        env: &TestEnv,
+        dir: &TempDir,
+        configure: impl FnOnce(&mut crate::asvo::DownloadOptions),
+    ) -> Result<(), AsvoError> {
+        let dir_path = dir.path().display().to_string();
+        let mut opts = options(&dir_path);
+        configure(&mut opts);
+        let client = AsvoClient::new(client_config(env)).expect("client should be created");
+        client.download_job(TEST_JOB_ID, &opts)
+    }
+
+    #[test]
+    fn a_rerun_fetches_only_the_members_that_are_not_on_disk() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let b_end = data[1] + 150_000;
+        let env = env_serving(&archive);
+        let first = mock_window(&env, 0, &archive);
+        let after_b = mock_window(&env, b_end, &archive);
+        let rest = mock_rest(&env, data[2], &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat", "b.dat"]);
+
+        download(&env, &dir, |_| {}).expect("the rerun should succeed and match the hash");
+
+        assert_eq!(first.calls(), 1);
+        assert_eq!(after_b.calls(), 1, "b.dat's data should come from disk");
+        assert_eq!(rest.calls(), 1, "only c.dat should be fetched");
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_rerun_carries_on_inside_a_partly_written_file() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        let first = mock_window(&env, 0, &archive);
+        let rest = mock_rest(&env, data[1] + PARTIAL_B, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat"]);
+        std::fs::write(
+            dir.path().join("b.dat"),
+            &member_contents(150_000)[..PARTIAL_B as usize],
+        )
+        .expect("could not write a partial member");
+
+        download(&env, &dir, |_| {}).expect("the rerun should succeed and match the hash");
+
+        assert_eq!(first.calls(), 1);
+        assert_eq!(rest.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_rerun_with_every_member_on_disk_fetches_only_the_end_of_the_archive() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        let first = mock_window(&env, 0, &archive);
+        let after_b = mock_window(&env, data[1] + 150_000, &archive);
+        let end = mock_rest(&env, data[2] + 700, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat", "b.dat", "c.dat"]);
+
+        download(&env, &dir, |_| {}).expect("the rerun should succeed and match the hash");
+
+        assert_eq!(first.calls(), 1);
+        assert_eq!(after_b.calls(), 1);
+        assert_eq!(
+            end.calls(),
+            1,
+            "only the padding and end blocks should be fetched"
+        );
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_rerun_with_a_wrong_file_on_disk_fetches_the_whole_archive_again() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        mock_window(&env, 0, &archive);
+        let rest = mock_rest(&env, data[1], &archive);
+        let whole = mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        // The right size, the wrong contents.
+        std::fs::write(dir.path().join("a.dat"), vec![b'x'; 1000]).expect("could not write a.dat");
+
+        download(&env, &dir, |opts| opts.retry_duration = ONE_RETRY)
+            .expect("the retry should fetch the whole archive and succeed");
+
+        assert_eq!(rest.calls(), 1, "the first attempt used the file on disk");
+        assert_eq!(whole.calls(), 1, "the retry fetched the whole archive");
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_rerun_with_no_resume_set_fetches_the_whole_archive() {
+        let archive = test_archive();
+        let env = env_serving(&archive);
+        let first = mock_window(&env, 0, &archive);
+        let whole = mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat", "b.dat"]);
+
+        download(&env, &dir, |opts| opts.no_resume = true).expect("the download should succeed");
+
+        assert_eq!(
+            first.calls(),
+            0,
+            "no files from an earlier run are looked for"
+        );
+        assert_eq!(whole.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_directory_without_files_of_the_archive_costs_one_small_request() {
+        let archive = test_archive();
+        let env = env_serving(&archive);
+        let first = mock_window(&env, 0, &archive);
+        let whole = mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        std::fs::write(dir.path().join("unrelated.txt"), "not from the archive")
+            .expect("could not write an unrelated file");
+
+        download(&env, &dir, |_| {}).expect("the download should succeed");
+
+        assert_eq!(first.calls(), 1);
+        assert_eq!(whole.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_server_that_ignores_range_requests_gets_a_whole_download() {
+        let archive = test_archive();
+        let env = env_serving(&archive);
+        // Answers every request, with or without a range, with the whole archive.
+        let any = env.server.mock(|when, then| {
+            when.method(GET).path(DOWNLOAD_PATH);
+            then.status(200).body(&archive);
+        });
+        let dir = TempDir::new().expect("could not create a download directory");
+        write_members(&dir, &["a.dat"]);
+
+        download(&env, &dir, |_| {}).expect("the download should succeed");
+
+        assert_eq!(any.calls(), 2, "the check, then the whole download");
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn without_a_hash_check_a_file_on_disk_is_used_on_its_size_alone() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        mock_window(&env, 0, &archive);
+        let rest = mock_rest(&env, data[1], &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        let wrong = vec![b'x'; 1000];
+        std::fs::write(dir.path().join("a.dat"), &wrong).expect("could not write a.dat");
+
+        download(&env, &dir, |opts| opts.hash = false).expect("the download should succeed");
+
+        assert_eq!(rest.calls(), 1);
+        assert_eq!(
+            std::fs::read(dir.path().join("a.dat")).expect("a.dat"),
+            wrong
+        );
+        for (name, size) in &MEMBERS[1..] {
+            assert_eq!(
+                std::fs::read(dir.path().join(name)).expect("the member"),
+                member_contents(*size)
+            );
+        }
+    }
+}
