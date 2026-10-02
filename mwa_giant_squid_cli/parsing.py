@@ -69,6 +69,20 @@ def sanitize_identifier(text: str) -> str:
     return re.sub(r"[^a-z]", "", text.lower())
 
 
+def enum_values(enum_type: type) -> list[str]:
+    """List the API values of the members of an enum.
+
+    Args:
+        enum_type: The enum class.
+
+    Returns:
+        The text of each member (``str(member)``), in alphabetical order. The Rust command lists them in the same
+        order.
+    """
+    members = (getattr(enum_type, name) for name in dir(enum_type))
+    return sorted({str(member) for member in members if isinstance(member, enum_type)})
+
+
 def enum_parser(enum_type: type[T], description: str) -> Callable[[str], T]:
     """Make a parser for the members of an enum, by the text of their API value or their name.
 

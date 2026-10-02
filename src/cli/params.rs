@@ -23,6 +23,8 @@ use crate::asvo::apiv2::openapi::{
 use crate::asvo::apiv2::validate::{self, Bounds};
 use crate::asvo::AsvoApiError;
 
+use super::value_enums::SchemaEnumParser;
+
 /// Builds a clap value parser that only accepts an f64 within `bounds`.
 /// The bounds are the library's ([`crate::asvo::apiv2::validate`]), which
 /// come from the MWA ASVO schema, so a value that is out of range is
@@ -81,15 +83,12 @@ pub fn parse_image_size(s: &str) -> Result<i64, String> {
     })
 }
 
-/// Validates a polarisation against the MWA ASVO API's `Polarization` type
-/// and returns it in the string form the request body carries. Both
-/// imaging endpoints take the enum (flow 2 since schema v1.11), so an
-/// unsupported value is rejected by the CLI rather than only when the
-/// request body is built.
-pub fn parse_polarization(s: &str) -> Result<String, String> {
-    Polarization::try_from(s)
-        .map(|p| p.to_string())
-        .map_err(|e| e.to_string())
+/// The parser of `--pol`: one of the API's `Polarization` values, kept as the
+/// text that the request body carries. Both imaging endpoints take the enum
+/// (flow 2 since schema v1.11), so an unsupported value is rejected by the
+/// CLI rather than only when the request body is built.
+fn polarization_parser() -> impl clap::builder::TypedValueParser<Value = String> {
+    clap::builder::TypedValueParser::map(SchemaEnumParser::<Polarization>::new(), |p| p.to_string())
 }
 
 /// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
@@ -163,11 +162,11 @@ pub fn imaging2_defaults() -> ImagingJobFlow2Params {
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+    #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Allow resubmitting a job even if an identical one has completed.
@@ -207,15 +206,15 @@ impl DownloadJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct ConversionJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+    #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Output format: "ms" (measurement set) or "uvfits".
-    #[arg(short = 'o', long, default_value_t = conversion_defaults().output)]
+    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<Output>::new())]
     pub output: Output,
 
     /// Frequency resolution to average to (kHz).
@@ -236,7 +235,7 @@ pub struct ConversionJobArgs {
 
     /// Phase centre mode: "phase", "pointing", or "custom".
     /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, default_value_t = conversion_defaults().centre)]
+    #[arg(long, default_value_t = conversion_defaults().centre, value_parser = SchemaEnumParser::<Centre>::new())]
     pub centre: Centre,
 
     /// Custom phase centre right ascension (degrees). Requires --centre custom.
@@ -313,11 +312,11 @@ impl ConversionJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+    #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Whether to apply the DI calibration solution.
@@ -425,12 +424,12 @@ pub struct ImagingJobArgs {
     pub nwlayers: Option<i64>,
 
     /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode)]
+    #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode, value_parser = SchemaEnumParser::<OutputMode>::new())]
     pub output_mode: OutputMode,
 
     /// Where to centre the image: "phase", "pointing", or "custom".
     /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, alias = "phase-center", default_value_t = imaging1_defaults().centre)]
+    #[arg(long, alias = "phase-center", default_value_t = imaging1_defaults().centre, value_parser = SchemaEnumParser::<Centre>::new())]
     pub centre: Centre,
 
     /// Pixel scale (arcsec/pixel).
@@ -438,7 +437,7 @@ pub struct ImagingJobArgs {
     pub pixel_scale: f64,
 
     /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value_t = imaging1_defaults().pol.to_string(), value_parser = parse_polarization)]
+    #[arg(long, default_value_t = imaging1_defaults().pol.to_string(), value_parser = polarization_parser())]
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
@@ -455,7 +454,7 @@ pub struct ImagingJobArgs {
     pub uvw_min: f64,
 
     /// WSClean weighting scheme.
-    #[arg(long, default_value_t = imaging1_defaults().weighting)]
+    #[arg(long, default_value_t = imaging1_defaults().weighting, value_parser = SchemaEnumParser::<Weighting>::new())]
     pub weighting: Weighting,
 
     /// Number of w-stacking layers. Leave unset to let the server
@@ -530,11 +529,11 @@ pub struct ImagingFromJobArgs {
     pub source_job_id: NonZeroU64,
 
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+    #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Whether to apply the primary beam correction.
@@ -611,7 +610,7 @@ pub struct ImagingFromJobArgs {
     pub nwlayers: Option<i64>,
 
     /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value_t = imaging2_defaults().output_mode)]
+    #[arg(short = 'o', long, default_value_t = imaging2_defaults().output_mode, value_parser = SchemaEnumParser::<OutputMode>::new())]
     pub output_mode: OutputMode,
 
     /// Pixel scale (arcsec/pixel).
@@ -619,7 +618,7 @@ pub struct ImagingFromJobArgs {
     pub pixel_scale: f64,
 
     /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value_t = imaging2_defaults().pol.to_string(), value_parser = parse_polarization)]
+    #[arg(long, default_value_t = imaging2_defaults().pol.to_string(), value_parser = polarization_parser())]
     pub pol: String,
 
     /// WSClean -robust (Briggs robustness) value.
@@ -636,7 +635,7 @@ pub struct ImagingFromJobArgs {
     pub uvw_min: f64,
 
     /// WSClean weighting scheme.
-    #[arg(long, default_value_t = imaging2_defaults().weighting)]
+    #[arg(long, default_value_t = imaging2_defaults().weighting, value_parser = SchemaEnumParser::<Weighting>::new())]
     pub weighting: Weighting,
 
     /// Number of w-stacking layers. Leave unset to let the server
@@ -746,11 +745,11 @@ impl VoltageJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct BeamformerJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT")]
+    #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Allow resubmitting a job even if an identical one has completed.

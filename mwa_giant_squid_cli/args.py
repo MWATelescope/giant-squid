@@ -29,6 +29,7 @@ from .parsing import (
     JOB_TYPE_NAMES,
     default_text,
     enum_parser,
+    enum_values,
     name_list_parser,
     parse_bool,
     parse_utc_time,
@@ -150,7 +151,7 @@ def _add_enum(
         *names,
         type=enum_parser(enum_type, flag.removeprefix("--").replace("-", " ")),
         default=os.environ.get(env, default) if env else default,
-        help=f"{help_text} (default: {default})",
+        help=f"{help_text} (default: {default}; options: {', '.join(enum_values(enum_type))})",
     )
 
 
@@ -160,8 +161,7 @@ def _add_delivery(parser: argparse.ArgumentParser, defaults: DefaultDict) -> Non
         "--delivery",
         Delivery,
         defaults["delivery"],
-        "Tell MWA ASVO where to deliver the data. "
-        f"Options: acacia, dug, scratch. Environment variable: {ENV_DELIVERY}.",
+        f"Tell MWA ASVO where to deliver the data. Environment variable: {ENV_DELIVERY}.",
         short="-d",
         env=ENV_DELIVERY,
     )
@@ -170,7 +170,7 @@ def _add_delivery(parser: argparse.ArgumentParser, defaults: DefaultDict) -> Non
         "--delivery-format",
         DeliveryFormat,
         defaults["delivery_format"],
-        f"Tell MWA ASVO to deliver the data in a particular format: tar or files. Environment variable: {ENV_DELIVERY_FORMAT}.",
+        f"Tell MWA ASVO to deliver the data in a particular format. Environment variable: {ENV_DELIVERY_FORMAT}.",
         short="-f",
         env=ENV_DELIVERY_FORMAT,
     )
@@ -396,7 +396,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=name_list_parser(JOB_TYPE_NAMES, "job type"),
         metavar="JOB_TYPE",
         help="filter job list by type (comma-separated), case insensitive with underscores. Options: conversion, "
-        "download_visibilities, download_metadata, download_voltage, download_beamformer, imaging or cancel_job",
+        "download_visibilities, download_metadata, download_voltages, download_beamformer, imaging or cancel_job",
     )
     list_parser.add_argument(
         "-n",

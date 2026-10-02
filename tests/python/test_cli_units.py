@@ -133,6 +133,23 @@ def test_enum_values_match_by_api_value_or_name() -> None:
         parse("everything")
 
 
+@pytest.mark.parametrize(
+    ("enum_type", "values"),
+    [
+        (gs.Delivery, ["acacia", "dug", "scratch"]),
+        (gs.DeliveryFormat, ["files", "tar"]),
+        (gs.Output, ["ms", "uvfits"]),
+        (gs.Centre, ["custom", "phase", "pointing"]),
+        (gs.OutputMode, ["all_files", "all_fits", "fits"]),
+        (gs.Polarization, ["XX", "XXYY", "YY"]),
+        (gs.Weighting, ["briggs", "natural", "uniform"]),
+    ],
+)
+def test_enum_values_lists_the_api_values_in_order(enum_type: type, values: list[str]) -> None:
+    """The help of an enum option lists the API values, in alphabetical order like the Rust command."""
+    assert parsing.enum_values(enum_type) == values
+
+
 def test_progress_bars_are_drawn_and_removed_on_a_terminal() -> None:
     """A bar shows from its start event, advances, and is cleared when the file finishes."""
     stream = FakeTerminal()

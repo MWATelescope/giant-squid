@@ -14,6 +14,7 @@ pub mod config;
 pub mod legacy_json;
 pub mod params;
 pub mod table;
+pub mod value_enums;
 
 #[cfg(test)]
 mod test;
@@ -55,13 +56,13 @@ pub enum Args {
         verbosity: u8,
 
         /// show only jobs matching the provided states, case insensitive.
-        /// Options: queued, waitcal, staging, staged, retrieving, preprocessing, imaging, delivering, ready, error, expired, cancelled
+        /// Options: queued, waitcal, staging, staged, downloading, preparing, preprocessing, imaging, delivering, ready, error, expired, cancelled
         #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',')]
         job_states: Vec<AsvoJobState>,
 
         /// filter job list by type, case insensitive with underscores. Options:
         /// conversion, download_visibilities, download_metadata,
-        /// download_voltage or cancel_job
+        /// download_voltages, download_beamformer, imaging or cancel_job
         #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',')]
         job_types: Vec<AsvoJobType>,
 

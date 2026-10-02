@@ -815,6 +815,30 @@ def test_every_command_has_help(run: Callable[..., Result], command: str) -> Non
     assert f"giant-squid {command}" in result.out
 
 
+@pytest.mark.parametrize(
+    ("command", "option", "values"),
+    [
+        ("submit-vis", "--delivery", "acacia, dug, scratch"),
+        ("submit-conv", "--delivery-format", "files, tar"),
+        ("submit-conv", "--output", "ms, uvfits"),
+        ("submit-conv", "--centre", "custom, phase, pointing"),
+        ("submit-image", "--output-mode", "all_files, all_fits, fits"),
+        ("submit-image", "--pol", "XX, XXYY, YY"),
+        ("submit-image-from-job", "--weighting", "briggs, natural, uniform"),
+    ],
+)
+def test_the_help_of_an_enum_option_lists_its_values(
+    run: Callable[..., Result], command: str, option: str, values: str
+) -> None:
+    """``--help`` names the values that an option takes, as the Rust command does."""
+    result = run(command, "--help")
+
+    assert result.code == EXIT_OK
+    # argparse wraps the help, so the text is compared without the line breaks.
+    text = " ".join(result.out.split())
+    assert f"options: {values})" in text, text
+
+
 def test_the_version_is_the_module_version(run: Callable[..., Result]) -> None:
     """``--version`` prints the version, as the Rust command does."""
     result = run("--version")

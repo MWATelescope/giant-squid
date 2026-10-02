@@ -1411,3 +1411,100 @@ fn list_takes_the_date_and_sort_filters() {
         other => panic!("expected List, got {other:?}"),
     }
 }
+
+// ---------------------------------------------------------------------------
+// The help of `list --job-states` and `--job-types`
+// ---------------------------------------------------------------------------
+
+/// The names that the help of an option of `list` offers: the text after
+/// "Options:", split at the commas and the last "or".
+fn names_offered_by_list_help(option: &str) -> Vec<String> {
+    use clap::CommandFactory;
+
+    let cli = Args::command();
+    let list = cli.find_subcommand("list").expect("list exists");
+    let help = list
+        .get_arguments()
+        .find(|arg| arg.get_long() == Some(option))
+        .unwrap_or_else(|| panic!("list has no --{option}"))
+        .get_help()
+        .unwrap_or_else(|| panic!("--{option} has no help"))
+        .to_string();
+    let (_, names) = help
+        .split_once("Options:")
+        .unwrap_or_else(|| panic!("the help of --{option} has no list of options: {help}"));
+
+    names
+        .replace(" or ", ", ")
+        .split(',')
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
+/// The help must offer every job state that the parser accepts, and only
+/// those: it once offered `retrieving`, which is not a state.
+#[test]
+fn the_help_of_job_states_offers_the_states_the_parser_accepts() {
+    use crate::asvo::AsvoJobState;
+    use std::str::FromStr;
+
+    let offered = names_offered_by_list_help("job-states");
+
+    assert_eq!(
+        offered,
+        [
+            "queued",
+            "waitcal",
+            "staging",
+            "staged",
+            "downloading",
+            "preparing",
+            "preprocessing",
+            "imaging",
+            "delivering",
+            "ready",
+            "error",
+            "expired",
+            "cancelled",
+        ]
+    );
+    for name in &offered {
+        assert!(
+            AsvoJobState::from_str(name).is_ok(),
+            "the help offers {name}, which is not a job state"
+        );
+    }
+}
+
+/// The parser takes any text that is not a job type as the "unknown" type,
+/// so a name in the help that is not a type would not be an error: it would
+/// quietly match no job. Every name in the help must be a real type.
+#[test]
+fn the_help_of_job_types_offers_the_types_the_parser_accepts() {
+    use crate::asvo::AsvoJobType;
+    use std::str::FromStr;
+
+    let offered = names_offered_by_list_help("job-types");
+
+    assert_eq!(
+        offered,
+        [
+            "conversion",
+            "download_visibilities",
+            "download_metadata",
+            "download_voltages",
+            "download_beamformer",
+            "imaging",
+            "cancel_job",
+        ]
+    );
+    for name in &offered {
+        let parsed = AsvoJobType::from_str(name).expect("a job type never fails to parse");
+        assert_ne!(
+            parsed,
+            AsvoJobType::Unknown,
+            "the help offers {name}, which is not a job type"
+        );
+    }
+}
