@@ -37,7 +37,7 @@ use std::env::current_dir;
 use std::fmt;
 use std::fs::{rename, File};
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use backoff::backoff::Backoff;
@@ -460,6 +460,50 @@ fn try_download(
 
 // --- stream-untar ----------------------------------------------------------
 
+/// Where a tar entry is unpacked.
+enum EntryTarget {
+    /// A file, at this path.
+    File(PathBuf),
+    /// A directory, at this path.
+    Dir(PathBuf),
+    /// Not unpacked: the entry's path is absolute, has a `..` part, or names
+    /// no file, so it would not be written inside the download directory.
+    Skip,
+}
+
+impl EntryTarget {
+    /// The file that the entry is written to, or `None`.
+    fn file_path(&self) -> Option<PathBuf> {
+        match self {
+            Self::File(path) => Some(path.clone()),
+            Self::Dir(_) | Self::Skip => None,
+        }
+    }
+}
+
+/// Decide where the tar entry at `entry_path` is unpacked in `unpack_path`.
+/// An entry whose path ends in `/` is a directory.
+fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
+    let is_dir = entry_path.as_os_str().as_encoded_bytes().ends_with(b"/");
+    let mut has_name = false;
+    for component in entry_path.components() {
+        match component {
+            Component::Normal(_) => has_name = true,
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return EntryTarget::Skip;
+            }
+        }
+    }
+    if is_dir {
+        EntryTarget::Dir(unpack_path.join(entry_path))
+    } else if has_name {
+        EntryTarget::File(unpack_path.join(entry_path))
+    } else {
+        EntryTarget::Skip
+    }
+}
+
 /// Where a stream-untar download can carry on after a failed attempt.
 ///
 /// It is taken when the tar parser gives a member. At that moment the
@@ -681,38 +725,50 @@ fn untar_stream(
         for entry in tar.entries()? {
             let entry = entry?;
             let entry_path = entry.path()?.to_path_buf();
-            let out_full = unpack_path.join(&entry_path);
-            let is_dir = entry_path.to_str().unwrap().ends_with('/');
+            let target = entry_target(unpack_path, &entry_path);
 
             *checkpoint = Some(UntarCheckpoint {
                 data_pos: base + entry.raw_file_position(),
                 hasher: hasher.borrow().clone(),
-                out_path: (!is_dir).then(|| out_full.clone()),
+                out_path: target.file_path(),
                 size: entry.size(),
                 verify,
             });
 
-            if !is_dir {
-                debug!("{} Writing file {}", log_prefix, out_full.display());
-                let mut out_file = create_file_logged(&out_full, log_prefix)?;
-                copy_with_progress(
-                    BufReader::with_capacity(buffer_size, entry),
-                    &mut out_file,
-                    buffer_size,
-                    opts,
-                )?;
-            } else if !out_full.exists() {
-                debug!("{} Creating directory {:?}", log_prefix, out_full);
-                std::fs::create_dir(&out_full).map_err(|e| {
-                    error!(
-                        "{} Error- cannot create directory {:?}",
-                        log_prefix,
-                        out_full.display()
+            match target {
+                EntryTarget::File(out_full) => {
+                    debug!("{} Writing file {}", log_prefix, out_full.display());
+                    let mut out_file = create_file_logged(&out_full, log_prefix)?;
+                    copy_with_progress(
+                        BufReader::with_capacity(buffer_size, entry),
+                        &mut out_file,
+                        buffer_size,
+                        opts,
+                    )?;
+                }
+                EntryTarget::Dir(out_full) if !out_full.exists() => {
+                    debug!("{} Creating directory {:?}", log_prefix, out_full);
+                    std::fs::create_dir(&out_full).map_err(|e| {
+                        error!(
+                            "{} Error- cannot create directory {:?}",
+                            log_prefix,
+                            out_full.display()
+                        );
+                        AsvoError::IO(e)
+                    })?;
+                }
+                EntryTarget::Dir(out_full) => {
+                    debug!("{} Directory exists {}", log_prefix, out_full.display());
+                }
+                EntryTarget::Skip => {
+                    // The tar parser passes over the entry's data, which the
+                    // hash still covers.
+                    warn!(
+                        "{} Skipping tar entry {:?}: it would not be written inside the \
+                         download directory.",
+                        log_prefix, entry_path
                     );
-                    AsvoError::IO(e)
-                })?;
-            } else {
-                debug!("{} Directory exists {}", log_prefix, out_full.display());
+                }
             }
         }
     }
@@ -904,28 +960,30 @@ fn find_files_on_disk(
         for entry in tar.entries()? {
             let entry = entry?;
             let entry_path = entry.path()?.to_path_buf();
-            let out_full = unpack_path.join(&entry_path);
-            let is_dir = entry_path.to_str().unwrap().ends_with('/');
+            let target = entry_target(unpack_path, &entry_path);
             let size = entry.size();
             let data_pos = entry.raw_file_position();
 
             checkpoint = Some(UntarCheckpoint {
                 data_pos,
                 hasher: hasher.borrow().clone(),
-                out_path: (!is_dir).then(|| out_full.clone()),
+                out_path: target.file_path(),
                 size,
                 verify: true,
             });
 
-            let on_disk = if is_dir {
-                out_full.is_dir()
-            } else {
-                std::fs::metadata(&out_full)
-                    .is_ok_and(|metadata| metadata.is_file() && metadata.len() == size)
+            // An entry that is skipped also stops the walk: its data is not
+            // on disk, so the download carries on from it.
+            let (out_full, is_dir) = match target {
+                EntryTarget::Dir(out_full) if out_full.is_dir() => (out_full, true),
+                EntryTarget::File(out_full)
+                    if std::fs::metadata(&out_full)
+                        .is_ok_and(|metadata| metadata.is_file() && metadata.len() == size) =>
+                {
+                    (out_full, false)
+                }
+                _ => break,
             };
-            if !on_disk {
-                break;
-            }
 
             debug!("{} Already on disk: {}", log_prefix, out_full.display());
             if files_on_disk == 0 {

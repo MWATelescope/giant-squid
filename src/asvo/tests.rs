@@ -1611,3 +1611,161 @@ mod reruns {
         assert_members_written(&dir);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tar entries whose path is not inside the download directory
+// ---------------------------------------------------------------------------
+
+mod unsafe_paths {
+    use httpmock::prelude::*;
+    use sha1::{Digest, Sha1};
+    use tempfile::TempDir;
+
+    use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
+    use crate::asvo::{untar_stream, AsvoClient, ResumePoint, EARLIER_FILES_WINDOW};
+    use crate::test_common::*;
+    use crate::test_config::client_config;
+
+    const LOG_PREFIX: &str = "test:";
+
+    /// A tar archive of `members`, with each name written into the header
+    /// as it is. `tar::Builder` refuses unsafe names, so the header is set
+    /// by hand.
+    fn archive_with(members: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, data) in members {
+            let mut header = tar::Header::new_gnu();
+            let gnu = header.as_gnu_mut().expect("a GNU header");
+            gnu.name[..name.len()].copy_from_slice(name.as_bytes());
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_cksum();
+            builder
+                .append(&header, *data)
+                .expect("could not build the test tar");
+        }
+        builder.into_inner().expect("could not finish the test tar")
+    }
+
+    /// Unpack `archive` into `unpack_dir` and check that the hash still
+    /// covers the whole archive.
+    fn unpack(archive: &[u8], unpack_dir: &std::path::Path) {
+        let dir_path = unpack_dir.display().to_string();
+        let mut checkpoint = None;
+        let hasher = untar_stream(
+            archive,
+            ResumePoint::from_start(),
+            unpack_dir,
+            LOG_PREFIX,
+            &options(&dir_path),
+            &mut checkpoint,
+        )
+        .expect("the archive should be unpacked");
+        assert_eq!(hasher.finalize()[..], Sha1::digest(archive)[..]);
+    }
+
+    #[test]
+    fn an_entry_with_a_parent_dir_path_is_skipped() {
+        let dir = TempDir::new().expect("could not create a directory");
+        let unpack_dir = dir.path().join("download");
+        std::fs::create_dir(&unpack_dir).expect("could not create the download directory");
+        let archive = archive_with(&[("../escaped.dat", b"outside"), ("good.dat", b"inside")]);
+
+        unpack(&archive, &unpack_dir);
+
+        assert!(
+            !dir.path().join("escaped.dat").exists(),
+            "nothing may be written outside"
+        );
+        assert_eq!(
+            std::fs::read(unpack_dir.join("good.dat")).expect("good.dat"),
+            b"inside"
+        );
+    }
+
+    #[test]
+    fn an_entry_with_an_absolute_path_is_skipped() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        let absolute = elsewhere.path().join("escaped.dat").display().to_string();
+        let archive = archive_with(&[(absolute.as_str(), b"outside"), ("good.dat", b"inside")]);
+
+        unpack(&archive, dir.path());
+
+        assert!(
+            !elsewhere.path().join("escaped.dat").exists(),
+            "nothing may be written outside"
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
+            b"inside"
+        );
+    }
+
+    #[test]
+    fn a_rerun_carries_on_from_a_skipped_entry() {
+        let a_data = vec![b'a'; 1000];
+        let archive = archive_with(&[
+            ("a.dat", &a_data),
+            ("../escaped.dat", &[b'e'; 600]),
+            ("c.dat", &[b'c'; 700]),
+        ]);
+        let escaped_data_pos = {
+            let mut tar = tar::Archive::new(archive.as_slice());
+            let mut entries = tar.entries().expect("the test tar should be readable");
+            entries.next();
+            entries
+                .next()
+                .expect("a second entry")
+                .expect("a readable entry")
+                .raw_file_position()
+        };
+
+        let env = TestEnv::with_session();
+        env.mock_get_jobs(vec![ready_job_serving(
+            &env.server.url(DOWNLOAD_PATH),
+            archive.len() as u64,
+            &sha1_hex(&archive),
+        )]);
+        let window_end = EARLIER_FILES_WINDOW.min(archive.len() as u64);
+        let check = env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", format!("bytes=0-{}", window_end - 1).as_str());
+            then.status(206).body(&archive[..window_end as usize]);
+        });
+        let rest = env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", format!("bytes={escaped_data_pos}-").as_str());
+            then.status(206).body(&archive[escaped_data_pos as usize..]);
+        });
+
+        let dir = TempDir::new().expect("could not create a directory");
+        let unpack_dir = dir.path().join("download");
+        std::fs::create_dir(&unpack_dir).expect("could not create the download directory");
+        std::fs::write(unpack_dir.join("a.dat"), &a_data).expect("could not write a.dat");
+        let dir_path = unpack_dir.display().to_string();
+
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        client
+            .download_job(TEST_JOB_ID, &options(&dir_path))
+            .expect("the rerun should succeed and match the hash");
+
+        assert_eq!(check.calls(), 1);
+        assert_eq!(
+            rest.calls(),
+            1,
+            "the download carries on from the skipped entry"
+        );
+        assert!(
+            !dir.path().join("escaped.dat").exists(),
+            "nothing may be written outside"
+        );
+        assert_eq!(
+            std::fs::read(unpack_dir.join("c.dat")).expect("c.dat"),
+            vec![b'c'; 700]
+        );
+    }
+}
