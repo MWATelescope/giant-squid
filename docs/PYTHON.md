@@ -258,6 +258,16 @@ hold whitespace-separated numbers.
 job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(["1065880128", "123", "ids.txt"])
 ```
 
+Two functions do the same for a command that takes one kind of ID. `parse_obs_ids_only(strings)` returns the
+obsids and `parse_job_ids_only(strings)` returns the job IDs. Each refuses the other kind, even when both are
+given, because ignoring an ID would act on fewer jobs than you asked for. It also refuses an empty list. They
+raise `ValueError`; its attribute `kind` is `JobIdsGiven`, `ObsIdsGiven`, `NoObsIds`, `NoJobIds` or
+`InsideFile`. A file that cannot be read is an `OSError`.
+
+`parse_utc_time(text)` reads the time of `date_from` and `date_to` as the `giant-squid list --date-from`
+option does: RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`, midnight UTC). A time with no offset
+is a `ValueError` of kind `InvalidTime`.
+
 ## Wait for jobs
 
 The module has no wait function. Write the loop in your own code. This lets you choose the interval and

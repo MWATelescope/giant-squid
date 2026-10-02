@@ -21,40 +21,14 @@ use crate::asvo::apiv2::openapi::{
     OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::asvo::apiv2::validate::{self, Bounds};
-use crate::asvo::{
-    AsvoApiError, AsvoJobId, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT,
-};
+use crate::asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
 
 use super::value_enums::SchemaEnumParser;
 
-/// Parses the arguments of a command that takes job IDs only (`wait` and
-/// `cancel`): job IDs, or files of job IDs.
-///
-/// # Errors
-///
-/// - An obsid anywhere in the arguments (or in a file) is an error that names
-///   the obsids, even when job IDs are also given. Ignoring it would wait for,
-///   or cancel, fewer jobs than the user asked for.
-/// - No job ID at all is an error.
-/// - A file that cannot be read or parsed is an error.
-pub fn parse_job_ids_only(strings: &[String]) -> anyhow::Result<Vec<AsvoJobId>> {
-    let (job_ids, obs_ids) = crate::parse_many_job_ids_or_obs_ids(strings)?;
-    if !obs_ids.is_empty() {
-        let obs_ids: Vec<String> = obs_ids.iter().map(ToString::to_string).collect();
-        anyhow::bail!(
-            "Expected only job IDs, but found these obsids: {}. {}",
-            obs_ids.join(", "),
-            OBS_ID_HINT
-        );
-    }
-    if job_ids.is_empty() {
-        anyhow::bail!("No jobids specified!");
-    }
-    Ok(job_ids)
-}
-
-/// What to do when an obsid is given to a command that takes job IDs only.
-const OBS_ID_HINT: &str = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'.";
+/// The job ID guard of `wait` and `cancel` is the library's
+/// ([`crate::parse_job_ids_only`]); this name is kept for the tests of this
+/// module.
+pub use crate::parse_job_ids_only;
 
 /// The default of `list --days`: the schema's default for the `days` of a job
 /// listing (`JobsByUserRequest`), so that the help shows it and the CLI cannot
@@ -93,35 +67,19 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
     }
 }
 
-/// Parses a time for `list --date-from` / `--date-to`: RFC 3339 (for
-/// example `2026-09-01T00:00:00Z`), or a date alone (`2026-09-01`), which
-/// is midnight UTC.
-///
-/// A date and time with no offset (`2026-09-01T12:00:00`) is refused rather
-/// than guessed: the date form must be exactly `YYYY-MM-DD`.
+/// The clap value parser of `list --date-from` and `--date-to`: the
+/// library's [`crate::parse_utc_time`], with the error as text.
 pub fn parse_utc_time(s: &str) -> Result<jiff::Timestamp, String> {
-    if let Ok(time) = s.parse::<jiff::Timestamp>() {
-        return Ok(time);
-    }
-    jiff::civil::Date::strptime(DATE_ONLY_FORMAT, s)
-        .and_then(|date| date.to_zoned(jiff::tz::TimeZone::UTC))
-        .map(|midnight| midnight.timestamp())
-        .map_err(|_| {
-            "not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)".to_string()
-        })
+    crate::parse_utc_time(s).map_err(|e| e.to_string())
 }
-
-/// The date-only form that [`parse_utc_time`] accepts.
-const DATE_ONLY_FORMAT: &str = "%Y-%m-%d";
 
 /// Validates a WSClean image size against the MWA ASVO API's fixed set of
 /// allowed sizes (see [`validate::image_size`]).
 pub fn parse_image_size(s: &str) -> Result<i64, String> {
     let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-    validate::image_size(v).map(i64::from).map_err(|e| match e {
-        AsvoApiError::InvalidParameter { message, .. } => message,
-        other => other.to_string(),
-    })
+    validate::image_size(v)
+        .map(i64::from)
+        .map_err(|e| e.to_string())
 }
 
 /// The parser of `--pol`: one of the API's `Polarization` values, kept as the

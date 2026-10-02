@@ -3,8 +3,8 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `db1fe31` (the commit of diffs 23 and 24), plus diff 25 of the thin-client
-refactor (below), and diff 26 that is not yet written. The entries under "Status"
+at `6253fca` (the commit of diff 25), plus diff 26 of the thin-client refactor
+(below). That finishes Level 1. The entries under "Status"
 below are the detailed log; this section is the summary and the list of what
 to do next.
 
@@ -26,8 +26,8 @@ item 1.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 25): 220 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 36 CLI tests; 324 pytest tests; 18 live tests
+- Tests at the last run (after diff 26): 230 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 36 CLI tests; 339 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -107,23 +107,18 @@ item 1.**
 
 ### Open items, in the order I would take them
 
-1. **Finish Level 1 of the thin-client refactor** (the user said "start with
-   Level 1"). Diffs 23, 24 and 25 are done (see Status). Still to do, as one
-   diff from a fresh clone of the latest `apiv2`:
-   - **Diff 25: job state and job type names. Done.** See Status.
-   - **Diff 26: guards, time parsing, submit JSON.** Move the obsid-only and
-     job-ID-only guards and their messages into the library
-     (`parse_obs_ids_only`, `parse_job_ids_only` and their `ParseError`
-     variants; the Rust binary has about 7 copies, Python 2) and expose them
-     to Python; move `parse_utc_time` (now in `src/cli/params.rs`, copied in
-     `parsing.py`) into the library and expose it; add
-     `JobSubmittedResponse.json()` so Python does not rebuild the JSON by
-     hand; R2 (`parse_image_size` shows the library's full text). Then the
-     docs and this file.
-   - **Open question for the user** before diff 26: the guard message
-     `Expected only obsids, but found these exceptions: [...]` has a typo
-     ("exceptions" should be "job IDs"). Fix it while moving it, or keep the
-     text exactly? Tests assert the current text.
+1. **Level 1 of the thin-client refactor is done** (diffs 23 to 26, see
+   Status). The user has not yet chosen Level 2 or 3 (next item). Two small
+   points are left for the user's decision:
+   - `submit-image` and `submit-image-from-job` have their own text for a job
+     ID. It is written in both commands (`IMAGE_JOB_IDS_MESSAGE` and
+     `IMAGE_FROM_JOB_JOB_IDS_MESSAGE` in `giant-squid.rs` and in
+     `mwa_giant_squid_cli/constants.py`). Move these two strings into the
+     library, or use the library text for both commands?
+   - `cli/tests.rs` still imports `parse_job_ids_only` from `cli::params`,
+     which now re-exports the library function so that the existing tests did
+     not change. Move that import in the tests (needs the user's approval)
+     and delete the re-export?
 2. **Levels 2 and 3 (not started, the user has not chosen).**
    - Level 2, shared orchestration in the library: `wait_until_ready` with a
      state-change callback and `should_stop` (this reverses decision 9, "no
@@ -1020,6 +1015,20 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   with the same assertions (needs the user's approval). The help now ends
   `imaging, cancel_job` (no "or"). `enum_parser` (the schema enums in the
   Python command, `choose from`) is not changed: open question for the user.
+- 2026-10-02 (diff 26): the ID guards and the time parser, once, in the
+  library (`src/helpers/mod.rs`). New: `parse_obs_ids_only`,
+  `parse_job_ids_only`, `parse_utc_time`, the `ParseError` variants
+  `JobIdsGiven`, `ObsIdsGiven`, `NoObsIds`, `NoJobIds` and `InvalidTime`, and
+  the constant `OBS_ID_HINT`. The Rust binary has one helper (`obs_ids_only`)
+  in place of seven copies; Python has the same three functions in the module
+  (a parse `ValueError` has the attribute `kind`) and
+  `JobSubmittedResponse.json()`. Deleted from `mwa_giant_squid_cli`: the
+  copied time parser, `job_ids_only`, `OBS_ID_HINT`, `DATE_ONLY_FORMAT` and the
+  hand-built submit JSON. The typo is fixed: `found these job IDs: [..]`
+  (the list keeps its `[..]` form). R2: `--image-size` shows the library's
+  full text (`Invalid image_size: ...`). Python `parse_utc_time` now uses
+  jiff's rules, not `datetime`'s. One existing pytest assertion changed
+  (`test_cli.py`, the typo text, approved by "fix in next diff").
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

@@ -17,9 +17,14 @@ EXIT_FAILED = 1
 EXIT_USAGE = 2
 EXIT_INTERRUPTED = 130
 
-# What to do when an obsid is given to a command that takes job IDs only (`wait` and `cancel`). The Rust command says
-# the same.
-OBS_ID_HINT = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'."
+# The `kind` of the `ValueError` that `parse_obs_ids_only` raises for a job ID.
+JOB_IDS_GIVEN = "JobIdsGiven"
+
+# What `submit-image` and `submit-image-from-job` say when they are given a job ID. The Rust command says the same.
+IMAGE_JOB_IDS_MESSAGE = (
+    "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead."
+)
+IMAGE_FROM_JOB_JOB_IDS_MESSAGE = "This command only accepts obsids, not job IDs."
 
 # A valid obsid to build a request body from, to get the default of each option from the module (the module's
 # `*_params` functions return the MWA ASVO defaults). It is never sent.
@@ -43,6 +48,3 @@ DEFAULT_TERMINAL_COLUMNS = 80
 
 # The time format of the "Completed" column of the job table.
 COMPLETED_FORMAT = "%Y-%m-%d %H:%M"
-
-# The date-only form that `--date-from` and `--date-to` accept (midnight UTC).
-DATE_ONLY_FORMAT = "%Y-%m-%d"

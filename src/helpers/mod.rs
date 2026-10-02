@@ -120,6 +120,115 @@ pub enum ParseError {
         /// The error from the operating system.
         source: std::io::Error,
     },
+
+    /// A command that takes obsids only was given job IDs
+    /// ([`parse_obs_ids_only`]).
+    #[error("Expected only obsids, but found these job IDs: {job_ids:?}")]
+    JobIdsGiven {
+        /// The job IDs, in the order given.
+        job_ids: Vec<AsvoJobId>,
+    },
+
+    /// A command that takes job IDs only was given obsids
+    /// ([`parse_job_ids_only`]).
+    #[error(
+        "Expected only job IDs, but found these obsids: {}. {OBS_ID_HINT}",
+        obs_ids_text(obs_ids)
+    )]
+    ObsIdsGiven {
+        /// The obsids, in the order given.
+        obs_ids: Vec<ObsId>,
+    },
+
+    /// No obsid was given ([`parse_obs_ids_only`]).
+    #[error("No obsids specified!")]
+    NoObsIds,
+
+    /// No job ID was given ([`parse_job_ids_only`]).
+    #[error("No jobids specified!")]
+    NoJobIds,
+
+    /// Text is neither an RFC 3339 time nor a date ([`parse_utc_time`]).
+    #[error("not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)")]
+    InvalidTime,
+}
+
+/// What to do when an obsid is given to a command that takes job IDs only.
+pub const OBS_ID_HINT: &str = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'.";
+
+/// The date-only form that [`parse_utc_time`] accepts.
+const DATE_ONLY_FORMAT: &str = "%Y-%m-%d";
+
+/// The obsids as text for a message: `1065880128, 1065880248`.
+fn obs_ids_text(obs_ids: &[ObsId]) -> String {
+    obs_ids
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Parse obsids and files of obsids, for a command that takes obsids only.
+/// A file is read as [`parse_many_job_ids_or_obs_ids`] reads it.
+///
+/// # Errors
+///
+/// - A job ID anywhere in the arguments (or in a file) is
+///   [`ParseError::JobIdsGiven`], even when obsids are also given. Ignoring
+///   it would submit fewer jobs than the user asked for.
+/// - No obsid at all is [`ParseError::NoObsIds`].
+/// - A file that cannot be read or parsed is an error.
+pub fn parse_obs_ids_only(strings: &[String]) -> Result<Vec<ObsId>, ParseError> {
+    let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(strings)?;
+    if !job_ids.is_empty() {
+        return Err(ParseError::JobIdsGiven { job_ids });
+    }
+    if obs_ids.is_empty() {
+        return Err(ParseError::NoObsIds);
+    }
+    Ok(obs_ids)
+}
+
+/// Parse job IDs and files of job IDs, for a command that takes job IDs only
+/// (`wait` and `cancel`). A file is read as
+/// [`parse_many_job_ids_or_obs_ids`] reads it.
+///
+/// # Errors
+///
+/// - An obsid anywhere in the arguments (or in a file) is
+///   [`ParseError::ObsIdsGiven`], even when job IDs are also given. Ignoring
+///   it would wait for, or cancel, fewer jobs than the user asked for.
+/// - No job ID at all is [`ParseError::NoJobIds`].
+/// - A file that cannot be read or parsed is an error.
+pub fn parse_job_ids_only(strings: &[String]) -> Result<Vec<AsvoJobId>, ParseError> {
+    let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(strings)?;
+    if !obs_ids.is_empty() {
+        return Err(ParseError::ObsIdsGiven { obs_ids });
+    }
+    if job_ids.is_empty() {
+        return Err(ParseError::NoJobIds);
+    }
+    Ok(job_ids)
+}
+
+/// Parse a time for the `date_from` and `date_to` of a job listing: RFC 3339
+/// (for example `2026-09-01T00:00:00Z`), or a date alone (`2026-09-01`),
+/// which is midnight UTC.
+///
+/// A date and time with no offset (`2026-09-01T12:00:00`) is refused rather
+/// than guessed: the date form must be exactly `YYYY-MM-DD`.
+///
+/// # Errors
+///
+/// [`ParseError::InvalidTime`] for any other text.
+pub fn parse_utc_time(text: &str) -> Result<jiff::Timestamp, ParseError> {
+    if let Ok(time) = text.parse::<jiff::Timestamp>() {
+        return Ok(time);
+    }
+    jiff::civil::Date::strptime(DATE_ONLY_FORMAT, text)
+        .and_then(|date| date.to_zoned(jiff::tz::TimeZone::UTC))
+        .map(|midnight| midnight.timestamp())
+        .map_err(|_| ParseError::InvalidTime)
 }
 
 /// Takes a filename, expected hash and a job id and returns

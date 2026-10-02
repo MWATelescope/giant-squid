@@ -71,6 +71,10 @@ before you upgrade scripts.**
   Python module has `AsvoJobState.names()`, `AsvoJobState.parse(text)`, `AsvoJobType.names()`,
   `AsvoJobType.parse(text)` and `AsvoJob.state_text`. The help no longer says "imaging or cancel_job" but
   "imaging, cancel_job". The Python command says `Invalid job state 'x': expected one of: ...` for a bad name.
+* The checks of the IDs and times that both commands make are in the library, once: `parse_obs_ids_only`,
+  `parse_job_ids_only` and `parse_utc_time` (Rust, and in the Python module), and `JobSubmittedResponse.json()`
+  in Python. The message for a job ID given to a command that takes obsids now says `job IDs`, not
+  `exceptions`. `--image-size` shows the same message as the Python module (`Invalid image_size: ...`).
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs a `giant-squid` command with the same commands and options as the Rust one. See
   [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.

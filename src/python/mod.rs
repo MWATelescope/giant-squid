@@ -104,8 +104,8 @@ mod module {
     #[pymodule_export]
     use super::functions::{
         beamformer_job_params, conversion_job_params, download_meta_job_params,
-        download_vis_job_params, image_from_job_params, imaging_job_params,
-        parse_many_job_ids_or_obs_ids, voltage_job_params,
+        download_vis_job_params, image_from_job_params, imaging_job_params, parse_job_ids_only,
+        parse_many_job_ids_or_obs_ids, parse_obs_ids_only, parse_utc_time, voltage_job_params,
     };
     #[pymodule_export]
     use super::types::{

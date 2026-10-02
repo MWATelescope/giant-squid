@@ -679,6 +679,12 @@ impl PyJobSubmittedResponse {
         self.0.status.to_string()
     }
 
+    /// The response as one line of JSON with the keys `job_id`, `message`
+    /// and `status`, as `giant-squid submit-vis --json` prints it.
+    fn json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.0).map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "JobSubmittedResponse(job_id={}, status={:?}, message={:?})",

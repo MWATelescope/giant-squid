@@ -20,7 +20,6 @@ use indicatif_log_bridge::LogWrapper;
 use mwa_giant_squid::asvo::apiv2::openapi::JobSubmittedResponse;
 use mwa_giant_squid::asvo::*;
 use mwa_giant_squid::cli::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
-use mwa_giant_squid::cli::params::parse_job_ids_only;
 use mwa_giant_squid::cli::table::print_jobs_table;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
@@ -130,6 +129,26 @@ where
         obs_ids.len(),
         failures.join("\n  ")
     );
+}
+
+/// The message of `submit-image` for a job ID: this command takes obsids
+/// only, and `submit-image-from-job` is the command for a conversion job.
+const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead.";
+
+/// The message of `submit-image-from-job` for a job ID.
+const IMAGE_FROM_JOB_JOB_IDS_MESSAGE: &str = "This command only accepts obsids, not job IDs.";
+
+/// Parse the obsids of a submit command with the library's
+/// [`parse_obs_ids_only`]. `job_ids_message` is the command's own text for
+/// the error of a job ID, or `None` for the library's text.
+fn obs_ids_only(
+    strings: &[String],
+    job_ids_message: Option<&str>,
+) -> Result<Vec<ObsId>, anyhow::Error> {
+    parse_obs_ids_only(strings).map_err(|e| match (e, job_ids_message) {
+        (ParseError::JobIdsGiven { .. }, Some(message)) => anyhow::anyhow!("{message}"),
+        (e, _) => e.into(),
+    })
 }
 
 /// Print a submission's response as one line of JSON, for `--json`.
@@ -440,17 +459,7 @@ fn main() -> Result<(), anyhow::Error> {
         } => {
             init_logger(verbosity);
 
-            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            // There shouldn't be any job IDs here.
-            if !parsed_job_ids.is_empty() {
-                bail!(
-                    "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_job_ids
-                );
-            }
-            if parsed_obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
+            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
 
             if dry_run {
                 report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obs_ids, |obs_id| {
@@ -487,17 +496,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            // There shouldn't be any job IDs here.
-            if !parsed_job_ids.is_empty() {
-                bail!(
-                    "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_job_ids
-                );
-            }
-            if parsed_obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
+            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
             init_logger(verbosity);
 
             if dry_run {
@@ -534,16 +533,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            if obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
-
-            let (job_ids_from_input, obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            if !job_ids_from_input.is_empty() {
-                bail!(
-                    "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead."
-                );
-            }
+            let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
 
             init_logger(verbosity);
 
@@ -585,14 +575,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            if obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
-
-            let (job_ids_from_input, obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            if !job_ids_from_input.is_empty() {
-                bail!("This command only accepts obsids, not job IDs.");
-            }
+            let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_FROM_JOB_JOB_IDS_MESSAGE))?;
 
             if obs_ids.len() != 1 {
                 bail!(
@@ -635,17 +618,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            // There shouldn't be any job IDs here.
-            if !parsed_job_ids.is_empty() {
-                bail!(
-                    "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_job_ids
-                );
-            }
-            if parsed_obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
+            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
             init_logger(verbosity);
 
             if dry_run {
@@ -682,17 +655,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            // There shouldn't be any job IDs here.
-            if !parsed_job_ids.is_empty() {
-                bail!(
-                    "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_job_ids
-                );
-            }
-            if parsed_obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
+            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
             init_logger(verbosity);
 
             if dry_run {
@@ -729,17 +692,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             obs_ids,
         } => {
-            let (parsed_job_ids, parsed_obs_ids) = parse_many_job_ids_or_obs_ids(&obs_ids)?;
-            // There shouldn't be any job IDs here.
-            if !parsed_job_ids.is_empty() {
-                bail!(
-                    "Expected only obsids, but found these exceptions: {:?}",
-                    parsed_job_ids
-                );
-            }
-            if parsed_obs_ids.is_empty() {
-                bail!("No obsids specified!");
-            }
+            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
             init_logger(verbosity);
 
             if dry_run {

@@ -20,7 +20,11 @@ import mwa_giant_squid
 from mwa_giant_squid import AsvoApiError, AsvoClient, AsvoError, AsvoJobVec, DownloadSettings
 
 from .args import NON_PARAM_DESTS
-from .constants import OBS_ID_HINT
+from .constants import (
+    IMAGE_FROM_JOB_JOB_IDS_MESSAGE,
+    IMAGE_JOB_IDS_MESSAGE,
+    JOB_IDS_GIVEN,
+)
 from .progress import ProgressDisplay
 from .table import print_jobs_table
 
@@ -105,11 +109,11 @@ def option_values(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def obs_ids_only(strings: Sequence[str], job_ids_message: str | None = None) -> list[int]:
-    """Parse obsids, refusing job IDs.
+    """Parse obsids with the module's ``parse_obs_ids_only``.
 
     Args:
         strings: The obsids and the paths of files of obsids.
-        job_ids_message: The error message if a job ID is given. ``None`` lists the job IDs.
+        job_ids_message: The command's own error message if a job ID is given. ``None`` is the module's message.
 
     Returns:
         The obsids.
@@ -117,38 +121,12 @@ def obs_ids_only(strings: Sequence[str], job_ids_message: str | None = None) -> 
     Raises:
         ValueError: There is a job ID, or there is no obsid.
     """
-    job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(strings)
-    if job_ids:
-        raise ValueError(job_ids_message or f"Expected only obsids, but found these exceptions: {job_ids}")
-    if not obs_ids:
-        msg = "No obsids specified!"
-        raise ValueError(msg)
-    return obs_ids
-
-
-def job_ids_only(strings: Sequence[str]) -> list[int]:
-    """Parse job IDs, refusing obsids, as the Rust command does.
-
-    An obsid is never ignored, even when job IDs are also given: that would wait for, or cancel, fewer jobs than
-    the user asked for.
-
-    Args:
-        strings: The job IDs and the paths of files of job IDs.
-
-    Returns:
-        The job IDs.
-
-    Raises:
-        ValueError: There is an obsid, or there is no job ID.
-    """
-    job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(strings)
-    if obs_ids:
-        msg = f"Expected only job IDs, but found these obsids: {', '.join(map(str, obs_ids))}. {OBS_ID_HINT}"
-        raise ValueError(msg)
-    if not job_ids:
-        msg = "No jobids specified!"
-        raise ValueError(msg)
-    return job_ids
+    try:
+        return mwa_giant_squid.parse_obs_ids_only(strings)
+    except ValueError as error:
+        if job_ids_message is not None and getattr(error, "kind", None) == JOB_IDS_GIVEN:
+            raise ValueError(job_ids_message) from None
+        raise
 
 
 def wait_loop(client: AsvoClient, job_ids: Sequence[int]) -> None:
@@ -232,7 +210,7 @@ def cmd_wait(args: argparse.Namespace) -> None:
     Args:
         args: The parsed arguments.
     """
-    job_ids = job_ids_only(args.jobs)
+    job_ids = mwa_giant_squid.parse_job_ids_only(args.jobs)
     client = AsvoClient.from_env()
     wait_loop(client, job_ids)
     print_jobs(client.list_jobs(job_ids), args.json, args.no_colour)
@@ -244,7 +222,7 @@ def cmd_cancel(args: argparse.Namespace) -> None:
     Args:
         args: The parsed arguments.
     """
-    job_ids = job_ids_only(args.jobs)
+    job_ids = mwa_giant_squid.parse_job_ids_only(args.jobs)
     if args.dry_run:
         for job_id in job_ids:
             log.info("[dry run] Would DELETE %s/%s", mwa_giant_squid.ENDPOINT_JOBS, job_id)
@@ -293,8 +271,7 @@ def print_submitted_json(response: Any, as_json: bool) -> None:
         as_json: Print it.
     """
     if as_json:
-        body = {"job_id": response.job_id, "message": response.message, "status": response.status}
-        print(json.dumps(body, separators=(",", ":")))
+        print(response.json())
 
 
 def report_dry_run(spec: SubmitSpec, bodies: Sequence[tuple[int, dict[str, Any]]]) -> None:
@@ -322,16 +299,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
         ValueError: There is no obsid, or an option is not valid, or some of the submissions failed.
     """
     spec = SUBMIT_SPECS[args.command]
-    if args.command == "submit-image":
-        if not args.obs_ids:
-            msg = "No obsids specified!"
-            raise ValueError(msg)
-        obs_ids = obs_ids_only(
-            args.obs_ids,
-            "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead.",
-        )
-    else:
-        obs_ids = obs_ids_only(args.obs_ids)
+    obs_ids = obs_ids_only(args.obs_ids, IMAGE_JOB_IDS_MESSAGE if args.command == "submit-image" else None)
     options = option_values(args)
     # Build every request body first: this checks the options before the program logs in.
     bodies = [(obs_id, build_body(spec.params, obs_id, **options)) for obs_id in obs_ids]
@@ -371,13 +339,7 @@ def cmd_submit_image_from_job(args: argparse.Namespace) -> None:
     Raises:
         ValueError: There is not exactly one obsid, or an option is not valid.
     """
-    if not args.obs_ids:
-        msg = "No obsids specified!"
-        raise ValueError(msg)
-    job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(args.obs_ids)
-    if job_ids:
-        msg = "This command only accepts obsids, not job IDs."
-        raise ValueError(msg)
+    obs_ids = obs_ids_only(args.obs_ids, IMAGE_FROM_JOB_JOB_IDS_MESSAGE)
     if len(obs_ids) != 1:
         msg = (
             "submit-image-from-job requires exactly one obsid "

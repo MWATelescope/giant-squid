@@ -489,7 +489,7 @@ def test_an_option_that_is_out_of_range_is_a_usage_error_before_any_request(
     [
         (["submit-vis"], "No obsids specified!"),
         (["submit-image"], "No obsids specified!"),
-        (["submit-vis", "123"], "Expected only obsids, but found these exceptions: [123]"),
+        (["submit-vis", "123"], "Expected only obsids, but found these job IDs: [123]"),
         (["submit-image", "123"], "use submit-image-from-job instead"),
         (["submit-image-from-job", "--source-job-id", "5", "123"], "only accepts obsids, not job IDs"),
         (

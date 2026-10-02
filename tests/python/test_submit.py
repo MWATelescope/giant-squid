@@ -102,6 +102,17 @@ def assert_response(response: gs.JobSubmittedResponse) -> None:
     assert response.status == "success"
 
 
+def test_the_response_is_one_line_of_json_with_the_api_keys(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """``json()`` is what ``giant-squid submit-vis --json`` prints: the keys of the API, with no spaces."""
+    submitted(httpserver, DOWNLOAD_PATH)
+
+    response = client.submit_download_vis_job(TEST_OBS_ID)
+
+    assert response.json() == json.dumps(
+        {"job_id": NEW_JOB_ID, "message": NEW_JOB_MESSAGE, "status": "success"}, separators=(",", ":")
+    )
+
+
 # The methods that take only delivery, delivery_format and allow_resubmit, with their endpoint.
 DOWNLOAD_LIKE_METHODS = [
     ("submit_download_vis_job", DOWNLOAD_PATH),

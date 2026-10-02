@@ -7,12 +7,11 @@
 import argparse
 import re
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, TypeVar
 
+import mwa_giant_squid
 from mwa_giant_squid import AsvoError, AsvoJobState, AsvoJobType
-
-from .constants import DATE_ONLY_FORMAT
 
 # The type of an enum member.
 T = TypeVar("T")
@@ -23,9 +22,6 @@ NamedEnum = type[AsvoJobState] | type[AsvoJobType]
 # Text that a boolean option accepts.
 TRUE_TEXT = frozenset({"true", "yes", "on", "1"})
 FALSE_TEXT = frozenset({"false", "no", "off", "0"})
-
-# A time with a "Z" for UTC at the end. Python 3.10 does not read it.
-UTC_SUFFIX = re.compile(r"[zZ]$")
 
 
 def sanitize_identifier(text: str) -> str:
@@ -108,7 +104,7 @@ def name_list_parser(enum_type: NamedEnum, description: str) -> Callable[[str], 
 
 
 def parse_utc_time(text: str) -> datetime:
-    """Parse a time for ``list --date-from`` and ``--date-to``.
+    """Parse a time for ``list --date-from`` and ``--date-to`` with the module's ``parse_utc_time``.
 
     Args:
         text: RFC 3339 (for example ``2026-09-01T00:00:00Z``), or a date alone (``2026-09-01``), which is
@@ -118,21 +114,12 @@ def parse_utc_time(text: str) -> datetime:
         The time, with a time zone.
 
     Raises:
-        ArgumentTypeError: The text is neither of these. A date and time with no offset
-            (``2026-09-01T12:00:00``) is refused rather than guessed.
+        ArgumentTypeError: The text is neither of these. The message is the module's.
     """
-    message = "not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)"
     try:
-        return datetime.strptime(text, DATE_ONLY_FORMAT).replace(tzinfo=timezone.utc)
-    except ValueError:
-        pass
-    try:
-        parsed = datetime.fromisoformat(UTC_SUFFIX.sub("+00:00", text))
-    except ValueError:
-        raise argparse.ArgumentTypeError(message) from None
-    if parsed.tzinfo is None:
-        raise argparse.ArgumentTypeError(message)
-    return parsed
+        return mwa_giant_squid.parse_utc_time(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
 
 
 def parse_bool(text: str) -> bool:
