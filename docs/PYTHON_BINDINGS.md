@@ -2,10 +2,14 @@
 
 ## Handoff (read this first)
 
-Written 2026-10-02 at the end of the day. Branch `apiv2` at `7a5902f`, plus
-the last diffs of that day (the tests that every request field is in the
-schema, and this file). The entries under "Status" below are the detailed
-log; this section is the summary and the list of what to do next.
+Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
+at `dabd52a`, plus diffs 23 and 24 of the thin-client refactor (below), and
+the diffs 25 and 26 that were not yet written. The entries under "Status"
+below are the detailed log; this section is the summary and the list of what
+to do next.
+
+**The work in progress is the "thin clients" refactor: start at "Open items",
+item 1.**
 
 ### Where things are
 
@@ -22,8 +26,8 @@ log; this section is the summary and the list of what to do next.
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run: 202 Rust unit tests (one is the `#[ignore]`d
-  recording test) and 36 CLI tests; 308 pytest tests; 18 live tests
+- Tests at the last run (after diff 24): 213 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 36 CLI tests; 315 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -35,6 +39,32 @@ log; this section is the summary and the list of what to do next.
 
 ### Decisions in force
 
+- **The Rust and the Python command are thin clients of the Rust library**
+  (decided 2026-10-02). They do not repeat validation, enums, enum-to-text
+  conversion, logic or messages; those live in the library, and Python gets
+  them from the module. Error messages come through from the API (and the
+  library) unrewritten. If a change would rewrite an error, tell the user and
+  let them decide. The review that led to this is the "thin clients" entry in
+  Status. The user's decisions on the rewrites it found:
+  - The library and both commands show the API's `detail` and `suggestion`
+    (done, diff 23).
+  - R1 (`expected one of: ...` for a bad schema enum value): keep.
+  - R2 (`--image-size`): keep the `Invalid image_size:` wrapper, that is,
+    show the library's full text (diff 26). This was my reading of "keep the
+    wrapper"; the user has not confirmed it.
+  - R3 (the per-obsid errors, and again in `N of M obsids failed`), R5 and R6
+    (the guard in `list`, the usage-error layout of the Python command):
+    keep as they are.
+  - R4 (the Python job state and type parser): keep the `Invalid ...` form,
+    with the wording of R1: `Invalid <what> '<text>': expected one of: ...`
+    (diff 25).
+  - R7 (the messages about environment variables): one phrasing, from the
+    library (done, diff 24).
+  - `job_params` of a listed job stays untyped for now.
+- The library reads the environment only when a program calls
+  `client_config_from_env`, `DownloadSettings::from_env` (Rust) or
+  `AsvoClient.from_env`, `DownloadSettings.from_env` (Python). Nothing else
+  reads it.
 - The OpenAPI schema is the standard: defaults, names and limits come from
   it, and a wrong schema is fixed in the API, not in giant-squid.
 - Only parameters of the API schema are sent, and only end-user endpoints
@@ -77,7 +107,55 @@ log; this section is the summary and the list of what to do next.
 
 ### Open items, in the order I would take them
 
-1. **`dug` for conversion and imaging.** The API developer says the schema
+1. **Finish Level 1 of the thin-client refactor** (the user said "start with
+   Level 1"). Diffs 23 and 24 are done (see Status). Still to do, each as one
+   diff from a fresh clone of the latest `apiv2`:
+   - **Diff 25: job state and job type names.** One list of names in the
+     library for `AsvoJobState` and `AsvoJobType`, used by `from_str`, by
+     the help of `list --job-states` and `--job-types` (built from it, not
+     typed), and exposed to Python as `names()` and `parse(text)`. Delete
+     `JOB_STATE_NAMES`, `JOB_TYPE_NAMES`, `enum_parser`/`name_list_parser`
+     duplicates and `state_text` from `mwa_giant_squid_cli`. The state text
+     (`Error: <message>`) comes from the library (an `AsvoJob` property).
+     The Python error wording is R4. Keep `download_voltage` accepted.
+   - **Diff 26: guards, time parsing, submit JSON.** Move the obsid-only and
+     job-ID-only guards and their messages into the library
+     (`parse_obs_ids_only`, `parse_job_ids_only` and their `ParseError`
+     variants; the Rust binary has about 7 copies, Python 2) and expose them
+     to Python; move `parse_utc_time` (now in `src/cli/params.rs`, copied in
+     `parsing.py`) into the library and expose it; add
+     `JobSubmittedResponse.json()` so Python does not rebuild the JSON by
+     hand; R2 (`parse_image_size` shows the library's full text). Then the
+     docs and this file.
+   - **Open question for the user** before diff 26: the guard message
+     `Expected only obsids, but found these exceptions: [...]` has a typo
+     ("exceptions" should be "job IDs"). Fix it while moving it, or keep the
+     text exactly? Tests assert the current text.
+2. **Levels 2 and 3 (not started, the user has not chosen).**
+   - Level 2, shared orchestration in the library: `wait_until_ready` with a
+     state-change callback and `should_stop` (this reverses decision 9, "no
+     poll loops in the library"); a submit-many call that returns a result
+     per obsid; a download-many call; the dry-run text as a function; the job
+     table as a string. Then the Rust binary and `commands.py` are argument
+     parsing plus printing.
+   - Level 3, one CLI definition. Options: (A) the Python `giant-squid` calls
+     the Rust CLI through PyO3 (removes about 2,000 Python lines; the wheel
+     carries clap, indicatif and prettytable; Ctrl-C and logging need care);
+     (B) export a machine-readable description of the clap CLI and build the
+     argparse parser from it; (C) keep both and add a CI test that fails when
+     their options or help texts differ (the comparison script in the review
+     found 133 shared options with the same help, 8 with cosmetic
+     differences, and `--legacy-json` only in Rust).
+   - Differences between the two commands that remain until Level 2: the
+     download labels (`[n/N]` runs across job IDs and obsids in Python and
+     restarts for obsids in Rust), one login per download in Rust against a
+     shared login in Python, `-vv` (trace) in Rust only, and when the limits
+     of `list` are checked (before the login in Rust, after it in Python).
+   - The log lines and summaries (about 25 strings: `Submitted ...`,
+     `Cancel request ...`, the dry-run lines, `Downloaded N of M`) are still
+     written twice. They move into the library in Level 2, where the library
+     emits them; do not make them functions in Level 1.
+3. **`dug` for conversion and imaging.** The API developer says the schema
    is wrong and will add `dug` to `ConversionJobParams` and both imaging
    bodies; the generated `Delivery` type already has it, so `submit-conv`,
    `submit-image` and `submit-image-from-job` accept `--delivery dug`. The
@@ -89,18 +167,18 @@ log; this section is the summary and the list of what to do next.
    API developer whether a conversion job that was delivered to DUG can be
    imaged from: the README (the imaging section) and `V3_MIGRATION.md` say
    that only a conversion job delivered to Acacia or Scratch can.
-2. **Try a wheel** against the real MWA ASVO and on an older HPC system
+4. **Try a wheel** against the real MWA ASVO and on an older HPC system
    (yours).
-3. **PyPI**: check that `mwa-giant-squid` is free, then publish (a release
+5. **PyPI**: check that `mwa-giant-squid` is free, then publish (a release
    workflow with trusted publishing, or by hand).
-4. **Release 3.0.0**: set the date in `CHANGELOG.md`; the Python version
+6. **Release 3.0.0**: set the date in `CHANGELOG.md`; the Python version
    follows `Cargo.toml`; a `v*` tag starts `releases.yaml`, which builds the
    tarballs and the wheels, makes the GitHub release and publishes the
    crate (it needs the `CARGO_REGISTRY_TOKEN` secret). The Linux arm64
    tarball job in that file is commented out.
-5. **After 3.0.0**: remove `--legacy-json` (`src/cli/legacy_json.rs`, the
+7. **After 3.0.0**: remove `--legacy-json` (`src/cli/legacy_json.rs`, the
    options of `list` and `wait`, the README and migration text, the tests).
-6. **API developer's answers**, below.
+8. **API developer's answers**, below.
 
 ### For the API developer
 
@@ -904,6 +982,37 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   `docs/PYTHON.md` has the Ctrl-C and logging notes and the `days` default;
   the README says conversion and imaging jobs can go to DUG (ahead of the
   schema fix); this file's handoff is rewritten.
+- 2026-10-02 (thin clients): review of the two commands. Together the Rust
+  command (about 2,590 lines) and the Python command (about 2,040) share 37
+  identical message strings, and Python copied library constants by hand
+  (the 7 endpoint paths, the default host, the token cache path, the wait
+  times). It also copied the job state and type names, the enum text
+  conversion, `parse_utc_time`, the environment variable handling, the wait
+  loop, the submit-each-obsid loop, the dry-run text and the jobs table. No
+  command rewrote the body of an API error; the library captured the API's
+  `detail` and `suggestion` and never showed them. The rewrites found are the
+  R1 to R7 of the decisions above. Levels 1 to 3 of the plan are in Open
+  items.
+- 2026-10-02 (diff 23): the text of an API error is the server's: the error
+  code and message, then `Detail:`, `Suggestion:`, the field errors and the
+  request ID, each on a line of its own, and only the parts the server gave.
+  Both commands and `str(AsvoApiError)` show it. Two Rust assertions that pinned
+  the old text changed (approved by the decision above).
+- 2026-10-02 (diff 24): the environment, once, in the library. New module
+  `src/asvo/env/`: the `ENV_*` names, `client_config_from_env`,
+  `DownloadSettings::from_env`, and the error
+  `AsvoError::InvalidEnvironment { name, value, problem }`. New library
+  constants `DEFAULT_CONCURRENT_DOWNLOADS`, `WAIT_POLL_INTERVAL` and
+  `WAIT_INITIAL_DELAY`, and the endpoint constants at the crate root. The
+  Python module has `AsvoClient.from_env()`, `DownloadSettings.from_env()` and
+  the constants (the endpoint paths, the two delivery variable names, the wait
+  times in seconds, the concurrent downloads default). `cli/config.rs` and
+  `mwa_giant_squid_cli/config.py` are deleted. R7: one phrasing. Behaviour that
+  changed: a bad `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is a warning in both
+  commands (the Rust command ignored it), and a negative
+  `GIANT_SQUID_BUF_SIZE` is refused in both with the same message. Two Python
+  tests changed only to read the wait times from the module. The library reads
+  the environment only when asked.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal
