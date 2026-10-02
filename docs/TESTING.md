@@ -151,11 +151,11 @@ log in themselves. The tests take a lock, so they run one at a time. Every
 job a test submits is cancelled when it ends, pass or fail. See the module
 docs for details.
 
-### Layer 4 - the Python module and the Python command (pytest)
+### Layer 4 - the Python module and the `giant-squid` launcher (pytest)
 
-`tests/python/` has the pytest suite (346 tests) for the `mwa_giant_squid`
-module (`src/python/`) and for the `giant-squid` command written on it
-(`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
+`tests/python/` has the pytest suite (205 tests) for the `mwa_giant_squid`
+module (`src/python/`) and for the `giant-squid` command, which is the Rust
+program run inside the module (`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
 goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
 fixtures in `conftest.py`), never to a real server, and a download is served
 by the mock too. Run it with:
@@ -169,12 +169,10 @@ uv run pytest
 | --- | --- |
 | `test_module.py` | The import, `__version__`, `reset_logging`, the shared constants, the names and `parse` of job states and job types, the ID guards and `parse_utc_time` |
 | `test_client.py` | `AsvoClient`: login, `from_env` and `DownloadSettings.from_env`, `get_jobs` and `list_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
-| `test_native_cli.py` | The temporary `giant-squid-native` command (the Rust program run in the module), started as a process: help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process |
+| `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request |
 | `test_functions.py` | `parse_many_job_ids_or_obs_ids`; each `*_params` builder is the body (and has the signature) of its submit method; every field of a body is in the schema |
 | `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, and Ctrl-C |
-| `test_cli_units.py` | The helpers of the command: parsing, the table, the progress bars, the help |
-| `test_cli.py` | The command end to end (`main()` in process, a few tests in a subprocess), every sub-command |
 
 Two things are particular to this suite:
 
@@ -205,7 +203,7 @@ with it.
 | --- | --- |
 | Limits, names and defaults come from the OpenAPI schema | `src/asvo/apiv2/validate/tests.rs` compares each limit with `openapi-schema.json`; the CLI and Python defaults are read from the generated types |
 | Only parameters that the API defines are sent (no `flags`) | `every_field_of_every_request_body_is_in_the_schema` (Rust) and `test_every_field_of_a_body_is_in_the_schema` (Python) |
-| Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and the `staging` tests in `test_functions.py` and `test_cli_units.py` |
+| Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and the `staging` tests in `test_functions.py` |
 | A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
 | `list` without `--days` uses the API default, not `null` | `get_jobs_with_no_filter_uses_the_schema_defaults`, `list_days_defaults_to_the_schema_default`, `test_get_jobs_with_no_filter_sends_none` |
 | `wait` and `cancel` refuse an obsid and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
@@ -422,8 +420,8 @@ already accepts both.
 uses `cargo-llvm-cov`, as the "Generate Coverage report" CI workflow does, so
 its Rust numbers are the same as CI's. It also runs the Python tests against
 an instrumented build of the extension module, because the code they test is
-the Rust in `src/python/`. The `giant-squid` command (`mwa_giant_squid_cli/`) is Python code, and the
-script does not measure it.
+the Rust in `src/python/`. The `giant-squid` launcher (`mwa_giant_squid_cli/`) is a few lines of Python,
+and the script does not measure it.
 
 ```bash
 cargo install cargo-llvm-cov        # once

@@ -34,10 +34,8 @@ classifiers = [
 dependencies = []
 
 [project.scripts]
+# The Rust `giant-squid` program, run inside the module (see mwa_giant_squid_cli/__init__.py).
 giant-squid = "mwa_giant_squid_cli:main"
-# TEMPORARY, until the next step of the thin-client work replaces `giant-squid`: the same command, run by the Rust
-# program inside the module. It is here so that the two can be compared.
-giant-squid-native = "mwa_giant_squid_cli.native:main"
 
 [dependency-groups]
 dev = ["pytest", "pytest-httpserver", "ruff", "ty"]

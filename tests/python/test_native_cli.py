@@ -1,14 +1,16 @@
-"""Tests for the ``giant-squid-native`` command: the Rust ``giant-squid`` program run inside the module.
+"""Tests for the ``giant-squid`` command: the Rust ``giant-squid`` program run inside the module.
 
 Each test starts the command as a new process, because the Rust code writes to the real standard output and standard
 error of the process, and because the command ends the process. The server is the local mock: no test reaches a real
 MWA ASVO server.
 """
 
+import importlib.metadata
 import os
 import signal
 import subprocess
 import sys
+import sysconfig
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -26,7 +28,11 @@ EXIT_FAILED = 1
 EXIT_USAGE = 2
 
 # The module that starts the command.
-LAUNCHER_MODULE = "mwa_giant_squid_cli.native"
+LAUNCHER_MODULE = "mwa_giant_squid_cli"
+
+# The name of the installed distribution, and of its command.
+DISTRIBUTION_NAME = "mwa-giant-squid"
+COMMAND_NAME = "giant-squid"
 
 # How long a command may run in these tests, in seconds.
 RUN_TIMEOUT_S = 60
@@ -92,6 +98,28 @@ def run(child_env: dict[str, str]) -> Callable[..., Result]:
         return Result(process)
 
     return run_native
+
+
+def test_the_installed_command_is_the_launcher_and_nothing_else() -> None:
+    """The distribution has one command, ``giant-squid``, which starts the launcher."""
+    entry_points = importlib.metadata.distribution(DISTRIBUTION_NAME).entry_points
+
+    assert {ep.name: ep.value for ep in entry_points if ep.group == "console_scripts"} == {
+        COMMAND_NAME: "mwa_giant_squid_cli:main"
+    }
+
+
+def test_the_installed_script_runs_the_rust_program(child_env: dict[str, str]) -> None:
+    """The ``giant-squid`` script that the install made is the Rust program: clap's help, not argparse's."""
+    suffix = ".exe" if sys.platform == "win32" else ""
+    script = os.path.join(sysconfig.get_path("scripts"), COMMAND_NAME + suffix)
+
+    process = subprocess.run(
+        [script, "list", "--help"], env=child_env, capture_output=True, text=True, timeout=RUN_TIMEOUT_S, check=False
+    )
+
+    assert process.returncode == EXIT_OK, process.stderr
+    assert "Usage: giant-squid list" in process.stdout
 
 
 def test_help_is_the_rust_help_and_exits_zero(run: Callable[..., Result]) -> None:

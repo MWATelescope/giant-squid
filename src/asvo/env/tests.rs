@@ -111,7 +111,8 @@ fn the_buffer_size_is_in_mib_and_the_retry_in_seconds() {
     assert_eq!(settings.retry_duration, Duration::ZERO);
 }
 
-/// One phrasing for the Rust and the Python command: this is the message.
+/// One phrasing for the Rust program and the Python module: this is the
+/// message.
 #[test]
 fn a_bad_buffer_size_is_an_error_with_one_message() {
     for bad in ["lots", "-1", "1.5", ""] {

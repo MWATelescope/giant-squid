@@ -3,14 +3,14 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `5053f08` (the commit of diff 27), plus diff 28 (below). Level 1 of the
-thin-client refactor is finished, and Level 3 option A is under way. The
-entries under "Status"
+at `7428f72` (the commit of diff 28), plus diff 29 (below). The thin-client
+refactor is finished: the Python `giant-squid` command is now the Rust
+command, run inside the module. The entries under "Status"
 below are the detailed log; this section is the summary and the list of what
 to do next.
 
-**The work in progress is the "thin clients" refactor: start at "Open items",
-item 1.**
+**The thin-client refactor is finished (diff 29). Start at "Open items",
+item 1 (what is left of it), then item 3.**
 
 ### Where things are
 
@@ -27,8 +27,8 @@ item 1.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 28): 232 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 37 CLI tests; 346 pytest tests; 18 live tests
+- Tests at the last run (after diff 29): 232 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 37 CLI tests; 205 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -40,7 +40,9 @@ item 1.**
 
 ### Decisions in force
 
-- **The Rust and the Python command are thin clients of the Rust library**
+- **(Done in diff 29: there is now one command, the Rust command, so there
+  is nothing left to repeat.) The Rust and the Python command are thin
+  clients of the Rust library**
   (decided 2026-10-02). They do not repeat validation, enums, enum-to-text
   conversion, logic or messages; those live in the library, and Python gets
   them from the module. Error messages come through from the API (and the
@@ -108,8 +110,20 @@ item 1.**
 
 ### Open items, in the order I would take them
 
-1. **Level 3, option A: the Python `giant-squid` command is the Rust CLI,
-   run inside the Python module** (decided by the user: "stick with a thin
+1. **What is left of Level 3, option A (the Python `giant-squid` command is
+   the Rust CLI, run inside the Python module).** Open points for the user:
+   (a) the Python module still has functions that only the deleted Python
+   command used: `parse_obs_ids_only`, `parse_job_ids_only`,
+   `parse_utc_time`, `JobSubmittedResponse.json()`, `AsvoJobState.names()` and
+   `parse()`, `AsvoJobType.names()` and `parse()`, `AsvoJob.state_text`, and
+   the `ENV_*`/`ENDPOINT_*`/wait constants. They stay because the goal is
+   that someone can write their own client in Python. Standing rule: the
+   library has no unused API calls. Keep them, or remove the ones that no
+   Python user needs? (b) `--version` prints `mwa_giant_squid 3.0.0`, not
+   `giant-squid 3.0.0` (clap uses the crate name); `#[command(name =
+   "giant-squid")]` would fix it. (c) the second run of `_run_cli` in one
+   process keeps the logger of the first. Decision history of the work:
+   **Level 3, option A** (decided by the user: "stick with a thin
    python wrapper and see how we go with the challenges"). Level 1 is done
    (diffs 23 to 27, see Status). The plan, one diff per step:
    - **Diff 27 (done):** the test imports of `parse_job_ids_only` moved to the
@@ -131,12 +145,18 @@ item 1.**
      includes `bin`. The module no longer installs the pyo3-log bridge at
      import: `connect_python_logging()` installs it when the first
      `AsvoClient` is made or `from_env` is called.
-   - **Diff 29:** `[project.scripts] giant-squid` points to the launcher
-     (and `giant-squid-native` is removed); delete `mwa_giant_squid_cli`
-     except the launcher, and its pytest files (`test_cli.py`,
-     `test_cli_units.py`, and the parts of other files that use the old
-     command) (the user approved the deletion); keep and extend
-     `tests/python/test_native_cli.py`; docs.
+   - **Diff 29 (done):** `[project.scripts] giant-squid` is
+     `mwa_giant_squid_cli:main`, which is now the launcher
+     (`mwa_giant_squid_cli/__init__.py`: puts SIGINT back to its default
+     action and returns `_run_cli(["giant-squid", *argv])`); `__main__.py`
+     runs it; `giant-squid-native` is gone. The old Python command
+     (`args`, `commands`, `constants`, `parsing`, `progress`, `table`,
+     `native`) and `tests/python/test_cli.py` and `test_cli_units.py` are
+     deleted (the user approved); `tests/python/test_native_cli.py` now tests
+     the installed `giant-squid` (its entry point and script, help, version,
+     exit codes, logger, `list` against the mock, SIGINT). The behaviour of
+     each sub-command is tested by the Rust CLI tests, which run the same
+     code.
    - **User decisions for this step (2026-10-02):** the plan is right; the
      Python tests of the old command may be deleted in diff 29; Ctrl-C is
      the native Rust behaviour (SIGINT reset to the default action); the
@@ -162,11 +182,9 @@ item 1.**
      description of the clap CLI and build the argparse parser from it; (C)
      keep both commands and add a CI test that fails when their options or
      help texts differ.
-   - Differences between the two commands that option A removes: the
-     download labels (`[n/N]` runs across job IDs and obsids in Python and
-     restarts for obsids in Rust), one login per download in Rust against a
-     shared login in Python, `-vv` (trace) in Rust only, and when the limits
-     of `list` are checked (before the login in Rust, after it in Python).
+   - The differences between the two commands (download labels, one login
+     per download, `-vv`, when the limits of `list` are checked) are gone:
+     there is one command.
 3. **`dug` for conversion and imaging.** The API developer says the schema
    is wrong and will add `dug` to `ConversionJobParams` and both imaging
    bodies; the generated `Delivery` type already has it, so `submit-conv`,
@@ -1076,6 +1094,19 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   tests, which run the program) and 7 new pytest tests (346 in total) in
   `tests/python/test_native_cli.py` (help, version, usage error, command
   error, logger, `list` against the mock, SIGINT). No existing test was
+  changed.
+- 2026-10-02 (diff 29): `giant-squid` is the Rust command. Deleted:
+  `mwa_giant_squid_cli/{args,commands,constants,parsing,progress,table,native}.py`
+  and `tests/python/test_cli.py` and `test_cli_units.py` (62 test functions, 143
+  tests with their parameters; the pytest count goes from 346 to 205, with 2
+  new tests).
+  `mwa_giant_squid_cli/__init__.py` is the launcher (`main(argv=None) -> int`);
+  `__main__.py` is `sys.exit(main())`; `pyproject.toml` has the one script
+  `giant-squid`. New tests in `test_native_cli.py`: the entry point of the
+  distribution and the installed script. Docs: `PYTHON.md` (the command
+  section is rewritten; the list of differences is gone), `TESTING.md`
+  (Layer 4 table and the staging row), `README.md`, `CHANGELOG.md`. Comments
+  in Rust that spoke of "the Python command" were reworded. No Rust code
   changed.
 - Next step: see "Handoff (read this first)" at the top of this file.
 

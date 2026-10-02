@@ -825,8 +825,9 @@ fn run(args: Args) -> anyhow::Result<()> {
 /// which is the name of the program, and return the exit code.
 ///
 /// This is the whole of the command. The `giant-squid` program calls it with
-/// its own arguments, and the Python module calls it from `giant-squid`
-/// written in Python (`mwa_giant_squid._run_cli`), so both run the same code.
+/// its own arguments, and the Python module calls it for the Python
+/// `giant-squid` command (`mwa_giant_squid._run_cli`), so both run the same
+/// code.
 ///
 /// What it does is what `main` of a clap program does: the help and the
 /// version go to standard output with code 0; a bad argument goes to

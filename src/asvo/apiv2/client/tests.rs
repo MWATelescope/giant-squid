@@ -1448,8 +1448,8 @@ fn an_api_error_without_details_has_the_plain_message() {
 }
 
 /// The server's `detail` and `suggestion` are in the message, as the server
-/// wrote them, each on its own line, so a user sees them in the Rust and the
-/// Python command and in the Python exception.
+/// wrote them, each on its own line, so a user sees them in the `giant-squid`
+/// command and in the Python exception.
 #[test]
 fn an_api_error_shows_the_servers_detail_and_suggestion() {
     let env = TestEnv::with_session();

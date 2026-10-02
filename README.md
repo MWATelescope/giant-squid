@@ -1078,8 +1078,8 @@ Have a look at the [GitHub releases page](https://github.com/MWATelescope/giant-
 
 - Run `pip install mwa-giant-squid`
 
-  - This installs the `giant-squid` command, with the same commands and options as the Rust program,
-    and the `mwa_giant_squid` Python module. See [docs/PYTHON.md](docs/PYTHON.md).
+  - This installs the `giant-squid` command, which is this Rust program run inside the
+    `mwa_giant_squid` Python module, and the module. See [docs/PYTHON.md](docs/PYTHON.md).
 
 ### Building from crates.io
 

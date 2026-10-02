@@ -4,8 +4,8 @@
 [giant-squid](https://github.com/MWATelescope/giant-squid) Rust library with Python bindings. You
 can use it to list, submit, cancel and download MWA ASVO jobs from your own Python code.
 
-The package also installs the `giant-squid` command, written in Python on the module. It has the same
-commands and options as the Rust `giant-squid` command (see [The giant-squid command](#the-giant-squid-command)).
+The package also installs the `giant-squid` command. It is the Rust `giant-squid` program, run inside the
+module (see [The giant-squid command](#the-giant-squid-command)).
 
 - Install name: `mwa-giant-squid`. Import name: `mwa_giant_squid`.
 - Python 3.10 or later.
@@ -43,8 +43,10 @@ giant-squid wait 12345
 giant-squid download 12345
 ```
 
-The command has the same sub-commands, short names, options, defaults, environment variables and output
-as the Rust `giant-squid` command. For what each one does, see the
+The command is the Rust `giant-squid` program itself, not a copy of it. The module has the program's code
+in it, and the `giant-squid` script that the install makes runs that code. So the sub-commands, short names,
+options, defaults, environment variables, help, messages, colours and exit codes are those of the Rust
+program. For what each one does, see the
 [README](https://github.com/MWATelescope/giant-squid/blob/main/README.md) or run `giant-squid --help` and
 `giant-squid <command> --help`. The commands are `list` (`l`), `download` (`d`), `submit-vis` (`sv`),
 `submit-conv` (`sc`), `submit-image` (`si`), `submit-image-from-job` (`sifj`), `submit-meta` (`sm`),
@@ -54,35 +56,19 @@ The environment variables are `MWA_ASVO_API_KEY` (required), `MWA_ASVO_HOST`, `M
 `GIANT_SQUID_DELIVERY`, `GIANT_SQUID_DELIVERY_FORMAT`, `GIANT_SQUID_BUF_SIZE` and
 `GIANT_SQUID_DOWNLOAD_RETRY_SECS`. The session is cached in `$HOME/.mwa-asvo/tokens.json`.
 
-The defaults of the job options come from the MWA ASVO schema, through the `*_params` functions of the
-module, so they are the same as the Rust command's.
+You can also run it with `python -m mwa_giant_squid_cli`.
 
-The Python command differs from the Rust command in these ways:
+What is particular to running the program from Python:
 
-- It has no `--legacy-json` option. That option of the Rust command is deprecated.
-- The progress bars of `download` are drawn by the program itself, with no extra package, and look
-  different from the Rust command's. As in the Rust command, they show only when standard error is a
-  terminal.
-- `-v` and `-vv` both show debug messages. The module sends no trace messages to Python.
-- The downloads share one login. With `-c`/`--concurrent-downloads` above 1, Ctrl-C ends the program with
-  exit code 130. A partial file stays on disk, and a new `download --keep-tar` resumes it.
-- The limits of the MWA ASVO (for example `--avg-freq-res`) are checked before the program logs in. The
-  error is a usage error (exit code 2), as in the Rust command, but its text is the module's.
-- `--job-states` and `--job-types` accept several values separated by commas. Give the option once.
-- `list --days` takes 1 to 30. The module checks it, so the Python command reports a bad value (a usage
-  error, exit code 2) after it has logged in. The Rust command refuses it first.
-
-The command is the `mwa_giant_squid_cli` package. It uses only the public API in the
-rest of this guide, so it is also an example of how to write your own client.
-
-### `giant-squid-native` (temporary)
-
-The wheel also installs `giant-squid-native`. It is the Rust `giant-squid` program itself, run inside the
-module (`mwa_giant_squid._run_cli`), so its commands, options, help, messages and exit codes are those of the
-Rust program. Ctrl-C ends it at once, as it ends the Rust program. It writes its output to the real standard
-output and standard error, and its log lines are the Rust program's, not Python `logging` records. It is here
-so that it can be compared with the Python `giant-squid` command above, which it is meant to replace. Do not
-depend on it by this name, or on `_run_cli`: both are temporary.
+- Ctrl-C ends the process at once, as it ends the Rust program. The program puts the default action of
+  Ctrl-C back when it starts, because Python's handler could not run while the Rust code runs.
+- The output goes to the real standard output and standard error of the process, not to `sys.stdout` and
+  `sys.stderr`. A program that runs the command in a thread of its own cannot capture it with Python's
+  redirects (use a subprocess).
+- The log lines are the Rust program's own, on standard error. They are not Python `logging` records.
+- The function `mwa_giant_squid._run_cli` and the package `mwa_giant_squid_cli` are not part of the API of
+  the module. Do not depend on them. If you want to write your own client in Python, use the module (the rest
+  of this guide).
 
 ## Authentication
 
@@ -407,12 +393,7 @@ A log handler that you add runs inside the module's calls, in the thread that ma
 A handler that raises a `KeyboardInterrupt` or `SystemExit` stops a download, like Ctrl-C. Any other exception
 from a handler is cleared by the module, and does not break a download.
 
-The `giant-squid-native` command (the Rust `giant-squid` program, run inside the module; see "The command"
-below) does not use `logging`: it writes its own log lines to standard error.
-
-If your program calls `mwa_giant_squid_cli.main` (the code of the `giant-squid` command), note that `main`
-adds a handler to the root logger for the length of the call and removes it before it returns, and puts back
-the root logger's level. Your own logging set-up is as it was.
+The `giant-squid` command does not use `logging`: it writes its own log lines to standard error.
 
 ## Threads
 
