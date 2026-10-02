@@ -765,16 +765,6 @@
           "title": "Staging Count",
           "description": "number of restage attempts by the processor"
         },
-        "apply_di_cal": {
-          "type": "boolean",
-          "title": "Apply Di Cal",
-          "default": true
-        },
-        "no_apply_amps": {
-          "type": "boolean",
-          "title": "No Apply Amps",
-          "default": false
-        },
         "avg_time_res": {
           "type": "number",
           "minimum": 0.0,
@@ -830,6 +820,88 @@
             }
           ],
           "title": "Custom Centre Dec"
+        },
+        "apply_di_cal": {
+          "type": "boolean",
+          "title": "Apply Di Cal",
+          "default": true
+        },
+        "no_apply_amps": {
+          "type": "boolean",
+          "title": "No Apply Amps",
+          "default": false
+        },
+        "no_rfi": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Rfi",
+          "default": false
+        },
+        "no_geometry_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Geometry Delay",
+          "default": false
+        },
+        "no_cable_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Cable Delay",
+          "default": false
+        },
+        "no_digital_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Digital Gains",
+          "default": false
+        },
+        "no_flag_dc": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Flag Dc",
+          "default": false
+        },
+        "no_passband_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Passband Gains",
+          "default": false
         },
         "image_size": {
           "$ref": "#/definitions/ImageSizes",
@@ -1294,12 +1366,18 @@
           "description": "ID of user who submitted the job"
         },
         "job_type": {
-          "$ref": "#/definitions/JobType",
-          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JobType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
         },
         "job_state": {
-          "type": "string",
-          "title": "Job State",
+          "$ref": "#/definitions/JobState",
           "description": "Current job state: 0=Queued, 1=WaitCal 2=Staging, 3=Staged, 4=Downloading, 5=Preprocessing, 6=Delivering, 9=Completed, 10=Error, 11=Cancelled"
         },
         "job_params": {
@@ -1403,7 +1481,6 @@
       "required": [
         "id",
         "user_id",
-        "job_type",
         "job_state",
         "job_params",
         "created",
@@ -1417,6 +1494,11 @@
       "properties": {
         "type": {
           "type": "string",
+          "enum": [
+            "acacia",
+            "scratch",
+            "dug"
+          ],
           "title": "Type"
         },
         "size": {
@@ -1611,27 +1693,12 @@
         "job_state": {
           "anyOf": [
             {
-              "type": "string",
-              "enum": [
-                "queued",
-                "waitcal",
-                "staging",
-                "staged",
-                "preparing",
-                "downloading",
-                "preprocessing",
-                "imaging",
-                "delivering",
-                "completed",
-                "error",
-                "cancelled"
-              ]
+              "$ref": "#/definitions/JobState"
             },
             {
               "type": "null"
             }
           ],
-          "title": "Job State",
           "description": "the current state of the job"
         },
         "job_type": {
@@ -1643,7 +1710,7 @@
               "type": "null"
             }
           ],
-          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
+          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
         },
         "date_from": {
           "anyOf": [
@@ -1746,6 +1813,242 @@
       ],
       "title": "MarkAsErrorRequest"
     },
+    "ObservationMetadata": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "data_quality": {
+          "type": "string",
+          "title": "Data Quality",
+          "description": "dataqualityname"
+        },
+        "mode": {
+          "type": "string",
+          "title": "Mode",
+          "description": "the observation mode. e.g MWAX_CORRELATOR"
+        },
+        "project_id": {
+          "type": "string",
+          "title": "Project Id",
+          "description": "the id of the project this observation is a part of"
+        },
+        "ra_pointing": {
+          "type": "number",
+          "title": "Ra Pointing",
+          "description": "right ascension pointing"
+        },
+        "dec_pointing": {
+          "type": "number",
+          "title": "Dec Pointing",
+          "description": "declination pointing"
+        },
+        "int_time": {
+          "type": "number",
+          "title": "Int Time",
+          "description": "integration time"
+        },
+        "freq_res": {
+          "type": "number",
+          "title": "Freq Res",
+          "description": "the frequency resolution of the observation"
+        },
+        "channel_count": {
+          "type": "integer",
+          "title": "Channel Count",
+          "description": "number of channels"
+        },
+        "duration": {
+          "type": "number",
+          "title": "Duration",
+          "description": "duration of the capture"
+        },
+        "gpubox_files_archived": {
+          "type": "integer",
+          "title": "Gpubox Files Archived",
+          "description": "number of files found in archive"
+        },
+        "deleted_flag": {
+          "type": "boolean",
+          "title": "Deleted Flag",
+          "description": "whether this obs has been flagged for deletion"
+        },
+        "scheduled_start_utc": {
+          "type": "string",
+          "title": "Scheduled Start Utc",
+          "description": "starttime_utc"
+        },
+        "oversampled_flag": {
+          "type": "boolean",
+          "title": "Oversampled Flag",
+          "description": "oversampled_flag"
+        },
+        "public_release_date_utc": {
+          "type": "string",
+          "title": "Public Release Date Utc",
+          "description": "date used to check whether this obs is within the embargo period or not"
+        },
+        "total_archived_data_bytes": {
+          "type": "integer",
+          "title": "Total Archived Data Bytes",
+          "description": "Number of bytes archived based on the total number of files"
+        },
+        "total_tiles": {
+          "type": "integer",
+          "title": "Total Tiles",
+          "description": "Total number of tiles"
+        },
+        "archived_files_at_pawsey_banksia": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Archived Files At Pawsey Banksia",
+          "description": "Number of files this observation has at banksia"
+        },
+        "archived_files_at_pawsey_acacia_mwa": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Archived Files At Pawsey Acacia Mwa",
+          "description": "Number of files this observation has at mwa_acacia"
+        },
+        "coherent_beams": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Coherent Beams",
+          "description": "No. of coherent beams for the beamformer obs"
+        },
+        "incoherent_beams": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Incoherent Beams",
+          "description": "No. of incoherent beams for the beamformer obs"
+        },
+        "vidf_files_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vidf Files Archived"
+        },
+        "filterbank_files_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Filterbank Files Archived"
+        },
+        "channel_numbers_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channel Numbers Csv"
+        },
+        "vcs_files_raw_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vcs Files Raw Archived"
+        },
+        "vcs_files_ics_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vcs Files Ics Archived"
+        },
+        "vcs_files_tar_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vcs Files Tar Archived"
+        },
+        "vcs_files_sub_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Vcs Files Sub Archived"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "data_quality",
+        "mode",
+        "project_id",
+        "ra_pointing",
+        "dec_pointing",
+        "int_time",
+        "freq_res",
+        "channel_count",
+        "duration",
+        "gpubox_files_archived",
+        "deleted_flag",
+        "scheduled_start_utc",
+        "oversampled_flag",
+        "public_release_date_utc",
+        "total_archived_data_bytes",
+        "total_tiles"
+      ],
+      "title": "ObservationMetadata",
+      "description": "Observation Metadata extracted from TAP service VO table"
+    },
     "PiProjectDetails": {
       "properties": {
         "project_id": {
@@ -1833,8 +2136,15 @@
           "title": "User Id"
         },
         "job_type": {
-          "$ref": "#/definitions/JobType",
-          "description": "Job type: 0=Conversion, 1=Download, 3=Voltage, 5=Beamformer, 6=Imaging"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JobType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
         },
         "job_params": {
           "additionalProperties": true,
@@ -1879,7 +2189,6 @@
       "required": [
         "id",
         "user_id",
-        "job_type",
         "job_params",
         "created"
       ],
@@ -2308,13 +2617,13 @@
     },
     "UserUpdateProfileRequest": {
       "properties": {
-        "firstname": {
+        "first_name": {
           "type": "string",
-          "title": "Firstname"
+          "title": "First Name"
         },
-        "lastname": {
+        "last_name": {
           "type": "string",
-          "title": "Lastname"
+          "title": "Last Name"
         },
         "email": {
           "type": "string",
@@ -2343,8 +2652,8 @@
       },
       "type": "object",
       "required": [
-        "firstname",
-        "lastname",
+        "first_name",
+        "last_name",
         "email",
         "affiliation",
         "orcid"
