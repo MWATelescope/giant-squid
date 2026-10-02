@@ -598,6 +598,136 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
     assert_eq!(resp.job_id.get(), 779);
 }
 
+/// Every request the client makes for an end user goes to one of these
+/// endpoints (the method and the path). The endpoints for the MWA ASVO's own
+/// processors and scheduler (`/v2/job_staged`, `/v2/scheduler/*`,
+/// `/v2/calibration_ready`) are not here, and must not be.
+const END_USER_ENDPOINTS: [(&str, &str); 9] = [
+    ("POST", "/api/v2/get_jobs"),
+    ("POST", "/api/v2/download_vis_job"),
+    ("POST", "/api/v2/conversion_job"),
+    ("POST", "/api/v2/imaging_job"),
+    ("POST", "/api/v2/image_from_job"),
+    ("POST", "/api/v2/voltage_job"),
+    ("POST", "/api/v2/beamformer_job"),
+    ("DELETE", "/api/v2/jobs/12345"),
+    ("POST", "/api/v2/api_login"),
+];
+
+/// The library calls only the endpoints of an end user, and a submission
+/// never carries `staging_count`: it is for the MWA ASVO's processors, the API
+/// will remove it, and it is not an option anywhere in giant-squid.
+#[test]
+fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
+    use crate::asvo::apiv2::openapi::{
+        BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
+        ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
+    };
+    use std::num::NonZeroU64;
+    use std::sync::{Arc, Mutex};
+
+    // No session on disk, so that the login is made and recorded too.
+    let env = TestEnv::without_session();
+    let seen: Arc<Mutex<Vec<(String, String, serde_json::Value)>>> = Arc::default();
+    let recorder = Arc::clone(&seen);
+    env.server.mock(|when, then| {
+        when.is_true(move |req| {
+            let body = serde_json::from_slice(req.body_ref()).unwrap_or_default();
+            recorder.lock().unwrap().push((
+                req.method_str().to_string(),
+                req.uri().path().to_string(),
+                body,
+            ));
+            true
+        });
+        // One reply that every call can read: the login tokens, a job
+        // submission, and an empty job list.
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body({
+                let mut reply = login_response();
+                reply["job_id"] = json!(TEST_JOB_ID);
+                reply["message"] = json!("ok");
+                reply["status"] = json!("success");
+                reply["jobs"] = json!([]);
+                reply["total_count"] = json!(0);
+                reply
+            });
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = TEST_OBS_ID_I64;
+    let source_job_id = NonZeroU64::new(TEST_JOB_ID).unwrap();
+
+    client.get_jobs(&JobsFilter::default()).expect("get_jobs");
+    client
+        .submit_download_vis_job(
+            &DownloadJobParams::builder()
+                .obs_id(obs_id)
+                .download_type(DownloadType::Vis)
+                .try_into()
+                .expect("the vis body should build"),
+        )
+        .expect("vis");
+    client
+        .submit_conversion_job(
+            &ConversionJobParams::builder()
+                .obs_id(obs_id)
+                .try_into()
+                .expect("the conversion body should build"),
+        )
+        .expect("conversion");
+    client
+        .submit_imaging_job(
+            &ImagingJobFlow1Params::builder()
+                .obs_id(obs_id)
+                .try_into()
+                .expect("the imaging body should build"),
+        )
+        .expect("imaging");
+    client
+        .submit_image_from_job(
+            &ImagingJobFlow2Params::builder()
+                .obs_id(obs_id)
+                .source_job_id(source_job_id)
+                .try_into()
+                .expect("the image-from-job body should build"),
+        )
+        .expect("image from job");
+    client
+        .submit_voltage_job(
+            &VoltageJobParams::builder()
+                .obs_id(obs_id)
+                .offset(0_i64)
+                .duration(8_u64)
+                .try_into()
+                .expect("the voltage body should build"),
+        )
+        .expect("voltage");
+    client
+        .submit_beamformer_job(
+            &BeamformerJobParams::builder()
+                .obs_id(obs_id)
+                .try_into()
+                .expect("the beamformer body should build"),
+        )
+        .expect("beamformer");
+    client.cancel_job(TEST_JOB_ID).expect("cancel");
+
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 9, "one login and eight calls: {seen:?}");
+    for (method, path, body) in seen.iter() {
+        assert!(
+            END_USER_ENDPOINTS.contains(&(method.as_str(), path.as_str())),
+            "{method} {path} is not an end-user endpoint"
+        );
+        assert!(
+            body.get("staging_count").is_none(),
+            "{method} {path} sent staging_count: {body}"
+        );
+    }
+}
+
 #[test]
 fn a_cancellation_deletes_the_job_resource() {
     let env = TestEnv::with_session();

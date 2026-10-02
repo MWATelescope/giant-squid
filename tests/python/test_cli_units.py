@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 import mwa_giant_squid as gs
+from mwa_giant_squid_cli import args as args_module
 from mwa_giant_squid_cli import parsing
 from mwa_giant_squid_cli.progress import CLEAR_TO_END, DisplayHandler, ProgressDisplay, format_duration
 from mwa_giant_squid_cli.table import format_size
@@ -148,6 +149,22 @@ def test_enum_values_match_by_api_value_or_name() -> None:
 def test_enum_values_lists_the_api_values_in_order(enum_type: type, values: list[str]) -> None:
     """The help of an enum option lists the API values, in alphabetical order like the Rust command."""
     assert parsing.enum_values(enum_type) == values
+
+
+def test_no_command_has_an_option_for_staging() -> None:
+    """``staging_count`` is for the MWA ASVO's processors and the API will remove it, so no option sets it."""
+    parser = args_module.build_parser()
+    subparsers = next(action for action in parser._actions if isinstance(action, argparse._SubParsersAction))
+
+    options = [
+        option
+        for command in set(subparsers.choices.values())
+        for action in command._actions
+        for option in action.option_strings
+    ]
+
+    assert options
+    assert not [option for option in options if "staging" in option]
 
 
 def test_progress_bars_are_drawn_and_removed_on_a_terminal() -> None:

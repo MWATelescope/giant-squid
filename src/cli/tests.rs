@@ -1470,6 +1470,59 @@ fn list_takes_the_date_and_sort_filters() {
 }
 
 // ---------------------------------------------------------------------------
+// `staging_count` is not an option
+// ---------------------------------------------------------------------------
+
+/// `staging_count` is for the MWA ASVO's processors and the API will remove
+/// it, so no command has an option for it, and no body built from the default
+/// options has it.
+#[test]
+fn staging_count_is_not_an_option_and_not_in_any_body() {
+    use clap::CommandFactory;
+
+    let cli = Args::command();
+    for command in cli.get_subcommands() {
+        for arg in command.get_arguments() {
+            let names = format!(
+                "{} {:?} {:?}",
+                arg.get_id(),
+                arg.get_long(),
+                arg.get_aliases()
+            );
+            assert!(
+                !names.to_lowercase().contains("staging"),
+                "{} has an option for staging: {names}",
+                command.get_name()
+            );
+        }
+    }
+
+    let bodies = [
+        json_of(
+            &vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID])
+                .0
+                .to_vis_params(TEST_OBS_ID_I64)
+                .expect("vis body"),
+        ),
+        json_of(
+            &conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID])
+                .0
+                .to_params(TEST_OBS_ID_I64)
+                .expect("conversion body"),
+        ),
+        json_of(
+            &image_args(&["giant-squid", "submit-image", TEST_OBS_ID])
+                .0
+                .to_params(TEST_OBS_ID_I64)
+                .expect("imaging body"),
+        ),
+    ];
+    for body in bodies {
+        assert!(body.get("staging_count").is_none(), "{body}");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // `wait` and `cancel` take job IDs only
 // ---------------------------------------------------------------------------
 

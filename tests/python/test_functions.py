@@ -173,6 +173,20 @@ def test_a_builder_has_the_signature_of_its_submit_method(
     assert builder_signature == method_signature
 
 
+@pytest.mark.parametrize(("builder", "method", "path", "args", "kwargs"), BUILDERS, ids=BUILDER_IDS)
+def test_staging_count_is_not_an_argument_and_not_in_a_body(
+    client: gs.AsvoClient, builder: str, method: str, path: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> None:
+    """``staging_count`` is for the MWA ASVO's processors, and the API will remove it: it is never sent or taken."""
+    names = [
+        *inspect.signature(getattr(gs, builder)).parameters,
+        *inspect.signature(getattr(client, method)).parameters,
+    ]
+
+    assert not [name for name in names if "staging" in name]
+    assert "staging_count" not in getattr(gs, builder)(*args, **kwargs)
+
+
 def test_the_download_builders_set_the_download_type() -> None:
     """The client sets download_type when it submits, so the builders set it too."""
     assert gs.download_vis_job_params(TEST_OBS_ID)["download_type"] == "vis"
