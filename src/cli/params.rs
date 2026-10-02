@@ -21,7 +21,9 @@ use crate::asvo::apiv2::openapi::{
     OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::asvo::apiv2::validate::{self, Bounds};
-use crate::asvo::{AsvoApiError, AsvoJobId};
+use crate::asvo::{
+    AsvoApiError, AsvoJobId, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT,
+};
 
 use super::value_enums::SchemaEnumParser;
 
@@ -201,11 +203,11 @@ pub fn imaging2_defaults() -> ImagingJobFlow2Params {
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = download_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
+    #[arg(short, long, default_value_t = download_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Allow resubmitting a job even if an identical one has completed.
@@ -245,11 +247,11 @@ impl DownloadJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct ConversionJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = conversion_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
+    #[arg(short, long, default_value_t = conversion_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Output format: "ms" (measurement set) or "uvfits".
@@ -351,11 +353,11 @@ impl ConversionJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
+    #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Whether to apply the DI calibration solution.
@@ -568,11 +570,11 @@ pub struct ImagingFromJobArgs {
     pub source_job_id: NonZeroU64,
 
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
+    #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Whether to apply the primary beam correction.
@@ -734,7 +736,7 @@ pub struct VoltageJobArgs {
     /// Tell MWA ASVO where to deliver the data. The only valid value for
     /// a voltage job is "scratch", which requires the "mwavcs" Pawsey
     /// Group on your MWA ASVO profile.
-    #[arg(short, long, default_value_t = voltage_defaults().delivery, env = "GIANT_SQUID_DELIVERY")]
+    #[arg(short, long, default_value_t = voltage_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY)]
     pub delivery: String,
 
     /// The offset in seconds from the start GPS time of the observation.
@@ -784,11 +786,11 @@ impl VoltageJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct BeamformerJobArgs {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = "GIANT_SQUID_DELIVERY", value_parser = SchemaEnumParser::<Delivery>::new())]
+    #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
     pub delivery: Delivery,
 
     /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = "GIANT_SQUID_DELIVERY_FORMAT", value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
 
     /// Allow resubmitting a job even if an identical one has completed.

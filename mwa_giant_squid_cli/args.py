@@ -16,9 +16,6 @@ import mwa_giant_squid
 from mwa_giant_squid import Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting
 
 from .constants import (
-    DEFAULT_CONCURRENT_DOWNLOADS,
-    ENV_DELIVERY,
-    ENV_DELIVERY_FORMAT,
     PLACEHOLDER_OBS_ID,
     PLACEHOLDER_SOURCE_JOB_ID,
     PLACEHOLDER_VOLTAGE_DURATION,
@@ -161,18 +158,18 @@ def _add_delivery(parser: argparse.ArgumentParser, defaults: DefaultDict) -> Non
         "--delivery",
         Delivery,
         defaults["delivery"],
-        f"Tell MWA ASVO where to deliver the data. Environment variable: {ENV_DELIVERY}.",
+        f"Tell MWA ASVO where to deliver the data. Environment variable: {mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY}.",
         short="-d",
-        env=ENV_DELIVERY,
+        env=mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY,
     )
     _add_enum(
         parser,
         "--delivery-format",
         DeliveryFormat,
         defaults["delivery_format"],
-        f"Tell MWA ASVO to deliver the data in a particular format. Environment variable: {ENV_DELIVERY_FORMAT}.",
+        f"Tell MWA ASVO to deliver the data in a particular format. Environment variable: {mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY_FORMAT}.",
         short="-f",
-        env=ENV_DELIVERY_FORMAT,
+        env=mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY_FORMAT,
     )
 
 
@@ -337,10 +334,10 @@ def _add_voltage_options(parser: argparse.ArgumentParser, d: DefaultDict) -> Non
     parser.add_argument(
         "-d",
         "--delivery",
-        default=os.environ.get(ENV_DELIVERY, d["delivery"]),
+        default=os.environ.get(mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY, d["delivery"]),
         help='Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", '
         f'which requires the "mwavcs" Pawsey Group on your MWA ASVO profile. (default: {d["delivery"]}) '
-        f"Environment variable: {ENV_DELIVERY}.",
+        f"Environment variable: {mwa_giant_squid.ENV_GIANT_SQUID_DELIVERY}.",
     )
     parser.add_argument(
         "-o",
@@ -449,7 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-c",
         "--concurrent-downloads",
         type=int,
-        default=DEFAULT_CONCURRENT_DOWNLOADS,
+        default=mwa_giant_squid.DEFAULT_CONCURRENT_DOWNLOADS,
         help="Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to "
         "0 to use the number of CPU cores you machine has (default: %(default)s)",
     )

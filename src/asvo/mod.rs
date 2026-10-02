@@ -4,6 +4,7 @@
 
 //! Code to interface with the MWA ASVO.
 pub mod apiv2;
+mod env;
 mod error;
 mod token_store;
 mod types;
@@ -13,8 +14,17 @@ mod tests;
 
 use crate::check_file_sha1_hash;
 use crate::obs_id::ObsId;
-pub use apiv2::client::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT};
+pub use apiv2::client::{
+    AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT,
+    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
+    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+};
 pub use apiv2::AsvoApiError;
+pub use env::{
+    client_config_from_env, DownloadSettings, ENV_GIANT_SQUID_BUF_SIZE, ENV_GIANT_SQUID_DELIVERY,
+    ENV_GIANT_SQUID_DELIVERY_FORMAT, ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS, ENV_HOME,
+    ENV_MWA_ASVO_API_KEY, ENV_MWA_ASVO_API_TIMEOUT, ENV_MWA_ASVO_HOST,
+};
 pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{
@@ -52,6 +62,18 @@ pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
 /// keeps retrying transient failures before giving up. Matches
 /// `ExponentialBackoff`'s own default (900 s).
 pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
+
+/// The default number of downloads that the `giant-squid` commands run at
+/// the same time.
+pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
+
+/// The time between two job list requests while waiting for jobs, in the
+/// `giant-squid` commands.
+pub const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How long the `giant-squid` commands wait before the first job list request
+/// of a wait, so that the user's queue is hopefully current.
+pub const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
 
 /// The longest the library sleeps before it asks
 /// [`DownloadOptions::should_stop`] again, while it waits to retry.

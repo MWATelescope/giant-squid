@@ -17,22 +17,10 @@ from pathlib import Path
 from typing import Any
 
 import mwa_giant_squid
-from mwa_giant_squid import AsvoApiError, AsvoClient, AsvoError, AsvoJobVec
+from mwa_giant_squid import AsvoApiError, AsvoClient, AsvoError, AsvoJobVec, DownloadSettings
 
 from .args import NON_PARAM_DESTS
-from .config import connect, download_settings_from_env
-from .constants import (
-    ENDPOINT_BEAMFORMER_JOB,
-    ENDPOINT_CONVERSION_JOB,
-    ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_IMAGE_FROM_JOB,
-    ENDPOINT_IMAGING_JOB,
-    ENDPOINT_JOBS,
-    ENDPOINT_VOLTAGE_JOB,
-    OBS_ID_HINT,
-    WAIT_INITIAL_DELAY_S,
-    WAIT_POLL_INTERVAL_S,
-)
+from .constants import OBS_ID_HINT
 from .progress import ProgressDisplay
 from .table import print_jobs_table, state_text
 
@@ -70,28 +58,34 @@ class SubmitSpec:
 SUBMIT_SPECS = {
     "submit-vis": SubmitSpec(
         "visibility download",
-        ENDPOINT_DOWNLOAD_VIS_JOB,
+        mwa_giant_squid.ENDPOINT_DOWNLOAD_VIS_JOB,
         mwa_giant_squid.download_vis_job_params,
         "submit_download_vis_job",
     ),
     "submit-meta": SubmitSpec(
         "metadata download",
-        ENDPOINT_DOWNLOAD_VIS_JOB,
+        mwa_giant_squid.ENDPOINT_DOWNLOAD_VIS_JOB,
         mwa_giant_squid.download_meta_job_params,
         "submit_download_meta_job",
     ),
     "submit-conv": SubmitSpec(
-        "conversion", ENDPOINT_CONVERSION_JOB, mwa_giant_squid.conversion_job_params, "submit_conversion_job"
+        "conversion",
+        mwa_giant_squid.ENDPOINT_CONVERSION_JOB,
+        mwa_giant_squid.conversion_job_params,
+        "submit_conversion_job",
     ),
     "submit-image": SubmitSpec(
-        "imaging", ENDPOINT_IMAGING_JOB, mwa_giant_squid.imaging_job_params, "submit_imaging_job"
+        "imaging", mwa_giant_squid.ENDPOINT_IMAGING_JOB, mwa_giant_squid.imaging_job_params, "submit_imaging_job"
     ),
     "submit-volt": SubmitSpec(
-        "voltage download", ENDPOINT_VOLTAGE_JOB, mwa_giant_squid.voltage_job_params, "submit_voltage_job"
+        "voltage download",
+        mwa_giant_squid.ENDPOINT_VOLTAGE_JOB,
+        mwa_giant_squid.voltage_job_params,
+        "submit_voltage_job",
     ),
     "submit-bf": SubmitSpec(
         "beamformer download",
-        ENDPOINT_BEAMFORMER_JOB,
+        mwa_giant_squid.ENDPOINT_BEAMFORMER_JOB,
         mwa_giant_squid.beamformer_job_params,
         "submit_beamformer_job",
     ),
@@ -170,7 +164,7 @@ def wait_loop(client: AsvoClient, job_ids: Sequence[int]) -> None:
     log.info("Waiting for %d jobs to be ready...", len(job_ids))
     last_state: dict[int, Any] = {}
     # Wait a moment, so that the user's queue is hopefully current.
-    time.sleep(WAIT_INITIAL_DELAY_S)
+    time.sleep(mwa_giant_squid.WAIT_INITIAL_DELAY_SECS)
     while True:
         jobs = client.get_jobs()
         all_ready = jobs.all_ready(job_ids)
@@ -182,7 +176,7 @@ def wait_loop(client: AsvoClient, job_ids: Sequence[int]) -> None:
             last_state[job_id] = job.job_state
         if all_ready:
             break
-        time.sleep(WAIT_POLL_INTERVAL_S)
+        time.sleep(mwa_giant_squid.WAIT_POLL_INTERVAL_SECS)
     log.info("All %d MWA ASVO jobs are ready for download.", len(job_ids))
 
 
@@ -213,7 +207,7 @@ def cmd_list(args: argparse.Namespace) -> None:
     if job_ids and obs_ids:
         msg = "Invalid job_ids: can't specify both job IDs and obsids; use one or the other"
         raise ValueError(msg)
-    client = connect()
+    client = AsvoClient.from_env()
     try:
         jobs = client.list_jobs(
             job_ids or None,
@@ -239,7 +233,7 @@ def cmd_wait(args: argparse.Namespace) -> None:
         args: The parsed arguments.
     """
     job_ids = job_ids_only(args.jobs)
-    client = connect()
+    client = AsvoClient.from_env()
     wait_loop(client, job_ids)
     print_jobs(client.list_jobs(job_ids), args.json, args.no_colour)
 
@@ -253,10 +247,10 @@ def cmd_cancel(args: argparse.Namespace) -> None:
     job_ids = job_ids_only(args.jobs)
     if args.dry_run:
         for job_id in job_ids:
-            log.info("[dry run] Would DELETE %s/%s", ENDPOINT_JOBS, job_id)
+            log.info("[dry run] Would DELETE %s/%s", mwa_giant_squid.ENDPOINT_JOBS, job_id)
         log.info("[dry run] Would have cancelled %d jobids. Nothing was sent.", len(job_ids))
         return
-    client = connect()
+    client = AsvoClient.from_env()
     failed = 0
     for job_id in job_ids:
         try:
@@ -345,7 +339,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
         report_dry_run(spec, bodies)
         return
 
-    client = connect()
+    client = AsvoClient.from_env()
     submit = getattr(client, spec.method)
     job_ids: list[int] = []
     failures: list[str] = []
@@ -394,10 +388,12 @@ def cmd_submit_image_from_job(args: argparse.Namespace) -> None:
     options = option_values(args)
     body = build_body(mwa_giant_squid.image_from_job_params, obs_id, args.source_job_id, **options)
     if args.dry_run:
-        spec = SubmitSpec("imaging from a job", ENDPOINT_IMAGE_FROM_JOB, mwa_giant_squid.image_from_job_params, "")
+        spec = SubmitSpec(
+            "imaging from a job", mwa_giant_squid.ENDPOINT_IMAGE_FROM_JOB, mwa_giant_squid.image_from_job_params, ""
+        )
         report_dry_run(spec, [(obs_id, body)])
         return
-    client = connect()
+    client = AsvoClient.from_env()
     response = client.submit_image_from_job(obs_id, args.source_job_id, **options)
     print_submitted_json(response, args.json)
     log.info("Submitted %s as MWA ASVO image-from-job ID %s", obs_id, response.job_id)
@@ -507,7 +503,7 @@ def cmd_download(args: argparse.Namespace, display: ProgressDisplay) -> None:
     concurrency = args.concurrent_downloads if args.concurrent_downloads > 0 else (os.cpu_count() or 1)
     job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(args.job_ids_or_obs_ids)
     hash_files = not args.skip_hash
-    settings = download_settings_from_env()
+    settings = DownloadSettings.from_env()
     if args.dry_run:
         if job_ids:
             log.debug("Parsed job IDs: %s", job_ids)
@@ -523,7 +519,7 @@ def cmd_download(args: argparse.Namespace, display: ProgressDisplay) -> None:
         return
 
     tasks = [DownloadTask(True, j) for j in job_ids] + [DownloadTask(False, o) for o in obs_ids]
-    client = connect()
+    client = AsvoClient.from_env()
     options = {
         "keep_tar": args.keep_tar,
         "no_resume": args.no_resume,

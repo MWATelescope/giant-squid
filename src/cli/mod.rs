@@ -10,7 +10,6 @@
 //! without contacting an MWA ASVO server. The binary is left with dispatch
 //! and I/O only.
 
-pub mod config;
 pub mod legacy_json;
 pub mod params;
 pub mod table;
@@ -23,6 +22,7 @@ use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
 use crate::asvo::apiv2::validate;
+use crate::asvo::DEFAULT_CONCURRENT_DOWNLOADS;
 use crate::asvo::{AsvoJobState, AsvoJobType};
 use params::{
     list_days_default, parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
@@ -110,7 +110,7 @@ pub enum Args {
         no_resume: bool,
 
         /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has
-        #[arg(short = 'c', long, default_value = "4")]
+        #[arg(short = 'c', long, default_value_t = DEFAULT_CONCURRENT_DOWNLOADS)]
         concurrent_downloads: usize,
 
         /// Don't verify the downloaded contents against the upstream hash.

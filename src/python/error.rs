@@ -103,6 +103,9 @@ mod stub_attributes {
                 attr!("status", u16, "HttpError: the HTTP status code."),
                 attr!("message", String, "HttpError."),
                 attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
+                attr!("name", String, "InvalidEnvironment: the name of the environment variable."),
+                attr!("value", String, "InvalidEnvironment: its value."),
+                attr!("problem", String, "InvalidEnvironment: what is wrong with it."),
             ],
             getters: &[],
             setters: &[],
@@ -279,6 +282,18 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::InvalidJobType { str } => {
             ("InvalidJobType", vec![("str", Field::Str(str))])
         }
+        lib::AsvoError::InvalidEnvironment {
+            name,
+            value,
+            problem,
+        } => (
+            "InvalidEnvironment",
+            vec![
+                ("name", Field::Str(name)),
+                ("value", Field::Str(value)),
+                ("problem", Field::Str(problem)),
+            ],
+        ),
         lib::AsvoError::Reqwest(_) => ("Reqwest", vec![]),
         lib::AsvoError::IO(_) => ("IO", vec![]),
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),

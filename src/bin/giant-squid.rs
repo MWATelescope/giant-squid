@@ -17,15 +17,8 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use mwa_giant_squid::asvo::apiv2::client::{
-    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
-};
 use mwa_giant_squid::asvo::apiv2::openapi::JobSubmittedResponse;
 use mwa_giant_squid::asvo::*;
-use mwa_giant_squid::cli::config::{
-    client_config_from_env, download_buffer_size_from_env, download_retry_duration_from_env,
-};
 use mwa_giant_squid::cli::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use mwa_giant_squid::cli::params::parse_job_ids_only;
 use mwa_giant_squid::cli::table::print_jobs_table;
@@ -220,15 +213,6 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
         .unwrap();
 }
 
-/// Wait for all of the specified job IDs to become ready, then exit.
-/// Polls via `AsvoClient::get_jobs`.
-/// The time between job list requests while waiting for jobs.
-const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
-
-/// How long to wait before the first job list request, so that the user's
-/// queue is hopefully current.
-const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
-
 /// Poll the job list until all of `job_ids` are ready, logging each job's
 /// state when it changes. Fails as soon as a job is missing, has an error,
 /// has expired or has been cancelled (see `AsvoJobVec::all_ready`).
@@ -351,8 +335,10 @@ fn main() -> Result<(), anyhow::Error> {
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let hash = !skip_hash;
-            let buffer_size = download_buffer_size_from_env()?;
-            let retry_duration = download_retry_duration_from_env();
+            let DownloadSettings {
+                buffer_size,
+                retry_duration,
+            } = DownloadSettings::from_env()?;
             if dry_run {
                 if !job_ids.is_empty() {
                     debug!("Parsed job IDs: {:#?}", job_ids);

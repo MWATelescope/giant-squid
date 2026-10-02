@@ -21,11 +21,10 @@ use serde_json::json;
 
 #[cfg(feature = "bin")]
 use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
+use crate::asvo::client_config_from_env;
 use crate::asvo::{
     AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobQuery, JobsFilter,
 };
-#[cfg(feature = "bin")]
-use crate::cli::config::client_config_from_env;
 #[cfg(feature = "bin")]
 use crate::cli::Args;
 use crate::test_common::*;
@@ -1420,14 +1419,39 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
     }
     assert_eq!(
         err.to_string(),
-        "MWA ASVO returned an error (VALIDATION_ERROR): Invalid parameters\n  mgain: must be at \
-         most 1\n  robust: must be at least -2\n  (request ID: req-1234)"
+        "MWA ASVO returned an error (VALIDATION_ERROR): Invalid parameters\n  Detail: detail from \
+         the mock server\n  Suggestion: try something else\n  mgain: must be at most 1\n  robust: \
+         must be at least -2\n  (request ID: req-1234)"
     );
 }
 
-/// An error with no field errors or request ID has the old message.
+/// An error that the server gives with no detail, suggestion, field errors or
+/// request ID has the plain message.
 #[test]
 fn an_api_error_without_details_has_the_plain_message() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(400)
+            .json_body(json!({ "error_code": "JOB_INVALID_STATE", "message": "Job is not ready" }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("expected the listing to fail");
+
+    assert_eq!(
+        err.to_string(),
+        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
+    );
+}
+
+/// The server's `detail` and `suggestion` are in the message, as the server
+/// wrote them, each on its own line, so a user sees them in the Rust and the
+/// Python command and in the Python exception.
+#[test]
+fn an_api_error_shows_the_servers_detail_and_suggestion() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/get_jobs");
@@ -1442,7 +1466,32 @@ fn an_api_error_without_details_has_the_plain_message() {
 
     assert_eq!(
         err.to_string(),
-        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
+        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready\n  Detail: detail from \
+         the mock server\n  Suggestion: try something else"
+    );
+}
+
+/// Only the part the server gave is shown.
+#[test]
+fn an_api_error_with_only_a_suggestion_shows_only_the_suggestion() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(400).json_body(json!({
+            "error_code": "JOB_INVALID_STATE",
+            "message": "Job is not ready",
+            "suggestion": "wait a minute",
+        }));
+    });
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("expected the listing to fail");
+
+    assert_eq!(
+        err.to_string(),
+        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready\n  Suggestion: wait a minute"
     );
 }
 

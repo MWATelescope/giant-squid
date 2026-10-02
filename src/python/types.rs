@@ -21,7 +21,7 @@ use crate::asvo::apiv2::openapi::{
 };
 use crate::asvo::{
     AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec,
-    Delivery, DownloadProgress,
+    Delivery, DownloadProgress, DownloadSettings,
 };
 use crate::obs_id::ObsId;
 
@@ -520,6 +520,60 @@ impl From<DownloadProgress> for PyDownloadProgress {
             DownloadProgress::Advanced { bytes } => Self::Advanced { bytes },
             DownloadProgress::Finished => Self::Finished {},
         }
+    }
+}
+
+/// The download settings that the `giant-squid` command reads from the
+/// environment, to pass to `AsvoClient.download_job` and `download_obs`.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
+#[pyclass(
+    frozen,
+    skip_from_py_object,
+    name = "DownloadSettings",
+    module = "mwa_giant_squid"
+)]
+pub struct PyDownloadSettings(DownloadSettings);
+
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
+#[pymethods]
+impl PyDownloadSettings {
+    /// Read the settings from the environment.
+    ///
+    /// `GIANT_SQUID_BUF_SIZE` is a whole number of MiB. `GIANT_SQUID_DOWNLOAD_RETRY_SECS`
+    /// is a whole number of seconds; a value that is not one is logged as a
+    /// warning and the default is used. A setting that is not set has the
+    /// library's default.
+    ///
+    /// Raises:
+    ///     AsvoError: `GIANT_SQUID_BUF_SIZE` is set but is not a whole
+    ///         number of MiB, or is too large (kind `InvalidEnvironment`).
+    #[staticmethod]
+    fn from_env(py: Python<'_>) -> PyResult<Self> {
+        DownloadSettings::from_env()
+            .map(Self)
+            .map_err(|e| asvo_error(py, e))
+    }
+
+    /// How many bytes to hold in memory before they are written. Pass it as
+    /// `buffer_size`.
+    #[getter]
+    fn buffer_size(&self) -> usize {
+        self.0.buffer_size
+    }
+
+    /// How long to retry a failing download, in seconds. Pass it as
+    /// `retry_duration`.
+    #[getter]
+    fn retry_duration(&self) -> f64 {
+        self.0.retry_duration.as_secs_f64()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DownloadSettings(buffer_size={}, retry_duration={})",
+            self.0.buffer_size,
+            self.0.retry_duration.as_secs_f64()
+        )
     }
 }
 

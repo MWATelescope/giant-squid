@@ -208,6 +208,102 @@ def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPSer
     assert err.value.error_code == "JOB_INVALID_STATE"
     assert err.value.message == "Job is not ready"
     assert err.value.suggestion == "try again"
+    # The message has the server's detail and suggestion as the server wrote them.
+    assert str(err.value) == (
+        "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
+        "\n  Detail: detail from the mock\n  Suggestion: try again"
+    )
+
+
+# The environment variables that `AsvoClient.from_env` and `DownloadSettings.from_env` read.
+ENV_NAMES = [
+    "MWA_ASVO_API_KEY",
+    "MWA_ASVO_HOST",
+    "MWA_ASVO_API_TIMEOUT",
+    "HOME",
+    "GIANT_SQUID_BUF_SIZE",
+    "GIANT_SQUID_DOWNLOAD_RETRY_SECS",
+]
+
+
+@pytest.fixture
+def clean_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
+    """Remove the variables that the module reads, so a test sets only what it needs.
+
+    Args:
+        monkeypatch: Sets and removes the variables for the test.
+
+    Returns:
+        The monkeypatch, to set variables with.
+    """
+    for name in ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    return monkeypatch
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_from_env_logs_in_with_the_environment_and_caches_the_session(
+    host: str, clean_env: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    """`AsvoClient.from_env` takes the key, the host and the home directory from the environment."""
+    clean_env.setenv("MWA_ASVO_API_KEY", TEST_API_KEY)
+    clean_env.setenv("MWA_ASVO_HOST", host)
+    clean_env.setenv("HOME", str(tmp_path))
+
+    client = gs.AsvoClient.from_env()
+
+    assert host in repr(client)
+    assert (tmp_path / ".mwa-asvo" / "tokens.json").is_file()
+
+
+def test_from_env_needs_the_api_key(clean_env: pytest.MonkeyPatch) -> None:
+    """Without `MWA_ASVO_API_KEY` the error is the library's, and no request is made."""
+    with pytest.raises(gs.AsvoApiError) as err:
+        gs.AsvoClient.from_env()
+
+    assert err.value.kind == "MissingAuthKey"
+    assert str(err.value) == "MWA_ASVO_API_KEY is not defined."
+
+
+def test_download_settings_default_to_the_library_defaults(clean_env: pytest.MonkeyPatch) -> None:
+    """With no variable set, the settings are the library's defaults: 100 MiB and 900 s."""
+    settings = gs.DownloadSettings.from_env()
+
+    assert settings.buffer_size == 100 * 1024 * 1024
+    assert settings.retry_duration == 900.0
+
+
+def test_download_settings_are_read_from_the_environment(clean_env: pytest.MonkeyPatch) -> None:
+    """The buffer size is in MiB and the retry duration in seconds."""
+    clean_env.setenv("GIANT_SQUID_BUF_SIZE", "3")
+    clean_env.setenv("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "7")
+
+    settings = gs.DownloadSettings.from_env()
+
+    assert settings.buffer_size == 3 * 1024 * 1024
+    assert settings.retry_duration == 7.0
+
+
+def test_a_bad_buffer_size_raises_the_librarys_error(clean_env: pytest.MonkeyPatch) -> None:
+    """One message for the Rust and the Python command; the kind and the fields say which variable."""
+    clean_env.setenv("GIANT_SQUID_BUF_SIZE", "lots")
+
+    with pytest.raises(gs.AsvoError) as err:
+        gs.DownloadSettings.from_env()
+
+    assert err.value.kind == "InvalidEnvironment"
+    assert err.value.name == "GIANT_SQUID_BUF_SIZE"
+    assert err.value.value == "lots"
+    assert str(err.value) == (
+        "Environment variable GIANT_SQUID_BUF_SIZE='lots' is not valid. (It should be an integer number of MiB)"
+    )
+
+
+def test_a_bad_retry_duration_gives_the_default(clean_env: pytest.MonkeyPatch) -> None:
+    """A retry duration that is not a whole number of seconds is a warning, not an error."""
+    clean_env.setenv("GIANT_SQUID_DOWNLOAD_RETRY_SECS", "forever")
+
+    assert gs.DownloadSettings.from_env().retry_duration == 900.0
 
 
 @pytest.mark.usefixtures("mock_login")

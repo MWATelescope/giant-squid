@@ -26,7 +26,9 @@ use super::types::{
     PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
     PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
+use crate::asvo::{
+    client_config_from_env, AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter,
+};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -73,6 +75,29 @@ impl PyAsvoClient {
         }
         config.token_cache_path = token_cache_path;
 
+        let inner = py
+            .detach(|| AsvoClient::new(config))
+            .map_err(|e| api_error(py, e))?;
+        Ok(Self { inner, host })
+    }
+
+    /// Make a client from the environment variables of the `giant-squid`
+    /// command, and log in.
+    ///
+    /// This is the one place where the module reads the environment, and it
+    /// does so only when you call it. `MWA_ASVO_API_KEY` is required.
+    /// `MWA_ASVO_HOST` is the host (default: the MWA ASVO), `MWA_ASVO_API_TIMEOUT`
+    /// is the time limit of a request in whole seconds, and the session is
+    /// cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid`
+    /// command. A value of `MWA_ASVO_API_TIMEOUT` that is not a whole number
+    /// of seconds is logged as a warning and the default is used.
+    ///
+    /// Raises:
+    ///     AsvoApiError: `MWA_ASVO_API_KEY` is not set, or the login failed.
+    #[staticmethod]
+    fn from_env(py: Python<'_>) -> PyResult<Self> {
+        let config = client_config_from_env().map_err(|e| api_error(py, e))?;
+        let host = config.host.clone();
         let inner = py
             .detach(|| AsvoClient::new(config))
             .map_err(|e| api_error(py, e))?;

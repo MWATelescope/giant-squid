@@ -80,7 +80,8 @@ rest of this guide, so it is also an example of how to write your own client.
 You need an MWA ASVO API key. To get one, log in to the
 [MWA ASVO portal](https://asvo.mwatelescope.org/) and copy the key from your profile.
 
-The module reads no environment variables. Your program must read the key and give it to the client:
+The module reads no environment variable unless you ask it to (see below). Your program can read the key and
+give it to the client:
 
 ```python
 import os
@@ -117,6 +118,30 @@ client = mwa_giant_squid.AsvoClient(
 ```
 
 To use a different MWA ASVO server (for example, to test a new feature), give its URL as `host`.
+
+### The environment, if you want it
+
+`AsvoClient.from_env()` makes a client from the environment variables of the `giant-squid` command, and logs in.
+It is the only place where the module reads the environment, and it does so only when you call it:
+
+| Variable | Meaning |
+|---|---|
+| `MWA_ASVO_API_KEY` | Your API key. Required. Without it, `from_env` raises `AsvoApiError` (kind `MissingAuthKey`). |
+| `MWA_ASVO_HOST` | The MWA ASVO URL. Default: the MWA ASVO. |
+| `MWA_ASVO_API_TIMEOUT` | The time limit of a request, in whole seconds. A value that is not a whole number is logged as a warning and the default is used. |
+| `HOME` | The session is cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid` command. Without it, the session is not cached. |
+
+`DownloadSettings.from_env()` reads the two download settings the same way. Pass them to the download methods:
+
+```python
+settings = mwa_giant_squid.DownloadSettings.from_env()
+client.download_job(job_id, "/data/mwa", buffer_size=settings.buffer_size, retry_duration=settings.retry_duration)
+```
+
+`GIANT_SQUID_BUF_SIZE` is a whole number of MiB. A value that is not one raises `AsvoError` (kind
+`InvalidEnvironment`, with the attributes `name`, `value` and `problem`). `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is a
+whole number of seconds; a value that is not one is a warning, and the default is used. The messages are the same in
+the Rust and the Python `giant-squid` command, because both come from the library.
 
 ## List jobs
 
@@ -310,7 +335,7 @@ the function raises an exception, the download stops and the call raises that ex
 
 | Exception | When |
 |---|---|
-| `AsvoApiError` | An API call failed. This includes a login that failed and an API call inside a download. |
+| `AsvoApiError` | An API call failed. This includes a login that failed and an API call inside a download. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
 | `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. |
 | `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
 | `OSError` | A file cannot be read or written. |

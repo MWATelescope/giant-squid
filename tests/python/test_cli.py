@@ -548,6 +548,9 @@ def test_a_failed_submission_does_not_stop_the_others(
     assert any(line.startswith(f"[ERROR] Obsid {OTHER_OBS_ID}:") and "NOPE" in line for line in lines)
     assert "[INFO] Submitted 2 of 3 obsids for visibility download." in lines
     assert f"Error: 1 of 3 obsids failed:\n  {OTHER_OBS_ID}:" in result.err
+    # The server's detail and suggestion reach the user, unchanged.
+    assert "Detail: detail from the mock" in result.err
+    assert "Suggestion: try again" in result.err
     assert len(bodies_sent_to(httpserver, DOWNLOAD_PATH)) == 3
 
 
@@ -571,8 +574,8 @@ def test_submit_with_wait_polls_until_the_job_is_ready(
     assert "[INFO] Waiting for 1 jobs to be ready..." in lines
     assert lines.count(f"[INFO] Job ID {SUBMITTED_JOB_ID} (obsid: {TEST_OBS_ID}): is Queued") == 1
     assert "[INFO] All 1 MWA ASVO jobs are ready for download." in lines
-    assert no_sleep[0] == cli_commands.WAIT_INITIAL_DELAY_S
-    assert no_sleep.count(cli_commands.WAIT_POLL_INTERVAL_S) == 3
+    assert no_sleep[0] == gs.WAIT_INITIAL_DELAY_SECS
+    assert no_sleep.count(gs.WAIT_POLL_INTERVAL_SECS) == 3
 
 
 # wait and cancel
@@ -586,7 +589,7 @@ def test_wait_prints_the_jobs_when_they_are_ready(
 
     assert result.code == EXIT_OK, result.err
     assert list(json.loads(result.out)) == [str(LISTED_JOB_ID)]
-    assert no_sleep == [cli_commands.WAIT_INITIAL_DELAY_S]
+    assert no_sleep == [gs.WAIT_INITIAL_DELAY_SECS]
 
 
 def test_wait_fails_for_a_job_with_an_error(

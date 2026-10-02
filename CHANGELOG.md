@@ -61,6 +61,11 @@ before you upgrade scripts.**
 
 * giant-squid is now a Rust library with a public API that reads no environment variables and prints nothing
   (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
+* The environment variables of the `giant-squid` command are read in the library, in one place, for both commands:
+  the Rust function `client_config_from_env` and `DownloadSettings::from_env`, and in Python `AsvoClient.from_env()`
+  and `DownloadSettings.from_env()`. The messages about a bad value are the same in both commands. A
+  `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning in both (the Rust command
+  ignored it silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused in both.
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs a `giant-squid` command with the same commands and options as the Rust one. See
   [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.

@@ -12,6 +12,18 @@ import pathlib
 import typing
 
 __all__ = [
+    "DEFAULT_CONCURRENT_DOWNLOADS",
+    "ENDPOINT_BEAMFORMER_JOB",
+    "ENDPOINT_CONVERSION_JOB",
+    "ENDPOINT_DOWNLOAD_VIS_JOB",
+    "ENDPOINT_IMAGE_FROM_JOB",
+    "ENDPOINT_IMAGING_JOB",
+    "ENDPOINT_JOBS",
+    "ENDPOINT_VOLTAGE_JOB",
+    "ENV_GIANT_SQUID_DELIVERY",
+    "ENV_GIANT_SQUID_DELIVERY_FORMAT",
+    "WAIT_INITIAL_DELAY_SECS",
+    "WAIT_POLL_INTERVAL_SECS",
     "AsvoApiError",
     "AsvoClient",
     "AsvoError",
@@ -25,6 +37,7 @@ __all__ = [
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
+    "DownloadSettings",
     "JobSubmittedResponse",
     "Output",
     "OutputMode",
@@ -41,6 +54,18 @@ __all__ = [
     "voltage_job_params",
 ]
 
+DEFAULT_CONCURRENT_DOWNLOADS: builtins.int
+ENDPOINT_BEAMFORMER_JOB: builtins.str
+ENDPOINT_CONVERSION_JOB: builtins.str
+ENDPOINT_DOWNLOAD_VIS_JOB: builtins.str
+ENDPOINT_IMAGE_FROM_JOB: builtins.str
+ENDPOINT_IMAGING_JOB: builtins.str
+ENDPOINT_JOBS: builtins.str
+ENDPOINT_VOLTAGE_JOB: builtins.str
+ENV_GIANT_SQUID_DELIVERY: builtins.str
+ENV_GIANT_SQUID_DELIVERY_FORMAT: builtins.str
+WAIT_INITIAL_DELAY_SECS: builtins.float
+WAIT_POLL_INTERVAL_SECS: builtins.float
 __version__: builtins.str
 
 class AsvoApiError(builtins.Exception):
@@ -112,6 +137,23 @@ class AsvoClient:
         api_timeout: builtins.float | None = None,
         token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
     ) -> AsvoClient: ...
+    @staticmethod
+    def from_env() -> AsvoClient:
+        r"""
+        Make a client from the environment variables of the `giant-squid`
+        command, and log in.
+
+        This is the one place where the module reads the environment, and it
+        does so only when you call it. `MWA_ASVO_API_KEY` is required.
+        `MWA_ASVO_HOST` is the host (default: the MWA ASVO), `MWA_ASVO_API_TIMEOUT`
+        is the time limit of a request in whole seconds, and the session is
+        cached in `$HOME/.mwa-asvo/tokens.json`, shared with the `giant-squid`
+        command. A value of `MWA_ASVO_API_TIMEOUT` that is not a whole number
+        of seconds is logged as a warning and the default is used.
+
+        Raises:
+            AsvoApiError: `MWA_ASVO_API_KEY` is not set, or the login failed.
+        """
     def get_jobs(
         self,
         days: builtins.int | None = None,
@@ -661,6 +703,18 @@ class AsvoError(builtins.Exception):
     r"""
     InvalidJobState and InvalidJobType: the text that could not be parsed.
     """
+    name: builtins.str
+    r"""
+    InvalidEnvironment: the name of the environment variable.
+    """
+    value: builtins.str
+    r"""
+    InvalidEnvironment: its value.
+    """
+    problem: builtins.str
+    r"""
+    InvalidEnvironment: what is wrong with it.
+    """
 
 @typing.final
 class AsvoFilesArray:
@@ -909,6 +963,39 @@ class DownloadProgress:
 
         __match_args__ = ()
         def __new__(cls) -> DownloadProgress.Finished: ...
+
+@typing.final
+class DownloadSettings:
+    r"""
+    The download settings that the `giant-squid` command reads from the
+    environment, to pass to `AsvoClient.download_job` and `download_obs`.
+    """
+    @property
+    def buffer_size(self) -> builtins.int:
+        r"""
+        How many bytes to hold in memory before they are written. Pass it as
+        `buffer_size`.
+        """
+    @property
+    def retry_duration(self) -> builtins.float:
+        r"""
+        How long to retry a failing download, in seconds. Pass it as
+        `retry_duration`.
+        """
+    @staticmethod
+    def from_env() -> DownloadSettings:
+        r"""
+        Read the settings from the environment.
+
+        `GIANT_SQUID_BUF_SIZE` is a whole number of MiB. `GIANT_SQUID_DOWNLOAD_RETRY_SECS`
+        is a whole number of seconds; a value that is not one is logged as a
+        warning and the default is used. A setting that is not set has the
+        library's default.
+
+        Raises:
+            AsvoError: `GIANT_SQUID_BUF_SIZE` is set but is not a whole
+                number of MiB, or is too large (kind `InvalidEnvironment`).
+        """
 
 @typing.final
 class JobSubmittedResponse:

@@ -55,11 +55,13 @@ pub enum AsvoApiError {
     /// `super::openapi::ErrorResponse` individually rather than wrapping it
     /// directly, since thiserror needs a plain `Display` to format on.
     ///
-    /// The message has the field errors and the request ID, if the server
-    /// gave them, after the error code and message.
+    /// The message is the error code and the server's message, then what
+    /// the server gave of its `detail`, its `suggestion`, the field errors
+    /// and the request ID, each on a line of its own. Nothing is rewritten:
+    /// the text is the server's.
     #[error(
         "MWA ASVO returned an error ({error_code}): {message}{}",
-        api_error_extra(field_errors, request_id.as_deref())
+        api_error_extra(detail.as_deref(), suggestion.as_deref(), field_errors, request_id.as_deref())
     )]
     ApiError {
         error_code: String,
@@ -83,9 +85,22 @@ pub enum AsvoApiError {
 }
 
 /// The part of an [`AsvoApiError::ApiError`] message after the error code
-/// and message: one line for each field error, then the request ID.
-fn api_error_extra(field_errors: &[FieldError], request_id: Option<&str>) -> String {
+/// and message: the detail and the suggestion, one line for each field
+/// error, then the request ID. A part that the server did not give is left
+/// out.
+fn api_error_extra(
+    detail: Option<&str>,
+    suggestion: Option<&str>,
+    field_errors: &[FieldError],
+    request_id: Option<&str>,
+) -> String {
     let mut extra = String::new();
+    if let Some(detail) = detail {
+        extra.push_str(&format!("\n  Detail: {detail}"));
+    }
+    if let Some(suggestion) = suggestion {
+        extra.push_str(&format!("\n  Suggestion: {suggestion}"));
+    }
     for e in field_errors {
         extra.push_str(&format!("\n  {}: {}", e.field, e.message));
     }

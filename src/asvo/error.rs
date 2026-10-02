@@ -77,6 +77,16 @@ pub enum AsvoError {
     #[error("Could not parse job type from str: {str}")]
     InvalidJobType { str: String },
 
+    /// An environment variable that the settings are read from has a value
+    /// that cannot be used (see [`DownloadSettings::from_env`](super::DownloadSettings::from_env)).
+    /// `problem` completes the sentence: `is not valid. (It should be ...)`.
+    #[error("Environment variable {name}='{value}' {problem}")]
+    InvalidEnvironment {
+        name: String,
+        value: String,
+        problem: String,
+    },
+
     /// An MWA ASVO API call failed, for example the job list request that
     /// a download does first.
     #[error("{0}")]
