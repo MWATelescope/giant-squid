@@ -148,4 +148,4 @@ pub fn check_file_sha1_hash(
 }
 
 #[cfg(test)]
-mod test;
+mod tests;

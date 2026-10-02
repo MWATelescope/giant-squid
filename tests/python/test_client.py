@@ -23,6 +23,13 @@ from .conftest import (
     job_detail,
 )
 
+# The schema's default for the days of a job listing, read from the schema that the library is built from, so
+# that the test follows the API and does not repeat its number.
+SCHEMA_PATH = pathlib.Path(__file__).parents[2] / "src" / "asvo" / "apiv2" / "openapi-schema.json"
+SCHEMA_DEFAULT_DAYS = json.loads(SCHEMA_PATH.read_text())["definitions"]["JobsByUserRequest"]["properties"]["days"][
+    "default"
+]
+
 # Job IDs used by these tests.
 JOB_ID_READY = 101
 JOB_ID_QUEUED = 102
@@ -344,13 +351,13 @@ def test_get_jobs_sends_every_filter_to_the_server(
 
 @pytest.mark.usefixtures("mock_login")
 def test_get_jobs_with_no_filter_sends_none(host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None]) -> None:
-    """With no filters, the body has days null, the default order, and no other filter."""
+    """With no filters, the body has the schema's default for days, the default order, and no other filter."""
     serve_jobs([])
 
     gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
     body = get_jobs_body(httpserver)
-    assert body["days"] is None
+    assert body["days"] == SCHEMA_DEFAULT_DAYS
     assert body["sort_by"] == "id"
     for key in ("job_state", "job_type", "date_from", "date_to"):
         assert key not in body

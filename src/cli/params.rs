@@ -9,7 +9,7 @@
 //! [`super::Args`] variant) paired with a `to_params` method that builds the
 //! generated OpenAPI request type. Keeping the argument-to-request-body
 //! mapping in pure functions means it can be tested without a server: see
-//! `src/cli/test.rs`.
+//! `src/cli/tests.rs`.
 
 use std::num::NonZeroU64;
 
@@ -17,8 +17,8 @@ use clap::ArgAction;
 
 use crate::asvo::apiv2::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode, Polarization,
-    VoltageJobParams, Weighting,
+    DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest, Output,
+    OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::asvo::apiv2::validate::{self, Bounds};
 use crate::asvo::{AsvoApiError, AsvoJobId};
@@ -53,6 +53,16 @@ pub fn parse_job_ids_only(strings: &[String]) -> anyhow::Result<Vec<AsvoJobId>> 
 
 /// What to do when an obsid is given to a command that takes job IDs only.
 const OBS_ID_HINT: &str = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'.";
+
+/// The default of `list --days`: the schema's default for the `days` of a job
+/// listing (`JobsByUserRequest`), so that the help shows it and the CLI cannot
+/// drift from the API.
+pub fn list_days_default() -> i64 {
+    let days = JobsByUserRequest::default()
+        .days
+        .expect("BUG: the schema has no default for JobsByUserRequest.days");
+    i64::try_from(days.get()).expect("BUG: the default of days does not fit an i64")
+}
 
 /// Builds a clap value parser that only accepts an f64 within `bounds`.
 /// The bounds are the library's ([`crate::asvo::apiv2::validate`]), which

@@ -84,7 +84,7 @@ impl PyAsvoClient {
     ///
     /// Args:
     ///     days: Only the jobs from the past `days` days, from 1 to 30.
-    ///         `None` gets your full job history.
+    ///         `None` is the default of the MWA ASVO API.
     ///     job_state: Only the jobs in this state. The server takes one
     ///         state; to filter by several, use `AsvoJobVec.filter`.
     ///         `AsvoJobState.Expired` cannot be filtered by.
@@ -139,7 +139,7 @@ impl PyAsvoClient {
     ///         kind, so `AsvoJobState.Error` matches every job with an
     ///         error. `AsvoJobState.Expired` works here too.
     ///     days: Only the jobs from the past `days` days, from 1 to 30.
-    ///         `None` gets your full job history.
+    ///         `None` is the default of the MWA ASVO API.
     ///     date_from: Only the jobs created at or after this time. It must
     ///         have a time zone.
     ///     date_to: Only the jobs created at or before this time. It must

@@ -430,4 +430,4 @@ pub struct DownloadOptions<'a> {
 }
 
 #[cfg(test)]
-mod test;
+mod tests;

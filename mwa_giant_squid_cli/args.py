@@ -405,7 +405,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disables colouring of output. Useful when you have a non-black terminal background for example",
     )
     list_parser.add_argument(
-        "--days", type=int, help="Only fetch jobs from the past N days. If not given, fetches your full job history."
+        "--days", type=int, help="Only fetch jobs from the past N days. If not given, the MWA ASVO's default is used."
     )
     list_parser.add_argument(
         "--date-from",

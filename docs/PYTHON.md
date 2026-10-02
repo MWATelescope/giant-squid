@@ -121,7 +121,8 @@ To use a different MWA ASVO server (for example, to test a new feature), give it
 ## List jobs
 
 `get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
-does not filter.
+does not filter, except `days` and `sort_by`: with `days=None` you get the jobs from the MWA ASVO's default
+window (the schema's default, 30 days at the time of writing), not your full history.
 
 ```python
 from mwa_giant_squid import AsvoJobState

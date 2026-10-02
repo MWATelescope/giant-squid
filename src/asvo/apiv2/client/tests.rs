@@ -20,7 +20,7 @@ use httpmock::prelude::*;
 use serde_json::json;
 
 #[cfg(feature = "bin")]
-use crate::asvo::apiv2::openapi::DownloadJobParams;
+use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::asvo::{
     AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobQuery, JobsFilter,
 };
@@ -973,7 +973,9 @@ fn record_login_and_get_jobs() {
 
     let path = recording.save("login_and_get_jobs").expect("save failed");
     println!("raw recording: {}", path.display());
-    println!("scrub it before committing - see the section notes in src/asvo/apiv2/client/test.rs");
+    println!(
+        "scrub it before committing - see the section notes in src/asvo/apiv2/client/tests.rs"
+    );
 }
 
 /// Since schema v1.11 a product file has a `format`, which is kept.
@@ -1052,15 +1054,20 @@ fn get_jobs_sends_every_filter_to_the_server() {
     assert_eq!(filtered.calls(), 1);
 }
 
-/// With no filter, nothing is filtered: `days` is null, and the schema's
-/// default order (`id`) is used.
+/// With no filter, nothing is filtered: `days` and the order are the
+/// schema's defaults (not `null`, which would be a request of its own), and
+/// no other filter is sent.
 #[test]
-fn get_jobs_with_no_filter_asks_for_everything() {
+fn get_jobs_with_no_filter_uses_the_schema_defaults() {
     let env = TestEnv::with_session();
+    let schema_default_days = JobsByUserRequest::default()
+        .days
+        .expect("the schema has a default for days")
+        .get();
     let unfiltered = env.server.mock(|when, then| {
         when.method(POST)
             .path("/api/v2/get_jobs")
-            .json_body_includes(r#"{ "days": null, "sort_by": "id" }"#)
+            .json_body_includes(json!({ "days": schema_default_days, "sort_by": "id" }).to_string())
             .is_true(|req| {
                 let body: serde_json::Value =
                     serde_json::from_slice(req.body().as_ref()).unwrap_or_default();

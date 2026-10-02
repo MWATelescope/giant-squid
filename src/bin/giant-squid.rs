@@ -239,8 +239,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
     // user's queue is hopefully current.
     std::thread::sleep(WAIT_INITIAL_DELAY);
     loop {
-        // `None` here mirrors `list`'s own default: fetch full history
-        // rather than relying on the (unconfirmed) server-side default.
+        // The default window of the API, as `list` without `--days` has.
         let jobs = client.get_jobs(&JobsFilter::default())?;
         let all_ready = jobs.all_ready(job_ids)?;
 

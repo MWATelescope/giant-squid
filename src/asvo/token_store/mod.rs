@@ -23,7 +23,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 /// How much of a safety buffer to apply when deciding if a token is still
 /// valid. This avoids a token expiring mid-flight between the check and the

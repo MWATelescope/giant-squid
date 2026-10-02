@@ -652,15 +652,16 @@ impl AsvoClient {
     /// Fetch the caller's MWA ASVO jobs, all pages of them.
     ///
     /// `filter` gives the server-side filters of the MWA ASVO API
-    /// (`JobsByUserRequest`); [`JobsFilter::default()`] gets every job. The
-    /// server takes one state and one type at most; to filter by several,
-    /// use [`AsvoJobVec::filter`] on the result.
+    /// (`JobsByUserRequest`); [`JobsFilter::default()`] gets the jobs that
+    /// the API returns by default. The server takes one state and one type
+    /// at most; to filter by several, use [`AsvoJobVec::filter`] on the
+    /// result.
     ///
     /// `filter.days` must be from 1 to 30 ([`validate::DAYS`], the schema's
-    /// limits). With it unset, `days: null` is sent to ask for the full
-    /// history. ASSUMPTION, not yet confirmed against the real server: that
-    /// the server takes a null `days` as "no limit" rather than as its own
-    /// default (30). `tests/live.rs` has a probe for it.
+    /// limits). With it unset, the request has the schema's default for
+    /// `days` (30 in the current schema), like every other filter that is
+    /// unset: the library adds no default of its own, and does not ask for
+    /// "all" jobs.
     ///
     /// Individual jobs that can't be reliably converted (an obs_id we
     /// can't find/parse in the untyped `job_params`, or a job_state we
@@ -684,15 +685,19 @@ impl AsvoClient {
         let mut offset: u64 = 0;
 
         loop {
-            // The builder starts from the schema defaults.
+            // The builder starts from the schema defaults, and `days` keeps
+            // its default unless the filter has one. (Passing `None` would
+            // send `"days": null`, which is not the default.)
             let mut builder = JobsByUserRequest::builder()
-                .days(days)
                 .job_state(job_state)
                 .job_type(job_type.clone())
                 .date_from(filter.date_from)
                 .date_to(filter.date_to)
                 .limit(NonZeroU64::new(PAGE_SIZE).unwrap())
                 .offset(offset);
+            if let Some(days) = days {
+                builder = builder.days(days);
+            }
             if let Some(sort_by) = &filter.sort_by {
                 builder = builder.sort_by(sort_by.clone());
             }
@@ -1168,7 +1173,8 @@ fn product_to_files(
 
 /// The server-side filters of [`AsvoClient::get_jobs`], which are those of
 /// the MWA ASVO API's `JobsByUserRequest`. A field that is `None` does not
-/// filter (or, for `sort_by`, uses the API's default order).
+/// filter, except `days` and `sort_by`, which use the API's defaults (the
+/// past 30 days, and the order `id`, in the current schema).
 ///
 /// `job_state` and `job_type` are the library's own types, as in
 /// [`AsvoJob`], and are converted to the API's values: a `Ready` job is
@@ -1176,7 +1182,7 @@ fn product_to_files(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JobsFilter {
     /// Only the jobs from the past `days` days, from 1 to 30
-    /// ([`validate::DAYS`]).
+    /// ([`validate::DAYS`]). `None` is the API's default.
     pub days: Option<i64>,
     /// Only the jobs in this state. The kind of state is used, so any
     /// `AsvoJobState::Error` matches every job with an error.
@@ -1328,4 +1334,4 @@ struct RawJobsPage {
 }
 
 #[cfg(test)]
-mod test;
+mod tests;

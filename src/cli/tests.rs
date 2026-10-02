@@ -826,6 +826,34 @@ fn list_filters_parse() {
     }
 }
 
+/// Without `--days`, the CLI uses the schema's default for the days of a job
+/// listing, and the help shows it. It does not ask for the full history.
+#[test]
+fn list_days_defaults_to_the_schema_default() {
+    use clap::CommandFactory;
+
+    match parse(&["giant-squid", "list"]) {
+        Args::List { days, .. } => {
+            assert_eq!(days, Some(super::params::list_days_default()));
+        }
+        other => panic!("expected List, got {other:?}"),
+    }
+
+    let cli = Args::command();
+    let days = cli
+        .find_subcommand("list")
+        .expect("list exists")
+        .get_arguments()
+        .find(|arg| arg.get_long() == Some("days"))
+        .expect("list has --days");
+    let defaults: Vec<String> = days
+        .get_default_values()
+        .iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(defaults, [super::params::list_days_default().to_string()]);
+}
+
 /// `--days` takes the schema's 1 to 30, and says so when it is outside it.
 #[test]
 fn list_days_is_limited_to_the_schema_range() {

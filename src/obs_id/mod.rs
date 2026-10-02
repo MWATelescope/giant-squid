@@ -78,4 +78,4 @@ pub enum ObsIdError {
 }
 
 #[cfg(test)]
-mod test;
+mod tests;

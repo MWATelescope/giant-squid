@@ -187,8 +187,15 @@ The filter options have the API's names. The 2.x names still work:
 
 New options: `--date-from` and `--date-to` (a date such as `2026-09-01`,
 which is midnight UTC, or a time such as `2026-09-01T12:00:00Z`) and
-`--sort-by`. `--days` is as in 2.x, but takes 1 to 30, the limits of the MWA ASVO API; other
+`--sort-by`. `--days` takes 1 to 30, the limits of the MWA ASVO API; other
 values are refused before any request.
+
+**`list` without `--days` shows the MWA ASVO's default window, not your full
+history.** In 2.x, `giant-squid list` with no `--days` fetched every job you
+have. In 3.0.0 it asks for the API's default, which is the past 30 days (the
+most the API takes in `--days`). `giant-squid list --help` shows the default.
+`wait` and `download` list jobs the same way, so they find the jobs of the past
+30 days.
 
 `--job-types` now refuses text that is not a job type, with an error that
 names it. In 2.x any other text (a misspelt name, for example) was accepted and

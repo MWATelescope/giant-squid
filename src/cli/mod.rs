@@ -17,7 +17,7 @@ pub mod table;
 pub mod value_enums;
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
@@ -25,8 +25,8 @@ use jiff::Timestamp;
 use crate::asvo::apiv2::validate;
 use crate::asvo::{AsvoJobState, AsvoJobType};
 use params::{
-    parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs,
-    ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
+    list_days_default, parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
+    DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
 
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
@@ -70,9 +70,8 @@ pub enum Args {
         #[arg(short, long)]
         no_colour: bool,
 
-        /// Only fetch jobs from the past N days (1 to 30). If not given,
-        /// fetches your full job history.
-        #[arg(long, value_parser = parse_i64_bounds(validate::DAYS))]
+        /// Only fetch jobs from the past N days (1 to 30)
+        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_i64_bounds(validate::DAYS))]
         days: Option<i64>,
 
         /// Only jobs created at or after this time: RFC 3339 (for example

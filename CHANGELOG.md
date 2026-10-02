@@ -32,7 +32,9 @@ before you upgrade scripts.**
   `--dry-run` they print the request body that would be sent. The `status` text of a reply ("success" or
   "failed") is for display; the exit code tells you whether a submission worked.
 * `list`: new options `--date-from`, `--date-to` and `--sort-by`. `--job-states` and `--job-types` are the new
-  names of `--states` and `--types`, which still work. `--days` takes 1 to 30.
+  names of `--states` and `--types`, which still work. `--days` takes 1 to 30, and without it `list` uses the
+  MWA ASVO API's default (30 days, shown in `--help`) instead of fetching your full history. `wait` and
+  `download` find jobs the same way.
 * `list --json` and `wait --json` use the API's key names (for example `job_id`, `obs_id`, `product.files`) and
   have more keys. `--legacy-json` prints the old format for one release, and is deprecated: it will be removed in
   the release after 3.0.0.

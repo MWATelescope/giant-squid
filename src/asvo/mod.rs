@@ -9,7 +9,7 @@ mod token_store;
 mod types;
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 use crate::check_file_sha1_hash;
 use crate::obs_id::ObsId;

@@ -132,4 +132,4 @@ impl<T: SchemaEnum> TypedValueParser for SchemaEnumParser<T> {
 }
 
 #[cfg(test)]
-mod test;
+mod tests;

@@ -30,7 +30,7 @@ use super::openapi::{
 };
 
 #[cfg(test)]
-mod test;
+mod tests;
 
 /// An inclusive range of numbers. A `None` end has no limit.
 ///
