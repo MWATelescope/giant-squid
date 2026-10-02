@@ -1182,6 +1182,25 @@ class Weighting(enum.Enum):
     Uniform = ...
     Natural = ...
 
+def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
+    r"""
+    Run the `giant-squid` command line program, which is written in Rust,
+    and return its exit code.
+
+    This is what the Python `giant-squid` program calls, so that it is
+    the same program as the Rust one. It is not part of the library API
+    and may change.
+
+    Args:
+        args: The arguments, the first of which is the name of the program.
+
+    Returns:
+        The exit code: 0 for success (also for `--help` and `--version`),
+        2 for a bad argument, 1 for any other error. The output and the
+        errors are written to the real standard output and standard error
+        of the process, not to `sys.stdout` and `sys.stderr`.
+    """
+
 def beamformer_job_params(
     obs_id: builtins.int,
     *,
@@ -1425,7 +1444,9 @@ def reset_logging() -> None:
     For speed, the module caches each Python logger and its level the
     first time a Rust log record uses it. Call this after you change
     the logging configuration (for example, after `logging.basicConfig`
-    or `setLevel`), if the module has already logged.
+    or `setLevel`), if the module has already logged. The module connects
+    to Python's `logging` when you make the first `AsvoClient` or read the
+    settings from the environment, so until then there is nothing to reset.
     """
 
 def voltage_job_params(

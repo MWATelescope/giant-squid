@@ -12,6 +12,7 @@
 
 pub mod legacy_json;
 pub mod params;
+pub mod run;
 pub mod table;
 pub mod value_enums;
 

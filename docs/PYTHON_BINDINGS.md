@@ -3,7 +3,7 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `eb2a441` (the commit of diff 26), plus diff 27 (below). Level 1 of the
+at `5053f08` (the commit of diff 27), plus diff 28 (below). Level 1 of the
 thin-client refactor is finished, and Level 3 option A is under way. The
 entries under "Status"
 below are the detailed log; this section is the summary and the list of what
@@ -27,8 +27,8 @@ item 1.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 27): 230 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 37 CLI tests; 339 pytest tests; 18 live tests
+- Tests at the last run (after diff 28): 232 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 37 CLI tests; 346 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -115,31 +115,32 @@ item 1.**
    - **Diff 27 (done):** the test imports of `parse_job_ids_only` moved to the
      library and the `cli::params` re-export deleted; the text of
      `submit-image-from-job` for a job ID now points to `--source-job-id`.
-     The two image messages stay in the Rust binary: the Python copies go
-     with the Python command. The Python copy of the `submit-image-from-job`
-     text and its pin in `tests/python/test_cli.py` were left as they are,
-     because diff 29 deletes them.
-   - **Diff 28:** a Rust entry point (a private function of the module, for
-     example `mwa_giant_squid._run_cli(argv)`) that runs the clap CLI of the
-     library, and a small Python launcher. The old Python command stays, so
-     the two can be compared. Needs the `bin` feature in the wheel
-     (`pyproject.toml`: `features = ["python", "bin"]`).
-   - **Diff 29:** `[project.scripts] giant-squid` points to the launcher;
-     delete `mwa_giant_squid_cli` and its pytest files; replace them with a
-     few launcher tests; docs.
-   - **Questions the user has not yet answered (ask before diff 28):**
-     (1) is the plan above right; (2) may `tests/python/test_cli.py` and
-     `test_cli_units.py` be deleted in diff 29 (needs authorization); (3)
-     Ctrl-C: should the Python command act like the native Rust command (the
-     plan: reset SIGINT to the default before the run), or keep a graceful
-     stop with exit code 130; the binary has no Ctrl-C handler of its own, and
-     the library has `AsvoError::Interrupted`, which must be checked first;
-     (4) is the entry point private. Known challenges: the module installs
-     the pyo3-log bridge at import (`src/python/mod.rs`, `try_init`), and only
-     one Rust logger can be installed, so the CLI cannot install its own
-     logger (simplelog with indicatif's `LogWrapper`, for the progress bars)
-     unless the bridge is installed on first use of a client instead; this
-     changes when Python logging is connected, and needs the user's OK.
+     The two image messages stay in the Rust binary's code (now
+     `src/cli/run.rs`): the Python copies go with the Python command. The
+     Python copy of the `submit-image-from-job` text and its pin in
+     `tests/python/test_cli.py` were left as they are, because diff 29
+     deletes them.
+   - **Diff 28 (done):** the whole command is in the library
+     (`src/cli/run.rs`, `run_cli(args) -> i32`); `src/bin/giant-squid.rs` is
+     a caller of it. The module has the private function
+     `mwa_giant_squid._run_cli(args)`, and `mwa_giant_squid_cli/native.py`
+     is the launcher (it puts SIGINT back to its default action, then
+     `sys.exit(_run_cli(["giant-squid", *sys.argv[1:]]))`). It is installed as
+     the temporary command `giant-squid-native`, so it can be compared with
+     the Python `giant-squid`, which is unchanged. The `python` feature now
+     includes `bin`. The module no longer installs the pyo3-log bridge at
+     import: `connect_python_logging()` installs it when the first
+     `AsvoClient` is made or `from_env` is called.
+   - **Diff 29:** `[project.scripts] giant-squid` points to the launcher
+     (and `giant-squid-native` is removed); delete `mwa_giant_squid_cli`
+     except the launcher, and its pytest files (`test_cli.py`,
+     `test_cli_units.py`, and the parts of other files that use the old
+     command) (the user approved the deletion); keep and extend
+     `tests/python/test_native_cli.py`; docs.
+   - **User decisions for this step (2026-10-02):** the plan is right; the
+     Python tests of the old command may be deleted in diff 29; Ctrl-C is
+     the native Rust behaviour (SIGINT reset to the default action); the
+     entry point is private; the pyo3-log bridge is installed on first use.
    - **Considered, not chosen for now:** ship the native binary in a second
      PyPI package (maturin `bindings = "bin"`, built from the same
      `Cargo.toml` in its own directory with its own `pyproject.toml`),
@@ -1061,6 +1062,21 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   `--source-job-id`). New CLI test:
   `a_job_id_argument_of_submit_image_from_job_points_to_source_job_id`. The
   Python command is not changed. The user chose option A for Level 3.
+- 2026-10-02 (diff 28): the command moves from `src/bin/giant-squid.rs` to
+  `src/cli/run.rs` (`pub fn run_cli`, which parses with `Args::try_parse_from`,
+  prints clap's text and returns its code for a bad argument, prints
+  `Error: {error:?}` and returns 1 for an error, and flushes standard output
+  and error before it returns). The two logger set-up functions keep an
+  installed logger and only change the level, instead of `unwrap()`, so a
+  second run in one process does not panic (the second run's progress bars
+  are not wired to the logger of the first). The module has `_run_cli`
+  (the GIL is released while it runs); `python` now includes `bin`;
+  `pyproject.toml` has the temporary script `giant-squid-native`. Tests: 2 new
+  Rust unit tests (exit codes 0 and 2; the exit code 1 is covered by the CLI
+  tests, which run the program) and 7 new pytest tests (346 in total) in
+  `tests/python/test_native_cli.py` (help, version, usage error, command
+  error, logger, `list` against the mock, SIGINT). No existing test was
+  changed.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

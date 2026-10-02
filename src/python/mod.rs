@@ -33,7 +33,7 @@ mod params;
 mod typed;
 mod types;
 
-use std::sync::OnceLock;
+use std::sync::{Once, OnceLock};
 
 use pyo3::prelude::*;
 
@@ -86,13 +86,34 @@ pyo3_stub_gen::module_variable!("mwa_giant_squid", "WAIT_INITIAL_DELAY_SECS", f6
 pyo3_stub_gen::module_variable!("mwa_giant_squid", "DEFAULT_CONCURRENT_DOWNLOADS", usize);
 
 /// The handle that clears `pyo3-log`'s cache of Python loggers and levels.
-/// Set once, when the module is first imported.
+/// Set once, when [`connect_python_logging`] first runs.
 static LOG_RESET_HANDLE: OnceLock<pyo3_log::ResetHandle> = OnceLock::new();
+
+/// Make the Rust log records go to Python's `logging`.
+///
+/// Only one Rust logger can be installed per process, and the `giant-squid`
+/// command (`_run_cli`) needs to install its own, with progress bars. So the
+/// module does not install `pyo3-log` when it is imported. It installs it
+/// here, the first time that something that can log is used: an `AsvoClient`
+/// is made, or the settings are read from the environment. Calls after the
+/// first do nothing.
+///
+/// Another extension module in this process may have installed a Rust logger
+/// already (or the `giant-squid` command, in this process). Then the records
+/// go to that logger, and there is nothing to reset.
+pub(crate) fn connect_python_logging() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| match pyo3_log::try_init() {
+        Ok(handle) => {
+            let _ = LOG_RESET_HANDLE.set(handle);
+        }
+        Err(e) => log::debug!("A Rust logger is already installed; not installing pyo3-log: {e}"),
+    });
+}
 
 /// Python bindings for giant-squid, a client for the MWA ASVO.
 #[pymodule(name = "mwa_giant_squid")]
 mod module {
-    use log::debug;
     use pyo3::prelude::*;
 
     use super::LOG_RESET_HANDLE;
@@ -119,7 +140,9 @@ mod module {
     /// For speed, the module caches each Python logger and its level the
     /// first time a Rust log record uses it. Call this after you change
     /// the logging configuration (for example, after `logging.basicConfig`
-    /// or `setLevel`), if the module has already logged.
+    /// or `setLevel`), if the module has already logged. The module connects
+    /// to Python's `logging` when you make the first `AsvoClient` or read the
+    /// settings from the environment, so until then there is nothing to reset.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
     #[pyfunction]
     fn reset_logging() {
@@ -128,18 +151,31 @@ mod module {
         }
     }
 
+    /// Run the `giant-squid` command line program, which is written in Rust,
+    /// and return its exit code.
+    ///
+    /// This is what the Python `giant-squid` program calls, so that it is
+    /// the same program as the Rust one. It is not part of the library API
+    /// and may change.
+    ///
+    /// Args:
+    ///     args: The arguments, the first of which is the name of the program.
+    ///
+    /// Returns:
+    ///     The exit code: 0 for success (also for `--help` and `--version`),
+    ///     2 for a bad argument, 1 for any other error. The output and the
+    ///     errors are written to the real standard output and standard error
+    ///     of the process, not to `sys.stdout` and `sys.stderr`.
+    #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
+    #[pyfunction]
+    #[pyo3(name = "_run_cli")]
+    fn run_cli(py: Python<'_>, args: Vec<String>) -> i32 {
+        // The command does not use Python, so let other threads run.
+        py.detach(|| crate::cli::run::run_cli(args))
+    }
+
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
-        // Another extension module in this process may already have set the
-        // Rust logger (there is only one per process). Then our records go
-        // to that logger, and there is nothing to reset.
-        match pyo3_log::try_init() {
-            Ok(handle) => {
-                let _ = LOG_RESET_HANDLE.set(handle);
-            }
-            Err(e) => debug!("A Rust logger is already installed; not installing pyo3-log: {e}"),
-        }
-
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
         for (name, value) in super::STRING_CONSTANTS {
             m.add(*name, *value)?;

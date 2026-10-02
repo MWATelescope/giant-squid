@@ -13,6 +13,7 @@ use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
+use super::connect_python_logging;
 use super::error::asvo_error;
 use super::typed::{JobIterator, JsonDict};
 use crate::asvo::apiv2::openapi::{
@@ -609,6 +610,7 @@ impl PyDownloadSettings {
     ///         number of MiB, or is too large (kind `InvalidEnvironment`).
     #[staticmethod]
     fn from_env(py: Python<'_>) -> PyResult<Self> {
+        connect_python_logging();
         DownloadSettings::from_env()
             .map(Self)
             .map_err(|e| asvo_error(py, e))

@@ -16,6 +16,7 @@ use jiff::Timestamp;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use super::connect_python_logging;
 use super::download::{run_download, PyDownloadArgs};
 use super::error::api_error;
 use super::params::{
@@ -67,6 +68,7 @@ impl PyAsvoClient {
         api_timeout: Option<f64>,
         token_cache_path: Option<PathBuf>,
     ) -> PyResult<Self> {
+        connect_python_logging();
         let mut config = AsvoClientConfig::new(host.clone(), api_key);
         if let Some(seconds) = api_timeout {
             config.api_timeout = Duration::try_from_secs_f64(seconds).map_err(|e| {
@@ -96,6 +98,7 @@ impl PyAsvoClient {
     ///     AsvoApiError: `MWA_ASVO_API_KEY` is not set, or the login failed.
     #[staticmethod]
     fn from_env(py: Python<'_>) -> PyResult<Self> {
+        connect_python_logging();
         let config = client_config_from_env().map_err(|e| api_error(py, e))?;
         let host = config.host.clone();
         let inner = py

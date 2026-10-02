@@ -46,7 +46,11 @@ bin = ["anyhow", "clap", "simplelog", "reqwest-retry", "task-local-extensions", 
 regen-openapi = ["dep:typify", "dep:schemars", "dep:syn", "dep:prettyplease"]
 # The Python module (`import mwa_giant_squid`). Built by maturin, which reads
 # its settings from pyproject.toml: `maturin develop` or `maturin build`.
-python = ["pyo3", "pyo3-log"]
+#
+# It includes the "bin" feature, because the module runs the `giant-squid`
+# command (`mwa_giant_squid._run_cli`), which the Python `giant-squid` program
+# calls. So the wheel carries clap, indicatif and the other CLI crates.
+python = ["pyo3", "pyo3-log", "bin"]
 # Generates the Python type stubs (`mwa_giant_squid.pyi`) with pyo3-stub-gen.
 # Only for maintainers, when the Python API changes: run
 # tools/generate_stubs.sh, or build with this feature and run the binary:

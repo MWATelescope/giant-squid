@@ -1694,3 +1694,30 @@ fn the_help_of_job_types_offers_the_types_the_parser_accepts() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// `run_cli`: the exit codes
+// ---------------------------------------------------------------------------
+
+/// The help is a success. (The text goes to standard output.)
+#[test]
+fn run_cli_returns_zero_for_help_and_version() {
+    use super::run::run_cli;
+
+    assert_eq!(run_cli(["giant-squid", "--help"]), 0);
+    assert_eq!(run_cli(["giant-squid", "--version"]), 0);
+    assert_eq!(run_cli(["giant-squid", "list", "--help"]), 0);
+}
+
+/// A bad argument is clap's usage error, code 2, and the command runs
+/// nothing. (The text goes to standard error.) These cases stop before the
+/// command installs the process's logger, which a test of the library must
+/// not do.
+#[test]
+fn run_cli_returns_two_for_a_bad_argument() {
+    use super::run::run_cli;
+
+    assert_eq!(run_cli(["giant-squid", "no-such-command"]), 2);
+    assert_eq!(run_cli(["giant-squid", "list", "--no-such-option"]), 2);
+    assert_eq!(run_cli(["giant-squid", "list", "--days", "99"]), 2);
+}

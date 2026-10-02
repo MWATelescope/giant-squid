@@ -75,6 +75,15 @@ The Python command differs from the Rust command in these ways:
 The command is the `mwa_giant_squid_cli` package. It uses only the public API in the
 rest of this guide, so it is also an example of how to write your own client.
 
+### `giant-squid-native` (temporary)
+
+The wheel also installs `giant-squid-native`. It is the Rust `giant-squid` program itself, run inside the
+module (`mwa_giant_squid._run_cli`), so its commands, options, help, messages and exit codes are those of the
+Rust program. Ctrl-C ends it at once, as it ends the Rust program. It writes its output to the real standard
+output and standard error, and its log lines are the Rust program's, not Python `logging` records. It is here
+so that it can be compared with the Python `giant-squid` command above, which it is meant to replace. Do not
+depend on it by this name, or on `_run_cli`: both are temporary.
+
 ## Authentication
 
 You need an MWA ASVO API key. To get one, log in to the
@@ -377,6 +386,12 @@ except AsvoApiError as e:
 The module sends its log records to the Python `logging` module. The logger names start with
 `mwa_giant_squid`. Records below `DEBUG` are not sent, because they can contain tokens.
 
+The module connects to `logging` when you make the first `AsvoClient` (or call `AsvoClient.from_env()` or
+`DownloadSettings.from_env()`), not when you import it. A Rust program can have only one log destination per
+process, and the `giant-squid` command needs its own. A log record that something else makes before that point
+is not sent anywhere. If another extension module has already set the Rust log destination in the process, the
+records go there and `reset_logging()` does nothing.
+
 ```python
 import logging
 
@@ -391,6 +406,9 @@ logging configuration after that, call `reset_logging()`.
 A log handler that you add runs inside the module's calls, in the thread that made the call, so keep it fast.
 A handler that raises a `KeyboardInterrupt` or `SystemExit` stops a download, like Ctrl-C. Any other exception
 from a handler is cleared by the module, and does not break a download.
+
+The `giant-squid-native` command (the Rust `giant-squid` program, run inside the module; see "The command"
+below) does not use `logging`: it writes its own log lines to standard error.
 
 If your program calls `mwa_giant_squid_cli.main` (the code of the `giant-squid` command), note that `main`
 adds a handler to the root logger for the length of the call and removes it before it returns, and puts back

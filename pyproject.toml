@@ -35,6 +35,9 @@ dependencies = []
 
 [project.scripts]
 giant-squid = "mwa_giant_squid_cli:main"
+# TEMPORARY, until the next step of the thin-client work replaces `giant-squid`: the same command, run by the Rust
+# program inside the module. It is here so that the two can be compared.
+giant-squid-native = "mwa_giant_squid_cli.native:main"
 
 [dependency-groups]
 dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
@@ -56,8 +59,8 @@ python-packages = ["mwa_giant_squid_cli"]
 # that package list. The type stub is added back, so that a wheel built from the sdist has it.
 include = [{ path = "mwa_giant_squid.pyi", format = "sdist" }]
 bindings = "pyo3"
-# Only the Python module: not the default "bin" feature, which adds the CLI
-# (clap, indicatif and others) to the library.
+# The "python" feature includes the "bin" feature (the CLI), because the module
+# runs the `giant-squid` command. Nothing else is on by default.
 no-default-features = true
 features = ["python"]
 # Unwinds on panic, so a Rust panic is a Python exception (see Cargo.toml).
