@@ -35,7 +35,7 @@ __all__ = ["main"]
 HANDLER_MARK = "_giant_squid_cli"
 
 
-def init_logging(verbosity: int, display: ProgressDisplay) -> None:
+def init_logging(verbosity: int, display: ProgressDisplay) -> logging.Handler:
     """Send log records to standard error, as the Rust command does.
 
     The records of the ``mwa_giant_squid`` module go through Python's ``logging``, so they appear too.
@@ -44,6 +44,9 @@ def init_logging(verbosity: int, display: ProgressDisplay) -> None:
         verbosity: The number of ``-v`` options: none is INFO, one or more is DEBUG. (The module sends nothing
             below DEBUG.)
         display: The progress bars, which log lines are written above.
+
+    Returns:
+        The handler that was added to the root logger, so that ``main`` can take it away again.
     """
     logging.addLevelName(logging.WARNING, LOG_WARNING_NAME)
     root = logging.getLogger()
@@ -57,6 +60,7 @@ def init_logging(verbosity: int, display: ProgressDisplay) -> None:
     root.setLevel(logging.INFO if verbosity == 0 else logging.DEBUG)
     # Make the module see the new configuration.
     mwa_giant_squid.reset_logging()
+    return handler
 
 
 def run(args: argparse.Namespace, display: ProgressDisplay) -> None:
@@ -94,7 +98,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = normalise_bool_flags(list(sys.argv[1:] if argv is None else argv))
     args = build_parser().parse_args(arguments)
     display = ProgressDisplay(sys.stderr)
-    init_logging(args.verbosity, display)
+    root = logging.getLogger()
+    level_before = root.level
+    handler = init_logging(args.verbosity, display)
     try:
         run(args, display)
     except KeyboardInterrupt:
@@ -109,4 +115,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         display.close()
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_FAILED
+    finally:
+        # Leave the logging as it was found. The handler writes to this run's standard error, which can be closed
+        # later (a test's is); a program that calls ``main`` keeps its own logging.
+        root.removeHandler(handler)
+        root.setLevel(level_before)
+        mwa_giant_squid.reset_logging()
     return EXIT_OK

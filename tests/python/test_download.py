@@ -7,6 +7,7 @@ process from a timer thread while a slow download runs on the main thread.
 
 import hashlib
 import io
+import logging
 import os
 import pathlib
 import signal
@@ -41,6 +42,12 @@ CHUNK_DELAY = 0.05
 # When the timer thread sends SIGINT, and the longest a stop may take after it.
 SIGINT_AFTER = 0.3
 MAX_STOP_TIME = 2.0
+
+# How long the log handler takes to write the ERROR record of a failed attempt, in the test of a Ctrl-C that lands in
+# a log call. It is longer than SIGINT_AFTER, so that the signal arrives while that log call is running.
+SLOW_LOG_DELAY = 0.4
+# A retry duration that is short, so that a download that did not stop ends the test in seconds, not minutes.
+SHORT_RETRY = 10.0
 
 # A retry duration long enough that, without a stop, a test would wait for many back-off intervals.
 LONG_RETRY = 300.0
@@ -144,6 +151,49 @@ def sigint_raises() -> Iterator[None]:
         yield
     finally:
         signal.signal(signal.SIGINT, previous)
+
+
+class SlowLogHandler(logging.Handler):
+    """A log handler that takes a while to write a record, like one that fails and prints a traceback.
+
+    It handles ERROR records only, which is the one that the download logs for each failed attempt.
+    """
+
+    def __init__(self) -> None:
+        """Make the handler."""
+        super().__init__(level=logging.ERROR)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Take SLOW_LOG_DELAY seconds, and write nothing.
+
+        Args:
+            record: The record.
+        """
+        time.sleep(SLOW_LOG_DELAY)
+
+
+@pytest.fixture
+def slow_logging() -> Iterator[None]:
+    """Log the module's records through a slow handler, for the test.
+
+    The Rust code logs through Python's ``logging``, and Python runs a pending signal handler at the next bytecode,
+    which can be inside such a log call.
+
+    Yields:
+        Nothing; the logging set-up is put back afterwards.
+    """
+    root = logging.getLogger()
+    handler = SlowLogHandler()
+    old_level = root.level
+    root.addHandler(handler)
+    root.setLevel(logging.DEBUG)
+    gs.reset_logging()
+    try:
+        yield
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(old_level)
+        gs.reset_logging()
 
 
 def send_sigint_soon() -> threading.Timer:
@@ -281,6 +331,32 @@ def test_ctrl_c_stops_the_wait_before_a_retry(
         timer.cancel()
 
     assert time.monotonic() - started < SIGINT_AFTER + MAX_STOP_TIME
+
+
+@pytest.mark.usefixtures("sigint_raises", "slow_logging")
+def test_ctrl_c_that_lands_in_a_log_call_still_stops_the_download(
+    client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
+) -> None:
+    """A KeyboardInterrupt raised inside a log call is not lost: the download stops and raises it.
+
+    Python runs the SIGINT handler at the next bytecode, and that can be in the logging call that the Rust code makes
+    for a failed attempt. The exception then leaves the log call, and the library, which cannot return an error from
+    a log call, leaves it as the current exception. Before the fix nothing looked at it, the signal was spent, and the
+    download kept retrying until its retry duration ran out.
+    """
+    serve_jobs([ready_job(httpserver, 1, hashlib.sha1(b"x").hexdigest())])
+    httpserver.expect_request(FILE_PATH, method="GET").respond_with_data("transient fault", status=500)
+
+    timer = send_sigint_soon()
+    started = time.monotonic()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=SHORT_RETRY)
+    finally:
+        timer.cancel()
+
+    # The signal ends the slow log call that it lands in, so the wait does not have to be long.
+    assert time.monotonic() - started < SIGINT_AFTER + SLOW_LOG_DELAY + MAX_STOP_TIME
 
 
 def test_a_hash_mismatch_raises_asvo_error(

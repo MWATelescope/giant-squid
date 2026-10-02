@@ -6,6 +6,7 @@ fixtures. A few tests start it in a subprocess, as a user would.
 
 import hashlib
 import json
+import logging
 import os
 import re
 import signal
@@ -849,6 +850,23 @@ def test_the_help_of_an_enum_option_lists_its_values(
     # argparse wraps the help, so the text is compared without the line breaks.
     text = " ".join(result.out.split())
     assert f"options: {values})" in text, text
+
+
+def test_the_program_leaves_the_logging_set_up_as_it_found_it(run: Callable[..., Result]) -> None:
+    """``main`` removes its log handler when it ends, so a program that calls it keeps its own logging.
+
+    A handler left on the root logger writes to the standard error of the run, which can be closed later (as the
+    standard error of a test is). Every later log record then fails inside the handler and prints a traceback, which
+    is slow, and which made a Ctrl-C test fail on a slow runner.
+    """
+    root = logging.getLogger()
+    handlers_before = list(root.handlers)
+    level_before = root.level
+
+    run("submit-vis", "-n", str(TEST_OBS_ID))
+
+    assert root.handlers == handlers_before
+    assert root.level == level_before
 
 
 def test_the_version_is_the_module_version(run: Callable[..., Result]) -> None:

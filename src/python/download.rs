@@ -23,13 +23,23 @@
 //! kept, the download stops at the next check, and the exception is raised
 //! to the caller of the download. It takes priority over the error that
 //! the stopped download returns.
+//!
+//! A signal handler does not only run inside `check_signals`. Python runs a
+//! pending one at the next bytecode of the main thread, and the download makes
+//! Python calls of its own: every log record goes through Python's `logging`
+//! (pyo3-log). When Ctrl-C lands in one of those calls, the `KeyboardInterrupt`
+//! leaves the log call, and pyo3-log, which cannot return an error from a log
+//! call, leaves it as the current exception of the thread. The signal is spent
+//! by then, so `check_signals` finds nothing, and without [`take_stray_error`]
+//! the download would carry on, and even finish, as if Ctrl-C had not been
+//! pressed.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use super::error::asvo_error;
@@ -164,7 +174,11 @@ impl Hooks {
         };
         if due {
             Python::attach(|py| {
-                if let Err(err) = py.check_signals() {
+                // First, an exception that a log call left behind (see the
+                // module documentation): its signal has been handled.
+                if let Some(err) = take_stray_error(py) {
+                    self.fail(err);
+                } else if let Err(err) = py.check_signals() {
                     self.fail(err);
                 }
             });
@@ -175,6 +189,24 @@ impl Hooks {
     /// The exception to raise, if the callback or a signal handler raised.
     fn take_error(&self) -> Option<PyErr> {
         self.error.lock().unwrap_or_else(|p| p.into_inner()).take()
+    }
+}
+
+/// The exception that a Python call made by the library left as the current
+/// exception of the thread, if it is one that should stop the download.
+///
+/// pyo3-log does this when a log call raises (see the module documentation).
+/// An exception that is not an `Exception` (`KeyboardInterrupt`, `SystemExit`:
+/// what a signal handler raises to end the program) is returned, so that the
+/// download stops and the caller gets it. An ordinary `Exception` is a fault
+/// of the logging set-up, and logging must not break a download: it is cleared
+/// and dropped, as `logging` itself would handle it.
+fn take_stray_error(py: Python<'_>) -> Option<PyErr> {
+    let err = PyErr::take(py)?;
+    if err.is_instance_of::<PyException>(py) {
+        None
+    } else {
+        Some(err)
     }
 }
 
@@ -233,6 +265,11 @@ where
     });
 
     if let Some(err) = hooks.take_error() {
+        return Err(err);
+    }
+    // A log call after the last check may have left one too. Without this it
+    // would stay set, and Python would see it on an unrelated call.
+    if let Some(err) = take_stray_error(py) {
         return Err(err);
     }
     result.map_err(|e| asvo_error(py, e))
