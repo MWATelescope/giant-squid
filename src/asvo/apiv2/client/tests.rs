@@ -614,11 +614,15 @@ const END_USER_ENDPOINTS: [(&str, &str); 9] = [
     ("POST", "/api/v2/api_login"),
 ];
 
-/// The library calls only the endpoints of an end user, and a submission
-/// never carries `staging_count`: it is for the MWA ASVO's processors, the API
-/// will remove it, and it is not an option anywhere in giant-squid.
-#[test]
-fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
+/// One request that the client made: the method, the path and the JSON body
+/// (`null` when it had none).
+type RecordedRequest = (String, String, serde_json::Value);
+
+/// Make every call of the client that an end user can make (a login, a job
+/// listing, the seven submissions and a cancellation) against a mock server,
+/// with the default options, and return the requests in the order they were
+/// made. The tests below check what the library sends and where.
+fn record_every_end_user_call() -> Vec<RecordedRequest> {
     use crate::asvo::apiv2::openapi::{
         BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
         ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
@@ -714,9 +718,17 @@ fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
         .expect("beamformer");
     client.cancel_job(TEST_JOB_ID).expect("cancel");
 
-    let seen = seen.lock().unwrap();
+    let seen = seen.lock().unwrap().clone();
     assert_eq!(seen.len(), 9, "one login and eight calls: {seen:?}");
-    for (method, path, body) in seen.iter() {
+    seen
+}
+
+/// The library calls only the endpoints of an end user, and a submission
+/// never carries `staging_count`: it is for the MWA ASVO's processors, the API
+/// will remove it, and it is not an option anywhere in giant-squid.
+#[test]
+fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
+    for (method, path, body) in record_every_end_user_call() {
         assert!(
             END_USER_ENDPOINTS.contains(&(method.as_str(), path.as_str())),
             "{method} {path} is not an end-user endpoint"
@@ -725,6 +737,55 @@ fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
             body.get("staging_count").is_none(),
             "{method} {path} sent staging_count: {body}"
         );
+    }
+}
+
+/// The schema that the request types were generated from.
+const SCHEMA: &str = include_str!("../openapi-schema.json");
+
+/// The schema of the body that each endpoint takes.
+const BODY_SCHEMAS: [(&str, &str); 8] = [
+    ("/api/v2/api_login", "ApiLoginRequest"),
+    ("/api/v2/get_jobs", "JobsByUserRequest"),
+    ("/api/v2/download_vis_job", "DownloadJobParams"),
+    ("/api/v2/conversion_job", "ConversionJobParams"),
+    ("/api/v2/imaging_job", "ImagingJobFlow1Params"),
+    ("/api/v2/image_from_job", "ImagingJobFlow2Params"),
+    ("/api/v2/voltage_job", "VoltageJobParams"),
+    ("/api/v2/beamformer_job", "BeamformerJobParams"),
+];
+
+/// Only parameters that the API defines are sent: every key of every body is
+/// a property of that endpoint's schema. (In particular a conversion body has
+/// no `flags`, which a listed conversion job's `job_params` shows but the
+/// request schema does not have.) The bodies are the generated types, so this
+/// is true by construction; the test keeps it true if someone ever builds a
+/// body by hand.
+#[test]
+fn every_field_of_every_request_body_is_in_the_schema() {
+    let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
+
+    for (_, path, body) in record_every_end_user_call() {
+        let Some((_, name)) = BODY_SCHEMAS.iter().find(|(p, _)| *p == path) else {
+            assert!(
+                body.is_null(),
+                "{path} sent a body but has no schema: {body}"
+            );
+            continue;
+        };
+        let properties = schema["definitions"][name]["properties"]
+            .as_object()
+            .unwrap_or_else(|| panic!("the schema has no properties for {name}"));
+        let body = body.as_object().expect("a request body is a JSON object");
+
+        assert!(!body.is_empty(), "{path} sent an empty body");
+        for key in body.keys() {
+            assert!(
+                properties.contains_key(key),
+                "{path} sent `{key}`, which is not a property of {name}"
+            );
+        }
+        assert!(!body.contains_key("flags"), "{path} sent flags");
     }
 }
 

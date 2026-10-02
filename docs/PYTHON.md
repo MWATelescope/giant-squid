@@ -122,7 +122,9 @@ To use a different MWA ASVO server (for example, to test a new feature), give it
 
 `get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
 does not filter, except `days` and `sort_by`: with `days=None` you get the jobs from the MWA ASVO's default
-window (the schema's default, 30 days at the time of writing), not your full history.
+window (the schema's default, 30 days at the time of writing, which is also the most `days` can be), not your
+full history. A job older than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find
+it either.
 
 ```python
 from mwa_giant_squid import AsvoJobState
@@ -269,7 +271,10 @@ threads run during the download.
 ### Resume and Ctrl-C
 
 A partial file stays on disk. A new call resumes it. When you press Ctrl-C in the main thread, the
-download stops at the next chunk and the call raises `KeyboardInterrupt`.
+download stops at the next chunk (or at once, while it waits to retry) and the call raises
+`KeyboardInterrupt`. This also holds when the signal arrives while the module is writing a log record: the
+module takes the `KeyboardInterrupt` that the logging call raised and stops the download. In any other thread
+Python does not run signal handlers, so a download in a worker thread cannot be stopped by Ctrl-C.
 
 ### Progress
 
@@ -341,6 +346,14 @@ mwa_giant_squid.reset_logging()
 
 For speed, the module remembers each logger and its level the first time it logs. If you change the
 logging configuration after that, call `reset_logging()`.
+
+A log handler that you add runs inside the module's calls, in the thread that made the call, so keep it fast.
+A handler that raises a `KeyboardInterrupt` or `SystemExit` stops a download, like Ctrl-C. Any other exception
+from a handler is cleared by the module, and does not break a download.
+
+If your program calls `mwa_giant_squid_cli.main` (the code of the `giant-squid` command), note that `main`
+adds a handler to the root logger for the length of the call and removes it before it returns, and puts back
+the root logger's level. Your own logging set-up is as it was.
 
 ## Threads
 

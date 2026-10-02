@@ -18,6 +18,7 @@ from pytest_httpserver import HTTPServer
 import mwa_giant_squid as gs
 
 from .conftest import TEST_API_KEY, TEST_OBS_ID
+from .test_client import SCHEMA_PATH
 
 # A job ID (not 10 digits, so not an obsid) and a second obsid.
 TEST_JOB_ID = 12345
@@ -185,6 +186,32 @@ def test_staging_count_is_not_an_argument_and_not_in_a_body(
 
     assert not [name for name in names if "staging" in name]
     assert "staging_count" not in getattr(gs, builder)(*args, **kwargs)
+
+
+# Each builder's request body, by the schema that defines it.
+BODY_SCHEMAS = {
+    "download_vis_job_params": "DownloadJobParams",
+    "download_meta_job_params": "DownloadJobParams",
+    "conversion_job_params": "ConversionJobParams",
+    "imaging_job_params": "ImagingJobFlow1Params",
+    "image_from_job_params": "ImagingJobFlow2Params",
+    "voltage_job_params": "VoltageJobParams",
+    "beamformer_job_params": "BeamformerJobParams",
+}
+
+
+@pytest.mark.parametrize(("builder", "method", "path", "args", "kwargs"), BUILDERS, ids=BUILDER_IDS)
+def test_every_field_of_a_body_is_in_the_schema(
+    builder: str, method: str, path: str, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> None:
+    """Only parameters that the API defines are sent: no `flags`, and nothing else the schema does not have."""
+    schema = json.loads(SCHEMA_PATH.read_text())["definitions"]
+    properties = schema[BODY_SCHEMAS[builder]]["properties"]
+
+    body = getattr(gs, builder)(*args, **kwargs)
+
+    assert not [key for key in body if key not in properties]
+    assert "flags" not in body
 
 
 def test_the_download_builders_set_the_download_type() -> None:

@@ -71,9 +71,13 @@ before you upgrade scripts.**
 
 ### Housekeeping in 3.0.0
 
-* Tests moved into their own module.
+* Tests moved into their own module: a module that has tests is a folder with `mod.rs` (the code) and `tests.rs`
+  (the tests).
 * A test suite that runs offline against a mock MWA ASVO server (recorded responses are replayed), so that no
   test submits or cancels a job or downloads data. See [docs/TESTING.md](docs/TESTING.md).
+* Tests that keep decisions from being undone by accident: only parameters of the API schema are sent, only
+  end-user endpoints are called, `staging_count` is never sent. See [docs/TESTING.md](docs/TESTING.md).
+* `tools/run_live_tests.sh` runs the opt-in live tests against the MWA ASVO test server.
 * CI checks that the generated API types and the Python type stubs are up to date, builds and tests the Python
   package on Linux and macOS, and attaches the wheels to releases.
 * The crates.io package does not include the files that only the Python package uses.

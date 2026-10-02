@@ -28,6 +28,9 @@ giant-squid, the API and its documentation use the same names everywhere.
 6. If a script reads the **output of `cancel`**, or gives an **obsid to `wait`
    or `cancel`**, change it: see
    [Waiting and cancelling](#waiting-and-cancelling-wait-cancel).
+7. If a script relies on `giant-squid list` (or `wait`, or `download`) seeing
+   **jobs older than 30 days**, change it: see
+   [Listing jobs](#listing-jobs-list).
 
 Your API key, environment variables and download commands need no change.
 

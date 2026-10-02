@@ -2,125 +2,149 @@
 
 ## Handoff (read this first)
 
-Written 2026-10-01 at the end of the day. Branch `apiv2` at `adca984`. The
-entries under "Status" below are the detailed log; this section is the
-summary and the list of what to do next.
+Written 2026-10-02 at the end of the day. Branch `apiv2` at `7a5902f`, plus
+the last diffs of that day (the tests that every request field is in the
+schema, and this file). The entries under "Status" below are the detailed
+log; this section is the summary and the list of what to do next.
 
 ### Where things are
 
 - Phases 0 to 3 of the plan are done: the Rust library, the Python module
   (`mwa_giant_squid`), the `.pyi` stubs, `docs/PYTHON.md`, the installed
-  Python `giant-squid` command (`mwa_giant_squid_cli/`), and the CI workflow
-  `.github/workflows/python.yaml`.
-- The API developer's new schema (1.12.2) is applied: `days` (1 to 30,
-  `validate::DAYS`), `error_code` (on `AsvoJob`, in the JSON, in the Python
-  module and in the failed-job message), the `status` field documented as
-  display-only, and the conversion `delivery_format` default (`tar`).
-  `staging_count` and `RestageRequest` are deliberately not exposed.
-- The README submit sections are rewritten from the real 3.0 `--help`.
-  `docs/V3_MIGRATION.md` is current except for the open
-  **(check this)** markers (conversion defaults, imaging defaults, log
-  output on standard error, `list --json` keys): they need a read-through
-  by you.
-- Tests at the last run: Rust 181 unit and 33 CLI tests; pytest 270; clippy,
-  `ruff`, `ty` and stubtest clean. The live tests (`tests/live.rs`, run by
-  hand against test-asvo) passed 11 of 19 before the `obs_id` key fix and
-  the `live_cancel` change; they have **not been run since**.
+  Python `giant-squid` command (`mwa_giant_squid_cli/`), and the CI
+  workflow `.github/workflows/python.yaml`.
+- The 2026-10-01 list is finished, except the items under "Open items"
+  below: the cancel log wording, the allowed values in `--help`, the README
+  sections for `wait` and `cancel`, the CHANGELOG entry, the migration guide
+  (its **(check this)** markers are gone), the crate `exclude` list, the
+  wheels on the release, the stub drift check, and the live test run. The
+  work since then, with its reasons, is in the entries dated 2026-10-02.
+- The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
+  their clock time, and a Ctrl-C that was lost when it arrived in a log
+  call (a real bug of the module, not only of the test).
+- Tests at the last run: 202 Rust unit tests (one is the `#[ignore]`d
+  recording test) and 36 CLI tests; 308 pytest tests; 18 live tests
+  (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
+  on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
+  stubtest and the stub drift check clean. The doctests cannot run in the
+  sandbox (no `rustdoc`); CI runs them. `docs/TESTING.md` describes every
+  layer and the tests that pin a decision.
+- The docs are current as of that day: `README.md`, `CHANGELOG.md` (the
+  3.0.0 date is still `2026-09-??`), `docs/V3_MIGRATION.md`,
+  `docs/PYTHON.md`, `docs/TESTING.md` and this file.
 
 ### Decisions in force
 
 - The OpenAPI schema is the standard: defaults, names and limits come from
   it, and a wrong schema is fixed in the API, not in giant-squid.
-- The library has no unused API calls or fields.
+- Only parameters of the API schema are sent, and only end-user endpoints
+  are called. The library has no unused API calls or fields. The bodies are
+  the generated types, and tests check every request field against the
+  schema (so a conversion body has no `flags`, which a listed job's
+  `job_params` shows but the request schema does not have).
+- The processor and scheduler endpoints (`/v2/job_staged`,
+  `/v2/scheduler/*`, `/v2/calibration_ready`) are not wrapped. Their types
+  stay in `openapi.rs`. `staging_count` is never set (the generated types
+  leave it out of the body, which is `null`, the API default), and it is
+  not an option in Rust, the CLI or Python, because the API will remove it.
+- `openapi.rs` is committed as `build.rs` writes it. Do not run
+  `cargo fmt` or `cargo clippy --fix` on it: the `openapi-drift-check` job
+  of `run-tests.yaml` regenerates the file and fails on any difference.
 - Success or failure of a call is the HTTP status. The response `status`
   text ("success"/"failed") is descriptive, like `message`.
-- A refused cancel (for example, of a job that is already cancelled) stays
-  HTTP 200 with `status: failed` (API developer's decision, 2026-10-01).
-  Neither CLI can tell it from a success except by the message, and both
-  still log `Cancelled MWA ASVO job ID N (<message>)`.
+- A refused cancel of a job that is already cancelled is HTTP 200 with
+  `status: failed`; any other refusal is a 4xx error. `cancel` logs
+  `Cancel request for job N: <message>` and `Cancel requests: N sent, M
+  failed.`, and never says a job was cancelled.
+- `list` without `--days` uses the API default (30 days, read from the
+  generated type), not `null` and not the full history. `wait` and
+  `download` list jobs the same way.
+- `wait` and `cancel` take job IDs only: an obsid is an error that names
+  it, and nothing is sent.
+- `list --job-types` refuses text that is not a job type, and accepts
+  `download_voltage` as well as `download_voltages`.
 - The Python package installs a `giant-squid` command with the same
-  commands and options as the Rust one.
+  commands and options as the Rust one. The crates.io package leaves out
+  every Python-only file (`exclude` in `Cargo.toml`); the sdist keeps the
+  stub (`include` in `pyproject.toml`). The wheels are attached to each
+  GitHub release by `releases.yaml`; nothing publishes to PyPI.
+- A module that has tests is a folder with `mod.rs` (the code) and
+  `tests.rs` (the tests).
+- An astroquery module is out of scope for this project.
 - One diff per step, each from a fresh clone of the latest `apiv2`. You
-  commit and push; I never do.
+  commit and push; I never do. I do not edit an existing test to make it
+  pass without asking.
 
 ### Open items, in the order I would take them
 
-1. **Run the live tests** (`run_live_tests.sh`) and send the log. Expected:
-   all 19 pass, now that the `obs_id` key and `live_cancel` are fixed.
-2. **`--delivery dug` on conversion and imaging.** The schema offers only
-   `acacia` and `scratch` for `ConversionJobParams` and both imaging
-   bodies, but the generated `Delivery` type has `dug` too, so
-   `submit-conv`, `submit-image` and `submit-image-from-job` accept it and
-   the server would refuse it. Options: refuse it in the library's
-   `validate_*` functions (before any request, like the other limits), or
-   ask the API developer for separate enums. The README already says DUG is
-   for visibility, metadata and beamformer jobs only.
-3. **`--help` does not list the allowed values** of `--delivery`,
-   `--delivery-format`, `--output`, `--centre`, `--pol`, `--weighting` and
-   `--output-mode` (the README tables do). Make clap list them. The Python
-   command should follow, because it copies the Rust help.
-4. **Cancel log wording.** Change `Cancelled MWA ASVO job ID N (<message>)`
-   and `Cancelled N jobs.` to something that does not claim success (for
-   example `Cancel request for job N: <message>`), in both CLIs, with the
-   tests and README. Needs your decision.
-5. **`days: null`.** Does the server read the `null` that `list` sends
-   without `--days` as "no limit" or as 30? The live probe
-   `live_list_without_days_probe` was inconclusive (133 jobs both ways, so
-   no job in the test account is older than 30 days). Ask the API developer.
-6. **CI drift check.** The workflow `openapi-drift-check` regenerates
-   `openapi.rs`, runs `cargo fmt` and fails on a diff. I could not check it.
-   My `rustfmt` (1.91) would rewrite about 2000 lines of the committed
-   file, even in older commits, so I never ran `cargo fmt` on it (do not,
-   or revert it with `git checkout src/asvo/apiv2/openapi.rs`). Please
-   confirm that the check is green for `ed3c063`.
-7. **`docs/V3_MIGRATION.md`**: remove the **(check this)** markers after you
-   have read those sections. The new delivery-format row in the conversion
-   table is inferred from the 2.x README (2.x gave individual files for
-   Scratch and DUG unless `tar` was asked for): please confirm it.
-8. README has no sections for `wait` and `cancel`. Add them if you want
-   them.
+1. **`dug` for conversion and imaging.** The API developer says the schema
+   is wrong and will add `dug` to `ConversionJobParams` and both imaging
+   bodies; the generated `Delivery` type already has it, so `submit-conv`,
+   `submit-image` and `submit-image-from-job` accept `--delivery dug`. The
+   README already says conversion and imaging jobs can go to DUG. When
+   the new schema arrives: run `tools/generate_openapi.sh` (or commit the
+   schema and run `cargo build --features regen-openapi`), commit
+   `openapi.rs` as it is written, and check that the `schema_enum!` list in
+   `src/cli/value_enums/mod.rs` and the limits tests still pass. Ask the
+   API developer whether a conversion job that was delivered to DUG can be
+   imaged from: the README (the imaging section) and `V3_MIGRATION.md` say
+   that only a conversion job delivered to Acacia or Scratch can.
+2. **Try a wheel** against the real MWA ASVO and on an older HPC system
+   (yours).
+3. **PyPI**: check that `mwa-giant-squid` is free, then publish (a release
+   workflow with trusted publishing, or by hand).
+4. **Release 3.0.0**: set the date in `CHANGELOG.md`; the Python version
+   follows `Cargo.toml`; a `v*` tag starts `releases.yaml`, which builds the
+   tarballs and the wheels, makes the GitHub release and publishes the
+   crate (it needs the `CARGO_REGISTRY_TOKEN` secret). The Linux arm64
+   tarball job in that file is commented out.
+5. **After 3.0.0**: remove `--legacy-json` (`src/cli/legacy_json.rs`, the
+   options of `list` and `wait`, the README and migration text, the tests).
+6. **API developer's answers**, below.
 
-### For the API developer (not yet raised, unless marked)
+### For the API developer
+
+Raised, not fixed:
 
 - `JobDetailResponse.id` and `QueuedJob.id` should be `job_id`;
   `CalibrationReadyCallback.asvo_job_id` should be `job_id` (raised
-  2026-09-30, not fixed).
-- `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types
-  have `first_name`/`last_name` (raised, not fixed).
+  2026-09-30).
+- `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types have
+  `first_name`/`last_name`.
+
+Not yet answered or raised:
+
 - Which response model does cancel return: `JobCancelledResponse` or
   `JobSubmittedResponse`? Our code parses the second (the fields match).
 - What do the `error_code` values mean? They are undocumented.
-- Queued jobs have `started` set a few milliseconds after `created`, but
-  the field is documented as "when the job began processing".
-- `staging_count` is set by the processor (it was 1 on a job in the
-  `Staging` state), and it is in the public request bodies. Should the
-  server ignore or reject it when a client sends it? `RestageRequest` and
-  `staging_count` are processor-only items in the public spec.
-- The conversion `job_params` of a listed job has `flags: []`, which is not
-  in the request schema (harmless).
-- Conversion and imaging offer `acacia` and `scratch` only: confirm that is
-  intended (see open item 2).
-- A refused cancel: confirm the 200 is final (the API developer has said it
-  stays; the consequence is that no client can detect a refusal except from
-  `message`).
+- Queued jobs have `started` set a few milliseconds after `created`, but the
+  field is documented as "when the job began processing". Should it be null
+  until the job starts, or is the description wrong?
+- The `job_params` of a listed conversion job has `flags: []`, which is not
+  a parameter of the request (to be reported). The library never sends it,
+  and passes the server's `job_params` through unchanged.
+- What does `days: null` do? Nothing in giant-squid sends `null` now. It
+  matters only if the API returns jobs older than 30 days for `null`:
+  `download` and `wait` see only the last 30 days now.
 
-### Release checklist (yours; none of it is started)
+Answered (kept for the record):
 
-- Run the new `python.yaml` workflow on GitHub for the first time and fix
-  what breaks (the manylinux build and `aws-lc-sys`, the macOS and aarch64
-  runners, the three action versions I did not check:
-  `PyO3/maturin-action@v1`, `actions/upload-artifact@v4`,
-  `astral-sh/setup-uv@v10.0.1` was confirmed).
+- `staging_count` and `RestageRequest` are for the processors: the library
+  never sends them and does not wrap the processor endpoints (2026-10-02).
+- The HTTP 200 for a refused cancel is only for a job that is already
+  cancelled (2026-10-02).
+
+### Release checklist (yours)
+
+- The Python workflow ran on GitHub, and works (done).
 - Try a wheel against the real MWA ASVO and on an older HPC system.
-- PyPI: check that `mwa-giant-squid` is free, then publish (a release
-  workflow with trusted publishing, or by hand). Decide whether
-  `releases.yaml` should also attach the wheels.
-- `Cargo.toml` `exclude` has only `.github/*`, so the crates.io package
-  includes `mwa_giant_squid_cli/` and `tests/python/`. Add them if you do
-  not want that.
-- The Python package version follows `Cargo.toml`.
-- Still undecided from earlier: an astroquery module as an alternative or
-  addition, and a CI step that regenerates the stub and fails on a diff.
+- PyPI: check the name, then publish. Decide if `releases.yaml` should
+  also publish (it attaches the wheels to the GitHub release only).
+- Set the date in `CHANGELOG.md`, tag, and watch `releases.yaml`.
+- The crates.io package has no Python-only files (done); check
+  `cargo package --list` before the tag.
+- Still undecided from earlier: nothing. (The astroquery module is out of
+  scope, and the stub drift check exists.)
 
 ### Working notes for the next session
 
@@ -130,22 +154,33 @@ summary and the list of what to do next.
   `/usr/lib/rust-1.91/bin` into `~/bin`; `export PATH=~/bin:$PATH
   CARGO_HOME=/home/claude/.cargo`; `pip install uv`; then `uv sync
   --locked`. `rustdoc` is not on the path, so doctests cannot run here.
-- A command is limited to 300 s: start long builds with `setsid nohup`.
-  A full Rust build is 3 to 5 minutes. Each `target/` is 1.2 to 2 GB and the
-  disk fills up, so delete old clones.
-- Checks before a diff: `cargo fmt` (then revert `openapi.rs`), `cargo test
-  --locked`, `cargo clippy --locked --all-targets`, `uv run ruff format
+- A command is limited to 300 s: start long builds with `setsid nohup`
+  and poll. A full Rust build is 3 to 5 minutes. The disk is small: use one
+  `CARGO_TARGET_DIR` for all clones, `CARGO_INCREMENTAL=0`, and delete
+  `target/debug/incremental` and old clones when the disk fills up.
+- Checks before a diff: `cargo fmt` (then `git checkout
+  src/asvo/apiv2/openapi.rs`), `cargo test --locked`, `cargo clippy --locked
+  --all-targets` (also with `--features python`), `uv run ruff format
   --check .`, `uv run ruff check .`, `uv run ty check`, `uv run pytest`,
-  `tools/run_stubtest.sh`. After any change to a docstring or signature in
-  `src/python/`, run `tools/generate_stubs.sh` and commit the new `.pyi`.
+  `tools/run_stubtest.sh`, and `tools/generate_stubs.sh` (the `.pyi` must not
+  change unless a signature or a docstring in `src/python/` did).
 - The README option tables and help blocks were generated from the built
   binary and the schema with a throwaway script that is not in the
-  repository. Rebuild the binary and redo them by hand if an option
+  repository. Rebuild the binary and redo the help blocks if an option
   changes.
-- Do not edit an existing test to make it pass without asking (the
-  `live_cancel` and `obs_id` key changes were approved).
+- Make each diff with `git diff` from a fresh clone of the latest `apiv2`
+  (`git diff --cached -M` when files are renamed), write a base64 copy, and
+  check that `git apply` works on another fresh clone and gives the tree
+  that was tested.
+- `tools/run_live_tests.sh` runs the live tests against test-asvo; it needs
+  `MWA_ASVO_API_KEY`. The server allows 5 logins a minute.
 
 ## Status
+
+Entries before 2026-10-02 name things as they were then. Since the module
+layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
+`foo/mod.rs` with `foo/tests.rs`, and `src/asvo/test.rs` and
+`src/cli/test.rs` are `tests.rs`. A job's files are `AsvoJob.product.files`.
 
 - 2026-09-24: plan reviewed and all questions answered. No code written
   yet. Written against `apiv2` at commit `e517d6c`.
@@ -783,6 +818,92 @@ summary and the list of what to do next.
   and `submit-image-from-job` accept `--delivery dug` and the server would
   refuse it. The `--delivery` help does not list the values (nor do
   `--output`, `--centre`, `--pol` or `--weighting`).
+- 2026-10-02: CI and packaging. A `stubs` job in `python.yaml` runs
+  `tools/generate_stubs.sh` and fails if `mwa_giant_squid.pyi` differs.
+  `releases.yaml` builds the four wheels and attaches them to the GitHub
+  release. The crates.io package leaves out every Python-only file
+  (`pyproject.toml`, `uv.lock`, the stub, the Python docs and tools, the
+  Python command and its tests); `src/python` and `src/bin/stub_gen.rs`
+  stay, because the manifest needs them. maturin builds the sdist from the
+  crate's file list, so leaving the stub out of the crate also left it out
+  of the sdist, and a wheel built from that sdist had no stub and no
+  `py.typed`. `pyproject.toml` adds the stub to the sdist (`include`,
+  `format = "sdist"`); a wheel built from that sdist has both. The comments of `tools/generate_stubs.sh` now say what it
+  does (it sets no `PYO3_PYTHON`; it runs from the repository root).
+- 2026-10-02: `cancel` logs `Cancel request for job N: <message>` and
+  `Cancel requests: N sent, M failed.` in both commands. The assertions that
+  checked the old text changed (approved). A refused cancel of a job that is
+  already cancelled is HTTP 200 with `status: failed`; any other refusal is
+  a 4xx error (API developer).
+- 2026-10-02: `--help` lists the allowed values of `--delivery`,
+  `--delivery-format`, `--output`, `--centre`, `--output-mode`, `--pol` and
+  `--weighting`, from a clap value parser for the schema enums
+  (`src/cli/value_enums/`); the `schema_enum!` macro fails to compile when
+  the schema gets a value that the list lacks. The Python command lists the
+  same values. The help of `list --job-states` and `--job-types` named
+  `retrieving` (not a state) and left out two types; both fixed, with tests
+  that each name parses.
+- 2026-10-02: `AsvoJobType::from_str` returns `InvalidJobType` for text that
+  is not a job type (it returned `Unknown`), and accepts `download_voltage`
+  (approved).
+- 2026-10-02: README sections for `wait` and `cancel`; the CHANGELOG entry
+  of 3.0.0; `V3_MIGRATION.md` is final (the **(check this)** markers are
+  gone, and it has the cancel, `wait` and `--job-types` changes).
+- 2026-10-02: `wait` and `cancel` refuse an obsid with
+  `Expected only job IDs, but found these obsids: ...` and send nothing
+  (`parse_job_ids_only`; the Python command has the same). 2.x ignored the
+  obsid without a word. One assertion of `test_wait_needs_a_job_id` changed
+  with it.
+- 2026-10-02: `openapi-drift-check` was failing for a reason that had
+  nothing to do with the schema: it ran `cargo clippy --fix` and `cargo
+  fmt` after the regeneration, and rustfmt rewrites about 1,500 lines of the
+  file that `build.rs` (prettyplease) writes. It only regenerates and
+  compares now, and `tools/generate_openapi.sh` no longer formats. Its name
+  contains the job id, so it can be found in the Actions page.
+- 2026-10-02: `test_the_short_command_names_work` compared stderr with the
+  clock time of its last line, so it failed when two runs fell in different
+  seconds (the macOS Intel runners). It compares `log_lines()` now
+  (approved).
+- 2026-10-02: `list` without `--days` sends the schema default for `days`
+  (30), not `null`; the CLI shows `[default: 30]`, read from the generated
+  type. Two tests that pinned `null` changed (approved). `wait` and
+  `download` list jobs the same way.
+- 2026-10-02: module layout. Seven modules (`helpers`, `obs_id`,
+  `asvo/token_store`, `asvo/types`, `asvo/apiv2/client`,
+  `asvo/apiv2/validate`, `cli/value_enums`) moved from `foo.rs` to
+  `foo/mod.rs`, and every `test.rs` is `tests.rs` (`mod tests;`). Pure
+  renames; test ids read `...::tests::...`.
+- 2026-10-02: a lost Ctrl-C. On the aarch64 Python 3.10 runner,
+  `test_ctrl_c_stops_the_wait_before_a_retry` got `AsvoError: HTTP error
+  500`, the error that a download returns when its whole retry window has
+  run out. Python runs a pending SIGINT handler at the next bytecode of the
+  main thread, and the Rust code makes Python calls of its own: every log
+  record goes through `logging` (pyo3-log). When the signal landed in one
+  of those calls, the `KeyboardInterrupt` left the log call, pyo3-log left
+  it as the thread's current exception, the signal was spent, and
+  `check_signals` found nothing. `take_stray_error` in `src/python/download.rs`
+  now takes such an exception (a `BaseException` stops the download and is
+  raised; an ordinary `Exception` is cleared). The slow runner made the
+  window big because the CLI tests had left their log handler on the root
+  logger, writing to a closed stream, so every record printed a traceback;
+  `main()` now removes its handler. Two new tests, one of which was red
+  before the fix.
+- 2026-10-02: `staging_count`, the processor endpoints and `flags`.
+  Nothing in the library called the endpoints or set `staging_count`; the
+  decision is now recorded in the module docs of `src/asvo/apiv2/mod.rs`
+  and pinned by tests: a recording client test (the endpoints, and no
+  `staging_count` on the wire), a CLI test (no option, no key in a default
+  body) and Python tests (no argument, no key). Another pair of tests
+  checks that every field of every request body is a property of that
+  endpoint's schema, which is what keeps `flags` out.
+- 2026-10-02: live tests. All 19 passed against test-asvo. The probe
+  `live_list_without_days_probe` was removed (18 remain): it asked what
+  `days: null` does, and nothing sends `null` now.
+- 2026-10-02: documentation. `docs/TESTING.md` has the Python test layer, the
+  list of tests that pin a decision, and corrected paths and counts;
+  `docs/PYTHON.md` has the Ctrl-C and logging notes and the `days` default;
+  the README says conversion and imaging jobs can go to DUG (ahead of the
+  schema fix); this file's handoff is rewritten.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal
@@ -848,7 +969,7 @@ its own; Python >= 3.10 with one `abi3` wheel per platform; maturin;
 ## Naming in Python
 
 Rust names are kept for types, methods, fields and enum variants
-(`AsvoClient`, `get_jobs`, `submit_download_vis_job`, `AsvoJob.jobid`,
+(`AsvoClient`, `get_jobs`, `submit_download_vis_job`, `AsvoJob.job_id`,
 `AsvoJobState.Ready`). Rust method and field names are already snake_case,
 and CamelCase enum variants are valid Python.
 
@@ -986,7 +1107,9 @@ Steps:
   `run-tests.yaml` platforms (Linux x86_64/aarch64, macOS x86_64/arm64) plus
   an sdist, and runs pytest;
   `ruff check`, `ruff format` (line length 120) and `ty check` on the
-  Python code. Publishing to PyPI stays your step.
+  Python code, and a `stubs` job that fails if the stub is out of date.
+  Publishing to PyPI stays your step. `releases.yaml` builds the same four
+  wheels and attaches them to the GitHub release.
 
 Notes for Phase 3, found during Phases 1 and 2:
 
@@ -1014,4 +1137,5 @@ Notes for Phase 3, found during Phases 1 and 2:
 
 ## Out of scope for now
 
-An `async` API, free-threaded wheels, and Windows wheels.
+An `async` API, free-threaded wheels, Windows wheels, and an astroquery
+module (decided 2026-10-02: out of scope for this project).

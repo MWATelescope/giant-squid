@@ -220,7 +220,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 - You can request that your job's files be delivered to DUG's filesystem.
 - MWA ASVO delivers a tar of the files by default. To get the individual files instead, pass `--delivery-format=files`.
 - To submit a job with the DUG delivery option, specify `--delivery=dug` on any job submission command.
-- Only visibility, metadata and beamformer downloads can be delivered to DUG. `Voltage`, conversion and imaging jobs cannot.
+- Visibility, metadata, beamformer, conversion and imaging jobs can be delivered to DUG. `Voltage` jobs cannot (they are delivered to Scratch only).
 - This option is only open to users who have a Curtin University DUG account and your `DUG Group` has been set in your MWA ASVO profile by an MWA administrator.
   - Please contact support to request this.
 - NOTE: all DUG users in the specified DUG Group can access your job's files. If you prefer to keep your data private to only you, you should choose the `acacia` delivery option as only you have the download URL.
@@ -314,7 +314,7 @@ To use a custom phase centre:
 giant-squid submit-conv 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
 ```
 
-Conversion jobs can be delivered to Acacia or Scratch (not DUG).
+Conversion jobs can be delivered to Acacia, Scratch or DUG.
 
 ##### Options for conversion jobs
 
@@ -437,7 +437,7 @@ To submit an imaging job for the obsid 1065880128, give any conversion options a
 giant-squid submit-image 1065880128 --avg-time-res 0.5 --avg-freq-res 10 --image-size 2048 --multiscale
 ```
 
-Imaging jobs can be delivered to Acacia or Scratch (not DUG).
+Imaging jobs can be delivered to Acacia, Scratch or DUG.
 
 ##### Options for imaging jobs
 

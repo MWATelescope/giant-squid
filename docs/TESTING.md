@@ -31,7 +31,9 @@ OpenAPI request type. That makes the whole argument-to-request-body mapping a
 pure function, testable without a server.
 
 This layer covers goal 4, plus clap's own value parsers (image size, f64/i64
-ranges, `require_equals` booleans).
+ranges, `require_equals` booleans), the `[possible values]` that `--help` lists
+for the schema enums (`src/cli/value_enums/tests.rs`), and the names that the
+help of `list --job-states` and `--job-types` offers (each must parse).
 
 ### Layer 2 - mock server tests with httpmock
 
@@ -45,7 +47,7 @@ Pointing the client at the mock server needs no special production code: the
 base URL of every API call comes from `AsvoClientConfig::host` (the CLI sets
 it from `MWA_ASVO_HOST`). The one thing that did need changing is TLS. Both `reqwest` clients were built with
 `https_only(true)`, which rejects the mock server's `http://127.0.0.1:PORT`
-address outright. `require_tls()` in `client.rs` now derives that flag from
+address outright. `require_tls()` in `src/asvo/apiv2/client/mod.rs` now derives that flag from
 the configured host's scheme, so the default host and any `https://` host
 stay HTTPS-only, while an explicitly configured `http://` host - a mock
 server, or a plain-HTTP dev instance - is allowed.
@@ -97,18 +99,16 @@ only job is unfinished, and an obsid with several ready jobs. Pagination is
 covered too - `src/asvo/apiv2/client/tests.rs` serves two pages by matching on the
 `offset` the client sends, so no per-call response variation is needed.
 
-Still to write: a successful download, hash verification, tar handling and
-resume via `RANGE`. Those are blocked - see below.
-
 ### Layer 2b - the binary, end to end
 
 `tests/cli.rs` runs the built binary as a subprocess (via
-`CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is the only test
-file left in `tests/`, because Cargo sets that variable only for integration
-tests. It runs against a mock server.
+`CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is one of the two Rust
+test files in `tests/` (the other is the live tests below), because Cargo sets
+that variable only for integration tests. It runs against a mock server.
 It covers what only `main` can answer: `--dry-run` making no request at all,
-exit codes, the `No obsids specified` and job-ID-instead-of-obsid guards,
-`--json` output, state filtering, a rejected cancellation being logged
+exit codes, the `No obsids specified` and job-ID-instead-of-obsid guards (and
+the obsid-instead-of-job-ID guard of `wait` and `cancel`, which must send no
+request), `--json` output, state filtering, a rejected cancellation being logged
 without failing the run, and the `GIANT_SQUID_DELIVERY` /
 `GIANT_SQUID_DELIVERY_FORMAT` defaults - which clap reads at parse time, so
 they can only be set before the process starts.
@@ -120,14 +120,19 @@ developer's own settings cannot leak into a run.
 
 ### Layer 3 - opt-in live tests
 
-`tests/live.rs` runs the built binary against a real MWA ASVO. Every test is
-`#[ignore]`d, so CI never runs it. Run it by hand:
+`tests/live.rs` (18 tests) runs the built binary against a real MWA ASVO.
+Every test is `#[ignore]`d, so CI never runs it. Run it by hand with
+`tools/run_live_tests.sh`, which sets the target to the test server and runs:
 
 ```text
 MWA_ASVO_E2E_TARGET=https://test-asvo.mwatelescope.org \
 MWA_ASVO_API_KEY=<your key> \
-  cargo test --test live -- --ignored --nocapture
+  cargo test --test live -- --ignored --test-threads=1 --nocapture
 ```
+
+Run it before a release, and after a change to anything that talks to the
+server (login, listing, a submit command, `cancel`, `wait`). It last passed
+in full on 2026-10-02.
 
 It covers every command except `download` (a job is not ready in the time a
 test runs): each submit command and its alias with `--allow-resubmit`,
@@ -145,6 +150,67 @@ at most once per run; the two authentication tests use their own `HOME` and
 log in themselves. The tests take a lock, so they run one at a time. Every
 job a test submits is cancelled when it ends, pass or fail. See the module
 docs for details.
+
+### Layer 4 - the Python module and the Python command (pytest)
+
+`tests/python/` has the pytest suite (308 tests) for the `mwa_giant_squid`
+module (`src/python/`) and for the `giant-squid` command written on it
+(`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
+goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
+fixtures in `conftest.py`), never to a real server, and a download is served
+by the mock too. Run it with:
+
+```text
+uv sync            # builds the module and installs the dev tools
+uv run pytest
+```
+
+| File | What it covers |
+| --- | --- |
+| `test_module.py` | The import, `__version__`, `reset_logging` |
+| `test_client.py` | `AsvoClient`: login, `get_jobs` and `list_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors, threads |
+| `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request |
+| `test_functions.py` | `parse_many_job_ids_or_obs_ids`; each `*_params` builder is the body (and has the signature) of its submit method; every field of a body is in the schema |
+| `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, and Ctrl-C |
+| `test_cli_units.py` | The helpers of the command: parsing, the table, the progress bars, the help |
+| `test_cli.py` | The command end to end (`main()` in process, a few tests in a subprocess), every sub-command |
+
+Two things are particular to this suite:
+
+- The Ctrl-C tests send SIGINT to the test process from a timer thread, while
+  a download runs on the main thread. The `sigint_raises` fixture installs
+  Python's handler for the test, because a process that a non-interactive
+  shell started in the background starts with SIGINT ignored. One of them
+  (`test_ctrl_c_that_lands_in_a_log_call_still_stops_the_download`) uses a
+  slow log handler, so that the signal always arrives while the Rust code is
+  writing a log record through Python's `logging`. That is where a
+  `KeyboardInterrupt` was once lost.
+- `main()` removes its log handler when it ends, and a test checks it.
+  Otherwise the handler of one test writes to the standard error of a test
+  that is over, and every later log record fails and prints a traceback.
+
+CI runs the suite on Python 3.10 and 3.14 on four platforms, and on 3.11 to
+3.13 on Linux (`.github/workflows/python.yaml`). That workflow also checks
+`ruff`, `ty`, the stub with `mypy.stubtest`, that `mwa_giant_squid.pyi` is
+what `tools/generate_stubs.sh` writes, and builds the wheels and the sdist.
+
+## Tests that pin a decision
+
+Some tests exist to keep a decision from being undone by accident. If one
+fails, the change is probably wrong; if the decision changed, change the test
+with it.
+
+| Decision | Where it is pinned |
+| --- | --- |
+| Limits, names and defaults come from the OpenAPI schema | `src/asvo/apiv2/validate/tests.rs` compares each limit with `openapi-schema.json`; the CLI and Python defaults are read from the generated types |
+| Only parameters that the API defines are sent (no `flags`) | `every_field_of_every_request_body_is_in_the_schema` (Rust) and `test_every_field_of_a_body_is_in_the_schema` (Python) |
+| Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and the `staging` tests in `test_functions.py` and `test_cli_units.py` |
+| A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
+| `list` without `--days` uses the API default, not `null` | `get_jobs_with_no_filter_uses_the_schema_defaults`, `list_days_defaults_to_the_schema_default`, `test_get_jobs_with_no_filter_sends_none` |
+| `wait` and `cancel` refuse an obsid and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
+| `cancel` does not say a job was cancelled; a refused cancel is a normal reply | `a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled` and its Python twin |
+| `list --job-types` refuses text that is not a job type | `list_refuses_a_job_type_that_does_not_exist`, `text_that_is_not_a_job_type_is_an_error` |
+| The code of `openapi.rs` is what the schema generates | The `openapi-drift-check` job of `run-tests.yaml` |
 
 ## Test environment isolation
 
@@ -197,7 +263,7 @@ client version string rather than a username - rewriting it would stop the
 recorded request matching what the client sends.
 
 Recorded bodies are already validated against the schema, indirectly but
-effectively: the playback tests in `src/asvo/apiv2/client/tests.rs` drives the real client over the fixture, so
+effectively: the playback tests in `src/asvo/apiv2/client/tests.rs` drive the real client over the fixture, so
 each recorded response is deserialised through the types generated from
 `openapi-schema.json`. If the schema is regenerated with a renamed or newly
 required field, that test fails rather than the fixture silently describing
@@ -246,7 +312,8 @@ back.
 It previously short-circuited before the body was built and printed
 something different per command - a count for `submit-vis` and
 `submit-meta`, a hand-picked subset of arguments for `submit-image`. The
-endpoint paths now live in `pub const ENDPOINT_*` in `client.rs`, used both
+endpoint paths now live in `pub const ENDPOINT_*` in
+`src/asvo/apiv2/client/mod.rs`, used both
 by the client's requests and by the dry-run output, so the two cannot
 disagree.
 
@@ -265,8 +332,8 @@ come from a real response. A recording from test-asvo shows:
                           "sha1": "ce32e0ae..." } ] }
 ```
 
-`product_to_files` in `client.rs` maps that to `AsvoFilesArray`, so
-`AsvoJob.files` is populated, downloads work, and `list` can show File Size
+`product_to_files` in `src/asvo/apiv2/client/mod.rs` maps that to
+`AsvoFilesArray`, so `AsvoJob.product.files` is populated, downloads work, and `list` can show File Size
 and Delivery. Because nothing about `product` is guaranteed by type, the
 mapping is tolerant: an entry with an unrecognised or missing delivery type
 is skipped with a warning, a missing `size` becomes 0 (it only feeds
@@ -275,7 +342,7 @@ progress reporting), and a job left with nothing usable reports
 deliveries carry a `path` instead of a `url`; those are mapped but have no
 recorded sample yet.
 
-the playback tests in `src/asvo/apiv2/client/tests.rs` replays the recording and pins the mapping against that
+the playback tests in `src/asvo/apiv2/client/tests.rs` replay the recording and pin the mapping against that
 real payload. `src/asvo/tests.rs` now runs a download end to end, with the
 mock server serving the file as well as the API.
 
@@ -343,10 +410,10 @@ already accepts both.
   request body was built. Fixed: the default now comes from the schema
   (`XXYY`), like every other imaging default, and a value parser rejects an
   unsupported polarisation at parse time.
-- The schema is inconsistent between the two imaging endpoints: `pol` is the
-  `Polarization` enum on `imaging_job` (default `XXYY`) but a free-form
-  string on `image_from_job` (default `XX,YY`). giant-squid follows each
-  endpoint, and only validates the enum one. Worth raising with the API dev.
+- The schema was inconsistent between the two imaging endpoints: `pol` was
+  the `Polarization` enum on `imaging_job` but a free-form string (default
+  `XX,YY`) on `image_from_job`. Schema 1.11 made both the enum, so both
+  commands validate `--pol` and default it to `XXYY`.
 
 ## Code coverage
 
@@ -354,7 +421,8 @@ already accepts both.
 uses `cargo-llvm-cov`, as the "Generate Coverage report" CI workflow does, so
 its Rust numbers are the same as CI's. It also runs the Python tests against
 an instrumented build of the extension module, because the code they test is
-the Rust in `src/python/`. The package has no Python code of its own yet.
+the Rust in `src/python/`. The `giant-squid` command (`mwa_giant_squid_cli/`) is Python code, and the
+script does not measure it.
 
 ```bash
 cargo install cargo-llvm-cov        # once
@@ -391,3 +459,7 @@ so read the per-file numbers, not only the total.
 | 4b | Fixture schema validation in CI | Covered by playback, see below |
 | 5 | End-to-end CLI tests against the mock server | Done |
 | 6 | Uniform `--dry-run` output (endpoint plus JSON body) | Done |
+| 7 | Python module: mock-server tests for the client, submit, builders and downloads | Done |
+| 8 | Python command (`giant-squid`) tests, and the stub, lint and wheel CI | Done |
+| 9 | Live tests against test-asvo (18), run by `tools/run_live_tests.sh` | Done; last full pass 2026-10-02 |
+| 10 | Tests that pin decisions (see above) | Done; extend them when a decision is made |
