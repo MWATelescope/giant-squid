@@ -1532,7 +1532,7 @@ fn strings(items: &[&str]) -> Vec<String> {
 
 #[test]
 fn job_ids_only_accepts_job_ids() {
-    use super::params::parse_job_ids_only;
+    use crate::parse_job_ids_only;
 
     let job_ids = parse_job_ids_only(&strings(&["31", TEST_JOB_ID])).expect("job IDs parse");
 
@@ -1541,7 +1541,7 @@ fn job_ids_only_accepts_job_ids() {
 
 #[test]
 fn job_ids_only_reads_job_ids_from_a_file() {
-    use super::params::parse_job_ids_only;
+    use crate::parse_job_ids_only;
 
     let mut file = NamedTempFile::new().expect("a temporary file");
     writeln!(file, "31 32").expect("write the file");
@@ -1556,7 +1556,7 @@ fn job_ids_only_reads_job_ids_from_a_file() {
 /// IDs, or in a file: it is never ignored.
 #[test]
 fn job_ids_only_refuses_an_obsid() {
-    use super::params::parse_job_ids_only;
+    use crate::parse_job_ids_only;
 
     let mut file = NamedTempFile::new().expect("a temporary file");
     writeln!(file, "31 {TEST_OBS_ID}").expect("write the file");
@@ -1581,7 +1581,7 @@ fn job_ids_only_refuses_an_obsid() {
 
 #[test]
 fn job_ids_only_names_every_obsid() {
-    use super::params::parse_job_ids_only;
+    use crate::parse_job_ids_only;
 
     let err = parse_job_ids_only(&strings(&[TEST_OBS_ID, "1065880248", "31"]))
         .expect_err("obsids must be refused");
@@ -1595,7 +1595,7 @@ fn job_ids_only_names_every_obsid() {
 
 #[test]
 fn job_ids_only_needs_a_job_id() {
-    use super::params::parse_job_ids_only;
+    use crate::parse_job_ids_only;
 
     let err = parse_job_ids_only(&[]).expect_err("no job ID is an error");
 

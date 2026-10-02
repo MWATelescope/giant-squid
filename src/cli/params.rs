@@ -25,11 +25,6 @@ use crate::asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVE
 
 use super::value_enums::SchemaEnumParser;
 
-/// The job ID guard of `wait` and `cancel` is the library's
-/// ([`crate::parse_job_ids_only`]); this name is kept for the tests of this
-/// module.
-pub use crate::parse_job_ids_only;
-
 /// The default of `list --days`: the schema's default for the `days` of a job
 /// listing (`JobsByUserRequest`), so that the help shows it and the CLI cannot
 /// drift from the API.

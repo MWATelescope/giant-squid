@@ -135,8 +135,10 @@ where
 /// only, and `submit-image-from-job` is the command for a conversion job.
 const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead.";
 
-/// The message of `submit-image-from-job` for a job ID.
-const IMAGE_FROM_JOB_JOB_IDS_MESSAGE: &str = "This command only accepts obsids, not job IDs.";
+/// The message of `submit-image-from-job` for a job ID among its arguments.
+/// The command takes a conversion job, but as `--source-job-id`.
+const IMAGE_FROM_JOB_JOB_IDS_MESSAGE: &str =
+    "The arguments must be obsids, not job IDs. Give the conversion job with --source-job-id.";
 
 /// Parse the obsids of a submit command with the library's
 /// [`parse_obs_ids_only`]. `job_ids_message` is the command's own text for

@@ -3,8 +3,9 @@
 ## Handoff (read this first)
 
 Written 2026-10-02, and updated at the end of that session. Branch `apiv2`
-at `6253fca` (the commit of diff 25), plus diff 26 of the thin-client refactor
-(below). That finishes Level 1. The entries under "Status"
+at `eb2a441` (the commit of diff 26), plus diff 27 (below). Level 1 of the
+thin-client refactor is finished, and Level 3 option A is under way. The
+entries under "Status"
 below are the detailed log; this section is the summary and the list of what
 to do next.
 
@@ -26,8 +27,8 @@ item 1.**
 - The Python CI has run on GitHub and works. It showed two faults, both fixed: a test that compared log lines with
   their clock time, and a Ctrl-C that was lost when it arrived in a log
   call (a real bug of the module, not only of the test).
-- Tests at the last run (after diff 26): 230 Rust unit tests (one is the
-  `#[ignore]`d recording test) and 36 CLI tests; 339 pytest tests; 18 live tests
+- Tests at the last run (after diff 27): 230 Rust unit tests (one is the
+  `#[ignore]`d recording test) and 37 CLI tests; 339 pytest tests; 18 live tests
   (`tools/run_live_tests.sh`, by hand, against test-asvo), which all passed
   on 2026-10-02; clippy (default features and `python`), `ruff`, `ty`,
   stubtest and the stub drift check clean. The doctests cannot run in the
@@ -107,42 +108,64 @@ item 1.**
 
 ### Open items, in the order I would take them
 
-1. **Level 1 of the thin-client refactor is done** (diffs 23 to 26, see
-   Status). The user has not yet chosen Level 2 or 3 (next item). Two small
-   points are left for the user's decision:
-   - `submit-image` and `submit-image-from-job` have their own text for a job
-     ID. It is written in both commands (`IMAGE_JOB_IDS_MESSAGE` and
-     `IMAGE_FROM_JOB_JOB_IDS_MESSAGE` in `giant-squid.rs` and in
-     `mwa_giant_squid_cli/constants.py`). Move these two strings into the
-     library, or use the library text for both commands?
-   - `cli/tests.rs` still imports `parse_job_ids_only` from `cli::params`,
-     which now re-exports the library function so that the existing tests did
-     not change. Move that import in the tests (needs the user's approval)
-     and delete the re-export?
-2. **Levels 2 and 3 (not started, the user has not chosen).**
+1. **Level 3, option A: the Python `giant-squid` command is the Rust CLI,
+   run inside the Python module** (decided by the user: "stick with a thin
+   python wrapper and see how we go with the challenges"). Level 1 is done
+   (diffs 23 to 27, see Status). The plan, one diff per step:
+   - **Diff 27 (done):** the test imports of `parse_job_ids_only` moved to the
+     library and the `cli::params` re-export deleted; the text of
+     `submit-image-from-job` for a job ID now points to `--source-job-id`.
+     The two image messages stay in the Rust binary: the Python copies go
+     with the Python command. The Python copy of the `submit-image-from-job`
+     text and its pin in `tests/python/test_cli.py` were left as they are,
+     because diff 29 deletes them.
+   - **Diff 28:** a Rust entry point (a private function of the module, for
+     example `mwa_giant_squid._run_cli(argv)`) that runs the clap CLI of the
+     library, and a small Python launcher. The old Python command stays, so
+     the two can be compared. Needs the `bin` feature in the wheel
+     (`pyproject.toml`: `features = ["python", "bin"]`).
+   - **Diff 29:** `[project.scripts] giant-squid` points to the launcher;
+     delete `mwa_giant_squid_cli` and its pytest files; replace them with a
+     few launcher tests; docs.
+   - **Questions the user has not yet answered (ask before diff 28):**
+     (1) is the plan above right; (2) may `tests/python/test_cli.py` and
+     `test_cli_units.py` be deleted in diff 29 (needs authorization); (3)
+     Ctrl-C: should the Python command act like the native Rust command (the
+     plan: reset SIGINT to the default before the run), or keep a graceful
+     stop with exit code 130; the binary has no Ctrl-C handler of its own, and
+     the library has `AsvoError::Interrupted`, which must be checked first;
+     (4) is the entry point private. Known challenges: the module installs
+     the pyo3-log bridge at import (`src/python/mod.rs`, `try_init`), and only
+     one Rust logger can be installed, so the CLI cannot install its own
+     logger (simplelog with indicatif's `LogWrapper`, for the progress bars)
+     unless the bridge is installed on first use of a client instead; this
+     changes when Python logging is connected, and needs the user's OK.
+   - **Considered, not chosen for now:** ship the native binary in a second
+     PyPI package (maturin `bindings = "bin"`, built from the same
+     `Cargo.toml` in its own directory with its own `pyproject.toml`),
+     with `pip install mwa-giant-squid[cli]` pulling it in as a dependency
+     pinned to the same version, and `pip install mwa-giant-squid` giving the
+     library only. It avoids the logger, Ctrl-C and GIL work and keeps the
+     library wheel small; it costs a second package and a second wheel per
+     platform in CI, and `mwa-giant-squid` alone would have no
+     `giant-squid` command. It was not built or tested. On 2026-10-02 PyPI
+     returned 404 for `giant-squid`, `giant_squid` and `mwa-giant-squid`
+     (names free at that time).
+2. **Levels 2 (not chosen) and the old options for Level 3.**
    - Level 2, shared orchestration in the library: `wait_until_ready` with a
      state-change callback and `should_stop` (this reverses decision 9, "no
      poll loops in the library"); a submit-many call that returns a result
      per obsid; a download-many call; the dry-run text as a function; the job
-     table as a string. Then the Rust binary and `commands.py` are argument
-     parsing plus printing.
-   - Level 3, one CLI definition. Options: (A) the Python `giant-squid` calls
-     the Rust CLI through PyO3 (removes about 2,000 Python lines; the wheel
-     carries clap, indicatif and prettytable; Ctrl-C and logging need care);
-     (B) export a machine-readable description of the clap CLI and build the
-     argparse parser from it; (C) keep both and add a CI test that fails when
-     their options or help texts differ (the comparison script in the review
-     found 133 shared options with the same help, 8 with cosmetic
-     differences, and `--legacy-json` only in Rust).
-   - Differences between the two commands that remain until Level 2: the
+     table as a string. With option A it is not needed: there is one CLI.
+   - The other Level 3 options were: (B) export a machine-readable
+     description of the clap CLI and build the argparse parser from it; (C)
+     keep both commands and add a CI test that fails when their options or
+     help texts differ.
+   - Differences between the two commands that option A removes: the
      download labels (`[n/N]` runs across job IDs and obsids in Python and
      restarts for obsids in Rust), one login per download in Rust against a
      shared login in Python, `-vv` (trace) in Rust only, and when the limits
      of `list` are checked (before the login in Rust, after it in Python).
-   - The log lines and summaries (about 25 strings: `Submitted ...`,
-     `Cancel request ...`, the dry-run lines, `Downloaded N of M`) are still
-     written twice. They move into the library in Level 2, where the library
-     emits them; do not make them functions in Level 1.
 3. **`dug` for conversion and imaging.** The API developer says the schema
    is wrong and will add `dug` to `ConversionJobParams` and both imaging
    bodies; the generated `Delivery` type already has it, so `submit-conv`,
@@ -1029,6 +1052,15 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   full text (`Invalid image_size: ...`). Python `parse_utc_time` now uses
   jiff's rules, not `datetime`'s. One existing pytest assertion changed
   (`test_cli.py`, the typo text, approved by "fix in next diff").
+- 2026-10-02 (diff 27): in `src/cli/tests.rs` the five tests of
+  `parse_job_ids_only` import it from `crate` (approved by the user), and the
+  re-export in `cli::params` is deleted. `IMAGE_FROM_JOB_JOB_IDS_MESSAGE` in
+  the Rust binary now reads `The arguments must be obsids, not job IDs. Give
+  the conversion job with --source-job-id.` (the old text could be read as
+  saying that the command takes no job ID, but it needs one as
+  `--source-job-id`). New CLI test:
+  `a_job_id_argument_of_submit_image_from_job_points_to_source_job_id`. The
+  Python command is not changed. The user chose option A for Level 3.
 - Next step: see "Handoff (read this first)" at the top of this file.
 
 ## Goal

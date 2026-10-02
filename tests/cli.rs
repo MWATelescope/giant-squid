@@ -861,6 +861,29 @@ fn waiting_for_an_obsid_is_rejected_and_nothing_is_sent() {
     );
 }
 
+/// A job ID among the arguments of `submit-image-from-job` is refused before
+/// anything is sent, and the message says where the conversion job goes: the
+/// command needs one, as `--source-job-id`.
+#[test]
+fn a_job_id_argument_of_submit_image_from_job_points_to_source_job_id() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["submit-image-from-job", "--source-job-id", "5", "12345"]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    assert!(
+        result.combined().contains(
+            "The arguments must be obsids, not job IDs. Give the conversion job with --source-job-id."
+        ),
+        "output: {}",
+        result.combined()
+    );
+}
+
 #[test]
 fn cancelling_with_no_job_ids_is_rejected() {
     let env = CliEnv::with_session();
