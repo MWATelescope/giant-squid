@@ -21,9 +21,38 @@ use crate::asvo::apiv2::openapi::{
     VoltageJobParams, Weighting,
 };
 use crate::asvo::apiv2::validate::{self, Bounds};
-use crate::asvo::AsvoApiError;
+use crate::asvo::{AsvoApiError, AsvoJobId};
 
 use super::value_enums::SchemaEnumParser;
+
+/// Parses the arguments of a command that takes job IDs only (`wait` and
+/// `cancel`): job IDs, or files of job IDs.
+///
+/// # Errors
+///
+/// - An obsid anywhere in the arguments (or in a file) is an error that names
+///   the obsids, even when job IDs are also given. Ignoring it would wait for,
+///   or cancel, fewer jobs than the user asked for.
+/// - No job ID at all is an error.
+/// - A file that cannot be read or parsed is an error.
+pub fn parse_job_ids_only(strings: &[String]) -> anyhow::Result<Vec<AsvoJobId>> {
+    let (job_ids, obs_ids) = crate::parse_many_job_ids_or_obs_ids(strings)?;
+    if !obs_ids.is_empty() {
+        let obs_ids: Vec<String> = obs_ids.iter().map(ToString::to_string).collect();
+        anyhow::bail!(
+            "Expected only job IDs, but found these obsids: {}. {}",
+            obs_ids.join(", "),
+            OBS_ID_HINT
+        );
+    }
+    if job_ids.is_empty() {
+        anyhow::bail!("No jobids specified!");
+    }
+    Ok(job_ids)
+}
+
+/// What to do when an obsid is given to a command that takes job IDs only.
+const OBS_ID_HINT: &str = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'.";
 
 /// Builds a clap value parser that only accepts an f64 within `bounds`.
 /// The bounds are the library's ([`crate::asvo::apiv2::validate`]), which

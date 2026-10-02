@@ -3,7 +3,7 @@
 # Fail the script on any error
 set -euo pipefail
 
-# Check how "dirty" the dir is. If dirty, stop, since cargo clippy --fix can be destructive!
+# Check how "dirty" the dir is. If dirty, stop, so that the diff after this script is only the regeneration.
 changed_file_count=$(git status --porcelain=v1 -uall | wc -l)
 
 if (( changed_file_count > 0 )); then
@@ -20,11 +20,15 @@ fi
 # of the normal build. Turning that schema into Rust code
 # (src/asvo/apiv2/openapi.rs) happens in build.rs, gated behind the
 # `regen-openapi` feature so a normal build doesn't need typify at all.
-# After running this script, regenerate + review + commit with:
+# This script also does the regeneration. To regenerate from the schema that is
+# already committed, without downloading, run:
 #
 #     cargo build --features regen-openapi
-#     cargo fmt
 #     git diff src/asvo/apiv2/openapi.rs
+#
+# Commit openapi.rs as build.rs writes it. Do not run `cargo fmt` or
+# `cargo clippy --fix` on it: the openapi-drift-check CI job regenerates the
+# file and fails on any difference, and rustfmt lays the file out differently.
 #
 # It assumes:
 # 1. You run this from inside the "tools" directory
@@ -116,16 +120,9 @@ PYEOF
 echo "Wrote ${OUTPUT_FILE}."
 cargo build --features regen-openapi
 
-cargo check
-
-# Allow dirty is ok here as the only file that could be modified is Cargo.lock or the openapi.rs which we regenerated anyway!
-cargo clippy --fix --allow-dirty
-
-# typify's output is not rustfmt-formatted, and CI checks the formatting
-# (`cargo fmt --check`), so format the regenerated file (and anything the
-# clippy fixes touched).
-cargo fmt
-
+# The regenerated file is committed as build.rs wrote it (prettyplease). It is
+# not formatted with `cargo fmt` or changed with `cargo clippy --fix`, because
+# the openapi-drift-check CI job compares it with a fresh regeneration.
 cargo check
 
 git status

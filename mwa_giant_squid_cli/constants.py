@@ -31,6 +31,10 @@ EXIT_FAILED = 1
 EXIT_USAGE = 2
 EXIT_INTERRUPTED = 130
 
+# What to do when an obsid is given to a command that takes job IDs only (`wait` and `cancel`). The Rust command says
+# the same.
+OBS_ID_HINT = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'."
+
 # A valid obsid to build a request body from, to get the default of each option from the module (the module's
 # `*_params` functions return the MWA ASVO defaults). It is never sent.
 PLACEHOLDER_OBS_ID = 1_000_000_000

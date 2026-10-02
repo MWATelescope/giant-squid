@@ -27,6 +27,7 @@ use mwa_giant_squid::cli::config::{
     client_config_from_env, download_buffer_size_from_env, download_retry_duration_from_env,
 };
 use mwa_giant_squid::cli::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
+use mwa_giant_squid::cli::params::parse_job_ids_only;
 use mwa_giant_squid::cli::table::print_jobs_table;
 use mwa_giant_squid::cli::Args;
 use mwa_giant_squid::*;
@@ -790,10 +791,7 @@ fn main() -> Result<(), anyhow::Error> {
             legacy_json,
             no_colour,
         } => {
-            let (parsed_job_ids, _) = parse_many_job_ids_or_obs_ids(&jobs)?;
-            if parsed_job_ids.is_empty() {
-                bail!("No jobids specified!");
-            }
+            let parsed_job_ids = parse_job_ids_only(&jobs)?;
             init_logger(verbosity);
             let client = connect()?;
             // Endlessly loop over the newly-supplied job IDs until
@@ -820,10 +818,7 @@ fn main() -> Result<(), anyhow::Error> {
             verbosity,
             jobs,
         } => {
-            let (parsed_job_ids, _) = parse_many_job_ids_or_obs_ids(&jobs)?;
-            if parsed_job_ids.is_empty() {
-                bail!("No jobids specified!");
-            }
+            let parsed_job_ids = parse_job_ids_only(&jobs)?;
             init_logger(verbosity);
 
             if dry_run {

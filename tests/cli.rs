@@ -819,6 +819,48 @@ fn a_rejected_cancellation_is_logged_without_failing_the_run() {
     );
 }
 
+/// An obsid is refused before anything is sent, and the job ID next to it is
+/// not cancelled either: the user asked for something that cannot be done.
+#[test]
+fn cancelling_an_obsid_is_rejected_and_nothing_is_sent() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "12345", "1065880128"]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    assert!(
+        result
+            .combined()
+            .contains("Expected only job IDs, but found these obsids: 1065880128."),
+        "output: {}",
+        result.combined()
+    );
+}
+
+#[test]
+fn waiting_for_an_obsid_is_rejected_and_nothing_is_sent() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "12345", "1065880128"]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    assert_eq!(requests.calls(), 0);
+    assert!(
+        result
+            .combined()
+            .contains("Expected only job IDs, but found these obsids: 1065880128."),
+        "output: {}",
+        result.combined()
+    );
+}
+
 #[test]
 fn cancelling_with_no_job_ids_is_rejected() {
     let env = CliEnv::with_session();

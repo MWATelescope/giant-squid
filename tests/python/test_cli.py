@@ -396,10 +396,9 @@ def test_a_submission_sends_the_default_body(
 )
 def test_the_short_command_names_work(run: Callable[..., Result], alias: str, command: str) -> None:
     """The short names are the commands."""
-    assert (
-        run(alias, "-n", str(TEST_OBS_ID)).err.split("\n", 1)[1:]
-        == run(command, "-n", str(TEST_OBS_ID)).err.split("\n", 1)[1:]
-    )
+    # The time is taken off every line (``log_lines``). Taking off only the first line left the time of the last
+    # line in the comparison, so the test failed whenever the two runs fell in different seconds.
+    assert log_lines(run(alias, "-n", str(TEST_OBS_ID))) == log_lines(run(command, "-n", str(TEST_OBS_ID)))
 
 
 def test_the_conversion_options_are_sent(run: Callable[..., Result], httpserver: HTTPServer, mock_login: None) -> None:
@@ -603,7 +602,20 @@ def test_wait_needs_a_job_id(run: Callable[..., Result]) -> None:
     """``wait`` and ``cancel`` with no job IDs say so."""
     assert "No jobids specified!" in run("wait").err
     assert "No jobids specified!" in run("cancel").err
-    assert "No jobids specified!" in run("wait", str(TEST_OBS_ID)).err
+
+
+@pytest.mark.parametrize("command", ["wait", "cancel"])
+@pytest.mark.parametrize("arguments", [[str(TEST_OBS_ID)], ["31", str(TEST_OBS_ID)], [str(TEST_OBS_ID), "31"]])
+def test_wait_and_cancel_refuse_an_obsid(
+    run: Callable[..., Result], httpserver: HTTPServer, command: str, arguments: list[str]
+) -> None:
+    """An obsid is refused by name, with or without job IDs, and nothing is sent: it is never ignored."""
+    result = run(command, *arguments)
+
+    assert result.code != EXIT_OK
+    assert f"Expected only job IDs, but found these obsids: {TEST_OBS_ID}." in result.err
+    assert "giant-squid list <obsid>" in result.err
+    assert httpserver.log == []
 
 
 def test_cancel_cancels_each_job_and_carries_on_after_a_failure(

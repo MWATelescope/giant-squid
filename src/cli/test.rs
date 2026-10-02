@@ -1442,6 +1442,86 @@ fn list_takes_the_date_and_sort_filters() {
 }
 
 // ---------------------------------------------------------------------------
+// `wait` and `cancel` take job IDs only
+// ---------------------------------------------------------------------------
+
+fn strings(items: &[&str]) -> Vec<String> {
+    items.iter().map(ToString::to_string).collect()
+}
+
+#[test]
+fn job_ids_only_accepts_job_ids() {
+    use super::params::parse_job_ids_only;
+
+    let job_ids = parse_job_ids_only(&strings(&["31", TEST_JOB_ID])).expect("job IDs parse");
+
+    assert_eq!(job_ids, [31, 12345]);
+}
+
+#[test]
+fn job_ids_only_reads_job_ids_from_a_file() {
+    use super::params::parse_job_ids_only;
+
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 32").expect("write the file");
+    let path = file.path().to_string_lossy().to_string();
+
+    let job_ids = parse_job_ids_only(&[path]).expect("the file parses");
+
+    assert_eq!(job_ids, [31, 32]);
+}
+
+/// An obsid is an error that names the obsid, whether it is alone, with job
+/// IDs, or in a file: it is never ignored.
+#[test]
+fn job_ids_only_refuses_an_obsid() {
+    use super::params::parse_job_ids_only;
+
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 {TEST_OBS_ID}").expect("write the file");
+    let path = file.path().to_string_lossy().to_string();
+
+    for arguments in [
+        strings(&[TEST_OBS_ID]),
+        strings(&["31", TEST_OBS_ID]),
+        strings(&[TEST_OBS_ID, "31"]),
+        vec![path],
+    ] {
+        let err = parse_job_ids_only(&arguments).expect_err("an obsid must be refused");
+        let text = err.to_string();
+
+        assert!(
+            text.starts_with("Expected only job IDs, but found these obsids: 1065880128."),
+            "{arguments:?}: {text}"
+        );
+        assert!(text.contains("giant-squid list <obsid>"), "{text}");
+    }
+}
+
+#[test]
+fn job_ids_only_names_every_obsid() {
+    use super::params::parse_job_ids_only;
+
+    let err = parse_job_ids_only(&strings(&[TEST_OBS_ID, "1065880248", "31"]))
+        .expect_err("obsids must be refused");
+
+    assert!(
+        err.to_string()
+            .contains("found these obsids: 1065880128, 1065880248."),
+        "{err}"
+    );
+}
+
+#[test]
+fn job_ids_only_needs_a_job_id() {
+    use super::params::parse_job_ids_only;
+
+    let err = parse_job_ids_only(&[]).expect_err("no job ID is an error");
+
+    assert_eq!(err.to_string(), "No jobids specified!");
+}
+
+// ---------------------------------------------------------------------------
 // The help of `list --job-states` and `--job-types`
 // ---------------------------------------------------------------------------
 

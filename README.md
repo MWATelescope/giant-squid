@@ -922,7 +922,9 @@ $ giant-squid wait 31 32
 13:52:08 [INFO] All 2 MWA ASVO jobs are ready for download.
 ```
 
-- `wait` takes job IDs, not obsids. The IDs can also be in files, as for the other commands.
+- `wait` takes job IDs only (they can also be in files, as for the other commands). An obsid, alone or next to job
+  IDs, is an error that names it, and nothing is waited for. To find the job IDs of an obsid, use
+  `giant-squid list <obsid>`.
 - It stops at once, with a non-zero exit code, if a job is not in your job list, has an error, has expired or
   has been cancelled. Waiting longer would not change that.
 - It waits for as long as it takes. Press Ctrl-C to stop.
@@ -964,6 +966,8 @@ was cancelled:
 - If the MWA ASVO refuses a request in any other way (for example, there is no such job), `giant-squid` logs
   `Failed to cancel MWA ASVO job ID N: <reason>` and counts the request as failed. It carries on with the next
   job, and the exit code is still zero.
+
+Like `wait`, `cancel` takes job IDs only: an obsid is an error that names it, and nothing is sent.
 
 To check what `cancel` would send, without sending it, use `--dry-run`. To see the state of the jobs after a
 cancel, use [`list`](#list-mwa-asvo-jobs).

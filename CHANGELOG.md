@@ -41,6 +41,8 @@ before you upgrade scripts.**
 * `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
   the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message.
+* `wait` and `cancel` take job IDs only. An obsid is an error that names it and nothing is sent; before, it was
+  ignored without a word.
 * `list --job-types` refuses text that is not a job type, instead of matching no job. It accepts
   `download_voltage` as well as `download_voltages`.
 * `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,

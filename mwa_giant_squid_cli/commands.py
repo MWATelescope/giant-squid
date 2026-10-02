@@ -29,6 +29,7 @@ from .constants import (
     ENDPOINT_IMAGING_JOB,
     ENDPOINT_JOBS,
     ENDPOINT_VOLTAGE_JOB,
+    OBS_ID_HINT,
     WAIT_INITIAL_DELAY_S,
     WAIT_POLL_INTERVAL_S,
 )
@@ -132,7 +133,10 @@ def obs_ids_only(strings: Sequence[str], job_ids_message: str | None = None) -> 
 
 
 def job_ids_only(strings: Sequence[str]) -> list[int]:
-    """Parse job IDs, ignoring any obsids, as the Rust command does.
+    """Parse job IDs, refusing obsids, as the Rust command does.
+
+    An obsid is never ignored, even when job IDs are also given: that would wait for, or cancel, fewer jobs than
+    the user asked for.
 
     Args:
         strings: The job IDs and the paths of files of job IDs.
@@ -141,9 +145,12 @@ def job_ids_only(strings: Sequence[str]) -> list[int]:
         The job IDs.
 
     Raises:
-        ValueError: There is no job ID.
+        ValueError: There is an obsid, or there is no job ID.
     """
-    job_ids, _ = mwa_giant_squid.parse_many_job_ids_or_obs_ids(strings)
+    job_ids, obs_ids = mwa_giant_squid.parse_many_job_ids_or_obs_ids(strings)
+    if obs_ids:
+        msg = f"Expected only job IDs, but found these obsids: {', '.join(map(str, obs_ids))}. {OBS_ID_HINT}"
+        raise ValueError(msg)
     if not job_ids:
         msg = "No jobids specified!"
         raise ValueError(msg)

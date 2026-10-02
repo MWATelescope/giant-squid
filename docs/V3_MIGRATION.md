@@ -3,7 +3,7 @@
 This guide is for people who use the `giant-squid` command line. It lists
 what changed from 2.x (the last is 2.5.1) to 3.0.0, and what to do about
 each change. Most commands work as before; the changes that can alter your
-results or break a script are marked **(check this)**.
+results or break a script are in the checklist below.
 
 Why the changes: giant-squid 3.0.0 uses version 2 of the MWA ASVO API. The
 job options, their names and their defaults now come from that API, so
@@ -25,6 +25,9 @@ giant-squid, the API and its documentation use the same names everywhere.
 5. If a script reads **log lines** (for example "Submitted ... as MWA ASVO
    job ID ..."), read `--json` instead: see
    [Output: logs go to stderr](#output-logs-go-to-stderr).
+6. If a script reads the **output of `cancel`**, or gives an **obsid to `wait`
+   or `cancel`**, change it: see
+   [Waiting and cancelling](#waiting-and-cancelling-wait-cancel).
 
 Your API key, environment variables and download commands need no change.
 
@@ -68,7 +71,7 @@ optional value, so you can turn them off with `--apply-primary-beam=false`.
 
 ## Conversion jobs (`submit-conv`)
 
-**(check this)** The defaults changed. In 2.x, giant-squid set its own
+The defaults changed. In 2.x, giant-squid set its own
 defaults for a conversion job. In 3.0.0 the defaults are the MWA ASVO API's:
 
 | Option | 2.x default | 3.0.0 default |
@@ -113,7 +116,7 @@ giant-squid submit-image-from-job --source-job-id 12345 1065880128 --image-size 
 well as its job ID. As in 2.x, the conversion job must have made a CASA
 measurement set, delivered to Acacia or Scratch.
 
-**(check this)** The imaging defaults are now the API's. Most are as in
+The imaging defaults are now the API's. Most are as in
 2.x (image size 3072, pixel scale 20, `briggs` weighting with robust -0.5,
 auto threshold 0.5, clean threshold 0.001, primary beam applied, output
 `fits`), but two changed:
@@ -154,7 +157,7 @@ each obsid.
 
 ## Output: logs go to stderr
 
-**(check this)** In 2.x, giant-squid wrote its log lines (information and
+In 2.x, giant-squid wrote its log lines (information and
 warnings) to standard output. In 3.0.0 all log lines go to standard error,
 so that standard output has only the command's output: the job table,
 `--json` output, and the `--json` replies of the submit commands. The
@@ -187,9 +190,43 @@ which is midnight UTC, or a time such as `2026-09-01T12:00:00Z`) and
 `--sort-by`. `--days` is as in 2.x, but takes 1 to 30, the limits of the MWA ASVO API; other
 values are refused before any request.
 
+`--job-types` now refuses text that is not a job type, with an error that
+names it. In 2.x any other text (a misspelt name, for example) was accepted and
+matched no job, so the list was empty. `--job-types` also takes
+`download_voltage`, as well as `download_voltages`.
+
+## Waiting and cancelling (`wait`, `cancel`)
+
+**Obsids are refused.** `wait` and `cancel` take job IDs only. In 2.x an
+obsid given to them was ignored without a word: `giant-squid cancel 31
+1065880128` cancelled job 31 and said nothing about the obsid. In 3.0.0 an
+obsid anywhere in the arguments (or in a file) stops the command with an error
+that names the obsid, and nothing is sent:
+
+```text
+Expected only job IDs, but found these obsids: 1065880128. To find the job IDs of an obsid, use 'giant-squid list <obsid>'.
+```
+
+**The log lines of `cancel` changed.** A reply from the MWA ASVO does not
+prove that a job was cancelled (it answers the cancellation of a job that is
+already cancelled as normal, with a message that says so), so `cancel` no
+longer says "Cancelled":
+
+| 2.x | 3.0.0 |
+|---|---|
+| `Cancelled MWA ASVO job ID 31` | `Cancel request for job 31: <the MWA ASVO's message>` |
+| `Cancelled 2 jobs.` | `Cancel requests: 2 sent, 0 failed.` |
+
+If a script looks for "Cancelled", read the message instead, or use `list`
+afterwards to check the state of the jobs. A request that the MWA ASVO
+refuses with an error is logged as `Failed to cancel MWA ASVO job ID N:
+<reason>` and counted in `failed`.
+
+The JSON keys of `wait --json` changed as for `list`: see the next section.
+
 ## JSON output (`list --json`, `wait --json`)
 
-**(check this)** The JSON keys changed to the API's names, and there are
+The JSON keys changed to the API's names, and there are
 more of them:
 
 | 2.x key | 3.0.0 key |
@@ -252,7 +289,7 @@ works best with `HOME` set, so that the file can be used.
 
 | Command | Alias | Change |
 |---|---|---|
-| `list` | `l` | New option names (old ones still work), new date options, new JSON keys |
+| `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused |
 | `download` | `d` | None |
 | `submit-vis` | `sv` | `--json` added |
 | `submit-meta` | `sm` | `--json` added |
@@ -261,5 +298,5 @@ works best with `HOME` set, so that the file can be used.
 | `submit-image-from-job` | `sifj` | New: images a completed conversion job |
 | `submit-volt` | `st` | `--json` added; `--offset` range checked |
 | `submit-bf` | `sb` | `--json` added |
-| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones) |
-| `cancel` | `c` | None |
+| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); obsids refused |
+| `cancel` | `c` | New log lines; obsids refused |

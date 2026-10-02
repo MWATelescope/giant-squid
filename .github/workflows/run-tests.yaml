@@ -50,7 +50,7 @@ jobs:
       run: cargo test --locked
 
   openapi-drift-check:
-    name: Check openapi.rs matches openapi-schema.json
+    name: openapi-drift-check (openapi.rs matches openapi-schema.json)
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -61,18 +61,16 @@ jobs:
       with:
         toolchain: stable
 
+    # build.rs writes src/asvo/apiv2/openapi.rs with prettyplease, and that output is what is committed. Do not run
+    # `cargo fmt` or `cargo clippy --fix` here: rustfmt lays the file out differently (about 1500 lines), so the
+    # check would always fail, and it would not be checking the schema any more. Cargo.lock pins typify and
+    # prettyplease, so the output does not change from one run to the next.
     - name: Regenerate src/asvo/apiv2/openapi.rs
       run: cargo build --features regen-openapi
-
-    - name: Run clippy
-      run: cargo clippy --fix
-
-    - name: Format src/asvo/apiv2/openapi.rs
-      run: cargo fmt
 
     - name: Fail if regeneration produced a diff
       run: |
         if ! git diff --exit-code -- src/asvo/apiv2/openapi.rs; then
-          echo "::error::src/asvo/apiv2/openapi.rs is out of date relative to openapi-schema.json. Run 'cargo build --features regen-openapi' locally and commit the result."
+          echo "::error::src/asvo/apiv2/openapi.rs is out of date relative to openapi-schema.json. Run 'cargo build --features regen-openapi' locally and commit the result (without running cargo fmt on it)."
           exit 1
         fi
