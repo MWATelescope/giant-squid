@@ -250,16 +250,18 @@ def cmd_cancel(args: argparse.Namespace) -> None:
         log.info("[dry run] Would have cancelled %d jobids. Nothing was sent.", len(job_ids))
         return
     client = connect()
-    cancelled = 0
+    failed = 0
     for job_id in job_ids:
         try:
             response = client.cancel_job(job_id)
         except EXPECTED_ERRORS as e:
             log.error("Failed to cancel MWA ASVO job ID %s: %s", job_id, e)
+            failed += 1
         else:
-            log.info("Cancelled MWA ASVO job ID %s (%s)", job_id, response.message)
-            cancelled += 1
-    log.info("Cancelled %d jobs.", cancelled)
+            # A reply is not proof that the job was cancelled: the server answers a job that is already
+            # cancelled with a normal reply whose message says so. So the log reports requests.
+            log.info("Cancel request for job %s: %s", job_id, response.message)
+    log.info("Cancel requests: %d sent, %d failed.", len(job_ids), failed)
 
 
 def build_body(params: Callable[..., dict[str, Any]], *args: Any, **options: Any) -> dict[str, Any]:

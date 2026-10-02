@@ -609,7 +609,7 @@ def test_wait_needs_a_job_id(run: Callable[..., Result]) -> None:
 def test_cancel_cancels_each_job_and_carries_on_after_a_failure(
     run: Callable[..., Result], httpserver: HTTPServer, mock_login: None
 ) -> None:
-    """Each job is cancelled; a failure is logged and the count is of those that worked."""
+    """Each job gets a cancel request; a failure is logged and counted, and the run carries on."""
     httpserver.expect_request(f"{JOBS_PATH}/{LISTED_JOB_ID}", method="DELETE").respond_with_json(
         {"job_id": LISTED_JOB_ID, "message": "Job cancelled", "status": "success"}
     )
@@ -621,9 +621,26 @@ def test_cancel_cancels_each_job_and_carries_on_after_a_failure(
 
     assert result.code == EXIT_OK, result.err
     lines = log_lines(result)
-    assert f"[INFO] Cancelled MWA ASVO job ID {LISTED_JOB_ID} (Job cancelled)" in lines
+    assert f"[INFO] Cancel request for job {LISTED_JOB_ID}: Job cancelled" in lines
     assert any(line.startswith(f"[ERROR] Failed to cancel MWA ASVO job ID {QUEUED_JOB_ID}:") for line in lines)
-    assert lines[-1] == "[INFO] Cancelled 1 jobs."
+    assert lines[-1] == "[INFO] Cancel requests: 2 sent, 1 failed."
+
+
+def test_cancel_refused_with_a_normal_reply_is_not_reported_as_cancelled(
+    run: Callable[..., Result], httpserver: HTTPServer, mock_login: None
+) -> None:
+    """A job that is already cancelled gets a normal reply with status "failed"; the log must not say it was cancelled."""
+    httpserver.expect_request(f"{JOBS_PATH}/{LISTED_JOB_ID}", method="DELETE").respond_with_json(
+        {"job_id": LISTED_JOB_ID, "message": f"Unable to cancel job {LISTED_JOB_ID}", "status": "failed"}
+    )
+
+    result = run("cancel", str(LISTED_JOB_ID))
+
+    assert result.code == EXIT_OK, result.err
+    lines = log_lines(result)
+    assert f"[INFO] Cancel request for job {LISTED_JOB_ID}: Unable to cancel job {LISTED_JOB_ID}" in lines
+    assert not any("Cancelled" in line for line in lines)
+    assert lines[-1] == "[INFO] Cancel requests: 1 sent, 0 failed."
 
 
 def test_cancel_dry_run_sends_nothing(run: Callable[..., Result], httpserver: HTTPServer) -> None:

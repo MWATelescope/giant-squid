@@ -62,19 +62,15 @@ jobs:
       with:
         toolchain: stable
 
-    # A uv-managed Python is used so that its libpython is available: stub_gen embeds Python.
-    - name: Install uv and Python
+    - name: Install uv
       uses: astral-sh/setup-uv@v10.0.1
-      with:
-        python-version: "3.14"
 
     # `uv run ruff` in tools/generate_stubs.sh needs the project environment, so this builds the module.
     - name: Build the module and install the dev tools
       run: uv sync --locked
 
+    # stub_gen embeds Python, so it links against the libpython of the first python3 on the PATH.
     - name: Regenerate the stub
-      env:
-        PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
       run: tools/generate_stubs.sh
 
     - name: Fail if the regenerated stub differs from the committed one

@@ -14,7 +14,21 @@ readme = "README.md"
 description = "MWA ASVO command line client"
 repository = "https://github.com/MWATelescope/giant-squid"
 homepage = "https://github.com/MWATelescope/giant-squid"
-exclude = [".github/*", "mwa_giant_squid_cli/*", "tests/python/*"]
+# Files that only the Python package (mwa-giant-squid, built by maturin) uses. The Rust sources of the
+# `python` and `python-stubgen` features (src/python, src/bin/stub_gen.rs) stay: the manifest needs them.
+exclude = [
+    ".github/*",
+    "mwa_giant_squid_cli/*",
+    "tests/python/*",
+    "docs/PYTHON.md",
+    "docs/PYTHON_BINDINGS.md",
+    "mwa_giant_squid.pyi",
+    "pyproject.toml",
+    "tools/generate_stubs.sh",
+    "tools/run_stubtest.sh",
+    "tools/stubtest_allowlist.txt",
+    "uv.lock",
+]
 
 # When selecting dependency versions, it prefers versions whose own rust-version (MSRV) is compatible with yours, rather than always picking the newest release.
 # It still respects semver constraints as the primary filter — MSRV compatibility is the tiebreaker among eligible versions.

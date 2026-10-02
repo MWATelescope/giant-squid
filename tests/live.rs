@@ -713,7 +713,9 @@ fn live_cancel() {
     let result = env.run(&["cancel", &id_str]);
     assert!(result.success, "{}", result.combined());
     assert!(
-        result.combined().contains("Cancelled 1 jobs."),
+        result
+            .combined()
+            .contains("Cancel requests: 1 sent, 0 failed."),
         "{}",
         result.combined()
     );

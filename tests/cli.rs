@@ -736,7 +736,53 @@ fn a_cancellation_is_issued_to_the_server() {
     assert!(result.success, "output: {}", result.combined());
     assert_eq!(cancel.calls(), 1);
     assert!(
-        result.combined().contains("Cancelled 1 jobs"),
+        result
+            .combined()
+            .contains("Cancel requests: 1 sent, 0 failed."),
+        "output: {}",
+        result.combined()
+    );
+}
+
+/// The server answers a cancellation of a job that is already cancelled with
+/// a normal (HTTP 200) reply whose `status` is "failed". The CLI can tell it
+/// from a success only by the message, so it must not say that the job was
+/// cancelled: it logs the server's message as the answer to the request.
+#[test]
+fn a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/12345");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(serde_json::json!({
+                "job_id": 12345,
+                "message": "Unable to cancel job 12345",
+                "status": "failed",
+            }));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "12345"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert!(
+        result
+            .combined()
+            .contains("Cancel request for job 12345: Unable to cancel job 12345"),
+        "output: {}",
+        result.combined()
+    );
+    assert!(
+        !result.combined().contains("Cancelled"),
+        "output: {}",
+        result.combined()
+    );
+    assert!(
+        result
+            .combined()
+            .contains("Cancel requests: 1 sent, 0 failed."),
         "output: {}",
         result.combined()
     );
@@ -765,7 +811,9 @@ fn a_rejected_cancellation_is_logged_without_failing_the_run() {
         result.combined()
     );
     assert!(
-        result.combined().contains("Cancelled 0 jobs"),
+        result
+            .combined()
+            .contains("Cancel requests: 1 sent, 1 failed."),
         "output: {}",
         result.combined()
     );

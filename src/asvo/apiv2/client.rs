@@ -909,9 +909,10 @@ impl AsvoClient {
     /// The reply's `status` and `message` describe what happened, and the
     /// `status` is not to be used to decide whether the call worked: the
     /// HTTP status decides that (the API developer's rule). The MWA ASVO
-    /// answers a cancellation that it refuses, for a job that is already
-    /// cancelled for example, with a normal (HTTP 200) reply whose message
-    /// says so, so such a refusal is `Ok` here. Read the `message`.
+    /// answers the cancellation of a job that is already cancelled with a
+    /// normal (HTTP 200) reply whose `status` is "failed" and whose message
+    /// says so, so that case is `Ok` here. Read the `message`. Any other
+    /// refusal is an HTTP 4xx error, which is an `Err` here.
     ///
     /// # Errors
     ///

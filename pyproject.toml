@@ -52,6 +52,9 @@ build-backend = "maturin"
 module-name = "mwa_giant_squid"
 # The command line program, which the wheel installs as the `giant-squid` command.
 python-packages = ["mwa_giant_squid_cli"]
+# The crate on crates.io leaves out the Python files (see `exclude` in Cargo.toml), and maturin builds the sdist from
+# that package list. The type stub is added back, so that a wheel built from the sdist has it.
+include = [{ path = "mwa_giant_squid.pyi", format = "sdist" }]
 bindings = "pyo3"
 # Only the Python module: not the default "bin" feature, which adds the CLI
 # (clap, indicatif and others) to the library.

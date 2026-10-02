@@ -200,9 +200,9 @@ Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and
 text ("success" or "failed") and the `message` describe the reply and are for display. A call that fails
 raises an exception, so do not use `status` to decide whether a call worked.
 
-`cancel_job` returns the same class. The MWA ASVO answers a cancellation that it refuses (for example, of
-a job that is already cancelled) with a normal reply, not an error, so no exception is raised. The reason is
-in `message`.
+`cancel_job` returns the same class. The MWA ASVO answers the cancellation of a job that is already cancelled
+with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
+is an error and raises `AsvoApiError`.
 
 ### Check a request without sending it
 

@@ -837,19 +837,26 @@ fn main() -> Result<(), anyhow::Error> {
             } else {
                 let client = connect()?;
 
-                let mut cancelled_count = 0;
+                // A reply is not proof that a job was cancelled: the server
+                // answers a job that is already cancelled with a normal
+                // reply whose message says so. So the logs report requests.
+                let sent_count = parsed_job_ids.len();
+                let mut failed_count = 0;
                 for j in parsed_job_ids {
                     match client.cancel_job(j) {
                         Ok(resp) => {
-                            info!("Cancelled MWA ASVO job ID {} ({})", j, resp.message);
-                            cancelled_count += 1;
+                            info!("Cancel request for job {}: {}", j, resp.message);
                         }
                         Err(e) => {
                             error!("Failed to cancel MWA ASVO job ID {}: {}", j, e);
+                            failed_count += 1;
                         }
                     }
                 }
-                info!("Cancelled {} jobs.", cancelled_count);
+                info!(
+                    "Cancel requests: {} sent, {} failed.",
+                    sent_count, failed_count
+                );
             }
         }
     }

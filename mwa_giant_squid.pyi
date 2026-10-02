@@ -513,10 +513,11 @@ class AsvoClient:
             job_id: The ID of the job to cancel.
 
         Returns:
-            The server's reply. Its `job_id` is the cancelled job. The MWA
-            ASVO answers a cancellation that it refuses, for a job that is
-            already cancelled for example, with a normal reply and not an
-            error, so no exception is raised. The reason is in `message`.
+            The server's reply. Its `job_id` is the job in the request. The
+            MWA ASVO answers the cancellation of a job that is already
+            cancelled with a normal reply and not an error, so no exception
+            is raised. The reason is in `message`. Any other refusal is an
+            error.
 
         Raises:
             OverflowError: `job_id` is negative or too large to be a job ID.
