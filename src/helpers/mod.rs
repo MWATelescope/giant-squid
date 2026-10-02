@@ -231,6 +231,39 @@ pub fn parse_utc_time(text: &str) -> Result<jiff::Timestamp, ParseError> {
         .map_err(|_| ParseError::InvalidTime)
 }
 
+/// The size of the buffer that [`hash_reader`] reads through.
+const HASH_READ_BUFFER_SIZE: usize = 1024 * 1024;
+
+/// Lower-case hexadecimal of `bytes`, for example a SHA1 hash. The `sha1`
+/// crate's output type has no `{:x}` format.
+pub(crate) fn to_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        })
+}
+
+/// Add everything that `reader` gives to `hasher`, and return the number of
+/// bytes. The `sha1` crate's hasher is not an `io::Write`, so `io::copy`
+/// cannot do this.
+pub(crate) fn hash_reader(mut reader: impl io::Read, hasher: &mut Sha1) -> io::Result<u64> {
+    let mut buffer = vec![0; HASH_READ_BUFFER_SIZE];
+    let mut total: u64 = 0;
+    loop {
+        let n = match reader.read(&mut buffer) {
+            Ok(0) => return Ok(total),
+            Ok(n) => n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        };
+        hasher.update(&buffer[..n]);
+        total += n as u64;
+    }
+}
+
 /// Takes a filename, expected hash and a job id and returns
 /// Ok if the calculated hash matches the expected hash, otherwise
 /// returns an AsvoError::HashMismatch
@@ -239,10 +272,10 @@ pub fn check_file_sha1_hash(
     expected_hash: &str,
     job_id: AsvoJobId,
 ) -> Result<(), AsvoError> {
-    let mut file = fs::File::open(filename)?;
+    let file = fs::File::open(filename)?;
     let mut hasher = Sha1::new();
-    io::copy(&mut file, &mut hasher)?;
-    let hash = format!("{:x}", hasher.finalize());
+    hash_reader(file, &mut hasher)?;
+    let hash = to_hex(&hasher.finalize());
 
     if hash.eq_ignore_ascii_case(expected_hash) {
         Ok(())

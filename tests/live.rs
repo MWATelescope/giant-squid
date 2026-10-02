@@ -354,7 +354,10 @@ fn target_and_api_key() -> (String, String) {
 /// The shared `HOME` for a target and API key. Keyed by both, so a cached
 /// session is never used against another server or for another account.
 fn shared_home(target: &str, api_key: &str) -> PathBuf {
-    let key_id = format!("{:x}", Sha1::digest(api_key.as_bytes()));
+    let key_id: String = Sha1::digest(api_key.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     let home = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(LIVE_HOME_DIR)
         .join(format!("{}-{}", host_of(target), &key_id[..API_KEY_ID_LEN]));

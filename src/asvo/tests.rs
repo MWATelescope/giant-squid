@@ -42,7 +42,7 @@ fn ready_job_serving(url: &str, size: u64, sha1: &str) -> Value {
 fn sha1_hex(bytes: &[u8]) -> String {
     let mut hasher = Sha1::new();
     hasher.update(bytes);
-    format!("{:x}", hasher.finalize())
+    crate::helpers::to_hex(&hasher.finalize())
 }
 
 /// A tar archive holding one small file, as a UTF-8 string so it can be
@@ -1075,7 +1075,10 @@ mod retries {
 
         assert_members_written(&dir);
         // The retry only fetched the tail, but the hash covers the archive.
-        assert_eq!(format!("{:x}", hasher.finalize()), sha1_hex(&archive));
+        assert_eq!(
+            crate::helpers::to_hex(&hasher.finalize()),
+            sha1_hex(&archive)
+        );
     }
 
     #[test]
@@ -1105,7 +1108,10 @@ mod retries {
         .expect("the retry should succeed");
 
         assert_members_written(&dir);
-        assert_eq!(format!("{:x}", hasher.finalize()), sha1_hex(&archive));
+        assert_eq!(
+            crate::helpers::to_hex(&hasher.finalize()),
+            sha1_hex(&archive)
+        );
     }
 
     #[test]
@@ -1767,5 +1773,284 @@ mod unsafe_paths {
             std::fs::read(unpack_dir.join("c.dat")).expect("c.dat"),
             vec![b'c'; 700]
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The resume file (sidecar) of a stream-untar download
+// ---------------------------------------------------------------------------
+
+mod sidecar {
+    use std::time::{Duration, SystemTime};
+
+    use httpmock::prelude::*;
+    use serde_json::Value;
+    use tempfile::TempDir;
+
+    use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_FILE, DOWNLOAD_PATH};
+    use crate::asvo::{
+        AsvoClient, AsvoError, DownloadOptions, EARLIER_FILES_WINDOW, SIDECAR_SUFFIX,
+    };
+    use crate::test_common::*;
+    use crate::test_config::client_config;
+
+    const MEMBERS: [(&str, usize); 3] = [("a.dat", 1000), ("b.dat", 3000), ("c.dat", 700)];
+
+    fn member_contents(size: usize) -> Vec<u8> {
+        (0..size).map(|i| b'0' + (i % 10) as u8).collect()
+    }
+
+    fn test_archive() -> Vec<u8> {
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, size) in MEMBERS {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(size as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, member_contents(size).as_slice())
+                .expect("could not build the test tar");
+        }
+        builder.into_inner().expect("could not finish the test tar")
+    }
+
+    fn c_data_pos(archive: &[u8]) -> u64 {
+        let mut tar = tar::Archive::new(archive);
+        tar.entries()
+            .expect("the test tar should be readable")
+            .nth(2)
+            .expect("a third entry")
+            .expect("a readable entry")
+            .raw_file_position()
+    }
+
+    fn sidecar_file(dir: &TempDir) -> std::path::PathBuf {
+        dir.path().join(format!(".{DOWNLOAD_FILE}{SIDECAR_SUFFIX}"))
+    }
+
+    fn assert_members_written(dir: &TempDir) {
+        for (name, size) in MEMBERS {
+            let written =
+                std::fs::read(dir.path().join(name)).expect("the member should be on disk");
+            assert_eq!(
+                written,
+                member_contents(size),
+                "{name} has the wrong contents"
+            );
+        }
+    }
+
+    /// The mock server and the requests of the tests: the check's range
+    /// request, the whole archive, and the rest of the archive from `c.dat`.
+    struct Server<'a> {
+        env: &'a TestEnv,
+        check: httpmock::Mock<'a>,
+        rest: httpmock::Mock<'a>,
+    }
+
+    fn serve<'a>(env: &'a TestEnv, archive: &[u8]) -> Server<'a> {
+        env.mock_get_jobs(vec![ready_job_serving(
+            &env.server.url(DOWNLOAD_PATH),
+            archive.len() as u64,
+            &sha1_hex(archive),
+        )]);
+        let window_end = EARLIER_FILES_WINDOW.min(archive.len() as u64);
+        let check = env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", format!("bytes=0-{}", window_end - 1).as_str());
+            then.status(206).body(&archive[..window_end as usize]);
+        });
+        env.server.mock(|when, then| {
+            when.method(GET).path(DOWNLOAD_PATH).header_missing("range");
+            then.status(200).body(archive);
+        });
+        let start = c_data_pos(archive);
+        let rest = env.server.mock(|when, then| {
+            when.method(GET)
+                .path(DOWNLOAD_PATH)
+                .header("range", format!("bytes={start}-").as_str());
+            then.status(206).body(&archive[start as usize..]);
+        });
+        Server { env, check, rest }
+    }
+
+    fn download(
+        server: &Server,
+        dir: &TempDir,
+        configure: impl FnOnce(&mut DownloadOptions),
+    ) -> Result<(), AsvoError> {
+        let dir_path = dir.path().display().to_string();
+        let mut opts = options(&dir_path);
+        configure(&mut opts);
+        let client = AsvoClient::new(client_config(server.env)).expect("client should be created");
+        client.download_job(TEST_JOB_ID, &opts)
+    }
+
+    /// A first run that writes `a.dat` and `b.dat` and then fails: a
+    /// directory is in the place of `c.dat`. The directory is then removed,
+    /// as a user would fix the problem.
+    fn failed_first_run(server: &Server, dir: &TempDir) {
+        std::fs::create_dir(dir.path().join("c.dat")).expect("could not create the obstacle");
+        let err = download(server, dir, |_| {}).expect_err("writing c.dat should fail");
+        assert!(matches!(err, AsvoError::IO(_)), "got {err:?}");
+        std::fs::remove_dir(dir.path().join("c.dat")).expect("could not remove the obstacle");
+        assert!(
+            sidecar_file(dir).exists(),
+            "the failed run should leave a resume file"
+        );
+    }
+
+    /// Change one field of the resume file.
+    fn edit_sidecar(dir: &TempDir, edit: impl FnOnce(&mut Value)) {
+        let path = sidecar_file(dir);
+        let mut sidecar: Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("the resume file"))
+                .expect("the resume file should be JSON");
+        edit(&mut sidecar);
+        std::fs::write(&path, serde_json::to_vec(&sidecar).expect("JSON"))
+            .expect("could not write the resume file");
+    }
+
+    #[test]
+    fn a_rerun_uses_the_resume_file_of_a_failed_run() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+        let checks_before = server.check.calls();
+
+        download(&server, &dir, |_| {}).expect("the rerun should succeed and match the hash");
+
+        assert_eq!(
+            server.check.calls(),
+            checks_before,
+            "the resume file replaces the check"
+        );
+        assert_eq!(server.rest.calls(), 1, "only c.dat should be fetched");
+        assert_members_written(&dir);
+        assert!(
+            !sidecar_file(&dir).exists(),
+            "a finished download deletes its resume file"
+        );
+    }
+
+    #[test]
+    fn a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+        // The saved hash state is wrong, so only the hash check can notice.
+        edit_sidecar(&dir, |sidecar| {
+            let state = sidecar["hasher_state"]
+                .as_str()
+                .expect("a state")
+                .to_string();
+            let mut bytes =
+                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, state)
+                    .expect("base64");
+            bytes[0] ^= 0xff;
+            sidecar["hasher_state"] =
+                base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes).into();
+        });
+
+        let err = download(&server, &dir, |opts| opts.hash = false)
+            .expect_err("the forced hash check should fail");
+
+        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+        assert!(
+            !sidecar_file(&dir).exists(),
+            "a failed hash deletes the resume file"
+        );
+    }
+
+    #[test]
+    fn a_resume_file_is_not_used_when_a_file_changed_after_it() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+        let checks_before = server.check.calls();
+        // Same contents, a new modification time.
+        let a = std::fs::File::options()
+            .write(true)
+            .open(dir.path().join("a.dat"))
+            .expect("a.dat");
+        a.set_modified(SystemTime::now() + Duration::from_secs(60))
+            .expect("could not set the modification time");
+        drop(a);
+
+        download(&server, &dir, |_| {}).expect("the rerun should succeed");
+
+        assert_eq!(
+            server.check.calls(),
+            checks_before + 1,
+            "the files on disk are checked instead"
+        );
+        assert_eq!(server.rest.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_resume_file_for_another_archive_is_not_used() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+        let checks_before = server.check.calls();
+        edit_sidecar(&dir, |sidecar| {
+            sidecar["archive_sha1"] = sha1_hex(b"another archive").into()
+        });
+
+        download(&server, &dir, |_| {}).expect("the rerun should succeed");
+
+        assert_eq!(
+            server.check.calls(),
+            checks_before + 1,
+            "the files on disk are checked instead"
+        );
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_resume_file_with_an_unsafe_path_is_not_used() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+        let checks_before = server.check.calls();
+        edit_sidecar(&dir, |sidecar| {
+            sidecar["files"][0]["path"] = "../a.dat".into()
+        });
+
+        download(&server, &dir, |_| {}).expect("the rerun should succeed");
+
+        assert_eq!(
+            server.check.calls(),
+            checks_before + 1,
+            "the files on disk are checked instead"
+        );
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn no_resume_ignores_the_resume_file_and_deletes_it_when_finished() {
+        let archive = test_archive();
+        let env = TestEnv::with_session();
+        let server = serve(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        failed_first_run(&server, &dir);
+
+        download(&server, &dir, |opts| opts.no_resume = true).expect("the download should succeed");
+
+        assert_eq!(server.rest.calls(), 0, "the whole archive is fetched");
+        assert_members_written(&dir);
+        assert!(!sidecar_file(&dir).exists());
     }
 }

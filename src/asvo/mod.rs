@@ -13,6 +13,7 @@ mod types;
 mod tests;
 
 use crate::check_file_sha1_hash;
+use crate::helpers::{hash_reader, to_hex};
 use crate::obs_id::ObsId;
 pub use apiv2::client::{
     AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT,
@@ -32,22 +33,26 @@ pub use types::{
     AsvoJobVec, Delivery, DownloadOptions, DownloadProgress,
 };
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::env::current_dir;
 use std::fmt;
 use std::fs::{rename, File};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::rc::Rc;
+use std::time::{Duration, Instant, SystemTime};
 
 use backoff::backoff::Backoff;
 use backoff::{Error, ExponentialBackoff, ExponentialBackoffBuilder};
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use log::{debug, error, info, warn};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
+use serde::{Deserialize, Serialize};
+use sha1::digest::common::hazmat::{SerializableState, SerializedState};
 use sha1::{Digest, Sha1};
 use tar::Archive;
-use tee_readwrite::TeeReader;
 
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
@@ -90,6 +95,18 @@ const TAR_BLOCK_SIZE: u64 = 512;
 /// [`untar_checkpoint_from_disk`]). One range usually holds the padding of a
 /// member and all the headers of the next.
 const EARLIER_FILES_WINDOW: u64 = 64 * 1024;
+
+/// The end of the name of a stream-untar resume file (see
+/// [`SidecarWriter`]). The whole name is `.<tar file name>` and this.
+const SIDECAR_SUFFIX: &str = ".giant-squid-resume.json";
+
+/// The format version of the resume file. A file with another version is
+/// not used.
+const SIDECAR_VERSION: u32 = 1;
+
+/// The shortest time between two writes of the resume file while a download
+/// runs. A failed attempt always writes it.
+const SIDECAR_WRITE_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Look up a single job by job ID from the supplied list and download it.
 pub(crate) fn download_by_job_id(
@@ -185,14 +202,18 @@ fn download_job(
                 // the first attempt: after a hash mismatch the retry must
                 // fetch the whole archive, not use the same files again.
                 if !opts.keep_tar && !opts.no_resume {
-                    retry_state.untar_checkpoint = untar_checkpoint_from_disk(
-                        http_client,
-                        url,
-                        f,
-                        job.job_id,
-                        &log_prefix,
-                        opts,
-                    )?;
+                    retry_state.untar_checkpoint =
+                        match checkpoint_from_sidecar(&out_path, f, &log_prefix, opts) {
+                            Some(cp) => Some(cp),
+                            None => untar_checkpoint_from_disk(
+                                http_client,
+                                url,
+                                f,
+                                job.job_id,
+                                &log_prefix,
+                                opts,
+                            )?,
+                        };
                 }
 
                 #[allow(clippy::result_large_err)]
@@ -414,16 +435,19 @@ fn try_download(
     // Set when only part of the file was fetched this time, which changes
     // how the hash has to be checked (see below).
     let resumed = resume_from > 0;
-    let mut tee = TeeReader::new(response_reader(http_response), Sha1::new(), false);
+    let stream_hasher = RefCell::new(Sha1::new());
+    let mut reader = HashingReader {
+        inner: response_reader(http_response),
+        hasher: &stream_hasher,
+        position: resume_from,
+    };
 
-    copy_with_progress(tee.by_ref(), &mut out_file, opts.buffer_size, opts)?;
+    copy_with_progress(&mut reader, &mut out_file, opts.buffer_size, opts)?;
 
-    // Drain any remaining bytes so the TeeReader's hash covers everything.
-    {
-        let mut final_bytes = vec![];
-        tee.read_to_end(&mut final_bytes)?;
-        debug!("{} Read final bytes: {}", log_prefix, final_bytes.len());
-    }
+    // Drain any remaining bytes so the stream's hash covers everything.
+    let final_bytes = io::copy(&mut reader, &mut io::sink())?;
+    debug!("{} Read final bytes: {}", log_prefix, final_bytes);
+    drop(reader);
 
     report(opts, DownloadProgress::Finished);
 
@@ -435,13 +459,12 @@ fn try_download(
         debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
 
         if resumed {
-            // The tee only saw the bytes fetched this time, so its hash
-            // describes the tail rather than the file. Read the assembled
+            // The stream's hash only covers the bytes fetched this time, so
+            // it describes the tail rather than the file. Read the assembled
             // file back instead - slower, but only on a resumed download.
             check_file_sha1_hash(out_path, mwa_asvo_hash, job.job_id)?;
         } else {
-            let (_, hasher) = tee.into_inner();
-            let hash = format!("{:x}", hasher.finalize());
+            let hash = to_hex(&stream_hasher.into_inner().finalize());
             debug!("{} Our hash: {}", log_prefix, hash);
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
@@ -526,6 +549,39 @@ struct UntarCheckpoint {
     /// [`untar_checkpoint_from_disk`]), so the hash is checked even when
     /// [`DownloadOptions::hash`] is not set.
     verify: bool,
+    /// The files that were finished before this member, for the resume file.
+    /// Only the first `done_count` stamps belong to this checkpoint.
+    done: DoneFiles,
+    /// How many stamps of `done` belong to this checkpoint.
+    done_count: usize,
+}
+
+/// The files that the attempts at one archive finished, in archive order.
+/// Shared by the checkpoints, so that a checkpoint does not copy the list.
+type DoneFiles = Rc<RefCell<DoneList>>;
+
+/// See [`DoneFiles`].
+#[derive(Default)]
+struct DoneList {
+    stamps: Vec<FileStamp>,
+    /// A finished file could not be stamped (for example, its path is not
+    /// UTF-8). A resume file would then not guard all the files that its
+    /// hash state covers, so none is written.
+    untracked: bool,
+}
+
+/// A finished file, as the resume file records it: if the file still has
+/// this size and modification time, a rerun trusts that its bytes are the
+/// ones that the saved hash state covers.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct FileStamp {
+    /// The tar entry path, relative to the download directory.
+    path: String,
+    size: u64,
+    /// The modification time: whole seconds and nanoseconds after the Unix
+    /// epoch.
+    mtime_secs: u64,
+    mtime_nanos: u32,
 }
 
 /// Where one stream-untar attempt starts.
@@ -539,6 +595,10 @@ struct ResumePoint {
     member: Option<MemberTail>,
     /// The hash must be checked, as for [`UntarCheckpoint::verify`].
     verify: bool,
+    /// The finished files, as for [`UntarCheckpoint::done`].
+    done: DoneFiles,
+    /// How many stamps of `done` are files before `start`.
+    done_count: usize,
 }
 
 impl ResumePoint {
@@ -549,6 +609,8 @@ impl ResumePoint {
             hasher: Sha1::new(),
             member: None,
             verify: false,
+            done: DoneFiles::default(),
+            done_count: 0,
         }
     }
 }
@@ -558,6 +620,8 @@ struct MemberTail {
     /// The member's file, open for append, or `None` for a member that is
     /// not written to a file.
     file: Option<File>,
+    /// The path of `file`, to stamp it when it is finished.
+    path: Option<PathBuf>,
     /// The member's data bytes still to fetch.
     remaining: u64,
     /// The size of the member's data, which sets the size of its padding.
@@ -633,14 +697,31 @@ fn try_download_untar(
         );
     }
 
-    let hasher = untar_stream(
+    let sidecar = SidecarWriter::new(
+        unpack_path,
+        out_path,
+        mwa_asvo_hash,
+        file_info.size,
+        log_prefix,
+    );
+    let hasher = match untar_stream_with_sidecar(
         response_reader(response),
         resume,
         unpack_path,
         log_prefix,
         opts,
         checkpoint,
-    )?;
+        Some(&sidecar),
+    ) {
+        Ok(hasher) => hasher,
+        Err(e) => {
+            // A later run can carry on from here, even if this run stops.
+            if let Some(cp) = checkpoint.as_ref() {
+                sidecar.write(cp);
+            }
+            return Err(e);
+        }
+    };
 
     report(opts, DownloadProgress::Finished);
 
@@ -650,12 +731,13 @@ fn try_download_untar(
             log_prefix, out_path
         );
         debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
-        let hash = format!("{:x}", hasher.finalize());
+        let hash = to_hex(&hasher.finalize());
         debug!("{} Our hash: {}", log_prefix, hash);
         if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
             // The bytes behind the checkpoint are now suspect, so the retry
             // must fetch the whole archive again.
             *checkpoint = None;
+            sidecar.remove();
             return Err(AsvoError::HashMismatch {
                 job_id,
                 file: url.to_string(),
@@ -667,6 +749,7 @@ fn try_download_untar(
     }
 
     *checkpoint = None;
+    sidecar.remove();
     Ok(())
 }
 
@@ -677,6 +760,7 @@ fn try_download_untar(
 /// a member, the rest of that member is written first. `checkpoint` is set
 /// each time a member starts, so that it always tells a next attempt where
 /// to carry on.
+#[cfg(test)]
 fn untar_stream(
     source: impl Read,
     resume: ResumePoint,
@@ -685,8 +769,34 @@ fn untar_stream(
     opts: &DownloadOptions,
     checkpoint: &mut Option<UntarCheckpoint>,
 ) -> Result<Sha1, AsvoError> {
+    untar_stream_with_sidecar(
+        source,
+        resume,
+        unpack_path,
+        log_prefix,
+        opts,
+        checkpoint,
+        None,
+    )
+}
+
+/// [`untar_stream`], which also saves each checkpoint to `sidecar` (at most
+/// every [`SIDECAR_WRITE_INTERVAL`]).
+fn untar_stream_with_sidecar(
+    source: impl Read,
+    resume: ResumePoint,
+    unpack_path: &Path,
+    log_prefix: &str,
+    opts: &DownloadOptions,
+    checkpoint: &mut Option<UntarCheckpoint>,
+    sidecar: Option<&SidecarWriter>,
+) -> Result<Sha1, AsvoError> {
     let buffer_size = opts.buffer_size;
     let verify = resume.verify;
+    // Stamps after the resume point belong to an attempt that failed later
+    // in the archive: this attempt stamps those files again.
+    let done = Rc::clone(&resume.done);
+    done.borrow_mut().stamps.truncate(resume.done_count);
     let hasher = RefCell::new(resume.hasher);
     let mut reader = HashingReader {
         inner: source,
@@ -699,7 +809,13 @@ fn untar_stream(
         // its padding, so that the tar parser starts at a header.
         let mut data = (&mut reader).take(tail.remaining);
         match tail.file {
-            Some(mut file) => copy_with_progress(&mut data, &mut file, buffer_size, opts)?,
+            Some(mut file) => {
+                copy_with_progress(&mut data, &mut file, buffer_size, opts)?;
+                drop(file);
+                if let Some(path) = &tail.path {
+                    stamp_done(&done, unpack_path, path, tail.size);
+                }
+            }
             None => {
                 io::copy(&mut data, &mut io::sink())?;
             }
@@ -727,13 +843,20 @@ fn untar_stream(
             let entry_path = entry.path()?.to_path_buf();
             let target = entry_target(unpack_path, &entry_path);
 
-            *checkpoint = Some(UntarCheckpoint {
+            let size = entry.size();
+            let done_count = done.borrow().stamps.len();
+            let new_checkpoint = checkpoint.insert(UntarCheckpoint {
                 data_pos: base + entry.raw_file_position(),
                 hasher: hasher.borrow().clone(),
                 out_path: target.file_path(),
-                size: entry.size(),
+                size,
                 verify,
+                done: Rc::clone(&done),
+                done_count,
             });
+            if let Some(sidecar) = sidecar {
+                sidecar.write_if_due(new_checkpoint);
+            }
 
             match target {
                 EntryTarget::File(out_full) => {
@@ -745,6 +868,8 @@ fn untar_stream(
                         buffer_size,
                         opts,
                     )?;
+                    drop(out_file);
+                    stamp_done(&done, unpack_path, &out_full, size);
                 }
                 EntryTarget::Dir(out_full) if !out_full.exists() => {
                     debug!("{} Creating directory {:?}", log_prefix, out_full);
@@ -824,16 +949,19 @@ fn resume_point(
         hasher,
         member: Some(MemberTail {
             file,
+            path: cp.out_path.clone(),
             remaining: cp.size - on_disk,
             size: cp.size,
         }),
         verify: cp.verify,
+        done: Rc::clone(&cp.done),
+        done_count: cp.done_count,
     })
 }
 
 /// Add the first `len` bytes of the file at `path` to `hasher`.
 fn hash_file_prefix(path: &Path, len: u64, hasher: &mut Sha1) -> Result<(), AsvoError> {
-    let copied = io::copy(&mut File::open(path)?.take(len), hasher)?;
+    let copied = hash_reader(File::open(path)?.take(len), hasher)?;
     if copied < len {
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
@@ -955,6 +1083,7 @@ fn find_files_on_disk(
     let mut checkpoint = None;
     let mut files_on_disk: u64 = 0;
     let mut bytes_on_disk: u64 = 0;
+    let done = DoneFiles::default();
     {
         let mut tar = Archive::new(&mut reader);
         for entry in tar.entries()? {
@@ -970,6 +1099,8 @@ fn find_files_on_disk(
                 out_path: target.file_path(),
                 size,
                 verify: true,
+                done: Rc::clone(&done),
+                done_count: done.borrow().stamps.len(),
             });
 
             // An entry that is skipped also stops the walk: its data is not
@@ -999,6 +1130,9 @@ fn find_files_on_disk(
                 });
                 copy_with_progress(entry, &mut io::sink(), opts.buffer_size, opts)?;
                 bytes_on_disk += size;
+            }
+            if !is_dir {
+                stamp_done(&done, unpack_path, &out_full, size);
             }
         }
     }
@@ -1136,6 +1270,295 @@ impl Read for SpliceReader<'_> {
         self.position += n as u64;
         Ok(n)
     }
+}
+
+// --- the resume file (sidecar) ---------------------------------------------
+
+/// The resume file of a stream-untar download: `.<tar file name>` plus
+/// [`SIDECAR_SUFFIX`], in the download directory.
+fn sidecar_path(unpack_path: &Path, out_path: &Path) -> PathBuf {
+    let tar_name = out_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    unpack_path.join(format!(".{tar_name}{SIDECAR_SUFFIX}"))
+}
+
+/// Stamp a file that is now finished, and add it to `done`. A file that
+/// cannot be stamped marks `done` as untracked (see [`DoneList::untracked`]).
+fn stamp_done(done: &DoneFiles, unpack_path: &Path, out_full: &Path, size: u64) {
+    let stamp = file_stamp(unpack_path, out_full);
+    let mut done = done.borrow_mut();
+    match stamp {
+        Some(stamp) if stamp.size == size => done.stamps.push(stamp),
+        _ => done.untracked = true,
+    }
+}
+
+/// The stamp of the file at `out_full` as it is now, or `None` if it cannot
+/// be made.
+fn file_stamp(unpack_path: &Path, out_full: &Path) -> Option<FileStamp> {
+    let path = out_full
+        .strip_prefix(unpack_path)
+        .ok()?
+        .to_str()?
+        .to_string();
+    let metadata = std::fs::metadata(out_full).ok()?;
+    let mtime = metadata
+        .modified()
+        .ok()?
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?;
+    Some(FileStamp {
+        path,
+        size: metadata.len(),
+        mtime_secs: mtime.as_secs(),
+        mtime_nanos: mtime.subsec_nanos(),
+    })
+}
+
+/// The contents of the resume file.
+#[derive(Serialize, Deserialize)]
+struct Sidecar {
+    /// See [`SIDECAR_VERSION`].
+    version: u32,
+    /// The MWA ASVO SHA1 of the archive, which identifies the download.
+    archive_sha1: String,
+    archive_size: u64,
+    /// The checkpoint (see [`UntarCheckpoint`]).
+    data_pos: u64,
+    member_size: u64,
+    /// The checkpoint member's tar entry path, or `None` for a member that
+    /// is not written to a file.
+    member_path: Option<String>,
+    /// The serialised SHA1 state at `data_pos`, in base64.
+    hasher_state: String,
+    /// The files finished before the checkpoint member.
+    files: Vec<FileStamp>,
+}
+
+/// Saves the checkpoints of one stream-untar download to its resume file,
+/// so that a later run can carry on without reading the finished files
+/// again.
+///
+/// A later run trusts the saved hash state if every finished file still
+/// has its stamped size and modification time (see
+/// [`checkpoint_from_sidecar`]). The final hash check still runs.
+struct SidecarWriter<'a> {
+    path: PathBuf,
+    unpack_path: &'a Path,
+    archive_sha1: &'a str,
+    archive_size: u64,
+    log_prefix: &'a str,
+    last_write: Cell<Instant>,
+}
+
+impl<'a> SidecarWriter<'a> {
+    fn new(
+        unpack_path: &'a Path,
+        out_path: &Path,
+        archive_sha1: &'a str,
+        archive_size: u64,
+        log_prefix: &'a str,
+    ) -> Self {
+        Self {
+            path: sidecar_path(unpack_path, out_path),
+            unpack_path,
+            archive_sha1,
+            archive_size,
+            log_prefix,
+            last_write: Cell::new(Instant::now()),
+        }
+    }
+
+    /// Write `cp` if the last write was [`SIDECAR_WRITE_INTERVAL`] ago.
+    fn write_if_due(&self, cp: &UntarCheckpoint) {
+        if self.last_write.get().elapsed() >= SIDECAR_WRITE_INTERVAL {
+            self.write(cp);
+        }
+    }
+
+    /// Write `cp`. A failure is logged and does not stop the download: the
+    /// resume file is only a short cut.
+    fn write(&self, cp: &UntarCheckpoint) {
+        self.last_write.set(Instant::now());
+        match self.contents(cp) {
+            None => debug!(
+                "{} A finished file could not be stamped, so no resume file is written.",
+                self.log_prefix
+            ),
+            Some(sidecar) => {
+                if let Err(e) = self.write_atomically(&sidecar) {
+                    warn!(
+                        "{} Could not write the resume file {:?}: {}",
+                        self.log_prefix, self.path, e
+                    );
+                }
+            }
+        }
+    }
+
+    /// The resume file for `cp`, or `None` if it would not guard every file
+    /// that the hash state covers.
+    fn contents(&self, cp: &UntarCheckpoint) -> Option<Sidecar> {
+        let done = cp.done.borrow();
+        if done.untracked {
+            return None;
+        }
+        let member_path = match &cp.out_path {
+            Some(path) => Some(
+                path.strip_prefix(self.unpack_path)
+                    .ok()?
+                    .to_str()?
+                    .to_string(),
+            ),
+            None => None,
+        };
+        Some(Sidecar {
+            version: SIDECAR_VERSION,
+            archive_sha1: self.archive_sha1.to_string(),
+            archive_size: self.archive_size,
+            data_pos: cp.data_pos,
+            member_size: cp.size,
+            member_path,
+            hasher_state: BASE64.encode(cp.hasher.serialize().as_slice()),
+            files: done.stamps.get(..cp.done_count)?.to_vec(),
+        })
+    }
+
+    /// Write to a temporary file, then rename it, so that a reader never
+    /// sees a half-written resume file.
+    fn write_atomically(&self, sidecar: &Sidecar) -> io::Result<()> {
+        let mut tmp_name = self.path.clone().into_os_string();
+        tmp_name.push(".tmp");
+        let tmp_path = PathBuf::from(tmp_name);
+        std::fs::write(&tmp_path, serde_json::to_vec(sidecar)?)?;
+        std::fs::rename(&tmp_path, &self.path)
+    }
+
+    /// Delete the resume file: the download finished, or its bytes are
+    /// suspect.
+    fn remove(&self) {
+        match std::fs::remove_file(&self.path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => warn!(
+                "{} Could not delete the resume file {:?}: {}",
+                self.log_prefix, self.path, e
+            ),
+        }
+    }
+}
+
+/// Read the resume file of an earlier run of this download, and return its
+/// checkpoint, or `None` if there is no usable resume file.
+///
+/// A resume file is used only if it is for this archive (same SHA1 and
+/// size), and every file it stamped still has its size and modification
+/// time. The files are not read again: their bytes are in the saved hash
+/// state. The hash is still checked at the end (see
+/// [`UntarCheckpoint::verify`]). Without a usable resume file, the download
+/// looks for files on disk instead (see [`untar_checkpoint_from_disk`]).
+fn checkpoint_from_sidecar(
+    out_path: &Path,
+    file_info: &AsvoFilesArray,
+    log_prefix: &str,
+    opts: &DownloadOptions,
+) -> Option<UntarCheckpoint> {
+    let unpack_path = Path::new(opts.download_dir);
+    let path = sidecar_path(unpack_path, out_path);
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
+        Err(e) => {
+            warn!(
+                "{} Could not read the resume file {:?} ({}). Checking the files on disk instead.",
+                log_prefix, path, e
+            );
+            return None;
+        }
+    };
+    match parse_sidecar(&bytes, unpack_path, file_info) {
+        Ok(checkpoint) => {
+            info!(
+                "{} Found a resume file from an earlier download: {} files are already on disk. \
+                 Only the rest of the archive is fetched.",
+                log_prefix, checkpoint.done_count
+            );
+            Some(checkpoint)
+        }
+        Err(reason) => {
+            info!(
+                "{} Not using the resume file {:?}: {}. Checking the files on disk instead.",
+                log_prefix, path, reason
+            );
+            None
+        }
+    }
+}
+
+/// The checkpoint in a resume file, or why the file cannot be used.
+fn parse_sidecar(
+    bytes: &[u8],
+    unpack_path: &Path,
+    file_info: &AsvoFilesArray,
+) -> Result<UntarCheckpoint, String> {
+    let sidecar: Sidecar =
+        serde_json::from_slice(bytes).map_err(|e| format!("it cannot be read ({e})"))?;
+    if sidecar.version != SIDECAR_VERSION {
+        return Err("it is from another version of giant-squid".to_string());
+    }
+    let same_archive = file_info
+        .sha1
+        .as_deref()
+        .is_some_and(|sha1| sha1.eq_ignore_ascii_case(&sidecar.archive_sha1))
+        && sidecar.archive_size == file_info.size
+        && sidecar.data_pos <= file_info.size;
+    if !same_archive {
+        return Err("it is for another download".to_string());
+    }
+
+    for stamp in &sidecar.files {
+        let EntryTarget::File(out_full) = entry_target(unpack_path, Path::new(&stamp.path)) else {
+            return Err(format!("it names an unsafe path {:?}", stamp.path));
+        };
+        if file_stamp(unpack_path, &out_full).as_ref() != Some(stamp) {
+            return Err(format!(
+                "{:?} changed after the earlier download",
+                stamp.path
+            ));
+        }
+    }
+
+    let out_path = match &sidecar.member_path {
+        None => None,
+        Some(member_path) => match entry_target(unpack_path, Path::new(member_path)) {
+            EntryTarget::File(out_full) => Some(out_full),
+            _ => return Err(format!("it names an unsafe path {member_path:?}")),
+        },
+    };
+
+    let state_bytes = BASE64
+        .decode(&sidecar.hasher_state)
+        .map_err(|e| format!("its hash state cannot be read ({e})"))?;
+    let state = SerializedState::<Sha1>::try_from(state_bytes.as_slice())
+        .map_err(|_| "its hash state has the wrong length".to_string())?;
+    let hasher =
+        Sha1::deserialize(&state).map_err(|_| "its hash state cannot be read".to_string())?;
+
+    let done_count = sidecar.files.len();
+    Ok(UntarCheckpoint {
+        data_pos: sidecar.data_pos,
+        hasher,
+        out_path,
+        size: sidecar.member_size,
+        verify: true,
+        done: Rc::new(RefCell::new(DoneList {
+            stamps: sidecar.files,
+            untracked: false,
+        })),
+        done_count,
+    })
 }
 
 // --- network reads ---------------------------------------------------------
