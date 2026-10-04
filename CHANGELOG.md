@@ -81,6 +81,28 @@ before you upgrade scripts.**
   program as the Rust one (the same commands, options, help, messages and exit codes). See
   [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.
 
+* `download` without `--keep-tar` (stream untar) now resumes. A retry after a failed attempt (for example, a
+  dropped connection) continues from where the attempt stopped. A new run of the same command continues from the
+  files that are already in the download directory: complete files are not downloaded again, and a partly
+  written file is continued. The SHA-1 still covers the whole archive. A resume file,
+  `.<tar file name>.giant-squid-resume.json`, in the download directory lets a new run continue without reading
+  the complete files again. It is deleted when the download is complete.
+* `download` retries a network error during the transfer, with or without `--keep-tar`. Before, only a failed
+  request was retried.
+
+### Fixed in 3.0.0
+
+* `download --keep-tar` resume: the range request was sent with a wrong header, so the server sent the whole file
+  and giant-squid appended it to the partial file. A complete file was downloaded again. The SHA-1 of a resumed
+  download covered only the new bytes. All three are fixed. If a server ignores the range request, giant-squid
+  now downloads the file again from the start.
+* `download --no-resume` downloads a partial file again from the start. Before, it skipped the partial file and
+  left it as it was. A complete `--keep-tar` file that matches the SHA-1 is still not downloaded again. A retry in
+  the same run still continues its own partial file.
+* When `download` uses files from an earlier run, it checks the SHA-1 even with `--skip-hash`.
+* A stream-untar download does not write a tar entry whose path is absolute, contains `..` or has no name. It
+  shows a warning instead. Before, such an entry could be written outside the download directory.
+
 ### Removed in 3.0.0
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).

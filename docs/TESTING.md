@@ -93,9 +93,27 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-`src/asvo/tests.rs` covers the download path as far as it can go today:
-an unknown job ID, a job that is not ready, an unknown obsid, an obsid whose
-only job is unfinished, and an obsid with several ready jobs. Pagination is
+`src/asvo/tests.rs` covers the download path: an unknown job ID, a job that
+is not ready, an unknown obsid, an obsid whose only job is unfinished, an
+obsid with several ready jobs, successful downloads, resume, stop requests,
+and tar entries with unsafe paths. Stream-untar resume has three test
+modules:
+
+- `retries`: a retry in the same run, after a failed attempt. The mock
+  server cannot drop a connection, so these tests give the stream-untar
+  code a reader that fails part way through. The retry carries on inside
+  the member that the failure stopped, or after the last finished member,
+  and asks the server only for the rest of the archive. A hash mismatch
+  makes the retry start again from the beginning.
+- `reruns`: a new run that finds files from an earlier run on disk. The
+  mock server answers the closed byte range requests (at most 64 KiB each)
+  that read the tar headers and padding. A file with the wrong contents
+  makes the hash check fail, and the retry fetches the whole archive.
+- `sidecar`: the resume file (`.<tar name>.giant-squid-resume.json`) of a
+  failed run. The tests edit the file to check that it is not used for
+  another archive, after a finished file changed, or with an unsafe path.
+
+Pagination is
 covered too - `src/asvo/apiv2/client/tests.rs` serves two pages by matching on the
 `offset` the client sends, so no per-call response variation is needed.
 
@@ -209,6 +227,10 @@ with it.
 | `cancel` does not say a job was cancelled; a refused cancel is a normal reply | `a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled` and its Python twin |
 | `list --job-types` refuses text that is not a job type | `list_refuses_a_job_type_that_does_not_exist`, `text_that_is_not_a_job_type_is_an_error` |
 | The code of `openapi.rs` is what the schema generates | The `openapi-drift-check` job of `run-tests.yaml` |
+| `--no-resume` downloads again, but a complete keep-tar file that matches the hash is still skipped | `a_partial_file_is_downloaded_again_when_no_resume_is_set`, `a_complete_and_verified_file_is_skipped_when_no_resume_is_set`, `a_rerun_with_no_resume_set_fetches_the_whole_archive`, `no_resume_ignores_the_resume_file_and_deletes_it_when_finished` |
+| A retry continues the run's own partial output, even with `--no-resume` | `a_keep_tar_retry_resumes_its_own_partial_file_when_no_resume_is_set` |
+| Files reused from an earlier run are hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file` |
+| A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
 
 ## Test environment isolation
 
@@ -453,6 +475,7 @@ so read the per-file numbers, not only the total.
 | 3c | Recorded fixture from test-asvo, replayed offline | Done |
 | 3d | `product` mapping, plus successful download, tar and hash tests | Done |
 | 3e | Resume fix and its tests | Done |
+| 3f | Stream-untar resume (retries, reruns, resume file), unsafe tar paths, and their tests | Done |
 | 4 | Drop `MWA_ASVO_API_KEY` from CI | Done |
 | 4b | Fixture schema validation in CI | Covered by playback, see below |
 | 5 | End-to-end CLI tests against the mock server | Done |

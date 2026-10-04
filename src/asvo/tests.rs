@@ -9,8 +9,17 @@
 //! download runs end to end: the bytes are fetched, written or untarred,
 //! and the SHA1 checked, without Acacia being involved.
 //!
-//! Resume is not covered here; see the resume defects noted in
-//! docs/TESTING.md, which need fixing before a test can pin the behaviour.
+//! Resume is covered here, for both forms of download:
+//!
+//! - `--keep-tar`: a partial tar file is resumed with a range request, and a
+//!   complete file that matches the hash is skipped (section "Resume").
+//! - Stream-untar: a retry carries on from the failed attempt (`retries`),
+//!   a new run carries on from the files that an earlier run wrote
+//!   (`reruns`), and the resume file of an earlier run is used when it is
+//!   still valid (`sidecar`).
+//!
+//! The `unsafe_paths` module covers tar entries whose path is not inside
+//! the download directory.
 
 use httpmock::prelude::*;
 use serde_json::{json, Value};

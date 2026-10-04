@@ -282,6 +282,19 @@ No change: `download` takes the same job IDs, obsids and options as in 2.x
 `--skip-hash`, `--dry-run`). New: `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how
 long a failing download is retried (default 900 s).
 
+New: a download without `--keep-tar` (stream untar) resumes. In 2.x, only a
+`--keep-tar` download resumed. If a stream-untar download fails, run the same
+command again with the same `--download-dir`. giant-squid does not download
+again the files that are complete, and continues a partly written file. During
+the download, the download directory contains a hidden resume file,
+`.<tar file name>.giant-squid-resume.json`. giant-squid deletes it when the
+download is complete. Do not delete it while a download is incomplete, if you
+want the next run to be fast.
+
+Changed: `--no-resume` downloads a partial file again from the start. In 2.x,
+it skipped the partial file and left it as it was. If giant-squid uses files from an earlier run, it checks the SHA-1
+even with `--skip-hash`.
+
 ## Authentication and environment variables
 
 No change to `MWA_ASVO_API_KEY`, `MWA_ASVO_HOST` (a full URL, as in 2.x),

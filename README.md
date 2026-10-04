@@ -38,11 +38,10 @@ suit users for a few reasons:
    original tar and performing a very expensive IO operation), it is possible to
    get the files without performing an untar using `--keep-tar`
 
-2. If `--keep-tar` is specified, then giant-squid will support resuming partial
-   downloads and continue where it left off if the download command is run after
-   a download was interrupted or failed. In addition, if the file to download
-   already exists and matches the expected file size and checksum, then
-   giant-squid will skip downloading the file again.
+2. `giant-squid` resumes interrupted or failed downloads, with or without
+   `--keep-tar`. If you run the download command again, it continues where it
+   stopped, and it does not download again the files that are already complete.
+   See [Resuming Interrupted Downloads](#resuming-interrupted-downloads).
 
 3. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
@@ -1083,8 +1082,37 @@ would use 50 MiB of memory to cache the download before writing.
 
 #### Resuming Interrupted Downloads
 
-- `giant-squid` will attempt to resume an existing/interrupted download when the download command includes the `--keep-tar` option.
-- Without the `--keep-tar` option, `giant-squid` _stream untars_ files (i.e. it downloads the tar from MWA ASVO and, in memory, untars files on the fly) which means it is not possible for `giant-squid` to be able to reliably resume an interrupted download.
+If a download fails part way through (for example, the network connection
+drops), `giant-squid` retries it. The retry continues from where the failed
+attempt stopped. `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how long `giant-squid`
+retries (default 900 s).
+
+If you stop `giant-squid`, or the retries stop, run the same `download` command
+again with the same `--download-dir`. The new run continues from the files that
+are already on disk:
+
+- With `--keep-tar`, `giant-squid` continues a partial tar file from its end.
+  If the tar file is complete and matches the MWA ASVO SHA-1, `giant-squid`
+  does not download it again.
+- Without `--keep-tar` (stream untar), `giant-squid` does not download again
+  the files of the archive that are already complete, and continues a file
+  that is partly written. While it downloads, it keeps a resume file,
+  `.<tar file name>.giant-squid-resume.json`, in the download directory. With
+  this file, a new run does not have to read the complete files again to
+  calculate the SHA-1. `giant-squid` deletes the resume file when the download
+  is complete. If you change a complete file after a failed run, `giant-squid`
+  does not use the resume file, and reads the files on disk again.
+
+The SHA-1 always covers the whole archive. If files from an earlier run are
+used, `giant-squid` checks the SHA-1 even with `--skip-hash`. If the check
+fails, `giant-squid` downloads the whole archive again.
+
+Use `--no-resume` to download again from the start. A complete `--keep-tar`
+file that matches the SHA-1 is still not downloaded again.
+
+When it stream untars, `giant-squid` does not write a tar entry whose path is
+absolute, contains `..` or has no name. It shows a warning for each entry that
+it does not write.
 
 ## Installation
 
