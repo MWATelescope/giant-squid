@@ -93,7 +93,7 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-`src/asvo/tests.rs` covers the download path: an unknown job ID, a job that
+`src/asvo/download/tests.rs` covers the download path: an unknown job ID, a job that
 is not ready, an unknown obsid, an obsid whose only job is unfinished, an
 obsid with several ready jobs, successful downloads, resume, stop requests,
 and tar entries with unsafe paths. Stream-untar resume has three test
@@ -365,7 +365,7 @@ deliveries carry a `path` instead of a `url`; those are mapped but have no
 recorded sample yet.
 
 the playback tests in `src/asvo/apiv2/client/tests.rs` replay the recording and pin the mapping against that
-real payload. `src/asvo/tests.rs` now runs a download end to end, with the
+real payload. `src/asvo/download/tests.rs` now runs a download end to end, with the
 mock server serving the file as well as the API.
 
 One thing the recording also showed: `job_params.obs_id` came back as a
@@ -412,7 +412,7 @@ already accepts both.
 
   A server that ignores the range request and answers `200` instead of
   `206` is now detected, and the download restarts from the beginning
-  rather than appending. Tests in `src/asvo/tests.rs` cover resume, an
+  rather than appending. Tests in `src/asvo/download/tests.rs` cover resume, an
   already-complete file, a complete-but-corrupt file, `--no-resume`, and the
   ignored-range case.
 

@@ -25,11 +25,11 @@ use log::{debug, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
+use crate::asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    download_by_job_id, download_by_obs_id, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId,
-    AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery, DownloadOptions,
-    DEFAULT_ASVO_HOST,
+    AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobState, AsvoJobType,
+    AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
 use crate::obs_id::ObsId;

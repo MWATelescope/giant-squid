@@ -937,11 +937,11 @@ mod retries {
     use tempfile::TempDir;
 
     use super::{options, sha1_hex};
-    use crate::asvo::{
+    use crate::asvo::download::{
         is_network_read_error, network_error, resume_point, retry_class, try_download,
-        try_download_untar, untar_stream, AsvoError, AsvoFilesArray, AsvoJob, AsvoJobState,
-        AsvoJobType, Delivery, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
+        try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
     };
+    use crate::asvo::{AsvoError, AsvoFilesArray, AsvoJob, AsvoJobState, AsvoJobType, Delivery};
     use crate::obs_id::ObsId;
     use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
 
@@ -1430,7 +1430,8 @@ mod reruns {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
-    use crate::asvo::{AsvoClient, AsvoError, EARLIER_FILES_WINDOW};
+    use crate::asvo::download::EARLIER_FILES_WINDOW;
+    use crate::asvo::{AsvoClient, AsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1748,7 +1749,8 @@ mod unsafe_paths {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
-    use crate::asvo::{untar_stream, AsvoClient, ResumePoint, EARLIER_FILES_WINDOW};
+    use crate::asvo::download::{untar_stream, ResumePoint, EARLIER_FILES_WINDOW};
+    use crate::asvo::AsvoClient;
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1931,9 +1933,8 @@ mod sidecar {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_FILE, DOWNLOAD_PATH};
-    use crate::asvo::{
-        AsvoClient, AsvoError, DownloadOptions, EARLIER_FILES_WINDOW, SIDECAR_SUFFIX,
-    };
+    use crate::asvo::download::{EARLIER_FILES_WINDOW, SIDECAR_SUFFIX};
+    use crate::asvo::{AsvoClient, AsvoError, DownloadOptions};
     use crate::test_common::*;
     use crate::test_config::client_config;
 

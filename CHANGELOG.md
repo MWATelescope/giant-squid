@@ -40,6 +40,9 @@ before you upgrade scripts.**
   the release after 3.0.0.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
   or JSON), so a script can read it.
+* The submit commands try every obsid, and log the error of each failed submission when it happens. If any
+  failed, the command ends with `Error: M of N job submissions failed` and exit code 1. In 2.x the command stopped
+  at the first failure.
 * `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
   the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message.

@@ -99,7 +99,8 @@ fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<
 /// hiding whatever came after it. Each failure is reported as it happens,
 /// the successes still go through, and the run ends with a summary. An
 /// error is returned when anything failed, so the exit code still signals
-/// it, but only after every obsid has been attempted.
+/// it, but only after every obsid has been attempted. The error only counts
+/// the failures, because each one was already reported.
 fn submit_each_obs_id<F>(
     obs_ids: &[ObsId],
     description: &str,
@@ -108,7 +109,7 @@ fn submit_each_obs_id<F>(
 where
     F: FnMut(&ObsId, i64) -> Result<(), anyhow::Error>,
 {
-    let mut failures: Vec<String> = Vec::new();
+    let mut failures: usize = 0;
 
     for o in obs_ids {
         let obs_id_i64 =
@@ -116,11 +117,11 @@ where
 
         if let Err(e) = submit(o, obs_id_i64) {
             error!("Obsid {}: {}", o, e);
-            failures.push(format!("{o}: {e}"));
+            failures += 1;
         }
     }
 
-    let submitted = obs_ids.len() - failures.len();
+    let submitted = obs_ids.len() - failures;
     info!(
         "Submitted {} of {} obsids for {}.",
         submitted,
@@ -128,16 +129,11 @@ where
         description
     );
 
-    if failures.is_empty() {
+    if failures == 0 {
         return Ok(());
     }
 
-    bail!(
-        "{} of {} obsids failed:\n  {}",
-        failures.len(),
-        obs_ids.len(),
-        failures.join("\n  ")
-    );
+    bail!("{} of {} job submissions failed", failures, obs_ids.len());
 }
 
 /// The message of `submit-image` for a job ID: this command takes obsids

@@ -55,9 +55,10 @@ item 1 (what is left of it), then item 3.**
   - R2 (`--image-size`): keep the `Invalid image_size:` wrapper, that is,
     show the library's full text (diff 26). This was my reading of "keep the
     wrapper"; the user has not confirmed it.
-  - R3 (the per-obsid errors, and again in `N of M obsids failed`), R5 and R6
-    (the guard in `list`, the usage-error layout of the Python command):
-    keep as they are.
+  - R3 (the per-obsid errors, and again in `N of M obsids failed`): changed
+    later. Each error is shown once, when it happens, and the summary is
+    only `Error: M of N job submissions failed`. R5 and R6 (the guard in
+    `list`, the usage-error layout of the Python command): keep as they are.
   - R4 (the Python job state and type parser): keep the `Invalid ...` form,
     with the wording of R1: `Invalid <what> '<text>': expected one of: ...`
     (diff 25).

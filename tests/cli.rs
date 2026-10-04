@@ -438,7 +438,10 @@ fn every_failure_is_listed_at_the_end() {
             "{obs_id} should appear in the failure report: {output}"
         );
     }
-    assert!(output.contains("3 of 3 obsids failed"), "output: {output}");
+    assert!(
+        output.contains("Error: 3 of 3 job submissions failed"),
+        "output: {output}"
+    );
 }
 
 #[test]
