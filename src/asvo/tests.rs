@@ -1718,6 +1718,29 @@ mod unsafe_paths {
         );
     }
 
+    /// A file entry whose path names no file (empty, or only `.`) would be
+    /// written to the download directory itself. It is skipped, and the
+    /// entries after it are still unpacked.
+    #[test]
+    fn an_entry_with_no_name_is_skipped() {
+        for name in ["", "."] {
+            let dir = TempDir::new().expect("could not create a download directory");
+            let archive = archive_with(&[(name, b"no name"), ("good.dat", b"inside")]);
+
+            unpack(&archive, dir.path());
+
+            let written: Vec<_> = std::fs::read_dir(dir.path())
+                .expect("could not read the download directory")
+                .map(|entry| entry.expect("a directory entry").file_name())
+                .collect();
+            assert_eq!(written, ["good.dat"], "entry name {name:?}");
+            assert_eq!(
+                std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
+                b"inside"
+            );
+        }
+    }
+
     #[test]
     fn a_rerun_carries_on_from_a_skipped_entry() {
         let a_data = vec![b'a'; 1000];

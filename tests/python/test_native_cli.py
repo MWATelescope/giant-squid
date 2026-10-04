@@ -134,12 +134,12 @@ def test_help_is_the_rust_help_and_exits_zero(run: Callable[..., Result]) -> Non
 def test_the_version_is_the_modules(run: Callable[..., Result]) -> None:
     """``--version`` prints the version of the crate, which the module has too.
 
-    The name before the version is the one the Rust program prints (the name of the crate).
+    The name before the version is the name of the program (``giant-squid``), not the name of the crate.
     """
     result = run("--version")
 
     assert result.code == EXIT_OK
-    assert result.out.split() == ["mwa_giant_squid", gs.__version__]
+    assert result.out.split() == [COMMAND_NAME, gs.__version__]
 
 
 def test_a_bad_argument_is_a_usage_error(run: Callable[..., Result]) -> None:

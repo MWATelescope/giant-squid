@@ -55,7 +55,8 @@ suit users for a few reasons:
    parsing the state of your jobs in another programming language much simpler.
 
 6. By default, `giant-squid` will validate the hash of the archive. You can skip
-   this check with `--skip-hash`
+   this check with `--skip-hash`, except when `giant-squid` uses files that are
+   already on disk (see [Resuming Interrupted Downloads](#resuming-interrupted-downloads))
 
 ---
 
@@ -1012,7 +1013,7 @@ Options:
   -c, --concurrent-downloads <CONCURRENT_DOWNLOADS>
           Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has [default: 4]
       --skip-hash
-          Don't verify the downloaded contents against the upstream hash
+          Don't verify the downloaded contents against the upstream hash. The hash is still checked when a stream-untar download uses files from an earlier run, and when a complete --keep-tar file is already on disk
   -n, --dry-run
           Don't actually download; print information on what would've happened instead
   -v, --verbosity...
@@ -1051,6 +1052,12 @@ By default, `giant-squid` will perform stream untaring. Disable this with `--kee
 
 The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
 of your download by default. Give a `--skip-hash` to the `download` command to skip.
+`--skip-hash` does not skip the check in two cases, because then the files on disk must be
+checked before `giant-squid` uses them:
+
+- A stream-untar download (no `--keep-tar`) uses files that an earlier run wrote.
+- With `--keep-tar`, the complete tar file is already on disk. If it matches the SHA-1,
+  `giant-squid` does not download it again.
 
 Jobs which were submitted with the /scratch data delivery option behave differently
 than jobs submitted with the other data delivery options. When attempting to download
@@ -1103,9 +1110,10 @@ are already on disk:
   is complete. If you change a complete file after a failed run, `giant-squid`
   does not use the resume file, and reads the files on disk again.
 
-The SHA-1 always covers the whole archive. If files from an earlier run are
-used, `giant-squid` checks the SHA-1 even with `--skip-hash`. If the check
-fails, `giant-squid` downloads the whole archive again.
+The SHA-1 always covers the whole archive. If a stream-untar download uses
+files from an earlier run, `giant-squid` checks the SHA-1 even with
+`--skip-hash`. If the check fails, `giant-squid` downloads the whole archive
+again.
 
 Use `--no-resume` to download again from the start. A complete `--keep-tar`
 file that matches the SHA-1 is still not downloaded again.

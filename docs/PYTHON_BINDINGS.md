@@ -112,9 +112,8 @@ item 1 (what is left of it), then item 3.**
 
 1. **What is left of Level 3, option A (the Python `giant-squid` command is
    the Rust CLI, run inside the Python module).** Open points for the user:
-   (a) `--version` prints `mwa_giant_squid 3.0.0`, not `giant-squid 3.0.0`
-   (clap uses the crate name); `#[command(name = "giant-squid")]` would fix
-   it (the user said: later). (b) the second run of `_run_cli` in one
+   (a) Done: `--version` prints `giant-squid 3.0.0`, not the crate name
+   (`#[command(name = PROGRAM_NAME)]` in `src/cli/mod.rs`). (b) the second run of `_run_cli` in one
    process keeps the logger of the first. (c) Left in place, now unreachable from Python: the `InvalidEnvironment` and `MissingAuthKey` error
    kinds of the exceptions (they came from the removed `from_env` methods), and the Rust library's
    `AsvoJobState::Expired`: schema 1.13.0 has no expired job state, so no job from the API is

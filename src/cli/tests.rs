@@ -1771,6 +1771,21 @@ fn run_cli_returns_zero_for_help_and_version() {
     assert_eq!(run_cli(["giant-squid", "list", "--help"]), 0);
 }
 
+/// `--version` prints the name of the program, not the name of the crate
+/// (`mwa_giant_squid`), whatever name the program is started with.
+#[test]
+fn the_version_has_the_name_of_the_program() {
+    use clap::CommandFactory;
+
+    let expected = format!("{} {}\n", super::PROGRAM_NAME, env!("CARGO_PKG_VERSION"));
+    assert_eq!(Args::command().render_version(), expected);
+
+    let err = Args::try_parse_from(["/some/dir/another-name", "--version"])
+        .expect_err("--version stops the parse");
+    assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+    assert_eq!(err.to_string(), expected);
+}
+
 /// A bad argument is clap's usage error, code 2, and the command runs
 /// nothing. (The text goes to standard error.) These cases stop before the
 /// command installs the process's logger, which a test of the library must

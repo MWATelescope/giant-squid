@@ -30,6 +30,10 @@ use params::{
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
 
+/// The name of the program, which `--version` prints. Without it, clap
+/// prints the name of the crate (`mwa_giant_squid`).
+pub const PROGRAM_NAME: &str = "giant-squid";
+
 /// The help of `list --job-states`, before the list of states.
 const JOB_STATES_HELP: &str = "show only jobs matching the provided states, case insensitive.";
 
@@ -59,7 +63,7 @@ Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
 #[derive(Parser, Debug)]
-#[command(author, about = ABOUT, version)]
+#[command(name = PROGRAM_NAME, author, about = ABOUT, version)]
 pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]
@@ -135,7 +139,7 @@ pub enum Args {
         #[arg(short = 'c', long, default_value_t = DEFAULT_CONCURRENT_DOWNLOADS)]
         concurrent_downloads: usize,
 
-        /// Don't verify the downloaded contents against the upstream hash.
+        /// Don't verify the downloaded contents against the upstream hash. The hash is still checked when a stream-untar download uses files from an earlier run, and when a complete --keep-tar file is already on disk.
         #[arg(long)]
         skip_hash: bool,
 

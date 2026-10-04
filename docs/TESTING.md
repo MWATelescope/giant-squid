@@ -226,11 +226,12 @@ with it.
 | `wait` and `cancel` refuse an obsid and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
 | `cancel` does not say a job was cancelled; a refused cancel is a normal reply | `a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled` and its Python twin |
 | `list --job-types` refuses text that is not a job type | `list_refuses_a_job_type_that_does_not_exist`, `text_that_is_not_a_job_type_is_an_error` |
+| `--version` prints the program name, not the crate name | `the_version_has_the_name_of_the_program`, `test_the_version_is_the_modules` |
 | The code of `openapi.rs` is what the schema generates | The `openapi-drift-check` job of `run-tests.yaml` |
 | `--no-resume` downloads again, but a complete keep-tar file that matches the hash is still skipped | `a_partial_file_is_downloaded_again_when_no_resume_is_set`, `a_complete_and_verified_file_is_skipped_when_no_resume_is_set`, `a_rerun_with_no_resume_set_fetches_the_whole_archive`, `no_resume_ignores_the_resume_file_and_deletes_it_when_finished` |
 | A retry continues the run's own partial output, even with `--no-resume` | `a_keep_tar_retry_resumes_its_own_partial_file_when_no_resume_is_set` |
-| Files reused from an earlier run are hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file` |
-| A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
+| Files that a stream-untar download reuses from an earlier run are hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file` |
+| A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `an_entry_with_no_name_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
 
 ## Test environment isolation
 

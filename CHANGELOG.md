@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# 3.0.0 - 2026-09-??
+# 3.0.0 - 2026-10-??
 
 giant-squid 3.0.0 uses version 2 of the MWA ASVO API. The job options, their names, their defaults and their
 limits now come from the API's OpenAPI schema, so giant-squid, the API and its documentation use the same names.
@@ -99,9 +99,24 @@ before you upgrade scripts.**
 * `download --no-resume` downloads a partial file again from the start. Before, it skipped the partial file and
   left it as it was. A complete `--keep-tar` file that matches the SHA-1 is still not downloaded again. A retry in
   the same run still continues its own partial file.
-* When `download` uses files from an earlier run, it checks the SHA-1 even with `--skip-hash`.
-* A stream-untar download does not write a tar entry whose path is absolute, contains `..` or has no name. It
-  shows a warning instead. Before, such an entry could be written outside the download directory.
+* `--skip-hash` no longer skips the SHA-1 check when a stream-untar download uses files that an earlier run wrote
+  (see the stream-untar resume entry above). These files are only used after the check, and if it fails, the whole
+  archive is downloaded again. With `--keep-tar`, a complete tar file that is already on disk is checked, as in
+  2.x. `--skip-hash` still skips the check of a new download, and its help now says when the check is not
+  skipped.
+* Negative numbers are accepted in the `--flag value` form, for example `--custom-dec -26.7`, `--robust -1.5`
+  or `submit-volt --offset -1`. Before, clap read the value as an unknown flag (`unknown argument '-2'`), and
+  only the `--flag=value` form worked. This applies to `submit-conv`, `submit-image`, `submit-image-from-job`
+  and `submit-volt`.
+* `--version` prints `giant-squid 3.0.0`. Before, it printed the name of the crate (`mwa_giant_squid`).
+
+### Security in 3.0.0
+
+* A stream-untar download (`download` without `--keep-tar`) no longer writes outside the download directory. A
+  tar entry whose path is absolute (for example `/home/user/.bashrc`), contains `..` (for example
+  `../../.ssh/authorized_keys`) or has no name is not written. giant-squid shows a warning for each such entry
+  and unpacks the other entries. In 2.x, such an entry was written where its path pointed, so a bad archive could
+  create or overwrite a file anywhere that the user can write. The SHA-1 check still covers the whole archive.
 
 ### Removed in 3.0.0
 
