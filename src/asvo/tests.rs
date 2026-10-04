@@ -559,6 +559,41 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
     assert_eq!(written, RESUME_PAYLOAD);
 }
 
+/// A resumed `--keep-tar` file joins bytes from two runs, so it is checked
+/// even without a hash check. The partial file has the wrong contents, so
+/// only a check of the assembled file can find the error.
+#[test]
+fn without_a_hash_check_a_resumed_keep_tar_file_is_still_checked() {
+    let env = TestEnv::with_session();
+    let (head, tail) = RESUME_PAYLOAD.split_at(RESUME_SPLIT);
+    env.server.mock(|when, then| {
+        when.method(GET)
+            .path(DOWNLOAD_PATH)
+            .header("range", format!("bytes={RESUME_SPLIT}-").as_str());
+        then.status(206).body(tail);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::write(dir.path().join(DOWNLOAD_FILE), "x".repeat(head.len()))
+        .expect("could not seed a partial file");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+    opts.hash = false;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(TEST_JOB_ID, &opts)
+        .expect_err("the wrong partial file should fail the hash check");
+
+    assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+}
+
 #[test]
 fn a_complete_and_verified_file_is_not_fetched_again() {
     let env = TestEnv::with_session();
@@ -1226,6 +1261,82 @@ mod retries {
             checkpoint.is_none(),
             "the retry must fetch the whole archive"
         );
+    }
+
+    /// `--skip-hash` skips the check of a download that runs from start to
+    /// end in one attempt.
+    #[test]
+    fn without_a_hash_check_a_new_download_is_not_checked() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET).path("/archive.tar");
+            then.status(200).body(&archive);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+        let wrong_hash = sha1_hex(b"not the archive");
+        let mut opts = options(&dir_path);
+        opts.hash = false;
+        let mut checkpoint = None;
+
+        try_download_untar(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &archive, &wrong_hash),
+            TEST_JOB_ID,
+            dir.path(),
+            LOG_PREFIX,
+            &opts,
+            &wrong_hash,
+            &mut checkpoint,
+        )
+        .expect("a new download without a hash check should not be checked");
+
+        assert_members_written(&dir);
+    }
+
+    /// A retry joins the bytes of two attempts, so it is checked even without
+    /// a hash check. The part of `b.dat` that the first attempt wrote is
+    /// changed, so only a check that reads it back can find the error.
+    #[test]
+    fn without_a_hash_check_a_retry_is_still_checked() {
+        let archive = test_archive();
+        let dir = TempDir::new().expect("could not create a download directory");
+        let mut checkpoint = Some(failed_first_attempt(&archive, B_DATA_POS + 1234, &dir));
+        let partial = dir.path().join("b.dat");
+        let written = std::fs::read(&partial).expect("the first attempt wrote part of b.dat");
+        assert!(!written.is_empty(), "the test needs part of b.dat on disk");
+        std::fs::write(&partial, vec![b'x'; written.len()]).expect("could not change b.dat");
+        let start = B_DATA_POS as usize + written.len();
+
+        let server = MockServer::start();
+        server.mock(|when, then| {
+            when.method(GET)
+                .path("/archive.tar")
+                .header("range", format!("bytes={start}-").as_str());
+            then.status(206).body(&archive[start..]);
+        });
+        let url = server.url("/archive.tar");
+        let dir_path = dir.path().display().to_string();
+        let mut opts = options(&dir_path);
+        opts.hash = false;
+
+        let err = try_download_untar(
+            &reqwest::blocking::Client::new(),
+            &url,
+            &file_info(&url, &archive, &sha1_hex(&archive)),
+            TEST_JOB_ID,
+            dir.path(),
+            LOG_PREFIX,
+            &opts,
+            &sha1_hex(&archive),
+            &mut checkpoint,
+        )
+        .expect_err("the changed bytes should fail the hash check");
+
+        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
     }
 
     #[test]

@@ -451,7 +451,15 @@ fn try_download(
 
     report(opts, DownloadProgress::Finished);
 
-    if opts.hash {
+    // A resumed file joins bytes from more than one attempt (or run), so its
+    // hash is checked even when `opts.hash` is not set.
+    if !opts.hash && resumed {
+        info!(
+            "{} The download is resumed, so the hash is checked.",
+            log_prefix
+        );
+    }
+    if opts.hash || resumed {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
@@ -545,10 +553,6 @@ struct UntarCheckpoint {
     out_path: Option<PathBuf>,
     /// The size of the member's data, in bytes.
     size: u64,
-    /// The hasher includes files from an earlier run (see
-    /// [`untar_checkpoint_from_disk`]), so the hash is checked even when
-    /// [`DownloadOptions::hash`] is not set.
-    verify: bool,
     /// The files that were finished before this member, for the resume file.
     /// Only the first `done_count` stamps belong to this checkpoint.
     done: DoneFiles,
@@ -593,8 +597,6 @@ struct ResumePoint {
     /// The rest of the member that a failed attempt was in, or `None` when
     /// the attempt starts at the beginning of the archive.
     member: Option<MemberTail>,
-    /// The hash must be checked, as for [`UntarCheckpoint::verify`].
-    verify: bool,
     /// The finished files, as for [`UntarCheckpoint::done`].
     done: DoneFiles,
     /// How many stamps of `done` are files before `start`.
@@ -608,7 +610,6 @@ impl ResumePoint {
             start: 0,
             hasher: Sha1::new(),
             member: None,
-            verify: false,
             done: DoneFiles::default(),
             done_count: 0,
         }
@@ -652,7 +653,9 @@ fn try_download_untar(
     let unpack_path = Path::new(opts.download_dir);
 
     let mut resume = match checkpoint.as_ref() {
-        Some(cp) => resume_point(cp, opts.hash || cp.verify, log_prefix)?,
+        // A resumed download always checks the hash (see below), so the
+        // bytes already on disk are always read back into the hasher.
+        Some(cp) => resume_point(cp, true, log_prefix)?,
         None => ResumePoint::from_start(),
     };
 
@@ -689,10 +692,12 @@ fn try_download_untar(
 
     report_started(opts, job_id, log_prefix, file_info.size, resume.start);
 
-    let check_hash = opts.hash || resume.verify;
-    if !opts.hash && resume.verify {
+    // A resumed download joins bytes from more than one attempt (or run),
+    // so its hash is checked even when `opts.hash` is not set.
+    let check_hash = opts.hash || resume.start > 0;
+    if !opts.hash && resume.start > 0 {
         info!(
-            "{} Files from an earlier download are used, so the hash is checked.",
+            "{} The download is resumed, so the hash is checked.",
             log_prefix
         );
     }
@@ -792,7 +797,6 @@ fn untar_stream_with_sidecar(
     sidecar: Option<&SidecarWriter>,
 ) -> Result<Sha1, AsvoError> {
     let buffer_size = opts.buffer_size;
-    let verify = resume.verify;
     // Stamps after the resume point belong to an attempt that failed later
     // in the archive: this attempt stamps those files again.
     let done = Rc::clone(&resume.done);
@@ -850,7 +854,6 @@ fn untar_stream_with_sidecar(
                 hasher: hasher.borrow().clone(),
                 out_path: target.file_path(),
                 size,
-                verify,
                 done: Rc::clone(&done),
                 done_count,
             });
@@ -953,7 +956,6 @@ fn resume_point(
             remaining: cp.size - on_disk,
             size: cp.size,
         }),
-        verify: cp.verify,
         done: Rc::clone(&cp.done),
         done_count: cp.done_count,
     })
@@ -1014,7 +1016,7 @@ impl<R: Read> Read for HashingReader<'_, R> {
 /// the right size but the wrong contents makes the hash check fail, and the
 /// retry then fetches the whole archive. Because files from an earlier run
 /// are only trusted after this check, the hash is checked even when
-/// [`DownloadOptions::hash`] is not set (see [`UntarCheckpoint::verify`]).
+/// [`DownloadOptions::hash`] is not set (see [`try_download_untar`]).
 ///
 /// Returns `Ok(None)` when there is nothing to carry on from: the download
 /// directory is empty, the first member is not on disk, or the check failed
@@ -1098,7 +1100,6 @@ fn find_files_on_disk(
                 hasher: hasher.borrow().clone(),
                 out_path: target.file_path(),
                 size,
-                verify: true,
                 done: Rc::clone(&done),
                 done_count: done.borrow().stamps.len(),
             });
@@ -1456,8 +1457,8 @@ impl<'a> SidecarWriter<'a> {
 /// A resume file is used only if it is for this archive (same SHA1 and
 /// size), and every file it stamped still has its size and modification
 /// time. The files are not read again: their bytes are in the saved hash
-/// state. The hash is still checked at the end (see
-/// [`UntarCheckpoint::verify`]). Without a usable resume file, the download
+/// state. The hash is still checked at the end, as for every resumed
+/// download (see [`try_download_untar`]). Without a usable resume file, the download
 /// looks for files on disk instead (see [`untar_checkpoint_from_disk`]).
 fn checkpoint_from_sidecar(
     out_path: &Path,
@@ -1552,7 +1553,6 @@ fn parse_sidecar(
         hasher,
         out_path,
         size: sidecar.member_size,
-        verify: true,
         done: Rc::new(RefCell::new(DoneList {
             stamps: sidecar.files,
             untracked: false,

@@ -456,6 +456,9 @@ pub enum DownloadProgress {
 pub struct DownloadOptions<'a> {
     pub keep_tar: bool,
     pub no_resume: bool,
+    /// Check the SHA-1 of the download against the MWA ASVO's. A resumed
+    /// download, and a complete keep-tar file that is already on disk, are
+    /// always checked, even when this is `false`.
     pub hash: bool,
     pub download_dir: &'a str,
     /// Called with each [`DownloadProgress`] event. `None` reports no

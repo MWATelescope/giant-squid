@@ -99,11 +99,11 @@ before you upgrade scripts.**
 * `download --no-resume` downloads a partial file again from the start. Before, it skipped the partial file and
   left it as it was. A complete `--keep-tar` file that matches the SHA-1 is still not downloaded again. A retry in
   the same run still continues its own partial file.
-* `--skip-hash` no longer skips the SHA-1 check when a stream-untar download uses files that an earlier run wrote
-  (see the stream-untar resume entry above). These files are only used after the check, and if it fails, the whole
-  archive is downloaded again. With `--keep-tar`, a complete tar file that is already on disk is checked, as in
-  2.x. `--skip-hash` still skips the check of a new download, and its help now says when the check is not
-  skipped.
+* `--skip-hash` now skips the SHA-1 check only for a download that runs from start to end in one attempt. A
+  resumed download is always checked, with or without `--keep-tar`: after a failed attempt in the same run, or from
+  the files of an earlier run (see the stream-untar resume entry above). If the check fails, the whole archive is
+  downloaded again. With `--keep-tar`, a complete tar file that is already on disk is checked, as in 2.x. The help
+  of `--skip-hash` now says when the check is not skipped.
 * Negative numbers are accepted in the `--flag value` form, for example `--custom-dec -26.7`, `--robust -1.5`
   or `submit-volt --offset -1`. Before, clap read the value as an unknown flag (`unknown argument '-2'`), and
   only the `--flag=value` form worked. This applies to `submit-conv`, `submit-image`, `submit-image-from-job`

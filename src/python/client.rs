@@ -825,7 +825,9 @@ impl PyAsvoClient {
     ///         `download_dir` while it downloads.
     ///     no_resume: Download the whole file again, even if part of it is
     ///         on disk.
-    ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's.
+    ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
+    ///         resumed download, and a complete file that is already on
+    ///         disk, are always checked, even when this is `False`.
     ///     progress: A function to call with each `DownloadProgress` event,
     ///         or `None`. `Advanced` events are combined, so the function is
     ///         called about 10 times a second at most. If it raises, the

@@ -139,7 +139,7 @@ pub enum Args {
         #[arg(short = 'c', long, default_value_t = DEFAULT_CONCURRENT_DOWNLOADS)]
         concurrent_downloads: usize,
 
-        /// Don't verify the downloaded contents against the upstream hash. The hash is still checked when a stream-untar download uses files from an earlier run, and when a complete --keep-tar file is already on disk.
+        /// Don't verify the downloaded contents against the upstream hash. The hash is still checked when a download is resumed (after a failed attempt or from an earlier run), and when a complete --keep-tar file is already on disk.
         #[arg(long)]
         skip_hash: bool,
 

@@ -230,7 +230,8 @@ with it.
 | The code of `openapi.rs` is what the schema generates | The `openapi-drift-check` job of `run-tests.yaml` |
 | `--no-resume` downloads again, but a complete keep-tar file that matches the hash is still skipped | `a_partial_file_is_downloaded_again_when_no_resume_is_set`, `a_complete_and_verified_file_is_skipped_when_no_resume_is_set`, `a_rerun_with_no_resume_set_fetches_the_whole_archive`, `no_resume_ignores_the_resume_file_and_deletes_it_when_finished` |
 | A retry continues the run's own partial output, even with `--no-resume` | `a_keep_tar_retry_resumes_its_own_partial_file_when_no_resume_is_set` |
-| Files that a stream-untar download reuses from an earlier run are hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file` |
+| A resumed download is hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file`, `without_a_hash_check_a_retry_is_still_checked`, `without_a_hash_check_a_resumed_keep_tar_file_is_still_checked` |
+| `--skip-hash` skips the check of a download that runs in one attempt | `without_a_hash_check_a_new_download_is_not_checked` |
 | A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `an_entry_with_no_name_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
 
 ## Test environment isolation

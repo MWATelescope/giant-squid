@@ -45,10 +45,12 @@ pyo3_stub_gen::module_doc!(
     "mwa_giant_squid",
     "Python bindings for giant-squid, a client for the MWA ASVO."
 );
-// `__version__` is added in `init`, not with a `#[pymodule_export]`, so it
-// is declared here for the stubs.
+// `__version__` and `_PROGRAM_NAME` are added in `init`, not with a
+// `#[pymodule_export]`, so they are declared here for the stubs.
 #[cfg(feature = "python-stubgen")]
 pyo3_stub_gen::module_variable!("mwa_giant_squid", "__version__", String);
+#[cfg(feature = "python-stubgen")]
+pyo3_stub_gen::module_variable!("mwa_giant_squid", "_PROGRAM_NAME", String);
 
 /// The handle that clears `pyo3-log`'s cache of Python loggers and levels.
 /// Set once, when [`connect_python_logging`] first runs.
@@ -135,6 +137,9 @@ mod module {
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+        // The name of the `giant-squid` program, which the Python launcher
+        // gives to `_run_cli` as the first argument. Not part of the API.
+        m.add("_PROGRAM_NAME", crate::cli::PROGRAM_NAME)?;
         Ok(())
     }
 }

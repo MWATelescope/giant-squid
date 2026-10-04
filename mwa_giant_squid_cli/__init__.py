@@ -15,9 +15,6 @@ from collections.abc import Sequence
 
 import mwa_giant_squid
 
-# The name of the program, for the usage line and the messages of the help.
-PROGRAM_NAME = "giant-squid"
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the ``giant-squid`` command and return its exit code.
@@ -37,4 +34,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     arguments = sys.argv[1:] if argv is None else argv
     # `_run_cli` is the module's private entry point for this program.
-    return mwa_giant_squid._run_cli([PROGRAM_NAME, *arguments])
+    # `_PROGRAM_NAME` is the Rust program's name, for the usage line and the messages of the help.
+    return mwa_giant_squid._run_cli([mwa_giant_squid._PROGRAM_NAME, *arguments])

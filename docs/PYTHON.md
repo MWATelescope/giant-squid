@@ -236,7 +236,7 @@ threads run during the download.
 |---|---|
 | `keep_tar` | Keep the tar file. By default the module unpacks it while it downloads. |
 | `no_resume` | Download the whole file again, even if part of it is on disk. |
-| `hash` | Check the SHA-1 hash of the file. Default: `True`. |
+| `hash` | Check the SHA-1 hash of the file. A resumed download, and a complete file that is already on disk, are always checked. Default: `True`. |
 | `progress` | A function that receives `DownloadProgress` events. |
 | `buffer_size` | How many bytes to hold in memory before they are written. Default: 100 MiB. |
 | `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: 900 s. |

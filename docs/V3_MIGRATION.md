@@ -292,8 +292,9 @@ download is complete. Do not delete it while a download is incomplete, if you
 want the next run to be fast.
 
 Changed: `--no-resume` downloads a partial file again from the start. In 2.x,
-it skipped the partial file and left it as it was. If a stream-untar download uses files from an earlier run,
-giant-squid checks the SHA-1 even with `--skip-hash`.
+it skipped the partial file and left it as it was. `--skip-hash` skips the SHA-1
+check only for a download that runs from start to end in one attempt. A resumed
+download is always checked.
 
 Changed: a stream-untar download does not write a tar entry whose path is
 absolute, contains `..` or has no name. In 2.x, such an entry could be written
