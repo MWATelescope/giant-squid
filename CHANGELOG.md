@@ -162,6 +162,10 @@ before you upgrade scripts.**
   `../../.ssh/authorized_keys`) or has no name is not written. giant-squid shows a warning for each such entry
   and unpacks the other entries. In 2.x, such an entry was written where its path pointed, so a bad archive could
   create or overwrite a file anywhere that the user can write. The SHA-1 check still covers the whole archive.
+* `download` does not write through a symbolic link that is already in the download directory. A stream-untar entry
+  whose file, or a directory on the way to it, is a symbolic link is skipped with a warning. A `--keep-tar` download
+  whose tar file is a symbolic link (even one that points nowhere) fails with `AsvoError::SymlinkInDownloadDir`, and
+  nothing is fetched. Before, the download wrote wherever the link pointed.
 
 ### Removed in 3.0.0
 

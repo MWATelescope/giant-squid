@@ -539,6 +539,43 @@ fn a_file_type_the_schema_does_not_list_fails_the_download() {
 // Resume
 // ---------------------------------------------------------------------------
 
+/// A `--keep-tar` download refuses to write through a symbolic link that is
+/// already at the place of the tar file, even one that points nowhere.
+#[cfg(unix)]
+#[test]
+fn a_keep_tar_download_refuses_a_symlink() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        7,
+        &sha1_hex(b"payload"),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let elsewhere = TempDir::new().expect("could not create a second directory");
+    let target = elsewhere.path().join("victim.tar");
+    std::os::unix::fs::symlink(&target, dir.path().join(DOWNLOAD_FILE))
+        .expect("could not make the link");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("the link should be refused");
+
+    assert!(
+        matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+        "{err:?}"
+    );
+    assert!(!target.exists(), "nothing may be written through the link");
+    assert_eq!(file.calls(), 0, "nothing should be fetched");
+}
+
 /// The payload used by the resume tests, and where a partial file stops.
 const RESUME_PAYLOAD: &str = "giant-squid integration test payload";
 const RESUME_SPLIT: usize = 12;
@@ -1875,6 +1912,51 @@ mod unsafe_paths {
                 b"inside"
             );
         }
+    }
+
+    /// An entry whose file is already a symbolic link (here to a file
+    /// outside the download directory) is not written through the link.
+    #[cfg(unix)]
+    #[test]
+    fn an_entry_whose_file_is_a_symlink_is_skipped() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        let target = elsewhere.path().join("victim.dat");
+        std::fs::write(&target, b"untouched").expect("could not write the target");
+        std::os::unix::fs::symlink(&target, dir.path().join("link.dat"))
+            .expect("could not make the link");
+        let archive = archive_with(&[("link.dat", b"outside"), ("good.dat", b"inside")]);
+
+        unpack(&archive, dir.path());
+
+        assert_eq!(std::fs::read(&target).expect("the target"), b"untouched");
+        assert_eq!(
+            std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
+            b"inside"
+        );
+    }
+
+    /// An entry below a directory that is a symbolic link is not written
+    /// through the link.
+    #[cfg(unix)]
+    #[test]
+    fn an_entry_below_a_symlinked_directory_is_skipped() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("sub"))
+            .expect("could not make the link");
+        let archive = archive_with(&[("sub/escaped.dat", b"outside"), ("good.dat", b"inside")]);
+
+        unpack(&archive, dir.path());
+
+        assert!(
+            !elsewhere.path().join("escaped.dat").exists(),
+            "nothing may be written through the link"
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
+            b"inside"
+        );
     }
 
     #[test]

@@ -351,7 +351,9 @@ fn download_job(
 fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Error<AsvoError> {
     match &e {
         AsvoError::IO(io_error) if is_network_read_error(io_error) => Error::transient(e),
-        AsvoError::IO(_) | AsvoError::Interrupted => Error::permanent(e),
+        AsvoError::IO(_) | AsvoError::Interrupted | AsvoError::SymlinkInDownloadDir { .. } => {
+            Error::permanent(e)
+        }
         AsvoError::HttpError { status: 404, .. } => {
             Error::permanent(AsvoError::Http404Error { job_id })
         }
@@ -543,8 +545,9 @@ enum EntryTarget {
     File(PathBuf),
     /// A directory, at this path.
     Dir(PathBuf),
-    /// Not unpacked: the entry's path is absolute, has a `..` part, or names
-    /// no file, so it would not be written inside the download directory.
+    /// Not unpacked: the entry's path is absolute, has a `..` part, names no
+    /// file, or goes through a symbolic link, so it might not be written
+    /// inside the download directory.
     Skip,
 }
 
@@ -558,8 +561,22 @@ impl EntryTarget {
     }
 }
 
+/// Whether a path below `unpack_path` goes through a symbolic link that is
+/// already on disk: `entry_path` itself, or a directory on the way to it.
+/// Writing through such a link would write wherever the link points, which
+/// can be outside the download directory, so the entry is not written.
+fn goes_through_a_symlink(unpack_path: &Path, entry_path: &Path) -> bool {
+    let mut path = unpack_path.to_path_buf();
+    entry_path.components().any(|component| {
+        path.push(component);
+        std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    })
+}
+
 /// Decide where the tar entry at `entry_path` is unpacked in `unpack_path`.
-/// An entry whose path ends in `/` is a directory.
+/// An entry whose path ends in `/` is a directory. An entry whose path is
+/// absolute, has a `..` part, names no file, or goes through a symbolic link
+/// that is already on disk is not unpacked.
 fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
     let is_dir = entry_path.as_os_str().as_encoded_bytes().ends_with(b"/");
     let mut has_name = false;
@@ -572,7 +589,9 @@ fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
             }
         }
     }
-    if is_dir {
+    if goes_through_a_symlink(unpack_path, entry_path) {
+        EntryTarget::Skip
+    } else if is_dir {
         EntryTarget::Dir(unpack_path.join(entry_path))
     } else if has_name {
         EntryTarget::File(unpack_path.join(entry_path))
@@ -945,7 +964,8 @@ fn untar_stream_with_sidecar(
                     // hash still covers.
                     warn!(
                         "{} Skipping tar entry {:?}: it would not be written inside the \
-                         download directory.",
+                         download directory (its path is absolute, has '..', names no file, \
+                         or goes through a symbolic link).",
                         log_prefix, entry_path
                     );
                 }
@@ -1908,6 +1928,14 @@ fn prepare_output_file(
             offset: 0,
         })
     };
+
+    // A symbolic link at `out_path` (even one that points nowhere) would make
+    // the download write wherever it points, so it is refused.
+    if std::fs::symlink_metadata(out_path).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(AsvoError::SymlinkInDownloadDir {
+            path: out_path.clone(),
+        });
+    }
 
     if !out_path.try_exists()? {
         return start_again();

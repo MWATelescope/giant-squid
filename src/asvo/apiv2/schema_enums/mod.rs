@@ -128,6 +128,8 @@ macro_rules! for_each_schema_enum {
         );
     };
 }
+// Only the Python module uses the list from outside this module.
+#[cfg(feature = "python")]
 pub(crate) use for_each_schema_enum;
 
 /// Implement [`SchemaEnum`] for one enum. The `match` fails to compile when

@@ -58,19 +58,32 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 /// but was minted by a different environment (e.g. dev vs test, which sign
 /// JWTs with different secrets), so the other environment rejects it.
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
-/// The MWA ASVO API endpoints this client uses. Public so that the binary
-/// can name the endpoint a `--dry-run` submission would have gone to
-/// without duplicating the path.
-pub const ENDPOINT_API_LOGIN: &str = "/api/v2/api_login";
-pub const ENDPOINT_REFRESH: &str = "/api/v2/refresh";
-pub const ENDPOINT_GET_JOBS: &str = "/api/v2/get_jobs";
-pub const ENDPOINT_JOBS: &str = "/api/v2/jobs";
-pub const ENDPOINT_CONVERSION_JOB: &str = "/api/v2/conversion_job";
-pub const ENDPOINT_DOWNLOAD_VIS_JOB: &str = "/api/v2/download_vis_job";
-pub const ENDPOINT_VOLTAGE_JOB: &str = "/api/v2/voltage_job";
-pub const ENDPOINT_BEAMFORMER_JOB: &str = "/api/v2/beamformer_job";
-pub const ENDPOINT_IMAGING_JOB: &str = "/api/v2/imaging_job";
-pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/image_from_job";
+/// A path of the schema under [`API_PREFIX`]: the prefix is written only
+/// here.
+macro_rules! api_path {
+    ($path:literal) => {
+        concat!("/api", $path)
+    };
+}
+
+/// Where the MWA ASVO serves its API: the schema's paths (for example
+/// `/v2/get_jobs`) are under this prefix, which the schema does not give
+/// (the API is mounted there behind the web server).
+pub const API_PREFIX: &str = api_path!("");
+
+// The MWA ASVO API endpoints this client uses: the schema's paths, under
+// `API_PREFIX`. Public so that the binary can name the endpoint a
+// `--dry-run` submission would have gone to without duplicating the path.
+pub const ENDPOINT_API_LOGIN: &str = api_path!("/v2/api_login");
+pub const ENDPOINT_REFRESH: &str = api_path!("/v2/refresh");
+pub const ENDPOINT_GET_JOBS: &str = api_path!("/v2/get_jobs");
+pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
+pub const ENDPOINT_CONVERSION_JOB: &str = api_path!("/v2/conversion_job");
+pub const ENDPOINT_DOWNLOAD_VIS_JOB: &str = api_path!("/v2/download_vis_job");
+pub const ENDPOINT_VOLTAGE_JOB: &str = api_path!("/v2/voltage_job");
+pub const ENDPOINT_BEAMFORMER_JOB: &str = api_path!("/v2/beamformer_job");
+pub const ENDPOINT_IMAGING_JOB: &str = api_path!("/v2/imaging_job");
+pub const ENDPOINT_IMAGE_FROM_JOB: &str = api_path!("/v2/image_from_job");
 
 /// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
 ///

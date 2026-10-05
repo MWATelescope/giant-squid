@@ -1115,8 +1115,10 @@ Use `--no-resume` to download again from the start. A complete `--keep-tar`
 file that matches the SHA-1 is still not downloaded again.
 
 When it stream untars, `giant-squid` does not write a tar entry whose path is
-absolute, contains `..` or has no name. It shows a warning for each entry that
-it does not write.
+absolute, contains `..`, has no name, or goes through a symbolic link that is
+already in the download directory. It shows a warning for each entry that it
+does not write. A `--keep-tar` download refuses to write to a tar file that is
+a symbolic link, and fetches nothing.
 
 ## Installation
 

@@ -805,8 +805,9 @@ fn path_matches(template: &str, path: &str) -> bool {
             .all(|(t, p)| (t.starts_with('{') && t.ends_with('}')) || t == p)
 }
 
-/// Every endpoint that the client calls is a path of the schema, with the
-/// method the client uses. The paths come from the `paths` key that
+/// Every endpoint that the client calls is a path of the schema (under
+/// `API_PREFIX`, which the schema does not give), with the method the client
+/// uses. The paths come from the `paths` key that
 /// `tools/generate_openapi.sh` keeps in `openapi-schema.json`, so a path
 /// that the API renames or removes fails here, not in a real request.
 #[test]
@@ -832,9 +833,12 @@ fn every_endpoint_the_client_calls_is_a_schema_path() {
     // refresh), so it is checked from its constant.
     calls.push(("POST".to_string(), super::ENDPOINT_REFRESH.to_string()));
     for (method, path) in calls {
+        let schema_path = path
+            .strip_prefix(super::API_PREFIX)
+            .unwrap_or_else(|| panic!("{path} is not under {}", super::API_PREFIX));
         assert!(
-            has(&method, &path),
-            "{method} {path} is not a path of the schema"
+            has(&method, schema_path),
+            "{method} {schema_path} is not a path of the schema"
         );
     }
 }

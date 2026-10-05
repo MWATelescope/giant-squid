@@ -231,6 +231,11 @@ Sent by the user (Oct 2026), not fixed yet:
 
 Not yet raised:
 
+- The schema's paths have no `/api` prefix (for example `/v2/get_jobs`), but
+  the API is served at `/api/v2/...`. FastAPI's `root_path` would put the
+  prefix in the schema's `servers`; until then the client has it as
+  `API_PREFIX`.
+
 - A listed job sometimes has no `modified` key (rather than `null`), and the
   timestamps have no time zone (`2026-09-08T05:41:54.757232`).
   `normalize_job_value` in `src/asvo/apiv2/client/mod.rs` patches both; remove

@@ -234,6 +234,7 @@ with it.
 | A resumed download is hash checked, even with `--skip-hash` | `without_a_hash_check_a_reused_file_is_still_checked`, `a_rerun_without_a_hash_check_still_checks_the_hash_from_the_resume_file`, `without_a_hash_check_a_retry_is_still_checked`, `without_a_hash_check_a_resumed_keep_tar_file_is_still_checked` |
 | `--skip-hash` skips the check of a download that runs in one attempt | `without_a_hash_check_a_new_download_is_not_checked` |
 | A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `an_entry_with_no_name_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
+| Nothing is written through a symbolic link that is already in the download directory | `an_entry_whose_file_is_a_symlink_is_skipped`, `an_entry_below_a_symlinked_directory_is_skipped`, `a_keep_tar_download_refuses_a_symlink` (Unix only) |
 
 ## Test environment isolation
 

@@ -97,7 +97,7 @@ mod stub_attributes {
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
-                attr!("file", String, "HashMismatch."),
+                attr!("file", String, "HashMismatch, and SymlinkInDownloadDir: the path of the symbolic link."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
                 attr!("status", u16, "HttpError: the HTTP status code."),
@@ -305,6 +305,10 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
         lib::AsvoError::NoUrl { job_id } => ("NoUrl", vec![("job_id", Field::Int(job_id.get()))]),
         lib::AsvoError::NoPath { job_id } => ("NoPath", vec![("job_id", Field::Int(job_id.get()))]),
+        lib::AsvoError::SymlinkInDownloadDir { path } => (
+            "SymlinkInDownloadDir",
+            vec![("file", Field::Str(path.display().to_string()))],
+        ),
         lib::AsvoError::HttpError { status, message } => (
             "HttpError",
             vec![

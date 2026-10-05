@@ -110,6 +110,11 @@ pub enum AsvoError {
     #[error("Could not determine path for job {job_id:?}")]
     NoPath { job_id: AsvoJobId },
 
+    /// The file to download to is a symbolic link. The download would write
+    /// wherever the link points, so it is refused.
+    #[error("{path:?} is a symbolic link; giant-squid does not download through one. Remove it, or use another download directory.")]
+    SymlinkInDownloadDir { path: std::path::PathBuf },
+
     // HTTP error code when downloading
     #[error("HTTP error {status} downloading file: {message}")]
     HttpError { status: u16, message: String },

@@ -648,7 +648,7 @@ class AsvoError(builtins.Exception):
     """
     file: builtins.str
     r"""
-    HashMismatch.
+    HashMismatch, and SymlinkInDownloadDir: the path of the symbolic link.
     """
     calculated_hash: builtins.str
     r"""
