@@ -22,6 +22,7 @@ exclude = [
     "tests/python/*",
     "docs/PYTHON.md",
     "docs/PYTHON_BINDINGS.md",
+    "docs/history/",
     "mwa_giant_squid.pyi",
     "pyproject.toml",
     "tools/generate_stubs.sh",

@@ -70,7 +70,7 @@ fn job_types_help() -> String {
     format!("{JOB_TYPES_HELP} Options: {}", JobType::names().join(", "))
 }
 
-const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
+const ABOUT: &str = r#"The official MWA ASVO command-line client to download data from the Murchison Widefield Array.
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
