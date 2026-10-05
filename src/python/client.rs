@@ -27,6 +27,7 @@ use super::types::{
     PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse, PyJobState,
     PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
+use crate::asvo::apiv2::validate;
 use crate::asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
 
@@ -113,6 +114,10 @@ impl PyAsvoClient {
         date_to: Option<Timestamp>,
         sort_by: Option<String>,
     ) -> PyResult<PyAsvoJobVec> {
+        let days = days
+            .map(validate::days)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let filter = JobsFilter {
             days,
             job_state: job_state.map(Into::into),
@@ -177,6 +182,10 @@ impl PyAsvoClient {
             .into_iter()
             .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
             .collect::<PyResult<Vec<ObsId>>>()?;
+        let days = days
+            .map(validate::days)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let query = JobQuery {
             job_ids: job_ids
                 .unwrap_or_default()

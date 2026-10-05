@@ -112,10 +112,7 @@ where
     let mut failures: usize = 0;
 
     for o in obs_ids {
-        let obs_id_i64 =
-            i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
-
-        if let Err(e) = submit(o, obs_id_i64) {
+        if let Err(e) = submit(o, i64::from(*o)) {
             error!("Obsid {}: {}", o, e);
             failures += 1;
         }
@@ -185,9 +182,7 @@ where
     F: Fn(i64) -> Result<T, AsvoApiError>,
 {
     for o in obs_ids {
-        let obs_id_i64 =
-            i64::try_from(u64::from(*o)).expect("Obsid's validated range always fits in i64");
-        let params = build_params(obs_id_i64)?;
+        let params = build_params(i64::from(*o))?;
         info!(
             "[dry run] Would POST {} for obsid {}:\n{}",
             endpoint,
@@ -614,10 +609,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
 
                 let o = &obs_ids[0];
-                let obs_id_i64 = i64::try_from(u64::from(*o))
-                    .expect("Obsid's validated range always fits in i64");
-
-                let params = image.to_params(obs_id_i64)?;
+                let params = image.to_params(i64::from(*o))?;
 
                 let resp = client.submit_image_from_job(&params)?;
                 print_submitted_json(&resp, json)?;

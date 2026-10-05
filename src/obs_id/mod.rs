@@ -45,6 +45,14 @@ impl From<ObsId> for u64 {
     }
 }
 
+/// An obsid as the OpenAPI schema types `obs_id`: an `i64`. A valid obsid
+/// is below 1e10, so it always fits.
+impl From<ObsId> for i64 {
+    fn from(o: ObsId) -> i64 {
+        i64::try_from(o.0).expect("a valid obsid is below 1e10, so it fits in an i64")
+    }
+}
+
 impl FromStr for ObsId {
     type Err = ObsIdError;
 

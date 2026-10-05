@@ -115,10 +115,11 @@ item 1 (what is left of it), then item 3.**
    the Rust CLI, run inside the Python module).** Open points for the user:
    (a) Done: `--version` prints `giant-squid 3.0.0`, not the crate name
    (`#[command(name = PROGRAM_NAME)]` in `src/cli/mod.rs`). (b) the second run of `_run_cli` in one
-   process keeps the logger of the first. (c) Left in place, now unreachable from Python: the `InvalidEnvironment` and `MissingAuthKey` error
-   kinds of the exceptions (they came from the removed `from_env` methods). Ask the user whether to
-   remove these. (The Rust library's `AsvoJobState::Expired` is gone: the library and Python now use
-   the schema's `JobState`, which has no expired state.) Decision
+   process keeps the logger of the first. (c) Left in place, unreachable from Python: the `InvalidEnvironment` error kind (the module reads no
+   environment variables) and `InvalidJob` (a job list skips such a job); the stub documentation says so.
+   `MissingAuthKey` can be raised: it is the error of an empty `api_key`, though its message names
+   `MWA_ASVO_API_KEY`. (`AsvoJobState::Expired` is gone: the library and Python use the schema's
+   `JobState`.) Decision
    history of the work:
    **Level 3, option A** (decided by the user: "stick with a thin
    python wrapper and see how we go with the challenges"). Level 1 is done

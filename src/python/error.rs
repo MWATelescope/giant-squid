@@ -69,7 +69,7 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<AsvoApiError>,
             attrs: &[
-                attr!("kind", String, "\"MissingAuthKey\", \"AuthenticationFailed\", \"Conversion\", \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\"."),
+                attr!("kind", String, "\"MissingAuthKey\" (the `api_key` given to `AsvoClient` is empty), \"AuthenticationFailed\", \"Conversion\", \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\". An argument outside the MWA ASVO limits raises `ValueError`, not this."),
                 attr!("message", String, "AuthenticationFailed, ApiError and BadStatus."),
                 attr!("error_code", String, "ApiError: the server's machine-readable error code."),
                 attr!("detail", Option<String>, "ApiError."),
@@ -103,9 +103,9 @@ mod stub_attributes {
                 attr!("status", u16, "HttpError: the HTTP status code."),
                 attr!("message", String, "HttpError."),
                 attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
-                attr!("name", String, "InvalidEnvironment: the name of the environment variable."),
+                attr!("name", String, "InvalidEnvironment: the name of the environment variable. (The module reads no environment variables, so it does not raise InvalidEnvironment.)"),
                 attr!("value", String, "InvalidEnvironment: its value."),
-                attr!("problem", String, "InvalidEnvironment and InvalidJob: what is wrong."),
+                attr!("problem", String, "InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)"),
                 attr!("id", i64, "InvalidJob: the `id` of the job, as the API gave it."),
             ],
             getters: &[],

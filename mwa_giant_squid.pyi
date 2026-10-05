@@ -48,7 +48,7 @@ class AsvoApiError(builtins.Exception):
 
     kind: builtins.str
     r"""
-    "MissingAuthKey", "AuthenticationFailed", "Conversion", "BadJson", "Reqwest", "ApiError" or "BadStatus".
+    "MissingAuthKey" (the `api_key` given to `AsvoClient` is empty), "AuthenticationFailed", "Conversion", "BadJson", "Reqwest", "ApiError" or "BadStatus". An argument outside the MWA ASVO limits raises `ValueError`, not this.
     """
     message: builtins.str
     r"""
@@ -670,7 +670,7 @@ class AsvoError(builtins.Exception):
     """
     name: builtins.str
     r"""
-    InvalidEnvironment: the name of the environment variable.
+    InvalidEnvironment: the name of the environment variable. (The module reads no environment variables, so it does not raise InvalidEnvironment.)
     """
     value: builtins.str
     r"""
@@ -678,7 +678,7 @@ class AsvoError(builtins.Exception):
     """
     problem: builtins.str
     r"""
-    InvalidEnvironment and InvalidJob: what is wrong.
+    InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)
     """
     id: builtins.int
     r"""

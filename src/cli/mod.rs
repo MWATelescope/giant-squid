@@ -19,14 +19,15 @@ pub mod value_enums;
 #[cfg(test)]
 mod tests;
 
+use std::num::NonZeroU64;
+
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
-use crate::asvo::apiv2::validate;
 use crate::asvo::DEFAULT_CONCURRENT_DOWNLOADS;
 use crate::asvo::{JobState, JobType};
 use params::{
-    list_days_default, parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
+    list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
 
@@ -94,8 +95,8 @@ pub enum Args {
         no_colour: bool,
 
         /// Only fetch jobs from the past N days (1 to 30)
-        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_i64_bounds(validate::DAYS))]
-        days: Option<i64>,
+        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_days)]
+        days: Option<NonZeroU64>,
 
         /// Only jobs created at or after this time: RFC 3339 (for example
         /// 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC).

@@ -818,7 +818,7 @@ fn list_filters_parse() {
         } => {
             assert_eq!(states.len(), 2);
             assert_eq!(types.len(), 2);
-            assert_eq!(days, Some(7));
+            assert_eq!(days, Some(crate::test_config::nonzero(7)));
             assert!(json);
             assert_eq!(job_ids_or_obs_ids, vec![TEST_OBS_ID.to_string()]);
         }

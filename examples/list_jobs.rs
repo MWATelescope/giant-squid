@@ -40,7 +40,7 @@ const ENV_HOME: &str = "HOME";
 fn main() -> Result<(), Box<dyn Error>> {
     let api_key = env::var(ENV_API_KEY).map_err(|_| format!("{ENV_API_KEY} is not set"))?;
     let host = env::var(ENV_HOST).unwrap_or_else(|_| DEFAULT_ASVO_HOST.to_string());
-    let days: Option<i64> = env::args().nth(1).map(|d| d.parse()).transpose()?;
+    let days: Option<std::num::NonZeroU64> = env::args().nth(1).map(|d| d.parse()).transpose()?;
 
     let mut config = AsvoClientConfig::new(host, api_key);
     config.token_cache_path = env::var(ENV_HOME)

@@ -9,15 +9,15 @@
 //! schema default. This layer adds no defaults of its own, the same rule as
 //! the CLI's.
 //!
-//! Numbers are checked against the limits in the MWA ASVO schema before a
-//! request body is returned, with the library's checks
-//! ([`crate::asvo::apiv2::validate`]), the same ones the CLI and the Rust
-//! client use. An argument that is out of range raises `ValueError`, and
-//! nothing is sent.
+//! The numbers are checked against the limits in the MWA ASVO schema by the
+//! Rust client's submit methods ([`crate::asvo::apiv2::validate`]), the same
+//! checks that the CLI has, and not again here. An argument that is out of
+//! range raises `ValueError` (see `super::error::api_error`), and nothing is
+//! sent. The only checks here are those that make a value of the schema's
+//! type (for example `image_size`).
 //!
-//! There is one argument struct per job type. The submit methods and the
-//! `*_params` module functions (see `super::functions`) both build it from
-//! their keyword arguments, so both apply the same defaults and checks.
+//! There is one argument struct per job type, built by the submit methods
+//! from their keyword arguments.
 //!
 //! The Python argument names are the OpenAPI field names. The CLI-only
 //! options `mode` (beamformer) and the voltage `delivery_format` are not
@@ -43,7 +43,7 @@ use crate::obs_id::ObsId;
 /// `ValueError` if `obs_id` is not a valid obsid.
 pub(super) fn obs_id_to_i64(obs_id: u64) -> PyResult<i64> {
     let obs_id = ObsId::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    Ok(i64::try_from(u64::from(obs_id)).expect("Obsid's validated range always fits in i64"))
+    Ok(i64::from(obs_id))
 }
 
 /// An error from the library's checks or from a request builder, as a
@@ -131,9 +131,7 @@ impl ConversionArgs {
             no_rfi => self.no_rfi,
             allow_resubmit => self.allow_resubmit,
         );
-        let params: ConversionJobParams = builder.try_into().map_err(value_error)?;
-        validate::validate_conversion_params(&params).map_err(value_error)?;
-        Ok(params)
+        builder.try_into().map_err(value_error)
     }
 }
 
@@ -226,9 +224,7 @@ impl ImagingArgs {
             wstack_nwlayers => self.wstack_nwlayers,
             allow_resubmit => self.allow_resubmit,
         );
-        let params: ImagingJobFlow1Params = builder.try_into().map_err(value_error)?;
-        validate::validate_imaging_params(&params).map_err(value_error)?;
-        Ok(params)
+        builder.try_into().map_err(value_error)
     }
 }
 
@@ -300,9 +296,7 @@ impl ImageFromJobArgs {
             wstack_nwlayers => self.wstack_nwlayers,
             allow_resubmit => self.allow_resubmit,
         );
-        let params: ImagingJobFlow2Params = builder.try_into().map_err(value_error)?;
-        validate::validate_image_from_job_params(&params).map_err(value_error)?;
-        Ok(params)
+        builder.try_into().map_err(value_error)
     }
 }
 
@@ -335,9 +329,7 @@ impl VoltageArgs {
             to_channel => self.to_channel,
             allow_resubmit => self.allow_resubmit,
         );
-        let params: VoltageJobParams = builder.try_into().map_err(value_error)?;
-        validate::validate_voltage_params(&params).map_err(value_error)?;
-        Ok(params)
+        builder.try_into().map_err(value_error)
     }
 }
 

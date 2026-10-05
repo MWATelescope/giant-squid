@@ -28,11 +28,10 @@ use super::value_enums::SchemaEnumParser;
 /// The default of `list --days`: the schema's default for the `days` of a job
 /// listing (`JobsByUserRequest`), so that the help shows it and the CLI cannot
 /// drift from the API.
-pub fn list_days_default() -> i64 {
-    let days = JobsByUserRequest::default()
+pub fn list_days_default() -> NonZeroU64 {
+    JobsByUserRequest::default()
         .days
-        .expect("BUG: the schema has no default for JobsByUserRequest.days");
-    i64::try_from(days.get()).expect("BUG: the default of days does not fit an i64")
+        .expect("BUG: the schema has no default for JobsByUserRequest.days")
 }
 
 /// Builds a clap value parser that only accepts an f64 within `bounds`.
@@ -60,6 +59,13 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
             Err(bounds.describe(v as f64))
         }
     }
+}
+
+/// The clap value parser of `list --days`: an integer from 1 to 30
+/// ([`validate::DAYS`]), as the schema's type.
+pub fn parse_days(s: &str) -> Result<NonZeroU64, String> {
+    let days = parse_i64_bounds(validate::DAYS)(s)?;
+    validate::days(days).map_err(|e| e.to_string())
 }
 
 /// The clap value parser of `list --date-from` and `--date-to`: the

@@ -36,12 +36,17 @@ pub fn asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> AsvoJob {
     AsvoJob::try_from(detail).expect("a test job should be usable")
 }
 
+/// `n`, which must not be 0, as a `NonZeroU64` (for example a `days`).
+pub const fn nonzero(n: u64) -> std::num::NonZeroU64 {
+    match std::num::NonZeroU64::new(n) {
+        Some(value) => value,
+        None => panic!("a test value is not 0"),
+    }
+}
+
 /// The job ID `n`, which must not be 0.
 pub const fn job_id(n: u64) -> crate::AsvoJobId {
-    match crate::AsvoJobId::new(n) {
-        Some(id) => id,
-        None => panic!("a test job ID is not 0"),
-    }
+    nonzero(n)
 }
 
 /// [`TEST_JOB_ID`](crate::test_common::TEST_JOB_ID) as a job ID.

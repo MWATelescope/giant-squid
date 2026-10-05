@@ -330,6 +330,17 @@ pub fn days(value: i64) -> Result<NonZeroU64, AsvoApiError> {
     Ok(NonZeroU64::new(value as u64).expect("DAYS excludes zero"))
 }
 
+/// A `days` value of the schema's type, checked against the upper limit of
+/// [`DAYS`] (the type enforces the lower one).
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if `value` is above [`DAYS`].
+pub fn check_days(value: NonZeroU64) -> Result<NonZeroU64, AsvoApiError> {
+    DAYS.check("days", value.get() as f64)?;
+    Ok(value)
+}
+
 /// A job ID for `source_job_id`, which the schema requires to be at least
 /// 1.
 ///

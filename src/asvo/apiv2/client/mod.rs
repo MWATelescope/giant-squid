@@ -669,9 +669,7 @@ impl AsvoClient {
     /// [`AsvoApiError::InvalidParameter`] before any request, for a `days`
     /// outside 1 to 30; otherwise the error from the request.
     pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
-        const PAGE_SIZE: u64 = 100;
-
-        let days = filter.days.map(validate::days).transpose()?;
+        let days = filter.days.map(validate::check_days).transpose()?;
         let job_state = filter.job_state;
         let job_type = filter.job_type;
 
@@ -679,15 +677,15 @@ impl AsvoClient {
         let mut offset: u64 = 0;
 
         loop {
-            // The builder starts from the schema defaults, and `days` keeps
-            // its default unless the filter has one. (Passing `None` would
+            // The builder starts from the schema defaults (the page size,
+            // `limit`, is the schema's), and `days` keeps its default unless
+            // the filter has one. (Passing `None` would
             // send `"days": null`, which is not the default.)
             let mut builder = JobsByUserRequest::builder()
                 .job_state(job_state)
                 .job_type(job_type)
                 .date_from(filter.date_from)
                 .date_to(filter.date_to)
-                .limit(NonZeroU64::new(PAGE_SIZE).unwrap())
                 .offset(offset);
             if let Some(days) = days {
                 builder = builder.days(days);
@@ -1002,7 +1000,7 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 pub struct JobsFilter {
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]). `None` is the API's default.
-    pub days: Option<i64>,
+    pub days: Option<NonZeroU64>,
     /// Only the jobs in this state.
     pub job_state: Option<JobState>,
     /// Only the jobs of this type.
@@ -1017,7 +1015,7 @@ pub struct JobsFilter {
 
 impl JobsFilter {
     /// A filter for the jobs from the past `days` days.
-    pub fn days(days: i64) -> Self {
+    pub fn days(days: NonZeroU64) -> Self {
         Self {
             days: Some(days),
             ..Self::default()
@@ -1044,7 +1042,7 @@ pub struct JobQuery {
     pub job_states: Vec<JobState>,
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]).
-    pub days: Option<i64>,
+    pub days: Option<NonZeroU64>,
     /// Only the jobs created at or after this time.
     pub date_from: Option<Timestamp>,
     /// Only the jobs created at or before this time.
@@ -1068,7 +1066,7 @@ impl JobQuery {
             });
         }
         if let Some(days) = self.days {
-            validate::days(days)?;
+            validate::check_days(days)?;
         }
         Ok(())
     }
