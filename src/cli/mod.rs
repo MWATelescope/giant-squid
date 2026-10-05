@@ -169,6 +169,12 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count)]
         verbosity: u8,
 
+        /// Print the result of each download as one line of JSON on stdout
+        /// (job_id, obs_id, status, message), failures too, in the order of
+        /// the job IDs and then the obsids.
+        #[arg(short, long)]
+        json: bool,
+
         /// The job IDs or obsids to be downloaded. Files containing job IDs or
         /// obsids are also accepted.
         #[arg(id = "JOB_ID_OR_OBS_ID")]
@@ -447,6 +453,11 @@ pub enum Args {
         /// instead.
         #[arg(short = 'n', long)]
         dry_run: bool,
+
+        /// Print the MWA ASVO's reply to each cancel request as one line of
+        /// JSON on stdout.
+        #[arg(short, long)]
+        json: bool,
 
         /// The verbosity of the program. The default is to print high-level
         /// information.

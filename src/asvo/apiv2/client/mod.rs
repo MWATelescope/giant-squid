@@ -370,8 +370,13 @@ impl AsvoClient {
 
     /// Download the MWA ASVO job with the given job ID.
     /// Fetches the current job list, locates the job, and downloads its
-    /// files according to the supplied options.
-    pub fn download_job(&self, job_id: AsvoJobId, opts: &DownloadOptions) -> Result<(), AsvoError> {
+    /// files according to the supplied options. Returns the job that was
+    /// downloaded.
+    pub fn download_job(
+        &self,
+        job_id: AsvoJobId,
+        opts: &DownloadOptions,
+    ) -> Result<AsvoJob, AsvoError> {
         let jobs = self.get_jobs(&JobsFilter::default())?;
         download_by_job_id(&self.current_session().0, jobs, job_id, opts)
     }
@@ -379,7 +384,13 @@ impl AsvoClient {
     /// Download the MWA ASVO job associated with the given obsid.
     /// Fetches the current job list, locates the single ready job for
     /// the obsid, and downloads its files according to the supplied options.
-    pub fn download_obs(&self, obs_id: ObsId, opts: &DownloadOptions) -> Result<(), AsvoError> {
+    /// Returns the job that was downloaded (so the caller learns its job
+    /// ID).
+    pub fn download_obs(
+        &self,
+        obs_id: ObsId,
+        opts: &DownloadOptions,
+    ) -> Result<AsvoJob, AsvoError> {
         let jobs = self.get_jobs(&JobsFilter::default())?;
         download_by_obs_id(&self.current_session().0, jobs, obs_id, opts)
     }

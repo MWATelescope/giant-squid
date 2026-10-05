@@ -143,13 +143,17 @@ pub(crate) fn download_by_job_id(
     jobs: AsvoJobVec,
     job_id: AsvoJobId,
     opts: &DownloadOptions,
-) -> Result<(), AsvoError> {
+) -> Result<AsvoJob, AsvoError> {
     let mut jobs = jobs;
     debug!("Attempting to download job {}", job_id);
     jobs.0.retain(|j| j.job_id() == job_id);
     match jobs.0.len() {
         0 => Err(AsvoError::NoAsvoJob(job_id)),
-        1 => download_job(http_client, &jobs.0[0], opts),
+        1 => {
+            let job = jobs.0.swap_remove(0);
+            download_job(http_client, &job, opts)?;
+            Ok(job)
+        }
         _ => unreachable!(),
     }
 }
@@ -161,7 +165,7 @@ pub(crate) fn download_by_obs_id(
     jobs: AsvoJobVec,
     obs_id: ObsId,
     opts: &DownloadOptions,
-) -> Result<(), AsvoError> {
+) -> Result<AsvoJob, AsvoError> {
     let mut all_jobs = jobs.clone();
 
     debug!("Attempting to download obsid {}", obs_id);
@@ -178,7 +182,11 @@ pub(crate) fn download_by_obs_id(
                 _ => Err(AsvoError::NoJobReadyForObsId(obs_id)),
             }
         }
-        1 => download_job(http_client, &ready_jobs.0[0], opts),
+        1 => {
+            let job = ready_jobs.0.swap_remove(0);
+            download_job(http_client, &job, opts)?;
+            Ok(job)
+        }
         _ => Err(AsvoError::TooManyObsIds(obs_id)),
     }
 }

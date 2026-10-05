@@ -315,6 +315,10 @@ No change: `download` takes the same job IDs, obsids and options as in 2.x
 `--skip-hash`, `--dry-run`). New: `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how
 long a failing download is retried (default 900 s).
 
+New: `-j`, `--json` prints the result of each download as one line of JSON
+(`job_id`, `obs_id`, `status`, `message`), and `cancel --json` prints the MWA
+ASVO's reply to each request, as the submit commands do.
+
 New: a download without `--keep-tar` (stream untar) resumes. In 2.x, only a
 `--keep-tar` download resumed. If a stream-untar download fails, run the same
 command again with the same `--download-dir`. giant-squid does not download

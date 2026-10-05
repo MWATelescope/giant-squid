@@ -292,6 +292,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To submit a conversion job for obsid 1065880128:
@@ -442,6 +444,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To submit an imaging job for the obsid 1065880128, give any conversion options as well as imaging options:
@@ -579,6 +583,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi` excepted), and `--source-job-id`, which is required.
@@ -617,6 +623,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To submit a metadata download job for the obsid 1065880128:
@@ -657,6 +665,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To submit a visibility download job for the obsid 1065880128:
@@ -696,6 +706,8 @@ Options:
           The verbosity of the program. The default is to print high-level information
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To submit a beamformer download job for the obsid 1065880128:
@@ -730,6 +742,7 @@ Options:
   -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
   -v, --verbosity...                 The verbosity of the program. The default is to print high-level information
   -h, --help                         Print help
+  -V, --version                      Print version
 ```
 
 To submit a voltage download job for the obsid 1065880128:
@@ -777,6 +790,7 @@ Options:
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
       --sort-by <SORT_BY>       The column to sort the jobs by, for example "id"
   -h, --help                    Print help
+  -V, --version                 Print version
 ```
 
 Example:
@@ -922,6 +936,7 @@ Options:
   -v, --verbosity...  The verbosity of the program. The default is to print high-level information
   -n, --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
   -h, --help          Print help
+  -V, --version       Print version
 ```
 
 Example:
@@ -959,8 +974,10 @@ Arguments:
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
+  -j, --json          Print the MWA ASVO's reply to each cancel request as one line of JSON on stdout
   -v, --verbosity...  The verbosity of the program. The default is to print high-level information
   -h, --help          Print help
+  -V, --version       Print version
 ```
 
 Example:
@@ -971,6 +988,10 @@ $ giant-squid cancel 31 32
 13:20:41 [INFO] Cancel request for job 32: Unable to cancel job 32
 13:20:41 [INFO] Cancel requests: 2 sent, 0 failed.
 ```
+
+With `-j`, `--json`, `cancel` prints the MWA ASVO's reply to each request as one line of JSON on standard
+output (`{"job_id":31,"message":"Job cancelled","status":"success"}`), as the submit commands do. A request
+that the MWA ASVO refuses with an error prints no line.
 
 The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
 was cancelled:
@@ -1013,8 +1034,12 @@ Options:
           Don't actually download; print information on what would've happened instead
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information
+  -j, --json
+          Print the result of each download as one line of JSON on stdout (job_id, obs_id, status, message), failures too, in the order of the job IDs and then the obsids
   -h, --help
           Print help
+  -V, --version
+          Print version
 ```
 
 To download job ID 12345 to your current directory '.':
@@ -1033,6 +1058,18 @@ giant-squid download 1065880128
 number specified; 10-digit numbers are treated as obsids.)
 
 Text files containing job IDs or obsids may be used too.
+
+With `-j`, `--json`, `download` prints the result of each download as one line of JSON on standard output,
+in the order of the job IDs and then the obsids, failures too:
+
+```bash
+$ giant-squid download --json 12345 1090008640
+{"job_id":12345,"obs_id":1065880128,"status":"success","message":"Downloaded 1.23 GiB to ."}
+{"job_id":null,"obs_id":1090008640,"status":"failed","message":"No job for Obsid 1090008640 is ready for download."}
+```
+
+A key that is not known is `null`: the obsid of a job ID that was not found, or the job of an obsid that
+was not found. The exit code is not zero when a download failed.
 
 You can specify the directory to download to by providing the `download_dir` parameter
 to the `download` command. Ommitting this will default to your current dir `.`.

@@ -25,7 +25,7 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::asvo::apiv2::openapi::JobSubmittedResponse;
+use crate::asvo::apiv2::openapi::{Status, Type as FileType};
 use crate::asvo::*;
 use crate::*;
 
@@ -73,24 +73,87 @@ fn connect() -> anyhow::Result<AsvoClient> {
     Ok(AsvoClient::new(client_config_from_env()?)?)
 }
 
-fn run_job_id_download(job_id: AsvoJobId, opts: &DownloadOptions) -> anyhow::Result<()> {
+fn run_job_id_download(job_id: AsvoJobId, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let client = connect()?;
-    client.download_job(job_id, opts)?;
-    Ok(())
+    Ok(client.download_job(job_id, opts)?)
 }
 
-fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<()> {
+fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
     // Add a small delay to hopefully have the downloads start in order
     // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
     thread::sleep(time::Duration::from_millis(100));
 
     let client = connect()?;
-    client.download_obs(obs_id, opts)?;
-    Ok(())
+    Ok(client.download_obs(obs_id, opts)?)
+}
+
+/// The result of one download, for `download --json`: the keys of the MWA
+/// ASVO's replies (`job_id`, `status`, `message`), and the obsid. A key that
+/// is not known (the obsid of a job ID that was not found, the job of an
+/// obsid that was not found) is `null`.
+#[derive(serde::Serialize)]
+struct DownloadReport {
+    job_id: Option<AsvoJobId>,
+    obs_id: Option<ObsId>,
+    status: Status,
+    message: String,
+}
+
+impl DownloadReport {
+    /// The report of one download of the job ID `job_id` or of the obsid
+    /// `obs_id` (the one that was asked for), from its result.
+    fn new(
+        job_id: Option<AsvoJobId>,
+        obs_id: Option<ObsId>,
+        result: &anyhow::Result<AsvoJob>,
+        download_dir: &str,
+    ) -> Self {
+        match result {
+            Ok(job) => Self {
+                job_id: Some(job.job_id()),
+                obs_id: Some(job.obs_id()),
+                status: Status::Success,
+                message: downloaded_message(job, download_dir),
+            },
+            Err(e) => Self {
+                job_id,
+                obs_id,
+                status: Status::Failed,
+                message: e.to_string(),
+            },
+        }
+    }
+}
+
+/// What a successful download did, for its JSON report: the size and the
+/// directory of an Acacia download, or where the MWA ASVO delivered the
+/// files of a Scratch or DUG job.
+fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
+    let files = job
+        .product
+        .as_ref()
+        .map(|p| p.files.as_slice())
+        .unwrap_or_default();
+    let size: u64 = files.iter().map(JobFile::size_bytes).sum();
+    match files.first().map(|f| f.type_) {
+        Some(FileType::Scratch) => format!(
+            "The files are on the scratch filesystem at Pawsey: {}",
+            files
+                .first()
+                .and_then(|f| f.path.as_deref())
+                .unwrap_or_default()
+        ),
+        Some(FileType::Dug) => "The files are on the DUG filesystem.".to_string(),
+        _ => format!(
+            "Downloaded {} to {}",
+            bytesize::ByteSize(size).display().iec(),
+            download_dir
+        ),
+    }
 }
 
 /// Submit one job per obsid, carrying on past failures.
@@ -155,11 +218,12 @@ fn obs_ids_only(
     })
 }
 
-/// Print a submission's response as one line of JSON, for `--json`.
+/// Print a result as one line of JSON, for `--json`: the MWA ASVO's reply to
+/// a submission or a cancellation, or the report of a download.
 ///
-/// One compact object per submitted job, in submission order, so a caller
-/// can read the job IDs back without parsing log text.
-fn print_submitted_json(resp: &JobSubmittedResponse, json: bool) -> Result<(), anyhow::Error> {
+/// One compact object per job, in order, so a caller can read the job IDs
+/// back without parsing log text.
+fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyhow::Error> {
     if json {
         println!("{}", serde_json::to_string(resp)?);
     }
@@ -341,6 +405,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             job_ids_or_obs_ids,
             download_dir,
+            json,
             ..
         } => {
             if job_ids_or_obs_ids.is_empty() {
@@ -392,7 +457,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 // the results (I think)
                 let t: usize = job_ids.len() + obs_ids.len();
 
-                let mut job_ids_results: Vec<anyhow::Result<()>> = job_ids
+                let mut job_ids_results: Vec<anyhow::Result<AsvoJob>> = job_ids
                     .par_iter()
                     .enumerate()
                     .map(|(c, j)| {
@@ -415,7 +480,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     })
                     .collect();
 
-                let mut obs_ids_results: Vec<anyhow::Result<()>> = obs_ids
+                let mut obs_ids_results: Vec<anyhow::Result<AsvoJob>> = obs_ids
                     .par_iter()
                     .enumerate()
                     .map(|(c, o)| {
@@ -454,6 +519,20 @@ fn run(args: Args) -> anyhow::Result<()> {
 
                 info!("Downloaded {} of {}.", t - failures, t);
 
+                if json {
+                    let reports =
+                        job_ids
+                            .iter()
+                            .zip(&job_ids_results)
+                            .map(|(j, r)| DownloadReport::new(Some(*j), None, r, &download_dir))
+                            .chain(obs_ids.iter().zip(&obs_ids_results).map(|(o, r)| {
+                                DownloadReport::new(None, Some(*o), r, &download_dir)
+                            }));
+                    for report in reports {
+                        print_json_line(&report, true)?;
+                    }
+                }
+
                 if failures > 0 {
                     bail!(
                         "{} of {} downloads failed; see the errors above.",
@@ -487,7 +566,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&parsed_obs_ids, "visibility download", |o| {
                     let params = download.to_vis_params(*o)?;
                     let resp = client.submit_download_vis_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -524,7 +603,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", |o| {
                     let params = conv.to_params(*o)?;
                     let resp = client.submit_conversion_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -562,7 +641,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&obs_ids, "imaging", |o| {
                     let params = image.to_params(*o)?;
                     let resp = client.submit_imaging_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -611,7 +690,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let params = image.to_params(*o)?;
 
                 let resp = client.submit_image_from_job(&params)?;
-                print_submitted_json(&resp, json)?;
+                print_json_line(&resp, json)?;
                 let job_id = resp.job_id;
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
 
@@ -643,7 +722,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", |o| {
                     let params = download.to_meta_params(*o)?;
                     let resp = client.submit_download_meta_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -680,7 +759,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", |o| {
                     let params = volt.to_params(*o)?;
                     let resp = client.submit_voltage_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -717,7 +796,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let outcome = submit_each_obs_id(&parsed_obs_ids, "beamformer download", |o| {
                     let params = bf.to_params(*o)?;
                     let resp = client.submit_beamformer_job(&params)?;
-                    print_submitted_json(&resp, json)?;
+                    print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
                     job_ids.push(job_id);
@@ -763,6 +842,7 @@ fn run(args: Args) -> anyhow::Result<()> {
 
         Args::Cancel {
             dry_run,
+            json,
             verbosity,
             jobs,
         } => {
@@ -789,6 +869,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     match client.cancel_job(j) {
                         Ok(resp) => {
                             info!("Cancel request for job {}: {}", j, resp.message);
+                            print_json_line(&resp, json)?;
                         }
                         Err(e) => {
                             error!("Failed to cancel MWA ASVO job ID {}: {}", j, e);

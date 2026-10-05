@@ -221,9 +221,10 @@ fn take_stray_error(py: Python<'_>) -> Option<PyErr> {
 /// `ValueError` for a `download_dir` that is not UTF-8 or a bad
 /// `retry_duration`; `AsvoError` or `AsvoApiError` from the download; or
 /// the exception from the callback or a signal handler.
-pub(super) fn run_download<F>(py: Python<'_>, args: PyDownloadArgs, download: F) -> PyResult<()>
+pub(super) fn run_download<F, T>(py: Python<'_>, args: PyDownloadArgs, download: F) -> PyResult<T>
 where
-    F: FnOnce(&DownloadOptions) -> Result<(), AsvoError> + Send,
+    F: FnOnce(&DownloadOptions) -> Result<T, AsvoError> + Send,
+    T: Send,
 {
     let download_dir = args
         .download_dir

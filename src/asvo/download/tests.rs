@@ -1610,7 +1610,9 @@ mod reruns {
         let mut opts = options(&dir_path);
         configure(&mut opts);
         let client = AsvoClient::new(client_config(env)).expect("client should be created");
-        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        client
+            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+            .map(|_| ())
     }
 
     #[test]
@@ -2133,7 +2135,9 @@ mod sidecar {
         let mut opts = options(&dir_path);
         configure(&mut opts);
         let client = AsvoClient::new(client_config(server.env)).expect("client should be created");
-        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        client
+            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+            .map(|_| ())
     }
 
     /// A first run that writes `a.dat` and `b.dat` and then fails: a

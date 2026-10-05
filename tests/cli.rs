@@ -747,6 +747,60 @@ fn a_cancellation_is_issued_to_the_server() {
     );
 }
 
+/// `cancel --json` prints the MWA ASVO's reply to each request as one line of
+/// JSON on stdout.
+#[test]
+fn cancel_json_prints_the_reply() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/12345");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(12345));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "--json", "12345"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let reply = result.stdout_json();
+    assert_eq!(reply["job_id"], 12345);
+    assert_eq!(reply["status"], "success");
+}
+
+/// `download --json` prints one line for each download, a failure too, with
+/// the job ID or obsid that was asked for, and the run still fails.
+#[test]
+fn download_json_prints_a_line_for_a_failure() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![]);
+    let dir = tempfile::TempDir::new().expect("a download directory");
+
+    let mut cmd = env.command();
+    cmd.args(["download", "--json", "-d"])
+        .arg(dir.path())
+        .args(["12345", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert!(!result.success, "output: {}", result.combined());
+    let lines: Vec<serde_json::Value> = result
+        .stdout
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("each line is JSON"))
+        .collect();
+    assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["job_id"], 12345);
+    assert!(lines[0]["obs_id"].is_null());
+    assert_eq!(lines[0]["status"], "failed");
+    assert!(lines[1]["job_id"].is_null());
+    assert_eq!(lines[1]["obs_id"].to_string(), TEST_OBS_ID);
+    assert_eq!(lines[1]["status"], "failed");
+    assert!(lines[1]["message"]
+        .as_str()
+        .is_some_and(|m| m.contains(TEST_OBS_ID)));
+}
+
 /// The server answers a cancellation of a job that is already cancelled with
 /// a normal (HTTP 200) reply whose `status` is "failed". The CLI can tell it
 /// from a success only by the message, so it must not say that the job was

@@ -226,6 +226,12 @@ impl PyJobProduct {
 #[derive(Clone)]
 pub struct PyAsvoJob(AsvoJob);
 
+impl From<AsvoJob> for PyAsvoJob {
+    fn from(job: AsvoJob) -> Self {
+        Self(job)
+    }
+}
+
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJob {

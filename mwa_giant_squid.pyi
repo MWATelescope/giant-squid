@@ -543,7 +543,7 @@ class AsvoClient:
         retry_duration: builtins.float | None = None,
         download_number: builtins.int = 1,
         download_count: builtins.int = 1,
-    ) -> None:
+    ) -> AsvoJob:
         r"""
         Download the files of a job.
 
@@ -577,6 +577,9 @@ class AsvoClient:
                 for the progress and log label (`[1/2]`).
             download_count: How many downloads there are in the series.
 
+        Returns:
+            The job that was downloaded.
+
         Raises:
             AsvoError: The job is missing, not ready or has no files, a
                 transfer failed, or the hash does not match.
@@ -597,7 +600,7 @@ class AsvoClient:
         retry_duration: builtins.float | None = None,
         download_number: builtins.int = 1,
         download_count: builtins.int = 1,
-    ) -> None:
+    ) -> AsvoJob:
         r"""
         Download the files of the one ready job for an obsid.
 
@@ -606,6 +609,10 @@ class AsvoClient:
 
         Args:
             obs_id: The obsid. There must be exactly one ready job for it.
+
+        Returns:
+            The job that was downloaded (its `job_id` is the job found for
+            the obsid).
 
         Raises:
             ValueError: `obs_id` is not a valid obsid.

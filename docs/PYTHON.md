@@ -224,7 +224,8 @@ an error or was cancelled.
 ## Download
 
 `download_job` downloads the files of one ready job. `download_obs` does the same for the one ready job
-of an obsid.
+of an obsid. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the job ID of the
+obsid's job.
 
 ```python
 client.download_job(reply.job_id, "/data/mwa")

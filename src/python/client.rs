@@ -22,8 +22,9 @@ use super::error::api_error;
 use super::params::job_obs_id;
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
-    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse, PyJobState,
-    PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
+    PyAsvoJob, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse,
+    PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization,
+    PyWeighting,
 };
 use crate::asvo::apiv2::job_args::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
@@ -862,6 +863,9 @@ impl PyAsvoClient {
     ///         for the progress and log label (`[1/2]`).
     ///     download_count: How many downloads there are in the series.
     ///
+    /// Returns:
+    ///     The job that was downloaded.
+    ///
     /// Raises:
     ///     AsvoError: The job is missing, not ready or has no files, a
     ///         transfer failed, or the hash does not match.
@@ -895,7 +899,7 @@ impl PyAsvoClient {
         retry_duration: Option<f64>,
         download_number: usize,
         download_count: usize,
-    ) -> PyResult<()> {
+    ) -> PyResult<PyAsvoJob> {
         let args = PyDownloadArgs {
             download_dir,
             keep_tar,
@@ -907,7 +911,7 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_job(job_id.0, opts))
+        run_download(py, args, |opts| self.inner.download_job(job_id.0, opts)).map(PyAsvoJob::from)
     }
 
     /// Download the files of the one ready job for an obsid.
@@ -917,6 +921,10 @@ impl PyAsvoClient {
     ///
     /// Args:
     ///     obs_id: The obsid. There must be exactly one ready job for it.
+    ///
+    /// Returns:
+    ///     The job that was downloaded (its `job_id` is the job found for
+    ///     the obsid).
     ///
     /// Raises:
     ///     ValueError: `obs_id` is not a valid obsid.
@@ -951,7 +959,7 @@ impl PyAsvoClient {
         retry_duration: Option<f64>,
         download_number: usize,
         download_count: usize,
-    ) -> PyResult<()> {
+    ) -> PyResult<PyAsvoJob> {
         let obs_id = ObsId::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let args = PyDownloadArgs {
             download_dir,
@@ -964,7 +972,7 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_obs(obs_id, opts))
+        run_download(py, args, |opts| self.inner.download_obs(obs_id, opts)).map(PyAsvoJob::from)
     }
 
     fn __repr__(&self) -> String {

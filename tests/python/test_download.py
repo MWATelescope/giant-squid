@@ -226,6 +226,17 @@ def test_download_job_id_unpacks_the_tar_by_default(
     assert not (tmp_path / FILE_NAME).exists()
 
 
+def test_a_download_returns_the_job_it_downloaded(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """download_job and download_obs return the job, so a caller learns the job ID of an obsid."""
+    by_obs_id = client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True)
+
+    assert by_obs_id.job_id == JOB_ID
+    assert by_obs_id.obs_id == TEST_OBS_ID
+    assert len(served_tar) > 0
+
+
 def test_download_obs_id_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:
     """download_obs downloads the one ready job of the obsid."""
     client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True)

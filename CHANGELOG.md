@@ -44,6 +44,11 @@ before you upgrade scripts.**
 * Library: `AsvoJobState` is replaced by the OpenAPI schema's `JobState` (`JobState::Completed` and so on). Its
   `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
   the same members.
+* `download` and `cancel` have `-j`, `--json`, as the other commands do. `download --json` prints one line of JSON
+  for each download (`job_id`, `obs_id`, `status`, `message`), failures too; `cancel --json` prints the MWA ASVO's
+  reply to each request.
+* Library: `AsvoClient::download_job` and `download_obs` return the `AsvoJob` that was downloaded (were `()`); in
+  Python they return an `AsvoJob` (were `None`).
 * The help and clap's messages are in colour on a terminal (as cargo's are), not only bold. `NO_COLOR` turns the
   colours off.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
