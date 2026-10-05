@@ -21,7 +21,7 @@ use jiff::Timestamp;
 use serde::Serialize;
 
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobState, AsvoJobType, AsvoJobVec, Delivery,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobType, AsvoJobVec, Delivery, JobState,
 };
 use crate::obs_id::ObsId;
 
@@ -46,6 +46,45 @@ struct LegacyFile<'a> {
     sha1: &'a Option<String>,
 }
 
+/// A job state, as the old format wrote it: a name in CamelCase, `Ready`
+/// for a completed job, and `{"Error": "<message>"}` for a job with an
+/// error.
+#[derive(Serialize)]
+enum LegacyState<'a> {
+    Queued,
+    WaitCal,
+    Staging,
+    Staged,
+    Preparing,
+    Downloading,
+    Preprocessing,
+    Imaging,
+    Delivering,
+    Ready,
+    Error(&'a str),
+    Cancelled,
+}
+
+impl<'a> LegacyState<'a> {
+    /// The old form of `job`'s state.
+    fn of(job: &'a AsvoJob) -> Self {
+        match job.job_state {
+            JobState::Queued => Self::Queued,
+            JobState::Waitcal => Self::WaitCal,
+            JobState::Staging => Self::Staging,
+            JobState::Staged => Self::Staged,
+            JobState::Preparing => Self::Preparing,
+            JobState::Downloading => Self::Downloading,
+            JobState::Preprocessing => Self::Preprocessing,
+            JobState::Imaging => Self::Imaging,
+            JobState::Delivering => Self::Delivering,
+            JobState::Completed => Self::Ready,
+            JobState::Error => Self::Error(job.error_text.as_deref().unwrap_or_default()),
+            JobState::Cancelled => Self::Cancelled,
+        }
+    }
+}
+
 /// One job, with the old keys. The field order is the old key order.
 #[derive(Serialize)]
 struct LegacyJob<'a> {
@@ -55,7 +94,7 @@ struct LegacyJob<'a> {
     #[serde(rename = "jobType")]
     job_type: &'a AsvoJobType,
     #[serde(rename = "jobState")]
-    job_state: &'a AsvoJobState,
+    job_state: LegacyState<'a>,
     files: Option<Vec<LegacyFile<'a>>>,
     completed: &'a Option<Timestamp>,
 }
@@ -78,7 +117,7 @@ impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
             obsid: &job.obs_id,
             job_id: job.job_id,
             job_type: &job.job_type,
-            job_state: &job.job_state,
+            job_state: LegacyState::of(job),
             // The old format had the file list at the top level.
             files: job
                 .product

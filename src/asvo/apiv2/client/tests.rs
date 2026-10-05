@@ -23,7 +23,7 @@ use serde_json::json;
 use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::asvo::client_config_from_env;
 use crate::asvo::{
-    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobState, AsvoJobType, Delivery, JobQuery, JobsFilter,
+    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobType, Delivery, JobQuery, JobState, JobsFilter,
 };
 #[cfg(feature = "bin")]
 use crate::cli::Args;
@@ -365,7 +365,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(job.obs_id.get(), TEST_OBS_ID_I64 as u64);
     assert_eq!(job.job_type, AsvoJobType::DownloadVisibilities);
     // The API says "completed" where the rest of giant-squid says "ready".
-    assert_eq!(job.job_state, AsvoJobState::Ready);
+    assert_eq!(job.job_state, JobState::Completed);
 }
 
 /// The listing endpoint is paged 100 at a time, so a larger history has to
@@ -420,9 +420,10 @@ fn an_errored_job_carries_the_servers_error_text() {
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
 
+    assert_eq!(jobs.0[0].job_state, JobState::Error);
     assert_eq!(
-        jobs.0[0].job_state,
-        AsvoJobState::Error("Observation has no data files".to_string())
+        jobs.0[0].error_text.as_deref(),
+        Some("Observation has no data files")
     );
     assert_eq!(jobs.0[0].job_type, AsvoJobType::Conversion);
     // The server sent no `error_code` key, which is the same as null.
@@ -450,7 +451,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
     assert_eq!(jobs.0[0].job_id, TEST_JOB_ID);
-    assert_eq!(jobs.0[0].job_state, AsvoJobState::Queued);
+    assert_eq!(jobs.0[0].job_state, JobState::Queued);
 }
 
 /// Since schema 1.13 the job state is the schema's `JobState`, not free text:
@@ -1095,7 +1096,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     assert_eq!(job.job_id, RECORDED_JOB_ID);
     assert_eq!(job.obs_id.get(), RECORDED_OBS_ID);
     assert_eq!(job.job_type, AsvoJobType::DownloadMetadata);
-    assert_eq!(job.job_state, AsvoJobState::Ready);
+    assert_eq!(job.job_state, JobState::Completed);
     assert!(job.completed.is_some(), "completed should be parsed");
 }
 
@@ -1270,7 +1271,7 @@ fn get_jobs_sends_every_filter_to_the_server() {
 
     let filter = JobsFilter {
         days: Some(7),
-        job_state: Some(AsvoJobState::Ready),
+        job_state: Some(JobState::Completed),
         job_type: Some(AsvoJobType::Imaging),
         date_from: Some("2026-09-01T00:00:00Z".parse().expect("a valid time")),
         date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
@@ -1317,38 +1318,30 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
     assert_eq!(unfiltered.calls(), 1);
 }
 
-/// A state or a type that the API cannot filter by is refused before any
-/// request.
+/// A type that the API cannot filter by is refused before any request.
 #[test]
 fn get_jobs_refuses_a_filter_the_api_does_not_have() {
     let env = TestEnv::with_session();
     let listing = env.mock_get_jobs(vec![]);
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
 
-    for (filter, name) in [
-        (
-            JobsFilter {
-                job_state: Some(AsvoJobState::Expired),
-                ..JobsFilter::default()
-            },
-            "job_state",
+    let filter = JobsFilter {
+        job_type: Some(AsvoJobType::Unknown),
+        ..JobsFilter::default()
+    };
+    let err = client
+        .get_jobs(&filter)
+        .expect_err("the filter should be refused");
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "job_type",
+                ..
+            }
         ),
-        (
-            JobsFilter {
-                job_type: Some(AsvoJobType::Unknown),
-                ..JobsFilter::default()
-            },
-            "job_type",
-        ),
-    ] {
-        let err = client
-            .get_jobs(&filter)
-            .expect_err("the filter should be refused");
-        assert!(
-            matches!(err, AsvoApiError::InvalidParameter { name: n, .. } if n == name),
-            "got {err:?}"
-        );
-    }
+        "got {err:?}"
+    );
     assert_eq!(listing.calls(), 0);
 }
 
@@ -1417,7 +1410,7 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
     assert_eq!(job.modified, Some(utc("2026-09-08T05:55:00Z")));
     assert_eq!(job.error_code, Some(7));
     assert_eq!(job.error_text.as_deref(), Some("it failed"));
-    assert_eq!(job.job_state, AsvoJobState::Error("it failed".to_string()));
+    assert_eq!(job.job_state, JobState::Error);
     assert_eq!(job.user_id, TEST_USER_ID);
     assert_eq!(job.first_name, "Test");
     assert_eq!(job.last_name, "User");
@@ -1565,7 +1558,7 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .list_jobs(&JobQuery {
-            job_states: vec![AsvoJobState::Queued],
+            job_states: vec![JobState::Queued],
             job_types: vec![AsvoJobType::Imaging],
             ..JobQuery::default()
         })
@@ -1593,7 +1586,7 @@ fn list_jobs_filters_several_states_on_the_client() {
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .list_jobs(&JobQuery {
-            job_states: vec![AsvoJobState::Ready, AsvoJobState::Queued],
+            job_states: vec![JobState::Completed, JobState::Queued],
             ..JobQuery::default()
         })
         .expect("the listing should succeed");
@@ -1601,25 +1594,6 @@ fn list_jobs_filters_several_states_on_the_client() {
     assert_eq!(listing.calls(), 1);
     let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
     assert_eq!(ids, [1, 2]);
-}
-
-/// The API cannot filter by `Expired`, so `list_jobs` (unlike `get_jobs`)
-/// filters by it on the client rather than failing. The API has no expired
-/// state (schema 1.13), so no job matches.
-#[test]
-fn list_jobs_filters_expired_on_the_client() {
-    let env = TestEnv::with_session();
-    env.mock_get_jobs(three_jobs());
-
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client
-        .list_jobs(&JobQuery {
-            job_states: vec![AsvoJobState::Expired],
-            ..JobQuery::default()
-        })
-        .expect("the listing should succeed");
-
-    assert!(jobs.0.is_empty(), "no job is expired");
 }
 
 /// Job IDs and obsids together are refused before any request.

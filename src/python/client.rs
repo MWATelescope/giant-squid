@@ -24,7 +24,7 @@ use super::params::{
 };
 use super::typed::ProgressCallback;
 use super::types::{
-    PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat,
+    PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobState,
     PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
 use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
@@ -89,7 +89,6 @@ impl PyAsvoClient {
     ///         `None` is the default of the MWA ASVO API.
     ///     job_state: Only the jobs in this state. The server takes one
     ///         state; to filter by several, use `AsvoJobVec.filter`.
-    ///         `AsvoJobState.Expired` cannot be filtered by.
     ///     job_type: Only the jobs of this type. `AsvoJobType.Unknown`
     ///         cannot be filtered by.
     ///     date_from: Only the jobs created at or after this time. It must
@@ -100,8 +99,8 @@ impl PyAsvoClient {
     ///         `None` uses the server's default order.
     ///
     /// Raises:
-    ///     ValueError: `days` is not from 1 to 30, or `job_state` or
-    ///         `job_type` cannot be filtered by.
+    ///     ValueError: `days` is not from 1 to 30, or `job_type` cannot be
+    ///         filtered by.
     ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (days=None, *, job_state=None, job_type=None, date_from=None, date_to=None, sort_by=None))]
@@ -110,7 +109,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         days: Option<i64>,
-        job_state: Option<PyAsvoJobState>,
+        job_state: Option<PyJobState>,
         job_type: Option<PyAsvoJobType>,
         date_from: Option<Timestamp>,
         date_to: Option<Timestamp>,
@@ -137,9 +136,7 @@ impl PyAsvoClient {
     ///     job_ids: Only these jobs. Cannot be combined with `obs_ids`.
     ///     obs_ids: Only the jobs for these obsids.
     ///     job_types: Only the jobs of these types.
-    ///     job_states: Only the jobs in these states. States compare by
-    ///         kind, so `AsvoJobState.Error` matches every job with an
-    ///         error. `AsvoJobState.Expired` works here too.
+    ///     job_states: Only the jobs in these states.
     ///     days: Only the jobs from the past `days` days, from 1 to 30.
     ///         `None` is the default of the MWA ASVO API.
     ///     date_from: Only the jobs created at or after this time. It must
@@ -171,7 +168,7 @@ impl PyAsvoClient {
         job_ids: Option<Vec<AsvoJobId>>,
         obs_ids: Option<Vec<u64>>,
         job_types: Option<Vec<PyAsvoJobType>>,
-        job_states: Option<Vec<PyAsvoJobState>>,
+        job_states: Option<Vec<PyJobState>>,
         days: Option<i64>,
         date_from: Option<Timestamp>,
         date_to: Option<Timestamp>,

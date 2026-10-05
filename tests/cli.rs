@@ -678,7 +678,7 @@ fn list_sends_its_filters_to_the_server() {
         "--date-from",
         "2026-09-01",
         "--job-states",
-        "ready",
+        "completed",
     ]);
     let result = run(cmd);
 

@@ -24,7 +24,7 @@ use jiff::Timestamp;
 
 use crate::asvo::apiv2::validate;
 use crate::asvo::DEFAULT_CONCURRENT_DOWNLOADS;
-use crate::asvo::{AsvoJobState, AsvoJobType};
+use crate::asvo::{AsvoJobType, JobState};
 use params::{
     list_days_default, parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
@@ -45,7 +45,7 @@ const JOB_TYPES_HELP: &str = "filter job list by type, case insensitive with und
 fn job_states_help() -> String {
     format!(
         "{JOB_STATES_HELP} Options: {}",
-        AsvoJobState::names().join(", ")
+        JobState::names().join(", ")
     )
 }
 
@@ -85,8 +85,8 @@ pub enum Args {
         verbosity: u8,
 
         // The help is built from the library's names (see `job_states_help`).
-        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',', help = job_states_help())]
-        job_states: Vec<AsvoJobState>,
+        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',', value_parser = JobState::parse_name, help = job_states_help())]
+        job_states: Vec<JobState>,
 
         // The help is built from the library's names (see `job_types_help`).
         #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', help = job_types_help())]

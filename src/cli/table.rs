@@ -8,7 +8,7 @@
 
 use prettytable::{row, Cell, Row, Table};
 
-use crate::asvo::{AsvoJobState, AsvoJobType, AsvoJobVec};
+use crate::asvo::{AsvoJob, AsvoJobType, AsvoJobVec, JobState};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";
@@ -40,7 +40,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                 Cell::new(j.obs_id.to_string().as_str()),
                 Cell::new(j.job_type.to_string().as_str())
                     .style_spec(&job_type_table_style(j.job_type, no_colour)),
-                Cell::new(j.job_state.to_string().as_str())
+                Cell::new(job_state_text(&j).as_str())
                     .style_spec(&job_state_table_style(j.job_state, no_colour)),
                 Cell::new(
                     match &j.product {
@@ -102,25 +102,33 @@ pub fn job_type_table_style(job_type: AsvoJobType, no_colour: bool) -> String {
     }
 }
 
+/// The text of a job state cell: the schema's value (for example
+/// `completed`), and for a job with an error, its message.
+fn job_state_text(job: &AsvoJob) -> String {
+    match (&job.job_state, &job.error_text) {
+        (JobState::Error, Some(text)) => format!("{}: {}", job.job_state, text),
+        (state, _) => state.to_string(),
+    }
+}
+
 /// The prettytable style spec for a job state cell.
-pub fn job_state_table_style(job_state: AsvoJobState, no_colour: bool) -> String {
+pub fn job_state_table_style(job_state: JobState, no_colour: bool) -> String {
     if no_colour {
         "".to_string()
     } else {
         match job_state {
-            AsvoJobState::Queued => "FW",
-            AsvoJobState::WaitCal => "Fm",
-            AsvoJobState::Staging => "Fm",
-            AsvoJobState::Staged => "Fm",
-            AsvoJobState::Preparing => "Fm",
-            AsvoJobState::Downloading => "Fm",
-            AsvoJobState::Preprocessing => "Fm",
-            AsvoJobState::Imaging => "Fm",
-            AsvoJobState::Delivering => "Fm",
-            AsvoJobState::Ready => "Fg",
-            AsvoJobState::Error(_) => "Fr",
-            AsvoJobState::Expired => "Fw",
-            AsvoJobState::Cancelled => "Fr",
+            JobState::Queued => "FW",
+            JobState::Waitcal => "Fm",
+            JobState::Staging => "Fm",
+            JobState::Staged => "Fm",
+            JobState::Preparing => "Fm",
+            JobState::Downloading => "Fm",
+            JobState::Preprocessing => "Fm",
+            JobState::Imaging => "Fm",
+            JobState::Delivering => "Fm",
+            JobState::Completed => "Fg",
+            JobState::Error => "Fr",
+            JobState::Cancelled => "Fr",
         }
         .to_string()
     }

@@ -86,40 +86,6 @@ fn every_job_type() -> [AsvoJobType; 8] {
     ]
 }
 
-/// Every job state, with the same guard as [`every_job_type`].
-fn every_job_state() -> [AsvoJobState; 13] {
-    let _all_states_are_listed: fn(&AsvoJobState) = |state| match state {
-        AsvoJobState::Queued
-        | AsvoJobState::WaitCal
-        | AsvoJobState::Staging
-        | AsvoJobState::Staged
-        | AsvoJobState::Preparing
-        | AsvoJobState::Downloading
-        | AsvoJobState::Preprocessing
-        | AsvoJobState::Imaging
-        | AsvoJobState::Delivering
-        | AsvoJobState::Ready
-        | AsvoJobState::Error(_)
-        | AsvoJobState::Expired
-        | AsvoJobState::Cancelled => (),
-    };
-    [
-        AsvoJobState::Queued,
-        AsvoJobState::WaitCal,
-        AsvoJobState::Staging,
-        AsvoJobState::Staged,
-        AsvoJobState::Preparing,
-        AsvoJobState::Downloading,
-        AsvoJobState::Preprocessing,
-        AsvoJobState::Imaging,
-        AsvoJobState::Delivering,
-        AsvoJobState::Ready,
-        AsvoJobState::Error(String::new()),
-        AsvoJobState::Expired,
-        AsvoJobState::Cancelled,
-    ]
-}
-
 /// The list of job type names is in the order that the help shows it, with
 /// the plural `download_voltages`.
 #[test]
@@ -163,67 +129,61 @@ fn the_singular_voltage_type_is_accepted_and_not_listed() {
     );
 }
 
-/// The list of job state names is in the order that the help shows it.
+/// The job state names are the schema's values, in the schema's order.
 #[test]
-fn the_job_state_names_are_listed_in_order() {
+fn the_job_state_names_are_the_schema_values_in_order() {
     assert_eq!(
-        AsvoJobState::names(),
+        JobState::names(),
         [
+            "preparing",
             "queued",
             "waitcal",
             "staging",
             "staged",
             "downloading",
-            "preparing",
             "preprocessing",
             "imaging",
             "delivering",
-            "ready",
+            "completed",
             "error",
-            "expired",
             "cancelled",
         ]
     );
 }
 
-/// Every job state has exactly one name in the list, and each name parses to
-/// its state.
+/// Each name parses to the state whose schema value it is.
 #[test]
-fn every_job_state_has_one_name() {
-    let names = AsvoJobState::names();
-    for state in every_job_state() {
-        let named_so: Vec<_> = names
-            .iter()
-            .filter(|name| name.parse::<AsvoJobState>().ok().as_ref() == Some(&state))
-            .collect();
-        assert_eq!(named_so.len(), 1, "{state:?}: {named_so:?}");
+fn every_job_state_name_parses_to_its_state() {
+    for name in JobState::names() {
+        let state = JobState::parse_name(&name).expect("a listed name should parse");
+        assert_eq!(state.to_string(), name);
     }
 }
 
 /// A job state is parsed from its name in any case and spelling of the
-/// separators, and `error` has an empty message.
+/// separators.
 #[test]
 fn a_job_state_is_parsed_from_its_name() {
     let cases = [
-        ("queued", AsvoJobState::Queued),
-        ("WAIT-CAL", AsvoJobState::WaitCal),
-        ("wait_cal", AsvoJobState::WaitCal),
-        ("Ready", AsvoJobState::Ready),
-        ("error", AsvoJobState::Error(String::new())),
-        ("CANCELLED", AsvoJobState::Cancelled),
+        ("queued", JobState::Queued),
+        ("WAIT-CAL", JobState::Waitcal),
+        ("wait_cal", JobState::Waitcal),
+        ("Completed", JobState::Completed),
+        ("error", JobState::Error),
+        ("CANCELLED", JobState::Cancelled),
     ];
     for (name, expected) in cases {
-        assert_eq!(name.parse::<AsvoJobState>().ok(), Some(expected), "{name}");
+        assert_eq!(JobState::parse_name(name).ok(), Some(expected), "{name}");
     }
 }
 
-/// Text that is not a job state is an error with the text in it.
+/// Text that is not a job state is an error with the text in it. `ready`
+/// and `expired` were names before 3.0.0, and are not job states of the
+/// schema.
 #[test]
 fn text_that_is_not_a_job_state_is_an_error() {
-    for text in ["", "bogus", "retrieving", "completed", "readyy"] {
-        let err = text
-            .parse::<AsvoJobState>()
-            .expect_err("this is not a job state");
+    for text in ["", "bogus", "retrieving", "ready", "expired", "completedd"] {
+        let err = JobState::parse_name(text).expect_err("this is not a job state");
         assert!(
             matches!(&err, AsvoError::InvalidJobState { str } if str == text),
             "{text}: {err:?}"
@@ -232,7 +192,7 @@ fn text_that_is_not_a_job_state_is_an_error() {
 }
 
 /// A job with the given ID and state.
-fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
+fn job(job_id: AsvoJobId, state: JobState) -> AsvoJob {
     AsvoJob {
         obs_id: ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
         job_id,
@@ -255,8 +215,8 @@ fn job(job_id: AsvoJobId, state: AsvoJobState) -> AsvoJob {
 #[test]
 fn all_ready_is_true_when_every_job_is_ready() {
     let jobs = AsvoJobVec(vec![
-        job(JOB_ID_A, AsvoJobState::Ready),
-        job(JOB_ID_B, AsvoJobState::Ready),
+        job(JOB_ID_A, JobState::Completed),
+        job(JOB_ID_B, JobState::Completed),
     ]);
     assert!(jobs
         .all_ready(&[JOB_ID_A, JOB_ID_B])
@@ -266,8 +226,8 @@ fn all_ready_is_true_when_every_job_is_ready() {
 #[test]
 fn all_ready_is_false_while_a_job_is_in_progress() {
     let jobs = AsvoJobVec(vec![
-        job(JOB_ID_A, AsvoJobState::Ready),
-        job(JOB_ID_B, AsvoJobState::Queued),
+        job(JOB_ID_A, JobState::Completed),
+        job(JOB_ID_B, JobState::Queued),
     ]);
     assert!(!jobs
         .all_ready(&[JOB_ID_A, JOB_ID_B])
@@ -277,15 +237,15 @@ fn all_ready_is_false_while_a_job_is_in_progress() {
 #[test]
 fn all_ready_ignores_jobs_that_were_not_asked_about() {
     let jobs = AsvoJobVec(vec![
-        job(JOB_ID_A, AsvoJobState::Ready),
-        job(JOB_ID_B, AsvoJobState::Cancelled),
+        job(JOB_ID_A, JobState::Completed),
+        job(JOB_ID_B, JobState::Cancelled),
     ]);
     assert!(jobs.all_ready(&[JOB_ID_A]).expect("no job has failed"));
 }
 
 #[test]
 fn all_ready_reports_an_unknown_job() {
-    let jobs = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Ready)]);
+    let jobs = AsvoJobVec(vec![job(JOB_ID_A, JobState::Completed)]);
     let err = jobs.all_ready(&[JOB_ID_B]).expect_err("expected an error");
     assert!(
         matches!(err, AsvoError::NoAsvoJob(job_id) if job_id == JOB_ID_B),
@@ -295,10 +255,9 @@ fn all_ready_reports_an_unknown_job() {
 
 #[test]
 fn all_ready_reports_a_failed_job_with_its_error() {
-    let jobs = AsvoJobVec(vec![job(
-        JOB_ID_A,
-        AsvoJobState::Error("the conversion failed".to_string()),
-    )]);
+    let mut failed = job(JOB_ID_A, JobState::Error);
+    failed.error_text = Some("the conversion failed".to_string());
+    let jobs = AsvoJobVec(vec![failed]);
     match jobs.all_ready(&[JOB_ID_A]) {
         Err(AsvoError::JobFailed {
             job_id,
@@ -319,10 +278,8 @@ fn all_ready_reports_a_failed_job_with_its_error() {
 /// `(code N)`; with no code the message has no such text.
 #[test]
 fn a_failed_jobs_error_code_is_in_the_error_message() {
-    let mut failed = job(
-        JOB_ID_A,
-        AsvoJobState::Error("the conversion failed".to_string()),
-    );
+    let mut failed = job(JOB_ID_A, JobState::Error);
+    failed.error_text = Some("the conversion failed".to_string());
     failed.error_code = Some(7);
     let jobs = AsvoJobVec(vec![failed.clone()]);
 
@@ -353,14 +310,8 @@ fn a_failed_jobs_error_code_is_in_the_error_message() {
 }
 
 #[test]
-fn all_ready_reports_an_expired_or_cancelled_job() {
-    let expired = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Expired)]);
-    assert!(matches!(
-        expired.all_ready(&[JOB_ID_A]),
-        Err(AsvoError::JobExpired(JOB_ID_A))
-    ));
-
-    let cancelled = AsvoJobVec(vec![job(JOB_ID_A, AsvoJobState::Cancelled)]);
+fn all_ready_reports_a_cancelled_job() {
+    let cancelled = AsvoJobVec(vec![job(JOB_ID_A, JobState::Cancelled)]);
     assert!(matches!(
         cancelled.all_ready(&[JOB_ID_A]),
         Err(AsvoError::JobCancelled(JOB_ID_A))
@@ -370,8 +321,8 @@ fn all_ready_reports_an_expired_or_cancelled_job() {
 #[test]
 fn all_ready_reports_the_first_failure_in_the_order_asked() {
     let jobs = AsvoJobVec(vec![
-        job(JOB_ID_A, AsvoJobState::Expired),
-        job(JOB_ID_B, AsvoJobState::Cancelled),
+        job(JOB_ID_A, JobState::Error),
+        job(JOB_ID_B, JobState::Cancelled),
     ]);
     assert!(matches!(
         jobs.all_ready(&[JOB_ID_B, JOB_ID_A]),
@@ -380,7 +331,7 @@ fn all_ready_reports_the_first_failure_in_the_order_asked() {
 }
 
 /// A job with the given ID, obsid, type and state, for the filter tests.
-fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: AsvoJobState) -> AsvoJob {
+fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: JobState) -> AsvoJob {
     AsvoJob {
         obs_id: ObsId::validate(obs_id).expect("the test obsid should be valid"),
         job_id,
@@ -407,19 +358,19 @@ fn mixed_jobs() -> AsvoJobVec {
             JOB_ID_A,
             OBS_ID,
             AsvoJobType::Conversion,
-            AsvoJobState::Ready,
+            JobState::Completed,
         ),
         job_with(
             JOB_ID_B,
             OTHER_OBS_ID,
             AsvoJobType::DownloadVisibilities,
-            AsvoJobState::Error("failed".to_string()),
+            JobState::Error,
         ),
         job_with(
             JOB_ID_C,
             OBS_ID,
             AsvoJobType::DownloadMetadata,
-            AsvoJobState::Queued,
+            JobState::Queued,
         ),
     ])
 }
@@ -456,19 +407,14 @@ fn filter_by_job_type() {
 
 #[test]
 fn filter_by_state_matches_any_error() {
-    let jobs = mixed_jobs().filter(
-        &[],
-        &[],
-        &[],
-        &[AsvoJobState::Error(String::new()), AsvoJobState::Ready],
-    );
+    let jobs = mixed_jobs().filter(&[], &[], &[], &[JobState::Error, JobState::Completed]);
     assert_eq!(ids(&jobs), vec![JOB_ID_A, JOB_ID_B]);
 }
 
 #[test]
 fn filter_criteria_are_combined() {
     let obs_id = ObsId::validate(OBS_ID).expect("the test obsid should be valid");
-    let jobs = mixed_jobs().filter(&[], &[obs_id], &[], &[AsvoJobState::Queued]);
+    let jobs = mixed_jobs().filter(&[], &[obs_id], &[], &[JobState::Queued]);
     assert_eq!(ids(&jobs), vec![JOB_ID_C]);
 }
 
@@ -476,7 +422,7 @@ fn filter_criteria_are_combined() {
 /// (decision 10). `--legacy-json` keeps the old keys; see `cli::legacy_json`.
 #[test]
 fn the_json_output_keys_are_the_openapi_names() {
-    let mut ready = job(JOB_ID_A, AsvoJobState::Ready);
+    let mut ready = job(JOB_ID_A, JobState::Completed);
     ready.product = Some(AsvoJobProduct {
         files: vec![AsvoFilesArray {
             r#type: Delivery::Acacia,

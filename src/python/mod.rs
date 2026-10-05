@@ -90,8 +90,8 @@ mod module {
     use super::error::{AsvoApiError, AsvoError};
     #[pymodule_export]
     use super::types::{
-        PyAsvoFilesArray, PyAsvoJob, PyAsvoJobProduct, PyAsvoJobState, PyAsvoJobType, PyAsvoJobVec,
-        PyCentre, PyDelivery, PyDeliveryFormat, PyDownloadProgress, PyJobSubmittedResponse,
+        PyAsvoFilesArray, PyAsvoJob, PyAsvoJobProduct, PyAsvoJobType, PyAsvoJobVec, PyCentre,
+        PyDelivery, PyDeliveryFormat, PyDownloadProgress, PyJobState, PyJobSubmittedResponse,
         PyOutput, PyOutputMode, PyPolarization, PyWeighting,
     };
 

@@ -33,7 +33,10 @@ mod error;
 //   actually use (e.g. `default_i64`).
 // - `clippy::derivable_impls`: the typify used for schema v1.11 writes
 //   `impl Default` by hand for enums with a default variant.
+// `rustfmt::skip` keeps `cargo fmt` off the file: it must stay exactly as
+// build.rs writes it, or the openapi-drift-check CI job fails.
 #[allow(dead_code, clippy::derivable_impls)]
+#[rustfmt::skip]
 pub mod openapi;
 pub mod validate;
 

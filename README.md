@@ -769,7 +769,7 @@ Options:
   -j, --json                    Print the jobs as a simple JSON
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information
-      --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: queued, waitcal, staging, staged, downloading, preparing, preprocessing, imaging, delivering, ready, error, expired, cancelled
+      --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltages, download_beamformer, imaging, cancel_job
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30) [default: 30]
@@ -794,7 +794,7 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"Ready","product":{"files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"completed","product":{"files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
 ```
 
 The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
@@ -822,20 +822,10 @@ keys.
 - `Imaging`
 - `Unknown`
 
-`job_state` is any of:
-
-- `Queued`
-- `WaitCal`
-- `Staging`
-- `Staged`
-- `Downloading`
-- `Preprocessing`
-- `Imaging`
-- `Delivering`
-- `Ready`
-- `Error`, which carries the error message, so it is an object: `{"Error": "some error message"}`
-- `Expired`
-- `Cancelled`
+`job_state` is the MWA ASVO API's value, one of `preparing`, `queued`, `waitcal`, `staging`, `staged`,
+`downloading`, `preprocessing`, `imaging`, `delivering`, `completed`, `error` or `cancelled`. A job is
+ready for download when it is `completed`. For a job in the `error` state, the message is in
+`error_text` and the server's code is in `error_code`.
 
 Example reading this in Python:
 
@@ -893,7 +883,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 
 ```bash
 set -eux
-giant-squid list --json --job-types download_visibilities --job-states ready \
+giant-squid list --json --job-types download_visibilities --job-states completed \
   | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
@@ -945,8 +935,8 @@ $ giant-squid wait 31 32
 - `wait` takes job IDs only (they can also be in files, as for the other commands). An obsid, alone or next to job
   IDs, is an error that names it, and nothing is waited for. To find the job IDs of an obsid, use
   `giant-squid list <obsid>`.
-- It stops at once, with a non-zero exit code, if a job is not in your job list, has an error, has expired or
-  has been cancelled. Waiting longer would not change that.
+- It stops at once, with a non-zero exit code, if a job is not in your job list, has an error or has been
+  cancelled. Waiting longer would not change that.
 - It waits for as long as it takes. Press Ctrl-C to stop.
 - Every submit command has the same wait as the `-w`, `--wait` option.
 - Log messages go to standard error, so the standard output of `wait --json` is only the JSON.
@@ -1210,8 +1200,8 @@ use std::time::Duration;
 
 use mwa_giant_squid::asvo::apiv2::openapi::DownloadJobParams;
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, DownloadOptions,
-    DownloadProgress, JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
+    JobState, JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
@@ -1225,7 +1215,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // `AsvoJobVec::filter` can then filter by several states or types.
     let ready = client.get_jobs(&JobsFilter {
         days: Some(7),
-        job_state: Some(AsvoJobState::Ready),
+        job_state: Some(JobState::Completed),
         ..JobsFilter::default()
     })?;
     for job in &ready.0 {

@@ -8,6 +8,7 @@ use jiff::Timestamp;
 use serde::Serialize;
 use std::{collections::BTreeMap, str::FromStr};
 
+use crate::asvo::apiv2::openapi::JobState;
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
@@ -87,68 +88,62 @@ impl FromStr for AsvoJobType {
     }
 }
 
-/// All of states an ASVO job may be in.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
-pub enum AsvoJobState {
-    Queued,
-    WaitCal,
-    Staging,
-    Staged,
-    Preparing,
-    Downloading,
-    Preprocessing,
-    Imaging,
-    Delivering,
-    Ready, // aka Completed
-    Error(String),
-    Expired,
-    Cancelled,
-}
-
-/// The names of the job states that a caller can ask for, with the state of
-/// each, in the order that the help of the commands lists them. The name
-/// `error` stands for every job with an error: its state has no message.
-static JOB_STATE_NAMES: [(&str, AsvoJobState); 13] = [
-    ("queued", AsvoJobState::Queued),
-    ("waitcal", AsvoJobState::WaitCal),
-    ("staging", AsvoJobState::Staging),
-    ("staged", AsvoJobState::Staged),
-    ("downloading", AsvoJobState::Downloading),
-    ("preparing", AsvoJobState::Preparing),
-    ("preprocessing", AsvoJobState::Preprocessing),
-    ("imaging", AsvoJobState::Imaging),
-    ("delivering", AsvoJobState::Delivering),
-    ("ready", AsvoJobState::Ready),
-    ("error", AsvoJobState::Error(String::new())),
-    ("expired", AsvoJobState::Expired),
-    ("cancelled", AsvoJobState::Cancelled),
+/// Every job state of the OpenAPI schema, in the schema's order. The
+/// help of `list --job-states` lists them in this order.
+const JOB_STATES: [JobState; 12] = [
+    JobState::Preparing,
+    JobState::Queued,
+    JobState::Waitcal,
+    JobState::Staging,
+    JobState::Staged,
+    JobState::Downloading,
+    JobState::Preprocessing,
+    JobState::Imaging,
+    JobState::Delivering,
+    JobState::Completed,
+    JobState::Error,
+    JobState::Cancelled,
 ];
 
-impl AsvoJobState {
-    /// The names of the job states that a caller can ask for (for example in
-    /// `list --job-states`), in the order that the help lists them.
-    /// [`FromStr`] accepts every name in this list.
-    pub fn names() -> Vec<&'static str> {
-        JOB_STATE_NAMES.iter().map(|(name, _)| *name).collect()
+// A state that the schema adds is a compile error here, until it is added
+// to `JOB_STATES` too.
+const _: fn(JobState) = |state| match state {
+    JobState::Preparing
+    | JobState::Queued
+    | JobState::Waitcal
+    | JobState::Staging
+    | JobState::Staged
+    | JobState::Downloading
+    | JobState::Preprocessing
+    | JobState::Imaging
+    | JobState::Delivering
+    | JobState::Completed
+    | JobState::Error
+    | JobState::Cancelled => (),
+};
+
+impl JobState {
+    /// The names of the job states: the schema's values (for example
+    /// `completed`), in the schema's order. [`JobState::parse_name`]
+    /// accepts each of them.
+    pub fn names() -> Vec<String> {
+        JOB_STATES.iter().map(ToString::to_string).collect()
     }
-}
 
-/// Parses the name of a job state: the case, spaces, hyphens and underscores
-/// do not matter, so `WAIT-CAL` and `waitcal` are the same state. `error`
-/// gives [`AsvoJobState::Error`] with an empty message.
-///
-/// # Errors
-///
-/// [`AsvoError::InvalidJobState`] for any other text.
-impl FromStr for AsvoJobState {
-    type Err = AsvoError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    /// Parse the name of a job state, as a user types it: the case,
+    /// spaces, hyphens and underscores do not matter, so `WAIT-CAL` and
+    /// `waitcal` are the same state. (The schema's own [`FromStr`] accepts
+    /// only the exact value.)
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoError::InvalidJobState`] for any other text.
+    pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
         let wanted = _sanitize_identifier(s);
-        JOB_STATE_NAMES
+        JOB_STATES
             .iter()
-            .find(|(name, _)| _sanitize_identifier(name) == wanted)
-            .map(|(_, state)| state.clone())
+            .find(|state| _sanitize_identifier(&state.to_string()) == wanted)
+            .copied()
             .ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
     }
 }
@@ -193,7 +188,9 @@ pub struct AsvoJob {
     pub obs_id: ObsId,
     pub job_id: AsvoJobId,
     pub job_type: AsvoJobType,
-    pub job_state: AsvoJobState,
+    /// The job's state, the schema's `JobState`. For a job in the `Error`
+    /// state, the message is [`AsvoJob::error_text`].
+    pub job_state: JobState,
     /// The job's product (its files), or `None` if the job has none yet.
     pub product: Option<AsvoJobProduct>,
     /// When the job was created (UTC).
@@ -208,8 +205,7 @@ pub struct AsvoJob {
     /// on and does not interpret it. It is also in the message of
     /// [`AsvoError::JobFailed`].
     pub error_code: Option<i64>,
-    /// The server's error message, or `None`. For a job in the `Error`
-    /// state it is also in [`AsvoJobState::Error`].
+    /// The server's error message, or `None`.
     pub error_text: Option<String>,
     /// The ID of the user who submitted the job.
     pub user_id: i64,
@@ -254,12 +250,12 @@ impl AsvoJobVec {
     /// job list ([`AsvoClient::get_jobs`](crate::AsvoClient::get_jobs)),
     /// calls this, and sleeps and repeats while it returns `Ok(false)`.
     ///
-    /// Returns `Ok(true)` if every job is `Ready`, and `Ok(false)` if every
-    /// job is ready or still in progress (queued, processing and so on).
-    /// Returns an error for the first job (in the order of `job_ids`) that
-    /// is not in the list ([`AsvoError::NoAsvoJob`]), has an error
-    /// ([`AsvoError::JobFailed`]), has expired ([`AsvoError::JobExpired`])
-    /// or has been cancelled ([`AsvoError::JobCancelled`]).
+    /// Returns `Ok(true)` if every job is `Completed`, and `Ok(false)` if
+    /// every job is completed or still in progress (queued, processing and
+    /// so on). Returns an error for the first job (in the order of
+    /// `job_ids`) that is not in the list ([`AsvoError::NoAsvoJob`]), has an
+    /// error ([`AsvoError::JobFailed`]) or has been cancelled
+    /// ([`AsvoError::JobCancelled`]).
     pub fn all_ready(&self, job_ids: &[AsvoJobId]) -> Result<bool, AsvoError> {
         let mut all_ready = true;
         for job_id in job_ids {
@@ -269,17 +265,16 @@ impl AsvoJobVec {
                 .find(|j| j.job_id == *job_id)
                 .ok_or(AsvoError::NoAsvoJob(*job_id))?;
             match &job.job_state {
-                AsvoJobState::Ready => (),
-                AsvoJobState::Error(e) => {
+                JobState::Completed => (),
+                JobState::Error => {
                     return Err(AsvoError::JobFailed {
                         job_id: *job_id,
                         obs_id: job.obs_id,
-                        error: e.clone(),
+                        error: job.error_text.clone().unwrap_or_default(),
                         error_code: job.error_code,
                     });
                 }
-                AsvoJobState::Expired => return Err(AsvoError::JobExpired(*job_id)),
-                AsvoJobState::Cancelled => return Err(AsvoError::JobCancelled(*job_id)),
+                JobState::Cancelled => return Err(AsvoError::JobCancelled(*job_id)),
                 _ => all_ready = false,
             }
         }
@@ -292,23 +287,19 @@ impl AsvoJobVec {
     /// - `job_ids`: the job ID is one of these.
     /// - `obs_ids`: the obsid is one of these.
     /// - `job_types`: the job type is one of these.
-    /// - `states`: the job state is one of these. Only the kind of state is
-    ///   compared, so any `AsvoJobState::Error(..)` matches every other.
+    /// - `states`: the job state is one of these.
     pub fn filter(
         self,
         job_ids: &[AsvoJobId],
         obs_ids: &[ObsId],
         job_types: &[AsvoJobType],
-        states: &[AsvoJobState],
+        states: &[JobState],
     ) -> Self {
         self.retain(|j| {
             (job_ids.is_empty() || job_ids.contains(&j.job_id))
                 && (obs_ids.is_empty() || obs_ids.contains(&j.obs_id))
                 && (job_types.is_empty() || job_types.contains(&j.job_type))
-                && (states.is_empty()
-                    || states
-                        .iter()
-                        .any(|s| std::mem::discriminant(s) == std::mem::discriminant(&j.job_state)))
+                && (states.is_empty() || states.contains(&j.job_state))
         })
     }
 
@@ -354,30 +345,6 @@ impl std::fmt::Display for AsvoJobType {
                 AsvoJobType::Imaging => "Imaging",
                 AsvoJobType::Unknown => "Unknown",
             }
-        )
-    }
-}
-
-impl std::fmt::Display for AsvoJobState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                AsvoJobState::Queued => "Queued".to_string(),
-                AsvoJobState::WaitCal => "Waiting for calibration solution".to_string(),
-                AsvoJobState::Staging => "Staging".to_string(),
-                AsvoJobState::Staged => "Staged".to_string(),
-                AsvoJobState::Preparing => "Preparing".to_string(),
-                AsvoJobState::Downloading => "Retrieving from archive".to_string(),
-                AsvoJobState::Preprocessing => "Preprocessing".to_string(),
-                AsvoJobState::Imaging => "Imaging".to_string(),
-                AsvoJobState::Delivering => "Delivering".to_string(),
-                AsvoJobState::Ready => "Ready".to_string(),
-                AsvoJobState::Error(e) => format!("Error: {}", e),
-                AsvoJobState::Expired => "Expired".to_string(),
-                AsvoJobState::Cancelled => "Cancelled".to_string(),
-            },
         )
     }
 }

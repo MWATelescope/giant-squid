@@ -27,8 +27,7 @@ use std::error::Error;
 use std::path::Path;
 
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, AsvoJobState, JobsFilter,
-    DEFAULT_ASVO_HOST,
+    default_token_cache_path, AsvoClient, AsvoClientConfig, JobState, JobsFilter, DEFAULT_ASVO_HOST,
 };
 
 /// The environment variable that holds the API key.
@@ -71,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // An example of using the library's filters: only the ready jobs.
-    let ready = jobs.filter(&[], &[], &[], &[AsvoJobState::Ready]);
+    let ready = jobs.filter(&[], &[], &[], &[JobState::Completed]);
     println!("{} of the jobs are ready for download.", ready.0.len());
 
     Ok(())

@@ -253,10 +253,10 @@ fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgr
 
 /// Poll the job list until all of `job_ids` are ready, logging each job's
 /// state when it changes. Fails as soon as a job is missing, has an error,
-/// has expired or has been cancelled (see `AsvoJobVec::all_ready`).
+/// or has been cancelled (see `AsvoJobVec::all_ready`).
 fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
     info!("Waiting for {} jobs to be ready...", job_ids.len());
-    let mut last_state = BTreeMap::<AsvoJobId, AsvoJobState>::new();
+    let mut last_state = BTreeMap::<AsvoJobId, JobState>::new();
     // Offer the MWA ASVO a kindness by waiting a moment, so that the
     // user's queue is hopefully current.
     std::thread::sleep(WAIT_INITIAL_DELAY);
@@ -272,7 +272,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
             .filter_map(|id| jobs.0.iter().find(|j| j.job_id == *id))
         {
             let log_prefix = format!("Job ID {} (obsid: {}):", job.job_id, job.obs_id);
-            match last_state.insert(job.job_id, job.job_state.clone()) {
+            match last_state.insert(job.job_id, job.job_state) {
                 Some(last_state) if last_state != job.job_state => {
                     info!("{} is {}", log_prefix, job.job_state);
                 }

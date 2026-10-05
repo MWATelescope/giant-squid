@@ -13,7 +13,7 @@ use crate::check_file_sha1_hash;
 use crate::helpers::{hash_reader, to_hex};
 use crate::obs_id::ObsId;
 
-use super::{AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobState, AsvoJobVec, Delivery};
+use super::{AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobVec, Delivery, JobState};
 
 use std::cell::{Cell, RefCell};
 use std::env::current_dir;
@@ -167,7 +167,7 @@ pub(crate) fn download_by_obs_id(
     let mut ready_jobs = jobs;
     ready_jobs
         .0
-        .retain(|j| j.obs_id == obs_id && j.job_state == AsvoJobState::Ready);
+        .retain(|j| j.obs_id == obs_id && j.job_state == JobState::Completed);
 
     match ready_jobs.0.len() {
         0 => {
@@ -188,10 +188,10 @@ fn download_job(
     job: &AsvoJob,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
-    if job.job_state != AsvoJobState::Ready {
+    if job.job_state != JobState::Completed {
         return Err(AsvoError::NotReady {
             job_id: job.job_id,
-            job_state: job.job_state.clone(),
+            job_state: job.job_state,
         });
     }
 

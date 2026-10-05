@@ -18,13 +18,13 @@ __all__ = [
     "AsvoFilesArray",
     "AsvoJob",
     "AsvoJobProduct",
-    "AsvoJobState",
     "AsvoJobType",
     "AsvoJobVec",
     "Centre",
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
+    "JobState",
     "JobSubmittedResponse",
     "Output",
     "OutputMode",
@@ -109,7 +109,7 @@ class AsvoClient:
         self,
         days: builtins.int | None = None,
         *,
-        job_state: AsvoJobState | None = None,
+        job_state: JobState | None = None,
         job_type: AsvoJobType | None = None,
         date_from: datetime.datetime | None = None,
         date_to: datetime.datetime | None = None,
@@ -124,7 +124,6 @@ class AsvoClient:
                 `None` is the default of the MWA ASVO API.
             job_state: Only the jobs in this state. The server takes one
                 state; to filter by several, use `AsvoJobVec.filter`.
-                `AsvoJobState.Expired` cannot be filtered by.
             job_type: Only the jobs of this type. `AsvoJobType.Unknown`
                 cannot be filtered by.
             date_from: Only the jobs created at or after this time. It must
@@ -135,8 +134,8 @@ class AsvoClient:
                 `None` uses the server's default order.
 
         Raises:
-            ValueError: `days` is not from 1 to 30, or `job_state` or
-                `job_type` cannot be filtered by.
+            ValueError: `days` is not from 1 to 30, or `job_type` cannot be
+                filtered by.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
@@ -145,7 +144,7 @@ class AsvoClient:
         job_ids: typing.Sequence[builtins.int] | None = None,
         obs_ids: typing.Sequence[builtins.int] | None = None,
         job_types: typing.Sequence[AsvoJobType] | None = None,
-        job_states: typing.Sequence[AsvoJobState] | None = None,
+        job_states: typing.Sequence[JobState] | None = None,
         *,
         days: builtins.int | None = None,
         date_from: datetime.datetime | None = None,
@@ -161,9 +160,7 @@ class AsvoClient:
             job_ids: Only these jobs. Cannot be combined with `obs_ids`.
             obs_ids: Only the jobs for these obsids.
             job_types: Only the jobs of these types.
-            job_states: Only the jobs in these states. States compare by
-                kind, so `AsvoJobState.Error` matches every job with an
-                error. `AsvoJobState.Expired` works here too.
+            job_states: Only the jobs in these states.
             days: Only the jobs from the past `days` days, from 1 to 30.
                 `None` is the default of the MWA ASVO API.
             date_from: Only the jobs created at or after this time. It must
@@ -626,7 +623,7 @@ class AsvoError(builtins.Exception):
     """
     job_id: builtins.int
     r"""
-    NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error.
+    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error.
     """
     obs_id: builtins.int
     r"""
@@ -640,7 +637,7 @@ class AsvoError(builtins.Exception):
     r"""
     JobFailed: the job's error code, or None.
     """
-    job_state: AsvoJobState
+    job_state: JobState
     r"""
     NotReady: the job's state.
     """
@@ -738,7 +735,7 @@ class AsvoJob:
         The job type.
         """
     @property
-    def job_state(self) -> AsvoJobState:
+    def job_state(self) -> JobState:
         r"""
         The job state.
         """
@@ -824,12 +821,11 @@ class AsvoJobVec:
         job_ids: typing.Sequence[builtins.int] | None = None,
         obs_ids: typing.Sequence[builtins.int] | None = None,
         job_types: typing.Sequence[AsvoJobType] | None = None,
-        job_states: typing.Sequence[AsvoJobState] | None = None,
+        job_states: typing.Sequence[JobState] | None = None,
     ) -> AsvoJobVec:
         r"""
         Keep only the jobs that match every given filter. A filter that is
-        `None` or empty does not filter. States compare by kind only, so
-        `AsvoJobState.Error` matches every job with an error.
+        `None` or empty does not filter.
 
         Raises:
             ValueError: An obsid is not valid.
@@ -843,8 +839,7 @@ class AsvoJobVec:
         in a loop.
 
         Raises:
-            AsvoError: A job is missing, has an error, has expired or has
-                been cancelled.
+            AsvoError: A job is missing, has an error or has been cancelled.
         """
 
 class DownloadProgress:
@@ -946,27 +941,6 @@ class JobSubmittedResponse:
         """
 
 @typing.final
-class AsvoJobState(enum.Enum):
-    r"""
-    The state of an MWA ASVO job. For `Error`, the message is in
-    `AsvoJob.error_text`.
-    """
-
-    Queued = ...
-    WaitCal = ...
-    Staging = ...
-    Staged = ...
-    Preparing = ...
-    Downloading = ...
-    Preprocessing = ...
-    Imaging = ...
-    Delivering = ...
-    Ready = ...
-    Error = ...
-    Expired = ...
-    Cancelled = ...
-
-@typing.final
 class AsvoJobType(enum.Enum):
     r"""
     The type of an MWA ASVO job.
@@ -1011,6 +985,27 @@ class DeliveryFormat(enum.Enum):
 
     Tar = ...
     Files = ...
+
+@typing.final
+class JobState(enum.Enum):
+    r"""
+    The state of an MWA ASVO job: the OpenAPI schema's `JobState`.
+    `str()` is the API value (for example "completed"). For `Error`, the
+    message is in `AsvoJob.error_text`.
+    """
+
+    Preparing = ...
+    Queued = ...
+    Waitcal = ...
+    Staging = ...
+    Staged = ...
+    Downloading = ...
+    Preprocessing = ...
+    Imaging = ...
+    Delivering = ...
+    Completed = ...
+    Error = ...
+    Cancelled = ...
 
 @typing.final
 class Output(enum.Enum):

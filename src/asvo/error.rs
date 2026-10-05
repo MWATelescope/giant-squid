@@ -5,7 +5,7 @@
 //! Errors when interfacing with the MWA ASVO.
 use thiserror::Error;
 
-use super::{AsvoApiError, AsvoJobId, AsvoJobState};
+use super::{AsvoApiError, AsvoJobId, JobState};
 use crate::obs_id::ObsId;
 
 #[derive(Error, Debug)]
@@ -24,10 +24,6 @@ pub enum AsvoError {
         error: String,
         error_code: Option<i64>,
     },
-
-    /// A checked job has expired.
-    #[error("MWA ASVO job ID {0} has expired.")]
-    JobExpired(AsvoJobId),
 
     /// A checked job has been cancelled.
     #[error("MWA ASVO job ID {0} has been cancelled.")]
@@ -51,7 +47,7 @@ pub enum AsvoError {
     #[error("MWA ASVO job ID {job_id} isn't ready; current status: {job_state}")]
     NotReady {
         job_id: AsvoJobId,
-        job_state: AsvoJobState,
+        job_state: JobState,
     },
 
     /// Tried to download a job with an empty file product array.

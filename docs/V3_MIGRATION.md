@@ -200,6 +200,20 @@ most the API takes in `--days`). `giant-squid list --help` shows the default.
 `wait` and `download` list jobs the same way, so they find the jobs of the past
 30 days.
 
+**The job states are the API's.** `--job-states` takes the MWA ASVO API's
+states, and the table and the JSON show them as the API does:
+
+| 2.x | 3.0.0 |
+|---|---|
+| `ready` (`Ready` in the JSON) | `completed` |
+| `waitcal` (`WaitCal` in the JSON) | `waitcal` |
+| `expired` | removed: the MWA ASVO has no such state |
+| `error` (`{"Error": "<message>"}` in the JSON) | `error`; the message is in `error_text` |
+
+The other states have the same names, in lower case in the JSON (for
+example `queued`). `preparing` and `imaging` are new. The names are still
+case insensitive. `giant-squid list --help` lists them.
+
 `--job-types` now refuses text that is not a job type, with an error that
 names it. In 2.x any other text (a misspelt name, for example) was accepted and
 matched no job, so the list was empty. `--job-types` also takes
@@ -255,8 +269,9 @@ more of them:
 
 New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
-values of `job_type` and `job_state` are unchanged (for example
-`DownloadVisibilities`, `Ready`).
+value of `job_state` is the API's (for example `completed`, see the table in
+the previous section). The value of `job_type` is unchanged (for example
+`DownloadVisibilities`).
 
 To update a `jq` command, change the key names. The 2.x README example:
 
@@ -266,7 +281,7 @@ giant-squid list --json --types download_visibilities --states ready \
   | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv'
 
 # 3.0.0
-giant-squid list --json --job-types download_visibilities --job-states ready \
+giant-squid list --json --job-types download_visibilities --job-states completed \
   | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
 ```
 

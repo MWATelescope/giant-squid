@@ -28,8 +28,8 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use crate::asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::asvo::token_store::{self, StoredTokens};
 use crate::asvo::{
-    AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobState, AsvoJobType,
-    AsvoJobVec, Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
+    AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobType, AsvoJobVec,
+    Delivery, DownloadOptions, DEFAULT_ASVO_HOST,
 };
 use crate::built_info;
 use crate::obs_id::ObsId;
@@ -662,22 +662,21 @@ impl AsvoClient {
     /// unset: the library adds no default of its own, and does not ask for
     /// "all" jobs.
     ///
-    /// Individual jobs that can't be reliably converted (an obs_id we
-    /// can't find/parse in the untyped `job_params`, or a job_state we
-    /// don't recognise) are skipped with a warning logged, rather than
-    /// failing the whole listing - see `job_detail_to_asvo_job`.
+    /// A job without a usable obs_id in its untyped `job_params` is skipped
+    /// with a warning, rather than failing the whole listing (see
+    /// `job_detail_to_asvo_job`). A job state or file type that the schema
+    /// does not list fails the whole listing with a decode error.
     ///
     /// # Errors
     ///
     /// [`AsvoApiError::InvalidParameter`] before any request, for a `days`
-    /// outside 1 to 30, or for a `job_state` or `job_type` that the API
-    /// cannot filter by (`AsvoJobState::Expired`, `AsvoJobType::Unknown`);
-    /// otherwise the error from the request.
+    /// outside 1 to 30, or for a `job_type` that the API cannot filter by
+    /// (`AsvoJobType::Unknown`); otherwise the error from the request.
     pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
         const PAGE_SIZE: u64 = 100;
 
         let days = filter.days.map(validate::days).transpose()?;
-        let job_state = filter.job_state.as_ref().map(api_job_state).transpose()?;
+        let job_state = filter.job_state;
         let job_type = filter.job_type.map(api_job_type).transpose()?;
 
         let mut all_jobs = Vec::new();
@@ -1002,10 +1001,8 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// - `job_type` is `None` when the server gives no type (schema v1.13), and
 ///   a code that this client does not know is `Unknown` as well: both become
 ///   `AsvoJobType::Unknown`, which never fails.
-/// - `job_state` is the schema's `JobState` enum (since schema v1.13), so
-///   the match below covers every value of it, and a new value in the
-///   schema is a compile error here until it is handled. `completed` is
-///   `Ready`, and `error` carries the job's `error_text`.
+/// - `job_state` is the schema's `JobState`, used as it is. The message of
+///   an `error` job is in `error_text`.
 /// - `obs_id` is looked for at `job_params["obs_id"]` (an untyped JSON
 ///   map). CONFIRMED against a real response: the key name is right, but
 ///   the value is a JSON string, not a number - handled below.
@@ -1063,30 +1060,11 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         Some(_) | None => AsvoJobType::Unknown,
     };
 
-    // The API's `JobState` uses "completed" where `AsvoJobState` has
-    // `Ready`, and has no `Expired`. Since `JobDetailResponse` separately
-    // carries `error_text`, it populates `AsvoJobState::Error`'s message
-    // instead of being discarded. The match has no wildcard on purpose.
-    let job_state = match detail.job_state {
-        JobState::Queued => AsvoJobState::Queued,
-        JobState::Waitcal => AsvoJobState::WaitCal,
-        JobState::Staging => AsvoJobState::Staging,
-        JobState::Staged => AsvoJobState::Staged,
-        JobState::Preparing => AsvoJobState::Preparing,
-        JobState::Downloading => AsvoJobState::Downloading,
-        JobState::Preprocessing => AsvoJobState::Preprocessing,
-        JobState::Imaging => AsvoJobState::Imaging,
-        JobState::Delivering => AsvoJobState::Delivering,
-        JobState::Completed => AsvoJobState::Ready,
-        JobState::Error => AsvoJobState::Error(detail.error_text.clone().unwrap_or_default()),
-        JobState::Cancelled => AsvoJobState::Cancelled,
-    };
-
     Some(AsvoJob {
         obs_id,
         job_id,
         job_type,
-        job_state,
+        job_state: detail.job_state,
         product: product_to_files(job_id, detail.product.as_ref())
             .map(|files| AsvoJobProduct { files }),
         created: detail.created,
@@ -1165,17 +1143,15 @@ fn product_to_files(
 /// filter, except `days` and `sort_by`, which use the API's defaults (the
 /// past 30 days, and the order `id`, in the current schema).
 ///
-/// `job_state` and `job_type` are the library's own types, as in
-/// [`AsvoJob`], and are converted to the API's values: a `Ready` job is
-/// `completed` in the API, and so on.
+/// `job_state` is the schema's `JobState`. `job_type` is the library's own
+/// type, as in [`AsvoJob`], and is converted to the API's value.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JobsFilter {
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]). `None` is the API's default.
     pub days: Option<i64>,
-    /// Only the jobs in this state. The kind of state is used, so any
-    /// `AsvoJobState::Error` matches every job with an error.
-    pub job_state: Option<AsvoJobState>,
+    /// Only the jobs in this state.
+    pub job_state: Option<JobState>,
     /// Only the jobs of this type.
     pub job_type: Option<AsvoJobType>,
     /// Only the jobs created at or after this time.
@@ -1211,9 +1187,8 @@ pub struct JobQuery {
     pub obs_ids: Vec<ObsId>,
     /// Only the jobs of these types.
     pub job_types: Vec<AsvoJobType>,
-    /// Only the jobs in these states. States compare by kind, so any
-    /// `AsvoJobState::Error` matches every job with an error.
-    pub job_states: Vec<AsvoJobState>,
+    /// Only the jobs in these states.
+    pub job_states: Vec<JobState>,
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]).
     pub days: Option<i64>,
@@ -1245,17 +1220,16 @@ impl JobQuery {
         Ok(())
     }
 
-    /// The server-side part of the query. A single type or state is sent to
-    /// the server, if the API can filter by it, so that less comes back; the
-    /// list filters are applied to the result in any case.
+    /// The server-side part of the query. A single state, or a single type
+    /// that the API can filter by, is sent to the server, so that less comes
+    /// back; the list filters are applied to the result in any case.
     fn server_filter(&self) -> JobsFilter {
-        let single = |states: &[AsvoJobState]| match states {
-            [state] if api_job_state(state).is_ok() => Some(state.clone()),
-            _ => None,
-        };
         JobsFilter {
             days: self.days,
-            job_state: single(&self.job_states),
+            job_state: match self.job_states.as_slice() {
+                [state] => Some(*state),
+                _ => None,
+            },
             job_type: match self.job_types.as_slice() {
                 [job_type] if api_job_type(*job_type).is_ok() => Some(*job_type),
                 _ => None,
@@ -1265,31 +1239,6 @@ impl JobQuery {
             sort_by: self.sort_by.clone(),
         }
     }
-}
-
-/// The API's filter value for a job state.
-fn api_job_state(state: &AsvoJobState) -> Result<JobState, AsvoApiError> {
-    use JobState as Api;
-    Ok(match state {
-        AsvoJobState::Queued => Api::Queued,
-        AsvoJobState::WaitCal => Api::Waitcal,
-        AsvoJobState::Staging => Api::Staging,
-        AsvoJobState::Staged => Api::Staged,
-        AsvoJobState::Preparing => Api::Preparing,
-        AsvoJobState::Downloading => Api::Downloading,
-        AsvoJobState::Preprocessing => Api::Preprocessing,
-        AsvoJobState::Imaging => Api::Imaging,
-        AsvoJobState::Delivering => Api::Delivering,
-        AsvoJobState::Ready => Api::Completed,
-        AsvoJobState::Error(_) => Api::Error,
-        AsvoJobState::Cancelled => Api::Cancelled,
-        AsvoJobState::Expired => {
-            return Err(AsvoApiError::InvalidParameter {
-                name: "job_state",
-                message: "the MWA ASVO API cannot filter by Expired".to_string(),
-            })
-        }
-    })
 }
 
 /// The API's filter value for a job type: the `JobType` number that

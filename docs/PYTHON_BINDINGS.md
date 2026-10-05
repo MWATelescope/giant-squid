@@ -116,10 +116,9 @@ item 1 (what is left of it), then item 3.**
    (a) Done: `--version` prints `giant-squid 3.0.0`, not the crate name
    (`#[command(name = PROGRAM_NAME)]` in `src/cli/mod.rs`). (b) the second run of `_run_cli` in one
    process keeps the logger of the first. (c) Left in place, now unreachable from Python: the `InvalidEnvironment` and `MissingAuthKey` error
-   kinds of the exceptions (they came from the removed `from_env` methods), and the Rust library's
-   `AsvoJobState::Expired`: schema 1.13.0 has no expired job state, so no job from the API is
-   `Expired` (the Rust and Python `list --job-states expired` still parse and match nothing). Ask the
-   user whether to remove these. Decision
+   kinds of the exceptions (they came from the removed `from_env` methods). Ask the user whether to
+   remove these. (The Rust library's `AsvoJobState::Expired` is gone: the library and Python now use
+   the schema's `JobState`, which has no expired state.) Decision
    history of the work:
    **Level 3, option A** (decided by the user: "stick with a thin
    python wrapper and see how we go with the challenges"). Level 1 is done
@@ -1213,7 +1212,7 @@ its own; Python >= 3.10 with one `abi3` wheel per platform; maturin;
 
 Rust names are kept for types, methods, fields and enum variants
 (`AsvoClient`, `get_jobs`, `submit_download_vis_job`, `AsvoJob.job_id`,
-`AsvoJobState.Ready`). Rust method and field names are already snake_case,
+`JobState.Completed`). Rust method and field names are already snake_case,
 and CamelCase enum variants are valid Python.
 
 Exceptions: Python practice is that an exception name ends in `Error`. The
@@ -1317,9 +1316,8 @@ caller's own dry run). A builder's name is its submit method's name without
 
 Types: `AsvoJob`, `AsvoJobVec` (iterable, with `filter` and `json`),
 `AsvoFilesArray`, `JobSubmittedResponse`, and the enums `AsvoJobType`,
-`AsvoJobState`, `Delivery`, `DeliveryFormat`, `Output`, and others.
-`AsvoJobState::Error(String)` carries data, so in Python it is
-`AsvoJobState.Error` and the message is in `AsvoJob.error_text`.
+`JobState` (the schema's), `Delivery`, `DeliveryFormat`, `Output`, and others.
+For a `JobState.Error` job, the message is in `AsvoJob.error_text`.
 
 Long calls: downloads check for Ctrl-C between chunks and release the
 GIL. There is no library wait call; the caller's own loop (for example

@@ -13,7 +13,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use super::types::PyAsvoJobState;
+use super::types::PyJobState;
 // The library's error enums have the same names as the Python exceptions,
 // so they are used through this path.
 use crate::asvo as lib;
@@ -48,7 +48,7 @@ mod stub_attributes {
     use pyo3_stub_gen::type_info::{MemberInfo, PyMethodsInfo};
     use pyo3_stub_gen::PyStubType;
 
-    use super::super::types::PyAsvoJobState;
+    use super::super::types::PyJobState;
     use super::{AsvoApiError, AsvoError};
 
     /// One attribute: its name, its Rust type (for the Python type) and its
@@ -92,11 +92,11 @@ mod stub_attributes {
             struct_id: std::any::TypeId::of::<AsvoError>,
             attrs: &[
                 attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
-                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobExpired, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error."),
+                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error."),
                 attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
-                attr!("job_state", PyAsvoJobState, "NotReady: the job's state."),
+                attr!("job_state", PyJobState, "NotReady: the job's state."),
                 attr!("file", String, "HashMismatch."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
@@ -126,7 +126,7 @@ enum Field {
     OptStr(Option<String>),
     Int(u64),
     OptInt(Option<i64>),
-    State(PyAsvoJobState),
+    State(PyJobState),
     /// A list of `{"field": ..., "message": ...}` dicts.
     ErrorDicts(Vec<lib::apiv2::openapi::FieldError>),
 }
@@ -246,7 +246,6 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 ("error_code", Field::OptInt(error_code)),
             ],
         ),
-        lib::AsvoError::JobExpired(id) => ("JobExpired", vec![job_id(id)]),
         lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![job_id(id)]),
         lib::AsvoError::NoObsId(o) => ("NoObsId", vec![obs_id(o)]),
         lib::AsvoError::NoJobReadyForObsId(o) => ("NoJobReadyForObsId", vec![obs_id(o)]),
@@ -258,7 +257,7 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             "NotReady",
             vec![
                 job_id(id),
-                ("job_state", Field::State(PyAsvoJobState::from(&job_state))),
+                ("job_state", Field::State(PyJobState::from(job_state))),
             ],
         ),
         lib::AsvoError::NoFiles(id) => ("NoFiles", vec![job_id(id)]),

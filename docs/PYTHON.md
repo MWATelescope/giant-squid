@@ -122,9 +122,9 @@ full history. A job older than that is not returned, so `download_job` and `Asvo
 it either.
 
 ```python
-from mwa_giant_squid import AsvoJobState
+from mwa_giant_squid import JobState
 
-jobs = client.get_jobs(days=7, job_state=AsvoJobState.Ready)  # days: 1 to 30
+jobs = client.get_jobs(days=7, job_state=JobState.Completed)  # days: 1 to 30
 for job in jobs:
     print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
 ```
@@ -133,12 +133,12 @@ for job in jobs:
 states. The server does what it can, and the module filters the rest:
 
 ```python
-from mwa_giant_squid import AsvoJobState, AsvoJobType
+from mwa_giant_squid import AsvoJobType, JobState
 
 jobs = client.list_jobs(
     obs_ids=[1065880128, 1065880248],
     job_types=[AsvoJobType.DownloadVisibilities],
-    job_states=[AsvoJobState.Ready, AsvoJobState.Error],
+    job_states=[JobState.Completed, JobState.Error],
 )
 ```
 
@@ -147,7 +147,8 @@ filters a list that you already have, without a request.
 
 Notes:
 
-- Job states compare by kind. `AsvoJobState.Error` matches every job that has an error. The message is in
+- `JobState` is the MWA ASVO API's job state. `str()` of a member is the API's value, for example
+  `completed`. A job is ready for download when it is `Completed`. For an `Error` job, the message is in
   `AsvoJob.error_text`, and the server's error code (an integer, or `None`) is in `AsvoJob.error_code`. The
   MWA ASVO does not document the codes. `AsvoJobVec.all_ready` raises `AsvoError` of kind `JobFailed` for a
   failed job; its message includes the code, for example `has an error (code 7): the conversion failed`, and
@@ -218,7 +219,7 @@ while not client.get_jobs().all_ready(job_ids):
 ```
 
 `all_ready` returns `False` while a job is in progress. It raises `AsvoError` if a job is missing, has
-an error, has expired or was cancelled.
+an error or was cancelled.
 
 ## Download
 

@@ -5,8 +5,8 @@
 //! Python classes for the library's job types.
 //!
 //! Each class wraps the library type and has the same name and field names.
-//! `AsvoJobState::Error(String)` carries data, so in Python it is the plain
-//! enum member `AsvoJobState.Error` and the message is `AsvoJob.error_text`.
+//! Where the library uses a type of the OpenAPI schema (for example
+//! `JobState`), the Python class has the schema's name and members.
 
 use jiff::Timestamp;
 use pyo3::exceptions::{PyIndexError, PyValueError};
@@ -20,8 +20,8 @@ use crate::asvo::apiv2::openapi::{
     Weighting,
 };
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobState, AsvoJobType, AsvoJobVec,
-    Delivery, DownloadProgress,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobType, AsvoJobVec, Delivery,
+    DownloadProgress, JobState,
 };
 use crate::obs_id::ObsId;
 
@@ -155,87 +155,28 @@ py_enum!(
     [Xx, Yy, Xxyy]
 );
 
-/// The state of an MWA ASVO job. For `Error`, the message is in
-/// `AsvoJob.error_text`.
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyclass_enum
-)]
-#[pyclass(
-    eq,
-    eq_int,
-    frozen,
-    hash,
-    from_py_object,
-    name = "AsvoJobState",
-    module = "mwa_giant_squid"
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum PyAsvoJobState {
-    Queued,
-    WaitCal,
-    Staging,
-    Staged,
-    Preparing,
-    Downloading,
-    Preprocessing,
-    Imaging,
-    Delivering,
-    Ready,
-    Error,
-    Expired,
-    Cancelled,
-}
-
-impl From<&AsvoJobState> for PyAsvoJobState {
-    fn from(s: &AsvoJobState) -> Self {
-        match s {
-            AsvoJobState::Queued => Self::Queued,
-            AsvoJobState::WaitCal => Self::WaitCal,
-            AsvoJobState::Staging => Self::Staging,
-            AsvoJobState::Staged => Self::Staged,
-            AsvoJobState::Preparing => Self::Preparing,
-            AsvoJobState::Downloading => Self::Downloading,
-            AsvoJobState::Preprocessing => Self::Preprocessing,
-            AsvoJobState::Imaging => Self::Imaging,
-            AsvoJobState::Delivering => Self::Delivering,
-            AsvoJobState::Ready => Self::Ready,
-            AsvoJobState::Error(_) => Self::Error,
-            AsvoJobState::Expired => Self::Expired,
-            AsvoJobState::Cancelled => Self::Cancelled,
-        }
-    }
-}
-
-impl From<PyAsvoJobState> for AsvoJobState {
-    /// `Error` has no message here. That is correct for filtering, which
-    /// compares only the kind of state.
-    fn from(s: PyAsvoJobState) -> Self {
-        match s {
-            PyAsvoJobState::Queued => Self::Queued,
-            PyAsvoJobState::WaitCal => Self::WaitCal,
-            PyAsvoJobState::Staging => Self::Staging,
-            PyAsvoJobState::Staged => Self::Staged,
-            PyAsvoJobState::Preparing => Self::Preparing,
-            PyAsvoJobState::Downloading => Self::Downloading,
-            PyAsvoJobState::Preprocessing => Self::Preprocessing,
-            PyAsvoJobState::Imaging => Self::Imaging,
-            PyAsvoJobState::Delivering => Self::Delivering,
-            PyAsvoJobState::Ready => Self::Ready,
-            PyAsvoJobState::Error => Self::Error(String::new()),
-            PyAsvoJobState::Expired => Self::Expired,
-            PyAsvoJobState::Cancelled => Self::Cancelled,
-        }
-    }
-}
-
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyAsvoJobState {
-    fn __str__(&self) -> String {
-        AsvoJobState::from(*self).to_string()
-    }
-}
+py_enum!(
+    /// The state of an MWA ASVO job: the OpenAPI schema's `JobState`.
+    /// `str()` is the API value (for example "completed"). For `Error`, the
+    /// message is in `AsvoJob.error_text`.
+    PyJobState,
+    "JobState",
+    JobState,
+    [
+        Preparing,
+        Queued,
+        Waitcal,
+        Staging,
+        Staged,
+        Downloading,
+        Preprocessing,
+        Imaging,
+        Delivering,
+        Completed,
+        Error,
+        Cancelled,
+    ]
+);
 
 /// One file of a job's product.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
@@ -355,8 +296,8 @@ impl PyAsvoJob {
 
     /// The job state.
     #[getter]
-    fn job_state(&self) -> PyAsvoJobState {
-        PyAsvoJobState::from(&self.0.job_state)
+    fn job_state(&self) -> PyJobState {
+        PyJobState::from(self.0.job_state)
     }
 
     /// The server's error code, or `None`. The MWA ASVO does not document
@@ -609,8 +550,7 @@ impl PyAsvoJobVec {
     }
 
     /// Keep only the jobs that match every given filter. A filter that is
-    /// `None` or empty does not filter. States compare by kind only, so
-    /// `AsvoJobState.Error` matches every job with an error.
+    /// `None` or empty does not filter.
     ///
     /// Raises:
     ///     ValueError: An obsid is not valid.
@@ -620,7 +560,7 @@ impl PyAsvoJobVec {
         job_ids: Option<Vec<AsvoJobId>>,
         obs_ids: Option<Vec<u64>>,
         job_types: Option<Vec<PyAsvoJobType>>,
-        job_states: Option<Vec<PyAsvoJobState>>,
+        job_states: Option<Vec<PyJobState>>,
     ) -> PyResult<Self> {
         let obs_ids = obs_ids
             .unwrap_or_default()
@@ -632,7 +572,7 @@ impl PyAsvoJobVec {
             .into_iter()
             .map(Into::into)
             .collect();
-        let job_states: Vec<AsvoJobState> = job_states
+        let job_states: Vec<JobState> = job_states
             .unwrap_or_default()
             .into_iter()
             .map(Into::into)
@@ -652,8 +592,7 @@ impl PyAsvoJobVec {
     /// in a loop.
     ///
     /// Raises:
-    ///     AsvoError: A job is missing, has an error, has expired or has
-    ///         been cancelled.
+    ///     AsvoError: A job is missing, has an error or has been cancelled.
     fn all_ready(&self, py: Python<'_>, job_ids: Vec<AsvoJobId>) -> PyResult<bool> {
         self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))
     }

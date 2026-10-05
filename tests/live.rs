@@ -117,10 +117,12 @@ const TYPE_DOWNLOAD_META: &str = "DownloadMetadata";
 const TYPE_DOWNLOAD_VOLTAGE: &str = "DownloadVoltage";
 const TYPE_DOWNLOAD_BEAMFORMER: &str = "DownloadBeamformer";
 const TYPE_IMAGING: &str = "Imaging";
-const STATE_CANCELLED: &str = "Cancelled";
-const STATE_ERROR: &str = "Error";
+const STATE_CANCELLED: &str = "cancelled";
+const STATE_ERROR: &str = "error";
+const STATE_COMPLETED: &str = "completed";
+const STATE_QUEUED: &str = "queued";
 /// States in which a job does no more work, so needs no cancelling.
-const FINISHED_STATES: [&str; 4] = [STATE_CANCELLED, STATE_ERROR, "Ready", "Expired"];
+const FINISHED_STATES: [&str; 3] = [STATE_CANCELLED, STATE_ERROR, STATE_COMPLETED];
 
 /// A real MWA ASVO, with a test-only `HOME` for the token cache.
 struct LiveEnv {
@@ -389,12 +391,10 @@ fn api_error_code(output: &str) -> Option<String> {
     Some(output[start..end].to_string())
 }
 
-/// A listed job's state name. `Error` carries its message, so it
-/// serialises as `{"Error": "..."}` rather than a plain string.
+/// A listed job's state name: the schema's value, for example `completed`.
 fn state_name(job: &Value) -> String {
     match &job["job_state"] {
         Value::String(s) => s.clone(),
-        Value::Object(o) => o.keys().next().cloned().unwrap_or_default(),
         other => other.to_string(),
     }
 }
@@ -428,12 +428,12 @@ fn live_list_forms() {
     assert!(result.success, "{}", result.combined());
     assert!(result.stdout_json().is_object());
 
-    let result = env.run(&["list", "--json", "--states", "queued,ready"]);
+    let result = env.run(&["list", "--json", "--states", "queued,completed"]);
     assert!(result.success, "{}", result.combined());
     for job in result.stdout_json().as_object().unwrap().values() {
         let state = state_name(job);
         assert!(
-            state == "Queued" || state == "Ready",
+            state == STATE_QUEUED || state == STATE_COMPLETED,
             "unexpected state: {job}"
         );
     }

@@ -38,6 +38,13 @@ before you upgrade scripts.**
 * `list --json` and `wait --json` use the API's key names (for example `job_id`, `obs_id`, `product.files`) and
   have more keys. `--legacy-json` prints the old format for one release, and is deprecated: it will be removed in
   the release after 3.0.0.
+* The job states are the MWA ASVO API's: `completed` (was `ready`), `waitcal`, `error` and the others, in lower case,
+  as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
+  lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
+  `error_text` (before, it was `{"Error": "<message>"}`). `--legacy-json` still prints the 2.x values.
+* Library: `AsvoJobState` is replaced by the OpenAPI schema's `JobState` (`JobState::Completed` and so on). Its
+  `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
+  the same members.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
   or JSON), so a script can read it.
 * The submit commands try every obsid, and log the error of each failed submission when it happens. If any
@@ -124,6 +131,7 @@ before you upgrade scripts.**
 ### Removed in 3.0.0
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).
+* The `expired` job state, and the library error `AsvoError::JobExpired`. The MWA ASVO API has no expired state.
 
 ### Housekeeping in 3.0.0
 

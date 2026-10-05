@@ -95,7 +95,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert ready.job_id == JOB_ID_READY
     assert ready.obs_id == TEST_OBS_ID
     assert ready.job_type == gs.AsvoJobType.DownloadVisibilities
-    assert ready.job_state == gs.AsvoJobState.Ready
+    assert ready.job_state == gs.JobState.Completed
     assert ready.error_text is None
     assert ready.error_code is None
     assert ready.completed == COMPLETED_UTC
@@ -107,9 +107,9 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert file.sha1 == FILE_SHA1
     assert file.path is None
 
-    assert jobs[1].job_state == gs.AsvoJobState.Queued
+    assert jobs[1].job_state == gs.JobState.Queued
     assert jobs[1].product is None
-    assert jobs[-1].job_state == gs.AsvoJobState.Error
+    assert jobs[-1].job_state == gs.JobState.Error
     assert jobs[-1].error_text == "the conversion failed"
     assert jobs[-1].error_code == FAILED_ERROR_CODE
 
@@ -127,7 +127,7 @@ def test_a_job_list_supports_iteration_and_rejects_a_bad_index(host: str, serve_
 
 @pytest.mark.usefixtures("mock_login")
 def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., None]) -> None:
-    """Each filter works, and states compare by kind."""
+    """Each filter works."""
     serve_jobs(mixed_jobs())
     jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs()
 
@@ -135,7 +135,7 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     assert [j.job_id for j in jobs.filter(job_ids=[JOB_ID_QUEUED])] == [JOB_ID_QUEUED]
     assert len(jobs.filter(obs_ids=[TEST_OBS_ID])) == len(mixed_jobs())
     assert len(jobs.filter(job_types=[gs.AsvoJobType.Conversion])) == 0
-    errors_and_ready = jobs.filter(job_states=[gs.AsvoJobState.Error, gs.AsvoJobState.Ready])
+    errors_and_ready = jobs.filter(job_states=[gs.JobState.Error, gs.JobState.Completed])
     assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
     with pytest.raises(ValueError, match="obsid"):
         jobs.filter(obs_ids=[1])
@@ -257,9 +257,10 @@ def test_one_client_can_be_used_from_several_threads(host: str, serve_jobs: Call
 
 
 def test_the_enums_have_readable_names() -> None:
-    """str() of an enum member is the library's display name."""
-    assert str(gs.AsvoJobState.Ready) == "Ready"
-    assert gs.AsvoJobState.Ready != gs.AsvoJobState.Queued
+    """str() of a JobState member is the schema's value."""
+    assert str(gs.JobState.Completed) == "completed"
+    assert str(gs.JobState.Waitcal) == "waitcal"
+    assert gs.JobState.Completed != gs.JobState.Queued
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -327,7 +328,7 @@ def test_get_jobs_sends_every_filter_to_the_server(
 
     gs.AsvoClient(host, TEST_API_KEY).get_jobs(
         FILTER_DAYS,
-        job_state=gs.AsvoJobState.Ready,
+        job_state=gs.JobState.Completed,
         job_type=gs.AsvoJobType.Imaging,
         date_from=FILTER_FROM,
         date_to=FILTER_TO,
@@ -360,13 +361,13 @@ def test_get_jobs_with_no_filter_sends_none(host: str, httpserver: HTTPServer, s
 @pytest.mark.usefixtures("mock_login")
 @pytest.mark.parametrize(
     "kwargs",
-    [{"job_state": gs.AsvoJobState.Expired}, {"job_type": gs.AsvoJobType.Unknown}],
-    ids=["expired", "unknown"],
+    [{"job_type": gs.AsvoJobType.Unknown}],
+    ids=["unknown"],
 )
 def test_get_jobs_refuses_a_filter_the_api_does_not_have(
     host: str, httpserver: HTTPServer, kwargs: dict[str, Any]
 ) -> None:
-    """A state or type that the API cannot filter by raises ValueError, and nothing is listed."""
+    """A type that the API cannot filter by raises ValueError, and nothing is listed."""
     client = gs.AsvoClient(host, TEST_API_KEY)
     requests_before = len(httpserver.log)
 
@@ -449,20 +450,15 @@ OTHER_OBS_ID = 1090008640
 
 @pytest.mark.usefixtures("mock_login")
 def test_list_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: Callable[..., None]) -> None:
-    """The lists are applied to the result, including Expired, which the server cannot filter by.
-
-    The API has no expired state (schema 1.13), so no job is Expired.
-    """
+    """The lists are applied to the result."""
     serve_jobs(three_jobs())
     client = gs.AsvoClient(host, TEST_API_KEY)
 
-    ready_or_queued = client.list_jobs(job_states=[gs.AsvoJobState.Ready, gs.AsvoJobState.Queued])
-    expired = client.list_jobs(job_states=[gs.AsvoJobState.Expired])
-    cancelled = client.list_jobs(job_states=[gs.AsvoJobState.Cancelled])
+    completed_or_queued = client.list_jobs(job_states=[gs.JobState.Completed, gs.JobState.Queued])
+    cancelled = client.list_jobs(job_states=[gs.JobState.Cancelled])
     other_obs = client.list_jobs(obs_ids=[OTHER_OBS_ID])
 
-    assert [job.job_id for job in ready_or_queued] == [1, 2]
-    assert [job.job_id for job in expired] == []
+    assert [job.job_id for job in completed_or_queued] == [1, 2]
     assert [job.job_id for job in cancelled] == [3]
     assert [job.job_id for job in other_obs] == [3]
 
@@ -475,7 +471,7 @@ def test_list_jobs_sends_a_single_state_and_type_to_the_server(
     serve_jobs(three_jobs())
 
     jobs = gs.AsvoClient(host, TEST_API_KEY).list_jobs(
-        job_states=[gs.AsvoJobState.Queued], job_types=[gs.AsvoJobType.Imaging], days=FILTER_DAYS
+        job_states=[gs.JobState.Queued], job_types=[gs.AsvoJobType.Imaging], days=FILTER_DAYS
     )
 
     body = get_jobs_body(httpserver)
