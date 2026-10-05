@@ -10,6 +10,7 @@
 //! without contacting an MWA ASVO server. The binary is left with dispatch
 //! and I/O only.
 
+mod json_output;
 pub mod legacy_json;
 pub mod params;
 pub mod run;
@@ -80,7 +81,9 @@ pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]
     List {
-        /// Print the jobs as a simple JSON
+        /// Print the jobs as a simple JSON.
+        /// An error is printed as one line of JSON (an MWA ASVO
+        /// ErrorResponse), and no logs are printed.
         #[arg(short, long)]
         json: bool,
 
@@ -92,8 +95,8 @@ pub enum Args {
         legacy_json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json or --legacy-json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with_all = ["json", "legacy_json"])]
         verbosity: u8,
 
         // The help is built from the library's names (see `job_states_help`).
@@ -165,13 +168,15 @@ pub enum Args {
         dry_run: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// Print the result of each download as one line of JSON on stdout
-        /// (job_id, obs_id, status, message), failures too, in the order of
-        /// the job IDs and then the obsids.
+        /// Print the result of each download as one line of JSON on stdout,
+        /// in the order of the job IDs and then the obsids: job_id, obs_id,
+        /// status and message for a success, an MWA ASVO ErrorResponse with
+        /// the job_id or obs_id for a failure. No logs or progress bars are
+        /// printed.
         #[arg(short, long)]
         json: bool,
 
@@ -198,13 +203,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -232,13 +238,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -266,13 +273,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to submit for imaging. Files containing obsids are
@@ -303,13 +311,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsid to image. Exactly one obsid is required (the
@@ -336,13 +345,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -370,13 +380,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -402,13 +413,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout.
+        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+        /// with the obs_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The obsids to be submitted. Files containing obsids are also
@@ -420,7 +432,9 @@ pub enum Args {
     /// Wait for MWA ASVO jobs to complete, return the urls
     #[command(alias = "w")]
     Wait {
-        /// Print the jobs as a simple JSON after waiting
+        /// Print the jobs as a simple JSON after waiting.
+        /// An error is printed as one line of JSON (an MWA ASVO
+        /// ErrorResponse), and no logs are printed.
         #[arg(short, long)]
         json: bool,
 
@@ -432,8 +446,8 @@ pub enum Args {
         legacy_json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json or --legacy-json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with_all = ["json", "legacy_json"])]
         verbosity: u8,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example
@@ -455,13 +469,14 @@ pub enum Args {
         dry_run: bool,
 
         /// Print the MWA ASVO's reply to each cancel request as one line of
-        /// JSON on stdout.
+        /// JSON on stdout, and each error as an MWA ASVO ErrorResponse with
+        /// the job_id. No logs are printed.
         #[arg(short, long)]
         json: bool,
 
         /// The verbosity of the program. The default is to print high-level
-        /// information.
-        #[arg(short, long, action=ArgAction::Count)]
+        /// information. Cannot be used with --json.
+        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
         /// The job IDs to be cancelled. Files containing job IDs are also

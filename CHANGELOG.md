@@ -45,8 +45,17 @@ before you upgrade scripts.**
   `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
   the same members.
 * `download` and `cancel` have `-j`, `--json`, as the other commands do. `download --json` prints one line of JSON
-  for each download (`job_id`, `obs_id`, `status`, `message`), failures too; `cancel --json` prints the MWA ASVO's
-  reply to each request.
+  for each download (`job_id`, `obs_id`, `status`, `message`); `cancel --json` prints the MWA ASVO's reply to each
+  request.
+* With `--json`, every command prints only JSON, on standard output: no log messages and no progress bars. Each
+  error is one line of JSON in the form of the MWA ASVO's error response (`error_code`, `message`, and `detail`,
+  `suggestion`, `field_errors`, `request_id` when known), with the `obs_id` or `job_id` it is about. An error from
+  the MWA ASVO is printed as it was sent; other errors have a giant-squid code (for example `HTTP_503`,
+  `NETWORK_ERROR`, `INVALID_ARGUMENT`). A bad command line with `--json` is one such line too. `-v` cannot be used
+  with `--json` or `--legacy-json`. `--dry-run --json` prints each request as JSON.
+* Library: `AsvoApiError::error_response`, `AsvoError::error_response` and `ParseError::error_response` give an error
+  as the API's `ErrorResponse`; the codes of errors that are not the API's are the `error_response::ERROR_CODE_*`
+  constants.
 * Library: `AsvoClient::download_job` and `download_obs` return the `AsvoJob` that was downloaded (were `()`); in
   Python they return an `AsvoJob` (were `None`).
 * The help and clap's messages are in colour on a terminal (as cargo's are), not only bold. `NO_COLOR` turns the

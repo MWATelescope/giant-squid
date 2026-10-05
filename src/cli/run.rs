@@ -15,20 +15,20 @@ use std::path::Path;
 use std::time::Duration;
 use std::{thread, time};
 
-use anyhow::bail;
 use clap::Parser;
 use log::{debug, error, info, warn};
 use simplelog::*;
 
 use rayon::prelude::*;
 
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::asvo::apiv2::openapi::{Status, Type as FileType};
+use crate::asvo::apiv2::openapi::{JobSubmittedResponse, Status, Type as FileType};
 use crate::asvo::*;
 use crate::*;
 
+use super::json_output::{ArgumentError, JsonError, ReportedFailures};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::table::print_jobs_table;
 use super::Args;
@@ -91,42 +91,81 @@ fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<
     Ok(client.download_obs(obs_id, opts)?)
 }
 
-/// The result of one download, for `download --json`: the keys of the MWA
-/// ASVO's replies (`job_id`, `status`, `message`), and the obsid. A key that
-/// is not known (the obsid of a job ID that was not found, the job of an
-/// obsid that was not found) is `null`.
+/// The result of one successful download, for `download --json`: the keys
+/// of the MWA ASVO's replies (`job_id`, `status`, `message`), and the obsid.
+/// A failed download is a [`JsonError`] line.
 #[derive(serde::Serialize)]
 struct DownloadReport {
-    job_id: Option<AsvoJobId>,
-    obs_id: Option<ObsId>,
+    job_id: AsvoJobId,
+    obs_id: ObsId,
     status: Status,
     message: String,
 }
 
 impl DownloadReport {
-    /// The report of one download of the job ID `job_id` or of the obsid
-    /// `obs_id` (the one that was asked for), from its result.
-    fn new(
-        job_id: Option<AsvoJobId>,
-        obs_id: Option<ObsId>,
-        result: &anyhow::Result<AsvoJob>,
-        download_dir: &str,
-    ) -> Self {
-        match result {
-            Ok(job) => Self {
-                job_id: Some(job.job_id()),
-                obs_id: Some(job.obs_id()),
-                status: Status::Success,
-                message: downloaded_message(job, download_dir),
-            },
-            Err(e) => Self {
-                job_id,
-                obs_id,
-                status: Status::Failed,
-                message: e.to_string(),
-            },
+    /// The report of the download of `job`.
+    fn new(job: &AsvoJob, download_dir: &str) -> Self {
+        Self {
+            job_id: job.job_id(),
+            obs_id: job.obs_id(),
+            status: Status::Success,
+            message: downloaded_message(job, download_dir),
         }
     }
+}
+
+/// Print the line of one download for `download --json`: the
+/// [`DownloadReport`] of a success, or the [`JsonError`] of a failure, for
+/// the job ID `job_id` or the obsid `obs_id` that was asked for.
+fn print_download_line(
+    job_id: Option<AsvoJobId>,
+    obs_id: Option<ObsId>,
+    result: &anyhow::Result<AsvoJob>,
+    download_dir: &str,
+) -> Result<(), anyhow::Error> {
+    match result {
+        Ok(job) => print_json_line(&DownloadReport::new(job, download_dir), true),
+        Err(e) => {
+            let mut line = JsonError::new(e);
+            if let Some(job_id) = job_id {
+                line = line.with_job_id(job_id);
+            }
+            if let Some(obs_id) = obs_id {
+                line = line.with_obs_id(obs_id);
+            }
+            print_json_line(&line, true)
+        }
+    }
+}
+
+/// What `download --dry-run --json` prints for each job ID or obsid: the ID
+/// and the download options.
+#[derive(serde::Serialize)]
+struct DryRunDownload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    job_id: Option<AsvoJobId>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    obs_id: Option<ObsId>,
+    keep_tar: bool,
+    no_resume: bool,
+    skip_hash: bool,
+}
+
+/// What `submit-* --dry-run --json` prints for each obsid: the endpoint and
+/// the request body.
+#[derive(serde::Serialize)]
+struct DryRunSubmission<'a, T: serde::Serialize> {
+    endpoint: &'a str,
+    obs_id: ObsId,
+    params: &'a T,
+}
+
+/// What `cancel --dry-run --json` prints for each job ID: the endpoint of
+/// the DELETE request.
+#[derive(serde::Serialize)]
+struct DryRunCancel {
+    endpoint: String,
+    job_id: AsvoJobId,
 }
 
 /// What a successful download did, for its JSON report: the size and the
@@ -163,10 +202,12 @@ fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
 /// the successes still go through, and the run ends with a summary. An
 /// error is returned when anything failed, so the exit code still signals
 /// it, but only after every obsid has been attempted. The error only counts
-/// the failures, because each one was already reported.
+/// the failures, because each one was already reported. With `json`, each
+/// failure is a [`JsonError`] line with the obsid.
 fn submit_each_obs_id<F>(
     obs_ids: &[ObsId],
     description: &str,
+    json: bool,
     mut submit: F,
 ) -> Result<(), anyhow::Error>
 where
@@ -176,7 +217,7 @@ where
 
     for o in obs_ids {
         if let Err(e) = submit(o) {
-            error!("Obsid {}: {}", o, e);
+            report_obs_id_error(&e, *o, json)?;
             failures += 1;
         }
     }
@@ -193,7 +234,23 @@ where
         return Ok(());
     }
 
-    bail!("{} of {} job submissions failed", failures, obs_ids.len());
+    Err(ReportedFailures(format!(
+        "{} of {} job submissions failed",
+        failures,
+        obs_ids.len()
+    ))
+    .into())
+}
+
+/// Report the error `e` of the obsid `obs_id`: a [`JsonError`] line with
+/// `json`, a log record without.
+fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(), anyhow::Error> {
+    if json {
+        print_json_line(&JsonError::new(e).with_obs_id(obs_id), true)
+    } else {
+        error!("Obsid {}: {}", obs_id, e);
+        Ok(())
+    }
 }
 
 /// The message of `submit-image` for a job ID: this command takes obsids
@@ -213,7 +270,9 @@ fn obs_ids_only(
     job_ids_message: Option<&str>,
 ) -> Result<Vec<ObsId>, anyhow::Error> {
     parse_obs_ids_only(strings).map_err(|e| match (e, job_ids_message) {
-        (ParseError::JobIdsGiven { .. }, Some(message)) => anyhow::anyhow!("{message}"),
+        (ParseError::JobIdsGiven { .. }, Some(message)) => {
+            ArgumentError(message.to_string()).into()
+        }
         (e, _) => e.into(),
     })
 }
@@ -236,9 +295,11 @@ fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyho
 /// would go to, and the resolved JSON body for each obsid. The body is
 /// built exactly as a real submission builds it, so a dry run exercises
 /// the argument-to-request mapping rather than just echoing arguments.
+/// With `json`, each is a [`DryRunSubmission`] line.
 fn report_dry_run_submissions<T, F>(
     endpoint: &str,
     obs_ids: &[ObsId],
+    json: bool,
     build_params: F,
 ) -> Result<(), anyhow::Error>
 where
@@ -247,6 +308,17 @@ where
 {
     for o in obs_ids {
         let params = build_params(*o)?;
+        if json {
+            print_json_line(
+                &DryRunSubmission {
+                    endpoint,
+                    obs_id: *o,
+                    params: &params,
+                },
+                true,
+            )?;
+            continue;
+        }
         info!(
             "[dry run] Would POST {} for obsid {}:\n{}",
             endpoint,
@@ -264,12 +336,14 @@ where
 }
 
 /// The log level for a `-v` count: none is `Info`, one is `Debug`, more is
-/// `Trace`.
-fn log_level(verbosity: u8) -> LevelFilter {
-    match verbosity {
-        0 => LevelFilter::Info,
-        1 => LevelFilter::Debug,
-        _ => LevelFilter::Trace,
+/// `Trace`. With `--json` (`json`), no logs are printed: the level is `Off`
+/// (clap refuses `-v` with `--json`).
+fn log_level(verbosity: u8, json: bool) -> LevelFilter {
+    match (json, verbosity) {
+        (true, _) => LevelFilter::Off,
+        (false, 0) => LevelFilter::Info,
+        (false, 1) => LevelFilter::Debug,
+        (false, _) => LevelFilter::Trace,
     }
 }
 
@@ -281,32 +355,32 @@ fn log_level(verbosity: u8) -> LevelFilter {
 /// command ran before in this process, or another program set one), it is
 /// kept and only the level changes: the command has no other use for the
 /// error.
-fn init_logger(verbosity: u8) {
+fn init_logger(verbosity: u8, json: bool) {
     let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
         .expect("Unable to set time offset to local in the logger")
         .build();
-    let level = log_level(verbosity);
+    let level = log_level(verbosity, json);
     if WriteLogger::init(level, log_config, std::io::stderr()).is_err() {
         log::set_max_level(level);
     }
 }
 
-fn init_logger_with_progressbar_support(level: u8, multiprogressbar: &MultiProgress) {
+fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar: &MultiProgress) {
     let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
         .expect("Unable to set time offset to local in the logger")
         .build();
 
     // To stderr, as in `init_logger`.
-    let log = WriteLogger::new(log_level(level), log_config, std::io::stderr());
+    let log = WriteLogger::new(log_level(level, json), log_config, std::io::stderr());
 
     // As in `init_logger`, a logger that is already installed is kept.
     if LogWrapper::new(multiprogressbar.clone(), log)
         .try_init()
         .is_err()
     {
-        log::set_max_level(log_level(level));
+        log::set_max_level(log_level(level, json));
     }
 }
 
@@ -368,7 +442,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             date_to,
             sort_by,
         } => {
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let query = JobQuery {
@@ -409,23 +483,28 @@ fn run(args: Args) -> anyhow::Result<()> {
             ..
         } => {
             if job_ids_or_obs_ids.is_empty() {
-                bail!("No jobs or obsids specified!");
+                return Err(ArgumentError("No jobs or obsids specified!".to_string()).into());
             }
 
             // Validate the download directory
             if !Path::new(&download_dir).exists() {
-                bail!(
-                    "Download directory `{}` does not exist or is not accessible.",
-                    download_dir
-                );
+                return Err(ArgumentError(format!(
+                    "Download directory `{download_dir}` does not exist or is not accessible."
+                ))
+                .into());
             }
 
-            // Create progress bar capable of multiple downloads
-            let mpb = MultiProgress::new();
+            // Create progress bar capable of multiple downloads. With
+            // --json, the bars are not drawn.
+            let mpb = if json {
+                MultiProgress::with_draw_target(ProgressDrawTarget::hidden())
+            } else {
+                MultiProgress::new()
+            };
 
             // Init the logger- special case as we need to use LogWrapper to ensure log
             // messages don't mess up the progress bars!
-            init_logger_with_progressbar_support(verbosity, &mpb);
+            init_logger_with_progressbar_support(verbosity, json, &mpb);
 
             rayon::ThreadPoolBuilder::new()
                 .num_threads(concurrent_downloads)
@@ -452,6 +531,24 @@ fn run(args: Args) -> anyhow::Result<()> {
                     keep_tar,
                     hash,
                 );
+                if json {
+                    let lines = job_ids
+                        .iter()
+                        .map(|j| (Some(*j), None))
+                        .chain(obs_ids.iter().map(|o| (None, Some(*o))));
+                    for (job_id, obs_id) in lines {
+                        print_json_line(
+                            &DryRunDownload {
+                                job_id,
+                                obs_id,
+                                keep_tar,
+                                no_resume,
+                                skip_hash,
+                            },
+                            true,
+                        )?;
+                    }
+                }
             } else {
                 // Each download will report an error if there is one, so no need to do anything with
                 // the results (I think)
@@ -520,25 +617,19 @@ fn run(args: Args) -> anyhow::Result<()> {
                 info!("Downloaded {} of {}.", t - failures, t);
 
                 if json {
-                    let reports =
-                        job_ids
-                            .iter()
-                            .zip(&job_ids_results)
-                            .map(|(j, r)| DownloadReport::new(Some(*j), None, r, &download_dir))
-                            .chain(obs_ids.iter().zip(&obs_ids_results).map(|(o, r)| {
-                                DownloadReport::new(None, Some(*o), r, &download_dir)
-                            }));
-                    for report in reports {
-                        print_json_line(&report, true)?;
+                    for (j, r) in job_ids.iter().zip(&job_ids_results) {
+                        print_download_line(Some(*j), None, r, &download_dir)?;
+                    }
+                    for (o, r) in obs_ids.iter().zip(&obs_ids_results) {
+                        print_download_line(None, Some(*o), r, &download_dir)?;
                     }
                 }
 
                 if failures > 0 {
-                    bail!(
-                        "{} of {} downloads failed; see the errors above.",
-                        failures,
-                        t
-                    );
+                    return Err(ReportedFailures(format!(
+                        "{failures} of {t} downloads failed; see the errors above."
+                    ))
+                    .into());
                 }
             }
         }
@@ -551,27 +642,31 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             obs_ids,
         } => {
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obs_ids, |obs_id| {
-                    download.to_vis_params(obs_id)
-                })?;
+                report_dry_run_submissions(
+                    ENDPOINT_DOWNLOAD_VIS_JOB,
+                    &parsed_obs_ids,
+                    json,
+                    |obs_id| download.to_vis_params(obs_id),
+                )?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "visibility download", |o| {
-                    let params = download.to_vis_params(*o)?;
-                    let resp = client.submit_download_vis_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
+                let outcome =
+                    submit_each_obs_id(&parsed_obs_ids, "visibility download", json, |o| {
+                        let params = download.to_vis_params(*o)?;
+                        let resp = client.submit_download_vis_job(&params)?;
+                        print_json_line(&resp, json)?;
+                        let job_id = resp.job_id;
+                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        job_ids.push(job_id);
+                        Ok(())
+                    });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;
@@ -590,17 +685,20 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_CONVERSION_JOB, &parsed_obs_ids, |obs_id| {
-                    conv.to_params(obs_id)
-                })?;
+                report_dry_run_submissions(
+                    ENDPOINT_CONVERSION_JOB,
+                    &parsed_obs_ids,
+                    json,
+                    |obs_id| conv.to_params(obs_id),
+                )?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", |o| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", json, |o| {
                     let params = conv.to_params(*o)?;
                     let resp = client.submit_conversion_job(&params)?;
                     print_json_line(&resp, json)?;
@@ -628,17 +726,17 @@ fn run(args: Args) -> anyhow::Result<()> {
         } => {
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
 
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obs_ids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obs_ids, json, |obs_id| {
                     image.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&obs_ids, "imaging", |o| {
+                let outcome = submit_each_obs_id(&obs_ids, "imaging", json, |o| {
                     let params = image.to_params(*o)?;
                     let resp = client.submit_imaging_job(&params)?;
                     print_json_line(&resp, json)?;
@@ -671,25 +769,36 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_FROM_JOB_JOB_IDS_MESSAGE))?;
 
             if obs_ids.len() != 1 {
-                bail!(
+                return Err(ArgumentError(
                     "submit-image-from-job requires exactly one obsid \
                      (the source_job_id identifies the conversion job for that obsid)."
-                );
+                        .to_string(),
+                )
+                .into());
             }
 
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obs_ids, |obs_id| {
+                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obs_ids, json, |obs_id| {
                     image.to_params(obs_id)
                 })?;
             } else {
                 let client = connect()?;
 
                 let o = &obs_ids[0];
-                let params = image.to_params(*o)?;
-
-                let resp = client.submit_image_from_job(&params)?;
+                let submit = || -> anyhow::Result<JobSubmittedResponse> {
+                    let params = image.to_params(*o)?;
+                    Ok(client.submit_image_from_job(&params)?)
+                };
+                let resp = match submit() {
+                    Ok(resp) => resp,
+                    Err(e) if json => {
+                        report_obs_id_error(&e, *o, json)?;
+                        return Err(ReportedFailures(e.to_string()).into());
+                    }
+                    Err(e) => return Err(e),
+                };
                 print_json_line(&resp, json)?;
                 let job_id = resp.job_id;
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
@@ -709,17 +818,20 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_DOWNLOAD_VIS_JOB, &parsed_obs_ids, |obs_id| {
-                    download.to_meta_params(obs_id)
-                })?;
+                report_dry_run_submissions(
+                    ENDPOINT_DOWNLOAD_VIS_JOB,
+                    &parsed_obs_ids,
+                    json,
+                    |obs_id| download.to_meta_params(obs_id),
+                )?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", |o| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", json, |o| {
                     let params = download.to_meta_params(*o)?;
                     let resp = client.submit_download_meta_job(&params)?;
                     print_json_line(&resp, json)?;
@@ -746,17 +858,20 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_VOLTAGE_JOB, &parsed_obs_ids, |obs_id| {
-                    volt.to_params(obs_id)
-                })?;
+                report_dry_run_submissions(
+                    ENDPOINT_VOLTAGE_JOB,
+                    &parsed_obs_ids,
+                    json,
+                    |obs_id| volt.to_params(obs_id),
+                )?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", |o| {
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", json, |o| {
                     let params = volt.to_params(*o)?;
                     let resp = client.submit_voltage_job(&params)?;
                     print_json_line(&resp, json)?;
@@ -783,25 +898,29 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
-                report_dry_run_submissions(ENDPOINT_BEAMFORMER_JOB, &parsed_obs_ids, |obs_id| {
-                    bf.to_params(obs_id)
-                })?;
+                report_dry_run_submissions(
+                    ENDPOINT_BEAMFORMER_JOB,
+                    &parsed_obs_ids,
+                    json,
+                    |obs_id| bf.to_params(obs_id),
+                )?;
             } else {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "beamformer download", |o| {
-                    let params = bf.to_params(*o)?;
-                    let resp = client.submit_beamformer_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
+                let outcome =
+                    submit_each_obs_id(&parsed_obs_ids, "beamformer download", json, |o| {
+                        let params = bf.to_params(*o)?;
+                        let resp = client.submit_beamformer_job(&params)?;
+                        print_json_line(&resp, json)?;
+                        let job_id = resp.job_id;
+                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        job_ids.push(job_id);
+                        Ok(())
+                    });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;
@@ -819,7 +938,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             no_colour,
         } => {
             let parsed_job_ids = parse_job_ids_only(&jobs)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
             let client = connect()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
@@ -847,11 +966,16 @@ fn run(args: Args) -> anyhow::Result<()> {
             jobs,
         } => {
             let parsed_job_ids = parse_job_ids_only(&jobs)?;
-            init_logger(verbosity);
+            init_logger(verbosity, json);
 
             if dry_run {
                 for j in &parsed_job_ids {
                     info!("[dry run] Would DELETE {}/{}", ENDPOINT_JOBS, j);
+                    let line = DryRunCancel {
+                        endpoint: format!("{ENDPOINT_JOBS}/{j}"),
+                        job_id: *j,
+                    };
+                    print_json_line(&line, json)?;
                 }
                 info!(
                     "[dry run] Would have cancelled {} jobids. Nothing was sent.",
@@ -873,6 +997,10 @@ fn run(args: Args) -> anyhow::Result<()> {
                         }
                         Err(e) => {
                             error!("Failed to cancel MWA ASVO job ID {}: {}", j, e);
+                            print_json_line(
+                                &JsonError::new(&anyhow::Error::from(e)).with_job_id(j),
+                                json,
+                            )?;
                             failed_count += 1;
                         }
                     }
@@ -908,25 +1036,93 @@ where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let code = match Args::try_parse_from(args) {
+    let args: Vec<std::ffi::OsString> = args.into_iter().map(Into::into).collect();
+    let code = match Args::try_parse_from(&args) {
         Err(error) => {
-            // Printing can fail (a closed pipe); the exit code is the same.
-            let _ = error.print();
+            if is_usage_error(&error) && json_requested(&args) {
+                print_json_error_line(&JsonError::usage(&error));
+            } else {
+                // Printing can fail (a closed pipe); the exit code is the same.
+                let _ = error.print();
+            }
             error.exit_code()
         }
-        Ok(args) => match run(args) {
-            Ok(()) => 0,
-            Err(error) => {
-                eprintln!("Error: {error:?}");
-                EXIT_CODE_FAILED
+        Ok(args) => {
+            let json = args.json();
+            match run(args) {
+                Ok(()) => 0,
+                Err(error) => {
+                    if !json {
+                        eprintln!("Error: {error:?}");
+                    } else if error.downcast_ref::<ReportedFailures>().is_none() {
+                        print_json_error_line(&JsonError::new(&error));
+                    }
+                    EXIT_CODE_FAILED
+                }
             }
-        },
+        }
     };
     // The process may end without Rust's own clean-up (it does when Python
     // ends it), so push out what is still held back.
     let _ = std::io::Write::flush(&mut std::io::stdout());
     let _ = std::io::Write::flush(&mut std::io::stderr());
     code
+}
+
+/// Whether clap's `error` is an error of the arguments, not the help or the
+/// version that clap prints by way of an error.
+fn is_usage_error(error: &clap::Error) -> bool {
+    use clap::error::ErrorKind;
+    !matches!(
+        error.kind(),
+        ErrorKind::DisplayHelp
+            | ErrorKind::DisplayVersion
+            | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+    )
+}
+
+/// Whether the arguments `args`, which clap could not parse, ask for
+/// `--json` (`-j`). clap parses them again and ignores the errors, so
+/// `-vj` is found too.
+fn json_requested(args: &[std::ffi::OsString]) -> bool {
+    use clap::CommandFactory;
+    Args::command()
+        .ignore_errors(true)
+        .try_get_matches_from(args)
+        .ok()
+        .and_then(|matches| {
+            matches
+                .subcommand()
+                .and_then(|(_, sub)| sub.try_get_one::<bool>("json").ok().flatten().copied())
+        })
+        .unwrap_or(false)
+}
+
+/// Print the error line of `--json` on stdout. Printing can fail (a closed
+/// pipe); the exit code is the same.
+fn print_json_error_line(line: &JsonError) {
+    if let Ok(text) = serde_json::to_string(line) {
+        println!("{text}");
+    }
+}
+
+impl Args {
+    /// Whether the command was given `--json`.
+    fn json(&self) -> bool {
+        match self {
+            Args::List { json, .. }
+            | Args::Download { json, .. }
+            | Args::SubmitVis { json, .. }
+            | Args::SubmitConv { json, .. }
+            | Args::SubmitImage { json, .. }
+            | Args::SubmitImageFromJob { json, .. }
+            | Args::SubmitMeta { json, .. }
+            | Args::SubmitVolt { json, .. }
+            | Args::SubmitBf { json, .. }
+            | Args::Wait { json, .. }
+            | Args::Cancel { json, .. } => *json,
+        }
+    }
 }
 
 /// The exit code of a command that failed. (clap's code for a bad argument

@@ -179,6 +179,21 @@ giant-squid submit-vis --json 1065880128 | jq -r .job_id
 To keep the log lines in a file, redirect standard error:
 `giant-squid list 2> giant-squid.log`.
 
+### Errors with `--json`
+
+With `--json`, a command prints only JSON on standard output, and nothing on
+standard error: no log lines and no progress bars. Each error is one line of
+JSON in the form of the MWA ASVO's error response (`error_code`, `message`, and
+`detail`, `suggestion`, `field_errors`, `request_id` when known), with the
+`obs_id` or `job_id` it is about. A line with an `error_code` key is an error:
+
+```bash
+giant-squid submit-vis --json 1065880128 | jq -r 'select(.error_code) | .message'
+```
+
+`-v` cannot be used with `--json` (or with `--legacy-json`). With `--json`, `--dry-run` prints each
+request as one line of JSON.
+
 ## Listing jobs (`list`)
 
 The filter options have the API's names. The 2.x names still work:
@@ -317,7 +332,8 @@ long a failing download is retried (default 900 s).
 
 New: `-j`, `--json` prints the result of each download as one line of JSON
 (`job_id`, `obs_id`, `status`, `message`), and `cancel --json` prints the MWA
-ASVO's reply to each request, as the submit commands do.
+ASVO's reply to each request, as the submit commands do. A failed download or
+cancel request is an error line: see [Errors with `--json`](#errors-with---json).
 
 New: a download without `--keep-tar` (stream untar) resumes. In 2.x, only a
 `--keep-tar` download resumed. If a stream-untar download fails, run the same

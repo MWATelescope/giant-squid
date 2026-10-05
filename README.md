@@ -175,11 +175,28 @@ each obsid and carries on if one fails. It ends with a summary and a non-zero ex
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed: see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each obsid |
-| `-j`, `--json` | Print the MWA ASVO's reply for each submitted job as one line of JSON on standard output |
-| `-v`, `--verbosity` | Show more log messages. Repeat it for more |
+| `-j`, `--json` | Print the MWA ASVO's reply for each submitted job as one line of JSON on standard output. See [JSON output and errors](#json-output-and-errors) |
+| `-v`, `--verbosity` | Show more log messages. Repeat it for more. Cannot be used with `--json` |
 
 Log messages go to standard error, so standard output has only the output of the command (for example, the
-`--json` lines). To check that your command works without submitting anything, use `--dry-run`:
+`--json` lines).
+
+#### JSON output and errors
+
+With `-j`, `--json`, every command prints only JSON, on standard output. It prints no log messages and no
+progress bars, and nothing on standard error. Each error is one line of JSON in the form of the MWA ASVO's error
+response: `error_code` and `message`, and `detail`, `suggestion`, `field_errors` and `request_id` when they are
+known. An error about one obsid or job also has its `obs_id` or `job_id`. A script finds an error line by its
+`error_code` key. The exit code is 1 if anything failed, and 2 for a bad command line.
+
+An error that the MWA ASVO sent in this form is printed as the MWA ASVO sent it. Other errors have a giant-squid
+error code, for example `HTTP_503` (an HTTP error, with the body of the reply as the `detail`), `NETWORK_ERROR`,
+`INVALID_ARGUMENT` or `JOB_NOT_FOUND`:
+
+```bash
+$ giant-squid submit-vis 1065880128 --json
+{"error_code":"HTTP_503","message":"Service Unavailable","detail":"<html>...</html>\n","obs_id":1065880128}
+``` To check that your command works without submitting anything, use `--dry-run`:
 
 ```bash
 $ giant-squid submit-vis 1065880128 --dry-run
@@ -287,9 +304,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -439,9 +456,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -578,9 +595,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -618,9 +635,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -660,9 +677,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -701,9 +718,9 @@ Options:
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help
           Print help
   -V, --version
@@ -739,8 +756,8 @@ Options:
   -r, --allow-resubmit               Allow resubmitting a job even if an identical one has completed
   -w, --wait                         Do not exit giant-squid until the specified obsids are ready for download
   -n, --dry-run                      Don't actually submit; print information on what would've happened instead
-  -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout
-  -v, --verbosity...                 The verbosity of the program. The default is to print high-level information
+  -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
+  -v, --verbosity...                 The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help                         Print help
   -V, --version                      Print version
 ```
@@ -779,9 +796,9 @@ Arguments:
   [JOB_ID_OR_OBS_ID]...  job IDs or obsids to filter by. Files containing job IDs or obsids are also accepted
 
 Options:
-  -j, --json                    Print the jobs as a simple JSON
+  -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
-  -v, --verbosity...            The verbosity of the program. The default is to print high-level information
+  -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, visibility, metadata, voltage, cancel, beamformer, imaging
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
@@ -931,9 +948,9 @@ Arguments:
   [JOB_ID]...  The job IDs to wait for. Files containing job IDs are also accepted
 
 Options:
-  -j, --json          Print the jobs as a simple JSON after waiting
+  -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
-  -v, --verbosity...  The verbosity of the program. The default is to print high-level information
+  -v, --verbosity...  The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
   -n, --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
   -h, --help          Print help
   -V, --version       Print version
@@ -958,7 +975,8 @@ $ giant-squid wait 31 32
   cancelled. Waiting longer would not change that.
 - It waits for as long as it takes. Press Ctrl-C to stop.
 - Every submit command has the same wait as the `-w`, `--wait` option.
-- Log messages go to standard error, so the standard output of `wait --json` is only the JSON.
+- Log messages go to standard error. With `--json`, no log messages are printed, and an error is one line of
+  JSON: see [JSON output and errors](#json-output-and-errors).
 
 ### Cancel MWA ASVO jobs
 
@@ -974,8 +992,8 @@ Arguments:
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
-  -j, --json          Print the MWA ASVO's reply to each cancel request as one line of JSON on stdout
-  -v, --verbosity...  The verbosity of the program. The default is to print high-level information
+  -j, --json          Print the MWA ASVO's reply to each cancel request as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the job_id. No logs are printed
+  -v, --verbosity...  The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -h, --help          Print help
   -V, --version       Print version
 ```
@@ -1033,9 +1051,9 @@ Options:
   -n, --dry-run
           Don't actually download; print information on what would've happened instead
   -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -j, --json
-          Print the result of each download as one line of JSON on stdout (job_id, obs_id, status, message), failures too, in the order of the job IDs and then the obsids
+          Print the result of each download as one line of JSON on stdout, in the order of the job IDs and then the obsids: job_id, obs_id, status and message for a success, an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
   -h, --help
           Print help
   -V, --version

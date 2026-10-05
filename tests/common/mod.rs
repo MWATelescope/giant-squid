@@ -75,6 +75,8 @@ impl CliEnv {
 /// What a finished subprocess run produced.
 pub struct Run {
     pub success: bool,
+    /// The exit code, or `None` if a signal ended the process.
+    pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
 }
@@ -85,6 +87,15 @@ impl Run {
     /// messages use this rather than picking one.
     pub fn combined(&self) -> String {
         format!("{}{}", self.stdout, self.stderr)
+    }
+
+    /// Every line of stdout, each parsed as JSON. Fails the test if a line
+    /// is not JSON.
+    pub fn stdout_json_lines(&self) -> Vec<Value> {
+        self.stdout
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("each line of stdout is JSON"))
+            .collect()
     }
 
     /// The first JSON object printed on stdout. Lets a test read `--json`
@@ -104,6 +115,7 @@ pub fn run(mut cmd: Command) -> Run {
     let out = cmd.output().expect("could not run the giant-squid binary");
     Run {
         success: out.status.success(),
+        code: out.status.code(),
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
     }

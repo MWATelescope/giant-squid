@@ -7,6 +7,7 @@ pub mod apiv2;
 mod download;
 mod env;
 mod error;
+pub mod error_response;
 mod token_store;
 mod types;
 
@@ -27,6 +28,7 @@ pub use env::{
     ENV_MWA_ASVO_API_KEY, ENV_MWA_ASVO_API_TIMEOUT, ENV_MWA_ASVO_HOST,
 };
 pub use error::AsvoError;
+pub use error_response::new_error_response;
 pub use token_store::{default_token_cache_path, StoredTokens};
 pub use types::{AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobVec};
 

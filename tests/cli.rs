@@ -516,8 +516,8 @@ fn list_legacy_json_prints_the_old_keys_and_a_warning() {
     );
 }
 
-/// Log records go to stderr, so that stdout is only the output a script
-/// reads (for example `giant-squid list --json | jq`).
+/// With `--json`, stdout is only the JSON that a script reads (for example
+/// `giant-squid list --json | jq`), and no logs are printed.
 #[test]
 fn list_json_puts_only_the_json_on_stdout() {
     let env = CliEnv::with_session();
@@ -532,6 +532,23 @@ fn list_json_puts_only_the_json_on_stdout() {
     let parsed: serde_json::Value = serde_json::from_str(result.stdout.trim())
         .unwrap_or_else(|e| panic!("stdout is not only JSON ({e}): {}", result.stdout));
     assert_eq!(parsed["12345"]["id"], 12345);
+    // The mock server is not the default host, so the client logs a
+    // warning, but not with --json.
+    assert_eq!(result.stderr, "");
+}
+
+/// Log records go to stderr, so that stdout is only the output of the
+/// command.
+#[test]
+fn list_logs_go_to_stderr() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--no-colour"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
     // The mock server is not the default host, so the client always logs
     // a warning. It is on stderr.
     assert!(
@@ -539,6 +556,31 @@ fn list_json_puts_only_the_json_on_stdout() {
         "stderr: {}",
         result.stderr
     );
+    assert!(
+        !result.stdout.contains("non-default host"),
+        "stdout: {}",
+        result.stdout
+    );
+}
+
+/// `-v` cannot be used with `--legacy-json` either. Without `--json`, the
+/// usage error is clap's text.
+#[test]
+fn verbosity_with_legacy_json_is_a_usage_error() {
+    let env = CliEnv::with_session();
+
+    for command in ["list", "wait"] {
+        let mut cmd = env.command();
+        cmd.args([command, "-v", "--legacy-json", "12345"]);
+        let result = run(cmd);
+
+        assert_eq!(result.code, Some(2), "output: {}", result.combined());
+        assert!(
+            result.stderr.contains("--legacy-json"),
+            "stderr: {}",
+            result.stderr
+        );
+    }
 }
 
 #[test]
@@ -769,8 +811,9 @@ fn cancel_json_prints_the_reply() {
     assert_eq!(reply["status"], "success");
 }
 
-/// `download --json` prints one line for each download, a failure too, with
-/// the job ID or obsid that was asked for, and the run still fails.
+/// `download --json` prints one line for each download, a failure too: an
+/// `ErrorResponse` with the job ID or obsid that was asked for. Nothing else
+/// is printed, and the run still fails.
 #[test]
 fn download_json_prints_a_line_for_a_failure() {
     let env = CliEnv::with_session();
@@ -783,19 +826,16 @@ fn download_json_prints_a_line_for_a_failure() {
         .args(["12345", TEST_OBS_ID]);
     let result = run(cmd);
 
-    assert!(!result.success, "output: {}", result.combined());
-    let lines: Vec<serde_json::Value> = result
-        .stdout
-        .lines()
-        .map(|line| serde_json::from_str(line).expect("each line is JSON"))
-        .collect();
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
     assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "JOB_NOT_FOUND");
     assert_eq!(lines[0]["job_id"], 12345);
-    assert!(lines[0]["obs_id"].is_null());
-    assert_eq!(lines[0]["status"], "failed");
-    assert!(lines[1]["job_id"].is_null());
+    assert!(lines[0].get("obs_id").is_none());
+    assert_eq!(lines[1]["error_code"], "OBS_ID_NOT_FOUND");
+    assert!(lines[1].get("job_id").is_none());
     assert_eq!(lines[1]["obs_id"].to_string(), TEST_OBS_ID);
-    assert_eq!(lines[1]["status"], "failed");
     assert!(lines[1]["message"]
         .as_str()
         .is_some_and(|m| m.contains(TEST_OBS_ID)));
@@ -957,4 +997,247 @@ fn cancelling_with_no_job_ids_is_rejected() {
         "output: {}",
         result.combined()
     );
+}
+
+// ---------------------------------------------------------------------------
+// --json: JSON only, errors too
+// ---------------------------------------------------------------------------
+
+/// The body of an HTTP error that is not an `ErrorResponse`, as a proxy in
+/// front of the MWA ASVO sends it.
+const HTML_503_BODY: &str =
+    "<html>\n<head><title>503 Service Temporarily Unavailable</title></head>\n</html>\n";
+
+/// With `--json`, a submission that fails with an HTTP error whose body is
+/// not an `ErrorResponse` is one `ErrorResponse` line with the obsid: the
+/// status code, its reason and the body. No logs are printed.
+#[test]
+fn submit_json_prints_an_http_error_as_an_error_response_only() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/download_vis_job");
+        then.status(503)
+            .header("content-type", "text/html")
+            .body(HTML_503_BODY);
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "-j", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "HTTP_503");
+    assert_eq!(lines[0]["message"], "Service Unavailable");
+    assert_eq!(lines[0]["detail"], HTML_503_BODY);
+    assert_eq!(lines[0]["obs_id"].to_string(), TEST_OBS_ID);
+}
+
+/// With `--json`, an `ErrorResponse` from the MWA ASVO is copied verbatim,
+/// with the obsid, and a success next to it is the API's reply.
+#[test]
+fn submit_json_copies_an_api_error_and_prints_the_successes() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
+    });
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1061311784 }"#);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(12345));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--json", "1061311664", "1061311784"]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
+    assert_eq!(
+        lines[0],
+        serde_json::json!({
+            "error_code": "VALID_MISSING_FIELD",
+            "message": "Bad obsid",
+            "detail": "detail from the mock server",
+            "suggestion": "try something else",
+            "obs_id": 1061311664_u64,
+        })
+    );
+    assert_eq!(lines[1]["job_id"], 12345);
+    assert_eq!(lines[1]["status"], "success");
+}
+
+/// With `--json`, a successful submission prints the reply and nothing else:
+/// no logs on stderr.
+#[test]
+fn submit_json_prints_no_logs() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/download_vis_job");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(12345));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--json", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    assert_eq!(result.stdout_json_lines().len(), 1);
+}
+
+/// `-v` cannot be used with `--json`. With `--json`, clap's usage error is
+/// one `ErrorResponse` line, and the exit code is still clap's.
+#[test]
+fn verbosity_with_json_is_a_usage_error_in_json() {
+    let env = CliEnv::with_session();
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "-vj", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(2), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "INVALID_ARGUMENT");
+    let message = lines[0]["message"].as_str().expect("a message");
+    assert!(message.contains("--json"), "message: {message}");
+    assert!(!message.contains('\u{1b}'), "message has styles: {message}");
+}
+
+/// Without `--json`, a usage error is clap's text on stderr, as before.
+#[test]
+fn a_usage_error_without_json_is_text() {
+    let env = CliEnv::with_session();
+
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--no-such-option", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(2), "output: {}", result.combined());
+    assert_eq!(result.stdout, "");
+    assert!(
+        result.stderr.contains("--no-such-option"),
+        "stderr: {}",
+        result.stderr
+    );
+}
+
+/// With `--json`, an error before anything is sent (here an obsid given to
+/// `wait`) is one `ErrorResponse` line.
+#[test]
+fn wait_json_prints_a_bad_argument_as_an_error_response() {
+    let env = CliEnv::with_session();
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "--json", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "INVALID_ARGUMENT");
+}
+
+/// With `--json`, a download directory that does not exist is one
+/// `ErrorResponse` line.
+#[test]
+fn download_json_prints_a_missing_directory_as_an_error_response() {
+    let env = CliEnv::with_session();
+
+    let mut cmd = env.command();
+    cmd.args(["download", "--json", "-d", "/no/such/directory", "12345"]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "INVALID_ARGUMENT");
+}
+
+/// With `--json`, a cancellation that the server refuses with a 4xx is the
+/// API's `ErrorResponse` with the job ID.
+#[test]
+fn cancel_json_prints_a_refusal_as_an_error_response() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/12345");
+        then.status(404)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_NOT_FOUND", "No such job"));
+    });
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "--json", "12345"]);
+    let result = run(cmd);
+
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["error_code"], "JOB_NOT_FOUND");
+    assert_eq!(lines[0]["job_id"], 12345);
+}
+
+/// `submit-* --dry-run --json` prints the endpoint and the request body of
+/// each obsid, and nothing is sent.
+#[test]
+fn submit_dry_run_json_prints_each_request() {
+    let env = CliEnv::with_session();
+
+    let mut cmd = env.command();
+    cmd.args([
+        "submit-vis",
+        "--dry-run",
+        "--json",
+        "1061311664",
+        "1061311784",
+    ]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["endpoint"], "/api/v2/download_vis_job");
+    assert_eq!(lines[0]["obs_id"], 1061311664_u64);
+    assert_eq!(lines[0]["params"]["obs_id"], 1061311664_u64);
+    assert_eq!(lines[1]["obs_id"], 1061311784_u64);
+}
+
+/// `download --dry-run --json` prints one line for each job ID and obsid.
+#[test]
+fn download_dry_run_json_prints_each_id() {
+    let env = CliEnv::with_session();
+    let dir = tempfile::TempDir::new().expect("a download directory");
+
+    let mut cmd = env.command();
+    cmd.args(["download", "--dry-run", "--json", "-d"])
+        .arg(dir.path())
+        .args(["12345", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(result.stderr, "");
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
+    assert_eq!(lines[0]["job_id"], 12345);
+    assert_eq!(lines[1]["obs_id"].to_string(), TEST_OBS_ID);
+    assert_eq!(lines[1]["keep_tar"], false);
 }
