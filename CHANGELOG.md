@@ -63,6 +63,9 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
+* Library: every type generated from the OpenAPI schema derives `PartialEq`, and `JobType` also `Copy`, `Eq` and
+  `Hash` (set in `build.rs`, so they survive regeneration). `AsvoJob`, `AsvoJobVec` and `AsvoJobMap` derive
+  `PartialEq` again.
 * Library: `AsvoApiError::MissingAuthKey` has a field `variable`, and its message no longer names `MWA_ASVO_API_KEY`
   unless the key was read from the environment (`No MWA ASVO API key was given: set the MWA_ASVO_API_KEY environment
   variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with

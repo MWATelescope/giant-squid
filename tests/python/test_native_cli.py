@@ -219,3 +219,48 @@ def test_ctrl_c_ends_the_process_at_once_like_the_rust_program(
 
     assert process.returncode == -signal.SIGINT, err
     assert "Traceback" not in err
+
+
+# A program that runs the command twice in one process, then once after an AsvoClient, and prints what each
+# second attempt raised.
+RUN_TWICE_PROGRAM = """
+import mwa_giant_squid as gs
+gs._run_cli([gs._PROGRAM_NAME, "--version"])
+try:
+    gs._run_cli([gs._PROGRAM_NAME, "--version"])
+except RuntimeError as e:
+    print("twice:", e)
+"""
+RUN_AFTER_CLIENT_PROGRAM = """
+import mwa_giant_squid as gs
+try:
+    # Nothing listens there, so the login fails; the client's Python logging is installed before it.
+    gs.AsvoClient("http://127.0.0.1:1", "key")
+except gs.AsvoApiError:
+    pass
+try:
+    gs._run_cli([gs._PROGRAM_NAME, "--version"])
+except RuntimeError as e:
+    print("after client:", e)
+"""
+
+
+@pytest.mark.parametrize(
+    ("program", "expected"),
+    [(RUN_TWICE_PROGRAM, "twice: "), (RUN_AFTER_CLIENT_PROGRAM, "after client: ")],
+    ids=["twice", "after-client"],
+)
+def test_the_command_runs_only_once_per_process(child_env: dict[str, str], program: str, expected: str) -> None:
+    """A process has one Rust logger, so a second run, or a run after an AsvoClient, raises RuntimeError."""
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        capture_output=True,
+        text=True,
+        env=child_env,
+        timeout=RUN_TIMEOUT_S,
+        check=False,
+    )
+
+    assert result.returncode == EXIT_OK, result.stderr
+    assert expected in result.stdout, result.stdout
+    assert "in a process of its own" in result.stdout

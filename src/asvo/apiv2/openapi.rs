@@ -8,7 +8,7 @@
 // Manual edits or modifications will be lost next time it is generated!
 //
 ///Response model for the /new_api_key endpoint
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ApiKeyResponse {
     pub api_key: ::std::string::String,
     pub created: ::jiff::Timestamp,
@@ -19,7 +19,7 @@ impl ApiKeyResponse {
     }
 }
 ///Request model for client app login endpoint (uses API key instead of username)
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ApiLoginRequest {
     ///The name of the client app
     pub login: Login,
@@ -31,7 +31,7 @@ impl ApiLoginRequest {
     }
 }
 ///Response model for login endpoint through other clients (CLIs, external services)
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ApiLoginResponse {
     ///JWT access token (also set in HTTP-only cookie)
     pub access_token: ::std::string::String,
@@ -48,7 +48,7 @@ impl ApiLoginResponse {
     }
 }
 ///`AuthStatusResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct AuthStatusResponse {
     pub authenticated: bool,
 }
@@ -58,7 +58,7 @@ impl AuthStatusResponse {
     }
 }
 ///Parameters for beamformer job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct BeamformerJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::beamformer_job_params_allow_resubmit")]
@@ -135,7 +135,7 @@ impl ::std::convert::TryFrom<::std::string::String> for BeamformerJobParamsMode 
     }
 }
 ///Calibration service callback
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct CalibrationReadyCallback {
     pub asvo_job_id: ::std::num::NonZeroU64,
     ///Name of the calibration file (.e.g. mock_cal_1234567890.fits)
@@ -152,7 +152,7 @@ impl CalibrationReadyCallback {
     }
 }
 ///`CancelledJobsRequest`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default, PartialEq)]
 pub struct CancelledJobsRequest {
     ///Safety cap for amount of results to retrieve
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -167,7 +167,7 @@ impl CancelledJobsRequest {
     }
 }
 ///`CancelledJobsResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct CancelledJobsResponse {
     pub jobs: ::std::vec::Vec<QueuedJob>,
 }
@@ -241,7 +241,7 @@ impl ::std::default::Default for Centre {
     }
 }
 ///Parameters for conversion job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ConversionJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::conversion_job_params_allow_resubmit")]
@@ -415,7 +415,7 @@ impl ::std::default::Default for DeliveryFormat {
     }
 }
 ///Parameters for download job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct DownloadJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::download_job_params_allow_resubmit")]
@@ -492,7 +492,7 @@ impl ::std::convert::TryFrom<::std::string::String> for DownloadType {
     }
 }
 ///Standard error response structure for all ASVO API endpoints
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ErrorResponse {
     ///Additional technical detail
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -517,7 +517,7 @@ impl ErrorResponse {
     }
 }
 ///Field-specific validation error
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct FieldError {
     ///Field name that failed valiation
     pub field: ::std::string::String,
@@ -530,7 +530,7 @@ impl FieldError {
     }
 }
 ///Health check response model
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct HealthResponse {
     pub database: ::std::string::String,
     pub service: ::std::string::String,
@@ -543,7 +543,7 @@ impl HealthResponse {
     }
 }
 ///`ImageSizes`
-#[derive(::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Serialize, Clone, Debug, PartialEq)]
 #[serde(transparent)]
 pub struct ImageSizes(i64);
 impl ::std::ops::Deref for ImageSizes {
@@ -580,7 +580,7 @@ impl<'de> ::serde::Deserialize<'de> for ImageSizes {
     }
 }
 ///Parameters for image job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
@@ -674,7 +674,7 @@ impl ImagingJobFlow1Params {
     }
 }
 ///Parameters for image job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
@@ -739,7 +739,7 @@ impl ImagingJobFlow2Params {
     }
 }
 ///`JobCancelledResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobCancelledResponse {
     pub job_id: ::std::num::NonZeroU64,
     pub message: ::std::string::String,
@@ -752,7 +752,7 @@ impl JobCancelledResponse {
     }
 }
 ///Complete job details response
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobDetailResponse {
     ///Timestamp when job completed (null if still processing)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -796,7 +796,7 @@ impl JobDetailResponse {
     }
 }
 ///`JobFile`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobFile {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub format: ::std::option::Option<::std::string::String>,
@@ -819,7 +819,7 @@ impl JobFile {
     }
 }
 ///Priority score update for a job
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobPriorityUpdate {
     pub job_id: ::std::num::NonZeroU64,
     pub priority_score: f64,
@@ -830,7 +830,7 @@ impl JobPriorityUpdate {
     }
 }
 ///Model for the artifacts metadata of a completed job
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobProduct {
     pub files: ::std::vec::Vec<JobFile>,
 }
@@ -936,7 +936,7 @@ impl ::std::convert::TryFrom<::std::string::String> for JobState {
     }
 }
 ///`JobSubmittedResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobSubmittedResponse {
     pub job_id: ::std::num::NonZeroU64,
     pub message: ::std::string::String,
@@ -949,7 +949,7 @@ impl JobSubmittedResponse {
     }
 }
 ///Enum representing job types with their integer values
-#[derive(::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Serialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[serde(transparent)]
 pub struct JobType(i64);
 impl ::std::ops::Deref for JobType {
@@ -985,7 +985,7 @@ impl<'de> ::serde::Deserialize<'de> for JobType {
     }
 }
 ///Parameters for /job_history endpoint
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobsByUserRequest {
     ///The start date of the time window
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -1032,7 +1032,7 @@ impl JobsByUserRequest {
     }
 }
 ///Parameters for /job_history endpoint
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobsByUserResponse {
     ///List of jobs pertaining to a specific user
     pub jobs: ::std::vec::Vec<JobDetailResponse>,
@@ -1045,7 +1045,7 @@ impl JobsByUserResponse {
     }
 }
 ///`JobsToCancelRequest`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobsToCancelRequest {
     pub job_ids: ::std::vec::Vec<i64>,
 }
@@ -1112,7 +1112,7 @@ impl<'de> ::serde::Deserialize<'de> for Login {
     }
 }
 ///`MarkAsErrorRequest`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct MarkAsErrorRequest {
     #[serde(default)]
     pub error_code: i64,
@@ -1126,7 +1126,7 @@ impl MarkAsErrorRequest {
     }
 }
 ///Observation Metadata extracted from TAP service VO table
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ObservationMetadata {
     ///Number of files this observation has at mwa_acacia
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -1375,7 +1375,7 @@ impl<'de> ::serde::Deserialize<'de> for Password {
     }
 }
 ///`PiProjectDetails`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct PiProjectDetails {
     pub description: ::std::string::String,
     pub project_id: ::std::string::String,
@@ -1446,7 +1446,7 @@ impl ::std::convert::TryFrom<::std::string::String> for Polarization {
     }
 }
 ///`ProjectPermission`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ProjectPermission {
     pub project_id: ::std::string::String,
     pub short_name: ::std::string::String,
@@ -1457,7 +1457,7 @@ impl ProjectPermission {
     }
 }
 ///`ProjectPermissionsResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ProjectPermissionsResponse {
     ///List of projects the user has access to
     #[serde(deserialize_with = "::std::option::Option::deserialize")]
@@ -1469,7 +1469,7 @@ impl ProjectPermissionsResponse {
     }
 }
 ///`QueuedJob`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct QueuedJob {
     ///Timestamp when job was created
     pub created: ::jiff::Timestamp,
@@ -1493,7 +1493,7 @@ impl QueuedJob {
     }
 }
 ///`QueuedJobsRequest`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default, PartialEq)]
 pub struct QueuedJobsRequest {
     ///Safety cap for amount of results to retrieve
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -1508,7 +1508,7 @@ impl QueuedJobsRequest {
     }
 }
 ///`QueuedJobsResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct QueuedJobsResponse {
     pub jobs: ::std::vec::Vec<QueuedJob>,
 }
@@ -1518,7 +1518,7 @@ impl QueuedJobsResponse {
     }
 }
 ///Request from processor to restage a job
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct RestageRequest {
     pub job_id: ::std::num::NonZeroU64,
     pub obs_id: i64,
@@ -1529,7 +1529,7 @@ impl RestageRequest {
     }
 }
 ///Staging callback payload
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct StagingCallback {
     pub comment: ::std::string::String,
     pub job_id: ::std::num::NonZeroU64,
@@ -1601,7 +1601,7 @@ impl ::std::default::Default for Status {
     }
 }
 ///Response model for token-issuing endpoints (login, refresh)
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct TokenResponse {
     ///JWT access token (also set in HTTP-only cookie)
     pub access_token: ::std::string::String,
@@ -1676,7 +1676,7 @@ impl ::std::convert::TryFrom<::std::string::String> for Type {
     }
 }
 ///State update for a job
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UpdateStateRequest {
     pub job_id: ::std::num::NonZeroU64,
     pub state: JobState,
@@ -1687,7 +1687,7 @@ impl UpdateStateRequest {
     }
 }
 ///Request model for login endpoint
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserLoginRequest {
     ///User password
     pub password: Password,
@@ -1700,7 +1700,7 @@ impl UserLoginRequest {
     }
 }
 ///Response model for logout endpoint
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserLogoutResponse {
     ///success message
     #[serde(default = "defaults::user_logout_response_message")]
@@ -1719,7 +1719,7 @@ impl UserLogoutResponse {
     }
 }
 ///`UserProfile`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserProfile {
     #[serde(default)]
     pub confirmed: bool,
@@ -1752,7 +1752,7 @@ impl UserProfile {
     }
 }
 ///`UserProjectsPiResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserProjectsPiResponse {
     ///List of projects this user is a PI of
     #[serde(deserialize_with = "::std::option::Option::deserialize")]
@@ -1764,7 +1764,7 @@ impl UserProjectsPiResponse {
     }
 }
 ///`UserQueuedJobCountResponse`
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserQueuedJobCountResponse {
     pub count: u64,
     pub user_id: ::std::num::NonZeroU64,
@@ -1775,7 +1775,7 @@ impl UserQueuedJobCountResponse {
     }
 }
 ///Response model for user information
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserResponse {
     ///DUG group membership
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -1798,7 +1798,7 @@ impl UserResponse {
     }
 }
 ///Request model for updating a user's profile
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserUpdateProfileRequest {
     pub affiliation: ::std::string::String,
     pub email: ::std::string::String,
@@ -1872,7 +1872,7 @@ impl<'de> ::serde::Deserialize<'de> for Username {
     }
 }
 ///Parameters for voltage job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct VoltageJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::voltage_job_params_allow_resubmit")]
@@ -1900,7 +1900,7 @@ impl VoltageJobParams {
     }
 }
 ///Response model for token-issuing endpoint (/v2/ws/jobs)
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct WebSocketTokenResponse {
     ///JWT websocket token
     pub token: ::std::string::String,

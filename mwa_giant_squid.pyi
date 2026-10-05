@@ -1121,6 +1121,15 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
         2 for a bad argument, 1 for any other error. The output and the
         errors are written to the real standard output and standard error
         of the process, not to `sys.stdout` and `sys.stderr`.
+
+    Raises:
+        RuntimeError: The command already ran in this process, or an
+            `AsvoClient` was made first. A process has only one Rust
+            logger: the command installs its own the first time, and a
+            second run (or a run after the module's Python logging was
+            installed) would write its log lines to the wrong place. Run
+            each command in a process of its own, as the `giant-squid`
+            program does.
     """
 
 def reset_logging() -> None:

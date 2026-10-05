@@ -32,6 +32,7 @@ mod params;
 mod typed;
 mod types;
 
+use std::sync::atomic::AtomicBool;
 use std::sync::{Once, OnceLock};
 
 use pyo3::prelude::*;
@@ -51,6 +52,17 @@ pyo3_stub_gen::module_doc!(
 pyo3_stub_gen::module_variable!("mwa_giant_squid", "__version__", String);
 #[cfg(feature = "python-stubgen")]
 pyo3_stub_gen::module_variable!("mwa_giant_squid", "_PROGRAM_NAME", String);
+
+/// Set when `_run_cli` first runs: it may run only once in a process.
+static CLI_HAS_RUN: AtomicBool = AtomicBool::new(false);
+
+/// The message of a second `_run_cli` in a process.
+const RUN_CLI_TWICE: &str = "the giant-squid command can run only once in a process: \
+     run each command in a process of its own";
+
+/// The message of `_run_cli` after an `AsvoClient` was made.
+const RUN_CLI_AFTER_CLIENT: &str = "the giant-squid command cannot run in a process that has \
+     made an AsvoClient: run it in a process of its own";
 
 /// The handle that clears `pyo3-log`'s cache of Python loggers and levels.
 /// Set once, when [`connect_python_logging`] first runs.
@@ -82,7 +94,9 @@ pub(crate) fn connect_python_logging() {
 mod module {
     use pyo3::prelude::*;
 
-    use super::LOG_RESET_HANDLE;
+    use super::{CLI_HAS_RUN, LOG_RESET_HANDLE, RUN_CLI_AFTER_CLIENT, RUN_CLI_TWICE};
+    use pyo3::exceptions::PyRuntimeError;
+    use std::sync::atomic::Ordering;
 
     #[pymodule_export]
     use super::client::PyAsvoClient;
@@ -126,12 +140,27 @@ mod module {
     ///     2 for a bad argument, 1 for any other error. The output and the
     ///     errors are written to the real standard output and standard error
     ///     of the process, not to `sys.stdout` and `sys.stderr`.
+    ///
+    /// Raises:
+    ///     RuntimeError: The command already ran in this process, or an
+    ///         `AsvoClient` was made first. A process has only one Rust
+    ///         logger: the command installs its own the first time, and a
+    ///         second run (or a run after the module's Python logging was
+    ///         installed) would write its log lines to the wrong place. Run
+    ///         each command in a process of its own, as the `giant-squid`
+    ///         program does.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
     #[pyfunction]
     #[pyo3(name = "_run_cli")]
-    fn run_cli(py: Python<'_>, args: Vec<String>) -> i32 {
+    fn run_cli(py: Python<'_>, args: Vec<String>) -> PyResult<i32> {
+        if LOG_RESET_HANDLE.get().is_some() {
+            return Err(PyRuntimeError::new_err(RUN_CLI_AFTER_CLIENT));
+        }
+        if CLI_HAS_RUN.swap(true, Ordering::SeqCst) {
+            return Err(PyRuntimeError::new_err(RUN_CLI_TWICE));
+        }
         // The command does not use Python, so let other threads run.
-        py.detach(|| crate::cli::run::run_cli(args))
+        Ok(py.detach(|| crate::cli::run::run_cli(args)))
     }
 
     #[pymodule_init]

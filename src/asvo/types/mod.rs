@@ -72,21 +72,6 @@ impl std::fmt::Display for JobType {
     }
 }
 
-// The generated `JobType` derives only `Clone` and `Debug`. It is an
-// integer, so it compares, hashes and copies as one.
-impl PartialEq for JobType {
-    fn eq(&self, other: &Self) -> bool {
-        **self == **other
-    }
-}
-impl Eq for JobType {}
-impl Copy for JobType {}
-impl std::hash::Hash for JobType {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (**self).hash(state);
-    }
-}
-
 /// Every job state of the OpenAPI schema, in the schema's order. The
 /// help of `list --job-states` lists them in this order.
 const JOB_STATES: [JobState; 12] = [
@@ -173,7 +158,7 @@ pub type AsvoJobId = std::num::NonZeroU64;
 /// more key, `obs_id`.
 ///
 /// [`Deref`]: std::ops::Deref
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct AsvoJob {
     obs_id: ObsId,
     /// `detail.id`, checked. Not in the JSON: that has `id`.
@@ -255,7 +240,7 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
 /// A vector of ASVO jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
@@ -351,7 +336,7 @@ impl AsvoJobVec {
 /// isolating specific jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, PartialEq)]
 pub struct AsvoJobMap(pub BTreeMap<AsvoJobId, AsvoJob>);
 
 impl From<AsvoJobVec> for AsvoJobMap {

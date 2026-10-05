@@ -47,7 +47,7 @@ mod regen_openapi {
     use std::path::Path;
 
     use schemars::schema::{InstanceType, SchemaObject};
-    use typify::{TypeSpace, TypeSpaceImpl, TypeSpaceSettings};
+    use typify::{TypeSpace, TypeSpaceImpl, TypeSpacePatch, TypeSpaceSettings};
 
     const SCHEMA_PATH: &str = "src/asvo/apiv2/openapi-schema.json";
     const OUTPUT_PATH: &str = "src/asvo/apiv2/openapi.rs";
@@ -57,6 +57,11 @@ mod regen_openapi {
     const DATE_TIME_TYPE: &str = "::jiff::Timestamp";
     /// The JSON Schema format that `DATE_TIME_TYPE` replaces.
     const DATE_TIME_FORMAT: &str = "date-time";
+    /// The derive added to every generated type.
+    const ALL_TYPES_DERIVE: &str = "PartialEq";
+    /// The schema's job type code, and the derives it gets as well.
+    const JOB_TYPE: &str = "JobType";
+    const JOB_TYPE_DERIVES: [&str; 3] = ["Copy", "Eq", "Hash"];
 
     // No embedded generation timestamp on purpose: build.rs runs on every
     // build, so a timestamp here would make the file "change" (and the CI
@@ -96,15 +101,25 @@ mod regen_openapi {
             format: Some(DATE_TIME_FORMAT.to_string()),
             ..Default::default()
         };
-        let mut type_space = TypeSpace::new(
-            TypeSpaceSettings::default()
-                .with_struct_builder(true)
-                .with_conversion(
-                    date_time,
-                    DATE_TIME_TYPE,
-                    [TypeSpaceImpl::Display, TypeSpaceImpl::FromStr].into_iter(),
-                ),
-        );
+        // `JobType` is an integer code: it compares, hashes and copies as
+        // one, so the library can filter and match on it.
+        let mut job_type_patch = TypeSpacePatch::default();
+        for derive in JOB_TYPE_DERIVES {
+            job_type_patch.with_derive(derive);
+        }
+        let mut settings = TypeSpaceSettings::default();
+        settings
+            .with_struct_builder(true)
+            .with_conversion(
+                date_time,
+                DATE_TIME_TYPE,
+                [TypeSpaceImpl::Display, TypeSpaceImpl::FromStr].into_iter(),
+            )
+            // Every type compares, so a program (and the tests) can compare
+            // jobs, files and request bodies.
+            .with_derive(ALL_TYPES_DERIVE.to_string())
+            .with_patch(JOB_TYPE, &job_type_patch);
+        let mut type_space = TypeSpace::new(&settings);
         type_space
             .add_root_schema(schema)
             .expect("typify failed to process the openapi schema");
