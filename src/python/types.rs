@@ -20,8 +20,8 @@ use crate::asvo::apiv2::openapi::{
     Weighting,
 };
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobType, AsvoJobVec, Delivery,
-    DownloadProgress, JobState,
+    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobVec, Delivery, DownloadProgress,
+    JobState, JobType,
 };
 use crate::obs_id::ObsId;
 
@@ -63,22 +63,66 @@ macro_rules! py_enum {
     };
 }
 
-py_enum!(
-    /// The type of an MWA ASVO job.
-    PyAsvoJobType,
-    "AsvoJobType",
-    AsvoJobType,
-    [
-        Conversion,
-        DownloadVisibilities,
-        DownloadMetadata,
-        DownloadVoltage,
-        CancelJob,
-        DownloadBeamformer,
-        Imaging,
-        Unknown,
-    ]
-);
+/// The type of an MWA ASVO job: the OpenAPI schema's `JobType`, whose value
+/// is the API's code (for example `JobType.Visibility` is 1). `str()` is the
+/// name that the schema gives the code (for example "visibility").
+#[cfg_attr(
+    feature = "python-stubgen",
+    pyo3_stub_gen::derive::gen_stub_pyclass_enum
+)]
+#[pyclass(
+    eq,
+    eq_int,
+    frozen,
+    hash,
+    from_py_object,
+    name = "JobType",
+    module = "mwa_giant_squid"
+)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum PyJobType {
+    Conversion = 0,
+    Visibility = 1,
+    Metadata = 2,
+    Voltage = 3,
+    Cancel = 4,
+    Beamformer = 5,
+    Imaging = 6,
+}
+
+/// Every member of [`PyJobType`], to find the member of a code.
+const PY_JOB_TYPES: [PyJobType; 7] = [
+    PyJobType::Conversion,
+    PyJobType::Visibility,
+    PyJobType::Metadata,
+    PyJobType::Voltage,
+    PyJobType::Cancel,
+    PyJobType::Beamformer,
+    PyJobType::Imaging,
+];
+
+impl From<PyJobType> for JobType {
+    fn from(v: PyJobType) -> Self {
+        JobType::try_from(v as i64).expect("each JobType member is a code of the schema")
+    }
+}
+
+impl From<JobType> for PyJobType {
+    fn from(v: JobType) -> Self {
+        *PY_JOB_TYPES
+            .iter()
+            .find(|member| **member as i64 == *v)
+            .expect("each code of the schema is a JobType member")
+    }
+}
+
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
+#[pymethods]
+impl PyJobType {
+    fn __str__(&self) -> String {
+        JobType::from(*self).name().to_string()
+    }
+}
 
 py_enum!(
     /// Where the MWA ASVO delivers a job's files.
@@ -288,10 +332,10 @@ impl PyAsvoJob {
         u64::from(self.0.obs_id)
     }
 
-    /// The job type.
+    /// The job type, or `None` if the server gives none.
     #[getter]
-    fn job_type(&self) -> PyAsvoJobType {
-        self.0.job_type.into()
+    fn job_type(&self) -> Option<PyJobType> {
+        self.0.job_type.map(PyJobType::from)
     }
 
     /// The job state.
@@ -377,7 +421,10 @@ impl PyAsvoJob {
     fn __repr__(&self) -> String {
         format!(
             "AsvoJob(job_id={}, obs_id={}, job_type={}, job_state={})",
-            self.0.job_id, self.0.obs_id, self.0.job_type, self.0.job_state
+            self.0.job_id,
+            self.0.obs_id,
+            self.0.job_type.map(|t| t.name()).unwrap_or("None"),
+            self.0.job_state
         )
     }
 }
@@ -559,7 +606,7 @@ impl PyAsvoJobVec {
         &self,
         job_ids: Option<Vec<AsvoJobId>>,
         obs_ids: Option<Vec<u64>>,
-        job_types: Option<Vec<PyAsvoJobType>>,
+        job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
     ) -> PyResult<Self> {
         let obs_ids = obs_ids
@@ -567,7 +614,7 @@ impl PyAsvoJobVec {
             .into_iter()
             .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
             .collect::<PyResult<Vec<ObsId>>>()?;
-        let job_types: Vec<AsvoJobType> = job_types
+        let job_types: Vec<JobType> = job_types
             .unwrap_or_default()
             .into_iter()
             .map(Into::into)

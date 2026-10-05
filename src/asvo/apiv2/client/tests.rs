@@ -22,13 +22,11 @@ use serde_json::json;
 #[cfg(feature = "bin")]
 use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::asvo::client_config_from_env;
-use crate::asvo::{
-    AsvoApiError, AsvoClient, AsvoJobId, AsvoJobType, Delivery, JobQuery, JobState, JobsFilter,
-};
+use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, Delivery, JobQuery, JobState, JobsFilter};
 #[cfg(feature = "bin")]
 use crate::cli::Args;
 use crate::test_common::*;
-use crate::test_config::client_config;
+use crate::test_config::{client_config, job_type};
 
 /// Whether `err` is an API error carrying the given machine-readable code.
 fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
@@ -363,7 +361,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     let job = &jobs.0[0];
     assert_eq!(job.job_id, TEST_JOB_ID);
     assert_eq!(job.obs_id.get(), TEST_OBS_ID_I64 as u64);
-    assert_eq!(job.job_type, AsvoJobType::DownloadVisibilities);
+    assert_eq!(job.job_type, Some(job_type("visibility")));
     // The API says "completed" where the rest of giant-squid says "ready".
     assert_eq!(job.job_state, JobState::Completed);
 }
@@ -425,7 +423,7 @@ fn an_errored_job_carries_the_servers_error_text() {
         jobs.0[0].error_text.as_deref(),
         Some("Observation has no data files")
     );
-    assert_eq!(jobs.0[0].job_type, AsvoJobType::Conversion);
+    assert_eq!(jobs.0[0].job_type, Some(job_type("conversion")));
     // The server sent no `error_code` key, which is the same as null.
     assert_eq!(jobs.0[0].error_code, None);
 }
@@ -474,9 +472,9 @@ fn a_job_state_the_schema_does_not_list_fails_the_listing() {
     assert!(err.to_string().contains("wibble"), "{err}");
 }
 
-/// The server may give no `job_type` (schema 1.13); the job is `Unknown`.
+/// The server may give no `job_type` (schema 1.13); the job has no type.
 #[test]
-fn a_job_without_a_type_is_unknown() {
+fn a_job_without_a_type_has_none() {
     let env = TestEnv::with_session();
     let mut typeless = job_detail(1, TEST_OBS_ID, "queued", 1);
     typeless["job_type"] = serde_json::Value::Null;
@@ -492,8 +490,8 @@ fn a_job_without_a_type_is_unknown() {
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
 
-    let types: Vec<AsvoJobType> = jobs.0.iter().map(|j| j.job_type).collect();
-    assert_eq!(types, [AsvoJobType::Unknown, AsvoJobType::Unknown]);
+    let types: Vec<_> = jobs.0.iter().map(|j| j.job_type).collect();
+    assert_eq!(types, [None, None]);
 }
 
 // ---------------------------------------------------------------------------
@@ -1095,7 +1093,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     let job = &jobs.0[0];
     assert_eq!(job.job_id, RECORDED_JOB_ID);
     assert_eq!(job.obs_id.get(), RECORDED_OBS_ID);
-    assert_eq!(job.job_type, AsvoJobType::DownloadMetadata);
+    assert_eq!(job.job_type, Some(job_type("metadata")));
     assert_eq!(job.job_state, JobState::Completed);
     assert!(job.completed.is_some(), "completed should be parsed");
 }
@@ -1272,7 +1270,7 @@ fn get_jobs_sends_every_filter_to_the_server() {
     let filter = JobsFilter {
         days: Some(7),
         job_state: Some(JobState::Completed),
-        job_type: Some(AsvoJobType::Imaging),
+        job_type: Some(job_type("imaging")),
         date_from: Some("2026-09-01T00:00:00Z".parse().expect("a valid time")),
         date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
         sort_by: Some("created".to_string()),
@@ -1316,33 +1314,6 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
         .expect("the listing should succeed");
 
     assert_eq!(unfiltered.calls(), 1);
-}
-
-/// A type that the API cannot filter by is refused before any request.
-#[test]
-fn get_jobs_refuses_a_filter_the_api_does_not_have() {
-    let env = TestEnv::with_session();
-    let listing = env.mock_get_jobs(vec![]);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-
-    let filter = JobsFilter {
-        job_type: Some(AsvoJobType::Unknown),
-        ..JobsFilter::default()
-    };
-    let err = client
-        .get_jobs(&filter)
-        .expect_err("the filter should be refused");
-    assert!(
-        matches!(
-            err,
-            AsvoApiError::InvalidParameter {
-                name: "job_type",
-                ..
-            }
-        ),
-        "got {err:?}"
-    );
-    assert_eq!(listing.calls(), 0);
 }
 
 /// A `days` outside the schema's 1 to 30 is refused before any request, by
@@ -1559,7 +1530,7 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
     let jobs = client
         .list_jobs(&JobQuery {
             job_states: vec![JobState::Queued],
-            job_types: vec![AsvoJobType::Imaging],
+            job_types: vec![job_type("imaging")],
             ..JobQuery::default()
         })
         .expect("the listing should succeed");

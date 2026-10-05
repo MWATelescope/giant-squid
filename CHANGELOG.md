@@ -55,8 +55,14 @@ before you upgrade scripts.**
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message.
 * `wait` and `cancel` take job IDs only. An obsid is an error that names it and nothing is sent; before, it was
   ignored without a word.
-* `list --job-types` refuses text that is not a job type, instead of matching no job. It accepts
-  `download_voltage` as well as `download_voltages`.
+* `list --job-types` refuses text that is not a job type, instead of matching no job.
+* The job types are the MWA ASVO API's. `list --job-types` and the table use the API's names (`conversion`,
+  `visibility`, `metadata`, `voltage`, `cancel`, `beamformer`, `imaging`), and `--json` gives the API's code (`0` to
+  `6`), or `null` for a job with no type. The 2.x names (`download_visibilities` and so on) are refused.
+  `--legacy-json` still prints the 2.x names.
+* Library: `AsvoJobType` is replaced by the OpenAPI schema's `JobType` (a code), with `name()`, `names()` and
+  `parse_name()`. `AsvoJob::job_type` is `Option<JobType>`. In Python, `AsvoJobType` is replaced by `JobType`, whose
+  members are the codes (`JobType.Visibility == 1`).
 * `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,
   `--output-mode`, `--pol` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
   names that the options accept (it listed `retrieving`, which is not a state).
@@ -79,9 +85,8 @@ before you upgrade scripts.**
   environment. A
   `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning (the command ignored it
   silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused.
-* The names of the job states and job types (`queued`, `download_visibilities` and so on) are listed once, in the
-  library, and the help of `list --job-states` and `--job-types` is built from that list. The help no longer says
-  "imaging or cancel_job" but "imaging, cancel_job".
+* The names of the job states and job types (`queued`, `visibility` and so on) are listed once, in the library, and
+  the help of `list --job-states` and `--job-types` is built from that list.
 * The checks of the IDs and times that the command makes (`parse_obs_ids_only`, `parse_job_ids_only` and
   `parse_utc_time`) are in the library, once. The message for a job ID given to a command that takes obsids
   now says `job IDs`, not `exceptions`. `--image-size` shows the same message as the library
@@ -132,6 +137,8 @@ before you upgrade scripts.**
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).
 * The `expired` job state, and the library error `AsvoError::JobExpired`. The MWA ASVO API has no expired state.
+* The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
+  `job_type` `None`.
 
 ### Housekeeping in 3.0.0
 

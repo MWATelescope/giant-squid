@@ -110,13 +110,16 @@ const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
 /// An API key the server cannot know.
 const INVALID_API_KEY: &str = "not-a-real-api-key";
 
-/// Job type and state names as `list --json` prints them.
-const TYPE_CONVERSION: &str = "Conversion";
-const TYPE_DOWNLOAD_VIS: &str = "DownloadVisibilities";
-const TYPE_DOWNLOAD_META: &str = "DownloadMetadata";
-const TYPE_DOWNLOAD_VOLTAGE: &str = "DownloadVoltage";
-const TYPE_DOWNLOAD_BEAMFORMER: &str = "DownloadBeamformer";
-const TYPE_IMAGING: &str = "Imaging";
+/// Job types and states as `list --json` prints them: the schema's
+/// `JobType` code and `JobState` value.
+const TYPE_CONVERSION: i64 = 0;
+const TYPE_DOWNLOAD_VIS: i64 = 1;
+const TYPE_DOWNLOAD_META: i64 = 2;
+const TYPE_DOWNLOAD_VOLTAGE: i64 = 3;
+const TYPE_DOWNLOAD_BEAMFORMER: i64 = 5;
+const TYPE_IMAGING: i64 = 6;
+/// The name of the metadata job type, for `list --job-types`.
+const TYPE_NAME_DOWNLOAD_META: &str = "metadata";
 const STATE_CANCELLED: &str = "cancelled";
 const STATE_ERROR: &str = "error";
 const STATE_COMPLETED: &str = "completed";
@@ -255,7 +258,7 @@ impl LiveEnv {
     }
 
     /// Check that `id` is listed as a live job of `job_type` for `obs_id`.
-    fn assert_submitted(&self, id: u64, obs_id: &str, job_type: &str) {
+    fn assert_submitted(&self, id: u64, obs_id: &str, job_type: i64) {
         let job = self.listed_job(id);
         assert_eq!(
             job["obs_id"].as_u64().map(|o| o.to_string()).as_deref(),
@@ -438,7 +441,7 @@ fn live_list_forms() {
         );
     }
 
-    let result = env.run(&["list", "--json", "--types", "download_metadata"]);
+    let result = env.run(&["list", "--json", "--types", TYPE_NAME_DOWNLOAD_META]);
     assert!(result.success, "{}", result.combined());
     for job in result.stdout_json().as_object().unwrap().values() {
         assert_eq!(

@@ -8,7 +8,7 @@
 
 use prettytable::{row, Cell, Row, Table};
 
-use crate::asvo::{AsvoJob, AsvoJobType, AsvoJobVec, JobState};
+use crate::asvo::{AsvoJob, AsvoJobVec, JobState, JobType};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";
@@ -32,13 +32,11 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
             "Completed"
         ]);
 
-        let mut has_unknown_job_type: bool = false;
-
         for j in jobs.0 {
             table.add_row(Row::new(vec![
                 Cell::new(j.job_id.to_string().as_str()),
                 Cell::new(j.obs_id.to_string().as_str()),
-                Cell::new(j.job_type.to_string().as_str())
+                Cell::new(j.job_type.map(|t| t.name()).unwrap_or_default())
                     .style_spec(&job_type_table_style(j.job_type, no_colour)),
                 Cell::new(job_state_text(&j).as_str())
                     .style_spec(&job_state_table_style(j.job_state, no_colour)),
@@ -69,36 +67,24 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                         .as_str(),
                 ),
             ]));
-
-            // If has_unknown_job_type is already True, stay true. If False, but this job is unknown set to True.
-            has_unknown_job_type |= j.job_type == AsvoJobType::Unknown;
         }
 
         table.printstd();
-
-        // if we had an unknown job type emit a warning
-        if has_unknown_job_type {
-            log::warn!("giant-squid needs to be updated: one of more of your jobs contains a job_type that is unknown to this version of giant-squid. Please update to the latest version.");
-        }
     }
 }
 
-/// The prettytable style spec for a job type cell.
-pub fn job_type_table_style(job_type: AsvoJobType, no_colour: bool) -> String {
-    if no_colour {
-        "".to_string()
-    } else {
-        match job_type {
-            AsvoJobType::Conversion => "Fb",
-            AsvoJobType::DownloadVisibilities => "Fb",
-            AsvoJobType::DownloadBeamformer => "Fb",
-            AsvoJobType::DownloadMetadata => "Fy",
-            AsvoJobType::DownloadVoltage => "Fm",
-            AsvoJobType::CancelJob => "Fr",
-            AsvoJobType::Imaging => "Fb",
-            AsvoJobType::Unknown => "Fr",
+/// The prettytable style spec for a job type cell. A job with no type has
+/// no style.
+pub fn job_type_table_style(job_type: Option<JobType>, no_colour: bool) -> String {
+    match job_type {
+        Some(job_type) if !no_colour => match job_type.name() {
+            "metadata" => "Fy",
+            "voltage" => "Fm",
+            "cancel" => "Fr",
+            _ => "Fb",
         }
-        .to_string()
+        .to_string(),
+        _ => "".to_string(),
     }
 }
 

@@ -18,7 +18,6 @@ __all__ = [
     "AsvoFilesArray",
     "AsvoJob",
     "AsvoJobProduct",
-    "AsvoJobType",
     "AsvoJobVec",
     "Centre",
     "Delivery",
@@ -26,6 +25,7 @@ __all__ = [
     "DownloadProgress",
     "JobState",
     "JobSubmittedResponse",
+    "JobType",
     "Output",
     "OutputMode",
     "Polarization",
@@ -110,7 +110,7 @@ class AsvoClient:
         days: builtins.int | None = None,
         *,
         job_state: JobState | None = None,
-        job_type: AsvoJobType | None = None,
+        job_type: JobType | None = None,
         date_from: datetime.datetime | None = None,
         date_to: datetime.datetime | None = None,
         sort_by: builtins.str | None = None,
@@ -124,8 +124,7 @@ class AsvoClient:
                 `None` is the default of the MWA ASVO API.
             job_state: Only the jobs in this state. The server takes one
                 state; to filter by several, use `AsvoJobVec.filter`.
-            job_type: Only the jobs of this type. `AsvoJobType.Unknown`
-                cannot be filtered by.
+            job_type: Only the jobs of this type.
             date_from: Only the jobs created at or after this time. It must
                 have a time zone.
             date_to: Only the jobs created at or before this time. It must
@@ -134,8 +133,7 @@ class AsvoClient:
                 `None` uses the server's default order.
 
         Raises:
-            ValueError: `days` is not from 1 to 30, or `job_type` cannot be
-                filtered by.
+            ValueError: `days` is not from 1 to 30.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
@@ -143,7 +141,7 @@ class AsvoClient:
         self,
         job_ids: typing.Sequence[builtins.int] | None = None,
         obs_ids: typing.Sequence[builtins.int] | None = None,
-        job_types: typing.Sequence[AsvoJobType] | None = None,
+        job_types: typing.Sequence[JobType] | None = None,
         job_states: typing.Sequence[JobState] | None = None,
         *,
         days: builtins.int | None = None,
@@ -730,9 +728,9 @@ class AsvoJob:
         The obsid.
         """
     @property
-    def job_type(self) -> AsvoJobType:
+    def job_type(self) -> JobType | None:
         r"""
-        The job type.
+        The job type, or `None` if the server gives none.
         """
     @property
     def job_state(self) -> JobState:
@@ -820,7 +818,7 @@ class AsvoJobVec:
         self,
         job_ids: typing.Sequence[builtins.int] | None = None,
         obs_ids: typing.Sequence[builtins.int] | None = None,
-        job_types: typing.Sequence[AsvoJobType] | None = None,
+        job_types: typing.Sequence[JobType] | None = None,
         job_states: typing.Sequence[JobState] | None = None,
     ) -> AsvoJobVec:
         r"""
@@ -941,21 +939,6 @@ class JobSubmittedResponse:
         """
 
 @typing.final
-class AsvoJobType(enum.Enum):
-    r"""
-    The type of an MWA ASVO job.
-    """
-
-    Conversion = ...
-    DownloadVisibilities = ...
-    DownloadMetadata = ...
-    DownloadVoltage = ...
-    CancelJob = ...
-    DownloadBeamformer = ...
-    Imaging = ...
-    Unknown = ...
-
-@typing.final
 class Centre(enum.Enum):
     r"""
     Where to put the phase centre of a conversion job or an imaging job.
@@ -1006,6 +989,22 @@ class JobState(enum.Enum):
     Completed = ...
     Error = ...
     Cancelled = ...
+
+@typing.final
+class JobType(enum.Enum):
+    r"""
+    The type of an MWA ASVO job: the OpenAPI schema's `JobType`, whose value
+    is the API's code (for example `JobType.Visibility` is 1). `str()` is the
+    name that the schema gives the code (for example "visibility").
+    """
+
+    Conversion = ...
+    Visibility = ...
+    Metadata = ...
+    Voltage = ...
+    Cancel = ...
+    Beamformer = ...
+    Imaging = ...
 
 @typing.final
 class Output(enum.Enum):

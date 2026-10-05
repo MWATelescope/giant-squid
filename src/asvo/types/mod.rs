@@ -6,9 +6,9 @@
 
 use jiff::Timestamp;
 use serde::Serialize;
-use std::{collections::BTreeMap, str::FromStr};
+use std::collections::BTreeMap;
 
-use crate::asvo::apiv2::openapi::JobState;
+use crate::asvo::apiv2::openapi::{JobState, JobType};
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
@@ -20,71 +20,71 @@ fn _sanitize_identifier(s: &str) -> String {
     sanitized
 }
 
-/// All of the available types of ASVO jobs.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone, Copy)]
-pub enum AsvoJobType {
-    Conversion,
-    DownloadVisibilities,
-    DownloadMetadata,
-    DownloadVoltage,
-    CancelJob,
-    DownloadBeamformer,
-    Imaging,
-    Unknown,
-}
-
-/// The names of the job types that a caller can ask for, with the type of
-/// each, in the order that the help of the commands lists them.
-/// [`AsvoJobType::Unknown`] has no name: it stands for a job type that the
-/// MWA ASVO has and this version does not.
-const JOB_TYPE_NAMES: [(&str, AsvoJobType); 7] = [
-    ("conversion", AsvoJobType::Conversion),
-    ("download_visibilities", AsvoJobType::DownloadVisibilities),
-    ("download_metadata", AsvoJobType::DownloadMetadata),
-    ("download_voltages", AsvoJobType::DownloadVoltage),
-    ("download_beamformer", AsvoJobType::DownloadBeamformer),
-    ("imaging", AsvoJobType::Imaging),
-    ("cancel_job", AsvoJobType::CancelJob),
+/// The job types of the OpenAPI schema: each `JobType` code, with the name
+/// that the schema gives it. The schema's `JobType` is only an integer; the
+/// names are in the description of the `job_type` fields ("0=conversion,
+/// 1=visibility, ..."). A test checks this table against the schema.
+const JOB_TYPE_NAMES: [(i64, &str); 7] = [
+    (0, "conversion"),
+    (1, "visibility"),
+    (2, "metadata"),
+    (3, "voltage"),
+    (4, "cancel"),
+    (5, "beamformer"),
+    (6, "imaging"),
 ];
 
-/// Names of job types that are accepted but not listed by
-/// [`AsvoJobType::names`]: the singular form of `download_voltages`.
-const JOB_TYPE_ALIASES: [(&str, AsvoJobType); 1] =
-    [("download_voltage", AsvoJobType::DownloadVoltage)];
-
-impl AsvoJobType {
-    /// The names of the job types that a caller can ask for (for example in
-    /// `list --job-types`), in the order that the help lists them.
-    /// [`AsvoJobType::Unknown`] has no name. [`FromStr`] accepts every name
-    /// in this list, and also `download_voltage`.
-    pub fn names() -> Vec<&'static str> {
-        JOB_TYPE_NAMES.iter().map(|(name, _)| *name).collect()
+impl JobType {
+    /// The name of the job type, for example `visibility`.
+    pub fn name(&self) -> &'static str {
+        JOB_TYPE_NAMES
+            .iter()
+            .find(|(code, _)| *code == **self)
+            .map(|(_, name)| *name)
+            .expect("every JobType code of the schema is in JOB_TYPE_NAMES")
     }
-}
 
-/// Parses the name of a job type: the case, spaces, hyphens and underscores
-/// do not matter, so `download_visibilities` and `DownloadVisibilities` are
-/// the same type. `download_voltage` and `download_voltages` both give
-/// [`AsvoJobType::DownloadVoltage`].
-///
-/// # Errors
-///
-/// [`AsvoError::InvalidJobType`] for any other text, including "unknown":
-/// [`AsvoJobType::Unknown`] stands for a job type that the MWA ASVO has and
-/// this version does not, so it has no name to ask for. (Before 3.0.0 any
-/// other text gave `Unknown`, so a misspelt name in `list --job-types`
-/// quietly matched no job.)
-impl FromStr for AsvoJobType {
-    type Err = AsvoError;
+    /// The names of the job types, in the order of their codes.
+    /// [`JobType::parse_name`] accepts each of them.
+    pub fn names() -> Vec<&'static str> {
+        JOB_TYPE_NAMES.iter().map(|(_, name)| *name).collect()
+    }
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    /// Parse the name of a job type, as a user types it: the case, spaces,
+    /// hyphens and underscores do not matter.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoError::InvalidJobType`] for any other text.
+    pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
         let wanted = _sanitize_identifier(s);
         JOB_TYPE_NAMES
             .iter()
-            .chain(JOB_TYPE_ALIASES.iter())
-            .find(|(name, _)| _sanitize_identifier(name) == wanted)
-            .map(|(_, job_type)| *job_type)
+            .find(|(_, name)| _sanitize_identifier(name) == wanted)
+            .and_then(|(code, _)| JobType::try_from(*code).ok())
             .ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
+    }
+}
+
+/// The name of the job type (see [`JobType::name`]).
+impl std::fmt::Display for JobType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+// The generated `JobType` derives only `Clone` and `Debug`. It is an
+// integer, so it compares, hashes and copies as one.
+impl PartialEq for JobType {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+impl Eq for JobType {}
+impl Copy for JobType {}
+impl std::hash::Hash for JobType {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
     }
 }
 
@@ -132,7 +132,7 @@ impl JobState {
 
     /// Parse the name of a job state, as a user types it: the case,
     /// spaces, hyphens and underscores do not matter, so `WAIT-CAL` and
-    /// `waitcal` are the same state. (The schema's own [`FromStr`] accepts
+    /// `waitcal` are the same state. (The schema's own `FromStr` accepts
     /// only the exact value.)
     ///
     /// # Errors
@@ -187,7 +187,8 @@ pub type AsvoJobId = u64;
 pub struct AsvoJob {
     pub obs_id: ObsId,
     pub job_id: AsvoJobId,
-    pub job_type: AsvoJobType,
+    /// The job's type, or `None` if the server gives none.
+    pub job_type: Option<JobType>,
     /// The job's state, the schema's `JobState`. For a job in the `Error`
     /// state, the message is [`AsvoJob::error_text`].
     pub job_state: JobState,
@@ -286,19 +287,20 @@ impl AsvoJobVec {
     ///
     /// - `job_ids`: the job ID is one of these.
     /// - `obs_ids`: the obsid is one of these.
-    /// - `job_types`: the job type is one of these.
+    /// - `job_types`: the job type is one of these. A job with no type does
+    ///   not match.
     /// - `states`: the job state is one of these.
     pub fn filter(
         self,
         job_ids: &[AsvoJobId],
         obs_ids: &[ObsId],
-        job_types: &[AsvoJobType],
+        job_types: &[JobType],
         states: &[JobState],
     ) -> Self {
         self.retain(|j| {
             (job_ids.is_empty() || job_ids.contains(&j.job_id))
                 && (obs_ids.is_empty() || obs_ids.contains(&j.obs_id))
-                && (job_types.is_empty() || job_types.contains(&j.job_type))
+                && (job_types.is_empty() || j.job_type.is_some_and(|t| job_types.contains(&t)))
                 && (states.is_empty() || states.contains(&j.job_state))
         })
     }
@@ -330,25 +332,6 @@ impl From<AsvoJobVec> for AsvoJobMap {
 }
 
 // Boring Display methods.
-impl std::fmt::Display for AsvoJobType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                AsvoJobType::Conversion => "Conversion",
-                AsvoJobType::DownloadVisibilities => "Download Visibilities",
-                AsvoJobType::DownloadMetadata => "Download Metadata",
-                AsvoJobType::DownloadVoltage => "Download Voltage",
-                AsvoJobType::DownloadBeamformer => "Download Beamformer",
-                AsvoJobType::CancelJob => "Cancel Job",
-                AsvoJobType::Imaging => "Imaging",
-                AsvoJobType::Unknown => "Unknown",
-            }
-        )
-    }
-}
-
 impl std::fmt::Display for AsvoJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -356,7 +339,7 @@ impl std::fmt::Display for AsvoJob {
             "Job ID: {job_id}, obsid: {obs_id}, type: {type}, state: {state}, product_array: {files:?}",
             obs_id=self.obs_id,
             job_id=self.job_id,
-            type=self.job_type,
+            type=self.job_type.map(|t| t.name()).unwrap_or_default(),
             state=self.job_state,
             files=self.product.as_ref().map(|p| &p.files),
         )

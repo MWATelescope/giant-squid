@@ -8,7 +8,7 @@
 //! This is separate from `src/test_common.rs` because that file is also
 //! compiled into `tests/cli.rs` and so must use no `crate::` items.
 
-use crate::asvo::AsvoClientConfig;
+use crate::asvo::{AsvoClientConfig, JobType};
 use crate::test_common::{TestEnv, TEST_API_TIMEOUT};
 
 /// A client config for the mock server in `env`, with the token cache in
@@ -18,4 +18,9 @@ pub fn client_config(env: &TestEnv) -> AsvoClientConfig {
     config.api_timeout = TEST_API_TIMEOUT;
     config.token_cache_path = Some(env.token_cache_path());
     config
+}
+
+/// The job type with the schema name `name` (for example `visibility`).
+pub fn job_type(name: &str) -> JobType {
+    JobType::parse_name(name).expect("a test job type should be a schema name")
 }

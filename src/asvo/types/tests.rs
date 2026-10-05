@@ -5,6 +5,7 @@
 //! Tests for [`super`] ASVO data types.
 
 use super::*;
+use crate::test_config::job_type;
 
 /// An obsid used by these tests.
 const OBS_ID: u64 = 1065880128;
@@ -25,108 +26,87 @@ fn test_created() -> jiff::Timestamp {
         .expect("a valid time")
 }
 
-/// Every job type with a name is parsed from its name in any case and
-/// spelling of the separators.
+/// The schema, for the checks of the job type names.
+const SCHEMA: &str = include_str!("../apiv2/openapi-schema.json");
+
+/// The job type names are those that the schema gives the codes, in the
+/// description of `JobDetailResponse.job_type` ("0=conversion, 1=visibility,
+/// ..."), and every code of the schema's `JobType` has one.
 #[test]
-fn a_job_type_is_parsed_from_its_name() {
-    let cases = [
-        ("conversion", AsvoJobType::Conversion),
-        ("download_visibilities", AsvoJobType::DownloadVisibilities),
-        ("DownloadVisibilities", AsvoJobType::DownloadVisibilities),
-        ("download-metadata", AsvoJobType::DownloadMetadata),
-        ("download_voltages", AsvoJobType::DownloadVoltage),
-        ("download_voltage", AsvoJobType::DownloadVoltage),
-        ("DOWNLOAD VOLTAGE", AsvoJobType::DownloadVoltage),
-        ("download_beamformer", AsvoJobType::DownloadBeamformer),
-        ("cancel_job", AsvoJobType::CancelJob),
-        ("imaging", AsvoJobType::Imaging),
-    ];
-    for (name, expected) in cases {
-        assert_eq!(name.parse::<AsvoJobType>().ok(), Some(expected), "{name}");
+fn the_job_type_names_are_the_schema_names() {
+    let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
+    let definitions = &schema["definitions"];
+    let description = definitions["JobDetailResponse"]["properties"]["job_type"]["description"]
+        .as_str()
+        .expect("job_type has a description");
+    let codes: Vec<i64> = definitions["JobType"]["enum"]
+        .as_array()
+        .expect("JobType is an enum of codes")
+        .iter()
+        .map(|code| code.as_i64().expect("a code is an integer"))
+        .collect();
+
+    let names = JobType::names();
+    assert_eq!(names.len(), codes.len());
+    for code in codes {
+        let job_type = JobType::try_from(code).expect("a schema code is a JobType");
+        let in_schema = format!("{code}={}", job_type.name());
+        assert!(
+            description.contains(&in_schema),
+            "{in_schema} is not in the schema's description: {description}"
+        );
     }
 }
 
-/// Text that is not a job type is an error. "unknown" is one: `Unknown` is
-/// for the job types of a newer server, and cannot be asked for.
+/// The names are listed in the order of their codes.
+#[test]
+fn the_job_type_names_are_listed_in_order() {
+    assert_eq!(
+        JobType::names(),
+        [
+            "conversion",
+            "visibility",
+            "metadata",
+            "voltage",
+            "cancel",
+            "beamformer",
+            "imaging",
+        ]
+    );
+}
+
+/// Each name parses to its type, in any case and spelling of the separators.
+#[test]
+fn a_job_type_is_parsed_from_its_name() {
+    for name in JobType::names() {
+        let job_type = JobType::parse_name(name).expect("a listed name should parse");
+        assert_eq!(job_type.name(), name);
+        assert_eq!(job_type.to_string(), name);
+    }
+    assert_eq!(
+        JobType::parse_name("VISIBILITY").ok(),
+        JobType::parse_name("visibility").ok()
+    );
+}
+
+/// Text that is not a job type is an error. The names before 3.0.0 (for
+/// example `download_visibilities`) are not job types of the schema, and
+/// neither is `unknown`.
 #[test]
 fn text_that_is_not_a_job_type_is_an_error() {
-    for text in ["", "convertion", "unknown", "download", "downloadvoltagess"] {
-        let err = text
-            .parse::<AsvoJobType>()
-            .expect_err("this is not a job type");
+    for text in [
+        "",
+        "convertion",
+        "unknown",
+        "download_visibilities",
+        "cancel_job",
+    ] {
+        let err = JobType::parse_name(text).expect_err("this is not a job type");
         assert!(
             matches!(&err, AsvoError::InvalidJobType { str } if str == text),
             "{text}: {err:?}"
         );
     }
-}
-
-/// Every job type. The `match` stops compiling when a type is added, so a
-/// new type cannot be left out of the tests of the names.
-fn every_job_type() -> [AsvoJobType; 8] {
-    let _all_types_are_listed: fn(AsvoJobType) = |job_type| match job_type {
-        AsvoJobType::Conversion
-        | AsvoJobType::DownloadVisibilities
-        | AsvoJobType::DownloadMetadata
-        | AsvoJobType::DownloadVoltage
-        | AsvoJobType::CancelJob
-        | AsvoJobType::DownloadBeamformer
-        | AsvoJobType::Imaging
-        | AsvoJobType::Unknown => (),
-    };
-    [
-        AsvoJobType::Conversion,
-        AsvoJobType::DownloadVisibilities,
-        AsvoJobType::DownloadMetadata,
-        AsvoJobType::DownloadVoltage,
-        AsvoJobType::CancelJob,
-        AsvoJobType::DownloadBeamformer,
-        AsvoJobType::Imaging,
-        AsvoJobType::Unknown,
-    ]
-}
-
-/// The list of job type names is in the order that the help shows it, with
-/// the plural `download_voltages`.
-#[test]
-fn the_job_type_names_are_listed_in_order() {
-    assert_eq!(
-        AsvoJobType::names(),
-        [
-            "conversion",
-            "download_visibilities",
-            "download_metadata",
-            "download_voltages",
-            "download_beamformer",
-            "imaging",
-            "cancel_job",
-        ]
-    );
-}
-
-/// Every job type except `Unknown` has exactly one name in the list, and
-/// each name parses to its type.
-#[test]
-fn every_job_type_but_unknown_has_one_name() {
-    let names = AsvoJobType::names();
-    for job_type in every_job_type() {
-        let named_so: Vec<_> = names
-            .iter()
-            .filter(|name| name.parse::<AsvoJobType>().ok() == Some(job_type))
-            .collect();
-        let expected = usize::from(job_type != AsvoJobType::Unknown);
-        assert_eq!(named_so.len(), expected, "{job_type:?}: {named_so:?}");
-    }
-}
-
-/// `download_voltage` is accepted, and is not listed.
-#[test]
-fn the_singular_voltage_type_is_accepted_and_not_listed() {
-    assert!(!AsvoJobType::names().contains(&"download_voltage"));
-    assert_eq!(
-        "download_voltage".parse::<AsvoJobType>().ok(),
-        Some(AsvoJobType::DownloadVoltage)
-    );
 }
 
 /// The job state names are the schema's values, in the schema's order.
@@ -196,7 +176,7 @@ fn job(job_id: AsvoJobId, state: JobState) -> AsvoJob {
     AsvoJob {
         obs_id: ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
         job_id,
-        job_type: AsvoJobType::DownloadVisibilities,
+        job_type: Some(job_type("visibility")),
         job_state: state,
         product: None,
         created: test_created(),
@@ -331,11 +311,11 @@ fn all_ready_reports_the_first_failure_in_the_order_asked() {
 }
 
 /// A job with the given ID, obsid, type and state, for the filter tests.
-fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: AsvoJobType, state: JobState) -> AsvoJob {
+fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: JobType, state: JobState) -> AsvoJob {
     AsvoJob {
         obs_id: ObsId::validate(obs_id).expect("the test obsid should be valid"),
         job_id,
-        job_type,
+        job_type: Some(job_type),
         job_state: state,
         product: None,
         created: test_created(),
@@ -357,21 +337,16 @@ fn mixed_jobs() -> AsvoJobVec {
         job_with(
             JOB_ID_A,
             OBS_ID,
-            AsvoJobType::Conversion,
+            job_type("conversion"),
             JobState::Completed,
         ),
         job_with(
             JOB_ID_B,
             OTHER_OBS_ID,
-            AsvoJobType::DownloadVisibilities,
+            job_type("visibility"),
             JobState::Error,
         ),
-        job_with(
-            JOB_ID_C,
-            OBS_ID,
-            AsvoJobType::DownloadMetadata,
-            JobState::Queued,
-        ),
+        job_with(JOB_ID_C, OBS_ID, job_type("metadata"), JobState::Queued),
     ])
 }
 
@@ -401,7 +376,7 @@ fn filter_by_obs_id() {
 
 #[test]
 fn filter_by_job_type() {
-    let jobs = mixed_jobs().filter(&[], &[], &[AsvoJobType::DownloadMetadata], &[]);
+    let jobs = mixed_jobs().filter(&[], &[], &[job_type("metadata")], &[]);
     assert_eq!(ids(&jobs), vec![JOB_ID_C]);
 }
 

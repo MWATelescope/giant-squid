@@ -396,7 +396,7 @@ fn try_download(
     info!(
         "{} Download starting (type: {}, {})",
         log_prefix,
-        job.job_type,
+        job.job_type.map(|t| t.name()).unwrap_or_default(),
         bytesize::ByteSize(file_info.size).display().iec(),
     );
 

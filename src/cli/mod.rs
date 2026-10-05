@@ -24,7 +24,7 @@ use jiff::Timestamp;
 
 use crate::asvo::apiv2::validate;
 use crate::asvo::DEFAULT_CONCURRENT_DOWNLOADS;
-use crate::asvo::{AsvoJobType, JobState};
+use crate::asvo::{JobState, JobType};
 use params::{
     list_days_default, parse_i64_bounds, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
@@ -52,10 +52,7 @@ fn job_states_help() -> String {
 /// The help of `list --job-types`: the text above and the job types that the
 /// library accepts.
 fn job_types_help() -> String {
-    format!(
-        "{JOB_TYPES_HELP} Options: {}",
-        AsvoJobType::names().join(", ")
-    )
+    format!("{JOB_TYPES_HELP} Options: {}", JobType::names().join(", "))
 }
 
 const ABOUT: &str = r#"An alternative, efficient and easy-to-use MWA ASVO client.
@@ -89,8 +86,8 @@ pub enum Args {
         job_states: Vec<JobState>,
 
         // The help is built from the library's names (see `job_types_help`).
-        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', help = job_types_help())]
-        job_types: Vec<AsvoJobType>,
+        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', value_parser = JobType::parse_name, help = job_types_help())]
+        job_types: Vec<JobType>,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example
         #[arg(short, long)]

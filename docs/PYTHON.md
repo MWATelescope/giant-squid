@@ -133,11 +133,11 @@ for job in jobs:
 states. The server does what it can, and the module filters the rest:
 
 ```python
-from mwa_giant_squid import AsvoJobType, JobState
+from mwa_giant_squid import JobState, JobType
 
 jobs = client.list_jobs(
     obs_ids=[1065880128, 1065880248],
-    job_types=[AsvoJobType.DownloadVisibilities],
+    job_types=[JobType.Visibility],
     job_states=[JobState.Completed, JobState.Error],
 )
 ```

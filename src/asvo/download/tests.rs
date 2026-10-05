@@ -941,9 +941,10 @@ mod retries {
         is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
     };
-    use crate::asvo::{AsvoError, AsvoFilesArray, AsvoJob, AsvoJobType, Delivery, JobState};
+    use crate::asvo::{AsvoError, AsvoFilesArray, AsvoJob, Delivery, JobState};
     use crate::obs_id::ObsId;
     use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
+    use crate::test_config::job_type;
 
     /// The members of the test archive. Their sizes are not whole blocks,
     /// so each member has padding, and the middle one spans several blocks.
@@ -1070,7 +1071,7 @@ mod retries {
             obs_id: ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
                 .expect("the test obsid should be valid"),
             job_id: TEST_JOB_ID,
-            job_type: AsvoJobType::DownloadVisibilities,
+            job_type: Some(job_type("visibility")),
             job_state: JobState::Completed,
             product: None,
             created: jiff::Timestamp::UNIX_EPOCH,

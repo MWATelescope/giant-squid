@@ -20,9 +20,7 @@ use std::collections::BTreeMap;
 use jiff::Timestamp;
 use serde::Serialize;
 
-use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobType, AsvoJobVec, Delivery, JobState,
-};
+use crate::asvo::{AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobVec, Delivery, JobState, JobType};
 use crate::obs_id::ObsId;
 
 /// The warning logged (to stderr, like every log record) when
@@ -85,6 +83,21 @@ impl<'a> LegacyState<'a> {
     }
 }
 
+/// A job type, as the old format wrote it (for example
+/// `DownloadVisibilities`). A job with no type was `Unknown`.
+fn legacy_job_type(job_type: Option<JobType>) -> &'static str {
+    match job_type.map(|t| t.name()) {
+        Some("conversion") => "Conversion",
+        Some("visibility") => "DownloadVisibilities",
+        Some("metadata") => "DownloadMetadata",
+        Some("voltage") => "DownloadVoltage",
+        Some("cancel") => "CancelJob",
+        Some("beamformer") => "DownloadBeamformer",
+        Some("imaging") => "Imaging",
+        _ => "Unknown",
+    }
+}
+
 /// One job, with the old keys. The field order is the old key order.
 #[derive(Serialize)]
 struct LegacyJob<'a> {
@@ -92,7 +105,7 @@ struct LegacyJob<'a> {
     #[serde(rename = "jobId")]
     job_id: AsvoJobId,
     #[serde(rename = "jobType")]
-    job_type: &'a AsvoJobType,
+    job_type: &'static str,
     #[serde(rename = "jobState")]
     job_state: LegacyState<'a>,
     files: Option<Vec<LegacyFile<'a>>>,
@@ -116,7 +129,7 @@ impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
         Self {
             obsid: &job.obs_id,
             job_id: job.job_id,
-            job_type: &job.job_type,
+            job_type: legacy_job_type(job.job_type),
             job_state: LegacyState::of(job),
             // The old format had the file list at the top level.
             files: job

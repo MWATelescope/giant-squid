@@ -24,8 +24,8 @@ use super::params::{
 };
 use super::typed::ProgressCallback;
 use super::types::{
-    PyAsvoJobType, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobState,
-    PyJobSubmittedResponse, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
+    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobState, PyJobSubmittedResponse,
+    PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
 use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
@@ -89,8 +89,7 @@ impl PyAsvoClient {
     ///         `None` is the default of the MWA ASVO API.
     ///     job_state: Only the jobs in this state. The server takes one
     ///         state; to filter by several, use `AsvoJobVec.filter`.
-    ///     job_type: Only the jobs of this type. `AsvoJobType.Unknown`
-    ///         cannot be filtered by.
+    ///     job_type: Only the jobs of this type.
     ///     date_from: Only the jobs created at or after this time. It must
     ///         have a time zone.
     ///     date_to: Only the jobs created at or before this time. It must
@@ -99,8 +98,7 @@ impl PyAsvoClient {
     ///         `None` uses the server's default order.
     ///
     /// Raises:
-    ///     ValueError: `days` is not from 1 to 30, or `job_type` cannot be
-    ///         filtered by.
+    ///     ValueError: `days` is not from 1 to 30.
     ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (days=None, *, job_state=None, job_type=None, date_from=None, date_to=None, sort_by=None))]
@@ -110,7 +108,7 @@ impl PyAsvoClient {
         py: Python<'_>,
         days: Option<i64>,
         job_state: Option<PyJobState>,
-        job_type: Option<PyAsvoJobType>,
+        job_type: Option<PyJobType>,
         date_from: Option<Timestamp>,
         date_to: Option<Timestamp>,
         sort_by: Option<String>,
@@ -167,7 +165,7 @@ impl PyAsvoClient {
         py: Python<'_>,
         job_ids: Option<Vec<AsvoJobId>>,
         obs_ids: Option<Vec<u64>>,
-        job_types: Option<Vec<PyAsvoJobType>>,
+        job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
         days: Option<i64>,
         date_from: Option<Timestamp>,

@@ -94,7 +94,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     ready = jobs[0]
     assert ready.job_id == JOB_ID_READY
     assert ready.obs_id == TEST_OBS_ID
-    assert ready.job_type == gs.AsvoJobType.DownloadVisibilities
+    assert ready.job_type == gs.JobType.Visibility
     assert ready.job_state == gs.JobState.Completed
     assert ready.error_text is None
     assert ready.error_code is None
@@ -134,7 +134,7 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     assert len(jobs.filter()) == len(mixed_jobs())
     assert [j.job_id for j in jobs.filter(job_ids=[JOB_ID_QUEUED])] == [JOB_ID_QUEUED]
     assert len(jobs.filter(obs_ids=[TEST_OBS_ID])) == len(mixed_jobs())
-    assert len(jobs.filter(job_types=[gs.AsvoJobType.Conversion])) == 0
+    assert len(jobs.filter(job_types=[gs.JobType.Conversion])) == 0
     errors_and_ready = jobs.filter(job_states=[gs.JobState.Error, gs.JobState.Completed])
     assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
     with pytest.raises(ValueError, match="obsid"):
@@ -256,10 +256,36 @@ def test_one_client_can_be_used_from_several_threads(host: str, serve_jobs: Call
     assert counts == [len(mixed_jobs())] * THREADS
 
 
+def test_every_job_type_is_a_schema_code_with_its_name() -> None:
+    """Each JobType member is a schema code, in code order, and str() is the schema's name for it."""
+    members = [
+        gs.JobType.Conversion,
+        gs.JobType.Visibility,
+        gs.JobType.Metadata,
+        gs.JobType.Voltage,
+        gs.JobType.Cancel,
+        gs.JobType.Beamformer,
+        gs.JobType.Imaging,
+    ]
+
+    assert all(member == code for code, member in enumerate(members))
+    assert [str(member) for member in members] == [
+        "conversion",
+        "visibility",
+        "metadata",
+        "voltage",
+        "cancel",
+        "beamformer",
+        "imaging",
+    ]
+
+
 def test_the_enums_have_readable_names() -> None:
-    """str() of a JobState member is the schema's value."""
+    """str() of a JobState member is the schema's value; a JobType member is its code, and str() is its name."""
     assert str(gs.JobState.Completed) == "completed"
     assert str(gs.JobState.Waitcal) == "waitcal"
+    assert str(gs.JobType.Visibility) == "visibility"
+    assert gs.JobType.Visibility == VISIBILITY_JOB_TYPE_NUMBER
     assert gs.JobState.Completed != gs.JobState.Queued
 
 
@@ -304,6 +330,8 @@ FILTER_FROM = datetime.datetime(2026, 9, 1, tzinfo=datetime.timezone.utc)
 FILTER_TO = datetime.datetime(2026, 9, 30, tzinfo=datetime.timezone.utc)
 FILTER_SORT = "created"
 IMAGING_JOB_TYPE_NUMBER = 6
+# The code of the visibility download job type.
+VISIBILITY_JOB_TYPE_NUMBER = 1
 
 
 def get_jobs_body(httpserver: HTTPServer) -> dict[str, Any]:
@@ -329,7 +357,7 @@ def test_get_jobs_sends_every_filter_to_the_server(
     gs.AsvoClient(host, TEST_API_KEY).get_jobs(
         FILTER_DAYS,
         job_state=gs.JobState.Completed,
-        job_type=gs.AsvoJobType.Imaging,
+        job_type=gs.JobType.Imaging,
         date_from=FILTER_FROM,
         date_to=FILTER_TO,
         sort_by=FILTER_SORT,
@@ -356,25 +384,6 @@ def test_get_jobs_with_no_filter_sends_none(host: str, httpserver: HTTPServer, s
     assert body["sort_by"] == "id"
     for key in ("job_state", "job_type", "date_from", "date_to"):
         assert key not in body
-
-
-@pytest.mark.usefixtures("mock_login")
-@pytest.mark.parametrize(
-    "kwargs",
-    [{"job_type": gs.AsvoJobType.Unknown}],
-    ids=["unknown"],
-)
-def test_get_jobs_refuses_a_filter_the_api_does_not_have(
-    host: str, httpserver: HTTPServer, kwargs: dict[str, Any]
-) -> None:
-    """A type that the API cannot filter by raises ValueError, and nothing is listed."""
-    client = gs.AsvoClient(host, TEST_API_KEY)
-    requests_before = len(httpserver.log)
-
-    with pytest.raises(ValueError, match="cannot filter by"):
-        client.get_jobs(**kwargs)
-
-    assert len(httpserver.log) == requests_before
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -471,7 +480,7 @@ def test_list_jobs_sends_a_single_state_and_type_to_the_server(
     serve_jobs(three_jobs())
 
     jobs = gs.AsvoClient(host, TEST_API_KEY).list_jobs(
-        job_states=[gs.JobState.Queued], job_types=[gs.AsvoJobType.Imaging], days=FILTER_DAYS
+        job_states=[gs.JobState.Queued], job_types=[gs.JobType.Imaging], days=FILTER_DAYS
     )
 
     body = get_jobs_body(httpserver)

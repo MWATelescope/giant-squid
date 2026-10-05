@@ -214,10 +214,24 @@ The other states have the same names, in lower case in the JSON (for
 example `queued`). `preparing` and `imaging` are new. The names are still
 case insensitive. `giant-squid list --help` lists them.
 
+**The job type names are the API's.** The MWA ASVO API gives each job type a
+code and a name. `--job-types` takes the names, and the table shows them. The
+JSON shows the code:
+
+| 2.x name | 2.x JSON | 3.0.0 name | 3.0.0 JSON |
+|---|---|---|---|
+| `conversion` | `Conversion` | `conversion` | `0` |
+| `download_visibilities` | `DownloadVisibilities` | `visibility` | `1` |
+| `download_metadata` | `DownloadMetadata` | `metadata` | `2` |
+| `download_voltages` | `DownloadVoltage` | `voltage` | `3` |
+| `cancel_job` | `CancelJob` | `cancel` | `4` |
+| `download_beamformer` | `DownloadBeamformer` | `beamformer` | `5` |
+| `imaging` | `Imaging` | `imaging` | `6` |
+| none | `Unknown` | none | `null` (the server gave no type) |
+
 `--job-types` now refuses text that is not a job type, with an error that
-names it. In 2.x any other text (a misspelt name, for example) was accepted and
-matched no job, so the list was empty. `--job-types` also takes
-`download_voltage`, as well as `download_voltages`.
+names it. This includes the 2.x names. In 2.x any other text (a misspelt name,
+for example) was accepted and matched no job, so the list was empty.
 
 ## Waiting and cancelling (`wait`, `cancel`)
 
@@ -270,8 +284,8 @@ more of them:
 New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
 value of `job_state` is the API's (for example `completed`, see the table in
-the previous section). The value of `job_type` is unchanged (for example
-`DownloadVisibilities`).
+the previous section). The value of `job_type` is the API's code (for example
+`1` for a visibility download).
 
 To update a `jq` command, change the key names. The 2.x README example:
 
@@ -281,7 +295,7 @@ giant-squid list --json --types download_visibilities --states ready \
   | jq -r '.[]|[.jobId,.files[0].fileUrl//"",.files[0].fileSize//"",.files[0].fileHash//""]|@tsv'
 
 # 3.0.0
-giant-squid list --json --job-types download_visibilities --job-states completed \
+giant-squid list --json --job-types visibility --job-states completed \
   | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
 ```
 

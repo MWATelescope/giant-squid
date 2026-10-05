@@ -1315,7 +1315,7 @@ caller's own dry run). A builder's name is its submit method's name without
 `submit_`, plus `_params` (for example `imaging_job_params`).
 
 Types: `AsvoJob`, `AsvoJobVec` (iterable, with `filter` and `json`),
-`AsvoFilesArray`, `JobSubmittedResponse`, and the enums `AsvoJobType`,
+`AsvoFilesArray`, `JobSubmittedResponse`, and the enums `JobType` and
 `JobState` (the schema's), `Delivery`, `DeliveryFormat`, `Output`, and others.
 For a `JobState.Error` job, the message is in `AsvoJob.error_text`.
 

@@ -770,7 +770,7 @@ Options:
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled
-      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, download_visibilities, download_metadata, download_voltages, download_beamformer, imaging, cancel_job
+      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, visibility, metadata, voltage, cancel, beamformer, imaging
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30) [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
@@ -794,7 +794,7 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":"DownloadVisibilities","job_state":"completed","product":{"files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
+{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":1,"job_state":"completed","product":{"files":[{"type":"Acacia","url":"https://...","path":null,"size":10762878689,"sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","format":"tar"}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
 ```
 
 The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
@@ -811,16 +811,18 @@ full list. For one release, `--legacy-json` (on `list` and `wait`) prints the ol
 a warning on stderr. It will be removed in the release after 3.0.0, so update scripts to the new
 keys.
 
-`job_type` is any of:
+`job_type` is the MWA ASVO API's code for the job type, or `null` if the server gives none. The table
+and `--job-types` use the API's name for each code:
 
-- `Conversion`
-- `DownloadVisibilities`
-- `DownloadMetadata`
-- `DownloadVoltage`
-- `CancelJob`
-- `DownloadBeamformer`
-- `Imaging`
-- `Unknown`
+| Code | Name |
+|---|---|
+| 0 | `conversion` |
+| 1 | `visibility` |
+| 2 | `metadata` |
+| 3 | `voltage` |
+| 4 | `cancel` |
+| 5 | `beamformer` |
+| 6 | `imaging` |
 
 `job_state` is the MWA ASVO API's value, one of `preparing`, `queued`, `waitcal`, `staging`, `staged`,
 `downloading`, `preprocessing`, `imaging`, `delivering`, `completed`, `error` or `cancelled`. A job is
@@ -858,19 +860,19 @@ shown in `--help`, so `list` shows your recent jobs and not your full history), 
 `2026-09-01T12:00:00Z`) limit the listing by when the jobs were created, and `--sort-by` sets the
 order.
 
-These both take a comma-separated, case-insensitive list of values from the `job_type` and
-`job_state` lists above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
+These both take a comma-separated, case-insensitive list of the job type names and job states
+above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
 `kebab-case`, `snake_case`, or even `SPoNgeBOb-CAse`
 
 example: show only jobs that match both of the following conditions:
 
 - obsid is `1234567890` or `1234567891`
-- job_type is `DownloadVisibilities`, `DownloadMetadata` or `CancelJob`
+- job_type is `visibility`, `metadata` or `cancel`
 - job_state is `Preprocessing` or `Queued`
 
 ```bash
 giant-squid list \
-   --job-types download_visibilities,download-metadata,CANCELJOB \
+   --job-types visibility,Metadata,CANCEL \
    --job-states preprocessing, Queued \
    1234567890 1234567891
 ```
@@ -883,7 +885,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 
 ```bash
 set -eux
-giant-squid list --json --job-types download_visibilities --job-states completed \
+giant-squid list --json --job-types visibility --job-states completed \
   | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
