@@ -2782,5 +2782,113 @@
         "token": "eyJhbGciOiJSUzI1iIsInR5cCI6IkpXVCJ9..."
       }
     }
+  },
+  "paths": {
+    "/health": [
+      "get"
+    ],
+    "/v2/api_login": [
+      "post"
+    ],
+    "/v2/auth_status": [
+      "get"
+    ],
+    "/v2/beamformer_job": [
+      "post"
+    ],
+    "/v2/calibration_ready": [
+      "post"
+    ],
+    "/v2/conversion_job": [
+      "post"
+    ],
+    "/v2/download_vis_job": [
+      "post"
+    ],
+    "/v2/get_jobs": [
+      "post"
+    ],
+    "/v2/get_socket_token": [
+      "post"
+    ],
+    "/v2/health": [
+      "get"
+    ],
+    "/v2/image_from_job": [
+      "post"
+    ],
+    "/v2/imaging_job": [
+      "post"
+    ],
+    "/v2/job_staged": [
+      "post"
+    ],
+    "/v2/jobs/{job_id}": [
+      "delete",
+      "get"
+    ],
+    "/v2/login": [
+      "post"
+    ],
+    "/v2/logout": [
+      "post"
+    ],
+    "/v2/new_api_key": [
+      "get"
+    ],
+    "/v2/observation/metadata/{obs_id}": [
+      "get"
+    ],
+    "/v2/project_permissions": [
+      "get"
+    ],
+    "/v2/projects_per_pi": [
+      "get"
+    ],
+    "/v2/refresh": [
+      "post"
+    ],
+    "/v2/scheduler/cancel_job/{job_id}": [
+      "get"
+    ],
+    "/v2/scheduler/cancel_jobs": [
+      "post"
+    ],
+    "/v2/scheduler/error_job": [
+      "post"
+    ],
+    "/v2/scheduler/get_job/{job_id}": [
+      "get"
+    ],
+    "/v2/scheduler/jobs_to_cancel": [
+      "post"
+    ],
+    "/v2/scheduler/queued_jobs": [
+      "post"
+    ],
+    "/v2/scheduler/restage_job": [
+      "post"
+    ],
+    "/v2/scheduler/update_job_queue_positions": [
+      "get"
+    ],
+    "/v2/scheduler/update_job_state": [
+      "post"
+    ],
+    "/v2/scheduler/update_priorities": [
+      "post"
+    ],
+    "/v2/scheduler/user_job_count/{user_id}": [
+      "get"
+    ],
+    "/v2/update_profile": [
+      "post"
+    ],
+    "/v2/user": [
+      "get"
+    ],
+    "/v2/voltage_job": [
+      "post"
+    ]
   }
 }
