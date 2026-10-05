@@ -1009,7 +1009,8 @@ $ giant-squid cancel 31 32
 
 With `-j`, `--json`, `cancel` prints the MWA ASVO's reply to each request as one line of JSON on standard
 output (`{"job_id":31,"message":"Job cancelled","status":"success"}`), as the submit commands do. A request
-that the MWA ASVO refuses with an error prints no line.
+that the MWA ASVO refuses with an error prints an error line with the `job_id`: see
+[JSON output and errors](#json-output-and-errors).
 
 The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
 was cancelled:
@@ -1018,7 +1019,7 @@ was cancelled:
   the job (job 32 above). Read the message of each job.
 - If the MWA ASVO refuses a request in any other way (for example, there is no such job), `giant-squid` logs
   `Failed to cancel MWA ASVO job ID N: <reason>` and counts the request as failed. It carries on with the next
-  job, and the exit code is still zero.
+  job. At the end, the exit code is 1 if any request failed.
 
 Like `wait`, `cancel` takes job IDs only: an obsid is an error that names it, and nothing is sent.
 

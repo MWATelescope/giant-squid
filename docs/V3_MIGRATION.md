@@ -275,6 +275,13 @@ afterwards to check the state of the jobs. A request that the MWA ASVO
 refuses with an error is logged as `Failed to cancel MWA ASVO job ID N:
 <reason>` and counted in `failed`.
 
+**The exit code of `cancel` changed.** In 2.x, a request that the MWA ASVO
+refused was skipped without a word, and the exit code was 0. In 3.0.0,
+`cancel` still sends every request, but the exit code is 1 if the MWA ASVO
+refused any of them with an HTTP error. The cancellation of a job that is
+already cancelled is not a failure (exit code 0), because the MWA ASVO
+answers it as normal.
+
 The JSON keys of `wait --json` changed as for `list`: see the next section.
 
 ## JSON output (`list --json`, `wait --json`)
@@ -380,4 +387,4 @@ works best with `HOME` set, so that the file can be used.
 | `submit-volt` | `st` | `--json` added; `--offset` range checked |
 | `submit-bf` | `sb` | `--json` added |
 | `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); obsids refused |
-| `cancel` | `c` | New log lines; obsids refused |
+| `cancel` | `c` | New log lines; obsids refused; exit code 1 when a request is refused |

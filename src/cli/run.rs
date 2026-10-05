@@ -1009,6 +1009,16 @@ fn run(args: Args) -> anyhow::Result<()> {
                     "Cancel requests: {} sent, {} failed.",
                     sent_count, failed_count
                 );
+
+                // A refusal with an HTTP error is a failure, so the run
+                // fails, after every request was sent. (A job that is
+                // already cancelled has a normal reply, which is not.)
+                if failed_count > 0 {
+                    return Err(ReportedFailures(format!(
+                        "{failed_count} of {sent_count} cancel requests failed"
+                    ))
+                    .into());
+                }
             }
         }
     }

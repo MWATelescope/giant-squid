@@ -309,8 +309,8 @@ impl Drop for JobGuard<'_> {
         cmd.arg("cancel").args(&ids);
         let cancel = run(cmd);
 
-        // `cancel` logs a failure for one job and carries on with a zero
-        // exit code, so check what the server now says about each job.
+        // `cancel` logs a failure for one job and carries on (the exit code
+        // is then 1), so check what the server now says about each job.
         let mut list_args = vec!["list", "--json"];
         list_args.extend(ids.iter().map(String::as_str));
         let listing = self.env.run(&list_args);
@@ -708,7 +708,7 @@ fn live_cancelling_an_unknown_job_reports_job_not_found() {
     let env = LiveEnv::new();
 
     let result = env.run(&["cancel", LIVE_UNKNOWN_JOB_ID]);
-    assert!(result.success, "{}", result.combined());
+    assert!(!result.success, "{}", result.combined());
     assert_eq!(
         api_error_code(&result.combined()).as_deref(),
         Some(ERR_JOB_NOT_FOUND),

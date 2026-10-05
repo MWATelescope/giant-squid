@@ -67,7 +67,9 @@ before you upgrade scripts.**
   at the first failure.
 * `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
   the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
-  cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message.
+  cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message. A request
+  that the MWA ASVO refuses with an HTTP error is a failure: `cancel` sends every request, then exits with code 1
+  (in 2.x a failed request was skipped silently, and the exit code was 0).
 * `wait` and `cancel` take job IDs only. An obsid is an error that names it and nothing is sent; before, it was
   ignored without a word.
 * `list --job-types` refuses text that is not a job type, instead of matching no job.

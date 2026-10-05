@@ -885,10 +885,10 @@ fn a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled() {
     );
 }
 
-/// A cancellation that the server rejects is logged per job and does not
-/// fail the run, so a batch keeps going. Pins that deliberately.
+/// A cancellation that the server rejects with an HTTP error is logged per
+/// job, the next job is still cancelled, and then the run fails.
 #[test]
-fn a_rejected_cancellation_is_logged_without_failing_the_run() {
+fn a_rejected_cancellation_fails_the_run_after_every_request() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(DELETE).path("/api/v2/jobs/12345");
@@ -896,12 +896,19 @@ fn a_rejected_cancellation_is_logged_without_failing_the_run() {
             .header("content-type", "application/json")
             .json_body(error_response("JOB_NOT_FOUND", "No such job"));
     });
+    let next = env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/12346");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(12346));
+    });
 
     let mut cmd = env.command();
-    cmd.args(["cancel", "12345"]);
+    cmd.args(["cancel", "12345", "12346"]);
     let result = run(cmd);
 
-    assert!(result.success, "the run should not fail");
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(next.calls(), 1);
     assert!(
         result.combined().contains("Failed to cancel"),
         "output: {}",
@@ -910,9 +917,16 @@ fn a_rejected_cancellation_is_logged_without_failing_the_run() {
     assert!(
         result
             .combined()
-            .contains("Cancel requests: 1 sent, 1 failed."),
+            .contains("Cancel requests: 2 sent, 1 failed."),
         "output: {}",
         result.combined()
+    );
+    assert!(
+        result
+            .stderr
+            .contains("Error: 1 of 2 cancel requests failed"),
+        "stderr: {}",
+        result.stderr
     );
 }
 
@@ -1188,6 +1202,7 @@ fn cancel_json_prints_a_refusal_as_an_error_response() {
     cmd.args(["cancel", "--json", "12345"]);
     let result = run(cmd);
 
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
     assert_eq!(result.stderr, "");
     let lines = result.stdout_json_lines();
     assert_eq!(lines.len(), 1, "stdout: {}", result.stdout);
