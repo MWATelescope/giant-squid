@@ -1799,3 +1799,17 @@ fn run_cli_returns_two_for_a_bad_argument() {
     assert_eq!(run_cli(["giant-squid", "list", "--no-such-option"]), 2);
     assert_eq!(run_cli(["giant-squid", "list", "--days", "99"]), 2);
 }
+
+/// The help has colours on a terminal: clap's default styles have none.
+#[test]
+fn the_help_has_colours() {
+    use clap::CommandFactory;
+
+    let help = Args::command()
+        .color(clap::ColorChoice::Always)
+        .render_help()
+        .ansi()
+        .to_string();
+    let green = super::HELP_STYLES.get_header().render().to_string();
+    assert!(help.contains(&green), "no coloured header in: {help:?}");
+}

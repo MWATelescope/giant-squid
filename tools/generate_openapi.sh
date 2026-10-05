@@ -108,9 +108,21 @@ def rewrite_refs(node):
 
 rewrite_refs(schemas)
 
+# The endpoints, each with its HTTP methods, so that a test can check the
+# paths that the client calls (ENDPOINT_* in src/asvo/apiv2/client/mod.rs).
+# typify reads only "definitions" and ignores this key.
+HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options"}
+paths = {
+    path: sorted(method for method in operations if method in HTTP_METHODS)
+    for path, operations in sorted(doc.get("paths", {}).items())
+}
+if not paths:
+    sys.exit("Error: no paths found in the downloaded OpenAPI document.")
+
 out = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "definitions": schemas,
+    "paths": paths,
 }
 
 with open(out_path, "w") as f:

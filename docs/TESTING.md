@@ -465,7 +465,7 @@ the script exits with the failure.
 `tools/coverage.sh` leaves the generated `src/asvo/apiv2/openapi.rs` out of
 the report: much of it (builders and types for endpoints the client does not
 use) is never run, and it would hide the numbers of the code that is written
-by hand. The CI workflow still counts it, so its totals are lower.
+by hand. The CI workflow leaves it out too.
 
 ## Phases
 

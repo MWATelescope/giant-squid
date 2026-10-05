@@ -94,7 +94,7 @@ client = mwa_giant_squid.AsvoClient(
 |---|---|
 | `host` | The MWA ASVO URL. Use `http://` only for a local test server. All other hosts must use TLS. |
 | `api_key` | Your API key. |
-| `api_timeout` | The time limit for one API request, in seconds. `None` uses 60 s. |
+| `api_timeout` | The time limit for one API request, in seconds. `None` uses the library's `DEFAULT_API_TIMEOUT`. |
 | `token_cache_path` | A file in which to keep the session between runs. `None` keeps the session in memory only. |
 
 The MWA ASVO allows only a few logins each minute. A program that runs often must set
@@ -117,7 +117,7 @@ To use a different MWA ASVO server (for example, to test a new feature), give it
 
 `get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
 does not filter, except `days` and `sort_by`: with `days=None` you get the jobs from the MWA ASVO's default
-window (the schema's default, 30 days at the time of writing, which is also the most `days` can be), not your
+window (the schema's default for `days`, which is also the most `days` can be), not your
 full history. A job older than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find
 it either.
 
@@ -239,8 +239,8 @@ threads run during the download.
 | `no_resume` | Download the whole file again, even if part of it is on disk. |
 | `hash` | Check the SHA-1 hash of the file. A resumed download, and a complete file that is already on disk, are always checked. Default: `True`. |
 | `progress` | A function that receives `DownloadProgress` events. |
-| `buffer_size` | How many bytes to hold in memory before they are written. Default: 100 MiB. |
-| `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: 900 s. |
+| `buffer_size` | How many bytes to hold in memory before they are written. Default: the library's `DEFAULT_DOWNLOAD_BUFFER_SIZE`. |
+| `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: the library's `DEFAULT_DOWNLOAD_RETRY_DURATION`. |
 | `download_number`, `download_count` | The place of this download in a series. They set the `[1/2]` text in labels. |
 
 ### Resume and Ctrl-C

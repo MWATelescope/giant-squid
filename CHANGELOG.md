@@ -44,6 +44,8 @@ before you upgrade scripts.**
 * Library: `AsvoJobState` is replaced by the OpenAPI schema's `JobState` (`JobState::Completed` and so on). Its
   `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
   the same members.
+* The help and clap's messages are in colour on a terminal (as cargo's are), not only bold. `NO_COLOR` turns the
+  colours off.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
   or JSON), so a script can read it.
 * The submit commands try every obsid, and log the error of each failed submission when it happens. If any

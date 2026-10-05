@@ -21,6 +21,7 @@ mod tests;
 
 use std::num::NonZeroU64;
 
+use clap::builder::styling::{AnsiColor, Styles};
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
@@ -34,6 +35,19 @@ use params::{
 /// The name of the program, which `--version` prints. Without it, clap
 /// prints the name of the crate (`mwa_giant_squid`).
 pub const PROGRAM_NAME: &str = "giant-squid";
+
+/// The colours of the help and of clap's messages. clap's own default has
+/// no colours (only bold and underline), so the help looks monochrome; these
+/// are the colours that cargo uses. They are shown only on a terminal
+/// (`ColorChoice::Auto`), and not when `NO_COLOR` is set.
+pub const HELP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().bold())
+    .usage(AnsiColor::Green.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default().bold())
+    .placeholder(AnsiColor::Cyan.on_default())
+    .error(AnsiColor::Red.on_default().bold())
+    .valid(AnsiColor::Cyan.on_default().bold())
+    .invalid(AnsiColor::Yellow.on_default().bold());
 
 /// The help of `list --job-states`, before the list of states.
 const JOB_STATES_HELP: &str = "show only jobs matching the provided states, case insensitive.";
@@ -61,7 +75,7 @@ Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
 #[derive(Parser, Debug)]
-#[command(name = PROGRAM_NAME, author, about = ABOUT, version, color = clap::ColorChoice::Auto, propagate_version = true)]
+#[command(name = PROGRAM_NAME, author, about = ABOUT, version, color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true)]
 pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]

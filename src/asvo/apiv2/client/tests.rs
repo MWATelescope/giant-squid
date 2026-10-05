@@ -793,6 +793,52 @@ fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
 /// The schema that the request types were generated from.
 const SCHEMA: &str = include_str!("../openapi-schema.json");
 
+/// Whether the schema path `template` (with `{name}` parts, for example
+/// `/api/v2/jobs/{job_id}`) matches the request path `path`.
+fn path_matches(template: &str, path: &str) -> bool {
+    let template: Vec<&str> = template.split('/').collect();
+    let path: Vec<&str> = path.split('/').collect();
+    template.len() == path.len()
+        && template
+            .iter()
+            .zip(&path)
+            .all(|(t, p)| (t.starts_with('{') && t.ends_with('}')) || t == p)
+}
+
+/// Every endpoint that the client calls is a path of the schema, with the
+/// method the client uses. The paths come from the `paths` key that
+/// `tools/generate_openapi.sh` keeps in `openapi-schema.json`, so a path
+/// that the API renames or removes fails here, not in a real request.
+#[test]
+fn every_endpoint_the_client_calls_is_a_schema_path() {
+    let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
+    let paths = schema["paths"]
+        .as_object()
+        .expect("openapi-schema.json has no paths: run tools/generate_openapi.sh to regenerate it");
+    let has = |method: &str, path: &str| {
+        paths.iter().any(|(template, methods)| {
+            path_matches(template, path)
+                && methods
+                    .as_array()
+                    .is_some_and(|m| m.iter().any(|m| m.as_str() == Some(&method.to_lowercase())))
+        })
+    };
+
+    let mut calls: Vec<(String, String)> = record_every_end_user_call()
+        .into_iter()
+        .map(|(method, path, _)| (method, path))
+        .collect();
+    // The refresh is not in the recorded calls (there is no session to
+    // refresh), so it is checked from its constant.
+    calls.push(("POST".to_string(), super::ENDPOINT_REFRESH.to_string()));
+    for (method, path) in calls {
+        assert!(
+            has(&method, &path),
+            "{method} {path} is not a path of the schema"
+        );
+    }
+}
+
 /// The schema of the body that each endpoint takes.
 const BODY_SCHEMAS: [(&str, &str); 8] = [
     ("/api/v2/api_login", "ApiLoginRequest"),

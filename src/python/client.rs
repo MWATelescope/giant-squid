@@ -41,7 +41,8 @@ use crate::obs_id::ObsId;
 ///         permitted (a local test server); every other host must use TLS.
 ///     api_key: Your MWA ASVO API key.
 ///     api_timeout: The timeout for one API request, in seconds. `None`
-///         uses the library default (60 s).
+///         uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
+///         library).
 ///     token_cache_path: Where to cache the session between runs. `None`
 ///         keeps the session in memory only, so every new client logs in.
 ///         Give a path for a script that runs often, because the server
@@ -852,10 +853,11 @@ impl PyAsvoClient {
     ///         called about 10 times a second at most. If it raises, the
     ///         download stops and its exception is raised.
     ///     buffer_size: How many bytes to hold in memory before they are
-    ///         written. `None` uses the library default (100 MiB).
+    ///         written. `None` uses the library default
+    ///         (`DEFAULT_DOWNLOAD_BUFFER_SIZE` of the Rust library).
     ///     retry_duration: How long to retry a failing download, in
     ///         seconds. 0 disables retries. `None` uses the library default
-    ///         (900 s).
+    ///         (`DEFAULT_DOWNLOAD_RETRY_DURATION` of the Rust library).
     ///     download_number: The number of this download, in a series,
     ///         for the progress and log label (`[1/2]`).
     ///     download_count: How many downloads there are in the series.
