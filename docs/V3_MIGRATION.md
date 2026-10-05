@@ -270,7 +270,7 @@ more of them:
 | 2.x key | 3.0.0 key |
 |---|---|
 | `obsid` | `obs_id` |
-| `jobId` | `job_id` |
+| `jobId` | `id` (the API's name in a job's details) |
 | `jobType` | `job_type` |
 | `jobState` | `job_state` |
 | `files` | `product.files` (the file list is inside `product`) |
@@ -286,8 +286,9 @@ New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id
 value of `job_state` is the API's (for example `completed`, see the table in
 the previous section). The value of `job_type` is the API's code (for example
 `1` for a visibility download). A file's `type` is the API's value
-(`acacia`, `scratch` or `dug`; in 2.x `Acacia` and so on), and a file key that
-has no value is left out, as in the API (in 2.x it was `null`). Use `//` in
+(`acacia`, `scratch` or `dug`; in 2.x `Acacia` and so on). As in the API, a
+key that has no value is left out, for a job and for a file (in 2.x it was
+`null`): for example `completed` for a job that is not finished. Use `//` in
 `jq` for a key that can be missing, as the example below does.
 
 To update a `jq` command, change the key names. The 2.x README example:
@@ -299,7 +300,7 @@ giant-squid list --json --types download_visibilities --states ready \
 
 # 3.0.0
 giant-squid list --json --job-types visibility --job-states completed \
-  | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
+  | jq -r '.[]|[.id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
 ```
 
 For one release, `--legacy-json` (on `list` and `wait`, in place of

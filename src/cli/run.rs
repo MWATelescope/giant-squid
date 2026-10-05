@@ -269,10 +269,10 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
         // checked that every job is in the list.
         for job in job_ids
             .iter()
-            .filter_map(|id| jobs.0.iter().find(|j| j.job_id == *id))
+            .filter_map(|id| jobs.0.iter().find(|j| j.job_id() == *id))
         {
-            let log_prefix = format!("Job ID {} (obsid: {}):", job.job_id, job.obs_id);
-            match last_state.insert(job.job_id, job.job_state) {
+            let log_prefix = format!("Job ID {} (obsid: {}):", job.job_id(), job.obs_id());
+            match last_state.insert(job.job_id(), job.job_state) {
                 Some(last_state) if last_state != job.job_state => {
                     info!("{} is {}", log_prefix, job.job_state);
                 }

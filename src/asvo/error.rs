@@ -25,6 +25,11 @@ pub enum AsvoError {
         error_code: Option<i64>,
     },
 
+    /// A job from the API cannot be used: its ID is not a job ID, or its
+    /// `job_params` have no valid obsid.
+    #[error("MWA ASVO job {id} cannot be used: {problem}")]
+    InvalidJob { id: i64, problem: String },
+
     /// A checked job has been cancelled.
     #[error("MWA ASVO job ID {0} has been cancelled.")]
     JobCancelled(AsvoJobId),

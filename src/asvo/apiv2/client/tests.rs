@@ -360,8 +360,8 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(get_jobs.calls(), 1);
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.job_id, TEST_JOB_ID);
-    assert_eq!(job.obs_id.get(), TEST_OBS_ID_I64 as u64);
+    assert_eq!(job.job_id(), TEST_JOB_ID);
+    assert_eq!(job.obs_id().get(), TEST_OBS_ID_I64 as u64);
     assert_eq!(job.job_type, Some(job_type("visibility")));
     // The API says "completed" where the rest of giant-squid says "ready".
     assert_eq!(job.job_state, JobState::Completed);
@@ -404,7 +404,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     assert_eq!(first.calls(), 1);
     assert_eq!(second.calls(), 1, "the second page should be requested");
     assert_eq!(jobs.0.len(), total as usize);
-    assert_eq!(jobs.0.last().expect("there should be jobs").job_id, 150);
+    assert_eq!(jobs.0.last().expect("there should be jobs").job_id(), 150);
 }
 
 #[test]
@@ -449,7 +449,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
         .expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
-    assert_eq!(jobs.0[0].job_id, TEST_JOB_ID);
+    assert_eq!(jobs.0[0].job_id(), TEST_JOB_ID);
     assert_eq!(jobs.0[0].job_state, JobState::Queued);
 }
 
@@ -1092,8 +1092,8 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
 
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.job_id, RECORDED_JOB_ID);
-    assert_eq!(job.obs_id.get(), RECORDED_OBS_ID);
+    assert_eq!(job.job_id(), RECORDED_JOB_ID);
+    assert_eq!(job.obs_id().get(), RECORDED_OBS_ID);
     assert_eq!(job.job_type, Some(job_type("metadata")));
     assert_eq!(job.job_state, JobState::Completed);
     assert!(job.completed.is_some(), "completed should be parsed");
@@ -1537,7 +1537,7 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
         .expect("the listing should succeed");
 
     assert_eq!(listing.calls(), 1);
-    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
+    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
     assert_eq!(ids, [2]);
 }
 
@@ -1564,7 +1564,7 @@ fn list_jobs_filters_several_states_on_the_client() {
         .expect("the listing should succeed");
 
     assert_eq!(listing.calls(), 1);
-    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id).collect();
+    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
     assert_eq!(ids, [1, 2]);
 }
 

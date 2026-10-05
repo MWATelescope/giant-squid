@@ -8,7 +8,9 @@
 //! This is separate from `src/test_common.rs` because that file is also
 //! compiled into `tests/cli.rs` and so must use no `crate::` items.
 
-use crate::asvo::{AsvoClientConfig, JobType};
+use crate::asvo::apiv2::openapi::JobDetailResponse;
+use crate::asvo::{AsvoClientConfig, AsvoJob, JobType};
+use crate::obs_id::ObsId;
 use crate::test_common::{TestEnv, TEST_API_TIMEOUT};
 
 /// A client config for the mock server in `env`, with the token cache in
@@ -23,4 +25,13 @@ pub fn client_config(env: &TestEnv) -> AsvoClientConfig {
 /// The job type with the schema name `name` (for example `visibility`).
 pub fn job_type(name: &str) -> JobType {
     JobType::parse_name(name).expect("a test job type should be a schema name")
+}
+
+/// A job for the tests: `detail`, with `obs_id` put in its `job_params`
+/// (where the API has it), checked as a job from the API is.
+pub fn asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> AsvoJob {
+    detail
+        .job_params
+        .insert("obs_id".to_string(), serde_json::json!(u64::from(obs_id)));
+    AsvoJob::try_from(detail).expect("a test job should be usable")
 }

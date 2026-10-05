@@ -62,8 +62,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     for job in &jobs.0 {
         println!(
             "{:>10}  {:>10}  {:<24}  {}",
-            job.job_id,
-            job.obs_id,
+            job.job_id(),
+            job.obs_id(),
             job.job_type.map(|t| t.name()).unwrap_or_default(),
             job.job_state
         );

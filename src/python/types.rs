@@ -322,13 +322,13 @@ impl PyAsvoJob {
     /// The job ID.
     #[getter]
     fn job_id(&self) -> AsvoJobId {
-        self.0.job_id
+        self.0.job_id()
     }
 
     /// The obsid.
     #[getter]
     fn obs_id(&self) -> u64 {
-        u64::from(self.0.obs_id)
+        u64::from(self.0.obs_id())
     }
 
     /// The job type, or `None` if the server gives none.
@@ -420,8 +420,8 @@ impl PyAsvoJob {
     fn __repr__(&self) -> String {
         format!(
             "AsvoJob(job_id={}, obs_id={}, job_type={}, job_state={})",
-            self.0.job_id,
-            self.0.obs_id,
+            self.0.job_id(),
+            self.0.obs_id(),
             self.0.job_type.map(|t| t.name()).unwrap_or("None"),
             self.0.job_state
         )

@@ -102,7 +102,7 @@ fn legacy_job_type(job_type: Option<JobType>) -> &'static str {
 /// One job, with the old keys. The field order is the old key order.
 #[derive(Serialize)]
 struct LegacyJob<'a> {
-    obsid: &'a ObsId,
+    obsid: ObsId,
     #[serde(rename = "jobId")]
     job_id: AsvoJobId,
     #[serde(rename = "jobType")]
@@ -133,8 +133,8 @@ impl<'a> From<&'a JobFile> for LegacyFile<'a> {
 impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
     fn from(job: &'a AsvoJob) -> Self {
         Self {
-            obsid: &job.obs_id,
-            job_id: job.job_id,
+            obsid: job.obs_id(),
+            job_id: job.job_id(),
             job_type: legacy_job_type(job.job_type),
             job_state: LegacyState::of(job),
             // The old format had the file list at the top level.
@@ -159,7 +159,7 @@ pub fn to_legacy_json(jobs: &AsvoJobVec) -> Result<String, serde_json::Error> {
     let map: BTreeMap<AsvoJobId, LegacyJob> = jobs
         .0
         .iter()
-        .map(|job| (job.job_id, LegacyJob::from(job)))
+        .map(|job| (job.job_id(), LegacyJob::from(job)))
         .collect();
     serde_json::to_string(&map)
 }

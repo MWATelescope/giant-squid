@@ -5,7 +5,7 @@
 //! Tests for [`super`] ASVO data types.
 
 use super::*;
-use crate::asvo::apiv2::openapi::Type as FileType;
+use crate::asvo::apiv2::openapi::{JobProduct, Type as FileType};
 use crate::test_config::job_type;
 
 /// An obsid used by these tests.
@@ -174,23 +174,25 @@ fn text_that_is_not_a_job_state_is_an_error() {
 
 /// A job with the given ID and state.
 fn job(job_id: AsvoJobId, state: JobState) -> AsvoJob {
-    AsvoJob {
-        obs_id: ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
-        job_id,
-        job_type: Some(job_type("visibility")),
-        job_state: state,
-        product: None,
-        created: test_created(),
-        started: None,
-        completed: None,
-        modified: None,
-        error_code: None,
-        error_text: None,
-        user_id: TEST_USER_ID,
-        first_name: "Test".to_string(),
-        last_name: "User".to_string(),
-        job_params: serde_json::Map::new(),
-    }
+    crate::test_config::asvo_job(
+        ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
+        JobDetailResponse {
+            id: i64::try_from(job_id).expect("a test job ID fits in i64"),
+            job_type: Some(job_type("visibility")),
+            job_state: state,
+            product: None,
+            created: test_created(),
+            started: None,
+            completed: None,
+            modified: None,
+            error_code: None,
+            error_text: None,
+            user_id: TEST_USER_ID,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params: serde_json::Map::new(),
+        },
+    )
 }
 
 #[test]
@@ -237,7 +239,7 @@ fn all_ready_reports_an_unknown_job() {
 #[test]
 fn all_ready_reports_a_failed_job_with_its_error() {
     let mut failed = job(JOB_ID_A, JobState::Error);
-    failed.error_text = Some("the conversion failed".to_string());
+    failed.detail_mut().error_text = Some("the conversion failed".to_string());
     let jobs = AsvoJobVec(vec![failed]);
     match jobs.all_ready(&[JOB_ID_A]) {
         Err(AsvoError::JobFailed {
@@ -260,8 +262,8 @@ fn all_ready_reports_a_failed_job_with_its_error() {
 #[test]
 fn a_failed_jobs_error_code_is_in_the_error_message() {
     let mut failed = job(JOB_ID_A, JobState::Error);
-    failed.error_text = Some("the conversion failed".to_string());
-    failed.error_code = Some(7);
+    failed.detail_mut().error_text = Some("the conversion failed".to_string());
+    failed.detail_mut().error_code = Some(7);
     let jobs = AsvoJobVec(vec![failed.clone()]);
 
     let err = jobs.all_ready(&[JOB_ID_A]).expect_err("the job has failed");
@@ -280,7 +282,7 @@ fn a_failed_jobs_error_code_is_in_the_error_message() {
         format!("MWA ASVO job ID {JOB_ID_A} (obsid: {OBS_ID}) has an error (code 7): the conversion failed")
     );
 
-    failed.error_code = None;
+    failed.detail_mut().error_code = None;
     let err = AsvoJobVec(vec![failed])
         .all_ready(&[JOB_ID_A])
         .expect_err("the job has failed");
@@ -313,23 +315,25 @@ fn all_ready_reports_the_first_failure_in_the_order_asked() {
 
 /// A job with the given ID, obsid, type and state, for the filter tests.
 fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: JobType, state: JobState) -> AsvoJob {
-    AsvoJob {
-        obs_id: ObsId::validate(obs_id).expect("the test obsid should be valid"),
-        job_id,
-        job_type: Some(job_type),
-        job_state: state,
-        product: None,
-        created: test_created(),
-        started: None,
-        completed: None,
-        modified: None,
-        error_code: None,
-        error_text: None,
-        user_id: TEST_USER_ID,
-        first_name: "Test".to_string(),
-        last_name: "User".to_string(),
-        job_params: serde_json::Map::new(),
-    }
+    crate::test_config::asvo_job(
+        ObsId::validate(obs_id).expect("the test obsid should be valid"),
+        JobDetailResponse {
+            id: i64::try_from(job_id).expect("a test job ID fits in i64"),
+            job_type: Some(job_type),
+            job_state: state,
+            product: None,
+            created: test_created(),
+            started: None,
+            completed: None,
+            modified: None,
+            error_code: None,
+            error_text: None,
+            user_id: TEST_USER_ID,
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            job_params: serde_json::Map::new(),
+        },
+    )
 }
 
 /// Three jobs that differ in job ID, obsid, type and state.
@@ -394,12 +398,14 @@ fn filter_criteria_are_combined() {
     assert_eq!(ids(&jobs), vec![JOB_ID_C]);
 }
 
-/// `giant-squid list --json` and `AsvoJobVec::json` use the OpenAPI names
-/// (decision 10). `--legacy-json` keeps the old keys; see `cli::legacy_json`.
+/// `giant-squid list --json` and `AsvoJobVec::json` give each job as the
+/// schema's `JobDetailResponse`, plus `obs_id`. A field with no value (here
+/// `started`, `completed` and the others) has no key, as in the schema.
+/// `--legacy-json` keeps the old keys; see `cli::legacy_json`.
 #[test]
 fn the_json_output_keys_are_the_openapi_names() {
     let mut ready = job(JOB_ID_A, JobState::Completed);
-    ready.product = Some(JobProduct {
+    ready.detail_mut().product = Some(JobProduct {
         files: vec![JobFile {
             type_: FileType::Acacia,
             url: Some("https://example.org/f.tar".to_string()),
@@ -425,20 +431,15 @@ fn the_json_output_keys_are_the_openapi_names() {
     assert_eq!(
         keys,
         [
-            "completed",
             "created",
-            "error_code",
-            "error_text",
             "first_name",
-            "job_id",
+            "id",
             "job_params",
             "job_state",
             "job_type",
             "last_name",
-            "modified",
             "obs_id",
             "product",
-            "started",
             "user_id"
         ]
     );

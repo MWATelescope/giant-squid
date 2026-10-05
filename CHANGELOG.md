@@ -35,7 +35,7 @@ before you upgrade scripts.**
   names of `--states` and `--types`, which still work. `--days` takes 1 to 30, and without it `list` uses the
   MWA ASVO API's default (30 days, shown in `--help`) instead of fetching your full history. `wait` and
   `download` find jobs the same way.
-* `list --json` and `wait --json` use the API's key names (for example `job_id`, `obs_id`, `product.files`) and
+* `list --json` and `wait --json` use the API's key names (for example `id`, `obs_id`, `product.files`) and
   have more keys. `--legacy-json` prints the old format for one release, and is deprecated: it will be removed in
   the release after 3.0.0.
 * The job states are the MWA ASVO API's: `completed` (was `ready`), `waitcal`, `error` and the others, in lower case,
@@ -62,6 +62,11 @@ before you upgrade scripts.**
   `--legacy-json` still prints the 2.x names.
 * A file in `--json` is the API's `JobFile`: its `type` is `acacia`, `scratch` or `dug` (was `Acacia` and so on), and
   a key that has no value is left out (was `null`).
+* A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
+  `job_id`), and a key that has no value is left out (was `null`).
+* Library: `AsvoJob` wraps the OpenAPI schema's `JobDetailResponse` (through `Deref`, so `job.job_state` and the other
+  fields work as before), with its obsid and job ID checked: `AsvoJob::obs_id()` and `AsvoJob::job_id()` are methods
+  now, and `AsvoJob::try_from(JobDetailResponse)` makes one (`AsvoError::InvalidJob` for a job that cannot be used).
 * Library: `AsvoFilesArray`, `AsvoJobProduct` and `Delivery` are replaced by the OpenAPI schema's `JobFile`,
   `JobProduct` and `Type` (the delivery of a file). `JobFile::size_bytes` gives the size as a `u64`. `Delivery` is
   now the schema's `Delivery`, the delivery of a submission. In Python, `AsvoFilesArray` and `AsvoJobProduct` are

@@ -105,7 +105,8 @@ mod stub_attributes {
                 attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
                 attr!("name", String, "InvalidEnvironment: the name of the environment variable."),
                 attr!("value", String, "InvalidEnvironment: its value."),
-                attr!("problem", String, "InvalidEnvironment: what is wrong with it."),
+                attr!("problem", String, "InvalidEnvironment and InvalidJob: what is wrong."),
+                attr!("id", i64, "InvalidJob: the `id` of the job, as the API gave it."),
             ],
             getters: &[],
             setters: &[],
@@ -244,6 +245,13 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 obs_id(o),
                 ("error", Field::Str(error)),
                 ("error_code", Field::OptInt(error_code)),
+            ],
+        ),
+        lib::AsvoError::InvalidJob { id, problem } => (
+            "InvalidJob",
+            vec![
+                ("id", Field::OptInt(Some(id))),
+                ("problem", Field::Str(problem)),
             ],
         ),
         lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![job_id(id)]),

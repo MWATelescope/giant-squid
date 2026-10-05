@@ -661,7 +661,7 @@ impl AsvoClient {
     ///
     /// A job without a usable obs_id in its untyped `job_params` is skipped
     /// with a warning, rather than failing the whole listing (see
-    /// `job_detail_to_asvo_job`). A job state or file type that the schema
+    /// `AsvoJob::try_from`). A job state or file type that the schema
     /// does not list fails the whole listing with a decode error.
     ///
     /// # Errors
@@ -721,8 +721,11 @@ impl AsvoClient {
                 // job_detail_to_asvo_job skips over individually.
                 let detail: JobDetailResponse =
                     serde_json::from_value(serde_json::Value::Object(job_value))?;
-                if let Some(job) = job_detail_to_asvo_job(detail) {
-                    all_jobs.push(job);
+                // A job that cannot be used (see `AsvoJob::try_from`) is
+                // skipped, so that one bad job does not hide the others.
+                match AsvoJob::try_from(detail) {
+                    Ok(job) => all_jobs.push(job),
+                    Err(e) => warn!("Skipping a job: {e}"),
                 }
             }
 
@@ -987,78 +990,6 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
         Some(rest) => !rest.is_empty() && !rest.contains(['Z', '+', '-']),
         None => false,
     }
-}
-
-/// Best-effort conversion from the v2 API's `JobDetailResponse` into the
-/// existing `AsvoJob` domain type. Returns `None` (after logging a warning)
-/// if a job can't be reliably converted; callers should skip that job and
-/// continue rather than fail the whole listing.
-///
-/// - `job_type` is the schema's `JobType`, used as it is (`None` when the
-///   server gives no type).
-/// - `job_state` is the schema's `JobState`, used as it is. The message of
-///   an `error` job is in `error_text`.
-/// - `obs_id` is looked for at `job_params["obs_id"]` (an untyped JSON
-///   map). CONFIRMED against a real response: the key name is right, but
-///   the value is a JSON string, not a number - handled below.
-/// - `product` is the schema's `JobProduct`, used as it is.
-fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
-    let job_id = match AsvoJobId::try_from(detail.id) {
-        Ok(id) => id,
-        Err(_) => {
-            warn!(
-                "Skipping MWA ASVO job: ID {} doesn't fit in the expected range",
-                detail.id
-            );
-            return None;
-        }
-    };
-
-    // ASSUMPTION resolved by a real sample response: the key is `obs_id`
-    // as guessed, but its value is a JSON string (e.g. "1455950264"), not
-    // a number - handle both, in case that's not consistent across jobs.
-    let obs_id_value = detail.job_params.get("obs_id").and_then(|v| {
-        v.as_u64()
-            .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
-    });
-
-    let obs_id = match obs_id_value {
-        Some(o) => match ObsId::validate(o) {
-            Ok(obs_id) => obs_id,
-            Err(e) => {
-                warn!(
-                    "Skipping MWA ASVO job {}: invalid obs_id in job_params: {}",
-                    job_id, e
-                );
-                return None;
-            }
-        },
-        None => {
-            warn!(
-                "Skipping MWA ASVO job {}: couldn't find a usable obs_id in job_params",
-                job_id
-            );
-            return None;
-        }
-    };
-
-    Some(AsvoJob {
-        obs_id,
-        job_id,
-        job_type: detail.job_type,
-        job_state: detail.job_state,
-        product: detail.product,
-        created: detail.created,
-        started: detail.started,
-        completed: detail.completed,
-        modified: detail.modified,
-        error_code: detail.error_code,
-        error_text: detail.error_text,
-        user_id: detail.user_id,
-        first_name: detail.first_name,
-        last_name: detail.last_name,
-        job_params: detail.job_params,
-    })
 }
 
 /// The server-side filters of [`AsvoClient::get_jobs`], which are those of

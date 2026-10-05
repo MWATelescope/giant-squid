@@ -4,11 +4,10 @@
 
 //! ASVO data types.
 
-use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-use crate::asvo::apiv2::openapi::{JobFile, JobProduct, JobState, JobType};
+use crate::asvo::apiv2::openapi::{JobDetailResponse, JobFile, JobState, JobType};
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
@@ -161,46 +160,93 @@ impl JobFile {
 /// complexity for no gain.
 pub type AsvoJobId = u64;
 
-/// All of the metadata associated with an ASVO job.
+/// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's obsid
+/// and ID checked.
 ///
-/// In JSON the keys are the field names, which are the OpenAPI names of a
-/// `JobDetailResponse`. One differs in form: `obs_id`, which the API has
-/// only in `job_params`, is also a field of its own here.
+/// The fields of the `JobDetailResponse` are reached through [`Deref`]
+/// (`job.job_state`, `job.product` and so on). The obsid, which the API has
+/// only in the untyped `job_params`, is [`AsvoJob::obs_id`], and the job ID
+/// is [`AsvoJob::job_id`].
+///
+/// In JSON the job is its `JobDetailResponse`, as the API gives it, with one
+/// more key, `obs_id`.
+///
+/// [`Deref`]: std::ops::Deref
 #[derive(Serialize, Debug, Clone)]
 pub struct AsvoJob {
-    pub obs_id: ObsId,
-    pub job_id: AsvoJobId,
-    /// The job's type, or `None` if the server gives none.
-    pub job_type: Option<JobType>,
-    /// The job's state, the schema's `JobState`. For a job in the `Error`
-    /// state, the message is [`AsvoJob::error_text`].
-    pub job_state: JobState,
-    /// The job's product, the schema's `JobProduct` (its files), or `None`
-    /// if the job has none yet.
-    pub product: Option<JobProduct>,
-    /// When the job was created (UTC).
-    pub created: Timestamp,
-    /// When the job started, or `None` if it has not started.
-    pub started: Option<Timestamp>,
-    pub completed: Option<Timestamp>,
-    /// When the job was last changed, or `None`.
-    pub modified: Option<Timestamp>,
-    /// The server's error code, or `None`. The schema gives it as an
-    /// integer and does not document its values, so this library passes it
-    /// on and does not interpret it. It is also in the message of
-    /// [`AsvoError::JobFailed`].
-    pub error_code: Option<i64>,
-    /// The server's error message, or `None`.
-    pub error_text: Option<String>,
-    /// The ID of the user who submitted the job.
-    pub user_id: i64,
-    /// The first name of the user who submitted the job.
-    pub first_name: String,
-    /// The last name of the user who submitted the job.
-    pub last_name: String,
-    /// The job's parameters as the server gives them (`obs_id`, delivery,
-    /// processing options), untyped because they differ by job type.
-    pub job_params: serde_json::Map<String, serde_json::Value>,
+    obs_id: ObsId,
+    /// `detail.id`, checked. Not in the JSON: that has `id`.
+    #[serde(skip)]
+    job_id: AsvoJobId,
+    #[serde(flatten)]
+    detail: JobDetailResponse,
+}
+
+impl AsvoJob {
+    /// The job's obsid, from its `job_params`.
+    pub fn obs_id(&self) -> ObsId {
+        self.obs_id
+    }
+
+    /// The job's ID: the `id` of its `JobDetailResponse`.
+    pub fn job_id(&self) -> AsvoJobId {
+        self.job_id
+    }
+
+    /// The job as the API gives it.
+    pub fn detail(&self) -> &JobDetailResponse {
+        &self.detail
+    }
+
+    /// The job as the API gives it, to change in a test. A test must not
+    /// change `id` or the `obs_id` of `job_params`.
+    #[cfg(test)]
+    pub(crate) fn detail_mut(&mut self) -> &mut JobDetailResponse {
+        &mut self.detail
+    }
+}
+
+impl std::ops::Deref for AsvoJob {
+    type Target = JobDetailResponse;
+
+    fn deref(&self) -> &JobDetailResponse {
+        &self.detail
+    }
+}
+
+/// Check a job from the API: its `id` must be a job ID, and its
+/// `job_params` must have a valid `obs_id` (a number, or a string of
+/// digits, as the MWA ASVO has sent both).
+///
+/// # Errors
+///
+/// [`AsvoError::InvalidJob`], with what is wrong.
+impl TryFrom<JobDetailResponse> for AsvoJob {
+    type Error = AsvoError;
+
+    fn try_from(detail: JobDetailResponse) -> Result<Self, AsvoError> {
+        let invalid = |problem: String| AsvoError::InvalidJob {
+            id: detail.id,
+            problem,
+        };
+        let job_id = AsvoJobId::try_from(detail.id)
+            .map_err(|_| invalid("its ID is not a job ID".to_string()))?;
+        let obs_id = detail
+            .job_params
+            .get("obs_id")
+            .and_then(|v| {
+                v.as_u64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
+            })
+            .ok_or_else(|| invalid("its job_params have no usable obs_id".to_string()))?;
+        let obs_id = ObsId::validate(obs_id)
+            .map_err(|e| invalid(format!("its job_params have an invalid obs_id: {e}")))?;
+        Ok(Self {
+            obs_id,
+            job_id,
+            detail,
+        })
+    }
 }
 
 /// A vector of ASVO jobs.

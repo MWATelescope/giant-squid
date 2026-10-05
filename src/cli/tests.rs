@@ -1257,8 +1257,8 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
 fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
-    use crate::asvo::apiv2::openapi::Type as FileType;
-    use crate::asvo::{AsvoJob, AsvoJobVec, JobFile, JobProduct, JobState};
+    use crate::asvo::apiv2::openapi::{JobDetailResponse, Type as FileType};
+    use crate::asvo::{AsvoJobVec, JobFile, JobProduct, JobState};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
@@ -1266,76 +1266,82 @@ fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
     job_params.insert("obs_id".to_string(), serde_json::json!(1065880128));
     job_params.insert("delivery".to_string(), serde_json::json!("acacia"));
     AsvoJobVec(vec![
-        AsvoJob {
+        crate::test_config::asvo_job(
             obs_id,
-            job_id: 101,
-            job_type: Some(crate::test_config::job_type("visibility")),
-            job_state: JobState::Completed,
-            product: Some(JobProduct {
-                files: vec![
-                    JobFile {
-                        type_: FileType::Acacia,
-                        url: Some("https://example.org/a.tar".to_string()),
-                        path: None,
-                        size: 1234,
-                        sha1: Some("ab".repeat(20)),
-                        format: None,
-                    },
-                    JobFile {
-                        type_: FileType::Scratch,
-                        url: None,
-                        path: Some("/scratch/mwa/x".to_string()),
-                        size: 5,
-                        sha1: None,
-                        format: None,
-                    },
-                ],
-            }),
-            created,
-            started: Some(created),
-            completed: Some(completed),
-            modified: Some(completed),
-            error_code: None,
-            error_text: None,
-            user_id: 4242,
-            first_name: "Test".to_string(),
-            last_name: "User".to_string(),
-            job_params,
-        },
-        AsvoJob {
+            JobDetailResponse {
+                id: 101,
+                job_type: Some(crate::test_config::job_type("visibility")),
+                job_state: JobState::Completed,
+                product: Some(JobProduct {
+                    files: vec![
+                        JobFile {
+                            type_: FileType::Acacia,
+                            url: Some("https://example.org/a.tar".to_string()),
+                            path: None,
+                            size: 1234,
+                            sha1: Some("ab".repeat(20)),
+                            format: None,
+                        },
+                        JobFile {
+                            type_: FileType::Scratch,
+                            url: None,
+                            path: Some("/scratch/mwa/x".to_string()),
+                            size: 5,
+                            sha1: None,
+                            format: None,
+                        },
+                    ],
+                }),
+                created,
+                started: Some(created),
+                completed: Some(completed),
+                modified: Some(completed),
+                error_code: None,
+                error_text: None,
+                user_id: 4242,
+                first_name: "Test".to_string(),
+                last_name: "User".to_string(),
+                job_params,
+            },
+        ),
+        crate::test_config::asvo_job(
             obs_id,
-            job_id: 102,
-            job_type: Some(crate::test_config::job_type("conversion")),
-            job_state: JobState::Queued,
-            product: None,
-            created,
-            started: None,
-            completed: None,
-            modified: None,
-            error_code: None,
-            error_text: None,
-            user_id: 4242,
-            first_name: "Test".to_string(),
-            last_name: "User".to_string(),
-            job_params: serde_json::Map::new(),
-        },
-        AsvoJob {
+            JobDetailResponse {
+                id: 102,
+                job_type: Some(crate::test_config::job_type("conversion")),
+                job_state: JobState::Queued,
+                product: None,
+                created,
+                started: None,
+                completed: None,
+                modified: None,
+                error_code: None,
+                error_text: None,
+                user_id: 4242,
+                first_name: "Test".to_string(),
+                last_name: "User".to_string(),
+                job_params: serde_json::Map::new(),
+            },
+        ),
+        crate::test_config::asvo_job(
             obs_id,
-            job_id: 103,
-            job_type: Some(crate::test_config::job_type("imaging")),
-            job_state: JobState::Error,
-            product: Some(JobProduct { files: vec![] }),
-            created,
-            started: None,
-            completed: None,
-            modified: None,
-            error_code: Some(12),
-            error_text: Some("the \"conversion\" failed".to_string()),
-            user_id: 4242,
-            first_name: "Test".to_string(),
-            last_name: "User".to_string(),
-            job_params: serde_json::Map::new(),
-        },
+            JobDetailResponse {
+                id: 103,
+                job_type: Some(crate::test_config::job_type("imaging")),
+                job_state: JobState::Error,
+                product: Some(JobProduct { files: vec![] }),
+                created,
+                started: None,
+                completed: None,
+                modified: None,
+                error_code: Some(12),
+                error_text: Some("the \"conversion\" failed".to_string()),
+                user_id: 4242,
+                first_name: "Test".to_string(),
+                last_name: "User".to_string(),
+                job_params: serde_json::Map::new(),
+            },
+        ),
     ])
 }
 
@@ -1350,12 +1356,12 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
     assert_eq!(output, expected);
 }
 
-/// `--json` prints the jobs as the OpenAPI schema does: its names, its
-/// values (the job type is its code), and each file as a `JobFile`, which
-/// leaves out a key that has no value.
+/// `--json` prints each job as the OpenAPI schema's `JobDetailResponse`, with
+/// one more key, `obs_id`: the schema's names and values (the job type is
+/// its code), and no key for a field that has no value.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"job_id":101,"job_type":1,"job_state":"completed","product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"created":"2026-09-08T05:41:54Z","started":"2026-09-08T05:41:54Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{"delivery":"acacia","obs_id":1065880128}},"102":{"obs_id":1065880128,"job_id":102,"job_type":0,"job_state":"queued","product":null,"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_code":null,"error_text":null,"user_id":4242,"first_name":"Test","last_name":"User","job_params":{}},"103":{"obs_id":1065880128,"job_id":103,"job_type":6,"job_state":"error","product":{"files":[]},"created":"2026-09-08T05:41:54Z","started":null,"completed":null,"modified":null,"error_code":12,"error_text":"the \"conversion\" failed","user_id":4242,"first_name":"Test","last_name":"User","job_params":{}}}"#;
+    let expected = r#"{"101":{"obs_id":1065880128,"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54Z","first_name":"Test","id":101,"job_params":{"delivery":"acacia","obs_id":1065880128},"job_state":"completed","job_type":1,"last_name":"User","modified":"2026-09-08T06:00:00Z","product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"started":"2026-09-08T05:41:54Z","user_id":4242},"102":{"obs_id":1065880128,"created":"2026-09-08T05:41:54Z","first_name":"Test","id":102,"job_params":{"obs_id":1065880128},"job_state":"queued","job_type":0,"last_name":"User","user_id":4242},"103":{"obs_id":1065880128,"created":"2026-09-08T05:41:54Z","error_code":12,"error_text":"the \"conversion\" failed","first_name":"Test","id":103,"job_params":{"obs_id":1065880128},"job_state":"error","job_type":6,"last_name":"User","product":{"files":[]},"user_id":4242}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 

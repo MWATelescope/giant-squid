@@ -794,13 +794,14 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"job_id":325430,"job_type":1,"job_state":"completed","product":{"files":[{"format":"tar","sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","size":10762878689,"type":"acacia","url":"https://..."}]},"created":"2026-09-08T05:41:54.757232Z","started":"2026-09-08T05:42:10Z","completed":"2026-09-08T06:00:00Z","modified":"2026-09-08T06:00:00Z","error_code":null,"error_text":null,"user_id":4242,"first_name":"Jane","last_name":"Citizen","job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"}}}
+{"325430":{"obs_id":1090528304,"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54.757232Z","first_name":"Jane","id":325430,"job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"},"job_state":"completed","job_type":1,"last_name":"Citizen","modified":"2026-09-08T06:00:00Z","product":{"files":[{"format":"tar","sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","size":10762878689,"type":"acacia","url":"https://..."}]},"started":"2026-09-08T05:42:10Z","user_id":4242}}
 ```
 
-The output is an object keyed by job ID. Each job has the keys `obs_id`, `job_id`, `job_type`,
-`job_state`, `product`, `created`, `started`, `completed`, `modified`, `error_code`, `error_text`, `user_id`,
-`first_name`, `last_name` and `job_params`, which are the MWA ASVO API's (OpenAPI) names. `product`
-is `null` until the job has files; then its `files` list has, for each file, the keys of the API's
+The output is an object keyed by job ID. Each job is the MWA ASVO API's `JobDetailResponse`, with one more
+key, `obs_id` (which the API has only in `job_params`): `id` (the job ID), `job_type`, `job_state`, `product`,
+`created`, `started`, `completed`, `modified`, `error_code`, `error_text`, `user_id`, `first_name`, `last_name`
+and `job_params`. As in the API, a key that has no value is left out (for example `completed` for a job that
+is not finished). `product` is left out until the job has files; then its `files` list has, for each file, the keys of the API's
 `JobFile`: `type` (where it is delivered: `acacia`, `scratch` or `dug`), `url`, `path`, `size`, `sha1`
 and `format` (as the MWA ASVO gives it). As in the API, a file key that has no value is left out (for
 example `path` for an Acacia file).
@@ -887,7 +888,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 ```bash
 set -eux
 giant-squid list --json --job-types visibility --job-states completed \
-  | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
+  | jq -r '.[]|[.id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
    # note: it's a good idea to check you have enough disk space here using $size.
@@ -1222,7 +1223,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         ..JobsFilter::default()
     })?;
     for job in &ready.0 {
-        println!("{} {} {}", job.job_id, job.obs_id, job.job_state);
+        println!("{} {} {}", job.job_id(), job.obs_id(), job.job_state);
     }
 
     // Submit a visibility download job. Fields you do not set use the

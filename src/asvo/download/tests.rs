@@ -937,7 +937,7 @@ mod retries {
     use tempfile::TempDir;
 
     use super::{options, sha1_hex};
-    use crate::asvo::apiv2::openapi::Type as FileType;
+    use crate::asvo::apiv2::openapi::{JobDetailResponse, Type as FileType};
     use crate::asvo::download::{
         is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
@@ -1068,24 +1068,26 @@ mod retries {
 
     /// A ready job, for the functions that take one.
     fn ready_job() -> AsvoJob {
-        AsvoJob {
-            obs_id: ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
+        crate::test_config::asvo_job(
+            ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
                 .expect("the test obsid should be valid"),
-            job_id: TEST_JOB_ID,
-            job_type: Some(job_type("visibility")),
-            job_state: JobState::Completed,
-            product: None,
-            created: jiff::Timestamp::UNIX_EPOCH,
-            started: None,
-            completed: None,
-            modified: None,
-            error_code: None,
-            error_text: None,
-            user_id: 1,
-            first_name: "Test".to_string(),
-            last_name: "User".to_string(),
-            job_params: serde_json::Map::new(),
-        }
+            JobDetailResponse {
+                id: i64::try_from(TEST_JOB_ID).expect("a test job ID fits in i64"),
+                job_type: Some(job_type("visibility")),
+                job_state: JobState::Completed,
+                product: None,
+                created: jiff::Timestamp::UNIX_EPOCH,
+                started: None,
+                completed: None,
+                modified: None,
+                error_code: None,
+                error_text: None,
+                user_id: 1,
+                first_name: "Test".to_string(),
+                last_name: "User".to_string(),
+                job_params: serde_json::Map::new(),
+            },
+        )
     }
 
     #[test]

@@ -483,7 +483,7 @@ fn list_json_prints_the_jobs_keyed_by_job_id() {
     let parsed = result.stdout_json();
     let jobs = parsed.as_object().expect("a map keyed by job ID");
     assert_eq!(jobs.len(), 1);
-    assert_eq!(parsed["12345"]["job_id"], 12345);
+    assert_eq!(parsed["12345"]["id"], 12345);
 }
 
 /// `--legacy-json` prints the old keys, for one release, and says on
@@ -531,7 +531,7 @@ fn list_json_puts_only_the_json_on_stdout() {
     // The whole of stdout is one JSON document, with no log lines.
     let parsed: serde_json::Value = serde_json::from_str(result.stdout.trim())
         .unwrap_or_else(|e| panic!("stdout is not only JSON ({e}): {}", result.stdout));
-    assert_eq!(parsed["12345"]["job_id"], 12345);
+    assert_eq!(parsed["12345"]["id"], 12345);
     // The mock server is not the default host, so the client always logs
     // a warning. It is on stderr.
     assert!(
@@ -591,7 +591,7 @@ fn wait_returns_when_the_job_is_ready() {
 
     assert!(result.success, "output: {}", result.combined());
     let parsed = result.stdout_json();
-    assert_eq!(parsed["12345"]["job_id"], 12345);
+    assert_eq!(parsed["12345"]["id"], 12345);
 }
 
 #[test]

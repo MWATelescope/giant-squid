@@ -674,7 +674,11 @@ class AsvoError(builtins.Exception):
     """
     problem: builtins.str
     r"""
-    InvalidEnvironment: what is wrong with it.
+    InvalidEnvironment and InvalidJob: what is wrong.
+    """
+    id: builtins.int
+    r"""
+    InvalidJob: the `id` of the job, as the API gave it.
     """
 
 @typing.final

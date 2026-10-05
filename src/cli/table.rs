@@ -34,8 +34,8 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
 
         for j in jobs.0 {
             table.add_row(Row::new(vec![
-                Cell::new(j.job_id.to_string().as_str()),
-                Cell::new(j.obs_id.to_string().as_str()),
+                Cell::new(j.job_id().to_string().as_str()),
+                Cell::new(j.obs_id().to_string().as_str()),
                 Cell::new(j.job_type.map(|t| t.name()).unwrap_or_default())
                     .style_spec(&job_type_table_style(j.job_type, no_colour)),
                 Cell::new(job_state_text(&j).as_str())

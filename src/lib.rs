@@ -28,7 +28,7 @@ mod test_config;
 pub use asvo::*;
 pub use helpers::*;
 /// The jiff crate, for the dates and times in this crate's API (for example
-/// `AsvoJob::created`), so that a program uses the same jiff version.
+/// the `created` field of a job), so that a program uses the same jiff version.
 pub use jiff;
 pub use obs_id::ObsId;
 
