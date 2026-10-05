@@ -11,6 +11,9 @@ use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
 
 use super::*;
+use crate::asvo::apiv2::openapi::{
+    Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting,
+};
 use crate::cli::Args;
 
 const DELIVERY: &[&str] = &["acacia", "dug", "scratch"];
@@ -66,14 +69,16 @@ fn listed_values(command: &str, option: &str) -> Vec<String> {
         .collect()
 }
 
-/// Checks one enum: each variant is listed once, in alphabetical order of
-/// its API value, and the API value parses back to the variant.
+/// Checks one enum: each variant is listed once, the parser offers the
+/// values in alphabetical order, and each API value parses back to the
+/// variant. (The library's list is in the schema's order.)
 fn check_enum<T: SchemaEnum + PartialEq + Debug>() {
     let names: Vec<String> = T::VARIANTS.iter().map(ToString::to_string).collect();
     let mut sorted = names.clone();
     sorted.sort();
     sorted.dedup();
-    assert_eq!(names, sorted, "not sorted, or a variant twice");
+    assert_eq!(names.len(), sorted.len(), "a variant twice");
+    assert_eq!(sorted_values::<T>(), sorted);
 
     for variant in T::VARIANTS {
         assert_eq!(

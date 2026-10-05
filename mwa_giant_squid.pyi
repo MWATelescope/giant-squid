@@ -1006,9 +1006,9 @@ class DeliveryFormat(enum.Enum):
 @typing.final
 class JobState(enum.Enum):
     r"""
-    The state of an MWA ASVO job: the OpenAPI schema's `JobState`.
-    `str()` is the API value (for example "completed"). For `Error`, the
-    message is in `AsvoJob.error_text`.
+    The state of an MWA ASVO job: the OpenAPI schema's `JobState`. `str()`
+    is the API value (for example "completed"). For `Error`, the message is
+    in `AsvoJob.error_text`.
     """
 
     Preparing = ...
@@ -1072,11 +1072,11 @@ class Polarization(enum.Enum):
 @typing.final
 class Status(enum.Enum):
     r"""
-    The `status` of the MWA ASVO's reply to a submission or a
-    cancellation: the OpenAPI schema's `Status`. `str()` is the API value
-    ("success" or "failed"). It describes the reply, like `message`; it
-    is for display only. Success or failure of a call is decided by the
-    HTTP status, so a call that fails raises `AsvoApiError`.
+    The `status` of the MWA ASVO's reply to a submission or a cancellation:
+    the OpenAPI schema's `Status`. `str()` is the API value ("success" or
+    "failed"). It describes the reply, like `message`; it is for display
+    only. Success or failure of a call is decided by the HTTP status, so a
+    call that fails raises `AsvoApiError`.
     """
 
     Success = ...

@@ -19,17 +19,20 @@ use crate::asvo::apiv2::openapi::{
     Centre, DeliveryFormat, JobCancelledResponse, JobSubmittedResponse, Output, OutputMode,
     Polarization, Status, Type, Weighting,
 };
+use crate::asvo::apiv2::schema_enums::for_each_schema_enum;
 use crate::asvo::{
     AsvoJob, AsvoJobId, AsvoJobVec, Delivery, DownloadProgress, JobFile, JobProduct, JobState,
     JobType,
 };
 use crate::obs_id::ObsId;
 
-/// Define a Python enum with the same members as a fieldless library enum,
-/// and conversions in both directions.
+/// Define the Python enum of a schema enum: the same members, and
+/// conversions in both directions. Called by `for_each_schema_enum!`, which
+/// has the list of every schema enum (see
+/// [`crate::asvo::apiv2::schema_enums`]).
 macro_rules! py_enum {
-    ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident, [$($variant:ident),+ $(,)?]) => {
-        $(#[$doc])*
+    ($lib:ident, $py:ident, $name:literal, $doc:literal, [$($variant:ident),+ $(,)?]) => {
+        #[doc = $doc]
         #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass_enum)]
         #[pyclass(eq, eq_int, frozen, hash, from_py_object, name = $name, module = "mwa_giant_squid")]
         #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -62,6 +65,9 @@ macro_rules! py_enum {
         }
     };
 }
+
+// One Python enum for each schema enum (`Delivery`, `JobState` and the others).
+for_each_schema_enum!(py_enum);
 
 /// The type of an MWA ASVO job: the OpenAPI schema's `JobType`, whose value
 /// is the API's code (for example `JobType.Visibility` is 1). `str()` is the
@@ -123,103 +129,6 @@ impl PyJobType {
         JobType::from(*self).name().to_string()
     }
 }
-
-py_enum!(
-    /// Where the MWA ASVO delivers a job's files: the OpenAPI schema's
-    /// `Delivery`, the `delivery` argument of the submit methods. `str()` is
-    /// the API value.
-    PyDelivery,
-    "Delivery",
-    Delivery,
-    [Acacia, Scratch, Dug]
-);
-
-py_enum!(
-    /// Where a job's file is delivered: the OpenAPI schema's `Type`, the type
-    /// of `JobFile.type`. `str()` is the API value.
-    PyType,
-    "Type",
-    Type,
-    [Acacia, Scratch, Dug]
-);
-
-// The enums below are the job arguments of the submit methods. Their
-// members are those of the OpenAPI schema, and `str()` of a member is the
-// value the API uses (for example "uvfits").
-
-py_enum!(
-    /// How the MWA ASVO packages a job's files: one tar file, or separate
-    /// files. `str()` is the API value.
-    PyDeliveryFormat,
-    "DeliveryFormat",
-    DeliveryFormat,
-    [Tar, Files]
-);
-
-py_enum!(
-    /// The format of a conversion job's output. `str()` is the API value.
-    PyOutput,
-    "Output",
-    Output,
-    [Ms, Uvfits]
-);
-
-py_enum!(
-    /// Where to put the phase centre of a conversion job or an imaging job.
-    /// `str()` is the API value.
-    PyCentre,
-    "Centre",
-    Centre,
-    [Phase, Pointing, Custom]
-);
-
-py_enum!(
-    /// The products an imaging job returns. `str()` is the API value.
-    PyOutputMode,
-    "OutputMode",
-    OutputMode,
-    [Fits, AllFits, AllFiles]
-);
-
-py_enum!(
-    /// The WSClean weighting scheme of an imaging job. `str()` is the API
-    /// value.
-    PyWeighting,
-    "Weighting",
-    Weighting,
-    [Briggs, Uniform, Natural]
-);
-
-py_enum!(
-    /// The polarisation an imaging job images. `str()` is the API value.
-    PyPolarization,
-    "Polarization",
-    Polarization,
-    [Xx, Yy, Xxyy]
-);
-
-py_enum!(
-    /// The state of an MWA ASVO job: the OpenAPI schema's `JobState`.
-    /// `str()` is the API value (for example "completed"). For `Error`, the
-    /// message is in `AsvoJob.error_text`.
-    PyJobState,
-    "JobState",
-    JobState,
-    [
-        Preparing,
-        Queued,
-        Waitcal,
-        Staging,
-        Staged,
-        Downloading,
-        Preprocessing,
-        Imaging,
-        Delivering,
-        Completed,
-        Error,
-        Cancelled,
-    ]
-);
 
 /// One file of a job's product: the OpenAPI schema's `JobFile`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
@@ -510,18 +419,6 @@ impl From<DownloadProgress> for PyDownloadProgress {
         }
     }
 }
-
-py_enum!(
-    /// The `status` of the MWA ASVO's reply to a submission or a
-    /// cancellation: the OpenAPI schema's `Status`. `str()` is the API value
-    /// ("success" or "failed"). It describes the reply, like `message`; it
-    /// is for display only. Success or failure of a call is decided by the
-    /// HTTP status, so a call that fails raises `AsvoApiError`.
-    PyStatus,
-    "Status",
-    Status,
-    [Success, Failed]
-);
 
 /// Define the Python class of a reply of the MWA ASVO that has the fields
 /// `job_id`, `message` and `status`: `JobSubmittedResponse` and

@@ -8,6 +8,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 use crate::asvo::apiv2::openapi::{JobDetailResponse, JobFile, JobState, JobType};
+use crate::asvo::apiv2::schema_enums::SchemaEnum;
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
@@ -72,46 +73,12 @@ impl std::fmt::Display for JobType {
     }
 }
 
-/// Every job state of the OpenAPI schema, in the schema's order. The
-/// help of `list --job-states` lists them in this order.
-const JOB_STATES: [JobState; 12] = [
-    JobState::Preparing,
-    JobState::Queued,
-    JobState::Waitcal,
-    JobState::Staging,
-    JobState::Staged,
-    JobState::Downloading,
-    JobState::Preprocessing,
-    JobState::Imaging,
-    JobState::Delivering,
-    JobState::Completed,
-    JobState::Error,
-    JobState::Cancelled,
-];
-
-// A state that the schema adds is a compile error here, until it is added
-// to `JOB_STATES` too.
-const _: fn(JobState) = |state| match state {
-    JobState::Preparing
-    | JobState::Queued
-    | JobState::Waitcal
-    | JobState::Staging
-    | JobState::Staged
-    | JobState::Downloading
-    | JobState::Preprocessing
-    | JobState::Imaging
-    | JobState::Delivering
-    | JobState::Completed
-    | JobState::Error
-    | JobState::Cancelled => (),
-};
-
 impl JobState {
     /// The names of the job states: the schema's values (for example
     /// `completed`), in the schema's order. [`JobState::parse_name`]
     /// accepts each of them.
     pub fn names() -> Vec<String> {
-        JOB_STATES.iter().map(ToString::to_string).collect()
+        JobState::VARIANTS.iter().map(ToString::to_string).collect()
     }
 
     /// Parse the name of a job state, as a user types it: the case,
@@ -124,7 +91,7 @@ impl JobState {
     /// [`AsvoError::InvalidJobState`] for any other text.
     pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
         let wanted = _sanitize_identifier(s);
-        JOB_STATES
+        JobState::VARIANTS
             .iter()
             .find(|state| _sanitize_identifier(&state.to_string()) == wanted)
             .copied()

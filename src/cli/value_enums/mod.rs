@@ -13,66 +13,17 @@
 //!   value is a `ValueValidation` error, as it was before. The message now
 //!   names the allowed values.
 //!
-//! The generated types have no list of their variants, so each type is
-//! registered below with `schema_enum!`. The macro also checks, at compile
-//! time, that the list has every variant: when the schema gets a new value
-//! and `openapi.rs` is regenerated, the build fails here until the new
-//! variant is added.
+//! The values come from the library's list of each schema enum
+//! ([`SchemaEnum`]), so the CLI has no list of its own. The help and the
+//! messages list them in alphabetical order of their API value.
 
 use std::ffi::OsStr;
-use std::fmt::Display;
 use std::marker::PhantomData;
-use std::str::FromStr;
 
 use clap::builder::{PossibleValue, TypedValueParser};
 use clap::{Arg, Command};
 
-use crate::asvo::apiv2::openapi::{
-    Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting,
-};
-
-/// An enum of the OpenAPI schema, with the list of all its values.
-pub trait SchemaEnum: Copy + Display + FromStr + Send + Sync + 'static {
-    /// Every variant, in the order that `--help` lists them.
-    const VARIANTS: &'static [Self];
-}
-
-/// Implements [`SchemaEnum`] for a generated enum.
-///
-/// The variants are listed in alphabetical order of their API value, which
-/// is the order of the Python `giant-squid` command. The `match` inside the
-/// `const` fails to compile when the list lacks a variant of the type.
-macro_rules! schema_enum {
-    ($ty:ty, [$($variant:path),+ $(,)?]) => {
-        impl SchemaEnum for $ty {
-            const VARIANTS: &'static [Self] = &[$($variant),+];
-        }
-
-        const _: fn($ty) = |value| match value {
-            $($variant => (),)+
-        };
-    };
-}
-
-schema_enum!(Centre, [Centre::Custom, Centre::Phase, Centre::Pointing]);
-schema_enum!(
-    Delivery,
-    [Delivery::Acacia, Delivery::Dug, Delivery::Scratch]
-);
-schema_enum!(DeliveryFormat, [DeliveryFormat::Files, DeliveryFormat::Tar]);
-schema_enum!(Output, [Output::Ms, Output::Uvfits]);
-schema_enum!(
-    OutputMode,
-    [OutputMode::AllFiles, OutputMode::AllFits, OutputMode::Fits]
-);
-schema_enum!(
-    Polarization,
-    [Polarization::Xx, Polarization::Xxyy, Polarization::Yy]
-);
-schema_enum!(
-    Weighting,
-    [Weighting::Briggs, Weighting::Natural, Weighting::Uniform]
-);
+pub use crate::asvo::apiv2::schema_enums::SchemaEnum;
 
 /// The clap value parser for a [`SchemaEnum`].
 ///
@@ -100,13 +51,17 @@ impl<T> Clone for SchemaEnumParser<T> {
     }
 }
 
+/// The API values of `T`, in alphabetical order: the order of `--help` and
+/// of the messages.
+fn sorted_values<T: SchemaEnum>() -> Vec<String> {
+    let mut values: Vec<String> = T::VARIANTS.iter().map(ToString::to_string).collect();
+    values.sort();
+    values
+}
+
 /// The API values of `T`, as text for a message.
 fn allowed_values<T: SchemaEnum>() -> String {
-    T::VARIANTS
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(", ")
+    sorted_values::<T>().join(", ")
 }
 
 impl<T: SchemaEnum> TypedValueParser for SchemaEnumParser<T> {
@@ -124,9 +79,7 @@ impl<T: SchemaEnum> TypedValueParser for SchemaEnumParser<T> {
 
     fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
         Some(Box::new(
-            T::VARIANTS
-                .iter()
-                .map(|variant| PossibleValue::new(variant.to_string())),
+            sorted_values::<T>().into_iter().map(PossibleValue::new),
         ))
     }
 }
