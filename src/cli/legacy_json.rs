@@ -20,7 +20,8 @@ use std::collections::BTreeMap;
 use jiff::Timestamp;
 use serde::Serialize;
 
-use crate::asvo::{AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobVec, Delivery, JobState, JobType};
+use crate::asvo::apiv2::openapi::Type as FileType;
+use crate::asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
 use crate::obs_id::ObsId;
 
 /// The warning logged (to stderr, like every log record) when
@@ -33,7 +34,7 @@ pub const LEGACY_JSON_WARNING: &str = "--legacy-json is deprecated and will be r
 #[derive(Serialize)]
 struct LegacyFile<'a> {
     #[serde(rename = "jobType")]
-    delivery: &'a Delivery,
+    delivery: &'static str,
     #[serde(rename = "fileUrl")]
     url: &'a Option<String>,
     #[serde(rename = "filePath")]
@@ -112,13 +113,18 @@ struct LegacyJob<'a> {
     completed: &'a Option<Timestamp>,
 }
 
-impl<'a> From<&'a AsvoFilesArray> for LegacyFile<'a> {
-    fn from(file: &'a AsvoFilesArray) -> Self {
+impl<'a> From<&'a JobFile> for LegacyFile<'a> {
+    fn from(file: &'a JobFile) -> Self {
         Self {
-            delivery: &file.r#type,
+            // The old format wrote the delivery in CamelCase.
+            delivery: match file.type_ {
+                FileType::Acacia => "Acacia",
+                FileType::Dug => "Dug",
+                FileType::Scratch => "Scratch",
+            },
             url: &file.url,
             path: &file.path,
-            size: file.size,
+            size: file.size_bytes(),
             sha1: &file.sha1,
         }
     }

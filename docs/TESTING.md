@@ -344,8 +344,8 @@ endpoint, and prints one body per obsid.
 
 ## The `product` field, and what it unblocked
 
-`product` is typed in the schema as a free-form object, so its shape had to
-come from a real response. A recording from test-asvo shows:
+Before schema 1.11, `product` was typed in the schema as a free-form object,
+so its shape had to come from a real response. A recording from test-asvo shows:
 
 ```json
 "product": { "files": [ { "type": "acacia",
@@ -354,15 +354,14 @@ come from a real response. A recording from test-asvo shows:
                           "sha1": "ce32e0ae..." } ] }
 ```
 
-`product_to_files` in `src/asvo/apiv2/client/mod.rs` maps that to
-`AsvoFilesArray`, so `AsvoJob.product.files` is populated, downloads work, and `list` can show File Size
-and Delivery. Because nothing about `product` is guaranteed by type, the
-mapping is tolerant: an entry with an unrecognised or missing delivery type
-is skipped with a warning, a missing `size` becomes 0 (it only feeds
-progress reporting), and a job left with nothing usable reports
-`AsvoError::NoFiles` rather than half-downloading. Scratch and DUG
-deliveries carry a `path` instead of a `url`; those are mapped but have no
-recorded sample yet.
+Since schema 1.13 `product` is the schema's `JobProduct`, a list of
+`JobFile`, and the library uses those types as they are: `AsvoJob.product`
+is a `JobProduct`, so downloads work and `list` can show File Size and
+Delivery. A file type that the schema does not list fails the listing. A
+negative `size` counts as 0 (`JobFile::size_bytes`), and a job with an empty
+file list reports `AsvoError::NoFiles` rather than half-downloading. Scratch
+and DUG deliveries carry a `path` instead of a `url`; those have no recorded
+sample yet.
 
 the playback tests in `src/asvo/apiv2/client/tests.rs` replay the recording and pin the mapping against that
 real payload. `src/asvo/download/tests.rs` now runs a download end to end, with the

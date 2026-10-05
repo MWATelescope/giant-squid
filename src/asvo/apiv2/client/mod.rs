@@ -27,10 +27,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::asvo::token_store::{self, StoredTokens};
-use crate::asvo::{
-    AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobVec, Delivery,
-    DownloadOptions, DEFAULT_ASVO_HOST,
-};
+use crate::asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions, DEFAULT_ASVO_HOST};
 use crate::built_info;
 use crate::obs_id::ObsId;
 
@@ -38,8 +35,8 @@ use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
     DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
-    JobProduct, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, TokenResponse,
-    Type as JobFileType, UserResponse, VoltageJobParams,
+    JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, TokenResponse, UserResponse,
+    VoltageJobParams,
 };
 use super::validate::{
     self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
@@ -1004,9 +1001,7 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// - `obs_id` is looked for at `job_params["obs_id"]` (an untyped JSON
 ///   map). CONFIRMED against a real response: the key name is right, but
 ///   the value is a JSON string, not a number - handled below.
-/// - `files` comes from `product["files"]`, mapped by
-///   [`product_to_files`]. `product` is typed in the schema as a
-///   free-form object, so the mapping is deliberately tolerant.
+/// - `product` is the schema's `JobProduct`, used as it is.
 fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
     let job_id = match AsvoJobId::try_from(detail.id) {
         Ok(id) => id,
@@ -1052,8 +1047,7 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         job_id,
         job_type: detail.job_type,
         job_state: detail.job_state,
-        product: product_to_files(job_id, detail.product.as_ref())
-            .map(|files| AsvoJobProduct { files }),
+        product: detail.product,
         created: detail.created,
         started: detail.started,
         completed: detail.completed,
@@ -1065,64 +1059,6 @@ fn job_detail_to_asvo_job(detail: JobDetailResponse) -> Option<AsvoJob> {
         last_name: detail.last_name,
         job_params: detail.job_params,
     })
-}
-
-/// Map a job's `product` to the file list the download path uses.
-///
-/// Since schema v1.11 `product` is typed (`JobProduct`, a list of
-/// `JobFile`), and since v1.13 a file's `type` is the enum `acacia`,
-/// `scratch` or `dug`, so every file has a delivery that this client knows.
-/// Scratch and DUG deliveries carry a `path` instead of a `url`.
-///
-/// Returns `None` when there is no file list at all (for instance a job
-/// that hasn't completed), which the download path reports as
-/// [`crate::asvo::AsvoError::NoFiles`].
-fn product_to_files(
-    job_id: AsvoJobId,
-    product: Option<&JobProduct>,
-) -> Option<Vec<AsvoFilesArray>> {
-    let files = &product?.files;
-
-    let mapped: Vec<AsvoFilesArray> = files
-        .iter()
-        .map(|file| {
-            let delivery = match file.type_ {
-                JobFileType::Acacia => Delivery::Acacia,
-                JobFileType::Dug => Delivery::Dug,
-                JobFileType::Scratch => Delivery::Scratch,
-            };
-
-            // The schema types the size as a signed integer. Only used for
-            // progress and throughput reporting, so a negative size is
-            // worth noting but not worth dropping the file over.
-            let size = u64::try_from(file.size).unwrap_or_else(|_| {
-                debug!(
-                    "MWA ASVO job {}: file has a negative size ({}) in product",
-                    job_id, file.size
-                );
-                0
-            });
-
-            AsvoFilesArray {
-                r#type: delivery,
-                url: file.url.clone(),
-                path: file.path.clone(),
-                size,
-                sha1: file.sha1.clone(),
-                format: file.format.clone(),
-            }
-        })
-        .collect();
-
-    if mapped.is_empty() {
-        warn!(
-            "MWA ASVO job {}: product carried a file list, but none of it was usable",
-            job_id
-        );
-        return None;
-    }
-
-    Some(mapped)
 }
 
 /// The server-side filters of [`AsvoClient::get_jobs`], which are those of

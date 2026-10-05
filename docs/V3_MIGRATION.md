@@ -285,7 +285,10 @@ New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
 value of `job_state` is the API's (for example `completed`, see the table in
 the previous section). The value of `job_type` is the API's code (for example
-`1` for a visibility download).
+`1` for a visibility download). A file's `type` is the API's value
+(`acacia`, `scratch` or `dug`; in 2.x `Acacia` and so on), and a file key that
+has no value is left out, as in the API (in 2.x it was `null`). Use `//` in
+`jq` for a key that can be missing, as the example below does.
 
 To update a `jq` command, change the key names. The 2.x README example:
 

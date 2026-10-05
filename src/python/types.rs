@@ -16,12 +16,11 @@ use pyo3::types::{PyDict, PyList};
 use super::error::asvo_error;
 use super::typed::{JobIterator, JsonDict};
 use crate::asvo::apiv2::openapi::{
-    self as api, Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization,
-    Weighting,
+    Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization, Type, Weighting,
 };
 use crate::asvo::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobProduct, AsvoJobVec, Delivery, DownloadProgress,
-    JobState, JobType,
+    AsvoJob, AsvoJobId, AsvoJobVec, Delivery, DownloadProgress, JobFile, JobProduct, JobState,
+    JobType,
 };
 use crate::obs_id::ObsId;
 
@@ -125,24 +124,23 @@ impl PyJobType {
 }
 
 py_enum!(
-    /// Where the MWA ASVO delivers a job's files.
+    /// Where the MWA ASVO delivers a job's files: the OpenAPI schema's
+    /// `Delivery`, the `delivery` argument of the submit methods. `str()` is
+    /// the API value.
     PyDelivery,
     "Delivery",
     Delivery,
-    [Acacia, Dug, Scratch]
+    [Acacia, Scratch, Dug]
 );
 
-impl From<PyDelivery> for api::Delivery {
-    /// `Delivery` is also the type of the `delivery` argument of the job
-    /// submit methods, which the library types as the OpenAPI enum.
-    fn from(d: PyDelivery) -> Self {
-        match d {
-            PyDelivery::Acacia => Self::Acacia,
-            PyDelivery::Dug => Self::Dug,
-            PyDelivery::Scratch => Self::Scratch,
-        }
-    }
-}
+py_enum!(
+    /// Where a job's file is delivered: the OpenAPI schema's `Type`, the type
+    /// of `JobFile.type`. `str()` is the API value.
+    PyType,
+    "Type",
+    Type,
+    [Acacia, Scratch, Dug]
+);
 
 // The enums below are the job arguments of the submit methods. Their
 // members are those of the OpenAPI schema, and `str()` of a member is the
@@ -222,25 +220,25 @@ py_enum!(
     ]
 );
 
-/// One file of a job's product.
+/// One file of a job's product: the OpenAPI schema's `JobFile`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
-    name = "AsvoFilesArray",
+    name = "JobFile",
     module = "mwa_giant_squid"
 )]
 #[derive(Clone)]
-pub struct PyAsvoFilesArray(AsvoFilesArray);
+pub struct PyJobFile(JobFile);
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyAsvoFilesArray {
+impl PyJobFile {
     /// Where the file is delivered.
     #[getter]
     #[pyo3(name = "type")]
-    fn delivery_type(&self) -> PyDelivery {
-        self.0.r#type.into()
+    fn type_(&self) -> PyType {
+        self.0.type_.into()
     }
 
     /// The download URL (Acacia delivery), or `None`.
@@ -257,7 +255,7 @@ impl PyAsvoFilesArray {
 
     /// The size of the file in bytes.
     #[getter]
-    fn size(&self) -> u64 {
+    fn size(&self) -> i64 {
         self.0.size
     }
 
@@ -275,34 +273,35 @@ impl PyAsvoFilesArray {
 
     fn __repr__(&self) -> String {
         format!(
-            "AsvoFilesArray(type={}, size={}, url={:?}, path={:?})",
-            self.0.r#type, self.0.size, self.0.url, self.0.path
+            "JobFile(type={}, size={}, url={:?}, path={:?})",
+            self.0.type_, self.0.size, self.0.url, self.0.path
         )
     }
 }
 
-/// The product of a completed job: its files.
+/// The product of a completed job, its files: the OpenAPI schema's
+/// `JobProduct`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(
     frozen,
     skip_from_py_object,
-    name = "AsvoJobProduct",
+    name = "JobProduct",
     module = "mwa_giant_squid"
 )]
 #[derive(Clone)]
-pub struct PyAsvoJobProduct(AsvoJobProduct);
+pub struct PyJobProduct(JobProduct);
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyAsvoJobProduct {
+impl PyJobProduct {
     /// The job's files.
     #[getter]
-    fn files(&self) -> Vec<PyAsvoFilesArray> {
-        self.0.files.iter().cloned().map(PyAsvoFilesArray).collect()
+    fn files(&self) -> Vec<PyJobFile> {
+        self.0.files.iter().cloned().map(PyJobFile).collect()
     }
 
     fn __repr__(&self) -> String {
-        format!("AsvoJobProduct(<{} files>)", self.0.files.len())
+        format!("JobProduct(<{} files>)", self.0.files.len())
     }
 }
 
@@ -360,8 +359,8 @@ impl PyAsvoJob {
 
     /// The job's product (its files), or `None` if the job has none yet.
     #[getter]
-    fn product(&self) -> Option<PyAsvoJobProduct> {
-        self.0.product.clone().map(PyAsvoJobProduct)
+    fn product(&self) -> Option<PyJobProduct> {
+        self.0.product.clone().map(PyJobProduct)
     }
 
     /// When the job completed (UTC), or `None`.

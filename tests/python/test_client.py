@@ -101,7 +101,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert ready.completed == COMPLETED_UTC
     assert ready.product is not None
     (file,) = ready.product.files
-    assert file.type == gs.Delivery.Acacia
+    assert file.type == gs.Type.Acacia
     assert file.url == FILE_URL
     assert file.size == FILE_SIZE
     assert file.sha1 == FILE_SHA1

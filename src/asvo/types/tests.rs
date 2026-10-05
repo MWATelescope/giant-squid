@@ -5,6 +5,7 @@
 //! Tests for [`super`] ASVO data types.
 
 use super::*;
+use crate::asvo::apiv2::openapi::Type as FileType;
 use crate::test_config::job_type;
 
 /// An obsid used by these tests.
@@ -398,9 +399,9 @@ fn filter_criteria_are_combined() {
 #[test]
 fn the_json_output_keys_are_the_openapi_names() {
     let mut ready = job(JOB_ID_A, JobState::Completed);
-    ready.product = Some(AsvoJobProduct {
-        files: vec![AsvoFilesArray {
-            r#type: Delivery::Acacia,
+    ready.product = Some(JobProduct {
+        files: vec![JobFile {
+            type_: FileType::Acacia,
             url: Some("https://example.org/f.tar".to_string()),
             path: None,
             size: 1,
@@ -447,5 +448,8 @@ fn the_json_output_keys_are_the_openapi_names() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(file_keys, ["format", "path", "sha1", "size", "type", "url"]);
+    // A `JobFile` leaves out a key that has no value (here `path` and
+    // `format`), as the schema does.
+    assert_eq!(file_keys, ["sha1", "size", "type", "url"]);
+    assert_eq!(entry["product"]["files"][0]["type"], "acacia");
 }

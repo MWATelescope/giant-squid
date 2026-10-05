@@ -155,8 +155,8 @@ Notes:
   the exception has the attribute `error_code`.
 - Times (`created`, `started`, `completed`, `modified`) are `datetime.datetime` objects with a time zone.
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
-- The files of a ready job are in `job.product.files`. Each `AsvoFilesArray` has `type`, `url`, `path`,
-  `size`, `sha1` and `format`.
+- The files of a ready job are in `job.product.files` (a `JobProduct`). Each `JobFile` has `type` (a
+  `Type`: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and `format`.
 
 ## Submit jobs
 

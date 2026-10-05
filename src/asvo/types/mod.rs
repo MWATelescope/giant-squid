@@ -8,7 +8,7 @@ use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-use crate::asvo::apiv2::openapi::{JobState, JobType};
+use crate::asvo::apiv2::openapi::{JobFile, JobProduct, JobState, JobType};
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
@@ -148,29 +148,12 @@ impl JobState {
     }
 }
 
-/// A single file provided by an ASVO job.
-///
-/// In JSON the keys are the field names, which are the OpenAPI names of a
-/// `JobFile`: `type`, `url`, `path`, `size`, `sha1` and `format`.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
-pub struct AsvoFilesArray {
-    /// Where the file is delivered.
-    pub r#type: Delivery,
-    pub url: Option<String>,
-    pub path: Option<String>,
-    pub size: u64,
-    pub sha1: Option<String>,
-    /// The file's format, as the MWA ASVO gives it, or `None`. The schema
-    /// (v1.11) types it as a free string and does not document its values.
-    pub format: Option<String>,
-}
-
-/// The product of a completed job: the OpenAPI `JobProduct`.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
-pub struct AsvoJobProduct {
-    /// The job's files. For a job from the server it is not empty: a
-    /// product with no usable file is `None` on the job.
-    pub files: Vec<AsvoFilesArray>,
+impl JobFile {
+    /// The size of the file in bytes. The schema types `size` as a signed
+    /// integer; a negative size (which the MWA ASVO does not send) is 0.
+    pub fn size_bytes(&self) -> u64 {
+        u64::try_from(self.size).unwrap_or_default()
+    }
 }
 
 /// An MWA ASVO job ID. A `u64`, as the OpenAPI schema's `job_id` is a
@@ -183,7 +166,7 @@ pub type AsvoJobId = u64;
 /// In JSON the keys are the field names, which are the OpenAPI names of a
 /// `JobDetailResponse`. One differs in form: `obs_id`, which the API has
 /// only in `job_params`, is also a field of its own here.
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct AsvoJob {
     pub obs_id: ObsId,
     pub job_id: AsvoJobId,
@@ -192,8 +175,9 @@ pub struct AsvoJob {
     /// The job's state, the schema's `JobState`. For a job in the `Error`
     /// state, the message is [`AsvoJob::error_text`].
     pub job_state: JobState,
-    /// The job's product (its files), or `None` if the job has none yet.
-    pub product: Option<AsvoJobProduct>,
+    /// The job's product, the schema's `JobProduct` (its files), or `None`
+    /// if the job has none yet.
+    pub product: Option<JobProduct>,
     /// When the job was created (UTC).
     pub created: Timestamp,
     /// When the job started, or `None` if it has not started.
@@ -318,7 +302,7 @@ impl AsvoJobVec {
 /// isolating specific jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
-#[derive(Serialize, PartialEq, Eq, Debug)]
+#[derive(Serialize, Debug)]
 pub struct AsvoJobMap(pub BTreeMap<AsvoJobId, AsvoJob>);
 
 impl From<AsvoJobVec> for AsvoJobMap {
@@ -342,34 +326,6 @@ impl std::fmt::Display for AsvoJob {
             type=self.job_type.map(|t| t.name()).unwrap_or_default(),
             state=self.job_state,
             files=self.product.as_ref().map(|p| &p.files),
-        )
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
-pub enum Delivery {
-    /// "Deliver" the ASVO job to "the cloud" so it can be downloaded from
-    /// anywhere.
-    Acacia,
-
-    /// Delivert the ASVO job to the filesystem on DUG (Curtin University's account)
-    Dug,
-
-    /// Deliver the ASVO job to the /scratch filesystem at the Pawsey
-    /// Supercomputing Centre.
-    Scratch,
-}
-
-impl std::fmt::Display for Delivery {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Delivery::Acacia => "acacia",
-                Delivery::Dug => "dug",
-                Delivery::Scratch => "scratch",
-            }
         )
     }
 }

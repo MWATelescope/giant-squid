@@ -13,7 +13,8 @@ use crate::check_file_sha1_hash;
 use crate::helpers::{hash_reader, to_hex};
 use crate::obs_id::ObsId;
 
-use super::{AsvoError, AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobVec, Delivery, JobState};
+use super::apiv2::openapi::Type as FileType;
+use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};
 use std::env::current_dir;
@@ -209,8 +210,8 @@ fn download_job(
     let start_time = Instant::now();
 
     for f in files {
-        match f.r#type {
-            Delivery::Acacia => {
+        match f.type_ {
+            FileType::Acacia => {
                 let url = f
                     .url
                     .as_deref()
@@ -267,10 +268,14 @@ fn download_job(
                 let throughput_str = if elapsed_ms == 0 {
                     "N/A".to_string()
                 } else {
-                    bytesize::ByteSize((f.size * 1000).checked_div(elapsed_ms).unwrap_or_default())
-                        .display()
-                        .iec()
-                        .to_string()
+                    bytesize::ByteSize(
+                        (f.size_bytes() * 1000)
+                            .checked_div(elapsed_ms)
+                            .unwrap_or_default(),
+                    )
+                    .display()
+                    .iec()
+                    .to_string()
                 };
 
                 let duration_str = if elapsed.as_secs() > 60 {
@@ -286,19 +291,19 @@ fn download_job(
                 info!(
                     "{} Completed download of {} in {} ({}/s)",
                     log_prefix,
-                    bytesize::ByteSize(f.size).display().iec(),
+                    bytesize::ByteSize(f.size_bytes()).display().iec(),
                     duration_str,
                     throughput_str
                 );
             }
-            Delivery::Dug => {
+            FileType::Dug => {
                 error!(
                     "{} Files for Job are not reachable from the current host. \
                      You will find your job's files on the DUG filesystem.",
                     log_prefix
                 );
             }
-            Delivery::Scratch => {
+            FileType::Scratch => {
                 let path = f
                     .path
                     .as_deref()
@@ -378,7 +383,7 @@ struct RetryState {
 fn try_download(
     http_client: &Client,
     url: &str,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     job: &AsvoJob,
     out_path: &PathBuf,
     log_prefix: &str,
@@ -397,7 +402,7 @@ fn try_download(
         "{} Download starting (type: {}, {})",
         log_prefix,
         job.job_type.map(|t| t.name()).unwrap_or_default(),
-        bytesize::ByteSize(file_info.size).display().iec(),
+        bytesize::ByteSize(file_info.size_bytes()).display().iec(),
     );
 
     if !opts.keep_tar {
@@ -431,7 +436,13 @@ fn try_download(
     };
     retry_state.wrote_tar = true;
 
-    report_started(opts, job.job_id, log_prefix, file_info.size, resume_from);
+    report_started(
+        opts,
+        job.job_id,
+        log_prefix,
+        file_info.size_bytes(),
+        resume_from,
+    );
 
     info!(
         "{} {} tar archive {:?}",
@@ -457,7 +468,13 @@ fn try_download(
         );
         out_file = create_file_logged(out_path, log_prefix)?;
         resume_from = 0;
-        report_started(opts, job.job_id, log_prefix, file_info.size, resume_from);
+        report_started(
+            opts,
+            job.job_id,
+            log_prefix,
+            file_info.size_bytes(),
+            resume_from,
+        );
     }
 
     // Set when only part of the file was fetched this time, which changes
@@ -670,7 +687,7 @@ struct MemberTail {
 fn try_download_untar(
     http_client: &Client,
     url: &str,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     job_id: AsvoJobId,
     out_path: &Path,
     log_prefix: &str,
@@ -693,7 +710,7 @@ fn try_download_untar(
             log_prefix,
             unpack_path.display(),
             resume.start,
-            file_info.size
+            file_info.size_bytes()
         );
     } else {
         info!(
@@ -718,7 +735,13 @@ fn try_download_untar(
         *checkpoint = None;
     }
 
-    report_started(opts, job_id, log_prefix, file_info.size, resume.start);
+    report_started(
+        opts,
+        job_id,
+        log_prefix,
+        file_info.size_bytes(),
+        resume.start,
+    );
 
     // A resumed download joins bytes from more than one attempt (or run),
     // so its hash is checked even when `opts.hash` is not set.
@@ -734,7 +757,7 @@ fn try_download_untar(
         unpack_path,
         out_path,
         mwa_asvo_hash,
-        file_info.size,
+        file_info.size_bytes(),
         log_prefix,
     );
     let hasher = match untar_stream_with_sidecar(
@@ -1055,7 +1078,7 @@ impl<R: Read> Read for HashingReader<'_, R> {
 fn untar_checkpoint_from_disk(
     http_client: &Client,
     url: &str,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     job_id: AsvoJobId,
     log_prefix: &str,
     opts: &DownloadOptions,
@@ -1087,7 +1110,7 @@ fn untar_checkpoint_from_disk(
 fn find_files_on_disk(
     http_client: &Client,
     url: &str,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     job_id: AsvoJobId,
     log_prefix: &str,
     opts: &DownloadOptions,
@@ -1100,7 +1123,7 @@ fn find_files_on_disk(
             http_client,
             url,
             log_prefix,
-            archive_size: file_info.size,
+            archive_size: file_info.size_bytes(),
             position: 0,
             window_start: 0,
             window: Vec::new(),
@@ -1147,7 +1170,7 @@ fn find_files_on_disk(
 
             debug!("{} Already on disk: {}", log_prefix, out_full.display());
             if files_on_disk == 0 {
-                report_started(opts, job_id, log_prefix, file_info.size, 0);
+                report_started(opts, job_id, log_prefix, file_info.size_bytes(), 0);
             }
             files_on_disk += 1;
             if !is_dir && size > 0 {
@@ -1490,7 +1513,7 @@ impl<'a> SidecarWriter<'a> {
 /// looks for files on disk instead (see [`untar_checkpoint_from_disk`]).
 fn checkpoint_from_sidecar(
     out_path: &Path,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     log_prefix: &str,
     opts: &DownloadOptions,
 ) -> Option<UntarCheckpoint> {
@@ -1530,7 +1553,7 @@ fn checkpoint_from_sidecar(
 fn parse_sidecar(
     bytes: &[u8],
     unpack_path: &Path,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
 ) -> Result<UntarCheckpoint, String> {
     let sidecar: Sidecar =
         serde_json::from_slice(bytes).map_err(|e| format!("it cannot be read ({e})"))?;
@@ -1541,8 +1564,8 @@ fn parse_sidecar(
         .sha1
         .as_deref()
         .is_some_and(|sha1| sha1.eq_ignore_ascii_case(&sidecar.archive_sha1))
-        && sidecar.archive_size == file_info.size
-        && sidecar.data_pos <= file_info.size;
+        && sidecar.archive_size == file_info.size_bytes()
+        && sidecar.data_pos <= file_info.size_bytes();
     if !same_archive {
         return Err("it is for another download".to_string());
     }
@@ -1873,7 +1896,7 @@ enum OutputTarget {
 fn prepare_output_file(
     out_path: &PathBuf,
     no_resume: bool,
-    file_info: &AsvoFilesArray,
+    file_info: &JobFile,
     mwa_asvo_hash: &str,
     job_id: AsvoJobId,
     log_prefix: &str,
@@ -1891,7 +1914,7 @@ fn prepare_output_file(
 
     let file_size_bytes = std::fs::metadata(out_path)?.len();
 
-    if file_size_bytes == file_info.size {
+    if file_size_bytes == file_info.size_bytes() {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
@@ -1909,7 +1932,7 @@ fn prepare_output_file(
         return start_again();
     }
 
-    if file_size_bytes > file_info.size {
+    if file_size_bytes > file_info.size_bytes() {
         warn!(
             "{} {:?} is larger than the file to download. Restarting download...",
             log_prefix, out_path

@@ -60,6 +60,12 @@ before you upgrade scripts.**
   `visibility`, `metadata`, `voltage`, `cancel`, `beamformer`, `imaging`), and `--json` gives the API's code (`0` to
   `6`), or `null` for a job with no type. The 2.x names (`download_visibilities` and so on) are refused.
   `--legacy-json` still prints the 2.x names.
+* A file in `--json` is the API's `JobFile`: its `type` is `acacia`, `scratch` or `dug` (was `Acacia` and so on), and
+  a key that has no value is left out (was `null`).
+* Library: `AsvoFilesArray`, `AsvoJobProduct` and `Delivery` are replaced by the OpenAPI schema's `JobFile`,
+  `JobProduct` and `Type` (the delivery of a file). `JobFile::size_bytes` gives the size as a `u64`. `Delivery` is
+  now the schema's `Delivery`, the delivery of a submission. In Python, `AsvoFilesArray` and `AsvoJobProduct` are
+  replaced by `JobFile` and `JobProduct`, and `JobFile.type` is a `Type`.
 * Library: `AsvoJobType` is replaced by the OpenAPI schema's `JobType` (a code), with `name()`, `names()` and
   `parse_name()`. `AsvoJob::job_type` is `Option<JobType>`. In Python, `AsvoJobType` is replaced by `JobType`, whose
   members are the codes (`JobType.Visibility == 1`).

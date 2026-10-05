@@ -15,20 +15,21 @@ __all__ = [
     "AsvoApiError",
     "AsvoClient",
     "AsvoError",
-    "AsvoFilesArray",
     "AsvoJob",
-    "AsvoJobProduct",
     "AsvoJobVec",
     "Centre",
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
+    "JobFile",
+    "JobProduct",
     "JobState",
     "JobSubmittedResponse",
     "JobType",
     "Output",
     "OutputMode",
     "Polarization",
+    "Type",
     "Weighting",
     "reset_logging",
 ]
@@ -677,42 +678,6 @@ class AsvoError(builtins.Exception):
     """
 
 @typing.final
-class AsvoFilesArray:
-    r"""
-    One file of a job's product.
-    """
-    @property
-    def type(self) -> Delivery:
-        r"""
-        Where the file is delivered.
-        """
-    @property
-    def url(self) -> builtins.str | None:
-        r"""
-        The download URL (Acacia delivery), or `None`.
-        """
-    @property
-    def path(self) -> builtins.str | None:
-        r"""
-        The path on the filesystem (Scratch or DUG delivery), or `None`.
-        """
-    @property
-    def size(self) -> builtins.int:
-        r"""
-        The size of the file in bytes.
-        """
-    @property
-    def sha1(self) -> builtins.str | None:
-        r"""
-        The file's SHA-1 hash, or `None`.
-        """
-    @property
-    def format(self) -> builtins.str | None:
-        r"""
-        The file's format, as the MWA ASVO gives it, or `None`.
-        """
-
-@typing.final
 class AsvoJob:
     r"""
     An MWA ASVO job.
@@ -750,7 +715,7 @@ class AsvoJob:
         has its message here.
         """
     @property
-    def product(self) -> AsvoJobProduct | None:
+    def product(self) -> JobProduct | None:
         r"""
         The job's product (its files), or `None` if the job has none yet.
         """
@@ -793,17 +758,6 @@ class AsvoJob:
     def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
         r"""
         The job's parameters as the server gives them, as a `dict`.
-        """
-
-@typing.final
-class AsvoJobProduct:
-    r"""
-    The product of a completed job: its files.
-    """
-    @property
-    def files(self) -> builtins.list[AsvoFilesArray]:
-        r"""
-        The job's files.
         """
 
 @typing.final
@@ -914,6 +868,54 @@ class DownloadProgress:
         def __new__(cls) -> DownloadProgress.Finished: ...
 
 @typing.final
+class JobFile:
+    r"""
+    One file of a job's product: the OpenAPI schema's `JobFile`.
+    """
+    @property
+    def type(self) -> Type:
+        r"""
+        Where the file is delivered.
+        """
+    @property
+    def url(self) -> builtins.str | None:
+        r"""
+        The download URL (Acacia delivery), or `None`.
+        """
+    @property
+    def path(self) -> builtins.str | None:
+        r"""
+        The path on the filesystem (Scratch or DUG delivery), or `None`.
+        """
+    @property
+    def size(self) -> builtins.int:
+        r"""
+        The size of the file in bytes.
+        """
+    @property
+    def sha1(self) -> builtins.str | None:
+        r"""
+        The file's SHA-1 hash, or `None`.
+        """
+    @property
+    def format(self) -> builtins.str | None:
+        r"""
+        The file's format, as the MWA ASVO gives it, or `None`.
+        """
+
+@typing.final
+class JobProduct:
+    r"""
+    The product of a completed job, its files: the OpenAPI schema's
+    `JobProduct`.
+    """
+    @property
+    def files(self) -> builtins.list[JobFile]:
+        r"""
+        The job's files.
+        """
+
+@typing.final
 class JobSubmittedResponse:
     r"""
     The MWA ASVO's reply to a job submission or to a cancellation.
@@ -952,12 +954,14 @@ class Centre(enum.Enum):
 @typing.final
 class Delivery(enum.Enum):
     r"""
-    Where the MWA ASVO delivers a job's files.
+    Where the MWA ASVO delivers a job's files: the OpenAPI schema's
+    `Delivery`, the `delivery` argument of the submit methods. `str()` is
+    the API value.
     """
 
     Acacia = ...
-    Dug = ...
     Scratch = ...
+    Dug = ...
 
 @typing.final
 class DeliveryFormat(enum.Enum):
@@ -1034,6 +1038,17 @@ class Polarization(enum.Enum):
     Xx = ...
     Yy = ...
     Xxyy = ...
+
+@typing.final
+class Type(enum.Enum):
+    r"""
+    Where a job's file is delivered: the OpenAPI schema's `Type`, the type
+    of `JobFile.type`. `str()` is the API value.
+    """
+
+    Acacia = ...
+    Scratch = ...
+    Dug = ...
 
 @typing.final
 class Weighting(enum.Enum):

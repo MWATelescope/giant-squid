@@ -19,10 +19,11 @@ use clap::Parser;
 use httpmock::prelude::*;
 use serde_json::json;
 
+use crate::asvo::apiv2::openapi::Type as FileType;
 #[cfg(feature = "bin")]
 use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::asvo::client_config_from_env;
-use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, Delivery, JobQuery, JobState, JobsFilter};
+use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobQuery, JobState, JobsFilter};
 #[cfg(feature = "bin")]
 use crate::cli::Args;
 use crate::test_common::*;
@@ -1098,8 +1099,8 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     assert!(job.completed.is_some(), "completed should be parsed");
 }
 
-/// The point of the recording: `product` is a free-form object in the
-/// schema, so this pins the mapping against a real payload.
+/// The recording pins the schema's `JobProduct` against a real payload.
+/// (Before schema 1.11, `product` was a free-form object.)
 #[test]
 fn a_recorded_jobs_product_becomes_a_file_list() {
     let env = TestEnv::with_session();
@@ -1122,8 +1123,8 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
         .files;
     assert_eq!(files.len(), 1);
     let file = &files[0];
-    assert_eq!(file.r#type, Delivery::Acacia);
-    assert_eq!(file.size, RECORDED_SIZE);
+    assert_eq!(file.type_, FileType::Acacia);
+    assert_eq!(file.size_bytes(), RECORDED_SIZE);
     assert_eq!(file.sha1.as_deref(), Some(RECORDED_SHA1));
     assert!(
         file.url

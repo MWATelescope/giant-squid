@@ -937,11 +937,12 @@ mod retries {
     use tempfile::TempDir;
 
     use super::{options, sha1_hex};
+    use crate::asvo::apiv2::openapi::Type as FileType;
     use crate::asvo::download::{
         is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
     };
-    use crate::asvo::{AsvoError, AsvoFilesArray, AsvoJob, Delivery, JobState};
+    use crate::asvo::{AsvoError, AsvoJob, JobFile, JobState};
     use crate::obs_id::ObsId;
     use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
     use crate::test_config::job_type;
@@ -1054,12 +1055,12 @@ mod retries {
     }
 
     /// The file entry for `archive`, served from `url`.
-    fn file_info(url: &str, archive: &[u8], sha1: &str) -> AsvoFilesArray {
-        AsvoFilesArray {
-            r#type: Delivery::Acacia,
+    fn file_info(url: &str, archive: &[u8], sha1: &str) -> JobFile {
+        JobFile {
+            type_: FileType::Acacia,
             url: Some(url.to_string()),
             path: None,
-            size: archive.len() as u64,
+            size: archive.len() as i64,
             sha1: Some(sha1.to_string()),
             format: None,
         }

@@ -15,7 +15,7 @@ pub use apiv2::client::{
     ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };
-pub use apiv2::openapi::{JobState, JobType};
+pub use apiv2::openapi::{Delivery, JobFile, JobProduct, JobState, JobType};
 pub use apiv2::AsvoApiError;
 pub use download::{
     DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_CONCURRENT_DOWNLOADS,
@@ -28,9 +28,7 @@ pub use env::{
 };
 pub use error::AsvoError;
 pub use token_store::{default_token_cache_path, StoredTokens};
-pub use types::{
-    AsvoFilesArray, AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobProduct, AsvoJobVec, Delivery,
-};
+pub use types::{AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobVec};
 
 use std::time::Duration;
 

@@ -44,7 +44,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                     match &j.product {
                         None => "".to_string(),
                         Some(p) => {
-                            let size: u64 = p.files.iter().map(|f| f.size).sum();
+                            let size: u64 = p.files.iter().map(|f| f.size_bytes()).sum();
                             bytesize::ByteSize(size).display().iec().to_string()
                         }
                     }
@@ -56,7 +56,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                     j.product
                         .as_ref()
                         .and_then(|p| p.files.first())
-                        .map(|f| f.r#type.to_string())
+                        .map(|f| f.type_.to_string())
                         .unwrap_or_default()
                         .as_str(),
                 ),
