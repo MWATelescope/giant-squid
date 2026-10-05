@@ -486,7 +486,7 @@ fn list_json_prints_the_jobs_keyed_by_job_id() {
     assert_eq!(parsed["12345"]["id"], 12345);
 }
 
-/// `--legacy-json` prints the old keys, for one release, and says on
+/// `--legacy-json` prints the old keys, while it is deprecated, and says on
 /// stderr that it is deprecated.
 #[test]
 fn list_legacy_json_prints_the_old_keys_and_a_warning() {

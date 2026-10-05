@@ -303,10 +303,10 @@ giant-squid list --json --job-types visibility --job-states completed \
   | jq -r '.[]|[.id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
 ```
 
-For one release, `--legacy-json` (on `list` and `wait`, in place of
-`--json`) prints the 2.x format exactly, and warns on standard error. It
-will be removed in the release after 3.0.0, so use it only while you
-update your scripts.
+For now, `--legacy-json` (on `list` and `wait`, in place of `--json`)
+prints the 2.x format exactly, and warns on standard error. It is deprecated
+and will be removed in a later release, so use it only while you update your
+scripts.
 
 ## Downloading (`download`)
 

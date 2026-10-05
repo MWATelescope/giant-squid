@@ -13,7 +13,8 @@
 //! so that scripts have one release to move over. It is only in the CLI:
 //! the library and the Python module have only the new format.
 //!
-//! Remove this module, and `--legacy-json`, in the release after 3.0.0.
+//! Remove this module, and `--legacy-json`, in a later release (when the
+//! users no longer need it).
 
 use std::collections::BTreeMap;
 
@@ -26,9 +27,9 @@ use crate::obs_id::ObsId;
 
 /// The warning logged (to stderr, like every log record) when
 /// `--legacy-json` is used.
-pub const LEGACY_JSON_WARNING: &str = "--legacy-json is deprecated and will be removed in the \
-     release after 3.0.0. Use --json, which prints the OpenAPI names (obs_id, job_id, job_type, \
-     job_state; and type, url, path, size, sha1 for each file).";
+pub const LEGACY_JSON_WARNING: &str = "--legacy-json is deprecated and will be removed in a \
+     later release. Use --json, which prints the OpenAPI names (obs_id, id, job_type, job_state; \
+     and type, url, path, size, sha1 for each file).";
 
 /// One file, with the old keys. The field order is the old key order.
 #[derive(Serialize)]

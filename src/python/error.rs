@@ -181,7 +181,7 @@ fn build<T: pyo3::PyTypeInfo>(
 pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
     let (kind, fields) = match e {
-        lib::AsvoApiError::MissingAuthKey => ("MissingAuthKey", vec![]),
+        lib::AsvoApiError::MissingAuthKey { .. } => ("MissingAuthKey", vec![]),
         lib::AsvoApiError::AuthenticationFailed { message } => (
             "AuthenticationFailed",
             vec![("message", Field::Str(message))],
@@ -301,7 +301,6 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 ("problem", Field::Str(problem)),
             ],
         ),
-        lib::AsvoError::Reqwest(_) => ("Reqwest", vec![]),
         lib::AsvoError::IO(_) => ("IO", vec![]),
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
         lib::AsvoError::NoUrl { job_id } => ("NoUrl", vec![("job_id", Field::Int(job_id.get()))]),

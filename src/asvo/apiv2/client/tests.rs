@@ -87,7 +87,10 @@ fn a_missing_api_key_is_reported_before_any_request() {
     let env = TestEnv::without_api_key();
 
     let err = AsvoClient::new(client_config(&env)).expect_err("expected a missing-key failure");
-    assert!(matches!(err, AsvoApiError::MissingAuthKey), "got {err:?}");
+    assert!(
+        matches!(err, AsvoApiError::MissingAuthKey { variable: None }),
+        "got {err:?}"
+    );
 }
 
 #[test]

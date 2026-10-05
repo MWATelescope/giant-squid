@@ -87,9 +87,10 @@ healthy server, so these are hand-written `httpmock` mocks in
   `send_authed`.
 - Structured `ErrorResponse` bodies mapping to `AsvoApiError::ApiError`.
 - Non-JSON error bodies mapping to `AsvoApiError::BadStatus`.
-- Job listing: `completed` mapping to `Ready`, `error_text` populating
-  `Error`, naive timestamps and a missing `modified` being normalised, and
-  unusable jobs being skipped rather than failing the listing.
+- Job listing: the schema's `JobState` and `JobType` used as they are, the
+  message of an `error` job in `error_text`, naive timestamps and a missing
+  `modified` being normalised, and unusable jobs (no valid obsid or job ID)
+  being skipped rather than failing the listing.
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 

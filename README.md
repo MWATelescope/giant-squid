@@ -767,7 +767,7 @@ Arguments:
 
 Options:
   -j, --json                    Print the jobs as a simple JSON
-      --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
+      --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information
       --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled
       --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, visibility, metadata, voltage, cancel, beamformer, imaging
@@ -809,8 +809,8 @@ example `path` for an Acacia file).
 Before giant-squid 3.0.0 the keys were different (`obsid`, `jobId`, `jobType`, `jobState`, and
 `fileUrl`, `filePath`, `fileSize`, `fileHash` for each file in a top-level `files` list; the
 delivery type was also under `jobType`). See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md) for the
-full list. For one release, `--legacy-json` (on `list` and `wait`) prints the old format, with
-a warning on stderr. It will be removed in the release after 3.0.0, so update scripts to the new
+full list. For now, `--legacy-json` (on `list` and `wait`) prints the old format, with a warning
+on stderr. It is deprecated and will be removed in a later release, so update scripts to the new
 keys.
 
 `job_type` is the MWA ASVO API's code for the job type, or `null` if the server gives none. The table
@@ -918,7 +918,7 @@ Arguments:
 
 Options:
   -j, --json          Print the jobs as a simple JSON after waiting
-      --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in the release after 3.0.0. Use --json
+      --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
   -v, --verbosity...  The verbosity of the program. The default is to print high-level information
   -n, --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
   -h, --help          Print help

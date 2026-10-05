@@ -81,7 +81,9 @@ pub fn client_config_from_env() -> Result<AsvoClientConfig, AsvoApiError> {
 fn client_config_from(
     get: impl Fn(&str) -> Option<String>,
 ) -> Result<AsvoClientConfig, AsvoApiError> {
-    let api_key = get(ENV_MWA_ASVO_API_KEY).ok_or(AsvoApiError::MissingAuthKey)?;
+    let api_key = get(ENV_MWA_ASVO_API_KEY).ok_or(AsvoApiError::MissingAuthKey {
+        variable: Some(ENV_MWA_ASVO_API_KEY),
+    })?;
     let host = get(ENV_MWA_ASVO_HOST).unwrap_or_else(|| DEFAULT_ASVO_HOST.to_string());
 
     let mut config = AsvoClientConfig::new(host, api_key);

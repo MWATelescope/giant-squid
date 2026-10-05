@@ -72,8 +72,8 @@ pub enum Args {
 
         /// Print the jobs as JSON in the old format of giant-squid before
         /// 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl,
-        /// ...). Deprecated: this option will be removed in the release
-        /// after 3.0.0. Use --json.
+        /// ...). Deprecated: this option will be removed in a later
+        /// release. Use --json.
         #[arg(long, conflicts_with = "json")]
         legacy_json: bool,
 
@@ -406,8 +406,8 @@ pub enum Args {
 
         /// Print the jobs as JSON in the old format of giant-squid before
         /// 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl,
-        /// ...). Deprecated: this option will be removed in the release
-        /// after 3.0.0. Use --json.
+        /// ...). Deprecated: this option will be removed in a later
+        /// release. Use --json.
         #[arg(long, conflicts_with = "json")]
         legacy_json: bool,
 

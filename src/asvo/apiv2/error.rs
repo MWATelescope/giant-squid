@@ -16,10 +16,15 @@ use super::openapi::FieldError;
 
 #[derive(Error, Debug)]
 pub enum AsvoApiError {
-    /// No API key was given: the config's API key is empty, or (in the
-    /// CLI) the user's MWA_ASVO_API_KEY environment variable is not defined.
-    #[error("MWA_ASVO_API_KEY is not defined.")]
-    MissingAuthKey,
+    /// No API key was given: the config's API key is empty, or the
+    /// environment variable `variable` is not defined (see
+    /// [`client_config_from_env`](crate::client_config_from_env)).
+    #[error("No MWA ASVO API key was given{}", missing_key_hint(.variable))]
+    MissingAuthKey {
+        /// The environment variable that should hold the key, when the key
+        /// was read from the environment.
+        variable: Option<&'static str>,
+    },
 
     /// Login or token refresh against the MWA ASVO v2 API failed.
     #[error("Authentication with MWA ASVO failed: {message}")]
@@ -108,4 +113,13 @@ fn api_error_extra(
         extra.push_str(&format!("\n  (request ID: {id})"));
     }
     extra
+}
+
+/// The end of the message of [`AsvoApiError::MissingAuthKey`]: what to set,
+/// when the key comes from the environment.
+fn missing_key_hint(variable: &Option<&'static str>) -> String {
+    match variable {
+        Some(name) => format!(": set the {name} environment variable."),
+        None => ".".to_string(),
+    }
 }

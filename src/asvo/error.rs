@@ -93,10 +93,6 @@ pub enum AsvoError {
     #[error("{0}")]
     AsvoApi(#[from] AsvoApiError),
 
-    /// An error from the reqwest crate.
-    #[error("{0}")]
-    Reqwest(#[from] reqwest::Error),
-
     /// An IO error.
     #[error("{0}")]
     IO(#[from] std::io::Error),
@@ -130,5 +126,14 @@ fn error_code_suffix(error_code: &Option<i64>) -> String {
     match error_code {
         Some(code) => format!(" (code {code})"),
         None => String::new(),
+    }
+}
+
+/// A request error of the download path is an API error of the kind
+/// [`AsvoApiError::Reqwest`], as for every other request, so that there is
+/// one kind for it.
+impl From<reqwest::Error> for AsvoError {
+    fn from(e: reqwest::Error) -> Self {
+        AsvoError::AsvoApi(AsvoApiError::Reqwest(e))
     }
 }

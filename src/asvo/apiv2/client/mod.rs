@@ -240,7 +240,7 @@ impl AsvoClient {
     /// Returns [`AsvoApiError::MissingAuthKey`] if `config.api_key` is empty.
     pub fn new(config: AsvoClientConfig) -> Result<AsvoClient, AsvoApiError> {
         if config.api_key.is_empty() {
-            return Err(AsvoApiError::MissingAuthKey);
+            return Err(AsvoApiError::MissingAuthKey { variable: None });
         }
 
         // Interfacing with the ASVO server requires specifying the client
@@ -695,9 +695,9 @@ impl AsvoClient {
             }
             let request: JobsByUserRequest = builder.try_into()?;
 
-            // Confirmed via testing against the real dev server: POST to
-            // /api/v2/get_jobs (my original guess of /api/v2/job_history
-            // was wrong).
+            // The job list is a POST to /api/v2/get_jobs. (The schema's
+            // description of `JobsByUserRequest` says /job_history, which is
+            // stale.)
             let body = self.send_authed(|client| {
                 client
                     .post(format!("{}{}", self.config.host, ENDPOINT_GET_JOBS))
@@ -931,6 +931,8 @@ impl AsvoClient {
 }
 
 /// Patches two confirmed real-server quirks into a raw job JSON object
+/// (listed for the API developer in docs/PYTHON_BINDINGS.md; remove this
+/// when the API sends `null` for a missing time and RFC 3339 times)
 /// before we try to deserialize it as `JobDetailResponse`, since we can't
 /// fix the generated type directly (it gets overwritten on regeneration).
 /// Both are worth raising with the API dev so they become unnecessary:

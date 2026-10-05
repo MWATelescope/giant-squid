@@ -45,7 +45,19 @@ fn the_names_are_the_ones_the_documentation_gives() {
 fn a_missing_api_key_is_an_error() {
     let err = client_config_from(vars([])).expect_err("no key");
 
-    assert!(matches!(err, AsvoApiError::MissingAuthKey), "{err:?}");
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::MissingAuthKey {
+                variable: Some(ENV_MWA_ASVO_API_KEY)
+            }
+        ),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.to_string(),
+        "No MWA ASVO API key was given: set the MWA_ASVO_API_KEY environment variable."
+    );
 }
 
 #[test]

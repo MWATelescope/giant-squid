@@ -36,8 +36,7 @@ before you upgrade scripts.**
   MWA ASVO API's default (30 days, shown in `--help`) instead of fetching your full history. `wait` and
   `download` find jobs the same way.
 * `list --json` and `wait --json` use the API's key names (for example `id`, `obs_id`, `product.files`) and
-  have more keys. `--legacy-json` prints the old format for one release, and is deprecated: it will be removed in
-  the release after 3.0.0.
+  have more keys. `--legacy-json` prints the old format, and is deprecated: it will be removed in a later release.
 * The job states are the MWA ASVO API's: `completed` (was `ready`), `waitcal`, `error` and the others, in lower case,
   as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
   lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
@@ -64,6 +63,10 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
+* Library: `AsvoApiError::MissingAuthKey` has a field `variable`, and its message no longer names `MWA_ASVO_API_KEY`
+  unless the key was read from the environment (`No MWA ASVO API key was given: set the MWA_ASVO_API_KEY environment
+  variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with
+  `AsvoApiError::Reqwest`, as for every other request (in Python, `AsvoApiError` of kind `Reqwest`).
 * Library: `JobsFilter::days` and `JobQuery::days` are `Option<NonZeroU64>`, the schema's type (were `Option<i64>`);
   a value above 30 is still refused before any request. `i64::from(ObsId)` gives an obsid as the schema's `obs_id`.
 * Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In

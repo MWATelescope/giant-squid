@@ -210,35 +210,44 @@ item 1 (what is left of it), then item 3.**
 
 ### For the API developer
 
-Raised, not fixed:
+Sent by the user (Oct 2026), not fixed yet:
 
-- `JobDetailResponse.id` and `QueuedJob.id` should be `job_id`;
-  `CalibrationReadyCallback.asvo_job_id` should be `job_id` (raised
-  2026-09-30).
+- `JobFile.type` uses its own enum `Type`; it should use `Delivery` (the
+  members are the same). Python has `mwa_giant_squid.Type` until then.
+- The job ID is `id` (`i64`) in `JobDetailResponse` and `QueuedJob`, but
+  `job_id` (`NonZeroU64`) in the responses; `CalibrationReadyCallback` has
+  `asvo_job_id` (raised 2026-09-30).
+- Voltage jobs: `delivery` (always scratch), `delivery_format` (always files)
+  and `channel_range` (only "from/to channel given") are redundant, and
+  `delivery`/`delivery_format` are free `String`s.
+- `ImagingJobFlow2Params.obs_id` is not needed (the source job has it).
+- `obs_id` should be a typed field of `JobDetailResponse`; it is only in the
+  untyped `job_params`, as a number or a string.
+- `staging_count` is still in the submission bodies (the API is to remove it).
+- Stale descriptions: `JobsByUserRequest` says "/job_history" (the endpoint is
+  `/api/v2/get_jobs`), and `JobState` lists numbers ("0=Queued ...") but is an
+  enum of strings.
+
+Not yet raised:
+
+- A listed job sometimes has no `modified` key (rather than `null`), and the
+  timestamps have no time zone (`2026-09-08T05:41:54.757232`).
+  `normalize_job_value` in `src/asvo/apiv2/client/mod.rs` patches both; remove
+  it when the API sends `null` and RFC 3339.
 - `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types have
   `first_name`/`last_name`.
-
-Not yet answered or raised:
-
-- Which response model does cancel return: `JobCancelledResponse` or
-  `JobSubmittedResponse`? Our code parses the second (the fields match).
 - What do the `error_code` values mean? They are undocumented.
 - Queued jobs have `started` set a few milliseconds after `created`, but the
-  field is documented as "when the job began processing". Should it be null
-  until the job starts, or is the description wrong?
-- The `job_params` of a listed conversion job has `flags: []`, which is not
-  a parameter of the request (to be reported). The library never sends it,
-  and passes the server's `job_params` through unchanged.
-- What does `days: null` do? Nothing in giant-squid sends `null` now. It
-  matters only if the API returns jobs older than 30 days for `null`:
-  `download` and `wait` see only the last 30 days now.
+  field is documented as "when the job began processing".
+- The `job_params` of a listed conversion job has `flags: []`, which is not a
+  parameter of the request.
 
 Answered (kept for the record):
 
-- `staging_count` and `RestageRequest` are for the processors: the library
-  never sends them and does not wrap the processor endpoints (2026-10-02).
+- `staging_count` and `RestageRequest` are for the processors (2026-10-02).
 - The HTTP 200 for a refused cancel is only for a job that is already
   cancelled (2026-10-02).
+- Cancel returns `JobCancelledResponse`; the library decodes that type.
 
 ### Release checklist (yours)
 
@@ -533,7 +542,8 @@ layout change of 2026-10-02, `foo.rs` with `foo/test.rs` is
   which prints the old format byte for byte (a golden test, whose text was
   captured from the old code) and a deprecation warning on stderr; it
   conflicts with `--json`. It is only in the CLI (`src/cli/legacy_json.rs`)
-  and is to be removed, with the module, in the release after 3.0.0. The
+  and is to be removed, with the module, in a later release (the user
+  decides when, from user feedback). The
   warning uses `eprintln!`, not the logger, because the CLI logger
   (`SimpleLogger`) writes every record to stdout, where a line would break
   the JSON for a script. `AsvoJobId` is a `u64`, as the schema's `job_id`

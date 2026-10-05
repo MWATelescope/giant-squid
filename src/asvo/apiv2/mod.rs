@@ -31,8 +31,8 @@ mod error;
 // - `dead_code`: typify emits a serde default helper for every schema
 //   default, and not every one of them is reachable from the types we
 //   actually use (e.g. `default_i64`).
-// - `clippy::derivable_impls`: the typify used for schema v1.11 writes
-//   `impl Default` by hand for enums with a default variant.
+// - `clippy::derivable_impls`: typify writes `impl Default` by hand for an
+//   enum with a default variant (checked with the current typify: still so).
 // `rustfmt::skip` keeps `cargo fmt` off the file: it must stay exactly as
 // build.rs writes it, or the openapi-drift-check CI job fails.
 #[allow(dead_code, clippy::derivable_impls)]
