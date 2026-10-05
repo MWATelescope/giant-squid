@@ -61,7 +61,7 @@ Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
 #[derive(Parser, Debug)]
-#[command(name = PROGRAM_NAME, author, about = ABOUT, version)]
+#[command(name = PROGRAM_NAME, author, about = ABOUT, version, color = clap::ColorChoice::Auto, propagate_version = true)]
 pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]

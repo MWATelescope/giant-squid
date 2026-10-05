@@ -43,7 +43,7 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
         Args::SubmitVis { download, .. } => download
-            .to_vis_params(TEST_OBS_ID_I64)
+            .to_vis_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-vis"),
     }
@@ -541,7 +541,7 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
         .expect("arguments should parse")
     {
         Args::SubmitMeta { download, .. } => download
-            .to_meta_params(TEST_OBS_ID_I64)
+            .to_meta_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-meta"),
     };
@@ -596,7 +596,7 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
         .expect("arguments should parse")
     {
         Args::SubmitMeta { download, .. } => download
-            .to_meta_params(TEST_OBS_ID_I64)
+            .to_meta_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-meta"),
     };
@@ -625,7 +625,7 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
         .expect("arguments should parse")
     {
         Args::SubmitConv { conv, .. } => conv
-            .to_params(TEST_OBS_ID_I64)
+            .to_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-conv"),
     };
@@ -888,7 +888,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
         .expect("arguments should parse")
     {
         Args::SubmitImage { image, .. } => image
-            .to_params(TEST_OBS_ID_I64)
+            .to_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-image"),
     };
@@ -921,7 +921,7 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
     .expect("arguments should parse")
     {
         Args::SubmitImageFromJob { image, .. } => image
-            .to_params(TEST_OBS_ID_I64)
+            .to_params(crate::test_config::test_obs_id())
             .expect("params should build"),
         _ => panic!("expected submit-image-from-job"),
     };

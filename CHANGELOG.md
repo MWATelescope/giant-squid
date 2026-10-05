@@ -63,6 +63,10 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
+* Library: `asvo::apiv2::job_args` has one argument struct per job type (`DownloadArgs`, `ConversionArgs`,
+  `ImagingArgs`, `ImageFromJobArgs`, `VoltageArgs`, `BeamformerArgs`), each with `into_params(obs_id)`, which makes the
+  request body. A field that is `None` is left to the schema's default. The CLI and the Python module both make their
+  request bodies with them.
 * Library: every type generated from the OpenAPI schema derives `PartialEq`, and `JobType` also `Copy`, `Eq` and
   `Hash` (set in `build.rs`, so they survive regeneration). `AsvoJob`, `AsvoJobVec` and `AsvoJobMap` derive
   `PartialEq` again.

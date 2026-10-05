@@ -19,14 +19,16 @@ use pyo3::prelude::*;
 use super::connect_python_logging;
 use super::download::{run_download, PyDownloadArgs};
 use super::error::api_error;
-use super::params::{
-    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
-};
+use super::params::job_obs_id;
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
     PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse, PyJobState,
     PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
+use crate::asvo::apiv2::job_args::{
+    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
+};
+use crate::asvo::apiv2::openapi::DownloadType;
 use crate::asvo::apiv2::validate;
 use crate::asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
@@ -240,11 +242,12 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = DownloadArgs {
-            delivery,
-            delivery_format,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?, DownloadType::Vis)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_download_vis_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -270,11 +273,12 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = DownloadArgs {
-            delivery,
-            delivery_format,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?, DownloadType::Meta)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_download_meta_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -365,14 +369,14 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = ConversionArgs {
-            delivery,
-            delivery_format,
-            output,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
+            output: output.map(Into::into),
             avg_freq_res,
             avg_time_res,
             flag_edge_width,
             apply_di_cal,
-            centre,
+            centre: centre.map(Into::into),
             custom_centre_ra,
             custom_centre_dec,
             no_apply_amps,
@@ -384,7 +388,8 @@ impl PyAsvoClient {
             no_rfi,
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_conversion_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -544,8 +549,8 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = ImagingArgs {
-            delivery,
-            delivery_format,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
             apply_di_cal,
             apply_primary_beam,
             auto_mask,
@@ -556,7 +561,7 @@ impl PyAsvoClient {
             channels_out,
             clean_iterations,
             clean_threshold,
-            centre,
+            centre: centre.map(Into::into),
             custom_centre_dec,
             custom_centre_ra,
             flag_edge_width,
@@ -574,17 +579,18 @@ impl PyAsvoClient {
             no_cable_delay,
             no_rfi,
             nwlayers,
-            output_mode,
+            output_mode: output_mode.map(Into::into),
             pixel_scale,
-            pol,
+            pol: pol.map(Into::into),
             robust,
             uvw_max,
             uvw_min,
-            weighting,
+            weighting: weighting.map(Into::into),
             wstack_nwlayers,
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_imaging_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -673,8 +679,8 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = ImageFromJobArgs {
-            delivery,
-            delivery_format,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
             apply_primary_beam,
             auto_mask,
             auto_threshold,
@@ -689,17 +695,18 @@ impl PyAsvoClient {
             multiscale,
             nmiter,
             nwlayers,
-            output_mode,
+            output_mode: output_mode.map(Into::into),
             pixel_scale,
-            pol,
+            pol: pol.map(Into::into),
             robust,
             uvw_max,
             uvw_min,
-            weighting,
+            weighting: weighting.map(Into::into),
             wstack_nwlayers,
             allow_resubmit,
         }
-        .into_params(obs_id, source_job_id)?;
+        .into_params(job_obs_id(obs_id)?, source_job_id)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_image_from_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -760,7 +767,8 @@ impl PyAsvoClient {
             to_channel,
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_voltage_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -786,11 +794,12 @@ impl PyAsvoClient {
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let params = BeamformerArgs {
-            delivery,
-            delivery_format,
+            delivery: delivery.map(Into::into),
+            delivery_format: delivery_format.map(Into::into),
             allow_resubmit,
         }
-        .into_params(obs_id)?;
+        .into_params(job_obs_id(obs_id)?)
+        .map_err(|e| api_error(py, e))?;
         py.detach(|| self.inner.submit_beamformer_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))

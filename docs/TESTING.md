@@ -440,8 +440,8 @@ already accepts both.
 ## Code coverage
 
 `tools/coverage.sh` makes a local coverage report, to run before pushing. It
-uses `cargo-llvm-cov`, as the "Generate Coverage report" CI workflow does, so
-its Rust numbers are the same as CI's. It also runs the Python tests against
+uses `cargo-llvm-cov`, as the "Generate Coverage report" CI workflow does, with the same
+settings, so the numbers are the same as CI's. It also runs the Python tests against
 an instrumented build of the extension module, because the code they test is
 the Rust in `src/python/`. The `giant-squid` launcher (`mwa_giant_squid_cli/`) is a few lines of Python,
 and the script does not measure it.
@@ -462,9 +462,10 @@ instrumentation; run `uv sync` afterwards for a normal build. A test that
 fails does not stop the script; the report covers the tests that ran, and
 the script exits with the failure.
 
-The generated `src/asvo/apiv2/openapi.rs` counts in the totals, and much of
-it (builders and types for endpoints the client does not use) is never run,
-so read the per-file numbers, not only the total.
+`tools/coverage.sh` leaves the generated `src/asvo/apiv2/openapi.rs` out of
+the report: much of it (builders and types for endpoints the client does not
+use) is never run, and it would hide the numbers of the code that is written
+by hand. The CI workflow still counts it, so its totals are lower.
 
 ## Phases
 

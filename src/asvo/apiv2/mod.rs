@@ -38,6 +38,7 @@ mod error;
 #[allow(dead_code, clippy::derivable_impls)]
 #[rustfmt::skip]
 pub mod openapi;
+pub mod job_args;
 pub mod schema_enums;
 pub mod validate;
 

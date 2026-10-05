@@ -107,12 +107,12 @@ fn submit_each_obs_id<F>(
     mut submit: F,
 ) -> Result<(), anyhow::Error>
 where
-    F: FnMut(&ObsId, i64) -> Result<(), anyhow::Error>,
+    F: FnMut(&ObsId) -> Result<(), anyhow::Error>,
 {
     let mut failures: usize = 0;
 
     for o in obs_ids {
-        if let Err(e) = submit(o, i64::from(*o)) {
+        if let Err(e) = submit(o) {
             error!("Obsid {}: {}", o, e);
             failures += 1;
         }
@@ -179,10 +179,10 @@ fn report_dry_run_submissions<T, F>(
 ) -> Result<(), anyhow::Error>
 where
     T: serde::Serialize,
-    F: Fn(i64) -> Result<T, AsvoApiError>,
+    F: Fn(ObsId) -> Result<T, AsvoApiError>,
 {
     for o in obs_ids {
-        let params = build_params(i64::from(*o))?;
+        let params = build_params(*o)?;
         info!(
             "[dry run] Would POST {} for obsid {}:\n{}",
             endpoint,
@@ -484,16 +484,15 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome =
-                    submit_each_obs_id(&parsed_obs_ids, "visibility download", |o, id| {
-                        let params = download.to_vis_params(id)?;
-                        let resp = client.submit_download_vis_job(&params)?;
-                        print_submitted_json(&resp, json)?;
-                        let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        job_ids.push(job_id);
-                        Ok(())
-                    });
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "visibility download", |o| {
+                    let params = download.to_vis_params(*o)?;
+                    let resp = client.submit_download_vis_job(&params)?;
+                    print_submitted_json(&resp, json)?;
+                    let job_id = resp.job_id;
+                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    job_ids.push(job_id);
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;
@@ -522,8 +521,8 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", |o, id| {
-                    let params = conv.to_params(id)?;
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", |o| {
+                    let params = conv.to_params(*o)?;
                     let resp = client.submit_conversion_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
@@ -560,8 +559,8 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&obs_ids, "imaging", |o, id| {
-                    let params = image.to_params(id)?;
+                let outcome = submit_each_obs_id(&obs_ids, "imaging", |o| {
+                    let params = image.to_params(*o)?;
                     let resp = client.submit_imaging_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
@@ -609,7 +608,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
 
                 let o = &obs_ids[0];
-                let params = image.to_params(i64::from(*o))?;
+                let params = image.to_params(*o)?;
 
                 let resp = client.submit_image_from_job(&params)?;
                 print_submitted_json(&resp, json)?;
@@ -641,8 +640,8 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", |o, id| {
-                    let params = download.to_meta_params(id)?;
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", |o| {
+                    let params = download.to_meta_params(*o)?;
                     let resp = client.submit_download_meta_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
@@ -678,8 +677,8 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", |o, id| {
-                    let params = volt.to_params(id)?;
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", |o| {
+                    let params = volt.to_params(*o)?;
                     let resp = client.submit_voltage_job(&params)?;
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
@@ -715,16 +714,15 @@ fn run(args: Args) -> anyhow::Result<()> {
                 let client = connect()?;
                 let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
 
-                let outcome =
-                    submit_each_obs_id(&parsed_obs_ids, "beamformer download", |o, id| {
-                        let params = bf.to_params(id)?;
-                        let resp = client.submit_beamformer_job(&params)?;
-                        print_submitted_json(&resp, json)?;
-                        let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        job_ids.push(job_id);
-                        Ok(())
-                    });
+                let outcome = submit_each_obs_id(&parsed_obs_ids, "beamformer download", |o| {
+                    let params = bf.to_params(*o)?;
+                    let resp = client.submit_beamformer_job(&params)?;
+                    print_submitted_json(&resp, json)?;
+                    let job_id = resp.job_id;
+                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    job_ids.push(job_id);
+                    Ok(())
+                });
 
                 if wait {
                     wait_loop(&client, &job_ids)?;

@@ -15,6 +15,9 @@ use std::num::NonZeroU64;
 
 use clap::ArgAction;
 
+use crate::asvo::apiv2::job_args::{
+    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
+};
 use crate::asvo::apiv2::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
     DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest, Output,
@@ -24,6 +27,7 @@ use crate::asvo::apiv2::validate::{self, Bounds};
 use crate::asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
 
 use super::value_enums::SchemaEnumParser;
+use crate::obs_id::ObsId;
 
 /// The default of `list --days`: the schema's default for the `days` of a job
 /// listing (`JobsByUserRequest`), so that the help shows it and the CLI cannot
@@ -176,29 +180,23 @@ pub struct DownloadJobArgs {
 
 impl DownloadJobArgs {
     /// Build the request body for a raw visibility download job.
-    pub fn to_vis_params(&self, obs_id: i64) -> Result<DownloadJobParams, AsvoApiError> {
-        self.to_params(obs_id, DownloadType::Vis)
+    pub fn to_vis_params(&self, obs_id: ObsId) -> Result<DownloadJobParams, AsvoApiError> {
+        self.args().into_params(obs_id, DownloadType::Vis)
     }
 
     /// Build the request body for a metadata download job.
-    pub fn to_meta_params(&self, obs_id: i64) -> Result<DownloadJobParams, AsvoApiError> {
-        self.to_params(obs_id, DownloadType::Meta)
+    pub fn to_meta_params(&self, obs_id: ObsId) -> Result<DownloadJobParams, AsvoApiError> {
+        self.args().into_params(obs_id, DownloadType::Meta)
     }
 
-    fn to_params(
-        &self,
-        obs_id: i64,
-        download_type: DownloadType,
-    ) -> Result<DownloadJobParams, AsvoApiError> {
-        let params: DownloadJobParams = DownloadJobParams::builder()
-            .obs_id(obs_id)
-            .download_type(download_type)
-            .delivery(self.delivery)
-            .delivery_format(self.delivery_format)
-            .allow_resubmit(Some(self.allow_resubmit))
-            .try_into()?;
-
-        Ok(params)
+    /// The library's arguments. The CLI has a value for every option (its
+    /// defaults are the schema's), so every field is set.
+    fn args(&self) -> DownloadArgs {
+        DownloadArgs {
+            delivery: Some(self.delivery),
+            delivery_format: Some(self.delivery_format),
+            allow_resubmit: Some(self.allow_resubmit),
+        }
     }
 }
 
@@ -280,31 +278,31 @@ pub struct ConversionJobArgs {
 }
 
 impl ConversionJobArgs {
-    /// Build the request body for a conversion job for a single obsid.
-    pub fn to_params(&self, obs_id: i64) -> Result<ConversionJobParams, AsvoApiError> {
-        let params: ConversionJobParams = ConversionJobParams::builder()
-            .obs_id(obs_id)
-            .delivery(self.delivery)
-            .delivery_format(self.delivery_format)
-            .output(self.output)
-            .avg_freq_res(self.avg_freq_res)
-            .avg_time_res(self.avg_time_res)
-            .flag_edge_width(self.flag_edge_width)
-            .apply_di_cal(self.apply_di_cal)
-            .centre(self.centre)
-            .custom_centre_ra(self.custom_centre_ra)
-            .custom_centre_dec(self.custom_centre_dec)
-            .no_apply_amps(self.no_apply_amps)
-            .no_digital_gains(self.no_digital_gains)
-            .no_flag_dc(self.no_flag_dc)
-            .no_geometry_delay(self.no_geometry_delay)
-            .no_passband_gains(self.no_passband_gains)
-            .no_cable_delay(self.no_cable_delay)
-            .no_rfi(self.no_rfi)
-            .allow_resubmit(self.allow_resubmit)
-            .try_into()?;
-
-        Ok(params)
+    /// Build the request body for a conversion job for a single obsid, with
+    /// the library's [`ConversionArgs`]. Every field is set (the CLI's
+    /// defaults are the schema's).
+    pub fn to_params(&self, obs_id: ObsId) -> Result<ConversionJobParams, AsvoApiError> {
+        ConversionArgs {
+            delivery: Some(self.delivery),
+            delivery_format: Some(self.delivery_format),
+            output: Some(self.output),
+            avg_freq_res: Some(self.avg_freq_res),
+            avg_time_res: Some(self.avg_time_res),
+            flag_edge_width: Some(self.flag_edge_width),
+            apply_di_cal: Some(self.apply_di_cal),
+            centre: Some(self.centre),
+            custom_centre_ra: self.custom_centre_ra,
+            custom_centre_dec: self.custom_centre_dec,
+            no_apply_amps: Some(self.no_apply_amps),
+            no_digital_gains: Some(self.no_digital_gains),
+            no_flag_dc: Some(self.no_flag_dc),
+            no_geometry_delay: Some(self.no_geometry_delay),
+            no_passband_gains: Some(self.no_passband_gains),
+            no_cable_delay: Some(self.no_cable_delay),
+            no_rfi: Some(self.no_rfi),
+            allow_resubmit: Some(self.allow_resubmit),
+        }
+        .into_params(obs_id)
     }
 }
 
@@ -497,56 +495,53 @@ pub struct ImagingJobArgs {
 }
 
 impl ImagingJobArgs {
-    /// Build the request body for an imaging job for a single obsid.
-    pub fn to_params(&self, obs_id: i64) -> Result<ImagingJobFlow1Params, AsvoApiError> {
-        let image_size = validate::image_size(self.image_size)?;
-        let nmiter = NonZeroU64::new(self.nmiter as u64)
-            .expect("clap's range validator already ensures nmiter >= 1");
-
-        let params: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
-            .obs_id(obs_id)
-            .delivery(self.delivery)
-            .delivery_format(self.delivery_format)
-            .apply_di_cal(self.apply_di_cal)
-            .apply_primary_beam(self.apply_primary_beam)
-            .auto_mask(self.auto_mask)
-            .auto_threshold(self.auto_threshold)
-            .abs_threshold(self.abs_threshold)
-            .avg_freq_res(self.avg_freq_res)
-            .avg_time_res(self.avg_time_res)
-            .channels_out(self.channels_out)
-            .clean_iterations(self.clean_iterations)
-            .clean_threshold(self.clean_threshold)
-            .custom_centre_dec(self.custom_centre_dec)
-            .custom_centre_ra(self.custom_centre_ra)
-            .flag_edge_width(self.flag_edge_width)
-            .image_size(image_size)
-            .join_channels(self.join_channels)
-            .join_polarizations(self.join_polarizations)
-            .mgain(self.mgain)
-            .multiscale(self.multiscale)
-            .nmiter(nmiter)
-            .no_apply_amps(self.no_apply_amps)
-            .no_digital_gains(self.no_digital_gains)
-            .no_flag_dc(self.no_flag_dc)
-            .no_geometry_delay(self.no_geometry_delay)
-            .no_passband_gains(self.no_passband_gains)
-            .no_cable_delay(self.no_cable_delay)
-            .no_rfi(self.no_rfi)
-            .nwlayers(self.nwlayers)
-            .output_mode(self.output_mode)
-            .centre(self.centre)
-            .pixel_scale(self.pixel_scale)
-            .pol(self.pol.clone())
-            .robust(self.robust)
-            .uvw_max(self.uvw_max)
-            .uvw_min(self.uvw_min)
-            .weighting(self.weighting)
-            .wstack_nwlayers(self.wstack_nwlayers)
-            .allow_resubmit(self.allow_resubmit)
-            .try_into()?;
-
-        Ok(params)
+    /// Build the request body for an imaging job for a single obsid, with
+    /// the library's [`ImagingArgs`]. Every field that has a value is set.
+    pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow1Params, AsvoApiError> {
+        ImagingArgs {
+            delivery: Some(self.delivery),
+            delivery_format: Some(self.delivery_format),
+            apply_primary_beam: Some(self.apply_primary_beam),
+            auto_mask: Some(self.auto_mask),
+            auto_threshold: Some(self.auto_threshold),
+            abs_threshold: Some(self.abs_threshold),
+            channels_out: Some(self.channels_out),
+            clean_iterations: Some(self.clean_iterations),
+            clean_threshold: Some(self.clean_threshold),
+            image_size: Some(self.image_size),
+            join_channels: Some(self.join_channels),
+            join_polarizations: Some(self.join_polarizations),
+            mgain: Some(self.mgain),
+            multiscale: Some(self.multiscale),
+            // clap's range check keeps it at least 1; a value that is not a
+            // `u64` becomes 0, which the library refuses with its message.
+            nmiter: Some(u64::try_from(self.nmiter).unwrap_or_default()),
+            nwlayers: self.nwlayers,
+            output_mode: Some(self.output_mode),
+            pixel_scale: Some(self.pixel_scale),
+            pol: Some(self.pol.parse::<Polarization>()?),
+            robust: Some(self.robust),
+            uvw_max: self.uvw_max,
+            uvw_min: Some(self.uvw_min),
+            weighting: Some(self.weighting),
+            wstack_nwlayers: self.wstack_nwlayers,
+            allow_resubmit: Some(self.allow_resubmit),
+            apply_di_cal: Some(self.apply_di_cal),
+            avg_freq_res: Some(self.avg_freq_res),
+            avg_time_res: Some(self.avg_time_res),
+            centre: Some(self.centre),
+            custom_centre_dec: self.custom_centre_dec,
+            custom_centre_ra: self.custom_centre_ra,
+            flag_edge_width: Some(self.flag_edge_width),
+            no_apply_amps: Some(self.no_apply_amps),
+            no_digital_gains: Some(self.no_digital_gains),
+            no_flag_dc: Some(self.no_flag_dc),
+            no_geometry_delay: Some(self.no_geometry_delay),
+            no_passband_gains: Some(self.no_passband_gains),
+            no_cable_delay: Some(self.no_cable_delay),
+            no_rfi: Some(self.no_rfi),
+        }
+        .into_params(obs_id)
     }
 }
 
@@ -679,43 +674,39 @@ pub struct ImagingFromJobArgs {
 }
 
 impl ImagingFromJobArgs {
-    /// Build the request body for an image-from-job submission.
-    pub fn to_params(&self, obs_id: i64) -> Result<ImagingJobFlow2Params, AsvoApiError> {
-        let image_size = validate::image_size(self.image_size)?;
-        let nmiter = NonZeroU64::new(self.nmiter as u64)
-            .expect("clap's range validator already ensures nmiter >= 1");
-
-        let params: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
-            .obs_id(obs_id)
-            .source_job_id(self.source_job_id)
-            .delivery(self.delivery)
-            .delivery_format(self.delivery_format)
-            .apply_primary_beam(self.apply_primary_beam)
-            .auto_mask(self.auto_mask)
-            .auto_threshold(self.auto_threshold)
-            .abs_threshold(self.abs_threshold)
-            .channels_out(self.channels_out)
-            .clean_iterations(self.clean_iterations)
-            .clean_threshold(self.clean_threshold)
-            .image_size(image_size)
-            .join_channels(self.join_channels)
-            .join_polarizations(self.join_polarizations)
-            .mgain(self.mgain)
-            .multiscale(self.multiscale)
-            .nmiter(nmiter)
-            .nwlayers(self.nwlayers)
-            .output_mode(self.output_mode)
-            .pixel_scale(self.pixel_scale)
-            .pol(self.pol.clone())
-            .robust(self.robust)
-            .uvw_max(self.uvw_max)
-            .uvw_min(self.uvw_min)
-            .weighting(self.weighting)
-            .wstack_nwlayers(self.wstack_nwlayers)
-            .allow_resubmit(Some(self.allow_resubmit))
-            .try_into()?;
-
-        Ok(params)
+    /// Build the request body for an image of the conversion job
+    /// `--source-job-id`, with the library's [`ImageFromJobArgs`].
+    pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow2Params, AsvoApiError> {
+        ImageFromJobArgs {
+            delivery: Some(self.delivery),
+            delivery_format: Some(self.delivery_format),
+            apply_primary_beam: Some(self.apply_primary_beam),
+            auto_mask: Some(self.auto_mask),
+            auto_threshold: Some(self.auto_threshold),
+            abs_threshold: Some(self.abs_threshold),
+            channels_out: Some(self.channels_out),
+            clean_iterations: Some(self.clean_iterations),
+            clean_threshold: Some(self.clean_threshold),
+            image_size: Some(self.image_size),
+            join_channels: Some(self.join_channels),
+            join_polarizations: Some(self.join_polarizations),
+            mgain: Some(self.mgain),
+            multiscale: Some(self.multiscale),
+            // clap's range check keeps it at least 1; a value that is not a
+            // `u64` becomes 0, which the library refuses with its message.
+            nmiter: Some(u64::try_from(self.nmiter).unwrap_or_default()),
+            nwlayers: self.nwlayers,
+            output_mode: Some(self.output_mode),
+            pixel_scale: Some(self.pixel_scale),
+            pol: Some(self.pol.parse::<Polarization>()?),
+            robust: Some(self.robust),
+            uvw_max: self.uvw_max,
+            uvw_min: Some(self.uvw_min),
+            weighting: Some(self.weighting),
+            wstack_nwlayers: self.wstack_nwlayers,
+            allow_resubmit: Some(self.allow_resubmit),
+        }
+        .into_params(obs_id, self.source_job_id.get())
     }
 }
 
@@ -750,24 +741,18 @@ pub struct VoltageJobArgs {
 }
 
 impl VoltageJobArgs {
-    /// Build the request body for a voltage download job for a single
-    /// obsid. `channel_range` is derived: it is set when either channel
-    /// bound was supplied.
-    pub fn to_params(&self, obs_id: i64) -> Result<VoltageJobParams, AsvoApiError> {
-        let channel_range = self.from_channel.is_some() || self.to_channel.is_some();
-
-        let params: VoltageJobParams = VoltageJobParams::builder()
-            .obs_id(obs_id)
-            .delivery(self.delivery.clone())
-            .offset(self.offset)
-            .duration(self.duration)
-            .from_channel(self.from_channel)
-            .to_channel(self.to_channel)
-            .channel_range(Some(channel_range))
-            .allow_resubmit(Some(self.allow_resubmit))
-            .try_into()?;
-
-        Ok(params)
+    /// Build the request body for a voltage job, with the library's
+    /// [`VoltageArgs`] (which derives `channel_range`).
+    pub fn to_params(&self, obs_id: ObsId) -> Result<VoltageJobParams, AsvoApiError> {
+        VoltageArgs {
+            offset: self.offset,
+            duration: self.duration,
+            delivery: Some(self.delivery.clone()),
+            from_channel: self.from_channel,
+            to_channel: self.to_channel,
+            allow_resubmit: Some(self.allow_resubmit),
+        }
+        .into_params(obs_id)
     }
 }
 
@@ -788,16 +773,14 @@ pub struct BeamformerJobArgs {
 }
 
 impl BeamformerJobArgs {
-    /// Build the request body for a beamformer download job for a single
-    /// obsid.
-    pub fn to_params(&self, obs_id: i64) -> Result<BeamformerJobParams, AsvoApiError> {
-        let params: BeamformerJobParams = BeamformerJobParams::builder()
-            .obs_id(obs_id)
-            .delivery(self.delivery)
-            .delivery_format(self.delivery_format)
-            .allow_resubmit(Some(self.allow_resubmit))
-            .try_into()?;
-
-        Ok(params)
+    /// Build the request body for a beamformer job, with the library's
+    /// [`BeamformerArgs`].
+    pub fn to_params(&self, obs_id: ObsId) -> Result<BeamformerJobParams, AsvoApiError> {
+        BeamformerArgs {
+            delivery: Some(self.delivery),
+            delivery_format: Some(self.delivery_format),
+            allow_resubmit: Some(self.allow_resubmit),
+        }
+        .into_params(obs_id)
     }
 }

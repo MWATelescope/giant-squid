@@ -25,8 +25,14 @@ set -euo pipefail
 #   coverage/coverage.lcov     the combined report, for an editor plugin
 #                              (for example VS Code "Coverage Gutters")
 #
-# The Rust numbers match the "Generate Coverage report" CI workflow, which
-# uses the same tool (cargo-llvm-cov), but CI runs the Rust tests only.
+# The generated src/asvo/apiv2/openapi.rs is left out of the report: it is
+# typify's output (builders and conversions for every schema type, most of
+# which the client never runs), so it would only hide the numbers of the
+# code that is written by hand. Its correctness is checked by the
+# openapi-drift-check CI job and by the tests of the types that are used.
+#
+# The "Generate Coverage report" CI workflow uses the same tool
+# (cargo-llvm-cov) and settings.
 #
 # It assumes:
 # 1. You run it from anywhere inside the repository.
@@ -46,6 +52,8 @@ cd "${REPO_DIR}"
 
 # The directory for the reports (matches the CI workflow).
 OUT_DIR="coverage"
+# The files that the report leaves out (a regular expression of paths).
+COVERAGE_IGNORE_REGEX='src/asvo/apiv2/openapi\.rs'
 # The maturin that builds the extension (the range in pyproject.toml).
 MATURIN_REQUIREMENT="maturin>=1.9.4,<2.0"
 
@@ -81,7 +89,7 @@ cargo test --features python || tests_status=$?
 
 echo
 echo "=== Coverage from the Rust tests"
-cargo llvm-cov report --summary-only
+cargo llvm-cov report --summary-only --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
 echo
 echo "=== 2/2: Python tests, on an instrumented extension module"
@@ -92,9 +100,9 @@ uv run --no-sync pytest -q -p no:cacheprovider || tests_status=$?
 
 echo
 echo "=== Coverage from the Rust and Python tests"
-cargo llvm-cov report --summary-only
-cargo llvm-cov report --html --output-dir "${OUT_DIR}"
-cargo llvm-cov report --lcov --output-path "${OUT_DIR}/coverage.lcov"
+cargo llvm-cov report --summary-only --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+cargo llvm-cov report --html --output-dir "${OUT_DIR}" --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+cargo llvm-cov report --lcov --output-path "${OUT_DIR}/coverage.lcov" --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
 echo
 echo "HTML report: ${OUT_DIR}/html/index.html"

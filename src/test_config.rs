@@ -51,3 +51,10 @@ pub const fn job_id(n: u64) -> crate::AsvoJobId {
 
 /// [`TEST_JOB_ID`](crate::test_common::TEST_JOB_ID) as a job ID.
 pub const TEST_ASVO_JOB_ID: crate::AsvoJobId = job_id(crate::test_common::TEST_JOB_ID);
+
+/// [`TEST_OBS_ID`](crate::test_common::TEST_OBS_ID) as an obsid.
+pub fn test_obs_id() -> ObsId {
+    crate::test_common::TEST_OBS_ID
+        .parse()
+        .expect("the test obsid is valid")
+}

@@ -31,12 +31,16 @@ jobs:
         run: cargo install cargo-llvm-cov
 
       - name: Generate test lcov coverage into coverage/ dir
+        env:
+          # The generated openapi.rs is left out, as in tools/coverage.sh.
+          COVERAGE_IGNORE_REGEX: 'src/asvo/apiv2/openapi\.rs'
         run: |
           mkdir -p coverage
           cargo llvm-cov clean --workspace
-          cargo llvm-cov --all --lcov --output-path coverage/coverage.lcov
+          cargo llvm-cov --all --lcov --output-path coverage/coverage.lcov --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
           # this uses the result of the previous run to generate a text summary
-          cargo llvm-cov report
+          cargo llvm-cov report --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+
       - name: Upload reports to codecov.io
         uses: codecov/codecov-action@v6
         with:
