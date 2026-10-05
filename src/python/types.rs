@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use super::error::asvo_error;
-use super::typed::{JobIterator, JsonDict};
+use super::typed::{JobId, JobIterator, JsonDict};
 use crate::asvo::apiv2::openapi::{
     Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization, Type, Weighting,
 };
@@ -321,8 +321,8 @@ pub struct PyAsvoJob(AsvoJob);
 impl PyAsvoJob {
     /// The job ID.
     #[getter]
-    fn job_id(&self) -> AsvoJobId {
-        self.0.job_id()
+    fn job_id(&self) -> JobId {
+        JobId(self.0.job_id())
     }
 
     /// The obsid.
@@ -451,7 +451,7 @@ pub enum PyDownloadProgress {
     /// A file download starts, or starts again.
     Started {
         /// The MWA ASVO job ID.
-        job_id: AsvoJobId,
+        job_id: u64,
         /// A human-readable label, for example `Job ID 123 (obsid:
         /// 1234567890) [1/2]:`.
         label: String,
@@ -499,7 +499,7 @@ impl From<DownloadProgress> for PyDownloadProgress {
                 total_bytes,
                 position,
             } => Self::Started {
-                job_id,
+                job_id: job_id.get(),
                 label,
                 total_bytes,
                 position,
@@ -532,8 +532,8 @@ impl From<JobSubmittedResponse> for PyJobSubmittedResponse {
 impl PyJobSubmittedResponse {
     /// The ID of the job that was submitted (or cancelled).
     #[getter]
-    fn job_id(&self) -> u64 {
-        self.0.job_id.get()
+    fn job_id(&self) -> JobId {
+        JobId(self.0.job_id)
     }
 
     /// The server's message.
@@ -603,7 +603,7 @@ impl PyAsvoJobVec {
     #[pyo3(signature = (job_ids=None, obs_ids=None, job_types=None, job_states=None))]
     fn filter(
         &self,
-        job_ids: Option<Vec<AsvoJobId>>,
+        job_ids: Option<Vec<JobId>>,
         obs_ids: Option<Vec<u64>>,
         job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
@@ -623,12 +623,18 @@ impl PyAsvoJobVec {
             .into_iter()
             .map(Into::into)
             .collect();
-        Ok(Self(self.0.clone().filter(
-            &job_ids.unwrap_or_default(),
-            &obs_ids,
-            &job_types,
-            &job_states,
-        )))
+        Ok(Self(
+            self.0.clone().filter(
+                &job_ids
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|id| id.0)
+                    .collect::<Vec<_>>(),
+                &obs_ids,
+                &job_types,
+                &job_states,
+            ),
+        ))
     }
 
     /// Whether all of `job_ids` are ready for download. `False` means some
@@ -639,7 +645,8 @@ impl PyAsvoJobVec {
     ///
     /// Raises:
     ///     AsvoError: A job is missing, has an error or has been cancelled.
-    fn all_ready(&self, py: Python<'_>, job_ids: Vec<AsvoJobId>) -> PyResult<bool> {
+    fn all_ready(&self, py: Python<'_>, job_ids: Vec<JobId>) -> PyResult<bool> {
+        let job_ids: Vec<AsvoJobId> = job_ids.into_iter().map(|id| id.0).collect();
         self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))
     }
 

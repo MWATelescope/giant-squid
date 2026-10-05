@@ -1590,7 +1590,13 @@ fn job_ids_only_accepts_job_ids() {
 
     let job_ids = parse_job_ids_only(&strings(&["31", TEST_JOB_ID])).expect("job IDs parse");
 
-    assert_eq!(job_ids, [31, 12345]);
+    assert_eq!(
+        job_ids,
+        [
+            crate::test_config::job_id(31),
+            crate::test_config::job_id(12345)
+        ]
+    );
 }
 
 #[test]
@@ -1603,7 +1609,13 @@ fn job_ids_only_reads_job_ids_from_a_file() {
 
     let job_ids = parse_job_ids_only(&[path]).expect("the file parses");
 
-    assert_eq!(job_ids, [31, 32]);
+    assert_eq!(
+        job_ids,
+        [
+            crate::test_config::job_id(31),
+            crate::test_config::job_id(32)
+        ]
+    );
 }
 
 /// An obsid is an error that names the obsid, whether it is alone, with job

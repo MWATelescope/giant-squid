@@ -98,11 +98,14 @@ fn downloading_an_unknown_job_id_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoAsvoJob(job_id) => assert_eq!(job_id, TEST_JOB_ID),
+        AsvoError::NoAsvoJob(job_id) => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
         other => panic!("expected NoAsvoJob, got {other:?}"),
     }
 }
@@ -120,7 +123,10 @@ fn a_failed_job_listing_is_reported_as_an_api_error() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
         .expect_err("expected the download to fail");
 
     assert!(
@@ -142,11 +148,16 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NotReady { job_id, .. } => assert_eq!(job_id, TEST_JOB_ID),
+        AsvoError::NotReady { job_id, .. } => {
+            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        }
         other => panic!("expected NotReady, got {other:?}"),
     }
 }
@@ -167,11 +178,14 @@ fn a_ready_job_reports_that_it_has_no_files() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoFiles(job_id) => assert_eq!(job_id, TEST_JOB_ID),
+        AsvoError::NoFiles(job_id) => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
         other => panic!("expected NoFiles, got {other:?}"),
     }
     assert_eq!(
@@ -255,7 +269,10 @@ fn a_job_listing_with_an_empty_product_is_not_downloadable() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir.path().display().to_string()))
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
         .expect_err("expected the download to fail");
 
     assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
@@ -286,7 +303,7 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -320,7 +337,7 @@ fn a_download_reports_its_progress_to_the_callback() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let events = events.into_inner().unwrap();
@@ -331,7 +348,7 @@ fn a_download_reports_its_progress_to_the_callback() {
             position,
             ..
         }) => {
-            assert_eq!(*job_id, TEST_JOB_ID);
+            assert_eq!(*job_id, crate::test_config::TEST_ASVO_JOB_ID);
             assert_eq!(*total_bytes, payload.len() as u64);
             assert_eq!(*position, 0);
         }
@@ -372,7 +389,7 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &options(&dir_path))
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -406,7 +423,7 @@ fn a_hash_mismatch_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("the hash check should fail");
 
     match err {
@@ -416,7 +433,7 @@ fn a_hash_mismatch_is_reported() {
             calculated_hash,
             ..
         } => {
-            assert_eq!(job_id, TEST_JOB_ID);
+            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID);
             assert_eq!(expected_hash, "0000000000000000000000000000000000000000");
             assert_eq!(calculated_hash, sha1_hex(payload.as_bytes()));
         }
@@ -448,11 +465,13 @@ fn an_expired_download_url_is_reported_as_gone() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("a 404 should fail the download");
 
     match err {
-        AsvoError::Http404Error { job_id } => assert_eq!(job_id, TEST_JOB_ID),
+        AsvoError::Http404Error { job_id } => {
+            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        }
         other => panic!("expected Http404Error, got {other:?}"),
     }
 }
@@ -479,7 +498,7 @@ fn a_forbidden_download_fails_without_retrying() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("a 403 should fail the download");
 
     assert_eq!(file.calls(), 1, "a permanent error must not be retried");
@@ -506,7 +525,7 @@ fn a_file_type_the_schema_does_not_list_fails_the_download() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &options(&dir_path))
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
         .expect_err("expected the download to fail");
 
     assert!(
@@ -548,7 +567,7 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the resumed download should succeed");
 
     assert_eq!(file.calls(), 1, "the range request should be made once");
@@ -588,7 +607,7 @@ fn without_a_hash_check_a_resumed_keep_tar_file_is_still_checked() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("the wrong partial file should fail the hash check");
 
     assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
@@ -616,7 +635,7 @@ fn a_complete_and_verified_file_is_not_fetched_again() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("an already-complete file should be a no-op");
 
     assert_eq!(requests.calls(), 0, "nothing should have been fetched");
@@ -646,7 +665,7 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should restart and succeed");
 
     assert_eq!(file.calls(), 1);
@@ -681,7 +700,7 @@ fn keep_tar_no_resume_download(contents: &[u8]) -> (usize, String) {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let written =
@@ -742,7 +761,7 @@ fn a_file_larger_than_the_download_is_downloaded_again() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(whole.calls(), 1);
@@ -779,7 +798,7 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the restarted download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -823,7 +842,7 @@ fn a_download_stops_when_the_caller_asks() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("the download should stop");
 
     assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
@@ -862,7 +881,7 @@ fn a_download_that_is_not_stopped_completes() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
@@ -909,7 +928,7 @@ fn a_stop_ends_the_wait_before_a_retry() {
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let started = std::time::Instant::now();
     let err = client
-        .download_job(TEST_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
         .expect_err("the download should stop");
 
     assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
@@ -1185,7 +1204,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            TEST_JOB_ID,
+            crate::test_config::TEST_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1220,7 +1239,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            TEST_JOB_ID,
+            crate::test_config::TEST_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1251,7 +1270,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &wrong_hash),
-            TEST_JOB_ID,
+            crate::test_config::TEST_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1289,7 +1308,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &wrong_hash),
-            TEST_JOB_ID,
+            crate::test_config::TEST_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &opts,
@@ -1331,7 +1350,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            TEST_JOB_ID,
+            crate::test_config::TEST_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &opts,
@@ -1405,11 +1424,11 @@ mod retries {
         let disk = AsvoError::IO(io::Error::from(io::ErrorKind::PermissionDenied));
 
         assert!(matches!(
-            retry_class(network, TEST_JOB_ID),
+            retry_class(network, crate::test_config::TEST_ASVO_JOB_ID),
             backoff::Error::Transient { .. }
         ));
         assert!(matches!(
-            retry_class(disk, TEST_JOB_ID),
+            retry_class(disk, crate::test_config::TEST_ASVO_JOB_ID),
             backoff::Error::Permanent(_)
         ));
     }
@@ -1554,7 +1573,7 @@ mod reruns {
         let mut opts = options(&dir_path);
         configure(&mut opts);
         let client = AsvoClient::new(client_config(env)).expect("client should be created");
-        client.download_job(TEST_JOB_ID, &opts)
+        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
     }
 
     #[test]
@@ -1905,7 +1924,7 @@ mod unsafe_paths {
 
         let client = AsvoClient::new(client_config(&env)).expect("client should be created");
         client
-            .download_job(TEST_JOB_ID, &options(&dir_path))
+            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
             .expect("the rerun should succeed and match the hash");
 
         assert_eq!(check.calls(), 1);
@@ -2032,7 +2051,7 @@ mod sidecar {
         let mut opts = options(&dir_path);
         configure(&mut opts);
         let client = AsvoClient::new(client_config(server.env)).expect("client should be created");
-        client.download_job(TEST_JOB_ID, &opts)
+        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
     }
 
     /// A first run that writes `a.dat` and `b.dat` and then fails: a

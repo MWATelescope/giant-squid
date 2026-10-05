@@ -496,7 +496,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         print_submitted_json(&resp, json)?;
                         let job_id = resp.job_id;
                         info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        job_ids.push(job_id.get());
+                        job_ids.push(job_id);
                         Ok(())
                     });
 
@@ -533,7 +533,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id.get());
+                    job_ids.push(job_id);
                     Ok(())
                 });
 
@@ -571,7 +571,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id.get());
+                    job_ids.push(job_id);
                     Ok(())
                 });
 
@@ -625,7 +625,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
 
                 if wait {
-                    wait_loop(&client, &[job_id.get()])?;
+                    wait_loop(&client, &[job_id])?;
                 }
             }
         }
@@ -655,7 +655,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id.get());
+                    job_ids.push(job_id);
                     Ok(())
                 });
 
@@ -692,7 +692,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     print_submitted_json(&resp, json)?;
                     let job_id = resp.job_id;
                     info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                    job_ids.push(job_id.get());
+                    job_ids.push(job_id);
                     Ok(())
                 });
 
@@ -730,7 +730,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         print_submitted_json(&resp, json)?;
                         let job_id = resp.job_id;
                         info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
-                        job_ids.push(job_id.get());
+                        job_ids.push(job_id);
                         Ok(())
                     });
 

@@ -155,10 +155,11 @@ impl JobFile {
     }
 }
 
-/// An MWA ASVO job ID. A `u64`, as the OpenAPI schema's `job_id` is a
-/// 64-bit integer. A type alias, not a newtype, because a newtype would add
-/// complexity for no gain.
-pub type AsvoJobId = u64;
+/// An MWA ASVO job ID: a `NonZeroU64`, as the OpenAPI schema's `job_id` is
+/// (in `JobSubmittedResponse` and the other responses). The `id` of a
+/// `JobDetailResponse` is an `i64`; [`AsvoJob`] checks it. A type alias, not
+/// a newtype, because a newtype would add complexity for no gain.
+pub type AsvoJobId = std::num::NonZeroU64;
 
 /// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's obsid
 /// and ID checked.
@@ -229,8 +230,10 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
             id: detail.id,
             problem,
         };
-        let job_id = AsvoJobId::try_from(detail.id)
-            .map_err(|_| invalid("its ID is not a job ID".to_string()))?;
+        let job_id = u64::try_from(detail.id)
+            .ok()
+            .and_then(AsvoJobId::new)
+            .ok_or_else(|| invalid("its ID is not a job ID".to_string()))?;
         let obs_id = detail
             .job_params
             .get("obs_id")

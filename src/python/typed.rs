@@ -95,3 +95,37 @@ impl pyo3_stub_gen::PyStubType for ProgressCallback {
         )
     }
 }
+
+/// An MWA ASVO job ID ([`AsvoJobId`](crate::AsvoJobId), a `NonZeroU64`) as
+/// a Python `int`, as an argument or a return value. An argument that is 0
+/// raises `ValueError`.
+#[derive(Clone, Copy)]
+pub struct JobId(pub crate::AsvoJobId);
+
+impl<'a, 'py> FromPyObject<'a, 'py> for JobId {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
+        let id: u64 = obj.extract()?;
+        crate::AsvoJobId::new(id)
+            .map(Self)
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("0 is not a job ID"))
+    }
+}
+
+impl<'py> IntoPyObject<'py> for JobId {
+    type Target = pyo3::types::PyInt;
+    type Output = Bound<'py, pyo3::types::PyInt>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        self.0.get().into_pyobject(py)
+    }
+}
+
+#[cfg(feature = "python-stubgen")]
+impl pyo3_stub_gen::PyStubType for JobId {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        stub_type("builtins.int", &["builtins"])
+    }
+}

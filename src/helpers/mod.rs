@@ -19,6 +19,8 @@ enum ObsIdOrJobId {
     O(ObsId),
     /// This is a job ID.
     J(AsvoJobId),
+    /// This is 0, which is not a job ID.
+    Zero,
 }
 
 fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
@@ -29,7 +31,7 @@ fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
                 // This int is an obsid.
                 Ok(o) => Some(ObsIdOrJobId::O(o)),
                 // This int isn't an obsid; assume it is a jobid.
-                Err(_) => Some(ObsIdOrJobId::J(i as AsvoJobId)),
+                Err(_) => Some(AsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
             }
         }
         // Could not parse the string as an int; we must fail.
@@ -63,6 +65,7 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
             match parse_job_id_or_obs_id(text) {
                 Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
                 Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
+                Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
                 // `text` could not be parsed; so we must fail.
                 None => {
                     return Err(ParseError::InsideFile {
@@ -92,6 +95,7 @@ pub fn parse_many_job_ids_or_obs_ids(
         match parse_job_id_or_obs_id(s) {
             Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
             Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
+            Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
             // Could not parse the string as an int; assume it is a
             // file and unpack it.
             None => {
@@ -139,6 +143,10 @@ pub enum ParseError {
         /// The obsids, in the order given.
         obs_ids: Vec<ObsId>,
     },
+
+    /// 0 was given: it is not an obsid, and the MWA ASVO's job IDs start at 1.
+    #[error("0 is not a job ID or an obsid")]
+    ZeroJobId,
 
     /// No obsid was given ([`parse_obs_ids_only`]).
     #[error("No obsids specified!")]

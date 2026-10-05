@@ -19,7 +19,7 @@ fn check_file_sha1_hash_ok() {
     assert!(check_file_sha1_hash(
         &tmpfile.path().to_path_buf(),
         "2ef7bde608ce5404e97d5f042f95f89f1c232871",
-        123
+        crate::test_config::job_id(123)
     )
     .is_ok());
 }
@@ -32,7 +32,12 @@ fn check_file_sha1_hash_err() {
     tmpfile.flush().expect("Error flushing tmp file");
 
     // Check the checksum of the tmp file - but the expected checksum is wrong
-    assert!(check_file_sha1_hash(&tmpfile.path().to_path_buf(), "abcd123", 123).is_err());
+    assert!(check_file_sha1_hash(
+        &tmpfile.path().to_path_buf(),
+        "abcd123",
+        crate::test_config::job_id(123)
+    )
+    .is_err());
 }
 
 #[test]
@@ -95,7 +100,9 @@ fn obsids_only_reads_a_file_of_obsids() {
 fn obsids_only_refuses_a_job_id_and_names_it() {
     let err = parse_obs_ids_only(&strings(&[OBS_ID_A, JOB_ID_TEXT])).expect_err("a job ID");
 
-    assert!(matches!(&err, ParseError::JobIdsGiven { job_ids } if job_ids == &[31]));
+    assert!(
+        matches!(&err, ParseError::JobIdsGiven { job_ids } if job_ids == &[crate::test_config::job_id(31)])
+    );
     assert_eq!(
         err.to_string(),
         "Expected only obsids, but found these job IDs: [31]"
@@ -114,7 +121,13 @@ fn obsids_only_refuses_nothing_at_all() {
 fn job_ids_only_returns_the_job_ids_in_order() {
     let job_ids = parse_job_ids_only(&strings(&[JOB_ID_TEXT, "7"])).expect("job IDs");
 
-    assert_eq!(job_ids, [31, 7]);
+    assert_eq!(
+        job_ids,
+        [
+            crate::test_config::job_id(31),
+            crate::test_config::job_id(7)
+        ]
+    );
 }
 
 #[test]
@@ -183,4 +196,19 @@ fn a_time_without_an_offset_is_refused() {
         ParseError::InvalidTime.to_string(),
         "not a time: use RFC 3339 (2026-09-01T00:00:00Z) or a date (2026-09-01)"
     );
+}
+
+/// 0 is neither an obsid nor a job ID (job IDs start at 1), as an argument
+/// or in a file.
+#[test]
+fn zero_is_not_a_job_id() {
+    let err = parse_many_job_ids_or_obs_ids(&["0".to_string()]).expect_err("0 is not a job ID");
+    assert!(matches!(err, ParseError::ZeroJobId), "{err:?}");
+
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 0").expect("the file is written");
+    let path = file.path().display().to_string();
+    let err = parse_many_job_ids_or_obs_ids(&[path]).expect_err("0 is not a job ID");
+    assert!(matches!(err, ParseError::ZeroJobId), "{err:?}");
+    assert_eq!(err.to_string(), "0 is not a job ID or an obsid");
 }

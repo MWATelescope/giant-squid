@@ -22,12 +22,12 @@ use super::error::api_error;
 use super::params::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
-use super::typed::ProgressCallback;
+use super::typed::{JobId, ProgressCallback};
 use super::types::{
     PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobState, PyJobSubmittedResponse,
     PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
-use crate::asvo::{AsvoClient, AsvoClientConfig, AsvoJobId, JobQuery, JobsFilter};
+use crate::asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -163,7 +163,7 @@ impl PyAsvoClient {
     fn list_jobs(
         &self,
         py: Python<'_>,
-        job_ids: Option<Vec<AsvoJobId>>,
+        job_ids: Option<Vec<JobId>>,
         obs_ids: Option<Vec<u64>>,
         job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
@@ -178,7 +178,11 @@ impl PyAsvoClient {
             .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
             .collect::<PyResult<Vec<ObsId>>>()?;
         let query = JobQuery {
-            job_ids: job_ids.unwrap_or_default(),
+            job_ids: job_ids
+                .unwrap_or_default()
+                .into_iter()
+                .map(|id| id.0)
+                .collect(),
             obs_ids,
             job_types: job_types
                 .unwrap_or_default()
@@ -796,11 +800,12 @@ impl PyAsvoClient {
     ///     error.
     ///
     /// Raises:
+    ///     ValueError: `job_id` is 0.
     ///     OverflowError: `job_id` is negative or too large to be a job ID.
     ///     AsvoApiError: The request failed, for example because there is
     ///         no such job.
-    fn cancel_job(&self, py: Python<'_>, job_id: AsvoJobId) -> PyResult<PyJobSubmittedResponse> {
-        py.detach(|| self.inner.cancel_job(job_id))
+    fn cancel_job(&self, py: Python<'_>, job_id: JobId) -> PyResult<PyJobSubmittedResponse> {
+        py.detach(|| self.inner.cancel_job(job_id.0))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
@@ -859,7 +864,7 @@ impl PyAsvoClient {
     fn download_job(
         &self,
         py: Python<'_>,
-        job_id: AsvoJobId,
+        job_id: JobId,
         download_dir: PathBuf,
         keep_tar: bool,
         no_resume: bool,
@@ -881,7 +886,7 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_job(job_id, opts))
+        run_download(py, args, |opts| self.inner.download_job(job_id.0, opts))
     }
 
     /// Download the files of the one ready job for an obsid.

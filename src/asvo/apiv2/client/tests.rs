@@ -360,7 +360,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(get_jobs.calls(), 1);
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.job_id(), TEST_JOB_ID);
+    assert_eq!(job.job_id(), crate::test_config::TEST_ASVO_JOB_ID);
     assert_eq!(job.obs_id().get(), TEST_OBS_ID_I64 as u64);
     assert_eq!(job.job_type, Some(job_type("visibility")));
     // The API says "completed" where the rest of giant-squid says "ready".
@@ -404,7 +404,10 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     assert_eq!(first.calls(), 1);
     assert_eq!(second.calls(), 1, "the second page should be requested");
     assert_eq!(jobs.0.len(), total as usize);
-    assert_eq!(jobs.0.last().expect("there should be jobs").job_id(), 150);
+    assert_eq!(
+        jobs.0.last().expect("there should be jobs").job_id(),
+        crate::test_config::job_id(150)
+    );
 }
 
 #[test]
@@ -439,9 +442,12 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     let mut bad_obs_id = job_detail(3, TEST_OBS_ID, "completed", 1);
     bad_obs_id["job_params"] = json!({ "obs_id": "42" });
 
+    // The API has no job 0: job IDs are `NonZeroU64`.
+    let zero_id = job_detail(0, TEST_OBS_ID, "completed", 1);
+
     let good = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "queued", 1);
 
-    env.mock_get_jobs(vec![no_obs_id, bad_obs_id, good]);
+    env.mock_get_jobs(vec![no_obs_id, bad_obs_id, zero_id, good]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
@@ -449,7 +455,7 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
         .expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
-    assert_eq!(jobs.0[0].job_id(), TEST_JOB_ID);
+    assert_eq!(jobs.0[0].job_id(), crate::test_config::TEST_ASVO_JOB_ID);
     assert_eq!(jobs.0[0].job_state, JobState::Queued);
 }
 
@@ -755,7 +761,9 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
                 .expect("the beamformer body should build"),
         )
         .expect("beamformer");
-    client.cancel_job(TEST_JOB_ID).expect("cancel");
+    client
+        .cancel_job(crate::test_config::TEST_ASVO_JOB_ID)
+        .expect("cancel");
 
     let seen = seen.lock().unwrap().clone();
     assert_eq!(seen.len(), 9, "one login and eight calls: {seen:?}");
@@ -841,7 +849,7 @@ fn a_cancellation_deletes_the_job_resource() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .cancel_job(TEST_JOB_ID)
+        .cancel_job(crate::test_config::TEST_ASVO_JOB_ID)
         .expect("cancellation should succeed");
 
     assert_eq!(cancel.calls(), 1);
@@ -861,7 +869,7 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .cancel_job(999999)
+        .cancel_job(crate::test_config::job_id(999999))
         .expect_err("expected the cancellation to fail");
 
     assert!(is_api_error(&err, "JOB_NOT_FOUND"), "got {err:?}");
@@ -1068,7 +1076,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
 
 /// Values from the recorded response, so a re-record that changes them
 /// fails loudly here rather than silently weakening the test.
-const RECORDED_JOB_ID: AsvoJobId = 30000517;
+const RECORDED_JOB_ID: AsvoJobId = crate::test_config::job_id(30000517);
 const RECORDED_OBS_ID: u64 = 1115977528;
 const RECORDED_SIZE: u64 = 117016360960;
 const RECORDED_SHA1: &str = "ce32e0aeec0b7c64dec4deeb89881ba4452a6330";
@@ -1538,7 +1546,7 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
 
     assert_eq!(listing.calls(), 1);
     let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
-    assert_eq!(ids, [2]);
+    assert_eq!(ids, [crate::test_config::job_id(2)]);
 }
 
 /// Several states are not a server filter; they are applied to the result.
@@ -1565,7 +1573,10 @@ fn list_jobs_filters_several_states_on_the_client() {
 
     assert_eq!(listing.calls(), 1);
     let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
-    assert_eq!(ids, [1, 2]);
+    assert_eq!(
+        ids,
+        [crate::test_config::job_id(1), crate::test_config::job_id(2)]
+    );
 }
 
 /// Job IDs and obsids together are refused before any request.
@@ -1574,7 +1585,7 @@ fn list_jobs_refuses_job_ids_and_obs_ids_together() {
     let env = TestEnv::with_session();
     let listing = env.mock_get_jobs(vec![]);
     let query = JobQuery {
-        job_ids: vec![1],
+        job_ids: vec![crate::test_config::job_id(1)],
         obs_ids: vec![crate::ObsId::validate(1065880128).expect("a valid obsid")],
         ..JobQuery::default()
     };

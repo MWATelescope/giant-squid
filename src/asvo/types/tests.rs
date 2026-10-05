@@ -11,9 +11,9 @@ use crate::test_config::job_type;
 /// An obsid used by these tests.
 const OBS_ID: u64 = 1065880128;
 /// Job IDs used by these tests.
-const JOB_ID_A: AsvoJobId = 101;
-const JOB_ID_B: AsvoJobId = 102;
-const JOB_ID_C: AsvoJobId = 103;
+const JOB_ID_A: AsvoJobId = crate::test_config::job_id(101);
+const JOB_ID_B: AsvoJobId = crate::test_config::job_id(102);
+const JOB_ID_C: AsvoJobId = crate::test_config::job_id(103);
 /// Another obsid, for the filter tests.
 const OTHER_OBS_ID: u64 = 1090008640;
 
@@ -177,7 +177,7 @@ fn job(job_id: AsvoJobId, state: JobState) -> AsvoJob {
     crate::test_config::asvo_job(
         ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
         JobDetailResponse {
-            id: i64::try_from(job_id).expect("a test job ID fits in i64"),
+            id: i64::try_from(job_id.get()).expect("a test job ID fits in i64"),
             job_type: Some(job_type("visibility")),
             job_state: state,
             product: None,
@@ -318,7 +318,7 @@ fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: JobType, state: JobState) 
     crate::test_config::asvo_job(
         ObsId::validate(obs_id).expect("the test obsid should be valid"),
         JobDetailResponse {
-            id: i64::try_from(job_id).expect("a test job ID fits in i64"),
+            id: i64::try_from(job_id.get()).expect("a test job ID fits in i64"),
             job_type: Some(job_type),
             job_state: state,
             product: None,

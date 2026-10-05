@@ -521,6 +521,7 @@ class AsvoClient:
             error.
 
         Raises:
+            ValueError: `job_id` is 0.
             OverflowError: `job_id` is negative or too large to be a job ID.
             AsvoApiError: The request failed, for example because there is
                 no such job.

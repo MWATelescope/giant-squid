@@ -756,6 +756,16 @@ def test_a_negative_job_id_is_rejected_before_any_request(client: gs.AsvoClient,
     assert len(httpserver.log) == requests_before
 
 
+def test_job_id_zero_is_rejected_before_any_request(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """0 is not a job ID (job IDs start at 1), and nothing is sent."""
+    requests_before = len(httpserver.log)
+
+    with pytest.raises(ValueError, match="0 is not a job ID"):
+        client.cancel_job(0)
+
+    assert len(httpserver.log) == requests_before
+
+
 def test_conversion_job_sends_no_cable_delay_and_no_rfi(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
     """The two conversion options reach the request body."""
     submitted(httpserver, CONVERSION_PATH)

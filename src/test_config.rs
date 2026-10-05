@@ -35,3 +35,14 @@ pub fn asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> AsvoJob {
         .insert("obs_id".to_string(), serde_json::json!(u64::from(obs_id)));
     AsvoJob::try_from(detail).expect("a test job should be usable")
 }
+
+/// The job ID `n`, which must not be 0.
+pub const fn job_id(n: u64) -> crate::AsvoJobId {
+    match crate::AsvoJobId::new(n) {
+        Some(id) => id,
+        None => panic!("a test job ID is not 0"),
+    }
+}
+
+/// [`TEST_JOB_ID`](crate::test_common::TEST_JOB_ID) as a job ID.
+pub const TEST_ASVO_JOB_ID: crate::AsvoJobId = job_id(crate::test_common::TEST_JOB_ID);
