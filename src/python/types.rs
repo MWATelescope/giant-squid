@@ -16,7 +16,8 @@ use pyo3::types::{PyDict, PyList};
 use super::error::asvo_error;
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::asvo::apiv2::openapi::{
-    Centre, DeliveryFormat, JobSubmittedResponse, Output, OutputMode, Polarization, Type, Weighting,
+    Centre, DeliveryFormat, JobCancelledResponse, JobSubmittedResponse, Output, OutputMode,
+    Polarization, Status, Type, Weighting,
 };
 use crate::asvo::{
     AsvoJob, AsvoJobId, AsvoJobVec, Delivery, DownloadProgress, JobFile, JobProduct, JobState,
@@ -510,57 +511,83 @@ impl From<DownloadProgress> for PyDownloadProgress {
     }
 }
 
-/// The MWA ASVO's reply to a job submission or to a cancellation.
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "JobSubmittedResponse",
-    module = "mwa_giant_squid"
-)]
-#[derive(Clone)]
-pub struct PyJobSubmittedResponse(JobSubmittedResponse);
+py_enum!(
+    /// The `status` of the MWA ASVO's reply to a submission or a
+    /// cancellation: the OpenAPI schema's `Status`. `str()` is the API value
+    /// ("success" or "failed"). It describes the reply, like `message`; it
+    /// is for display only. Success or failure of a call is decided by the
+    /// HTTP status, so a call that fails raises `AsvoApiError`.
+    PyStatus,
+    "Status",
+    Status,
+    [Success, Failed]
+);
 
-impl From<JobSubmittedResponse> for PyJobSubmittedResponse {
-    fn from(response: JobSubmittedResponse) -> Self {
-        Self(response)
-    }
+/// Define the Python class of a reply of the MWA ASVO that has the fields
+/// `job_id`, `message` and `status`: `JobSubmittedResponse` and
+/// `JobCancelledResponse` of the schema.
+macro_rules! py_job_response {
+    ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident) => {
+        $(#[$doc])*
+        #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
+        #[pyclass(frozen, skip_from_py_object, name = $name, module = "mwa_giant_squid")]
+        #[derive(Clone)]
+        pub struct $py($lib);
+
+        impl From<$lib> for $py {
+            fn from(response: $lib) -> Self {
+                Self(response)
+            }
+        }
+
+        #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
+        #[pymethods]
+        impl $py {
+            /// The ID of the job.
+            #[getter]
+            fn job_id(&self) -> JobId {
+                JobId(self.0.job_id)
+            }
+
+            /// The server's message.
+            #[getter]
+            fn message(&self) -> String {
+                self.0.message.clone()
+            }
+
+            /// The server's status for the request. For display only (see
+            /// `Status`).
+            #[getter]
+            fn status(&self) -> PyStatus {
+                self.0.status.into()
+            }
+
+            fn __repr__(&self) -> String {
+                format!(
+                    concat!($name, "(job_id={}, status={}, message={:?})"),
+                    self.0.job_id, self.0.status, self.0.message
+                )
+            }
+        }
+    };
 }
 
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyJobSubmittedResponse {
-    /// The ID of the job that was submitted (or cancelled).
-    #[getter]
-    fn job_id(&self) -> JobId {
-        JobId(self.0.job_id)
-    }
+py_job_response!(
+    /// The MWA ASVO's reply to a job submission: the OpenAPI schema's
+    /// `JobSubmittedResponse`.
+    PyJobSubmittedResponse,
+    "JobSubmittedResponse",
+    JobSubmittedResponse
+);
 
-    /// The server's message.
-    #[getter]
-    fn message(&self) -> String {
-        self.0.message.clone()
-    }
-
-    /// The server's status text for the request, "success" or "failed". It
-    /// describes the reply, like `message`; it is for display only. Success
-    /// or failure of a call is decided by the HTTP status, so a call that
-    /// fails raises `AsvoApiError`, and this text is not to be used to
-    /// decide whether a call worked.
-    #[getter]
-    fn status(&self) -> String {
-        self.0.status.to_string()
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "JobSubmittedResponse(job_id={}, status={:?}, message={:?})",
-            self.0.job_id,
-            self.0.status.to_string(),
-            self.0.message
-        )
-    }
-}
+py_job_response!(
+    /// The MWA ASVO's reply to a cancellation: the OpenAPI schema's
+    /// `JobCancelledResponse`. For a job that is already cancelled, the
+    /// reply is normal and `status` is `Status.Failed`; read the message.
+    PyJobCancelledResponse,
+    "JobCancelledResponse",
+    JobCancelledResponse
+);
 
 /// A list of MWA ASVO jobs. Supports `len()`, indexing and iteration.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]

@@ -64,6 +64,9 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
+* Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In
+  Python it is the new class `JobCancelledResponse`, and the `status` of both reply classes is the new enum `Status`
+  (`Status.Success` or `Status.Failed`; `str()` is the API value), not a `str`.
 * Library: `AsvoJobId` is a `NonZeroU64`, as the schema's `job_id` is (it was a `u64`). The commands refuse a job ID
   of 0 (`0 is not a job ID or an obsid`), and Python raises `ValueError` for it.
 * Library: `AsvoJob` wraps the OpenAPI schema's `JobDetailResponse` (through `Deref`, so `job.job_state` and the other

@@ -34,9 +34,9 @@ use crate::obs_id::ObsId;
 use super::error::AsvoApiError;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
-    DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobDetailResponse,
-    JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, TokenResponse, UserResponse,
-    VoltageJobParams,
+    DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
+    JobCancelledResponse, JobDetailResponse, JobState, JobSubmittedResponse, JobType,
+    JobsByUserRequest, Login, TokenResponse, UserResponse, VoltageJobParams,
 };
 use super::validate::{
     self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
@@ -906,7 +906,7 @@ impl AsvoClient {
         Ok(resp)
     }
 
-    /// Cancel a job.
+    /// Cancel a job. The reply is the schema's `JobCancelledResponse`.
     ///
     /// The reply's `status` and `message` describe what happened, and the
     /// `status` is not to be used to decide whether the call worked: the
@@ -920,14 +920,14 @@ impl AsvoClient {
     ///
     /// The error from the request, for example `JOB_NOT_FOUND` for a job
     /// that does not exist.
-    pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobSubmittedResponse, AsvoApiError> {
+    pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobCancelledResponse, AsvoApiError> {
         debug!("Cancelling MWA ASVO v2 job {}", job_id);
 
         let body = self.send_authed(|client| {
             client.delete(format!("{}{}/{}", self.config.host, ENDPOINT_JOBS, job_id))
         })?;
 
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
+        let resp: JobCancelledResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
 }

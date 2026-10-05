@@ -91,8 +91,8 @@ mod module {
     #[pymodule_export]
     use super::types::{
         PyAsvoJob, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyDownloadProgress,
-        PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput,
-        PyOutputMode, PyPolarization, PyType, PyWeighting,
+        PyJobCancelledResponse, PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse,
+        PyJobType, PyOutput, PyOutputMode, PyPolarization, PyStatus, PyType, PyWeighting,
     };
 
     /// Make Python see changes to its logging configuration.

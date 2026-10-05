@@ -195,10 +195,10 @@ The methods check the arguments before they send a request. A value outside the 
 `ValueError` (or `OverflowError`) that names the argument. Nothing is sent.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
-text ("success" or "failed") and the `message` describe the reply and are for display. A call that fails
+(a `Status`: `Success` or `Failed`) and the `message` describe the reply and are for display. A call that fails
 raises an exception, so do not use `status` to decide whether a call worked.
 
-`cancel_job` returns the same class. The MWA ASVO answers the cancellation of a job that is already cancelled
+`cancel_job` returns a `JobCancelledResponse`, which has the same attributes. The MWA ASVO answers the cancellation of a job that is already cancelled
 with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
 is an error and raises `AsvoApiError`.
 

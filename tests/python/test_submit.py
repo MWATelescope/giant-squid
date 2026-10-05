@@ -101,7 +101,8 @@ def assert_response(response: gs.JobSubmittedResponse) -> None:
     """
     assert response.job_id == NEW_JOB_ID
     assert response.message == NEW_JOB_MESSAGE
-    assert response.status == "success"
+    assert response.status == gs.Status.Success
+    assert str(response.status) == "success"
 
 
 # The methods that take only delivery, delivery_format and allow_resubmit, with their endpoint.
@@ -728,9 +729,11 @@ def test_cancel_job_sends_a_delete_and_returns_the_response(client: gs.AsvoClien
 
     response = client.cancel_job(CANCELLED_JOB_ID)
 
+    assert isinstance(response, gs.JobCancelledResponse)
     assert response.job_id == CANCELLED_JOB_ID
     assert response.message == "Job cancelled"
-    assert response.status == "success"
+    assert response.status == gs.Status.Success
+    assert repr(response).startswith("JobCancelledResponse(")
 
 
 def test_cancelling_a_missing_job_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:

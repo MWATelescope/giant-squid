@@ -21,6 +21,7 @@ __all__ = [
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
+    "JobCancelledResponse",
     "JobFile",
     "JobProduct",
     "JobState",
@@ -29,6 +30,7 @@ __all__ = [
     "Output",
     "OutputMode",
     "Polarization",
+    "Status",
     "Type",
     "Weighting",
     "reset_logging",
@@ -506,7 +508,7 @@ class AsvoClient:
             ValueError: `obs_id` is not a valid obsid.
             AsvoApiError: The request failed.
         """
-    def cancel_job(self, job_id: builtins.int) -> JobSubmittedResponse:
+    def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
         r"""
         Cancel a job.
 
@@ -514,7 +516,8 @@ class AsvoClient:
             job_id: The ID of the job to cancel.
 
         Returns:
-            The server's reply. Its `job_id` is the job in the request. The
+            The server's reply, a `JobCancelledResponse`. Its `job_id` is the
+            job in the request. The
             MWA ASVO answers the cancellation of a job that is already
             cancelled with a normal reply and not an error, so no exception
             is raised. The reason is in `message`. Any other refusal is an
@@ -873,6 +876,30 @@ class DownloadProgress:
         def __new__(cls) -> DownloadProgress.Finished: ...
 
 @typing.final
+class JobCancelledResponse:
+    r"""
+    The MWA ASVO's reply to a cancellation: the OpenAPI schema's
+    `JobCancelledResponse`. For a job that is already cancelled, the
+    reply is normal and `status` is `Status.Failed`; read the message.
+    """
+    @property
+    def job_id(self) -> builtins.int:
+        r"""
+        The ID of the job.
+        """
+    @property
+    def message(self) -> builtins.str:
+        r"""
+        The server's message.
+        """
+    @property
+    def status(self) -> Status:
+        r"""
+        The server's status for the request. For display only (see
+        `Status`).
+        """
+
+@typing.final
 class JobFile:
     r"""
     One file of a job's product: the OpenAPI schema's `JobFile`.
@@ -923,12 +950,13 @@ class JobProduct:
 @typing.final
 class JobSubmittedResponse:
     r"""
-    The MWA ASVO's reply to a job submission or to a cancellation.
+    The MWA ASVO's reply to a job submission: the OpenAPI schema's
+    `JobSubmittedResponse`.
     """
     @property
     def job_id(self) -> builtins.int:
         r"""
-        The ID of the job that was submitted (or cancelled).
+        The ID of the job.
         """
     @property
     def message(self) -> builtins.str:
@@ -936,13 +964,10 @@ class JobSubmittedResponse:
         The server's message.
         """
     @property
-    def status(self) -> builtins.str:
+    def status(self) -> Status:
         r"""
-        The server's status text for the request, "success" or "failed". It
-        describes the reply, like `message`; it is for display only. Success
-        or failure of a call is decided by the HTTP status, so a call that
-        fails raises `AsvoApiError`, and this text is not to be used to
-        decide whether a call worked.
+        The server's status for the request. For display only (see
+        `Status`).
         """
 
 @typing.final
@@ -1043,6 +1068,19 @@ class Polarization(enum.Enum):
     Xx = ...
     Yy = ...
     Xxyy = ...
+
+@typing.final
+class Status(enum.Enum):
+    r"""
+    The `status` of the MWA ASVO's reply to a submission or a
+    cancellation: the OpenAPI schema's `Status`. `str()` is the API value
+    ("success" or "failed"). It describes the reply, like `message`; it
+    is for display only. Success or failure of a call is decided by the
+    HTTP status, so a call that fails raises `AsvoApiError`.
+    """
+
+    Success = ...
+    Failed = ...
 
 @typing.final
 class Type(enum.Enum):

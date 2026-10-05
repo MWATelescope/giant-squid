@@ -24,8 +24,8 @@ use super::params::{
 };
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
-    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobState, PyJobSubmittedResponse,
-    PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
+    PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse, PyJobState,
+    PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization, PyWeighting,
 };
 use crate::asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
@@ -793,7 +793,8 @@ impl PyAsvoClient {
     ///     job_id: The ID of the job to cancel.
     ///
     /// Returns:
-    ///     The server's reply. Its `job_id` is the job in the request. The
+    ///     The server's reply, a `JobCancelledResponse`. Its `job_id` is the
+    ///     job in the request. The
     ///     MWA ASVO answers the cancellation of a job that is already
     ///     cancelled with a normal reply and not an error, so no exception
     ///     is raised. The reason is in `message`. Any other refusal is an
@@ -804,9 +805,9 @@ impl PyAsvoClient {
     ///     OverflowError: `job_id` is negative or too large to be a job ID.
     ///     AsvoApiError: The request failed, for example because there is
     ///         no such job.
-    fn cancel_job(&self, py: Python<'_>, job_id: JobId) -> PyResult<PyJobSubmittedResponse> {
+    fn cancel_job(&self, py: Python<'_>, job_id: JobId) -> PyResult<PyJobCancelledResponse> {
         py.detach(|| self.inner.cancel_job(job_id.0))
-            .map(PyJobSubmittedResponse::from)
+            .map(PyJobCancelledResponse::from)
             .map_err(|e| api_error(py, e))
     }
 
