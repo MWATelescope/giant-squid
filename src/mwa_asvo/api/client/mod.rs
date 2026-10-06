@@ -60,6 +60,7 @@ const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PK
 /// but was minted by a different environment (e.g. dev vs test, which sign
 /// JWTs with different secrets), so the other environment rejects it.
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
+
 /// A path of the schema under [`API_PREFIX`]: the prefix is written only
 /// here.
 macro_rules! api_path {
@@ -74,11 +75,14 @@ macro_rules! api_path {
 pub const API_PREFIX: &str = api_path!("");
 
 // The MWA ASVO API endpoints this client uses: the schema's paths, under
-// `API_PREFIX`. Public so that the binary can name the endpoint a
-// `--dry-run` submission would have gone to without duplicating the path.
-pub const ENDPOINT_API_LOGIN: &str = api_path!("/v2/api_login");
-pub const ENDPOINT_REFRESH: &str = api_path!("/v2/refresh");
-pub const ENDPOINT_GET_JOBS: &str = api_path!("/v2/get_jobs");
+// `API_PREFIX`. The login, refresh and job list endpoints are used only
+// here.
+const ENDPOINT_API_LOGIN: &str = api_path!("/v2/api_login");
+const ENDPOINT_REFRESH: &str = api_path!("/v2/refresh");
+const ENDPOINT_GET_JOBS: &str = api_path!("/v2/get_jobs");
+// The job and submission endpoints are public, so that the CLI can name the
+// endpoint that a `--dry-run` submission or cancellation would go to,
+// without a copy of the path.
 pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
 pub const ENDPOINT_CONVERSION_JOB: &str = api_path!("/v2/conversion_job");
 pub const ENDPOINT_DOWNLOAD_VIS_JOB: &str = api_path!("/v2/download_vis_job");
@@ -339,19 +343,6 @@ impl AsvoClient {
             .build()?)
     }
 
-    /// Returns a clone of the underlying HTTP client, for use by download
-    /// functions that need to make direct HTTP requests (e.g. to Ceph
-    /// signed URLs) outside the ASVO API. Cloning a reqwest client is cheap
-    /// (it's reference-counted internally) and shares the same connection
-    /// pool.
-    ///
-    /// NOTE: currently has no callers - the download path now goes through
-    /// `download_job` / `download_obs` - so this is a candidate for
-    /// deletion.
-    pub fn http_client(&self) -> Client {
-        self.current_session().0
-    }
-
     /// Lock the session. A poisoned lock is not an error here: the lock
     /// only guards the swap of one [`Session`] value for another, so a
     /// panic in another thread cannot leave it half-changed.
@@ -370,7 +361,7 @@ impl AsvoClient {
         (session.client.clone(), session.generation)
     }
 
-    /// Download the MWA ASVO job with the given job ID.
+    /// Download the MWA ASVO job with the given Job ID.
     /// Fetches the current job list, locates the job, and downloads its
     /// files according to the supplied options. Returns the job that was
     /// downloaded.
@@ -383,10 +374,10 @@ impl AsvoClient {
         download_by_job_id(&self.current_session().0, jobs, job_id, opts)
     }
 
-    /// Download the MWA ASVO job associated with the given obsid.
+    /// Download the MWA ASVO job associated with the given Obs ID.
     /// Fetches the current job list, locates the single ready job for
-    /// the obsid, and downloads its files according to the supplied options.
-    /// Returns the job that was downloaded (so the caller learns its job
+    /// the Obs ID, and downloads its files according to the supplied options.
+    /// Returns the job that was downloaded (so the caller learns its Job
     /// ID).
     pub fn download_obs(
         &self,
@@ -741,8 +732,8 @@ impl AsvoClient {
 
                 // Hard error: this is a basic structural mismatch against
                 // the schema (an item that isn't even a JobDetailResponse
-                // shape), not a content-level ambiguity like the ones
-                // job_detail_to_asvo_job skips over individually.
+                // shape), not a content-level problem like the ones that
+                // `AsvoJob::try_from` finds, which skip only that job.
                 let detail: JobDetailResponse =
                     serde_json::from_value(serde_json::Value::Object(job_value))?;
                 // A job that cannot be used (see `AsvoJob::try_from`) is
@@ -781,9 +772,9 @@ impl AsvoClient {
         ))
     }
 
-    /// Submit an MWA ASVO v2 imaging job (flow 1: from an obsid).
+    /// Submit an MWA ASVO imaging job (flow 1: from an Obs ID).
     ///
-    /// Like every other v2 submit endpoint, a success returns a
+    /// Like every other submit endpoint, a success returns a
     /// `JobSubmittedResponse` carrying the new job's ID.
     ///
     /// The numbers in `params` are checked against the schema's limits
@@ -794,7 +785,7 @@ impl AsvoClient {
         params: &ImagingJobFlow1Params,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_imaging_params(params)?;
-        debug!("Submitting an imaging job to MWA ASVO v2");
+        debug!("Submitting an imaging job to MWA ASVO");
 
         let body = self.send_authed(|client| {
             client
@@ -806,7 +797,7 @@ impl AsvoClient {
         Ok(resp)
     }
 
-    /// Submit an MWA ASVO v2 imaging job (flow 2: from a conversion job).
+    /// Submit an MWA ASVO imaging job (flow 2: from a conversion job).
     ///
     /// The numbers in `params` are checked against the schema's limits
     /// first ([`validate_image_from_job_params`]); nothing is sent if one
@@ -817,7 +808,7 @@ impl AsvoClient {
         params: &ImagingJobFlow2Params,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_image_from_job_params(params)?;
-        debug!("Submitting an image-from-job to MWA ASVO v2");
+        debug!("Submitting an image-from-job job to MWA ASVO");
 
         let body = self.send_authed(|client| {
             client
@@ -855,7 +846,7 @@ impl AsvoClient {
         params: &DownloadJobParams,
         download_type: DownloadType,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        debug!("Submitting a download-{} job to MWA ASVO v2", download_type);
+        debug!("Submitting a download-{download_type} job to MWA ASVO");
 
         let mut params = params.clone();
         params.download_type = download_type;
@@ -870,7 +861,7 @@ impl AsvoClient {
         Ok(resp)
     }
 
-    /// Submit an MWA ASVO v2 conversion job.
+    /// Submit an MWA ASVO conversion job.
     ///
     /// The numbers in `params` are checked against the schema's limits
     /// first ([`validate_conversion_params`]); nothing is sent if one is out
@@ -880,7 +871,7 @@ impl AsvoClient {
         params: &ConversionJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_conversion_params(params)?;
-        debug!("Submitting a conversion job to MWA ASVO v2");
+        debug!("Submitting a conversion job to MWA ASVO");
 
         let body = self.send_authed(|client| {
             client
@@ -892,7 +883,7 @@ impl AsvoClient {
         Ok(resp)
     }
 
-    /// Submit an MWA ASVO v2 voltage download job.
+    /// Submit an MWA ASVO voltage download job.
     ///
     /// `params.offset` is checked against the schema's limits first
     /// ([`validate_voltage_params`]); nothing is sent if it is out of range,
@@ -902,7 +893,7 @@ impl AsvoClient {
         params: &VoltageJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_voltage_params(params)?;
-        debug!("Submitting a voltage job to MWA ASVO v2");
+        debug!("Submitting a voltage job to MWA ASVO");
 
         let body = self.send_authed(|client| {
             client
@@ -914,11 +905,15 @@ impl AsvoClient {
         Ok(resp)
     }
 
+    /// Submit an MWA ASVO beamformer download job.
+    ///
+    /// The schema gives the beamformer request body no numeric limits, so
+    /// nothing is checked before the request is sent.
     pub fn submit_beamformer_job(
         &self,
         params: &BeamformerJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        debug!("Submitting a beamformer job to MWA ASVO v2");
+        debug!("Submitting a beamformer job to MWA ASVO");
 
         let body = self.send_authed(|client| {
             client
@@ -945,7 +940,7 @@ impl AsvoClient {
     /// The error from the request, for example `JOB_NOT_FOUND` for a job
     /// that does not exist.
     pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobCancelledResponse, AsvoApiError> {
-        debug!("Cancelling MWA ASVO v2 job {}", job_id);
+        debug!("Cancelling MWA ASVO job {job_id}");
 
         let body = self.send_authed(|client| {
             client.delete(format!("{}{}/{}", self.config.host, ENDPOINT_JOBS, job_id))
@@ -1041,18 +1036,8 @@ pub struct JobsFilter {
     pub sort_by: Option<String>,
 }
 
-impl JobsFilter {
-    /// A filter for the jobs from the past `days` days.
-    pub fn days(days: NonZeroU64) -> Self {
-        Self {
-            days: Some(days),
-            ..Self::default()
-        }
-    }
-}
-
 /// A job listing: the server-side filters of [`JobsFilter`], plus the
-/// filters that the MWA ASVO API does not have (several job IDs, obsids,
+/// filters that the MWA ASVO API does not have (several Job IDs, Obs IDs,
 /// types or states), which [`AsvoClient::list_jobs`] applies to the result.
 /// An empty list does not filter.
 ///
@@ -1062,7 +1047,7 @@ impl JobsFilter {
 pub struct JobQuery {
     /// Only these jobs. Cannot be combined with `obs_ids`.
     pub job_ids: Vec<AsvoJobId>,
-    /// Only the jobs for these obsids. Cannot be combined with `job_ids`.
+    /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
     pub obs_ids: Vec<ObsId>,
     /// Only the jobs of these types.
     pub job_types: Vec<JobType>,
@@ -1090,7 +1075,7 @@ impl JobQuery {
         if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
             return Err(AsvoApiError::InvalidParameter {
                 name: "job_ids",
-                message: "can't specify both job IDs and obsids; use one or the other".to_string(),
+                message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
             });
         }
         if let Some(days) = self.days {

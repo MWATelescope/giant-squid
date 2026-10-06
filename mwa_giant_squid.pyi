@@ -155,12 +155,12 @@ class AsvoClient:
     ) -> AsvoJobVec:
         r"""
         List jobs as `giant-squid list` does: the server filters what it
-        can, and the lists (several job IDs, obsids, types or states) are
+        can, and the lists (several Job IDs, Obs IDs, types or states) are
         applied to the result. Every filter that is `None` does not filter.
 
         Args:
             job_ids: Only these jobs. Cannot be combined with `obs_ids`.
-            obs_ids: Only the jobs for these obsids.
+            obs_ids: Only the jobs for these Obs IDs.
             job_types: Only the jobs of these types.
             job_states: Only the jobs in these states.
             days: Only the jobs from the past `days` days, from 1 to 30.
@@ -172,7 +172,7 @@ class AsvoClient:
             sort_by: The column to sort the jobs by, for example "id".
 
         Raises:
-            ValueError: Both `job_ids` and `obs_ids` are given, an obsid is
+            ValueError: Both `job_ids` and `obs_ids` are given, an Obs ID is
                 not valid, or `days` is not from 1 to 30.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
@@ -191,7 +191,7 @@ class AsvoClient:
         Every keyword argument that is `None` uses the MWA ASVO's default.
 
         Args:
-            obs_id: The obsid.
+            obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files.
             allow_resubmit: Submit the job even if an identical one has
@@ -201,7 +201,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid.
+            ValueError: `obs_id` is not a valid Obs ID.
             AsvoApiError: The request failed.
         """
     def submit_download_meta_job(
@@ -221,7 +221,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid.
+            ValueError: `obs_id` is not a valid Obs ID.
             AsvoApiError: The request failed.
         """
     def submit_conversion_job(
@@ -253,7 +253,7 @@ class AsvoClient:
         Every keyword argument that is `None` uses the MWA ASVO's default.
 
         Args:
-            obs_id: The obsid.
+            obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files.
             output: The output format.
@@ -281,7 +281,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid, or a number is outside
+            ValueError: `obs_id` is not a valid Obs ID, or a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
                 1280). The message names the argument and its limits.
                 Nothing is sent.
@@ -332,12 +332,12 @@ class AsvoClient:
         allow_resubmit: builtins.bool | None = None,
     ) -> JobSubmittedResponse:
         r"""
-        Submit an imaging job that starts from an obsid.
+        Submit an imaging job that starts from an Obs ID.
 
         Every keyword argument that is `None` uses the MWA ASVO's default.
 
         Args:
-            obs_id: The obsid.
+            obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files.
             apply_di_cal: Apply the DI calibration solution.
@@ -391,7 +391,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid, or an argument is
+            ValueError: `obs_id` is not a valid Obs ID, or an argument is
                 outside what the MWA ASVO accepts (for example `mgain`
                 above 1, or an `image_size` that is not a supported size).
                 The message names the argument and its limits. Nothing is
@@ -438,7 +438,7 @@ class AsvoClient:
         averaging, flagging or phase centre arguments.
 
         Args:
-            obs_id: The obsid.
+            obs_id: The Obs ID.
             source_job_id: The ID of the conversion job to image. Must be
                 greater than zero.
 
@@ -446,7 +446,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid, `source_job_id` is
+            ValueError: `obs_id` is not a valid Obs ID, `source_job_id` is
                 zero, or an argument is outside what the MWA ASVO accepts
                 (see `submit_imaging_job`). Nothing is sent.
             AsvoApiError: The request failed.
@@ -468,7 +468,7 @@ class AsvoClient:
         Every keyword argument that is `None` uses the MWA ASVO's default.
 
         Args:
-            obs_id: The obsid.
+            obs_id: The Obs ID.
             offset: The offset in seconds from the start GPS time of the
                 observation, from 0 to 5400.
             duration: The duration to download, in seconds.
@@ -484,7 +484,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid, or `offset` is not
+            ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
                 from 0 to 5400. Nothing is sent.
             OverflowError: A channel number is not from 0 to 255.
             AsvoApiError: The request failed.
@@ -506,7 +506,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid.
+            ValueError: `obs_id` is not a valid Obs ID.
             AsvoApiError: The request failed.
         """
     def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
@@ -526,7 +526,7 @@ class AsvoClient:
 
         Raises:
             ValueError: `job_id` is 0.
-            OverflowError: `job_id` is negative or too large to be a job ID.
+            OverflowError: `job_id` is negative or too large to be a Job ID.
             AsvoApiError: The request failed, for example because there is
                 no such job.
         """
@@ -554,7 +554,7 @@ class AsvoClient:
         a new call resumes it (unless `no_resume`).
 
         Args:
-            job_id: The job ID.
+            job_id: The Job ID.
             download_dir: The directory for the files. It must exist.
             keep_tar: Keep the tar file as it is. `False` unpacks it into
                 `download_dir` while it downloads.
@@ -602,22 +602,22 @@ class AsvoClient:
         download_count: builtins.int = 1,
     ) -> AsvoJob:
         r"""
-        Download the files of the one ready job for an obsid.
+        Download the files of the one ready job for an Obs ID.
 
         The arguments, and the way the download runs, are those of
         `download_job`.
 
         Args:
-            obs_id: The obsid. There must be exactly one ready job for it.
+            obs_id: The Obs ID. There must be exactly one ready job for it.
 
         Returns:
             The job that was downloaded (its `job_id` is the job found for
-            the obsid).
+            the Obs ID).
 
         Raises:
-            ValueError: `obs_id` is not a valid obsid.
+            ValueError: `obs_id` is not a valid Obs ID.
             AsvoError: No job, no ready job, or more than one ready job has
-                this obsid, or the download failed (see `download_job`).
+                this Obs ID, or the download failed (see `download_job`).
             AsvoApiError: Getting the job list failed.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
@@ -702,12 +702,12 @@ class AsvoJob:
     @property
     def job_id(self) -> builtins.int:
         r"""
-        The job ID.
+        The Job ID.
         """
     @property
     def obs_id(self) -> builtins.int:
         r"""
-        The obsid.
+        The Obs ID.
         """
     @property
     def job_type(self) -> JobType | None:
@@ -797,7 +797,7 @@ class AsvoJobVec:
         `None` or empty does not filter.
 
         Raises:
-            ValueError: An obsid is not valid.
+            ValueError: An Obs ID is not valid.
         """
     def all_ready(self, job_ids: typing.Sequence[builtins.int]) -> builtins.bool:
         r"""
@@ -837,12 +837,12 @@ class DownloadProgress:
         @property
         def job_id(self) -> builtins.int:
             r"""
-            The MWA ASVO job ID.
+            The MWA ASVO Job ID.
             """
         @property
         def label(self) -> builtins.str:
             r"""
-            A human-readable label, for example `Job ID 123 (obsid:
+            A human-readable label, for example `Job ID 123 (Obs ID:
             1234567890) [1/2]:`.
             """
         @property

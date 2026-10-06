@@ -152,7 +152,9 @@ def main() -> int:
         0 on success, 1 if anything secret-looking remains.
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("input", type=Path, help="raw recording written by tests/record.rs")
+    parser.add_argument(
+        "input", type=Path, help="raw recording written by record_login_and_get_jobs (src/mwa_asvo/api/client/tests.rs)"
+    )
     parser.add_argument("output", type=Path, help="where to write the scrubbed fixture")
     args = parser.parse_args()
 

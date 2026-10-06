@@ -341,7 +341,7 @@ pub fn check_days(value: NonZeroU64) -> Result<NonZeroU64, AsvoApiError> {
     Ok(value)
 }
 
-/// A job ID for `source_job_id`, which the schema requires to be at least
+/// A Job ID for `source_job_id`, which the schema requires to be at least
 /// 1.
 ///
 /// # Errors

@@ -8,8 +8,8 @@
    MWA ASVO, and no test may download real data from Acacia.
 3. Tests must pass regardless of MWA ASVO availability, congestion or schema
    version.
-4. Every CLI usage form must be covered for every job type: single obsid,
-   multiple obsids, obsids from a file, aliases, defaults, environment
+4. Every CLI usage form must be covered for every job type: single Obs ID,
+   multiple Obs IDs, Obs IDs from a file, aliases, defaults, environment
    variable defaults, and each optional flag.
 
 The development server (`test-asvo.mwatelescope.org`) usually runs a newer
@@ -89,14 +89,14 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Non-JSON error bodies mapping to `AsvoApiError::BadStatus`.
 - Job listing: the schema's `JobState` and `JobType` used as they are, the
   message of an `error` job in `error_text`, naive timestamps and a missing
-  `modified` being normalised, and unusable jobs (no valid obsid or job ID)
+  `modified` being normalised, and unusable jobs (no valid Obs ID or Job ID)
   being skipped rather than failing the listing.
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-`src/mwa_asvo/download/tests.rs` covers the download path: an unknown job ID, a job that
-is not ready, an unknown obsid, an obsid whose only job is unfinished, an
-obsid with several ready jobs, successful downloads, resume, stop requests,
+`src/mwa_asvo/download/tests.rs` covers the download path: an unknown Job ID, a job that
+is not ready, an unknown Obs ID, an Obs ID whose only job is unfinished, an
+Obs ID with several ready jobs, successful downloads, resume, stop requests,
 and tar entries with unsafe paths. Stream-untar resume has three test
 modules:
 
@@ -124,10 +124,10 @@ covered too - `src/mwa_asvo/api/client/tests.rs` serves two pages by matching on
 `CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is one of the two Rust
 test files in `tests/` (the other is the live tests below), because Cargo sets
 that variable only for integration tests. It runs against a mock server.
-It covers what only `main` can answer: `--dry-run` making no request at all,
-exit codes, the `No obsids specified` and job-ID-instead-of-obsid guards (and
-the obsid-instead-of-job-ID guard of `wait` and `cancel`, which must send no
-request), `--json` output, state filtering, a rejected cancellation being logged
+It covers what only a real process shows: `--dry-run` making no request at all,
+exit codes, the `No Obs IDs specified.` guard and the guard against a Job ID
+given in place of an Obs ID (and the guard against an Obs ID given in place of
+a Job ID, for `wait` and `cancel`, which must send no request), `--json` output, state filtering, a rejected cancellation being logged
 without failing the run, and the `GIANT_SQUID_DELIVERY` /
 `GIANT_SQUID_DELIVERY_FORMAT` defaults - which clap reads at parse time, so
 they can only be set before the process starts.
@@ -156,9 +156,9 @@ in full on 2026-10-02.
 It covers every command except `download` (a job is not ready in the time a
 test runs): each submit command and its alias with `--allow-resubmit`,
 `list` and its filters, `cancel`, `wait` on a cancelled and an unknown job,
-and server rejections - a duplicate without `--allow-resubmit`, an obsid
+and server rejections - a duplicate without `--allow-resubmit`, an Obs ID
 with no data, `submit-image-from-job` from an unfinished or unknown job, an
-unknown job ID (`JOB_NOT_FOUND`), a bad API key, and a cached token the
+unknown Job ID (`JOB_NOT_FOUND`), a bad API key, and a cached token the
 server did not issue (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`, then a fresh
 login). Job IDs come from the submit commands' `--json` output.
 
@@ -224,7 +224,7 @@ with it.
 | Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and `test_staging_count_is_not_an_argument_and_not_in_a_body` in `test_submit.py` |
 | A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
 | `list` without `--days` uses the API default, not `null` | `get_jobs_with_no_filter_uses_the_schema_defaults`, `list_days_defaults_to_the_schema_default`, `test_get_jobs_with_no_filter_sends_none` |
-| `wait` and `cancel` refuse an obsid and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
+| `wait` and `cancel` refuse an Obs ID and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
 | `cancel` does not say a job was cancelled; a refused cancel is a normal reply | `a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled` and its Python twin |
 | `list --job-types` refuses text that is not a job type | `list_refuses_a_job_type_that_does_not_exist`, `text_that_is_not_a_job_type_is_an_error` |
 | `--version` prints the program name, not the crate name | `the_version_has_the_name_of_the_program`, `test_the_version_is_the_modules` |
@@ -238,9 +238,10 @@ with it.
 
 ## Test environment isolation
 
-The library reads no environment variables. The CLI reads them in
-`src/cli/config.rs` and gives the library an explicit `AsvoClientConfig` and
-`DownloadOptions`. So the in-process tests set no environment variable, and
+The library reads no environment variables on its own. The CLI calls the
+opt-in functions in `src/mwa_asvo/env/mod.rs` (`client_config_from_env` and
+`DownloadSettings::from_env`), and gives the library an explicit
+`AsvoClientConfig` and `DownloadOptions`. So the in-process tests set no environment variable, and
 cargo can run them in parallel threads.
 
 The download tests set `DownloadOptions::retry_duration` to zero. A download
@@ -306,11 +307,11 @@ Per submit command (`submit-vis`, `submit-meta`, `submit-conv`,
 | Case | Layer |
 | --- | --- |
 | Long name and short alias (`sv`, `sc`, `si`, `sifj`, `sm`, `st`, `sb`) | 1 |
-| Single obsid | 1 |
-| Multiple obsids | 1 |
-| Obsids read from a file | 1 |
-| Job ID supplied where an obsid is required (must fail) | 1 |
-| No obsid supplied (must fail) | 1 |
+| Single Obs ID | 1 |
+| Multiple Obs IDs | 1 |
+| Obs IDs read from a file | 1 |
+| Job ID supplied where an Obs ID is required (must fail) | 1 |
+| No Obs ID supplied (must fail) | 1 |
 | Schema defaults applied when no flags given | 1 |
 | Every optional flag set to a non-default value | 1 |
 | Out-of-range values rejected by the value parser | 1 |
@@ -320,14 +321,14 @@ Per submit command (`submit-vis`, `submit-meta`, `submit-conv`,
 | `--wait` polling until ready | 2 |
 | Server error responses | 2 |
 
-Plus `list` (filters by state, type, job ID, obsid, `--days`, `--json`),
-`wait`, `cancel`, and `download` (job ID, obsid, `--keep-tar`, `--no-resume`,
+Plus `list` (filters by state, type, Job ID, Obs ID, `--days`, `--json`),
+`wait`, `cancel`, and `download` (Job ID, Obs ID, `--keep-tar`, `--no-resume`,
 `--skip-hash`, `--concurrent-downloads`, missing download directory).
 
 ## `--dry-run`
 
 Every submit command's dry run prints the endpoint the request would go to
-and the resolved JSON body, one per obsid, then a summary saying nothing was
+and the resolved JSON body, one per Obs ID, then a summary saying nothing was
 sent. `cancel` prints the job resource it would `DELETE`. The body is built
 by the same `to_params()` call a real submission uses, so a dry run
 exercises the argument-to-request mapping rather than echoing arguments
@@ -342,7 +343,7 @@ by the client's requests and by the dry-run output, so the two cannot
 disagree.
 
 `tests/cli.rs` checks that a dry run makes no request at all, prints the
-endpoint, and prints one body per obsid.
+endpoint, and prints one body per Obs ID.
 
 ## The `product` field, and what it unblocked
 
@@ -375,9 +376,9 @@ already accepts both.
 
 ## Defects the tests surfaced
 
-- A submit command given several obsids stopped at the first failure, so
+- A submit command given several Obs IDs stopped at the first failure, so
   `submit-meta A B C` reported one error and silently never attempted B or
-  C. Every obsid is now attempted, each failure is reported as it happens,
+  C. Every Obs ID is now attempted, each failure is reported as it happens,
   and the run ends with a `Submitted N of M` summary plus a list of what
   failed; the exit code still reflects the failure, but only after the whole
   list has been tried. `submit_each_obsid` in the binary does this for all

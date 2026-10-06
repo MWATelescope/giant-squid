@@ -5,9 +5,9 @@
 //! End-to-end tests: the built `giant-squid` binary is run as a subprocess
 //! against a local mock server.
 //!
-//! These cover the parts of the CLI that live in `main` rather than in the
-//! library - `--dry-run`, environment-variable defaults, filtering, JSON
-//! output, exit codes - which the in-process tests cannot reach. Nothing is
+//! These cover what only a real process shows - `--dry-run`, environment
+//! variable defaults, filtering, JSON output on stdout, exit codes - which
+//! the in-process tests of `src/cli/tests.rs` cannot reach. Nothing is
 //! submitted to a real MWA ASVO. See docs/TESTING.md.
 
 mod common;
@@ -347,7 +347,7 @@ fn a_job_id_where_an_obs_id_is_required_is_rejected_before_any_request() {
     assert!(!result.success);
     assert_eq!(requests.calls(), 0);
     assert!(
-        result.combined().contains("Expected only obsids"),
+        result.combined().contains("Expected only Obs IDs"),
         "output: {}",
         result.combined()
     );
@@ -365,7 +365,7 @@ fn submitting_with_no_obs_ids_is_rejected() {
     assert!(!result.success);
     assert_eq!(requests.calls(), 0);
     assert!(
-        result.combined().contains("No obsids specified"),
+        result.combined().contains("No Obs IDs specified"),
         "output: {}",
         result.combined()
     );
@@ -410,7 +410,7 @@ fn one_failing_obs_id_does_not_stop_the_others() {
     assert!(!result.success, "the run should fail overall: {output}");
     assert!(output.contains("JOB_ALREADY_SUBMITTED"), "output: {output}");
     assert!(
-        output.contains("Submitted 1 of 2 obsids"),
+        output.contains("Submitted 1 of 2 Obs IDs"),
         "the summary should count both: {output}"
     );
 }
@@ -650,7 +650,7 @@ fn wait_fails_when_the_job_has_an_error() {
     assert!(!result.success, "output: {}", result.combined());
     assert!(
         result.combined().contains(
-            "MWA ASVO job ID 12345 (obsid: 1065880128) has an error: the conversion failed"
+            "MWA ASVO Job ID 12345 (Obs ID: 1065880128) has an error: the conversion failed"
         ),
         "output: {}",
         result.combined()
@@ -673,7 +673,7 @@ fn wait_shows_the_error_code_of_a_failed_job() {
     assert!(!result.success, "output: {}", result.combined());
     assert!(
         result.combined().contains(
-            "MWA ASVO job ID 12345 (obsid: 1065880128) has an error (code 7): the conversion failed"
+            "MWA ASVO Job ID 12345 (Obs ID: 1065880128) has an error (code 7): the conversion failed"
         ),
         "output: {}",
         result.combined()
@@ -946,7 +946,7 @@ fn cancelling_an_obsid_is_rejected_and_nothing_is_sent() {
     assert!(
         result
             .combined()
-            .contains("Expected only job IDs, but found these obsids: 1065880128."),
+            .contains("Expected only Job IDs, but found these Obs IDs: 1065880128."),
         "output: {}",
         result.combined()
     );
@@ -966,7 +966,7 @@ fn waiting_for_an_obsid_is_rejected_and_nothing_is_sent() {
     assert!(
         result
             .combined()
-            .contains("Expected only job IDs, but found these obsids: 1065880128."),
+            .contains("Expected only Job IDs, but found these Obs IDs: 1065880128."),
         "output: {}",
         result.combined()
     );
@@ -988,7 +988,7 @@ fn a_job_id_argument_of_submit_image_from_job_points_to_source_job_id() {
     assert_eq!(requests.calls(), 0);
     assert!(
         result.combined().contains(
-            "The arguments must be obsids, not job IDs. Give the conversion job with --source-job-id."
+            "The arguments must be Obs IDs, not Job IDs. Give the conversion job with --source-job-id."
         ),
         "output: {}",
         result.combined()
@@ -1007,7 +1007,7 @@ fn cancelling_with_no_job_ids_is_rejected() {
     assert!(!result.success);
     assert_eq!(requests.calls(), 0);
     assert!(
-        result.combined().contains("No jobids specified"),
+        result.combined().contains("No Job IDs specified"),
         "output: {}",
         result.combined()
     );

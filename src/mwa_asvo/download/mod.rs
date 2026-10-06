@@ -62,7 +62,7 @@ pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
 pub enum DownloadProgress {
     /// A file download starts, or starts again.
     Started {
-        /// The MWA ASVO job ID.
+        /// The MWA ASVO Job ID.
         job_id: AsvoJobId,
         /// A human-readable label for the download, for example
         /// `Job ID 123 (obsid: 1234567890) [1/2]:`.
@@ -82,17 +82,26 @@ pub enum DownloadProgress {
 
 /// Options common to all download operations.
 pub struct DownloadOptions<'a> {
+    /// Keep the tar file that the MWA ASVO delivers. `false` unpacks it while
+    /// it arrives (stream-untar).
     pub keep_tar: bool,
+    /// Do not resume a partial file that was there before the download
+    /// started: download it again from the start. A complete keep-tar file
+    /// that matches the MWA ASVO hash is still skipped.
     pub no_resume: bool,
     /// Check the SHA-1 of the download against the MWA ASVO's. A resumed
     /// download, and a complete keep-tar file that is already on disk, are
     /// always checked, even when this is `false`.
     pub hash: bool,
+    /// The directory to download to. It must exist.
     pub download_dir: &'a str,
     /// Called with each [`DownloadProgress`] event. `None` reports no
     /// progress. The library has no user interface of its own.
     pub progress: Option<&'a dyn Fn(DownloadProgress)>,
+    /// The number of this download in a series (from 1), for the log label
+    /// `[download_number/download_count]`.
     pub download_number: usize,
+    /// How many downloads the series has, for the log label.
     pub download_count: usize,
     /// How much data, in bytes, is held in memory before it is written to
     /// disk. See [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
@@ -137,7 +146,7 @@ const SIDECAR_VERSION: u32 = 1;
 /// runs. A failed attempt always writes it.
 const SIDECAR_WRITE_INTERVAL: Duration = Duration::from_secs(10);
 
-/// Look up a single job by job ID from the supplied list and download it.
+/// Look up a single job by Job ID from the supplied list and download it.
 pub(crate) fn download_by_job_id(
     http_client: &Client,
     jobs: AsvoJobVec,
@@ -158,8 +167,8 @@ pub(crate) fn download_by_job_id(
     }
 }
 
-/// Look up a single ready job by obsid from the supplied list and download it.
-/// Fails if zero, or more than one, ready jobs match the obsid.
+/// Look up a single ready job by Obs ID from the supplied list and download it.
+/// Fails if zero, or more than one, ready jobs match the Obs ID.
 pub(crate) fn download_by_obs_id(
     http_client: &Client,
     jobs: AsvoJobVec,
@@ -168,7 +177,7 @@ pub(crate) fn download_by_obs_id(
 ) -> Result<AsvoJob, AsvoError> {
     let mut all_jobs = jobs.clone();
 
-    debug!("Attempting to download obsid {}", obs_id);
+    debug!("Attempting to download Obs ID {}", obs_id);
     let mut ready_jobs = jobs;
     ready_jobs
         .0
@@ -211,7 +220,7 @@ fn download_job(
     };
 
     let log_prefix = format!(
-        "Job ID {} (obsid: {}) [{}/{}]:",
+        "Job ID {} (Obs ID: {}) [{}/{}]:",
         job.job_id(),
         job.obs_id(),
         opts.download_number,
@@ -957,7 +966,7 @@ fn untar_stream_with_sidecar(
                     debug!("{} Creating directory {:?}", log_prefix, out_full);
                     std::fs::create_dir(&out_full).map_err(|e| {
                         error!(
-                            "{} Error- cannot create directory {:?}",
+                            "{} Cannot create directory {}",
                             log_prefix,
                             out_full.display()
                         );
@@ -1727,13 +1736,6 @@ fn is_network_read_error(e: &io::Error) -> bool {
 
 // --- helpers ---------------------------------------------------------------
 
-/// The retry policy for a download.
-///
-/// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
-/// retried with exponential backoff for `retry_duration`
-/// ([`DownloadOptions::retry_duration`]). Zero disables retrying, which is
-/// what the test suite uses: a test that deliberately triggers a transient
-/// failure would otherwise sit in backoff for fifteen minutes.
 /// Whether the caller has asked the download to stop.
 fn stop_requested(opts: &DownloadOptions) -> bool {
     opts.should_stop.is_some_and(|should_stop| should_stop())
@@ -1786,6 +1788,13 @@ fn sleep_unless_stopped(wait: Duration, opts: &DownloadOptions) -> Result<(), As
     }
 }
 
+/// The retry policy for a download.
+///
+/// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
+/// retried with exponential backoff for `retry_duration`
+/// ([`DownloadOptions::retry_duration`]). Zero disables retrying, which is
+/// what the test suite uses: a test that deliberately triggers a transient
+/// failure would otherwise sit in backoff for fifteen minutes.
 fn download_backoff(retry_duration: Duration) -> backoff::ExponentialBackoff {
     ExponentialBackoffBuilder::new()
         .with_max_elapsed_time(Some(retry_duration))
@@ -1889,21 +1898,14 @@ fn copy_with_progress(
 /// Create a file, logging on failure.
 fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> {
     File::create(path).map_err(|e| {
-        error!(
-            "{} Error- cannot create file {:?}",
-            log_prefix,
-            path.display()
-        );
+        error!("{} Cannot create file {}", log_prefix, path.display());
         AsvoError::IO(e)
     })
 }
 
-/// What the output file on disk means for the download about to happen.
-///
-/// This used to be signalled by returning an offset equal to the expected
-/// file size, with a comment saying the caller should return early - but the
-/// caller never checked, so an already-complete file was downloaded again.
-/// An explicit outcome makes the "nothing to do" case impossible to miss.
+/// What the output file on disk means for the download about to happen:
+/// nothing to do, or a download from an offset. The "nothing to do" case is
+/// a variant of its own, so that a caller cannot miss it.
 enum OutputTarget {
     /// Nothing to fetch: the file is already complete and matches the MWA
     /// ASVO hash.
@@ -1979,7 +1981,7 @@ fn prepare_output_file(
 
     if no_resume {
         info!(
-            "{} Partial file exists, and --no-resume was set. Restarting download...",
+            "{} Partial file exists, and resuming is off (no_resume). Restarting download...",
             log_prefix
         );
         return start_again();

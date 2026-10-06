@@ -87,11 +87,11 @@ release tag or by hand),
   display. A refused cancel of a job that is already cancelled is HTTP 200
   with `status: failed`; `cancel` never says that a job was cancelled.
 - **Strict schema types:** a job state, job type or file type that the
-  schema does not list fails the whole listing. A job without a valid obsid
-  or job ID is skipped with a warning.
+  schema does not list fails the whole listing. A job without a valid Obs ID
+  or Job ID is skipped with a warning.
 - **`list` without `--days`** uses the schema's default, not the full
   history; `wait` and `download` list jobs the same way.
-- **`wait` and `cancel`** take job IDs only.
+- **`wait` and `cancel`** take Job IDs only.
 - **Downloads:** `--no-resume` downloads again from the start (a complete
   keep-tar file that matches the hash is still skipped); a resumed download
   is always hash checked, even with `--skip-hash`; nothing is written
@@ -129,7 +129,7 @@ Sent by the user (October 2026), not fixed yet:
 
 - `JobFile.type` uses its own enum `Type`; it should use `Delivery` (the
   members are the same). Python has `mwa_giant_squid.Type` until then.
-- The job ID is `id` (`i64`) in `JobDetailResponse` and `QueuedJob`, but
+- The Job ID is `id` (`i64`) in `JobDetailResponse` and `QueuedJob`, but
   `job_id` (`NonZeroU64`) in the responses; `CalibrationReadyCallback` has
   `asvo_job_id`.
 - Voltage jobs: `delivery` (always scratch), `delivery_format` (always

@@ -278,7 +278,7 @@ pub struct ConversionJobArgs {
 }
 
 impl ConversionJobArgs {
-    /// Build the request body for a conversion job for a single obsid, with
+    /// Build the request body for a conversion job for a single Obs ID, with
     /// the library's [`ConversionArgs`]. Every field is set (the CLI's
     /// defaults are the schema's).
     pub fn to_params(&self, obs_id: ObsId) -> Result<ConversionJobParams, AsvoApiError> {
@@ -347,8 +347,7 @@ pub struct ImagingJobArgs {
     #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
-    /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
-    /// unless explicitly set.
+    /// Absolute cleaning threshold (Jy).
     #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
     pub abs_threshold: f64,
 
@@ -368,8 +367,7 @@ pub struct ImagingJobArgs {
     #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
-    /// WSClean cleaning threshold (Jy). Takes precedence over
-    /// auto_threshold if set.
+    /// WSClean cleaning threshold (Jy).
     #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
     pub clean_threshold: f64,
 
@@ -495,7 +493,7 @@ pub struct ImagingJobArgs {
 }
 
 impl ImagingJobArgs {
-    /// Build the request body for an imaging job for a single obsid, with
+    /// Build the request body for an imaging job for a single Obs ID, with
     /// the library's [`ImagingArgs`]. Every field that has a value is set.
     pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow1Params, AsvoApiError> {
         ImagingArgs {
@@ -549,7 +547,7 @@ impl ImagingJobArgs {
 /// (flow 2).
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingFromJobArgs {
-    /// The MWA ASVO conversion job ID to image from. Required.
+    /// The MWA ASVO conversion Job ID to image from. Required.
     #[arg(long)]
     pub source_job_id: NonZeroU64,
 
@@ -580,8 +578,7 @@ pub struct ImagingFromJobArgs {
     #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
-    /// Absolute cleaning threshold (Jy). Overridden by auto_threshold
-    /// unless explicitly set.
+    /// Absolute cleaning threshold (Jy).
     #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
     pub abs_threshold: f64,
 
@@ -593,8 +590,7 @@ pub struct ImagingFromJobArgs {
     #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
-    /// WSClean cleaning threshold (Jy). Takes precedence over
-    /// auto_threshold if set.
+    /// WSClean cleaning threshold (Jy).
     #[arg(long, default_value_t = imaging2_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
     pub clean_threshold: f64,
 

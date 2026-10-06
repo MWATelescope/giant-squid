@@ -15,11 +15,11 @@ use crate::mwa_asvo::*;
 use crate::obs_id::ObsId;
 
 enum ObsIdOrJobId {
-    /// This is an obsid.
+    /// This is an Obs ID.
     O(ObsId),
-    /// This is a job ID.
+    /// This is a Job ID.
     J(AsvoJobId),
-    /// This is 0, which is not a job ID.
+    /// This is 0, which is not a Job ID.
     Zero,
 }
 
@@ -39,7 +39,7 @@ fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
     }
 }
 
-/// Read a file, and return two vectors of ASVO job IDs and obsids. Fail if any
+/// Read a file, and return two vectors of ASVO Job IDs and Obs IDs. Fail if any
 /// string in the file cannot be parsed as either.
 pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     f: T,
@@ -81,8 +81,8 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     Ok((job_ids, obs_ids))
 }
 
-/// Parse a string of ASVO job IDs, obsids, or files containing job IDs or
-/// obsids into two vectors of job IDs and obsids.
+/// Parse a string of ASVO Job IDs, Obs IDs, or files containing Job IDs or
+/// Obs IDs into two vectors of Job IDs and Obs IDs.
 pub fn parse_many_job_ids_or_obs_ids(
     strings: &[String],
 ) -> Result<(Vec<AsvoJobId>, Vec<ObsId>), ParseError> {
@@ -116,7 +116,7 @@ pub enum ParseError {
     #[error("'{text}' in file {file} could not be parsed as an int.")]
     InsideFile { file: String, text: String },
 
-    /// A file of job IDs and obsids could not be read.
+    /// A file of Job IDs and Obs IDs could not be read.
     #[error("{}: {source}", file.display())]
     IO {
         /// The file.
@@ -125,35 +125,35 @@ pub enum ParseError {
         source: std::io::Error,
     },
 
-    /// A command that takes obsids only was given job IDs
+    /// A command that takes Obs IDs only was given Job IDs
     /// ([`parse_obs_ids_only`]).
-    #[error("Expected only obsids, but found these job IDs: {job_ids:?}")]
+    #[error("Expected only Obs IDs, but found these Job IDs: {job_ids:?}")]
     JobIdsGiven {
-        /// The job IDs, in the order given.
+        /// The Job IDs, in the order given.
         job_ids: Vec<AsvoJobId>,
     },
 
-    /// A command that takes job IDs only was given obsids
+    /// A command that takes Job IDs only was given Obs IDs
     /// ([`parse_job_ids_only`]).
     #[error(
-        "Expected only job IDs, but found these obsids: {}. {OBS_ID_HINT}",
+        "Expected only Job IDs, but found these Obs IDs: {}. {OBS_ID_HINT}",
         obs_ids_text(obs_ids)
     )]
     ObsIdsGiven {
-        /// The obsids, in the order given.
+        /// The Obs IDs, in the order given.
         obs_ids: Vec<ObsId>,
     },
 
-    /// 0 was given: it is not an obsid, and the MWA ASVO's job IDs start at 1.
-    #[error("0 is not a job ID or an obsid")]
+    /// 0 was given: it is not an Obs ID, and the MWA ASVO's Job IDs start at 1.
+    #[error("0 is not a Job ID or an Obs ID")]
     ZeroJobId,
 
-    /// No obsid was given ([`parse_obs_ids_only`]).
-    #[error("No obsids specified!")]
+    /// No Obs ID was given ([`parse_obs_ids_only`]).
+    #[error("No Obs IDs specified.")]
     NoObsIds,
 
-    /// No job ID was given ([`parse_job_ids_only`]).
-    #[error("No jobids specified!")]
+    /// No Job ID was given ([`parse_job_ids_only`]).
+    #[error("No Job IDs specified.")]
     NoJobIds,
 
     /// Text is neither an RFC 3339 time nor a date ([`parse_utc_time`]).
@@ -161,13 +161,13 @@ pub enum ParseError {
     InvalidTime,
 }
 
-/// What to do when an obsid is given to a command that takes job IDs only.
-pub const OBS_ID_HINT: &str = "To find the job IDs of an obsid, use 'giant-squid list <obsid>'.";
+/// What to do when an Obs ID is given to a command that takes Job IDs only.
+pub const OBS_ID_HINT: &str = "To find the Job IDs of an Obs ID, use 'giant-squid list <OBS_ID>'.";
 
 /// The date-only form that [`parse_utc_time`] accepts.
 const DATE_ONLY_FORMAT: &str = "%Y-%m-%d";
 
-/// The obsids as text for a message: `1065880128, 1065880248`.
+/// The Obs IDs as text for a message: `1065880128, 1065880248`.
 fn obs_ids_text(obs_ids: &[ObsId]) -> String {
     obs_ids
         .iter()
@@ -176,15 +176,15 @@ fn obs_ids_text(obs_ids: &[ObsId]) -> String {
         .join(", ")
 }
 
-/// Parse obsids and files of obsids, for a command that takes obsids only.
+/// Parse Obs IDs and files of Obs IDs, for a command that takes Obs IDs only.
 /// A file is read as [`parse_many_job_ids_or_obs_ids`] reads it.
 ///
 /// # Errors
 ///
-/// - A job ID anywhere in the arguments (or in a file) is
-///   [`ParseError::JobIdsGiven`], even when obsids are also given. Ignoring
+/// - A Job ID anywhere in the arguments (or in a file) is
+///   [`ParseError::JobIdsGiven`], even when Obs IDs are also given. Ignoring
 ///   it would submit fewer jobs than the user asked for.
-/// - No obsid at all is [`ParseError::NoObsIds`].
+/// - No Obs ID at all is [`ParseError::NoObsIds`].
 /// - A file that cannot be read or parsed is an error.
 pub fn parse_obs_ids_only(strings: &[String]) -> Result<Vec<ObsId>, ParseError> {
     let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(strings)?;
@@ -197,16 +197,16 @@ pub fn parse_obs_ids_only(strings: &[String]) -> Result<Vec<ObsId>, ParseError> 
     Ok(obs_ids)
 }
 
-/// Parse job IDs and files of job IDs, for a command that takes job IDs only
+/// Parse Job IDs and files of Job IDs, for a command that takes Job IDs only
 /// (`wait` and `cancel`). A file is read as
 /// [`parse_many_job_ids_or_obs_ids`] reads it.
 ///
 /// # Errors
 ///
-/// - An obsid anywhere in the arguments (or in a file) is
-///   [`ParseError::ObsIdsGiven`], even when job IDs are also given. Ignoring
+/// - An Obs ID anywhere in the arguments (or in a file) is
+///   [`ParseError::ObsIdsGiven`], even when Job IDs are also given. Ignoring
 ///   it would wait for, or cancel, fewer jobs than the user asked for.
-/// - No job ID at all is [`ParseError::NoJobIds`].
+/// - No Job ID at all is [`ParseError::NoJobIds`].
 /// - A file that cannot be read or parsed is an error.
 pub fn parse_job_ids_only(strings: &[String]) -> Result<Vec<AsvoJobId>, ParseError> {
     let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(strings)?;
@@ -272,7 +272,7 @@ pub(crate) fn hash_reader(mut reader: impl io::Read, hasher: &mut Sha1) -> io::R
     }
 }
 
-/// Takes a filename, expected hash and a job id and returns
+/// Takes a filename, expected hash and a Job ID and returns
 /// Ok if the calculated hash matches the expected hash, otherwise
 /// returns an AsvoError::HashMismatch
 pub fn check_file_sha1_hash(

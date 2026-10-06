@@ -132,7 +132,7 @@ for job in jobs:
     print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
 ```
 
-`list_jobs` works as `giant-squid list` does. It accepts lists of job IDs, obsids, job types and job
+`list_jobs` works as `giant-squid list` does. It accepts lists of Job IDs, Obs IDs, job types and job
 states. The server does what it can, and the module filters the rest:
 
 ```python
@@ -227,8 +227,8 @@ an error or was cancelled.
 ## Download
 
 `download_job` downloads the files of one ready job. `download_obs` does the same for the one ready job
-of an obsid. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the job ID of the
-obsid's job.
+of an Obs ID. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the Job ID of the
+Obs ID's job.
 
 ```python
 client.download_job(reply.job_id, "/data/mwa")

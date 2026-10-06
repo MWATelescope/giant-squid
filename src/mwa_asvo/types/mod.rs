@@ -14,7 +14,7 @@ use crate::{obs_id::ObsId, AsvoError};
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.
 ///
 /// Used to sanitize user input for ASVO identifiers.
-fn _sanitize_identifier(s: &str) -> String {
+fn sanitize_identifier(s: &str) -> String {
     let mut sanitized = s.to_lowercase();
     sanitized.retain(|c| c.is_ascii_lowercase());
     sanitized
@@ -57,10 +57,10 @@ impl JobType {
     ///
     /// [`AsvoError::InvalidJobType`] for any other text.
     pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        let wanted = _sanitize_identifier(s);
+        let wanted = sanitize_identifier(s);
         JOB_TYPE_NAMES
             .iter()
-            .find(|(_, name)| _sanitize_identifier(name) == wanted)
+            .find(|(_, name)| sanitize_identifier(name) == wanted)
             .and_then(|(code, _)| JobType::try_from(*code).ok())
             .ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
     }
@@ -90,10 +90,10 @@ impl JobState {
     ///
     /// [`AsvoError::InvalidJobState`] for any other text.
     pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        let wanted = _sanitize_identifier(s);
+        let wanted = sanitize_identifier(s);
         JobState::VARIANTS
             .iter()
-            .find(|state| _sanitize_identifier(&state.to_string()) == wanted)
+            .find(|state| sanitize_identifier(&state.to_string()) == wanted)
             .copied()
             .ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
     }
@@ -107,18 +107,18 @@ impl JobFile {
     }
 }
 
-/// An MWA ASVO job ID: a `NonZeroU64`, as the OpenAPI schema's `job_id` is
+/// An MWA ASVO Job ID: a `NonZeroU64`, as the OpenAPI schema's `job_id` is
 /// (in `JobSubmittedResponse` and the other responses). The `id` of a
 /// `JobDetailResponse` is an `i64`; [`AsvoJob`] checks it. A type alias, not
 /// a newtype, because a newtype would add complexity for no gain.
 pub type AsvoJobId = std::num::NonZeroU64;
 
-/// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's obsid
+/// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's Obs ID
 /// and ID checked.
 ///
 /// The fields of the `JobDetailResponse` are reached through [`Deref`]
-/// (`job.job_state`, `job.product` and so on). The obsid, which the API has
-/// only in the untyped `job_params`, is [`AsvoJob::obs_id`], and the job ID
+/// (`job.job_state`, `job.product` and so on). The Obs ID, which the API has
+/// only in the untyped `job_params`, is [`AsvoJob::obs_id`], and the Job ID
 /// is [`AsvoJob::job_id`].
 ///
 /// In JSON the job is its `JobDetailResponse`, as the API gives it, with one
@@ -136,7 +136,7 @@ pub struct AsvoJob {
 }
 
 impl AsvoJob {
-    /// The job's obsid, from its `job_params`.
+    /// The job's Obs ID, from its `job_params`.
     pub fn obs_id(&self) -> ObsId {
         self.obs_id
     }
@@ -167,7 +167,7 @@ impl std::ops::Deref for AsvoJob {
     }
 }
 
-/// Check a job from the API: its `id` must be a job ID, and its
+/// Check a job from the API: its `id` must be a Job ID, and its
 /// `job_params` must have a valid `obs_id` (a number, or a string of
 /// digits, as the MWA ASVO has sent both).
 ///
@@ -185,7 +185,7 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
         let job_id = u64::try_from(detail.id)
             .ok()
             .and_then(AsvoJobId::new)
-            .ok_or_else(|| invalid("its ID is not a job ID".to_string()))?;
+            .ok_or_else(|| invalid("its ID is not a Job ID".to_string()))?;
         let obs_id = detail
             .job_params
             .get("obs_id")
@@ -211,24 +211,15 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
 pub struct AsvoJobVec(pub Vec<AsvoJob>);
 
 impl AsvoJobVec {
-    /// Get a vector of ASVO jobs in JSON form: an object keyed by job ID,
+    /// The jobs in JSON form: an object keyed by Job ID, in Job ID order,
     /// whose values have the keys shown on [`AsvoJob`]. `giant-squid list
     /// --json` prints this.
     ///
-    /// If the situation should arise that your job listing has an ASVO job ID
-    /// more than once, only one of them will be visible in the output of this
-    /// method!
+    /// If the job list has a Job ID more than once, the output has only the
+    /// last of those jobs.
     pub fn json(self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&AsvoJobMap::from(self).0)
-    }
-
-    /// Convert the vector to a map.
-    ///
-    /// If the situation should arise that your job listing has an ASVO job ID
-    /// more than once, only one of them will be visible in the output of this
-    /// method!
-    pub fn into_map(self) -> AsvoJobMap {
-        AsvoJobMap::from(self)
+        let map: BTreeMap<AsvoJobId, AsvoJob> = self.0.into_iter().map(|j| (j.job_id, j)).collect();
+        serde_json::to_string(&map)
     }
 
     /// Check whether all of `job_ids` are ready for download, in this job
@@ -270,8 +261,8 @@ impl AsvoJobVec {
     /// Keep only the jobs that match every non-empty filter. An empty slice
     /// does not filter.
     ///
-    /// - `job_ids`: the job ID is one of these.
-    /// - `obs_ids`: the obsid is one of these.
+    /// - `job_ids`: the Job ID is one of these.
+    /// - `obs_ids`: the Obs ID is one of these.
     /// - `job_types`: the job type is one of these. A job with no type does
     ///   not match.
     /// - `states`: the job state is one of these.
@@ -290,38 +281,20 @@ impl AsvoJobVec {
         })
     }
 
-    /// filter out any jobs that don't match jobids
+    /// Keep only the jobs for which `predicate` returns `true`.
     pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
-        // if we wanted to use a nightly:
-        // self.0.drain_filter(|j| predicate);
         self.0.retain(predicate);
         self
     }
 }
 
-/// A `BTreeMap` of ASVO job IDs against their jobs. Useful for efficiently
-/// isolating specific jobs.
-///
-/// By using a custom type, custom methods can be easily defined and used.
-#[derive(Serialize, Debug, PartialEq)]
-pub struct AsvoJobMap(pub BTreeMap<AsvoJobId, AsvoJob>);
-
-impl From<AsvoJobVec> for AsvoJobMap {
-    fn from(job_vec: AsvoJobVec) -> AsvoJobMap {
-        let mut tree = BTreeMap::new();
-        for j in job_vec.0.into_iter() {
-            tree.insert(j.job_id, j);
-        }
-        AsvoJobMap(tree)
-    }
-}
-
-// Boring Display methods.
+/// A short description of the job, for a message: its ID, Obs ID, type,
+/// state and files.
 impl std::fmt::Display for AsvoJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Job ID: {job_id}, obsid: {obs_id}, type: {type}, state: {state}, product_array: {files:?}",
+            "Job ID: {job_id}, Obs ID: {obs_id}, type: {type}, state: {state}, files: {files:?}",
             obs_id=self.obs_id,
             job_id=self.job_id,
             type=self.job_type.map(|t| t.name()).unwrap_or_default(),

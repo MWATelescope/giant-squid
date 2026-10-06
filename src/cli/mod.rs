@@ -129,8 +129,8 @@ pub enum Args {
         #[arg(long)]
         sort_by: Option<String>,
 
-        /// job IDs or obsids to filter by. Files containing job IDs or
-        /// obsids are also accepted.
+        /// Job IDs or Obs IDs to filter by. Files containing Job IDs or
+        /// Obs IDs are also accepted.
         #[arg(id = "JOB_ID_OR_OBS_ID")]
         job_ids_or_obs_ids: Vec<String>,
     },
@@ -150,7 +150,7 @@ pub enum Args {
         #[arg(short = 'r', long)]
         no_resume: bool,
 
-        /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has
+        /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores your machine has
         #[arg(short = 'c', long, default_value_t = DEFAULT_CONCURRENT_DOWNLOADS)]
         concurrent_downloads: usize,
 
@@ -173,15 +173,15 @@ pub enum Args {
         verbosity: u8,
 
         /// Print the result of each download as one line of JSON on stdout,
-        /// in the order of the job IDs and then the obsids: job_id, obs_id,
+        /// in the order of the Job IDs and then the Obs IDs: job_id, obs_id,
         /// status and message for a success, an MWA ASVO ErrorResponse with
         /// the job_id or obs_id for a failure. No logs or progress bars are
         /// printed.
         #[arg(short, long)]
         json: bool,
 
-        /// The job IDs or obsids to be downloaded. Files containing job IDs or
-        /// obsids are also accepted.
+        /// The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or
+        /// Obs IDs are also accepted.
         #[arg(id = "JOB_ID_OR_OBS_ID")]
         job_ids_or_obs_ids: Vec<String>,
     },
@@ -192,7 +192,7 @@ pub enum Args {
         #[command(flatten)]
         download: DownloadJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -213,7 +213,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to be submitted. Files containing obsids are also
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
@@ -227,7 +227,7 @@ pub enum Args {
         #[command(flatten)]
         conv: ConversionJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -248,7 +248,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to be submitted. Files containing obsids are also
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
@@ -262,7 +262,7 @@ pub enum Args {
         #[command(flatten)]
         image: ImagingJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -283,8 +283,8 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to submit for imaging. Files containing obsids are
-        /// also accepted. All obsids in one invocation share the same
+        /// The Obs IDs to submit for imaging. Files containing Obs IDs are
+        /// also accepted. All Obs IDs in one invocation share the same
         /// parameters above.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
@@ -300,7 +300,7 @@ pub enum Args {
         #[command(flatten)]
         image: ImagingFromJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -321,8 +321,8 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsid to image. Exactly one obsid is required (the
-        /// source_job_id identifies the conversion job for this obsid).
+        /// The Obs ID to image. Exactly one Obs ID is required (the
+        /// source_job_id identifies the conversion job for this Obs ID).
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
     },
@@ -334,7 +334,7 @@ pub enum Args {
         #[command(flatten)]
         download: DownloadJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -355,7 +355,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to be submitted. Files containing obsids are also
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
@@ -369,7 +369,7 @@ pub enum Args {
         #[command(flatten)]
         volt: VoltageJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -390,7 +390,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to be submitted. Files containing obsids are also
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
@@ -402,7 +402,7 @@ pub enum Args {
         #[command(flatten)]
         bf: BeamformerJobArgs,
 
-        /// Do not exit giant-squid until the specified obsids are ready for
+        /// Do not exit giant-squid until the specified Obs IDs are ready for
         /// download.
         #[arg(short, long)]
         wait: bool,
@@ -423,13 +423,13 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The obsids to be submitted. Files containing obsids are also
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
     },
 
-    /// Wait for MWA ASVO jobs to complete, return the urls
+    /// Wait for MWA ASVO jobs to complete, then print them
     #[command(alias = "w")]
     Wait {
         /// Print the jobs as a simple JSON after waiting.
@@ -454,13 +454,13 @@ pub enum Args {
         #[arg(short, long)]
         no_colour: bool,
 
-        /// The job IDs to wait for. Files containing job IDs are also
+        /// The Job IDs to wait for. Files containing Job IDs are also
         /// accepted.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },
 
-    /// Cancel MWA ASVO job
+    /// Cancel MWA ASVO jobs
     #[command(alias = "c")]
     Cancel {
         /// Don't actually cancel; print information on what would've happened
@@ -479,7 +479,7 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
         verbosity: u8,
 
-        /// The job IDs to be cancelled. Files containing job IDs are also
+        /// The Job IDs to be cancelled. Files containing Job IDs are also
         /// accepted.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,

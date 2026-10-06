@@ -30,7 +30,7 @@ pub use env::{
 pub use error::AsvoError;
 pub use error_response::new_error_response;
 pub use token_store::{default_token_cache_path, StoredTokens};
-pub use types::{AsvoJob, AsvoJobId, AsvoJobMap, AsvoJobVec};
+pub use types::{AsvoJob, AsvoJobId, AsvoJobVec};
 
 use std::time::Duration;
 

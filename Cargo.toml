@@ -5,13 +5,13 @@ authors = [
     "Greg Sleap <greg.sleap@curtin.edu.au>",
     "Dev Null <dev.null@curtin.edu.au>",
     "Christopher H. Jordan <christopherjordan87@gmail.com>",
-    "Harrison Barlow <harrison.barlow@curtin.edu.au>",    
+    "Harrison Barlow <harrison.barlow@curtin.edu.au>",
 ]
 edition = "2021"
 rust-version = "1.88.0"
 license = "MPL-2.0"
 readme = "README.md"
-description = "MWA ASVO command line client"
+description = "MWA ASVO command line client and library"
 repository = "https://github.com/MWATelescope/giant-squid"
 homepage = "https://github.com/MWATelescope/giant-squid"
 # Files that only the Python package (mwa-giant-squid, built by maturin) uses. The Rust sources of the
@@ -39,7 +39,7 @@ resolver = "3"
 
 [features]
 default = ["bin"]
-bin = ["anyhow", "clap", "simplelog", "reqwest-retry", "task-local-extensions", "indicatif", "indicatif-log-bridge", "prettytable-rs"]
+bin = ["anyhow", "clap", "simplelog", "indicatif", "indicatif-log-bridge", "prettytable-rs"]
 # Regenerates src/mwa_asvo/api/openapi.rs from src/mwa_asvo/api/openapi-schema.json
 # via build.rs (see the `regen_openapi` module there). Off by default so a
 # normal build doesn't need typify and friends; enable when the schema has
@@ -96,7 +96,6 @@ panic = "unwind"
 [dependencies]
 backoff = "0.4"
 base64 = "0.23"
-bytes = "1.10"
 bytesize = "2.0"
 # Dates and times. Only `Timestamp` is used (every MWA ASVO time is UTC), so
 # the time zone database features are off. jiff types are in the public API
@@ -104,7 +103,6 @@ bytesize = "2.0"
 # major version; `mwa_giant_squid::jiff` re-exports the version in use.
 jiff = { version = "0.2", default-features = false, features = ["std", "serde"] }
 log = "0.4"
-litemap = "0.8"
 rayon = "1.10"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "charset", "form", "http2", "json", "rustls"] }
 reqwest_cookie_store = { version = "0.10", default-features = false }
@@ -113,20 +111,15 @@ serde_json = "1.0"
 sha1 = "0.11"
 tar = "0.4"
 thiserror = "2.0"
-zerofrom = "0.1"
 
 # Dependencies only for the binary.
 anyhow = { version = "1.0", optional = true }
-# "string": lets the value parsers of the schema enums (src/cli/value_enums.rs) list their values in --help.
+# "string": lets the value parsers of the schema enums (src/cli/value_enums/mod.rs) list their values in --help.
 clap = { version = "4.6", features = ["derive", "env", "string"], optional = true }
 indicatif = { version = "0.18", optional = true}
 indicatif-log-bridge = {version = "0.2", optional = true}
 prettytable-rs = { version = "0.10", optional = true }
-reqwest-retry = { version = "0.9", optional = true }
 simplelog = { version = "0.12", optional = true }
-task-local-extensions = { version = "0.1", optional = true }
-time = { version = "0.3", optional = true }
-time-core = { version = "0.1", optional = true }
 
 # Dependencies only for the Python module ("python" feature).
 pyo3 = { version = "0.29", features = ["abi3-py310", "jiff-02"], optional = true }
@@ -140,11 +133,11 @@ pyo3-stub-gen = { version = "0.23.1", default-features = false, features = ["inf
 
 [dev-dependencies]
 tempfile = "3.20"
-rand = "0.10"
 # Runs a real local HTTP server per test, so the client's requests and
 # response handling are exercised end to end without touching a real MWA
-# ASVO. The "record" feature is only needed by tests/record.rs, which is
-# #[ignore]d and captures fixtures from a live server by hand.
+# ASVO. The "record" feature is only needed by `record_login_and_get_jobs`
+# in src/mwa_asvo/api/client/tests.rs, which is #[ignore]d and captures
+# fixtures from a live server by hand.
 httpmock = { version = "0.8", features = ["record"] }
 
 [build-dependencies]

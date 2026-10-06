@@ -105,7 +105,7 @@ fn obsids_only_refuses_a_job_id_and_names_it() {
     );
     assert_eq!(
         err.to_string(),
-        "Expected only obsids, but found these job IDs: [31]"
+        "Expected only Obs IDs, but found these Job IDs: [31]"
     );
 }
 
@@ -114,7 +114,7 @@ fn obsids_only_refuses_nothing_at_all() {
     let err = parse_obs_ids_only(&[]).expect_err("no obsid");
 
     assert!(matches!(err, ParseError::NoObsIds));
-    assert_eq!(err.to_string(), "No obsids specified!");
+    assert_eq!(err.to_string(), "No Obs IDs specified.");
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn job_ids_only_refuses_an_obsid_and_names_all_of_them() {
     assert_eq!(
         err.to_string(),
         format!(
-            "Expected only job IDs, but found these obsids: {OBS_ID_A}, {OBS_ID_B}. {OBS_ID_HINT}"
+            "Expected only Job IDs, but found these Obs IDs: {OBS_ID_A}, {OBS_ID_B}. {OBS_ID_HINT}"
         )
     );
 }
@@ -148,7 +148,7 @@ fn job_ids_only_refuses_nothing_at_all() {
     let err = parse_job_ids_only(&[]).expect_err("no job ID");
 
     assert!(matches!(err, ParseError::NoJobIds));
-    assert_eq!(err.to_string(), "No jobids specified!");
+    assert_eq!(err.to_string(), "No Job IDs specified.");
 }
 
 #[test]
@@ -210,5 +210,5 @@ fn zero_is_not_a_job_id() {
     let path = file.path().display().to_string();
     let err = parse_many_job_ids_or_obs_ids(&[path]).expect_err("0 is not a job ID");
     assert!(matches!(err, ParseError::ZeroJobId), "{err:?}");
-    assert_eq!(err.to_string(), "0 is not a job ID or an obsid");
+    assert_eq!(err.to_string(), "0 is not a Job ID or an Obs ID");
 }

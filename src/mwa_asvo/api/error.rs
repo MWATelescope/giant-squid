@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Errors when interfacing with the MWA ASVO v2 API.
+//! Errors when interfacing with the MWA ASVO API (version 2).
 //!
 //! This is intentionally separate from [`crate::mwa_asvo::AsvoError`], which
 //! covers the file download path (job lookup, hash checks, HTTP transfer).
@@ -14,6 +14,7 @@ use thiserror::Error;
 use super::openapi::error::ConversionError;
 use super::openapi::FieldError;
 
+/// An error of a request to the MWA ASVO API, or of its arguments.
 #[derive(Error, Debug)]
 pub enum AsvoApiError {
     /// No API key was given: the config's API key is empty, or the

@@ -279,7 +279,7 @@ fn a_failed_jobs_error_code_is_in_the_error_message() {
     );
     assert_eq!(
         err.to_string(),
-        format!("MWA ASVO job ID {JOB_ID_A} (obsid: {OBS_ID}) has an error (code 7): the conversion failed")
+        format!("MWA ASVO Job ID {JOB_ID_A} (Obs ID: {OBS_ID}) has an error (code 7): the conversion failed")
     );
 
     failed.detail_mut().error_code = None;
@@ -288,7 +288,9 @@ fn a_failed_jobs_error_code_is_in_the_error_message() {
         .expect_err("the job has failed");
     assert_eq!(
         err.to_string(),
-        format!("MWA ASVO job ID {JOB_ID_A} (obsid: {OBS_ID}) has an error: the conversion failed")
+        format!(
+            "MWA ASVO Job ID {JOB_ID_A} (Obs ID: {OBS_ID}) has an error: the conversion failed"
+        )
     );
 }
 

@@ -14,6 +14,8 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
+  "Obsid"). JSON keys and argument names do not change (`job_id`, `obs_id`).
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
   The resulting session is cached at `$HOME/.mwa-asvo/tokens.json` (shared with mwa-cli, so logging in with
   either tool covers both) and is automatically refreshed when it expires, avoiding a fresh login on every
@@ -26,7 +28,7 @@ before you upgrade scripts.**
 * `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
   option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
   `--custom-ra`, `--custom-dec` and `--phase-center` still work.
-* `submit-image` takes obsids only. The new `submit-image-from-job` (alias `sifj`) images a completed conversion
+* `submit-image` takes Obs IDs only. The new `submit-image-from-job` (alias `sifj`) images a completed conversion
   job.
 * All the `submit-*` commands have a new `--json` option, which prints the MWA ASVO's reply for each job. With
   `--dry-run` they print the request body that would be sent. The `status` text of a reply ("success" or
@@ -67,7 +69,7 @@ before you upgrade scripts.**
   colours off.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
   or JSON), so a script can read it.
-* The submit commands try every obsid, and log the error of each failed submission when it happens. If any
+* The submit commands try every Obs ID, and log the error of each failed submission when it happens. If any
   failed, the command ends with `Error: M of N job submissions failed` and exit code 1. In 2.x the command stopped
   at the first failure.
 * `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
@@ -75,7 +77,7 @@ before you upgrade scripts.**
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message. A request
   that the MWA ASVO refuses with an HTTP error is a failure: `cancel` sends every request, then exits with code 1
   (in 2.x a failed request was skipped silently, and the exit code was 0).
-* `wait` and `cancel` take job IDs only. An obsid is an error that names it and nothing is sent; before, it was
+* `wait` and `cancel` take Job IDs only. An Obs ID is an error that names it and nothing is sent; before, it was
   ignored without a word.
 * `list --job-types` refuses text that is not a job type, instead of matching no job.
 * The job types are the MWA ASVO API's. `list --job-types` and the table use the API's names (`conversion`,
@@ -84,7 +86,7 @@ before you upgrade scripts.**
   `--legacy-json` still prints the 2.x names.
 * A file in `--json` is the API's `JobFile`: its `type` is `acacia`, `scratch` or `dug` (was `Acacia` and so on), and
   a key that has no value is left out (was `null`).
-* A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
+* A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The Job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
 * Library: `mwa_asvo::api::job_args` has one argument struct per job type (`DownloadArgs`, `ConversionArgs`,
   `ImagingArgs`, `ImageFromJobArgs`, `VoltageArgs`, `BeamformerArgs`), each with `into_params(obs_id)`, which makes the
@@ -98,14 +100,14 @@ before you upgrade scripts.**
   variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with
   `AsvoApiError::Reqwest`, as for every other request (in Python, `AsvoApiError` of kind `Reqwest`).
 * Library: `JobsFilter::days` and `JobQuery::days` are `Option<NonZeroU64>`, the schema's type (were `Option<i64>`);
-  a value above 30 is still refused before any request. `i64::from(ObsId)` gives an obsid as the schema's `obs_id`.
+  a value above 30 is still refused before any request. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
 * Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In
   Python it is the new class `JobCancelledResponse`, and the `status` of both reply classes is the new enum `Status`
   (`Status.Success` or `Status.Failed`; `str()` is the API value), not a `str`.
-* Library: `AsvoJobId` is a `NonZeroU64`, as the schema's `job_id` is (it was a `u64`). The commands refuse a job ID
+* Library: `AsvoJobId` is a `NonZeroU64`, as the schema's `job_id` is (it was a `u64`). The commands refuse a Job ID
   of 0 (`0 is not a job ID or an obsid`), and Python raises `ValueError` for it.
 * Library: `AsvoJob` wraps the OpenAPI schema's `JobDetailResponse` (through `Deref`, so `job.job_state` and the other
-  fields work as before), with its obsid and job ID checked: `AsvoJob::obs_id()` and `AsvoJob::job_id()` are methods
+  fields work as before), with its Obs ID and Job ID checked: `AsvoJob::obs_id()` and `AsvoJob::job_id()` are methods
   now, and `AsvoJob::try_from(JobDetailResponse)` makes one (`AsvoError::InvalidJob` for a job that cannot be used).
 * Library: `AsvoFilesArray`, `AsvoJobProduct` and `Delivery` are replaced by the OpenAPI schema's `JobFile`,
   `JobProduct` and `Type` (the delivery of a file). `JobFile::size_bytes` gives the size as a `u64`. `Delivery` is
@@ -139,7 +141,7 @@ before you upgrade scripts.**
 * The names of the job states and job types (`queued`, `visibility` and so on) are listed once, in the library, and
   the help of `list --job-states` and `--job-types` is built from that list.
 * The checks of the IDs and times that the command makes (`parse_obs_ids_only`, `parse_job_ids_only` and
-  `parse_utc_time`) are in the library, once. The message for a job ID given to a command that takes obsids
+  `parse_utc_time`) are in the library, once. The message for a Job ID given to a command that takes Obs IDs
   now says `job IDs`, not `exceptions`. `--image-size` shows the same message as the library
   (`Invalid image_size: ...`).
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
@@ -194,6 +196,9 @@ before you upgrade scripts.**
 * The `expired` job state, and the library error `AsvoError::JobExpired`. The MWA ASVO API has no expired state.
 * The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
   `job_type` `None`.
+* Library: `ObsId::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
+* Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `AsvoJobVec::json` still prints the jobs as an object keyed by
+  Job ID.
 
 ### Housekeeping in 3.0.0
 
@@ -207,6 +212,8 @@ before you upgrade scripts.**
 * CI checks that the generated API types and the Python type stubs are up to date, builds and tests the Python
   package on Linux and macOS, and attaches the wheels to releases.
 * The crates.io package does not include the files that only the Python package uses.
+* Unused dependencies removed: `bytes`, `litemap`, `zerofrom`, `time`, `time-core`, `reqwest-retry`,
+  `task-local-extensions`, and the dev-dependency `rand`.
 
 # 2.5.1 - 2026-05-29
 

@@ -37,7 +37,7 @@ pub const ERROR_CODE_BAD_RESPONSE: &str = "BAD_RESPONSE";
 /// TLS).
 pub const ERROR_CODE_NETWORK_ERROR: &str = "NETWORK_ERROR";
 
-/// A command-line argument cannot be used: a bad job ID or obsid list, a
+/// A command-line argument cannot be used: a bad Job ID or Obs ID list, a
 /// download directory that does not exist, a bad option.
 pub const ERROR_CODE_INVALID_ARGUMENT: &str = "INVALID_ARGUMENT";
 
@@ -47,13 +47,13 @@ pub const ERROR_CODE_INVALID_ENVIRONMENT: &str = "INVALID_ENVIRONMENT";
 /// The job is not in the user's list of jobs. (The API's code.)
 pub const ERROR_CODE_JOB_NOT_FOUND: &str = "JOB_NOT_FOUND";
 
-/// No job of the obsid is in the user's list of jobs.
+/// No job of the Obs ID is in the user's list of jobs.
 pub const ERROR_CODE_OBS_ID_NOT_FOUND: &str = "OBS_ID_NOT_FOUND";
 
-/// The job, or every job of the obsid, is not ready.
+/// The job, or every job of the Obs ID, is not ready.
 pub const ERROR_CODE_JOB_NOT_READY: &str = "JOB_NOT_READY";
 
-/// The obsid has more than one ready job, so a job ID is needed.
+/// The Obs ID has more than one ready job, so a Job ID is needed.
 pub const ERROR_CODE_AMBIGUOUS_OBS_ID: &str = "AMBIGUOUS_OBS_ID";
 
 /// The job is in the error state. The `detail` is the job's own error code,
@@ -63,7 +63,7 @@ pub const ERROR_CODE_JOB_FAILED: &str = "JOB_FAILED";
 /// The job has been cancelled.
 pub const ERROR_CODE_JOB_CANCELLED: &str = "JOB_CANCELLED";
 
-/// A job from the API cannot be used (a bad job ID or obsid in it).
+/// A job from the API cannot be used (a bad Job ID or Obs ID in it).
 pub const ERROR_CODE_INVALID_JOB: &str = "INVALID_JOB";
 
 /// The job has no files.
@@ -225,7 +225,7 @@ impl AsvoError {
         }
     }
 
-    /// The obsid that the error is about, if it is about one obsid.
+    /// The Obs ID that the error is about, if it is about one Obs ID.
     pub fn obs_id(&self) -> Option<ObsId> {
         match self {
             AsvoError::NoObsId(obs_id)

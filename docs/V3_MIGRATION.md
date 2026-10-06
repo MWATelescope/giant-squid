@@ -17,15 +17,15 @@ giant-squid, the API and its documentation use the same names everywhere.
    [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
 2. If you use **`-p` / `--parameters`**, replace it with one option for each
    key: see [No more `--parameters`](#no-more--p----parameters).
-3. If you run **`submit-image` with a job ID**, use `submit-image-from-job`:
+3. If you run **`submit-image` with a Job ID**, use `submit-image-from-job`:
    see [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
 4. If a script reads **`list --json`** or **`wait --json`**, update it to
    the new key names, or use `--legacy-json` for one release: see
    [JSON output](#json-output-list---json-wait---json).
 5. If a script reads **log lines** (for example "Submitted ... as MWA ASVO
-   job ID ..."), read `--json` instead: see
+   Job ID ..."), read `--json` instead: see
    [Output: logs go to stderr](#output-logs-go-to-stderr).
-6. If a script reads the **output of `cancel`**, or gives an **obsid to `wait`
+6. If a script reads the **output of `cancel`**, or gives an **Obs ID to `wait`
    or `cancel`**, change it: see
    [Waiting and cancelling](#waiting-and-cancelling-wait-cancel).
 7. If a script relies on `giant-squid list` (or `wait`, or `download`) seeing
@@ -102,7 +102,7 @@ The other conversion options (`--apply-di-cal`, `--centre`, `--no-rfi`,
 
 ## Imaging jobs (`submit-image` and `submit-image-from-job`)
 
-In 2.x, `submit-image` took obsids **or** the job IDs of completed
+In 2.x, `submit-image` took Obs IDs **or** the Job IDs of completed
 conversion jobs. In 3.0.0 these are two commands:
 
 ```bash
@@ -115,8 +115,8 @@ giant-squid submit-image 1065880128 --image-size 2048 --multiscale
 giant-squid submit-image-from-job --source-job-id 12345 1065880128 --image-size 2048 --multiscale
 ```
 
-`submit-image-from-job` (alias `sifj`) needs the conversion job's obsid as
-well as its job ID. As in 2.x, the conversion job must have made a CASA
+`submit-image-from-job` (alias `sifj`) needs the conversion job's Obs ID as
+well as its Job ID. As in 2.x, the conversion job must have made a CASA
 measurement set, delivered to Acacia or Scratch.
 
 The imaging defaults are now the API's. Most are as in
@@ -136,7 +136,7 @@ So to image as 2.x did by default:
 giant-squid submit-image 1065880128 --multiscale --wstack-nwlayers 128
 ```
 
-For an obsid, the conversion part of an imaging job also has the new
+For an Obs ID, the conversion part of an imaging job also has the new
 conversion defaults (see above). Run `giant-squid submit-image --help` to
 see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
 
@@ -156,7 +156,7 @@ see the next section. The `status` text and the `message` describe the reply; th
 `giant-squid` and the HTTP status of the MWA ASVO tell you whether a submission worked.
 
 `--dry-run` now prints the request body that would be sent, as JSON, for
-each obsid.
+each Obs ID.
 
 ## Output: logs go to stderr
 
@@ -166,7 +166,7 @@ so that standard output has only the command's output: the job table,
 `--json` output, and the `--json` replies of the submit commands. The
 `--dry-run` reports are log lines, so they are on standard error too.
 
-If a script read a log line to get a job ID, change it to read `--json`:
+If a script read a log line to get a Job ID, change it to read `--json`:
 
 ```bash
 # 2.x: read the job ID from a log line
@@ -250,14 +250,14 @@ for example) was accepted and matched no job, so the list was empty.
 
 ## Waiting and cancelling (`wait`, `cancel`)
 
-**Obsids are refused.** `wait` and `cancel` take job IDs only. In 2.x an
-obsid given to them was ignored without a word: `giant-squid cancel 31
-1065880128` cancelled job 31 and said nothing about the obsid. In 3.0.0 an
-obsid anywhere in the arguments (or in a file) stops the command with an error
-that names the obsid, and nothing is sent:
+**Obs IDs are refused.** `wait` and `cancel` take Job IDs only. In 2.x an
+Obs ID given to them was ignored without a word: `giant-squid cancel 31
+1065880128` cancelled job 31 and said nothing about the Obs ID. In 3.0.0 an
+Obs ID anywhere in the arguments (or in a file) stops the command with an error
+that names the Obs ID, and nothing is sent:
 
 ```text
-Expected only job IDs, but found these obsids: 1065880128. To find the job IDs of an obsid, use 'giant-squid list <obsid>'.
+Expected only Job IDs, but found these Obs IDs: 1065880128. To find the Job IDs of an Obs ID, use 'giant-squid list <OBS_ID>'.
 ```
 
 **The log lines of `cancel` changed.** A reply from the MWA ASVO does not
@@ -272,7 +272,7 @@ longer says "Cancelled":
 
 If a script looks for "Cancelled", read the message instead, or use `list`
 afterwards to check the state of the jobs. A request that the MWA ASVO
-refuses with an error is logged as `Failed to cancel MWA ASVO job ID N:
+refuses with an error is logged as `Failed to cancel MWA ASVO Job ID N:
 <reason>` and counted in `failed`.
 
 **The exit code of `cancel` changed.** In 2.x, a request that the MWA ASVO
@@ -301,9 +301,8 @@ more of them:
 | `files[].filePath` | `product.files[].path` |
 | `files[].fileSize` | `product.files[].size` |
 | `files[].fileHash` | `product.files[].sha1` |
-| `completed` | `completed` |
 
-New keys: `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
+New keys: `completed`, `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
 value of `job_state` is the API's (for example `completed`, see the table in
 the previous section). The value of `job_type` is the API's code (for example
@@ -332,7 +331,7 @@ scripts.
 
 ## Downloading (`download`)
 
-No change: `download` takes the same job IDs, obsids and options as in 2.x
+No change: `download` takes the same Job IDs, Obs IDs and options as in 2.x
 (`--download-dir`, `--keep-tar`, `--no-resume`, `--concurrent-downloads`,
 `--skip-hash`, `--dry-run`). New: `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how
 long a failing download is retried (default 900 s).
@@ -382,9 +381,9 @@ works best with `HOME` set, so that the file can be used.
 | `submit-vis` | `sv` | `--json` added |
 | `submit-meta` | `sm` | `--json` added |
 | `submit-conv` | `sc` | `-p` replaced by options; **new defaults** |
-| `submit-image` | `si` | `-p` replaced by options; obsids only; **new defaults** |
+| `submit-image` | `si` | `-p` replaced by options; Obs IDs only; **new defaults** |
 | `submit-image-from-job` | `sifj` | New: images a completed conversion job |
 | `submit-volt` | `st` | `--json` added; `--offset` range checked |
 | `submit-bf` | `sb` | `--json` added |
-| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); obsids refused |
-| `cancel` | `c` | New log lines; obsids refused; exit code 1 when a request is refused |
+| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); Obs IDs refused |
+| `cancel` | `c` | New log lines; Obs IDs refused; exit code 1 when a request is refused |

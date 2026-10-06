@@ -4,7 +4,7 @@
 
 //! The errors of `--json`: each error is one line of JSON on stdout, the
 //! MWA ASVO's `ErrorResponse` (see [`crate::mwa_asvo::error_response`]) with the
-//! job ID or the obsid that it is about. With `--json`, no logs are printed.
+//! Job ID or the Obs ID that it is about. With `--json`, no logs are printed.
 
 use thiserror::Error;
 
@@ -29,8 +29,8 @@ pub(super) struct ArgumentError(pub String);
 #[error("{0}")]
 pub(super) struct ReportedFailures(pub String);
 
-/// One error line of `--json`: the `ErrorResponse`, then the job ID and the
-/// obsid that the error is about (a key that is not known is left out).
+/// One error line of `--json`: the `ErrorResponse`, then the Job ID and the
+/// Obs ID that the error is about (a key that is not known is left out).
 #[derive(serde::Serialize)]
 pub(super) struct JsonError {
     #[serde(flatten)]
@@ -43,7 +43,7 @@ pub(super) struct JsonError {
 
 impl JsonError {
     /// The error line of `error`. The first error of the library in its
-    /// chain gives the `ErrorResponse`, and the job ID and the obsid when
+    /// chain gives the `ErrorResponse`, and the Job ID and the Obs ID when
     /// the error names them. Any other error is
     /// [`ERROR_CODE_CLIENT_ERROR`], with the whole chain as the message.
     pub(super) fn new(error: &anyhow::Error) -> Self {
@@ -97,13 +97,13 @@ impl JsonError {
         }
     }
 
-    /// The line for the job ID `job_id`, which was asked for.
+    /// The line for the Job ID `job_id`, which was asked for.
     pub(super) fn with_job_id(mut self, job_id: AsvoJobId) -> Self {
         self.job_id = Some(job_id);
         self
     }
 
-    /// The line for the obsid `obs_id`, which was asked for.
+    /// The line for the Obs ID `obs_id`, which was asked for.
     pub(super) fn with_obs_id(mut self, obs_id: ObsId) -> Self {
         self.obs_id = Some(obs_id);
         self

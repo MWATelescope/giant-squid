@@ -46,7 +46,7 @@ suit users for a few reasons:
 3. `giant-squid` does not require a CSV file to submit jobs; this is instead
    handled by command line arguments.
 
-4. For any commands that accept obsids or job IDs, it is possible use text files
+4. For any commands that accept Obs IDs or Job IDs, it is possible use text files
    instead. These files are unpacked as if you had typed them out manually, and
    each entry of the text file(s) are checked for validity (all ints and all
    10-digits long); any exceptions are reported and the command fails.
@@ -163,8 +163,8 @@ Each kind of job has its own command, and each command has a short name:
 | `submit-bf` | `sb` | [Beamformer download](#beamformer-downloads) |
 | `submit-volt` | `st` | [Voltage download](#voltage-downloads) |
 
-Every submit command takes one or more obsids, or text files that hold obsids. It submits one job for
-each obsid and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
+Every submit command takes one or more Obs IDs, or text files that hold Obs IDs. It submits one job for
+each Obs ID and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
 
 #### Options that every submit command has
 
@@ -174,7 +174,7 @@ each obsid and carries on if one fails. It ends with a summary and a non-zero ex
 | `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have it, because voltage data is always delivered as files |
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed: see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
-| `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each obsid |
+| `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
 | `-j`, `--json` | Print the MWA ASVO's reply for each submitted job as one line of JSON on standard output. See [JSON output and errors](#json-output-and-errors) |
 | `-v`, `--verbosity` | Show more log messages. Repeat it for more. Cannot be used with `--json` |
 
@@ -186,7 +186,7 @@ Log messages go to standard error, so standard output has only the output of the
 With `-j`, `--json`, every command prints only JSON, on standard output. It prints no log messages and no
 progress bars, and nothing on standard error. Each error is one line of JSON in the form of the MWA ASVO's error
 response: `error_code` and `message`, and `detail`, `suggestion`, `field_errors` and `request_id` when they are
-known. An error about one obsid or job also has its `obs_id` or `job_id`. A script finds an error line by its
+known. An error about one Obs ID or job also has its `obs_id` or `job_id`. A script finds an error line by its
 `error_code` key. The exit code is 1 if anything failed, and 2 for a bad command line.
 
 An error that the MWA ASVO sent in this form is printed as the MWA ASVO sent it. Other errors have a giant-squid
@@ -200,7 +200,7 @@ $ giant-squid submit-vis 1065880128 --json
 
 ```bash
 $ giant-squid submit-vis 1065880128 --dry-run
-13:10:06 [INFO] [dry run] Would POST /api/v2/download_vis_job for obsid 1065880128:
+13:10:06 [INFO] [dry run] Would POST /api/v2/download_vis_job for Obs ID 1065880128:
 {
   "allow_resubmit": false,
   "delivery": "acacia",
@@ -208,7 +208,7 @@ $ giant-squid submit-vis 1065880128 --dry-run
   "download_type": "vis",
   "obs_id": 1065880128
 }
-13:10:06 [INFO] [dry run] Would have submitted 1 obsids to /api/v2/download_vis_job. Nothing was sent.
+13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/download_vis_job. Nothing was sent.
 ```
 
 The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them.
@@ -260,7 +260,7 @@ Submit MWA ASVO preprocessing/conversion jobs
 Usage: giant-squid submit-conv [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
@@ -300,7 +300,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -313,13 +313,13 @@ Options:
           Print version
 ```
 
-To submit a conversion job for obsid 1065880128:
+To submit a conversion job for Obs ID 1065880128:
 
 ```bash
 giant-squid submit-conv 1065880128
 ```
 
-Text files containing obsids may be used too.
+Text files containing Obs IDs may be used too.
 
 To change the conversion options, give them as options. For example, to average to 0.5 s and 10 kHz and write a
 UVFITS file:
@@ -360,7 +360,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 
 #### Imaging downloads
 
-An "imaging download job" takes the raw visibilities of an obsid and produces an image. The raw visibilities are converted to a CASA measurement set first, just like a regular [Conversion](#conversion-downloads) job. To image an existing, completed conversion job instead, see [Imaging from a conversion job](#imaging-from-a-conversion-job).
+An "imaging download job" takes the raw visibilities of an Obs ID and produces an image. The raw visibilities are converted to a CASA measurement set first, just like a regular [Conversion](#conversion-downloads) job. To image an existing, completed conversion job instead, see [Imaging from a conversion job](#imaging-from-a-conversion-job).
 
 The MWA ASVO imaging features uses the WSClean software by André Offringa to generated images from CASA measurement sets. For comprehensive documentation about WSClean, please see: [WSClean readthedocs](https://wsclean.readthedocs.io/).
 
@@ -370,7 +370,7 @@ Submit MWA ASVO imaging jobs
 Usage: giant-squid submit-image [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to submit for imaging. Files containing obsids are also accepted. All obsids in one invocation share the same parameters above
+  [OBS_ID]...  The Obs IDs to submit for imaging. Files containing Obs IDs are also accepted. All Obs IDs in one invocation share the same parameters above
 
 Options:
   -d, --delivery <DELIVERY>
@@ -386,7 +386,7 @@ Options:
       --auto-threshold <AUTO_THRESHOLD>
           WSClean -auto-threshold value [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set [default: 0.001]
+          Absolute cleaning threshold (Jy) [default: 0.001]
       --avg-freq-res <AVG_FREQ_RES>
           Frequency resolution to average to before imaging (kHz) [default: 40]
       --avg-time-res <AVG_TIME_RES>
@@ -396,7 +396,7 @@ Options:
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy). Takes precedence over auto_threshold if set [default: 0.001]
+          WSClean cleaning threshold (Jy) [default: 0.001]
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
           Custom phase centre declination (degrees). Requires --centre custom
       --custom-centre-ra <CUSTOM_CENTRE_RA>
@@ -452,7 +452,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -465,7 +465,7 @@ Options:
           Print version
 ```
 
-To submit an imaging job for the obsid 1065880128, give any conversion options as well as imaging options:
+To submit an imaging job for the Obs ID 1065880128, give any conversion options as well as imaging options:
 
 ```bash
 giant-squid submit-image 1065880128 --avg-time-res 0.5 --avg-freq-res 10 --image-size 2048 --multiscale
@@ -483,7 +483,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--apply-primary-beam` | Calculate and apply the primary beam and save images for the Jones components, with weighting identical to the weighting as used by the imager | `true` or `false`, given as `--apply-primary-beam=false` | true |
 | `--auto-mask` | WSClean -auto-mask value | 2 to 512 | 3 |
 | `--auto-threshold` | Relative clean threshold. Estimate noise level using a robust estimator and stop at sigma x stddev | 0.1 to 5 | 0.5 |
-| `--abs-threshold` | Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set | 0 to 10 | 0.001 |
+| `--abs-threshold` | Absolute cleaning threshold (Jy) | 0 to 10 | 0.001 |
 | `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
 | `--channels-out` | Number of output channel groups | any whole number | 4 |
@@ -522,7 +522,7 @@ join the value to the option with an equals sign, for example `--join-channels=f
 #### Imaging from a conversion job
 
 `submit-image-from-job` makes an image from a conversion job that has already completed. It skips the conversion
-step, so it takes none of the conversion options. It needs exactly one obsid (the obsid of the conversion job)
+step, so it takes none of the conversion options. It needs exactly one Obs ID (the Obs ID of the conversion job)
 and the ID of the conversion job:
 
 ```bash
@@ -535,11 +535,11 @@ Submit MWA ASVO imaging jobs from an existing conversion job. Unlike submit-imag
 Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID> [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsid to image. Exactly one obsid is required (the source_job_id identifies the conversion job for this obsid)
+  [OBS_ID]...  The Obs ID to image. Exactly one Obs ID is required (the source_job_id identifies the conversion job for this Obs ID)
 
 Options:
       --source-job-id <SOURCE_JOB_ID>
-          The MWA ASVO conversion job ID to image from. Required
+          The MWA ASVO conversion Job ID to image from. Required
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
   -f, --delivery-format <DELIVERY_FORMAT>
@@ -551,13 +551,13 @@ Options:
       --auto-threshold <AUTO_THRESHOLD>
           WSClean -auto-threshold value [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy). Overridden by auto_threshold unless explicitly set [default: 0.001]
+          Absolute cleaning threshold (Jy) [default: 0.001]
       --channels-out <CHANNELS_OUT>
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy). Takes precedence over auto_threshold if set [default: 0.001]
+          WSClean cleaning threshold (Jy) [default: 0.001]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -591,7 +591,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -613,7 +613,7 @@ Some notes about imaging a conversion job:
 #### Metadata downloads
 
 A "metadata download job" refers to a job which provides a tar containing a
-metafits file and cotter flags for a single obsid.
+metafits file and cotter flags for a single Obs ID.
 
 ```text
 Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs for each tile) and RFI flags (if available)
@@ -621,7 +621,7 @@ Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs for each t
 Usage: giant-squid submit-meta [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
@@ -631,7 +631,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -644,18 +644,18 @@ Options:
           Print version
 ```
 
-To submit a metadata download job for the obsid 1065880128:
+To submit a metadata download job for the Obs ID 1065880128:
 
 ```bash
 giant-squid submit-meta 1065880128
 ```
 
-Text files containing obsids may be used too.
+Text files containing Obs IDs may be used too.
 
 #### Visibility downloads
 
 A "visibility download job" refers to a job which provides a tar containing
-raw visibility files, a metafits file and flags for a single obsid. This type of job is suited to advanced users who want to do their own preprocessing.
+raw visibility files, a metafits file and flags for a single Obs ID. This type of job is suited to advanced users who want to do their own preprocessing.
 
 ```text
 Submit MWA ASVO jobs to download MWA raw visibilities
@@ -663,7 +663,7 @@ Submit MWA ASVO jobs to download MWA raw visibilities
 Usage: giant-squid submit-vis [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
@@ -673,7 +673,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -686,17 +686,17 @@ Options:
           Print version
 ```
 
-To submit a visibility download job for the obsid 1065880128:
+To submit a visibility download job for the Obs ID 1065880128:
 
 ```bash
 giant-squid submit-vis 1065880128
 ```
 
-Text files containing obsids may be used too.
+Text files containing Obs IDs may be used too.
 
 #### Beamformer downloads
 
-A "beamformer download job" refers to a job which provides a tar containing beamformer files (generally VDIF and HDR for coherent beams and SIGPROC Filterbank for incoherent beams) for a single obsid.
+A "beamformer download job" refers to a job which provides a tar containing beamformer files (generally VDIF and HDR for coherent beams and SIGPROC Filterbank for incoherent beams) for a single Obs ID.
 
 ```text
 Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
@@ -704,7 +704,7 @@ Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
 Usage: giant-squid submit-bf [OPTIONS] [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
   -d, --delivery <DELIVERY>
@@ -714,7 +714,7 @@ Options:
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
-          Do not exit giant-squid until the specified obsids are ready for download
+          Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
           Don't actually submit; print information on what would've happened instead
   -j, --json
@@ -727,17 +727,17 @@ Options:
           Print version
 ```
 
-To submit a beamformer download job for the obsid 1065880128:
+To submit a beamformer download job for the Obs ID 1065880128:
 
 ```bash
 giant-squid submit-bf 1065880128
 ```
 
-Text files containing obsids may be used too.
+Text files containing Obs IDs may be used too.
 
 #### Voltage downloads
 
-A "voltage download job" refers to a job which provides the raw voltages for one or more obsids.
+A "voltage download job" refers to a job which provides the raw voltages for one or more Obs IDs.
 
 ```text
 Submit MWA ASVO jobs to download MWA voltages
@@ -745,7 +745,7 @@ Submit MWA ASVO jobs to download MWA voltages
 Usage: giant-squid submit-volt [OPTIONS] --offset <OFFSET> --duration <DURATION> [OBS_ID]...
 
 Arguments:
-  [OBS_ID]...  The obsids to be submitted. Files containing obsids are also accepted
+  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
   -d, --delivery <DELIVERY>          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", which requires the "mwavcs" Pawsey Group on your MWA ASVO profile [env: GIANT_SQUID_DELIVERY=] [default: scratch]
@@ -754,7 +754,7 @@ Options:
   -f, --from-channel <FROM_CHANNEL>  The 'from' receiver channel number (0-255)
   -t, --to-channel <TO_CHANNEL>      The 'to' receiver channel number (0-255)
   -r, --allow-resubmit               Allow resubmitting a job even if an identical one has completed
-  -w, --wait                         Do not exit giant-squid until the specified obsids are ready for download
+  -w, --wait                         Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run                      Don't actually submit; print information on what would've happened instead
   -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
   -v, --verbosity...                 The verbosity of the program. The default is to print high-level information. Cannot be used with --json
@@ -762,13 +762,13 @@ Options:
   -V, --version                      Print version
 ```
 
-To submit a voltage download job for the obsid 1065880128:
+To submit a voltage download job for the Obs ID 1065880128:
 
 ```bash
 giant-squid submit-volt --delivery scratch --offset 0 --duration 8 1065880128
 ```
 
-Text files containing obsids may be used too.
+Text files containing Obs IDs may be used too.
 
 For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` (`-f`) and `--to-channel` (`-t`) to restrict the job to
 only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
@@ -793,7 +793,7 @@ List your current and recent MWA ASVO jobs
 Usage: giant-squid list [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOB_ID_OR_OBS_ID]...  job IDs or obsids to filter by. Files containing job IDs or obsids are also accepted
+  [JOB_ID_OR_OBS_ID]...  Job IDs or Obs IDs to filter by. Files containing Job IDs or Obs IDs are also accepted
 
 Options:
   -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
@@ -828,8 +828,8 @@ giant-squid list --json
 {"325430":{"obs_id":1090528304,"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54.757232Z","first_name":"Jane","id":325430,"job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"},"job_state":"completed","job_type":1,"last_name":"Citizen","modified":"2026-09-08T06:00:00Z","product":{"files":[{"format":"tar","sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","size":10762878689,"type":"acacia","url":"https://..."}]},"started":"2026-09-08T05:42:10Z","user_id":4242}}
 ```
 
-The output is an object keyed by job ID. Each job is the MWA ASVO API's `JobDetailResponse`, with one more
-key, `obs_id` (which the API has only in `job_params`): `id` (the job ID), `job_type`, `job_state`, `product`,
+The output is an object keyed by Job ID. Each job is the MWA ASVO API's `JobDetailResponse`, with one more
+key, `obs_id` (which the API has only in `job_params`): `id` (the Job ID), `job_type`, `job_state`, `product`,
 `created`, `started`, `completed`, `modified`, `error_code`, `error_text`, `user_id`, `first_name`, `last_name`
 and `job_params`. As in the API, a key that has no value is left out (for example `completed` for a job that
 is not finished). `product` is left out until the job has files; then its `files` list has, for each file, the keys of the API's
@@ -884,7 +884,7 @@ Out[3]: dict_keys(['216087', '216241', '217628'])
 ### Filter MWA ASVO job listing
 
 `giant-squid list` takes an optional list of identifiers that can be used to filter the job listing,
-these identifiers can either be a list of jobIDs or a list of obsIDs, but not both.
+these identifiers can either be a list of Job IDs or a list of Obs IDs, but not both.
 
 Additionally, the `--job-states` and `--job-types` options can be used to further filter the output.
 (The older names `--states` and `--types` still work.) `--days` (1 to 30; the default is the MWA ASVO API's,
@@ -899,7 +899,7 @@ above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
 
 example: show only jobs that match both of the following conditions:
 
-- obsid is `1234567890` or `1234567891`
+- Obs ID is `1234567890` or `1234567891`
 - job_type is `visibility`, `metadata` or `cancel`
 - job_state is `Preprocessing` or `Queued`
 
@@ -940,12 +940,12 @@ logs a job's state when it changes. When every job is ready it prints the jobs, 
 as JSON with `--json`), and exits.
 
 ```text
-Wait for MWA ASVO jobs to complete, return the urls
+Wait for MWA ASVO jobs to complete, then print them
 
 Usage: giant-squid wait [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The job IDs to wait for. Files containing job IDs are also accepted
+  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted
 
 Options:
   -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
@@ -961,16 +961,16 @@ Example:
 ```bash
 $ giant-squid wait 31 32
 13:41:02 [INFO] Waiting for 2 jobs to be ready...
-13:41:04 [INFO] Job ID 31 (obsid: 1065880128): is Queued
-13:41:04 [INFO] Job ID 32 (obsid: 1065880248): is Preprocessing
-13:46:06 [INFO] Job ID 31 (obsid: 1065880128): is Ready
-13:52:08 [INFO] Job ID 32 (obsid: 1065880248): is Ready
+13:41:04 [INFO] Job ID 31 (Obs ID: 1065880128): is queued
+13:41:04 [INFO] Job ID 32 (Obs ID: 1065880248): is preprocessing
+13:46:06 [INFO] Job ID 31 (Obs ID: 1065880128): is completed
+13:52:08 [INFO] Job ID 32 (Obs ID: 1065880248): is completed
 13:52:08 [INFO] All 2 MWA ASVO jobs are ready for download.
 ```
 
-- `wait` takes job IDs only (they can also be in files, as for the other commands). An obsid, alone or next to job
-  IDs, is an error that names it, and nothing is waited for. To find the job IDs of an obsid, use
-  `giant-squid list <obsid>`.
+- `wait` takes Job IDs only (they can also be in files, as for the other commands). An Obs ID, alone or next to Job
+  IDs, is an error that names it, and nothing is waited for. To find the Job IDs of an Obs ID, use
+  `giant-squid list <OBS_ID>`.
 - It stops at once, with a non-zero exit code, if a job is not in your job list, has an error or has been
   cancelled. Waiting longer would not change that.
 - It waits for as long as it takes. Press Ctrl-C to stop.
@@ -983,12 +983,12 @@ $ giant-squid wait 31 32
 Use this command to ask the MWA ASVO to cancel jobs.
 
 ```text
-Cancel MWA ASVO job
+Cancel MWA ASVO jobs
 
 Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The job IDs to be cancelled. Files containing job IDs are also accepted
+  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
@@ -1021,14 +1021,14 @@ was cancelled:
   `Failed to cancel MWA ASVO job ID N: <reason>` and counts the request as failed. It carries on with the next
   job. At the end, the exit code is 1 if any request failed.
 
-Like `wait`, `cancel` takes job IDs only: an obsid is an error that names it, and nothing is sent.
+Like `wait`, `cancel` takes Job IDs only: an Obs ID is an error that names it, and nothing is sent.
 
 To check what `cancel` would send, without sending it, use `--dry-run`. To see the state of the jobs after a
 cancel, use [`list`](#list-mwa-asvo-jobs).
 
 ### Download MWA ASVO jobs
 
-Once an MWA ASVO job is "ready" the data is ready to be downloaded. If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do.
+Once an MWA ASVO job is `completed`, its data is ready to be downloaded. If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do.
 
 ```text
 Download an MWA ASVO job
@@ -1036,7 +1036,7 @@ Download an MWA ASVO job
 Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOB_ID_OR_OBS_ID]...  The job IDs or obsids to be downloaded. Files containing job IDs or obsids are also accepted
+  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
@@ -1046,7 +1046,7 @@ Options:
   -r, --no-resume
           Do not resume a partial download: download it again from the start. A complete keep-tar file that matches the MWA ASVO hash is still skipped. Without this option, a rerun after an interruption carries on where it stopped, with or without --keep-tar
   -c, --concurrent-downloads <CONCURRENT_DOWNLOADS>
-          Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores you machine has [default: 4]
+          Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores your machine has [default: 4]
       --skip-hash
           Don't verify the downloaded contents against the upstream hash. The hash is still checked when a download is resumed (after a failed attempt or from an earlier run), and when a complete --keep-tar file is already on disk
   -n, --dry-run
@@ -1054,46 +1054,46 @@ Options:
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -j, --json
-          Print the result of each download as one line of JSON on stdout, in the order of the job IDs and then the obsids: job_id, obs_id, status and message for a success, an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
+          Print the result of each download as one line of JSON on stdout, in the order of the Job IDs and then the Obs IDs: job_id, obs_id, status and message for a success, an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
   -h, --help
           Print help
   -V, --version
           Print version
 ```
 
-To download job ID 12345 to your current directory '.':
+To download Job ID 12345 to your current directory '.':
 
 ```bash
 giant-squid download 12345
 ```
 
-To download obsid 1065880128 to your current directory '.' (assuming your have a 'ready' job for that obsid):
+To download Obs ID 1065880128 to your current directory '.' (assuming you have one `completed` job for that Obs ID):
 
 ```bash
 giant-squid download 1065880128
 ```
 
-(`giant-squid` differentiates between job IDs and obsids by the length of the
-number specified; 10-digit numbers are treated as obsids.)
+(`giant-squid` differentiates between Job IDs and Obs IDs by the length of the
+number specified; 10-digit numbers are treated as Obs IDs.)
 
-Text files containing job IDs or obsids may be used too.
+Text files containing Job IDs or Obs IDs may be used too.
 
 With `-j`, `--json`, `download` prints the result of each download as one line of JSON on standard output,
-in the order of the job IDs and then the obsids, failures too:
+in the order of the Job IDs and then the Obs IDs, failures too:
 
 ```bash
 $ giant-squid download --json 12345 1090008640
 {"job_id":12345,"obs_id":1065880128,"status":"success","message":"Downloaded 1.23 GiB to ."}
-{"job_id":null,"obs_id":1090008640,"status":"failed","message":"No job for Obsid 1090008640 is ready for download."}
+{"error_code":"JOB_NOT_READY","message":"No job for Obs ID 1090008640 is ready for download.","obs_id":1090008640}
 ```
 
-A key that is not known is `null`: the obsid of a job ID that was not found, or the job of an obsid that
-was not found. The exit code is not zero when a download failed.
+A failed download is an error line, as described in [JSON output and errors](#json-output-and-errors), with the
+`job_id` or `obs_id` that was asked for. The exit code is not zero when a download failed.
 
-You can specify the directory to download to by providing the `download_dir` parameter
-to the `download` command. Ommitting this will default to your current dir `.`.
+To choose the directory to download to, give `download` the `-d`, `--download-dir` option. Without it, the
+download goes to the current directory `.`.
 
-To download obsid 1065880128 to your `/tmp` directory:
+To download Obs ID 1065880128 to your `/tmp` directory:
 
 ```bash
 giant-squid download --download-dir /tmp 1065880128
@@ -1126,8 +1126,8 @@ This can help throughput if you have a good Internet connection, otherwise you m
 
 #### Download performance: Changing the buffer size
 
-By default, when downloading, `giant-squid` will store 100 MiB of the download
-in memory before writing to disk. This is friendlier on disks (especially those
+By default, when downloading, `giant-squid` stores `DEFAULT_DOWNLOAD_BUFFER_SIZE`
+(a library constant) of the download in memory before writing to disk. This is friendlier on disks (especially those
 belonging to supercomputers!), and can make downloads faster.
 
 The amount of data to cache before writing can be tuned by setting
@@ -1345,8 +1345,13 @@ reads no environment variables (see
 | Variable | Description | Default |
 |---|---|---|
 | `MWA_ASVO_API_KEY` | Your MWA ASVO API key. **Required** for all operations. | — |
-| `GIANT_SQUID_DELIVERY` | Default delivery option: `acacia`, `scratch`, or `dug`. Avoids needing to pass `-d` on every command. | `acacia` |
-| `GIANT_SQUID_BUF_SIZE` | Download buffer size in MiB. Amount of data held in memory before writing to disk. | `100` |
+| `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
+| `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds. | `DEFAULT_API_TIMEOUT` in the library |
+| `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
+| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands. | The schema's default for each job type |
+| `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB: the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
+| `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |
 
 ---

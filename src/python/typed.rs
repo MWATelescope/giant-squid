@@ -74,8 +74,8 @@ impl pyo3_stub_gen::PyStubType for JsonDict<'_> {
 }
 
 /// The `progress` argument of the download methods: a function that takes
-/// a `DownloadProgress`. Any object is taken, as before; a call to an object
-/// that is not callable raises when the first event is sent.
+/// a `DownloadProgress`. Any object is taken; a call to an object that is
+/// not callable raises when the first event is sent.
 pub struct ProgressCallback(pub Py<PyAny>);
 
 impl<'a, 'py> FromPyObject<'a, 'py> for ProgressCallback {
@@ -96,7 +96,7 @@ impl pyo3_stub_gen::PyStubType for ProgressCallback {
     }
 }
 
-/// An MWA ASVO job ID ([`AsvoJobId`](crate::AsvoJobId), a `NonZeroU64`) as
+/// An MWA ASVO Job ID ([`AsvoJobId`](crate::AsvoJobId), a `NonZeroU64`) as
 /// a Python `int`, as an argument or a return value. An argument that is 0
 /// raises `ValueError`.
 #[derive(Clone, Copy)]
@@ -109,7 +109,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for JobId {
         let id: u64 = obj.extract()?;
         crate::AsvoJobId::new(id)
             .map(Self)
-            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("0 is not a job ID"))
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("0 is not a Job ID"))
     }
 }
 

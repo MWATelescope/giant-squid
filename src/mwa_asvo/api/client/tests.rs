@@ -1148,7 +1148,10 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     // The recording was made with --days 30, and the recorded request is
     // the matching criteria, so the same argument is required here.
     let jobs = client
-        .get_jobs(&JobsFilter::days(crate::test_config::nonzero(30)))
+        .get_jobs(&JobsFilter {
+            days: Some(crate::test_config::nonzero(30)),
+            ..JobsFilter::default()
+        })
         .expect("the recorded listing should be served");
 
     assert_eq!(jobs.0.len(), 1);
@@ -1174,7 +1177,10 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
-        .get_jobs(&JobsFilter::days(crate::test_config::nonzero(30)))
+        .get_jobs(&JobsFilter {
+            days: Some(crate::test_config::nonzero(30)),
+            ..JobsFilter::default()
+        })
         .expect("the recorded listing should be served");
 
     let files = &jobs.0[0]
@@ -1258,7 +1264,10 @@ fn record_login_and_get_jobs() {
 
     let client = AsvoClient::new(config).expect("could not authenticate with the target server");
     let jobs = client
-        .get_jobs(&JobsFilter::days(crate::test_config::nonzero(30)))
+        .get_jobs(&JobsFilter {
+            days: Some(crate::test_config::nonzero(30)),
+            ..JobsFilter::default()
+        })
         .expect("could not list jobs on the target server");
     println!("recorded a login and a listing of {} jobs", jobs.0.len());
 
@@ -1390,7 +1399,10 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
     // The type refuses 0; the library refuses what is above 30.
     for days in [31, u64::MAX].map(crate::test_config::nonzero) {
         let err = client
-            .get_jobs(&JobsFilter::days(days))
+            .get_jobs(&JobsFilter {
+                days: Some(days),
+                ..JobsFilter::default()
+            })
             .expect_err("days should be refused");
         assert!(
             matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
@@ -1415,7 +1427,10 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
 
     for days in [1, 30].map(crate::test_config::nonzero) {
         client
-            .get_jobs(&JobsFilter::days(days))
+            .get_jobs(&JobsFilter {
+                days: Some(days),
+                ..JobsFilter::default()
+            })
             .expect("the end of the range should be accepted");
     }
     assert_eq!(listing.calls(), 2);

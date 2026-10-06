@@ -9,9 +9,9 @@
 //! The parser has two jobs:
 //!
 //! - It lists the allowed values in `--help` (`[possible values: ...]`).
-//! - It accepts exactly what the generated `FromStr` accepts, and a bad
-//!   value is a `ValueValidation` error, as it was before. The message now
-//!   names the allowed values.
+//! - It accepts exactly what the generated `FromStr` accepts. A bad value
+//!   is a `ValueValidation` error, and its message names the allowed
+//!   values.
 //!
 //! The values come from the library's list of each schema enum
 //! ([`SchemaEnum`]), so the CLI has no list of its own. The help and the
@@ -69,7 +69,7 @@ impl<T: SchemaEnum> TypedValueParser for SchemaEnumParser<T> {
 
     fn parse_ref(&self, cmd: &Command, arg: Option<&Arg>, value: &OsStr) -> Result<T, clap::Error> {
         // The same parser that clap builds for a `FromStr` type, so the
-        // kind of the error is the same as it was: `ValueValidation`.
+        // kind of the error is `ValueValidation`.
         let parse = |text: &str| {
             text.parse::<T>()
                 .map_err(|_| format!("expected one of: {}", allowed_values::<T>()))

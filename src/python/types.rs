@@ -235,13 +235,13 @@ impl From<AsvoJob> for PyAsvoJob {
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyAsvoJob {
-    /// The job ID.
+    /// The Job ID.
     #[getter]
     fn job_id(&self) -> JobId {
         JobId(self.0.job_id())
     }
 
-    /// The obsid.
+    /// The Obs ID.
     #[getter]
     fn obs_id(&self) -> u64 {
         u64::from(self.0.obs_id())
@@ -366,9 +366,9 @@ impl PyAsvoJob {
 pub enum PyDownloadProgress {
     /// A file download starts, or starts again.
     Started {
-        /// The MWA ASVO job ID.
+        /// The MWA ASVO Job ID.
         job_id: u64,
-        /// A human-readable label, for example `Job ID 123 (obsid:
+        /// A human-readable label, for example `Job ID 123 (Obs ID:
         /// 1234567890) [1/2]:`.
         label: String,
         /// The size of the file in bytes.
@@ -529,7 +529,7 @@ impl PyAsvoJobVec {
     /// `None` or empty does not filter.
     ///
     /// Raises:
-    ///     ValueError: An obsid is not valid.
+    ///     ValueError: An Obs ID is not valid.
     #[pyo3(signature = (job_ids=None, obs_ids=None, job_types=None, job_states=None))]
     fn filter(
         &self,

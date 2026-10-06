@@ -137,7 +137,7 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     assert len(jobs.filter(job_types=[gs.JobType.Conversion])) == 0
     errors_and_ready = jobs.filter(job_states=[gs.JobState.Error, gs.JobState.Completed])
     assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
-    with pytest.raises(ValueError, match="obsid"):
+    with pytest.raises(ValueError, match="Obs ID"):
         jobs.filter(obs_ids=[1])
 
 

@@ -123,7 +123,7 @@ impl ConversionArgs {
     }
 }
 
-/// The arguments of an imaging job that starts from an obsid (flow 1).
+/// The arguments of an imaging job that starts from an Obs ID (flow 1).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ImagingArgs {
     pub delivery: Option<Delivery>,

@@ -22,41 +22,10 @@ fn validation_fails_too_big() {
     assert!(ObsId::validate(10658801288).is_err());
 }
 
+/// A string that is a number but not a 10-digit one is `WrongNumDigits`.
 #[test]
-fn batch_spaces() {
-    let result = ObsId::from_string("1061311664 1061311784 1061312032");
-    assert!(result.is_ok());
-    let obs_ids = result.unwrap();
-    assert_eq!(obs_ids[0], ObsId(1061311664));
-    assert_eq!(obs_ids[1], ObsId(1061311784));
-    assert_eq!(obs_ids[2], ObsId(1061312032));
-}
-
-#[test]
-fn batch_lines() {
-    let result = ObsId::from_string("1061311664\n1061311784\n1061312032");
-    assert!(result.is_ok());
-    let obs_ids = result.unwrap();
-    assert_eq!(obs_ids[0], ObsId(1061311664));
-    assert_eq!(obs_ids[1], ObsId(1061311784));
-    assert_eq!(obs_ids[2], ObsId(1061312032));
-}
-
-#[test]
-fn batch_mix() {
-    let result = ObsId::from_string("1061311664 1061311784 \n 1061312032");
-    assert!(result.is_ok());
-    let obs_ids = result.unwrap();
-    assert_eq!(obs_ids[0], ObsId(1061311664));
-    assert_eq!(obs_ids[1], ObsId(1061311784));
-    assert_eq!(obs_ids[2], ObsId(1061312032));
-}
-
-#[test]
-fn batch_fail() {
-    // Last int is too small.
-    let result = ObsId::from_string("1061311664 1061311784 \n 106131203");
-    assert!(result.is_err());
+fn parse_fails_too_small() {
+    let result = "106131203".parse::<ObsId>();
     assert_eq!(
         // `discriminant` allows comparison of enum variants. Here, we
         // verify that the error's enum variant is `WrongNumDigits`. The
@@ -71,10 +40,10 @@ fn parse_int_error() -> ParseIntError {
     "5.1".parse::<u64>().unwrap_err()
 }
 
+/// A string that is not an integer is `Parse`.
 #[test]
-fn batch_fail_float() {
-    let result = ObsId::from_string("1061311.664");
-    assert!(result.is_err());
+fn parse_fails_float() {
+    let result = "1061311.664".parse::<ObsId>();
     assert_eq!(
         discriminant(&result.unwrap_err()),
         // The specific ParseIntError error doesn't matter.

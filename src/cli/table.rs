@@ -24,7 +24,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
 
         table.set_titles(row![
             b => "Job ID",
-            "Obsid",
+            "Obs ID",
             "Job Type",
             "Job State",
             "File Size",
@@ -75,7 +75,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
 
 /// The prettytable style spec for a job type cell. A job with no type has
 /// no style.
-pub fn job_type_table_style(job_type: Option<JobType>, no_colour: bool) -> String {
+fn job_type_table_style(job_type: Option<JobType>, no_colour: bool) -> String {
     match job_type {
         Some(job_type) if !no_colour => match job_type.name() {
             "metadata" => "Fy",
@@ -98,7 +98,7 @@ fn job_state_text(job: &AsvoJob) -> String {
 }
 
 /// The prettytable style spec for a job state cell.
-pub fn job_state_table_style(job_state: JobState, no_colour: bool) -> String {
+fn job_state_table_style(job_state: JobState, no_colour: bool) -> String {
     if no_colour {
         "".to_string()
     } else {

@@ -416,7 +416,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_request(
     """download_obs checks the obsid first."""
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="obsid"):
+    with pytest.raises(ValueError, match="Obs ID"):
         client.download_obs(1, tmp_path)
 
     assert len(httpserver.log) == requests_before

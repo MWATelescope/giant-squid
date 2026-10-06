@@ -1345,11 +1345,11 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
     ])
 }
 
-/// `--legacy-json` prints exactly what `--json` printed before 3.0.0. The
-/// expected text was captured from the old code for the same jobs.
+/// `--legacy-json` prints exactly what `--json` of giant-squid 2.5.1 printed
+/// for the same jobs: the 2.5.1 keys and their order, and no times.
 #[test]
 fn legacy_json_is_the_old_output_byte_for_byte() {
-    let expected = r#"{"101":{"obsid":1065880128,"jobId":101,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"jobType":"Acacia","fileUrl":"https://example.org/a.tar","filePath":null,"fileSize":1234,"fileHash":"abababababababababababababababababababab"},{"jobType":"Scratch","fileUrl":null,"filePath":"/scratch/mwa/x","fileSize":5,"fileHash":null}],"completed":"2026-09-08T06:00:00Z"},"102":{"obsid":1065880128,"jobId":102,"jobType":"Conversion","jobState":"Queued","files":null,"completed":null},"103":{"obsid":1065880128,"jobId":103,"jobType":"Imaging","jobState":{"Error":"the \"conversion\" failed"},"files":[],"completed":null}}"#;
+    let expected = r#"{"101":{"obsid":1065880128,"jobId":101,"jobType":"DownloadVisibilities","jobState":"Ready","files":[{"jobType":"Acacia","fileUrl":"https://example.org/a.tar","filePath":null,"fileSize":1234,"fileHash":"abababababababababababababababababababab"},{"jobType":"Scratch","fileUrl":null,"filePath":"/scratch/mwa/x","fileSize":5,"fileHash":null}]},"102":{"obsid":1065880128,"jobId":102,"jobType":"Conversion","jobState":"Queued","files":null},"103":{"obsid":1065880128,"jobId":103,"jobType":"Imaging","jobState":{"Error":"the \"conversion\" failed"},"files":[]}}"#;
 
     let output = super::legacy_json::to_legacy_json(&json_sample_jobs()).expect("serialises");
 
@@ -1638,10 +1638,10 @@ fn job_ids_only_refuses_an_obsid() {
         let text = err.to_string();
 
         assert!(
-            text.starts_with("Expected only job IDs, but found these obsids: 1065880128."),
+            text.starts_with("Expected only Job IDs, but found these Obs IDs: 1065880128."),
             "{arguments:?}: {text}"
         );
-        assert!(text.contains("giant-squid list <obsid>"), "{text}");
+        assert!(text.contains("giant-squid list <OBS_ID>"), "{text}");
     }
 }
 
@@ -1654,7 +1654,7 @@ fn job_ids_only_names_every_obsid() {
 
     assert!(
         err.to_string()
-            .contains("found these obsids: 1065880128, 1065880248."),
+            .contains("found these Obs IDs: 1065880128, 1065880248."),
         "{err}"
     );
 }
@@ -1665,7 +1665,7 @@ fn job_ids_only_needs_a_job_id() {
 
     let err = parse_job_ids_only(&[]).expect_err("no job ID is an error");
 
-    assert_eq!(err.to_string(), "No jobids specified!");
+    assert_eq!(err.to_string(), "No Job IDs specified.");
 }
 
 // ---------------------------------------------------------------------------

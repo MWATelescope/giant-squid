@@ -8,9 +8,9 @@
 //! Before 3.0.0, the job JSON used its own camelCase keys (`obsid`,
 //! `jobId`, `jobType`, `jobState`, and `fileUrl`, `filePath`, `fileSize`,
 //! `fileHash` for each file). It also put a file's delivery type under
-//! `jobType`. From 3.0.0, `--json` prints the OpenAPI names (see
-//! [`AsvoJobVec::json`]). This module keeps the old format, byte for byte,
-//! so that scripts have one release to move over. It is only in the CLI:
+//! `jobType`, and it had no times. From 3.0.0, `--json` prints the OpenAPI
+//! names (see [`AsvoJobVec::json`]). This module keeps the format of
+//! giant-squid 2.5.1, byte for byte, so that scripts have time to move over. It is only in the CLI:
 //! the library and the Python module have only the new format.
 //!
 //! Remove this module, and `--legacy-json`, in a later release (when the
@@ -18,7 +18,6 @@
 
 use std::collections::BTreeMap;
 
-use jiff::Timestamp;
 use serde::Serialize;
 
 use crate::mwa_asvo::api::openapi::Type as FileType;
@@ -111,7 +110,6 @@ struct LegacyJob<'a> {
     #[serde(rename = "jobState")]
     job_state: LegacyState<'a>,
     files: Option<Vec<LegacyFile<'a>>>,
-    completed: &'a Option<Timestamp>,
 }
 
 impl<'a> From<&'a JobFile> for LegacyFile<'a> {
@@ -143,13 +141,12 @@ impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
                 .product
                 .as_ref()
                 .map(|product| product.files.iter().map(LegacyFile::from).collect()),
-            completed: &job.completed,
         }
     }
 }
 
-/// The jobs in the old JSON format: an object keyed by job ID, in job ID
-/// order, as [`AsvoJobVec::json`] is. As there, a job ID that is listed
+/// The jobs in the old JSON format: an object keyed by Job ID, in Job ID
+/// order, as [`AsvoJobVec::json`] is. As there, a Job ID that is listed
 /// more than once appears once.
 ///
 /// # Errors

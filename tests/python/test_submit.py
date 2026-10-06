@@ -502,7 +502,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_submission(
     """Every submit method raises ValueError for a bad obsid, and sends nothing."""
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="obsid"):
+    with pytest.raises(ValueError, match="Obs ID"):
         submit(client, INVALID_OBS_ID)
 
     assert len(httpserver.log) == requests_before, name
@@ -763,7 +763,7 @@ def test_job_id_zero_is_rejected_before_any_request(client: gs.AsvoClient, https
     """0 is not a job ID (job IDs start at 1), and nothing is sent."""
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="0 is not a job ID"):
+    with pytest.raises(ValueError, match="0 is not a Job ID"):
         client.cancel_job(0)
 
     assert len(httpserver.log) == requests_before

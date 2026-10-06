@@ -156,7 +156,7 @@ def test_an_error_of_the_command_is_code_one_with_the_message(run: Callable[...,
     result = run("wait", str(TEST_OBS_ID))
 
     assert result.code == EXIT_FAILED
-    assert f"Error: Expected only job IDs, but found these obsids: {TEST_OBS_ID}." in result.err
+    assert f"Error: Expected only Job IDs, but found these Obs IDs: {TEST_OBS_ID}." in result.err
 
 
 def test_a_dry_run_logs_with_the_commands_own_logger(run: Callable[..., Result]) -> None:

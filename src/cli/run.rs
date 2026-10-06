@@ -92,7 +92,7 @@ fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<
 }
 
 /// The result of one successful download, for `download --json`: the keys
-/// of the MWA ASVO's replies (`job_id`, `status`, `message`), and the obsid.
+/// of the MWA ASVO's replies (`job_id`, `status`, `message`), and the Obs ID.
 /// A failed download is a [`JsonError`] line.
 #[derive(serde::Serialize)]
 struct DownloadReport {
@@ -116,7 +116,7 @@ impl DownloadReport {
 
 /// Print the line of one download for `download --json`: the
 /// [`DownloadReport`] of a success, or the [`JsonError`] of a failure, for
-/// the job ID `job_id` or the obsid `obs_id` that was asked for.
+/// the Job ID `job_id` or the Obs ID `obs_id` that was asked for.
 fn print_download_line(
     job_id: Option<AsvoJobId>,
     obs_id: Option<ObsId>,
@@ -138,7 +138,7 @@ fn print_download_line(
     }
 }
 
-/// What `download --dry-run --json` prints for each job ID or obsid: the ID
+/// What `download --dry-run --json` prints for each Job ID or Obs ID: the ID
 /// and the download options.
 #[derive(serde::Serialize)]
 struct DryRunDownload {
@@ -151,7 +151,7 @@ struct DryRunDownload {
     skip_hash: bool,
 }
 
-/// What `submit-* --dry-run --json` prints for each obsid: the endpoint and
+/// What `submit-* --dry-run --json` prints for each Obs ID: the endpoint and
 /// the request body.
 #[derive(serde::Serialize)]
 struct DryRunSubmission<'a, T: serde::Serialize> {
@@ -160,7 +160,7 @@ struct DryRunSubmission<'a, T: serde::Serialize> {
     params: &'a T,
 }
 
-/// What `cancel --dry-run --json` prints for each job ID: the endpoint of
+/// What `cancel --dry-run --json` prints for each Job ID: the endpoint of
 /// the DELETE request.
 #[derive(serde::Serialize)]
 struct DryRunCancel {
@@ -195,15 +195,14 @@ fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
     }
 }
 
-/// Submit one job per obsid, carrying on past failures.
+/// Submit one job per Obs ID, carrying on past failures.
 ///
-/// A bad obsid in a list used to abort the whole run on the first error,
-/// hiding whatever came after it. Each failure is reported as it happens,
+/// One bad Obs ID does not stop the run. Each failure is reported as it happens,
 /// the successes still go through, and the run ends with a summary. An
 /// error is returned when anything failed, so the exit code still signals
-/// it, but only after every obsid has been attempted. The error only counts
+/// it, but only after every Obs ID has been attempted. The error only counts
 /// the failures, because each one was already reported. With `json`, each
-/// failure is a [`JsonError`] line with the obsid.
+/// failure is a [`JsonError`] line with the Obs ID.
 fn submit_each_obs_id<F>(
     obs_ids: &[ObsId],
     description: &str,
@@ -224,7 +223,7 @@ where
 
     let submitted = obs_ids.len() - failures;
     info!(
-        "Submitted {} of {} obsids for {}.",
+        "Submitted {} of {} Obs IDs for {}.",
         submitted,
         obs_ids.len(),
         description
@@ -242,29 +241,29 @@ where
     .into())
 }
 
-/// Report the error `e` of the obsid `obs_id`: a [`JsonError`] line with
+/// Report the error `e` of the Obs ID `obs_id`: a [`JsonError`] line with
 /// `json`, a log record without.
 fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(), anyhow::Error> {
     if json {
         print_json_line(&JsonError::new(e).with_obs_id(obs_id), true)
     } else {
-        error!("Obsid {}: {}", obs_id, e);
+        error!("Obs ID {}: {}", obs_id, e);
         Ok(())
     }
 }
 
-/// The message of `submit-image` for a job ID: this command takes obsids
+/// The message of `submit-image` for a Job ID: this command takes Obs IDs
 /// only, and `submit-image-from-job` is the command for a conversion job.
-const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts obsids; to image an existing conversion job, use submit-image-from-job instead.";
+const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts Obs IDs; to image an existing conversion job, use submit-image-from-job instead.";
 
-/// The message of `submit-image-from-job` for a job ID among its arguments.
+/// The message of `submit-image-from-job` for a Job ID among its arguments.
 /// The command takes a conversion job, but as `--source-job-id`.
 const IMAGE_FROM_JOB_JOB_IDS_MESSAGE: &str =
-    "The arguments must be obsids, not job IDs. Give the conversion job with --source-job-id.";
+    "The arguments must be Obs IDs, not Job IDs. Give the conversion job with --source-job-id.";
 
-/// Parse the obsids of a submit command with the library's
+/// Parse the Obs IDs of a submit command with the library's
 /// [`parse_obs_ids_only`]. `job_ids_message` is the command's own text for
-/// the error of a job ID, or `None` for the library's text.
+/// the error of a Job ID, or `None` for the library's text.
 fn obs_ids_only(
     strings: &[String],
     job_ids_message: Option<&str>,
@@ -280,7 +279,7 @@ fn obs_ids_only(
 /// Print a result as one line of JSON, for `--json`: the MWA ASVO's reply to
 /// a submission or a cancellation, or the report of a download.
 ///
-/// One compact object per job, in order, so a caller can read the job IDs
+/// One compact object per job, in order, so a caller can read the Job IDs
 /// back without parsing log text.
 fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyhow::Error> {
     if json {
@@ -292,7 +291,7 @@ fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyho
 /// Report what a submission would have sent, for `--dry-run`.
 ///
 /// Every submit command prints the same thing: the endpoint the request
-/// would go to, and the resolved JSON body for each obsid. The body is
+/// would go to, and the resolved JSON body for each Obs ID. The body is
 /// built exactly as a real submission builds it, so a dry run exercises
 /// the argument-to-request mapping rather than just echoing arguments.
 /// With `json`, each is a [`DryRunSubmission`] line.
@@ -320,7 +319,7 @@ where
             continue;
         }
         info!(
-            "[dry run] Would POST {} for obsid {}:\n{}",
+            "[dry run] Would POST {} for Obs ID {}:\n{}",
             endpoint,
             o,
             serde_json::to_string_pretty(&params)?
@@ -328,7 +327,7 @@ where
     }
 
     info!(
-        "[dry run] Would have submitted {} obsids to {}. Nothing was sent.",
+        "[dry run] Would have submitted {} Obs IDs to {}. Nothing was sent.",
         obs_ids.len(),
         endpoint
     );
@@ -404,7 +403,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
             .iter()
             .filter_map(|id| jobs.0.iter().find(|j| j.job_id() == *id))
         {
-            let log_prefix = format!("Job ID {} (obsid: {}):", job.job_id(), job.obs_id());
+            let log_prefix = format!("Job ID {} (Obs ID: {}):", job.job_id(), job.obs_id());
             match last_state.insert(job.job_id(), job.job_state) {
                 Some(last_state) if last_state != job.job_state => {
                     info!("{} is {}", log_prefix, job.job_state);
@@ -483,7 +482,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             ..
         } => {
             if job_ids_or_obs_ids.is_empty() {
-                return Err(ArgumentError("No jobs or obsids specified!".to_string()).into());
+                return Err(ArgumentError("No Job IDs or Obs IDs specified.".to_string()).into());
             }
 
             // Validate the download directory
@@ -519,13 +518,13 @@ fn run(args: Args) -> anyhow::Result<()> {
             } = DownloadSettings::from_env()?;
             if dry_run {
                 if !job_ids.is_empty() {
-                    debug!("Parsed job IDs: {:#?}", job_ids);
+                    debug!("Parsed Job IDs: {:#?}", job_ids);
                 }
                 if !obs_ids.is_empty() {
-                    debug!("Parsed obsids: {:#?}", obs_ids);
+                    debug!("Parsed Obs IDs: {:#?}", obs_ids);
                 }
                 info!(
-                    "Parsed {} jobids and {} obsids for download. keep_tar={:?}, hash={:?}",
+                    "Parsed {} Job IDs and {} Obs IDs for download. keep_tar={:?}, hash={:?}",
                     job_ids.len(),
                     obs_ids.len(),
                     keep_tar,
@@ -550,8 +549,6 @@ fn run(args: Args) -> anyhow::Result<()> {
                     }
                 }
             } else {
-                // Each download will report an error if there is one, so no need to do anything with
-                // the results (I think)
                 let t: usize = job_ids.len() + obs_ids.len();
 
                 let mut job_ids_results: Vec<anyhow::Result<AsvoJob>> = job_ids
@@ -570,7 +567,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             download_count: t,
                             buffer_size,
                             retry_duration,
-                            // Ctrl-C ends the CLI process, as before.
+                            // Ctrl-C ends the CLI process.
                             should_stop: None,
                         };
                         run_job_id_download(*j, &opts)
@@ -593,7 +590,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             download_count: t,
                             buffer_size,
                             retry_duration,
-                            // Ctrl-C ends the CLI process, as before.
+                            // Ctrl-C ends the CLI process.
                             should_stop: None,
                         };
                         run_obs_id_download(*o, &opts)
@@ -663,7 +660,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         let resp = client.submit_download_vis_job(&params)?;
                         print_json_line(&resp, json)?;
                         let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                         job_ids.push(job_id);
                         Ok(())
                     });
@@ -703,7 +700,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     let resp = client.submit_conversion_job(&params)?;
                     print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                     job_ids.push(job_id);
                     Ok(())
                 });
@@ -741,16 +738,13 @@ fn run(args: Args) -> anyhow::Result<()> {
                     let resp = client.submit_imaging_job(&params)?;
                     print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                     job_ids.push(job_id);
                     Ok(())
                 });
 
                 if wait {
-                    // Endlessly loop over the newly-supplied job IDs until
-                    // they're all ready. Reuses the v2 client's own
-                    // get_jobs, so this polls the same v2 API we just
-                    // submitted to.
+                    // Poll the job list until the new jobs are all ready.
                     wait_loop(&client, &job_ids)?;
                 }
 
@@ -801,7 +795,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 };
                 print_json_line(&resp, json)?;
                 let job_id = resp.job_id;
-                info!("Submitted {} as MWA ASVO image-from-job ID {}", o, job_id);
+                info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
 
                 if wait {
                     wait_loop(&client, &[job_id])?;
@@ -836,7 +830,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     let resp = client.submit_download_meta_job(&params)?;
                     print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                     job_ids.push(job_id);
                     Ok(())
                 });
@@ -876,7 +870,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     let resp = client.submit_voltage_job(&params)?;
                     print_json_line(&resp, json)?;
                     let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                     job_ids.push(job_id);
                     Ok(())
                 });
@@ -917,7 +911,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         let resp = client.submit_beamformer_job(&params)?;
                         print_json_line(&resp, json)?;
                         let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO job ID {}", o, job_id);
+                        info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
                         job_ids.push(job_id);
                         Ok(())
                     });
@@ -978,7 +972,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     print_json_line(&line, json)?;
                 }
                 info!(
-                    "[dry run] Would have cancelled {} jobids. Nothing was sent.",
+                    "[dry run] Would have cancelled {} Job IDs. Nothing was sent.",
                     parsed_job_ids.len()
                 );
             } else {
@@ -996,7 +990,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             print_json_line(&resp, json)?;
                         }
                         Err(e) => {
-                            error!("Failed to cancel MWA ASVO job ID {}: {}", j, e);
+                            error!("Failed to cancel MWA ASVO Job ID {}: {}", j, e);
                             print_json_line(
                                 &JsonError::new(&anyhow::Error::from(e)).with_job_id(j),
                                 json,
@@ -1137,4 +1131,4 @@ impl Args {
 
 /// The exit code of a command that failed. (clap's code for a bad argument
 /// is 2.)
-pub const EXIT_CODE_FAILED: i32 = 1;
+const EXIT_CODE_FAILED: i32 = 1;

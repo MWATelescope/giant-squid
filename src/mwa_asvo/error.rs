@@ -3,21 +3,24 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Errors when interfacing with the MWA ASVO.
+
 use thiserror::Error;
 
 use super::{AsvoApiError, AsvoJobId, JobState};
 use crate::obs_id::ObsId;
 
+/// An error of a download or a job check. An API request that fails during
+/// one is [`AsvoError::AsvoApi`].
 #[derive(Error, Debug)]
 pub enum AsvoError {
     /// Tried to download (or check) a job that doesn't exist.
-    #[error("MWA ASVO job ID {0} wasn't found in your list of jobs.")]
+    #[error("MWA ASVO Job ID {0} wasn't found in your list of jobs.")]
     NoAsvoJob(AsvoJobId),
 
     /// A checked job is in an error state. `error_code` is the server's
     /// code for the error, if it gave one; the message shows it as
     /// `(code N)`.
-    #[error("MWA ASVO job ID {job_id} (obsid: {obs_id}) has an error{}: {error}", error_code_suffix(.error_code))]
+    #[error("MWA ASVO Job ID {job_id} (Obs ID: {obs_id}) has an error{}: {error}", error_code_suffix(.error_code))]
     JobFailed {
         job_id: AsvoJobId,
         obs_id: ObsId,
@@ -25,44 +28,42 @@ pub enum AsvoError {
         error_code: Option<i64>,
     },
 
-    /// A job from the API cannot be used: its ID is not a job ID, or its
-    /// `job_params` have no valid obsid.
+    /// A job from the API cannot be used: its ID is not a Job ID, or its
+    /// `job_params` have no valid Obs ID.
     #[error("MWA ASVO job {id} cannot be used: {problem}")]
     InvalidJob { id: i64, problem: String },
 
     /// A checked job has been cancelled.
-    #[error("MWA ASVO job ID {0} has been cancelled.")]
+    #[error("MWA ASVO Job ID {0} has been cancelled.")]
     JobCancelled(AsvoJobId),
 
-    /// Tried to download an obsid that doesn't exist.
-    #[error("Obsid {0} wasn't found in your list of jobs.")]
+    /// Tried to download an Obs ID that doesn't exist.
+    #[error("Obs ID {0} wasn't found in your list of jobs.")]
     NoObsId(ObsId),
 
-    /// Tried to download an obsid where >1 jobs exist but none are ready.
-    #[error("No job for Obsid {0} is ready for download.")]
+    /// Tried to download an Obs ID that has jobs, but none of them is ready.
+    #[error("No job for Obs ID {0} is ready for download.")]
     NoJobReadyForObsId(ObsId),
 
-    /// Tried to download an obsid, but it's associated with multiple jobs.
+    /// Tried to download an Obs ID, but it's associated with multiple jobs.
     #[error(
-        "Obsid {0} is associated with multiple ready jobs; cannot continue due to ambiguity. Try specifying the JobID instead of the ObsId in this case."
+        "Obs ID {0} is associated with multiple ready jobs; cannot continue due to ambiguity. Try specifying the Job ID instead of the Obs ID in this case."
     )]
     TooManyObsIds(ObsId),
 
     /// Tried to download a job that wasn't ready.
-    #[error("MWA ASVO job ID {job_id} isn't ready; current status: {job_state}")]
+    #[error("MWA ASVO Job ID {job_id} isn't ready; current status: {job_state}")]
     NotReady {
         job_id: AsvoJobId,
         job_state: JobState,
     },
 
-    /// Tried to download a job with an empty file product array.
-    #[error(
-        "MWA ASVO job ID {0} doesn't have any files associated with it! This shouldn't happen."
-    )]
+    /// Tried to download a job that has no files.
+    #[error("MWA ASVO Job ID {0} has no files.")]
     NoFiles(AsvoJobId),
 
     /// ASVO SHA1 hash for a file didn't match our hash.
-    #[error("Hash mismatch for MWA ASVO job ID {job_id} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
+    #[error("Hash mismatch for MWA ASVO Job ID {job_id} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
     HashMismatch {
         job_id: AsvoJobId,
         file: String,
@@ -102,12 +103,12 @@ pub enum AsvoError {
     #[error("The download was stopped by the caller.")]
     Interrupted,
 
-    // Error determining url for Acacia job
-    #[error("Could not determine url for job {job_id:?}")]
+    /// A file of an Acacia job has no URL to download it from.
+    #[error("Could not determine the URL for job {job_id}")]
     NoUrl { job_id: AsvoJobId },
 
-    // Error determining path for Astro job
-    #[error("Could not determine path for job {job_id:?}")]
+    /// A file of a Scratch job has no path.
+    #[error("Could not determine the path for job {job_id}")]
     NoPath { job_id: AsvoJobId },
 
     /// The file to download to is a symbolic link. The download would write
@@ -115,12 +116,12 @@ pub enum AsvoError {
     #[error("{path:?} is a symbolic link; giant-squid does not download through one. Remove it, or use another download directory.")]
     SymlinkInDownloadDir { path: std::path::PathBuf },
 
-    // HTTP error code when downloading
+    /// The server answered a file download with an HTTP error.
     #[error("HTTP error {status} downloading file: {message}")]
     HttpError { status: u16, message: String },
 
-    // HTTP 404 error code when downloading
-    #[error("The file for job {job_id:?} you are trying to download no longer exists. It may have expired or been removed. Please contact support if think this is in error")]
+    /// The file to download is not on the server (HTTP 404).
+    #[error("The file for job {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
     Http404Error { job_id: AsvoJobId },
 }
 
