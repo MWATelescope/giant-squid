@@ -16,10 +16,19 @@ use thiserror::Error;
 pub struct ObsId(u64);
 
 impl ObsId {
-    /// Given a [u64], return it as an MWA [`ObsId`] if it is valid.
+    /// The smallest valid Obs ID: the smallest 10-digit number.
+    ///
+    /// The MWA ASVO schema's `obs_id` minimum is lower (888888889). A test
+    /// checks that the schema's minimum is not above this one.
+    pub const MIN: u64 = 1_000_000_000;
+
+    /// The largest valid Obs ID: the largest 10-digit number.
+    pub const MAX: u64 = 9_999_999_999;
+
+    /// Given a [u64], return it as an MWA [`ObsId`] if it is valid: if it has
+    /// 10 digits ([`ObsId::MIN`] to [`ObsId::MAX`]).
     pub fn validate(o: u64) -> Result<ObsId, ObsIdError> {
-        // Valid obsids are between 1e9 and 1e10.
-        if o >= 1e9 as u64 && o < 1e10 as u64 {
+        if (Self::MIN..=Self::MAX).contains(&o) {
             Ok(ObsId(o))
         } else {
             Err(ObsIdError::WrongNumDigits(o))

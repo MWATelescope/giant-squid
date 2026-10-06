@@ -584,7 +584,6 @@ OUT_OF_RANGE = [
     ("submit_imaging_job", {"pixel_scale": 9.0}, "pixel_scale"),
     ("submit_imaging_job", {"robust": -2.5}, "robust"),
     ("submit_imaging_job", {"clean_iterations": 1_000_001}, "clean_iterations"),
-    ("submit_imaging_job", {"clean_iterations": -1}, "clean_iterations"),
     ("submit_imaging_job", {"abs_threshold": 11.0}, "abs_threshold"),
     ("submit_imaging_job", {"nwlayers": 16}, "nwlayers"),
     ("submit_imaging_job", {"uvw_max": 0.5}, "uvw_max"),

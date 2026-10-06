@@ -71,6 +71,10 @@ A flag that was `key=true` in 2.x is an option with no value in 3.0.0 (for
 example `no_rfi=true` is `--no-rfi`). The imaging options that default to
 true (`--apply-di-cal`, `--apply-primary-beam`, `--join-channels`) take an
 optional value, so you can turn them off with `--apply-primary-beam=false`.
+`--apply-di-cal` of `submit-conv` takes the same optional value (its default is
+false). The aliases `--phase-centre-ra`, `--phase-centre-dec`, `--custom-ra`,
+`--custom-dec` and `--phase-center` work on both `submit-conv` and
+`submit-image`.
 
 ## Conversion jobs (`submit-conv`)
 

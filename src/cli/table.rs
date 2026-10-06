@@ -6,86 +6,110 @@
 //!
 //! The library prints nothing, so the table lives in the CLI.
 
-use prettytable::{row, Cell, Row, Table};
+use comfy_table::presets::ASCII_FULL_CONDENSED;
+use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 
-use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobState, JobType};
+use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobFile, JobState, JobType};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";
 
+/// The look of the job table: ASCII borders, `=` under the header, and no
+/// lines between the rows.
+const JOB_TABLE_STYLE: TableStyle =
+    ASCII_FULL_CONDENSED.header_separator(LineStyle::new('+', '=', '+', '+'));
+
+/// The column titles of the job table.
+const JOB_TABLE_HEADER: [&str; 7] = [
+    "Job ID",
+    "Obs ID",
+    "Job Type",
+    "Job State",
+    "File Size",
+    "Delivery",
+    "Completed",
+];
+
+/// The files of `job`: none if it has no product.
+pub(super) fn job_files(job: &AsvoJob) -> &[JobFile] {
+    job.product
+        .as_ref()
+        .map(|p| p.files.as_slice())
+        .unwrap_or_default()
+}
+
+/// The total size of the files of `job`, for a person to read (for example
+/// `117.7 MiB`).
+pub(super) fn job_size_text(job: &AsvoJob) -> String {
+    let bytes: u64 = job_files(job).iter().map(JobFile::size_bytes).sum();
+    bytesize::ByteSize(bytes).display().iec().to_string()
+}
+
 /// Print `jobs` to stdout as a table, or a short message if there are none.
-/// If `no_colour` is true then don't colour the output.
+/// If `no_colour` is true then don't colour the output. The table is
+/// coloured only on a terminal.
 pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
     if jobs.0.is_empty() {
         println!("You have no jobs.");
-    } else {
-        let mut table = Table::new();
-        table.set_format(*prettytable::format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
+        return;
+    }
+    let mut table = Table::new();
+    table.load_style(JOB_TABLE_STYLE);
+    if no_colour {
+        // Without a terminal, the table has no colours and no bold.
+        table.force_no_tty();
+    }
+    table.set_header(
+        JOB_TABLE_HEADER
+            .iter()
+            .map(|title| Cell::new(title).add_attribute(Attribute::Bold)),
+    );
 
-        table.set_titles(row![
-            b => "Job ID",
-            "Obs ID",
-            "Job Type",
-            "Job State",
-            "File Size",
-            "Delivery",
-            "Completed"
-        ]);
+    for j in jobs.0 {
+        // No size for a job with no product.
+        let size = j.product.as_ref().map(|_| job_size_text(&j));
+        // The first file's delivery type. An empty file list (possible for a
+        // job built by a program) shows nothing.
+        let delivery = job_files(&j).first().map(|f| f.type_.to_string());
+        let completed = j
+            .completed
+            .map(|dt| dt.strftime(COMPLETED_FORMAT).to_string());
+        table.add_row(Row::from(vec![
+            Cell::new(j.job_id()),
+            Cell::new(j.obs_id()),
+            coloured(
+                Cell::new(j.job_type.map(|t| t.name()).unwrap_or_default()),
+                job_type_colour(j.job_type),
+            ),
+            coloured(
+                Cell::new(job_state_text(&j)),
+                Some(job_state_colour(j.job_state)),
+            ),
+            Cell::new(size.unwrap_or_default()),
+            Cell::new(delivery.unwrap_or_default()),
+            Cell::new(completed.unwrap_or_default()),
+        ]));
+    }
 
-        for j in jobs.0 {
-            table.add_row(Row::new(vec![
-                Cell::new(j.job_id().to_string().as_str()),
-                Cell::new(j.obs_id().to_string().as_str()),
-                Cell::new(j.job_type.map(|t| t.name()).unwrap_or_default())
-                    .style_spec(&job_type_table_style(j.job_type, no_colour)),
-                Cell::new(job_state_text(&j).as_str())
-                    .style_spec(&job_state_table_style(j.job_state, no_colour)),
-                Cell::new(
-                    match &j.product {
-                        None => "".to_string(),
-                        Some(p) => {
-                            let size: u64 = p.files.iter().map(|f| f.size_bytes()).sum();
-                            bytesize::ByteSize(size).display().iec().to_string()
-                        }
-                    }
-                    .as_str(),
-                ),
-                Cell::new(
-                    // The first file's delivery type. An empty file list
-                    // (possible for a job built by a program) shows nothing.
-                    j.product
-                        .as_ref()
-                        .and_then(|p| p.files.first())
-                        .map(|f| f.type_.to_string())
-                        .unwrap_or_default()
-                        .as_str(),
-                ),
-                Cell::new(
-                    j.completed
-                        .map(|dt| dt.strftime(COMPLETED_FORMAT).to_string())
-                        .unwrap_or_default()
-                        .as_str(),
-                ),
-            ]));
-        }
+    println!("{table}");
+}
 
-        table.printstd();
+/// `cell` in the colour `colour`, if it has one.
+fn coloured(cell: Cell, colour: Option<Color>) -> Cell {
+    match colour {
+        Some(colour) => cell.fg(colour),
+        None => cell,
     }
 }
 
-/// The prettytable style spec for a job type cell. A job with no type has
-/// no style.
-fn job_type_table_style(job_type: Option<JobType>, no_colour: bool) -> String {
-    match job_type {
-        Some(job_type) if !no_colour => match job_type.name() {
-            "metadata" => "Fy",
-            "voltage" => "Fm",
-            "cancel" => "Fr",
-            _ => "Fb",
-        }
-        .to_string(),
-        _ => "".to_string(),
-    }
+/// The colour of a job type cell. A job with no type has no colour.
+fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
+    job_type.map(|job_type| match job_type.name() {
+        "metadata" => Color::DarkYellow,
+        "voltage" => Color::DarkMagenta,
+        "cancel" => Color::DarkRed,
+        _ => Color::DarkBlue,
+    })
 }
 
 /// The text of a job state cell: the schema's value (for example
@@ -97,25 +121,19 @@ fn job_state_text(job: &AsvoJob) -> String {
     }
 }
 
-/// The prettytable style spec for a job state cell.
-fn job_state_table_style(job_state: JobState, no_colour: bool) -> String {
-    if no_colour {
-        "".to_string()
-    } else {
-        match job_state {
-            JobState::Queued => "FW",
-            JobState::Waitcal => "Fm",
-            JobState::Staging => "Fm",
-            JobState::Staged => "Fm",
-            JobState::Preparing => "Fm",
-            JobState::Downloading => "Fm",
-            JobState::Preprocessing => "Fm",
-            JobState::Imaging => "Fm",
-            JobState::Delivering => "Fm",
-            JobState::Completed => "Fg",
-            JobState::Error => "Fr",
-            JobState::Cancelled => "Fr",
-        }
-        .to_string()
+/// The colour of a job state cell.
+fn job_state_colour(job_state: JobState) -> Color {
+    match job_state {
+        JobState::Queued => Color::White,
+        JobState::Waitcal
+        | JobState::Staging
+        | JobState::Staged
+        | JobState::Preparing
+        | JobState::Downloading
+        | JobState::Preprocessing
+        | JobState::Imaging
+        | JobState::Delivering => Color::DarkMagenta,
+        JobState::Completed => Color::DarkGreen,
+        JobState::Error | JobState::Cancelled => Color::DarkRed,
     }
 }

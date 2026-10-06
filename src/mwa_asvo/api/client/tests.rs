@@ -1734,3 +1734,33 @@ fn list_jobs_refuses_job_ids_and_obs_ids_together() {
     assert!(err.to_string().contains("can't specify both"), "{err}");
     assert_eq!(listing.calls(), 0);
 }
+
+/// The filter's own state and type are sent as given; a single entry of a
+/// list is sent only when the filter has none.
+#[test]
+fn a_query_sends_the_filters_state_and_type_before_a_single_list_entry() {
+    let one_of_each = JobQuery {
+        job_states: vec![JobState::Queued],
+        job_types: vec![job_type("conversion")],
+        ..JobQuery::default()
+    };
+    let server = one_of_each.server_filter();
+    assert_eq!(server.job_state, Some(JobState::Queued));
+    assert_eq!(server.job_type, Some(job_type("conversion")));
+
+    let own = JobQuery {
+        job_states: vec![JobState::Queued],
+        filter: JobsFilter {
+            job_state: Some(JobState::Completed),
+            ..JobsFilter::default()
+        },
+        ..JobQuery::default()
+    };
+    assert_eq!(own.server_filter().job_state, Some(JobState::Completed));
+
+    let several = JobQuery {
+        job_states: vec![JobState::Queued, JobState::Completed],
+        ..JobQuery::default()
+    };
+    assert_eq!(several.server_filter().job_state, None);
+}

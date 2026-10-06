@@ -285,14 +285,25 @@ pub fn check_file_sha1_hash(
     let file = fs::File::open(filename)?;
     let mut hasher = Sha1::new();
     hash_reader(file, &mut hasher)?;
-    let hash = to_hex(&hasher.finalize());
+    check_sha1_hash(hasher, expected_hash, job_id, filename)
+}
 
+/// Finish `hasher`, and return `Ok` if its hash is `expected_hash` (in
+/// either case), or else [`AsvoError::HashMismatch`] for the file `file`.
+pub(crate) fn check_sha1_hash(
+    hasher: Sha1,
+    expected_hash: &str,
+    job_id: AsvoJobId,
+    file: &Path,
+) -> Result<(), AsvoError> {
+    let hash = to_hex(&hasher.finalize());
+    log::debug!("Calculated SHA-1 of {}: {hash}", file.display());
     if hash.eq_ignore_ascii_case(expected_hash) {
         Ok(())
     } else {
         Err(AsvoError::HashMismatch {
             job_id,
-            file: filename.display().to_string(),
+            file: file.display().to_string(),
             calculated_hash: hash,
             expected_hash: expected_hash.to_string(),
         })

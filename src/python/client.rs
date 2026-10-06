@@ -184,7 +184,7 @@ impl PyAsvoClient {
         let obs_ids = obs_ids
             .unwrap_or_default()
             .into_iter()
-            .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
+            .map(job_obs_id)
             .collect::<PyResult<Vec<ObsId>>>()?;
         let days = days
             .map(validate::days)
@@ -207,10 +207,13 @@ impl PyAsvoClient {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            days,
-            date_from,
-            date_to,
-            sort_by,
+            filter: JobsFilter {
+                days,
+                date_from,
+                date_to,
+                sort_by,
+                ..JobsFilter::default()
+            },
         };
         py.detach(|| self.inner.list_jobs(&query))
             .map(PyAsvoJobVec::from)

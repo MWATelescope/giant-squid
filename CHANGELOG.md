@@ -14,12 +14,24 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
+  `--download-dir`), as for an Acacia job. Before, they went to the current directory.
 * `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
   (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
   reported success.
 * A failed login or token refresh whose reply is an MWA ASVO `ErrorResponse` is still
   `AsvoApiError::AuthenticationFailed`, now with the server's fields (`error_code`, `detail`, `suggestion`,
   `field_errors`, `request_id`; also in Python), so the message shows the detail and the suggestion.
+* `--clean-iterations` (and `clean_iterations` in the library and in Python) has only the schema's maximum. The
+  minimum of 0 that giant-squid added is gone: the schema has none, so the API decides.
+* `submit-conv` and `submit-image` share their preprocessing options, and both imaging commands share their WSClean
+  options; each command keeps the schema defaults of its own job type. So `submit-conv --apply-di-cal` also takes
+  `=true` or `=false` (as `submit-image` does), the aliases `--phase-centre-ra`/`--phase-centre-dec`,
+  `--custom-ra`/`--custom-dec` and `--phase-center` work on both commands, and the `submit-image --help` lists the
+  preprocessing options together.
+* The job table of `list` and `wait` is drawn with `comfy-table` (was `prettytable-rs`, whose `term` dependency is
+  unmaintained). The layout and the colours are the same.
+* Library: `ObsId::MIN` and `ObsId::MAX`, the range of a valid Obs ID.
 * `AsvoError::HashMismatch` names the downloaded file by its path in the download directory, not by its download URL,
   which is a signed URL.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
@@ -107,8 +119,9 @@ before you upgrade scripts.**
   unless the key was read from the environment (`No MWA ASVO API key was given: set the MWA_ASVO_API_KEY environment
   variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with
   `AsvoApiError::Reqwest`, as for every other request (in Python, `AsvoApiError` of kind `Reqwest`).
-* Library: `JobsFilter::days` and `JobQuery::days` are `Option<NonZeroU64>`, the schema's type (were `Option<i64>`);
-  a value above 30 is still refused before any request. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
+* Library: `JobsFilter::days` is `Option<NonZeroU64>`, the schema's type (was `Option<i64>`); a value above 30 is
+  still refused before any request. `JobQuery` holds a `JobsFilter` (`filter`) for the server-side filters, in place
+  of its own `days`, `date_from`, `date_to` and `sort_by`. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
 * Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In
   Python it is the new class `JobCancelledResponse`, and the `status` of both reply classes is the new enum `Status`
   (`Status.Success` or `Status.Failed`; `str()` is the API value), not a `str`.
@@ -168,6 +181,8 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
+* `download` of Job IDs and Obs IDs together numbers the downloads from 1 to the total (`[3/4]`). Before, the Obs ID
+  downloads started again from 1.
 * `download` logs in once for all its downloads. Before, each download logged in on its own, and a long list could
   hit the server's limit on logins.
 * `download` no longer panics on a job file with no SHA-1 hash (`AsvoError::NoHash`, `NO_HASH`), or on a download URL
@@ -226,7 +241,11 @@ before you upgrade scripts.**
   package on Linux and macOS, and attaches the wheels to releases.
 * The crates.io package does not include the files that only the Python package uses.
 * Unused dependencies removed: `bytes`, `litemap`, `zerofrom`, `time`, `time-core`, `reqwest-retry`,
-  `task-local-extensions`, and the dev-dependency `rand`.
+  `task-local-extensions`, `reqwest_cookie_store`, and the dev-dependency `rand`. The API client keeps no cookie
+  jar: it sends the session token in its own `Cookie` header.
+* The unmaintained `backoff` crate (RUSTSEC-2025-0012, and `instant`, RUSTSEC-2024-0384) is replaced by a small
+  exponential backoff with jitter in the download code. The waits are as before: from 0.5 s, growing by 1.5 times,
+  at most 60 s, each moved by up to half of itself at random.
 
 # 2.5.1 - 2026-05-29
 

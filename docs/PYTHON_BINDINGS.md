@@ -158,6 +158,11 @@ Not yet raised:
 - `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types
   have `first_name`/`last_name`.
 - What do the `error_code` values mean? They are undocumented.
+- The `obs_id` minimum of the job bodies is 888888889, but an Obs ID has 10
+  digits (giant-squid's `ObsId::MIN` is 1000000000). Should the schema
+  minimum be 1000000000?
+- `clean_iterations` has a maximum (1000000) but no minimum. giant-squid no
+  longer adds a minimum of its own, so a negative value goes to the API.
 - Queued jobs have `started` set a few milliseconds after `created`, but the
   field is documented as "when the job began processing".
 - The `job_params` of a listed conversion job has `flags: []`, which is not

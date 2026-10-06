@@ -25,7 +25,6 @@ use log::{debug, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
-use crate::built_info;
 use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
 use crate::mwa_asvo::{
@@ -53,6 +52,9 @@ const PLAIN_HTTP_SCHEME: &str = "http://";
 
 /// User-agent string sent on every request to the MWA ASVO.
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
+/// The client version that the login sends: the MWA ASVO requires it.
+const CLIENT_VERSION: &str = concat!("giant-squidv", env!("CARGO_PKG_VERSION"));
 
 /// Error codes the MWA ASVO returns when our access token is missing or
 /// rejected. These are recoverable: logging in again gets us a new token.
@@ -159,7 +161,6 @@ pub struct AsvoClient {
     /// demand (i.e. when the current token is rejected), and so that every
     /// request uses the same host.
     config: AsvoClientConfig,
-    client_version: String,
 }
 
 /// A minimal view of an HTTP response - the pieces callers need once the
@@ -265,10 +266,6 @@ impl AsvoClient {
             return Err(AsvoApiError::MissingAuthKey { variable: None });
         }
 
-        // Interfacing with the ASVO server requires specifying the client
-        // version.
-        let client_version = format!("giant-squidv{}", built_info::PKG_VERSION);
-
         // If we are using a non-default MWA ASVO host, then upgrade this
         // debug message to a warn message.
         if config.host == DEFAULT_ASVO_HOST {
@@ -285,12 +282,12 @@ impl AsvoClient {
         // Figure out which access token we're going to use: a cached one
         // (as-is, or refreshed), or a fresh login. Whichever path we take,
         // we end up with a valid `StoredTokens` to authenticate with.
-        let tokens = Self::get_valid_tokens(&config, &client_version)?;
+        let tokens = Self::get_valid_tokens(&config)?;
 
         // Build the "real" client, with the access token attached as a
         // default header on every request. If the server later rejects this
         // token, `send_authed` re-logs-in and swaps in a new client, which
-        // is why we hold on to the config and client_version below.
+        // is why we hold on to the config below.
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
 
         Ok(AsvoClient {
@@ -300,7 +297,6 @@ impl AsvoClient {
             }),
             login_lock: Mutex::new(()),
             config,
-            client_version,
         })
     }
 
@@ -308,9 +304,9 @@ impl AsvoClient {
     /// `mwa_access_token` cookie on every request. Factored out of `new` so
     /// `reauthenticate` can rebuild the client with a freshly-minted token.
     ///
-    /// The token is attached explicitly (rather than relying on the cookie
-    /// jar alone) so a session loaded from the cache behaves identically to
-    /// one from a fresh login.
+    /// The client keeps no cookie jar: the token is attached explicitly, so
+    /// a session loaded from the cache behaves the same as one from a fresh
+    /// login.
     fn build_authed_client(
         config: &AsvoClientConfig,
         access_token: &str,
@@ -327,7 +323,6 @@ impl AsvoClient {
         );
 
         Ok(ClientBuilder::new()
-            .cookie_store(true)
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
@@ -337,7 +332,7 @@ impl AsvoClient {
     }
 
     /// Build the short-lived [Client] used purely for login/refresh calls
-    /// (it needs neither the cookie jar nor default auth headers).
+    /// (it needs no default auth headers).
     fn build_auth_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
         Ok(ClientBuilder::new()
             .connection_verbose(true)
@@ -397,12 +392,9 @@ impl AsvoClient {
     /// login. With a token cache path in `config`, successful refreshes and
     /// logins are cached to disk for next time (best-effort; failure to
     /// cache is not fatal).
-    fn get_valid_tokens(
-        config: &AsvoClientConfig,
-        client_version: &str,
-    ) -> Result<StoredTokens, AsvoApiError> {
+    fn get_valid_tokens(config: &AsvoClientConfig) -> Result<StoredTokens, AsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
-        // itself (it doesn't need the cookie jar or auth headers).
+        // itself (it doesn't need the auth headers).
         let auth_client = Self::build_auth_client(config)?;
 
         let cached = config
@@ -437,7 +429,7 @@ impl AsvoClient {
         }
 
         debug!("Performing fresh MWA ASVO login");
-        let fresh = Self::login(&auth_client, config, client_version)?;
+        let fresh = Self::login(&auth_client, config)?;
         Self::cache_tokens(config, &fresh);
         Ok(fresh)
     }
@@ -456,9 +448,8 @@ impl AsvoClient {
     fn login(
         auth_client: &Client,
         config: &AsvoClientConfig,
-        client_version: &str,
     ) -> Result<StoredTokens, AsvoApiError> {
-        let login: Login = client_version.try_into()?;
+        let login: Login = CLIENT_VERSION.try_into()?;
 
         let response = execute_logged(
             auth_client,
@@ -535,7 +526,7 @@ impl AsvoClient {
 
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
         let auth_client = Self::build_auth_client(&self.config)?;
-        let fresh = Self::login(&auth_client, &self.config, &self.client_version)?;
+        let fresh = Self::login(&auth_client, &self.config)?;
         Self::cache_tokens(&self.config, &fresh);
         let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
 
@@ -804,14 +795,7 @@ impl AsvoClient {
         validate_imaging_params(params)?;
         debug!("Submitting an imaging job to MWA ASVO");
 
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_IMAGING_JOB))
-                .json(params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit(ENDPOINT_IMAGING_JOB, params)
     }
 
     /// Submit an MWA ASVO imaging job (flow 2: from a conversion job).
@@ -827,14 +811,7 @@ impl AsvoClient {
         validate_image_from_job_params(params)?;
         debug!("Submitting an image-from-job job to MWA ASVO");
 
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_IMAGE_FROM_JOB))
-                .json(params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit(ENDPOINT_IMAGE_FROM_JOB, params)
     }
 
     /// Submit a visibility download job. Any `download_type` in `params` is
@@ -868,14 +845,7 @@ impl AsvoClient {
         let mut params = params.clone();
         params.download_type = download_type;
 
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_DOWNLOAD_VIS_JOB))
-                .json(&params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit(ENDPOINT_DOWNLOAD_VIS_JOB, &params)
     }
 
     /// Submit an MWA ASVO conversion job.
@@ -890,14 +860,7 @@ impl AsvoClient {
         validate_conversion_params(params)?;
         debug!("Submitting a conversion job to MWA ASVO");
 
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_CONVERSION_JOB))
-                .json(params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit(ENDPOINT_CONVERSION_JOB, params)
     }
 
     /// Submit an MWA ASVO voltage download job.
@@ -912,14 +875,7 @@ impl AsvoClient {
         validate_voltage_params(params)?;
         debug!("Submitting a voltage job to MWA ASVO");
 
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, ENDPOINT_VOLTAGE_JOB))
-                .json(params)
-        })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        self.submit(ENDPOINT_VOLTAGE_JOB, params)
     }
 
     /// Submit an MWA ASVO beamformer download job.
@@ -932,14 +888,23 @@ impl AsvoClient {
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         debug!("Submitting a beamformer job to MWA ASVO");
 
+        self.submit(ENDPOINT_BEAMFORMER_JOB, params)
+    }
+
+    /// POST the job submission `params` to `endpoint`, and parse the reply.
+    /// Every submit endpoint takes a JSON body and replies with a
+    /// `JobSubmittedResponse`.
+    fn submit(
+        &self,
+        endpoint: &str,
+        params: &impl serde::Serialize,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
         let body = self.send_authed(|client| {
             client
-                .post(format!("{}{}", self.config.host, ENDPOINT_BEAMFORMER_JOB))
+                .post(format!("{}{}", self.config.host, endpoint))
                 .json(params)
         })?;
-
-        let resp: JobSubmittedResponse = serde_json::from_str(&body)?;
-        Ok(resp)
+        Ok(serde_json::from_str(&body)?)
     }
 
     /// Cancel a job. The reply is the schema's `JobCancelledResponse`.
@@ -1058,6 +1023,10 @@ pub struct JobsFilter {
 /// types or states), which [`AsvoClient::list_jobs`] applies to the result.
 /// An empty list does not filter.
 ///
+/// `filter.job_state` and `filter.job_type` are sent as given. When one is
+/// `None` and its list (`job_states`, `job_types`) has exactly one entry,
+/// that entry is sent instead, so that less comes back.
+///
 /// This is what `giant-squid list` and `wait` do, so a program (or a Python
 /// CLI) does not need to repeat it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1070,15 +1039,9 @@ pub struct JobQuery {
     pub job_types: Vec<JobType>,
     /// Only the jobs in these states.
     pub job_states: Vec<JobState>,
-    /// Only the jobs from the past `days` days, from 1 to 30
-    /// ([`validate::DAYS`]).
-    pub days: Option<NonZeroU64>,
-    /// Only the jobs created at or after this time.
-    pub date_from: Option<Timestamp>,
-    /// Only the jobs created at or before this time.
-    pub date_to: Option<Timestamp>,
-    /// The column to sort the jobs by, for example `id`.
-    pub sort_by: Option<String>,
+    /// The server-side filters: `days`, the dates, the sort order, and
+    /// one state and one type.
+    pub filter: JobsFilter,
 }
 
 impl JobQuery {
@@ -1095,29 +1058,24 @@ impl JobQuery {
                 message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
             });
         }
-        if let Some(days) = self.days {
+        if let Some(days) = self.filter.days {
             validate::check_days(days)?;
         }
         Ok(())
     }
 
-    /// The server-side part of the query. A single state or a single type is
-    /// sent to the server, so that less comes back; the list filters are applied to the result in any case.
+    /// The server-side part of the query: [`JobQuery::filter`], with a
+    /// single state or a single type of the lists when the filter has none.
+    /// The list filters are applied to the result in any case.
     fn server_filter(&self) -> JobsFilter {
-        JobsFilter {
-            days: self.days,
-            job_state: match self.job_states.as_slice() {
-                [state] => Some(*state),
-                _ => None,
-            },
-            job_type: match self.job_types.as_slice() {
-                [job_type] => Some(*job_type),
-                _ => None,
-            },
-            date_from: self.date_from,
-            date_to: self.date_to,
-            sort_by: self.sort_by.clone(),
+        let mut filter = self.filter.clone();
+        if let (None, [state]) = (filter.job_state, self.job_states.as_slice()) {
+            filter.job_state = Some(*state);
         }
+        if let (None, [job_type]) = (filter.job_type, self.job_types.as_slice()) {
+            filter.job_type = Some(*job_type);
+        }
+        filter
     }
 }
 

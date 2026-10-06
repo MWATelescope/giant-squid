@@ -275,10 +275,10 @@ Options:
           Time resolution to average to (s) [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
           Width of frequency edge flagging (kHz) [default: 80]
-      --apply-di-cal
-          Whether to apply the DI calibration solution
+      --apply-di-cal[=<APPLY_DI_CAL>]
+          Whether to apply the DI calibration solution [default: false] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre mode: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
           Custom phase centre right ascension (degrees). Requires --centre custom
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
@@ -346,7 +346,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
-| `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available) | flag | off |
+| `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available). `--apply-di-cal` alone is `--apply-di-cal=true` | `true` or `false` | false |
 | `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
@@ -377,8 +377,34 @@ Options:
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+      --avg-freq-res <AVG_FREQ_RES>
+          Frequency resolution to average to (kHz) [default: 40]
+      --avg-time-res <AVG_TIME_RES>
+          Time resolution to average to (s) [default: 2]
+      --flag-edge-width <FLAG_EDGE_WIDTH>
+          Width of frequency edge flagging (kHz) [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply the DI calibration solution [default: true] [possible values: true, false]
+      --centre <CENTRE>
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
+      --custom-centre-ra <CUSTOM_CENTRE_RA>
+          Custom phase centre right ascension (degrees). Requires --centre custom
+      --custom-centre-dec <CUSTOM_CENTRE_DEC>
+          Custom phase centre declination (degrees). Requires --centre custom
+      --no-apply-amps
+          Whether to skip applying amplitude calibration solutions
+      --no-digital-gains
+          Whether to skip applying digital gains
+      --no-flag-dc
+          Whether to skip flagging the DC channel
+      --no-geometry-delay
+          Whether to skip applying geometric delay corrections
+      --no-passband-gains
+          Whether to skip applying passband gain corrections
+      --no-cable-delay
+          Whether to skip applying cable delay corrections
+      --no-rfi
+          Whether to skip RFI flagging
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
@@ -387,22 +413,12 @@ Options:
           WSClean -auto-threshold value [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
           Absolute cleaning threshold (Jy) [default: 0.001]
-      --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to before imaging (kHz) [default: 40]
-      --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to before imaging (s) [default: 2]
       --channels-out <CHANNELS_OUT>
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --clean-threshold <CLEAN_THRESHOLD>
           WSClean cleaning threshold (Jy) [default: 0.001]
-      --custom-centre-dec <CUSTOM_CENTRE_DEC>
-          Custom phase centre declination (degrees). Requires --centre custom
-      --custom-centre-ra <CUSTOM_CENTRE_RA>
-          Custom phase centre right ascension (degrees). Requires --centre custom
-      --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz) [default: 80]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -419,8 +435,6 @@ Options:
           Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
           The output mode / product to request [default: fits] [possible values: all_files, all_fits, fits]
-      --centre <CENTRE>
-          Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
       --pixel-scale <PIXEL_SCALE>
           Pixel scale (arcsec/pixel) [default: 20]
       --pol <POL>
@@ -435,20 +449,6 @@ Options:
           WSClean weighting scheme [default: briggs] [possible values: briggs, natural, uniform]
       --wstack-nwlayers <WSTACK_NWLAYERS>
           Number of w-stacking layers. Leave unset to let the server decide
-      --no-apply-amps
-          Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this
-      --no-digital-gains
-          Whether to skip applying digital gains
-      --no-flag-dc
-          Whether to skip flagging the DC channel
-      --no-geometry-delay
-          Whether to skip applying geometric delay corrections
-      --no-passband-gains
-          Whether to skip applying passband gain corrections
-      --no-cable-delay
-          Whether to skip applying cable delay corrections
-      --no-rfi
-          Whether to skip RFI flagging
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
@@ -487,7 +487,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
 | `--channels-out` | Number of output channel groups | any whole number | 4 |
-| `--clean-iterations` | Maximum number of clean iterations to perform | 0 to 1000000 | 100000 |
+| `--clean-iterations` | Maximum number of clean iterations to perform | at most 1000000 | 100000 |
 | `--clean-threshold` | Absolute stopping clean thresholding in Jy | 0 to 10 | 0.001 |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
@@ -1115,7 +1115,7 @@ checked:
 Jobs which were submitted with the /scratch data delivery option behave differently
 than jobs submitted with the other data delivery options. When attempting to download
 a /scratch job, if the path of the job (eg /scratch/mwaops/asvo/12345) is reachable from
-the current host, it will be moved to the current working directory. Otherwise, the
+the current host, it will be moved into the download directory (`-d`, `--download-dir`). Otherwise, the
 download of that job fails with `FILES_NOT_REACHABLE`, and the exit code is not zero.
 
 #### Download performance: Concurrent Downloads

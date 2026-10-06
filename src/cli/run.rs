@@ -30,8 +30,8 @@ use crate::*;
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
-use super::table::print_jobs_table;
-use super::Args;
+use super::table::{job_files, job_size_text, print_jobs_table};
+use super::{Args, SubmitOptions};
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     let pb = multi_progress_bar.add(ProgressBar::new(0));
@@ -77,22 +77,47 @@ fn connect() -> anyhow::Result<AsvoClient> {
 /// log) in their order: 1/2 before 2/2. It is for the display only.
 const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(100);
 
-fn run_job_id_download(
-    client: &AsvoClient,
-    job_id: AsvoJobId,
-    opts: &DownloadOptions,
-) -> anyhow::Result<AsvoJob> {
-    thread::sleep(DOWNLOAD_START_DELAY);
-    Ok(client.download_job(job_id, opts)?)
+/// What one download is for: a Job ID, or an Obs ID.
+#[derive(Clone, Copy)]
+enum DownloadTarget {
+    Job(AsvoJobId),
+    Obs(ObsId),
 }
 
-fn run_obs_id_download(
-    client: &AsvoClient,
-    obs_id: ObsId,
-    opts: &DownloadOptions,
-) -> anyhow::Result<AsvoJob> {
-    thread::sleep(DOWNLOAD_START_DELAY);
-    Ok(client.download_obs(obs_id, opts)?)
+impl DownloadTarget {
+    /// The targets of `job_ids` and then of `obs_ids`, in that order.
+    fn all(job_ids: &[AsvoJobId], obs_ids: &[ObsId]) -> Vec<Self> {
+        job_ids
+            .iter()
+            .map(|j| Self::Job(*j))
+            .chain(obs_ids.iter().map(|o| Self::Obs(*o)))
+            .collect()
+    }
+
+    /// The Job ID that was asked for, if it is one.
+    fn job_id(self) -> Option<AsvoJobId> {
+        match self {
+            Self::Job(job_id) => Some(job_id),
+            Self::Obs(_) => None,
+        }
+    }
+
+    /// The Obs ID that was asked for, if it is one.
+    fn obs_id(self) -> Option<ObsId> {
+        match self {
+            Self::Job(_) => None,
+            Self::Obs(obs_id) => Some(obs_id),
+        }
+    }
+
+    /// Download the target.
+    fn download(self, client: &AsvoClient, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
+        thread::sleep(DOWNLOAD_START_DELAY);
+        Ok(match self {
+            Self::Job(job_id) => client.download_job(job_id, opts)?,
+            Self::Obs(obs_id) => client.download_obs(obs_id, opts)?,
+        })
+    }
 }
 
 /// The result of one successful download, for `download --json`: the keys
@@ -122,21 +147,17 @@ impl DownloadReport {
 /// [`DownloadReport`] of a success, or the [`JsonError`] of a failure, for
 /// the Job ID `job_id` or the Obs ID `obs_id` that was asked for.
 fn print_download_line(
-    job_id: Option<AsvoJobId>,
-    obs_id: Option<ObsId>,
+    target: DownloadTarget,
     result: &anyhow::Result<AsvoJob>,
     download_dir: &str,
 ) -> Result<(), anyhow::Error> {
     match result {
         Ok(job) => print_json_line(&DownloadReport::new(job, download_dir), true),
         Err(e) => {
-            let mut line = JsonError::new(e);
-            if let Some(job_id) = job_id {
-                line = line.with_job_id(job_id);
-            }
-            if let Some(obs_id) = obs_id {
-                line = line.with_obs_id(obs_id);
-            }
+            let line = match target {
+                DownloadTarget::Job(job_id) => JsonError::new(e).with_job_id(job_id),
+                DownloadTarget::Obs(obs_id) => JsonError::new(e).with_obs_id(obs_id),
+            };
             print_json_line(&line, true)
         }
     }
@@ -174,29 +195,17 @@ struct DryRunCancel {
 
 /// What a successful download did, for its JSON report: the size and the
 /// directory of an Acacia download, or the Scratch path that was moved to
-/// the current directory.
+/// the download directory.
 fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
-    let files = job
-        .product
-        .as_ref()
-        .map(|p| p.files.as_slice())
-        .unwrap_or_default();
-    let size: u64 = files.iter().map(JobFile::size_bytes).sum();
-    match files.first().map(|f| f.type_) {
-        // A Scratch job that this host can reach is moved to the current
+    match job_files(job).first() {
+        // A Scratch job that this host can reach is moved to the download
         // directory. (One that it cannot reach, or a DUG job, is an error.)
-        Some(FileType::Scratch) => format!(
-            "Moved {} to the current directory.",
-            files
-                .first()
-                .and_then(|f| f.path.as_deref())
-                .unwrap_or_default()
-        ),
-        _ => format!(
-            "Downloaded {} to {}",
-            bytesize::ByteSize(size).display().iec(),
+        Some(file) if file.type_ == FileType::Scratch => format!(
+            "Moved {} to {}",
+            file.path.as_deref().unwrap_or_default(),
             download_dir
         ),
+        _ => format!("Downloaded {} to {}", job_size_text(job), download_dir),
     }
 }
 
@@ -244,6 +253,60 @@ where
         obs_ids.len()
     ))
     .into())
+}
+
+/// What a submit command was asked to do, for [`run_submit`].
+struct Submission<'a> {
+    /// The Obs IDs, one job each.
+    obs_ids: &'a [ObsId],
+    /// The endpoint, for `--dry-run`.
+    endpoint: &'a str,
+    /// The kind of job, for the summary, for example `conversion`.
+    description: &'a str,
+    /// `--wait`: wait for the jobs to be ready.
+    wait: bool,
+    /// `--dry-run`: send nothing.
+    dry_run: bool,
+    /// `--json`.
+    json: bool,
+}
+
+/// Run a submit command: with `--dry-run`, report the body that `build`
+/// makes for each Obs ID; otherwise log in, `submit` one job per Obs ID
+/// (carrying on past failures, see [`submit_each_obs_id`]), and with
+/// `--wait`, wait for the jobs that were submitted.
+fn run_submit<P, B, S>(submission: &Submission, build: B, submit: S) -> anyhow::Result<()>
+where
+    P: serde::Serialize,
+    B: Fn(ObsId) -> Result<P, AsvoApiError>,
+    S: Fn(&AsvoClient, &P) -> Result<JobSubmittedResponse, AsvoApiError>,
+{
+    let Submission {
+        obs_ids,
+        endpoint,
+        description,
+        wait,
+        dry_run,
+        json,
+    } = *submission;
+    if dry_run {
+        return report_dry_run_submissions(endpoint, obs_ids, json, build);
+    }
+
+    let client = connect()?;
+    let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
+    let outcome = submit_each_obs_id(obs_ids, description, json, |o| {
+        let params = build(*o)?;
+        let resp = submit(&client, &params)?;
+        print_json_line(&resp, json)?;
+        info!("Submitted {} as MWA ASVO Job ID {}", o, resp.job_id);
+        job_ids.push(resp.job_id);
+        Ok(())
+    });
+    if wait {
+        wait_loop(&client, &job_ids)?;
+    }
+    outcome
 }
 
 /// Report the error `e` of the Obs ID `obs_id`: a [`JsonError`] line with
@@ -454,10 +517,13 @@ fn run(args: Args) -> anyhow::Result<()> {
                 obs_ids,
                 job_types,
                 job_states,
-                days,
-                date_from,
-                date_to,
-                sort_by,
+                filter: JobsFilter {
+                    days,
+                    date_from,
+                    date_to,
+                    sort_by,
+                    ..JobsFilter::default()
+                },
             };
             // Before connecting, so that a bad query does not log in.
             query.validate()?;
@@ -536,15 +602,11 @@ fn run(args: Args) -> anyhow::Result<()> {
                     hash,
                 );
                 if json {
-                    let lines = job_ids
-                        .iter()
-                        .map(|j| (Some(*j), None))
-                        .chain(obs_ids.iter().map(|o| (None, Some(*o))));
-                    for (job_id, obs_id) in lines {
+                    for target in DownloadTarget::all(&job_ids, &obs_ids) {
                         print_json_line(
                             &DryRunDownload {
-                                job_id,
-                                obs_id,
+                                job_id: target.job_id(),
+                                obs_id: target.obs_id(),
                                 keep_tar,
                                 no_resume,
                                 skip_hash,
@@ -559,10 +621,11 @@ fn run(args: Args) -> anyhow::Result<()> {
                 // server permits only a few logins a minute.
                 let client = connect()?;
 
-                let mut job_ids_results: Vec<anyhow::Result<AsvoJob>> = job_ids
+                let targets = DownloadTarget::all(&job_ids, &obs_ids);
+                let results: Vec<anyhow::Result<AsvoJob>> = targets
                     .par_iter()
                     .enumerate()
-                    .map(|(c, j)| {
+                    .map(|(c, target)| {
                         let pb = create_progress_bar(&mpb);
                         let progress = |event| update_progress_bar(&pb, event);
                         let opts = DownloadOptions {
@@ -578,30 +641,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             // Ctrl-C ends the CLI process.
                             should_stop: None,
                         };
-                        run_job_id_download(&client, *j, &opts)
-                    })
-                    .collect();
-
-                let mut obs_ids_results: Vec<anyhow::Result<AsvoJob>> = obs_ids
-                    .par_iter()
-                    .enumerate()
-                    .map(|(c, o)| {
-                        let pb = create_progress_bar(&mpb);
-                        let progress = |event| update_progress_bar(&pb, event);
-                        let opts = DownloadOptions {
-                            keep_tar,
-                            no_resume,
-                            hash,
-                            download_dir: &download_dir,
-                            progress: Some(&progress),
-                            download_number: c + 1,
-                            download_count: t,
-                            buffer_size,
-                            retry_duration,
-                            // Ctrl-C ends the CLI process.
-                            should_stop: None,
-                        };
-                        run_obs_id_download(&client, *o, &opts)
+                        target.download(&client, &opts)
                     })
                     .collect();
 
@@ -610,23 +650,16 @@ fn run(args: Args) -> anyhow::Result<()> {
                 // each error, then fail the run as a whole so a script can
                 // tell something went wrong.
                 let mut failures = 0;
-                for job_result in job_ids_results
-                    .iter_mut()
-                    .chain(obs_ids_results.iter_mut())
-                    .filter(|o| o.is_err())
-                {
-                    error!("{}", job_result.as_mut().unwrap_err());
+                for e in results.iter().filter_map(|r| r.as_ref().err()) {
+                    error!("{e}");
                     failures += 1;
                 }
 
                 info!("Downloaded {} of {}.", t - failures, t);
 
                 if json {
-                    for (j, r) in job_ids.iter().zip(&job_ids_results) {
-                        print_download_line(Some(*j), None, r, &download_dir)?;
-                    }
-                    for (o, r) in obs_ids.iter().zip(&obs_ids_results) {
-                        print_download_line(None, Some(*o), r, &download_dir)?;
+                    for (target, result) in targets.iter().zip(&results) {
+                        print_download_line(*target, result, &download_dir)?;
                     }
                 }
 
@@ -641,133 +674,96 @@ fn run(args: Args) -> anyhow::Result<()> {
 
         Args::SubmitVis {
             download,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
-
-            if dry_run {
-                report_dry_run_submissions(
-                    ENDPOINT_DOWNLOAD_VIS_JOB,
-                    &parsed_obs_ids,
+            let obs_ids = obs_ids_only(&obs_ids, None)?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_DOWNLOAD_VIS_JOB,
+                    description: "visibility download",
+                    wait,
+                    dry_run,
                     json,
-                    |obs_id| download.to_vis_params(obs_id),
-                )?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome =
-                    submit_each_obs_id(&parsed_obs_ids, "visibility download", json, |o| {
-                        let params = download.to_vis_params(*o)?;
-                        let resp = client.submit_download_vis_job(&params)?;
-                        print_json_line(&resp, json)?;
-                        let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                        job_ids.push(job_id);
-                        Ok(())
-                    });
-
-                if wait {
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+                },
+                |obs_id| download.to_vis_params(obs_id),
+                |client, params| client.submit_download_vis_job(params),
+            )?;
         }
 
         Args::SubmitConv {
             conv,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
-            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            if dry_run {
-                report_dry_run_submissions(
-                    ENDPOINT_CONVERSION_JOB,
-                    &parsed_obs_ids,
+            let obs_ids = obs_ids_only(&obs_ids, None)?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_CONVERSION_JOB,
+                    description: "conversion",
+                    wait,
+                    dry_run,
                     json,
-                    |obs_id| conv.to_params(obs_id),
-                )?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "conversion", json, |o| {
-                    let params = conv.to_params(*o)?;
-                    let resp = client.submit_conversion_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
-
-                if wait {
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+                },
+                |obs_id| conv.to_params(obs_id),
+                |client, params| client.submit_conversion_job(params),
+            )?;
         }
 
         Args::SubmitImage {
             image,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
-            let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
-
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGING_JOB, &obs_ids, json, |obs_id| {
-                    image.to_params(obs_id)
-                })?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome = submit_each_obs_id(&obs_ids, "imaging", json, |o| {
-                    let params = image.to_params(*o)?;
-                    let resp = client.submit_imaging_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
-
-                if wait {
-                    // Poll the job list until the new jobs are all ready.
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+            let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_IMAGING_JOB,
+                    description: "imaging",
+                    wait,
+                    dry_run,
+                    json,
+                },
+                |obs_id| image.to_params(obs_id),
+                |client, params| client.submit_imaging_job(params),
+            )?;
         }
 
         Args::SubmitImageFromJob {
             image,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_FROM_JOB_JOB_IDS_MESSAGE))?;
 
             if obs_ids.len() != 1 {
@@ -813,123 +809,83 @@ fn run(args: Args) -> anyhow::Result<()> {
 
         Args::SubmitMeta {
             download,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
-            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            if dry_run {
-                report_dry_run_submissions(
-                    ENDPOINT_DOWNLOAD_VIS_JOB,
-                    &parsed_obs_ids,
+            let obs_ids = obs_ids_only(&obs_ids, None)?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_DOWNLOAD_VIS_JOB,
+                    description: "metadata download",
+                    wait,
+                    dry_run,
                     json,
-                    |obs_id| download.to_meta_params(obs_id),
-                )?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "metadata download", json, |o| {
-                    let params = download.to_meta_params(*o)?;
-                    let resp = client.submit_download_meta_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
-
-                if wait {
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+                },
+                |obs_id| download.to_meta_params(obs_id),
+                |client, params| client.submit_download_meta_job(params),
+            )?;
         }
 
         Args::SubmitVolt {
             volt,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
-            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            if dry_run {
-                report_dry_run_submissions(
-                    ENDPOINT_VOLTAGE_JOB,
-                    &parsed_obs_ids,
+            let obs_ids = obs_ids_only(&obs_ids, None)?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_VOLTAGE_JOB,
+                    description: "voltage download",
+                    wait,
+                    dry_run,
                     json,
-                    |obs_id| volt.to_params(obs_id),
-                )?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome = submit_each_obs_id(&parsed_obs_ids, "voltage download", json, |o| {
-                    let params = volt.to_params(*o)?;
-                    let resp = client.submit_voltage_job(&params)?;
-                    print_json_line(&resp, json)?;
-                    let job_id = resp.job_id;
-                    info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                    job_ids.push(job_id);
-                    Ok(())
-                });
-
-                if wait {
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+                },
+                |obs_id| volt.to_params(obs_id),
+                |client, params| client.submit_voltage_job(params),
+            )?;
         }
 
         Args::SubmitBf {
             bf,
-            wait,
-            dry_run,
-            json,
-            verbosity,
+            submit,
             obs_ids,
         } => {
-            let parsed_obs_ids = obs_ids_only(&obs_ids, None)?;
+            let SubmitOptions {
+                wait,
+                dry_run,
+                json,
+                verbosity,
+            } = submit;
             init_logger(verbosity, json);
-
-            if dry_run {
-                report_dry_run_submissions(
-                    ENDPOINT_BEAMFORMER_JOB,
-                    &parsed_obs_ids,
+            let obs_ids = obs_ids_only(&obs_ids, None)?;
+            run_submit(
+                &Submission {
+                    obs_ids: &obs_ids,
+                    endpoint: ENDPOINT_BEAMFORMER_JOB,
+                    description: "beamformer download",
+                    wait,
+                    dry_run,
                     json,
-                    |obs_id| bf.to_params(obs_id),
-                )?;
-            } else {
-                let client = connect()?;
-                let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
-
-                let outcome =
-                    submit_each_obs_id(&parsed_obs_ids, "beamformer download", json, |o| {
-                        let params = bf.to_params(*o)?;
-                        let resp = client.submit_beamformer_job(&params)?;
-                        print_json_line(&resp, json)?;
-                        let job_id = resp.job_id;
-                        info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
-                        job_ids.push(job_id);
-                        Ok(())
-                    });
-
-                if wait {
-                    wait_loop(&client, &job_ids)?;
-                }
-
-                outcome?;
-            }
+                },
+                |obs_id| bf.to_params(obs_id),
+                |client, params| client.submit_beamformer_job(params),
+            )?;
         }
 
         Args::Wait {
@@ -1124,15 +1080,15 @@ impl Args {
         match self {
             Args::List { json, .. }
             | Args::Download { json, .. }
-            | Args::SubmitVis { json, .. }
-            | Args::SubmitConv { json, .. }
-            | Args::SubmitImage { json, .. }
-            | Args::SubmitImageFromJob { json, .. }
-            | Args::SubmitMeta { json, .. }
-            | Args::SubmitVolt { json, .. }
-            | Args::SubmitBf { json, .. }
             | Args::Wait { json, .. }
             | Args::Cancel { json, .. } => *json,
+            Args::SubmitVis { submit, .. }
+            | Args::SubmitConv { submit, .. }
+            | Args::SubmitImage { submit, .. }
+            | Args::SubmitImageFromJob { submit, .. }
+            | Args::SubmitMeta { submit, .. }
+            | Args::SubmitVolt { submit, .. }
+            | Args::SubmitBf { submit, .. } => submit.json,
         }
     }
 }

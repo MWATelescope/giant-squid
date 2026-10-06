@@ -985,6 +985,71 @@ fn a_stop_ends_the_wait_before_a_retry() {
 // give the stream-untar code a reader that fails part way through, and then
 // check what the next attempt does.
 
+mod backoff_policy {
+    //! The retry waits of [`DownloadBackoff`].
+
+    use std::time::Duration;
+
+    use crate::mwa_asvo::download::{
+        jittered, random_fraction, DownloadBackoff, BACKOFF_INITIAL_INTERVAL, BACKOFF_MAX_INTERVAL,
+        BACKOFF_MULTIPLIER, BACKOFF_RANDOMIZATION_FACTOR,
+    };
+
+    #[test]
+    fn a_zero_retry_duration_never_retries() {
+        let mut backoff = DownloadBackoff::new(Duration::ZERO);
+        std::thread::sleep(Duration::from_millis(1));
+
+        assert_eq!(backoff.next_backoff(), None);
+    }
+
+    #[test]
+    fn the_waits_grow_and_stay_within_the_jitter_and_the_maximum() {
+        let mut backoff = DownloadBackoff::new(Duration::from_secs(24 * 60 * 60));
+        let mut interval = BACKOFF_INITIAL_INTERVAL;
+        for _ in 0..30 {
+            let wait = backoff
+                .next_backoff()
+                .expect("a long retry duration retries");
+            assert!(
+                wait >= interval.mul_f64(1.0 - BACKOFF_RANDOMIZATION_FACTOR),
+                "{wait:?}"
+            );
+            assert!(
+                wait <= interval.mul_f64(1.0 + BACKOFF_RANDOMIZATION_FACTOR),
+                "{wait:?}"
+            );
+            interval = interval
+                .mul_f64(BACKOFF_MULTIPLIER)
+                .min(BACKOFF_MAX_INTERVAL);
+        }
+        assert_eq!(interval, BACKOFF_MAX_INTERVAL);
+    }
+
+    #[test]
+    fn the_jitter_spans_the_whole_range() {
+        let interval = Duration::from_secs(10);
+
+        assert_eq!(
+            jittered(interval, 0.0),
+            interval.mul_f64(1.0 - BACKOFF_RANDOMIZATION_FACTOR)
+        );
+        assert_eq!(jittered(interval, 0.5), interval);
+        assert_eq!(
+            jittered(interval, 1.0),
+            interval.mul_f64(1.0 + BACKOFF_RANDOMIZATION_FACTOR)
+        );
+    }
+
+    #[test]
+    fn a_random_fraction_is_from_0_to_1() {
+        for _ in 0..1000 {
+            let fraction = random_fraction();
+            assert!((0.0..1.0).contains(&fraction), "{fraction}");
+        }
+    }
+}
+
 mod retries {
     use std::io::{self, Read};
 
@@ -996,7 +1061,8 @@ mod retries {
     use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
     use crate::mwa_asvo::download::{
         is_network_read_error, network_error, resume_point, retry_class, try_download,
-        try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
+        try_download_untar, untar_stream, NetworkReader, ResumePoint, Retry, RetryState,
+        UntarCheckpoint,
     };
     use crate::mwa_asvo::{AsvoError, AsvoJob, JobFile, JobState};
     use crate::obs_id::ObsId;
@@ -1462,11 +1528,11 @@ mod retries {
 
         assert!(matches!(
             retry_class(network, crate::test_config::TEST_ASVO_JOB_ID),
-            backoff::Error::Transient { .. }
+            Retry::Transient(_)
         ));
         assert!(matches!(
             retry_class(disk, crate::test_config::TEST_ASVO_JOB_ID),
-            backoff::Error::Permanent(_)
+            Retry::Permanent(_)
         ));
     }
 
@@ -2468,4 +2534,34 @@ fn a_hash_mismatch_names_the_file_not_the_url() {
         }
         other => panic!("expected HashMismatch, got {other:?}"),
     }
+}
+
+/// A Scratch job that this host can reach is moved into the download
+/// directory, as an Acacia job is downloaded into it.
+#[test]
+fn a_reachable_scratch_job_is_moved_into_the_download_directory() {
+    let scratch = TempDir::new().expect("could not create a scratch directory");
+    let job_dir = scratch.path().join("12345");
+    std::fs::create_dir(&job_dir).expect("could not create the job directory");
+    std::fs::write(job_dir.join("a.fits"), "data").expect("could not write a file");
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "scratch",
+        "path": job_dir.display().to_string(),
+        "size": 4
+    }))]);
+    let dir = TempDir::new().expect("could not create a download directory");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
+        .expect("the move should succeed");
+
+    assert!(!job_dir.exists(), "the job's files should have moved");
+    let moved = std::fs::read_to_string(dir.path().join("12345").join("a.fits"))
+        .expect("the files should be in the download directory");
+    assert_eq!(moved, "data");
 }

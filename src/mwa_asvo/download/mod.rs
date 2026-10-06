@@ -10,14 +10,13 @@
 mod tests;
 
 use crate::check_file_sha1_hash;
-use crate::helpers::{hash_reader, to_hex};
+use crate::helpers::{check_sha1_hash, hash_reader};
 use crate::obs_id::ObsId;
 
 use super::api::openapi::Type as FileType;
 use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};
-use std::env::current_dir;
 use std::fmt;
 use std::fs::{rename, File};
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -25,8 +24,6 @@ use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 use std::time::{Duration, Instant, SystemTime};
 
-use backoff::backoff::Backoff;
-use backoff::{Error, ExponentialBackoff, ExponentialBackoffBuilder};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use log::{debug, error, info, warn};
@@ -44,8 +41,7 @@ pub const BYTES_PER_MIB: usize = 1024 * 1024;
 pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
 
 /// The default [`DownloadOptions::retry_duration`]: how long a download
-/// keeps retrying transient failures before giving up. Matches
-/// `ExponentialBackoff`'s own default (900 s).
+/// keeps retrying transient failures before giving up.
 pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
 
 /// The default number of downloads that the `giant-squid` commands run at
@@ -93,7 +89,8 @@ pub struct DownloadOptions<'a> {
     /// download, and a complete keep-tar file that is already on disk, are
     /// always checked, even when this is `false`.
     pub hash: bool,
-    /// The directory to download to. It must exist.
+    /// The directory to download to, and to move the files of a reachable
+    /// Scratch job into. It must exist.
     pub download_dir: &'a str,
     /// Called with each [`DownloadProgress`] event. `None` reports no
     /// progress. The library has no user interface of its own.
@@ -291,7 +288,7 @@ fn download_job(
                     .map_err(|e| retry_class(e, job.job_id()))
                 };
 
-                retry_unless_stopped(download_backoff(opts.retry_duration), op, opts)?;
+                retry_unless_stopped(DownloadBackoff::new(opts.retry_duration), op, opts)?;
 
                 let elapsed = start_time.elapsed();
                 let elapsed_ms = elapsed.as_millis() as u64;
@@ -349,14 +346,15 @@ fn download_job(
                         path: f.path.clone(),
                     });
                 } else {
+                    let target = Path::new(opts.download_dir).join(folder_name);
                     info!(
                         "{} Files for Job are reachable from the current host. \
-                         Moving them to the current directory.",
-                        log_prefix
+                         Moving {} to {}.",
+                        log_prefix,
+                        path,
+                        target.display()
                     );
-                    let mut current_path = current_dir()?;
-                    current_path.push(folder_name);
-                    rename(path, current_path)?;
+                    rename(path, target)?;
                 }
             }
         }
@@ -372,21 +370,30 @@ fn download_job(
 /// disk, except when it came from reading the download itself (see
 /// [`NetworkReader`]): a dropped connection is worth another attempt.
 #[allow(clippy::result_large_err)]
-fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Error<AsvoError> {
+fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Retry<AsvoError> {
     match &e {
-        AsvoError::IO(io_error) if is_network_read_error(io_error) => Error::transient(e),
+        AsvoError::IO(io_error) if is_network_read_error(io_error) => Retry::Transient(e),
         AsvoError::IO(_)
         | AsvoError::Interrupted
         | AsvoError::SymlinkInDownloadDir { .. }
-        | AsvoError::NoHash { .. } => Error::permanent(e),
+        | AsvoError::NoHash { .. } => Retry::Permanent(e),
         AsvoError::HttpError { status: 404, .. } => {
-            Error::permanent(AsvoError::Http404Error { job_id })
+            Retry::Permanent(AsvoError::Http404Error { job_id })
         }
         AsvoError::HttpError {
             status: 401 | 403, ..
-        } => Error::permanent(e),
-        _ => Error::transient(e),
+        } => Retry::Permanent(e),
+        _ => Retry::Transient(e),
     }
+}
+
+/// How the retry loop treats the error of one download attempt.
+#[derive(Debug)]
+enum Retry<E> {
+    /// Give up: another attempt would fail in the same way.
+    Permanent(E),
+    /// Try again after a wait (see [`DownloadBackoff`]).
+    Transient(E),
 }
 
 /// What the attempts at one file share, so that a retry carries on from
@@ -484,12 +491,7 @@ fn try_download(
     // A server that ignores the range answers 200 with the whole file.
     // Appending that to a partial file would silently corrupt it, so
     // start again from the beginning instead.
-    if resume_from > 0 && http_response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-        warn!(
-            "{} Asked to resume from byte {}, but the server sent the whole file. \
-             Starting again from the beginning.",
-            log_prefix, resume_from
-        );
+    if range_was_ignored(&http_response, resume_from, log_prefix) {
         out_file = create_file_logged(out_path, log_prefix)?;
         resume_from = 0;
         report_started(
@@ -520,15 +522,7 @@ fn try_download(
 
     report(opts, DownloadProgress::Finished);
 
-    // A resumed file joins bytes from more than one attempt (or run), so its
-    // hash is checked even when `opts.hash` is not set.
-    if !opts.hash && resumed {
-        info!(
-            "{} The download is resumed, so the hash is checked.",
-            log_prefix
-        );
-    }
-    if opts.hash || resumed {
+    if hash_is_checked(opts, resumed, log_prefix) {
         info!(
             "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
             log_prefix, out_path
@@ -541,16 +535,12 @@ fn try_download(
             // file back instead - slower, but only on a resumed download.
             check_file_sha1_hash(out_path, mwa_asvo_hash, job.job_id())?;
         } else {
-            let hash = to_hex(&stream_hasher.into_inner().finalize());
-            debug!("{} Our hash: {}", log_prefix, hash);
-            if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
-                return Err(AsvoError::HashMismatch {
-                    job_id: job.job_id(),
-                    file: out_path.display().to_string(),
-                    calculated_hash: hash,
-                    expected_hash: mwa_asvo_hash.to_string(),
-                });
-            }
+            check_sha1_hash(
+                stream_hasher.into_inner(),
+                mwa_asvo_hash,
+                job.job_id(),
+                out_path,
+            )?;
         }
         info!("{} File matches the MWA ASVO provided hash.", log_prefix);
     }
@@ -766,12 +756,7 @@ fn try_download_untar(
     // A server that ignores the range answers 200 with the whole archive.
     // Start again from the beginning: the members are written again, from
     // the start of the archive.
-    if resume.start > 0 && response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
-        warn!(
-            "{} Asked to resume from byte {}, but the server sent the whole file. \
-             Starting again from the beginning.",
-            log_prefix, resume.start
-        );
+    if range_was_ignored(&response, resume.start, log_prefix) {
         resume = ResumePoint::from_start();
         *checkpoint = None;
     }
@@ -784,15 +769,7 @@ fn try_download_untar(
         resume.start,
     );
 
-    // A resumed download joins bytes from more than one attempt (or run),
-    // so its hash is checked even when `opts.hash` is not set.
-    let check_hash = opts.hash || resume.start > 0;
-    if !opts.hash && resume.start > 0 {
-        info!(
-            "{} The download is resumed, so the hash is checked.",
-            log_prefix
-        );
-    }
+    let check_hash = hash_is_checked(opts, resume.start > 0, log_prefix);
 
     let sidecar = SidecarWriter::new(
         unpack_path,
@@ -828,19 +805,12 @@ fn try_download_untar(
             log_prefix, out_path
         );
         debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
-        let hash = to_hex(&hasher.finalize());
-        debug!("{} Our hash: {}", log_prefix, hash);
-        if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
+        if let Err(e) = check_sha1_hash(hasher, mwa_asvo_hash, job_id, out_path) {
             // The bytes behind the checkpoint are now suspect, so the retry
             // must fetch the whole archive again.
             *checkpoint = None;
             sidecar.remove();
-            return Err(AsvoError::HashMismatch {
-                job_id,
-                file: out_path.display().to_string(),
-                calculated_hash: hash,
-                expected_hash: mwa_asvo_hash.to_string(),
-            });
+            return Err(e);
         }
         info!("{} File matches the MWA ASVO provided hash.", log_prefix);
     }
@@ -1746,23 +1716,22 @@ fn stop_requested(opts: &DownloadOptions) -> bool {
 }
 
 /// Run `op`, and retry it under `backoff` while it fails with a transient
-/// error, as `backoff::retry` does. The difference: the wait before each
-/// retry is cut into steps of at most [`STOP_CHECK_INTERVAL`], and the
-/// retries end with [`AsvoError::Interrupted`] when the caller asks the
-/// download to stop. Otherwise a stop could wait for the whole back-off
-/// interval, which grows to a minute.
+/// error. The wait before each retry is cut into steps of at most
+/// [`STOP_CHECK_INTERVAL`], and the retries end with
+/// [`AsvoError::Interrupted`] when the caller asks the download to stop.
+/// Otherwise a stop could wait for the whole back-off interval, which grows
+/// to a minute.
 fn retry_unless_stopped<T>(
-    mut backoff: ExponentialBackoff,
-    mut op: impl FnMut() -> Result<T, Error<AsvoError>>,
+    mut backoff: DownloadBackoff,
+    mut op: impl FnMut() -> Result<T, Retry<AsvoError>>,
     opts: &DownloadOptions,
 ) -> Result<T, AsvoError> {
-    backoff.reset();
     loop {
         match op() {
             Ok(value) => return Ok(value),
-            Err(Error::Permanent(err)) => return Err(err),
-            Err(Error::Transient { err, retry_after }) => {
-                let Some(wait) = retry_after.or_else(|| backoff.next_backoff()) else {
+            Err(Retry::Permanent(err)) => return Err(err),
+            Err(Retry::Transient(err)) => {
+                let Some(wait) = backoff.next_backoff() else {
                     return Err(err);
                 };
                 debug!("Retrying the download in {:?}: {}", wait, err);
@@ -1792,17 +1761,75 @@ fn sleep_unless_stopped(wait: Duration, opts: &DownloadOptions) -> Result<(), As
     }
 }
 
-/// The retry policy for a download.
+/// The first wait before a retry, before the jitter.
+const BACKOFF_INITIAL_INTERVAL: Duration = Duration::from_millis(500);
+/// How much each wait grows over the one before.
+const BACKOFF_MULTIPLIER: f64 = 1.5;
+/// The longest wait before a retry, before the jitter.
+const BACKOFF_MAX_INTERVAL: Duration = Duration::from_secs(60);
+/// The jitter: each wait is a random value within this fraction of the
+/// interval either side, so that parallel downloads do not retry together.
+const BACKOFF_RANDOMIZATION_FACTOR: f64 = 0.5;
+
+/// The retry policy for a download: exponential backoff with jitter.
 ///
 /// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
-/// retried with exponential backoff for `retry_duration`
-/// ([`DownloadOptions::retry_duration`]). Zero disables retrying, which is
-/// what the test suite uses: a test that deliberately triggers a transient
-/// failure would otherwise sit in backoff for fifteen minutes.
-fn download_backoff(retry_duration: Duration) -> backoff::ExponentialBackoff {
-    ExponentialBackoffBuilder::new()
-        .with_max_elapsed_time(Some(retry_duration))
-        .build()
+/// retried for `retry_duration` ([`DownloadOptions::retry_duration`]). The
+/// waits start at [`BACKOFF_INITIAL_INTERVAL`] and grow by
+/// [`BACKOFF_MULTIPLIER`] up to [`BACKOFF_MAX_INTERVAL`]. Zero disables
+/// retrying, which is what the test suite uses: a test that deliberately
+/// triggers a transient failure would otherwise sit in backoff for fifteen
+/// minutes.
+struct DownloadBackoff {
+    /// When the first attempt started.
+    start: Instant,
+    /// How long retries may go on, from `start`.
+    max_elapsed: Duration,
+    /// The next wait, before the jitter.
+    interval: Duration,
+}
+
+impl DownloadBackoff {
+    /// A new policy, which retries for `retry_duration` from now.
+    fn new(retry_duration: Duration) -> Self {
+        Self {
+            start: Instant::now(),
+            max_elapsed: retry_duration,
+            interval: BACKOFF_INITIAL_INTERVAL,
+        }
+    }
+
+    /// The wait before the next retry, or `None` to give up: the wait would
+    /// end after `max_elapsed`.
+    fn next_backoff(&mut self) -> Option<Duration> {
+        let elapsed = self.start.elapsed();
+        if elapsed > self.max_elapsed {
+            return None;
+        }
+        let wait = jittered(self.interval, random_fraction());
+        self.interval = self
+            .interval
+            .mul_f64(BACKOFF_MULTIPLIER)
+            .min(BACKOFF_MAX_INTERVAL);
+        (elapsed + wait <= self.max_elapsed).then_some(wait)
+    }
+}
+
+/// `interval`, moved by up to [`BACKOFF_RANDOMIZATION_FACTOR`] of itself:
+/// `fraction` (from 0 to 1) picks the point in that range.
+fn jittered(interval: Duration, fraction: f64) -> Duration {
+    let spread = BACKOFF_RANDOMIZATION_FACTOR * (2.0 * fraction - 1.0);
+    interval.mul_f64(1.0 + spread)
+}
+
+/// A random number from 0 to 1, for the jitter. It needs no random number
+/// crate: the standard library seeds each `RandomState` at random.
+fn random_fraction() -> f64 {
+    use std::hash::{BuildHasher, Hasher};
+    let bits = std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish();
+    (bits >> 11) as f64 / (1u64 << 53) as f64
 }
 
 /// A `Range` header that asks for the file from byte `offset` on, or `None`
@@ -1844,6 +1871,34 @@ fn send_checked(
         });
     }
     Ok(response)
+}
+
+/// Whether the server ignored the range request of a download that resumes
+/// from byte `from` (it answered with the whole file, not 206), logging a
+/// warning if so. The caller then starts again from the beginning.
+fn range_was_ignored(response: &reqwest::blocking::Response, from: u64, log_prefix: &str) -> bool {
+    let ignored = from > 0 && response.status() != reqwest::StatusCode::PARTIAL_CONTENT;
+    if ignored {
+        warn!(
+            "{} Asked to resume from byte {}, but the server sent the whole file. \
+             Starting again from the beginning.",
+            log_prefix, from
+        );
+    }
+    ignored
+}
+
+/// Whether the hash of a download is checked: when [`DownloadOptions::hash`]
+/// is set, and always for a `resumed` download, which joins bytes from more
+/// than one attempt (or run). Logs when only the resume makes the check.
+fn hash_is_checked(opts: &DownloadOptions, resumed: bool, log_prefix: &str) -> bool {
+    if !opts.hash && resumed {
+        info!(
+            "{} The download is resumed, so the hash is checked.",
+            log_prefix
+        );
+    }
+    opts.hash || resumed
 }
 
 /// Give `event` to the caller's progress callback, if there is one.

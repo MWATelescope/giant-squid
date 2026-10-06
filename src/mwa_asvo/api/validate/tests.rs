@@ -94,17 +94,9 @@ const INTEGER_FIELDS: [&str; 6] = [
     "offset",
 ];
 
-/// The smallest obsid [`ObsId::validate`](crate::obs_id::ObsId::validate)
+/// The smallest Obs ID that [`ObsId::validate`](crate::obs_id::ObsId::validate)
 /// accepts. The schema's own minimum must not be above it.
-const SMALLEST_VALID_OBS_ID: f64 = 1e9;
-
-/// Limits this module has that the schema does not state, as
-/// `(schema type, field, "minimum" or "maximum")`. See
-/// [`CLEAN_ITERATIONS`].
-const LIMITS_NOT_IN_SCHEMA: [(&str, &str, &str); 2] = [
-    (FLOW1, "clean_iterations", "minimum"),
-    (FLOW2, "clean_iterations", "minimum"),
-];
+const SMALLEST_VALID_OBS_ID: f64 = crate::obs_id::ObsId::MIN as f64;
 
 fn flow1_defaults() -> ImagingJobFlow1Params {
     ImagingJobFlow1Params::builder()
@@ -410,17 +402,10 @@ fn assert_matches_schema(schema_type: &str, field: &str, bounds: Bounds) {
 
     for (key, ours) in [("minimum", bounds.min), ("maximum", bounds.max)] {
         let theirs = schema_limit(schema_field, key);
-        if LIMITS_NOT_IN_SCHEMA.contains(&(schema_type, field, key)) {
-            assert!(
-                theirs.is_none() && ours.is_some(),
-                "{schema_type}.{field} {key}: the exemption is out of date (schema {theirs:?}, ours {ours:?})"
-            );
-        } else {
-            assert_eq!(
-                ours, theirs,
-                "{schema_type}.{field} {key} differs from the schema"
-            );
-        }
+        assert_eq!(
+            ours, theirs,
+            "{schema_type}.{field} {key} differs from the schema"
+        );
     }
 }
 

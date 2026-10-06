@@ -1813,3 +1813,85 @@ fn the_help_has_colours() {
     let green = super::HELP_STYLES.get_header().render().to_string();
     assert!(help.contains(&green), "no coloured header in: {help:?}");
 }
+
+/// With no options, every submit command sends the schema's defaults of its
+/// own request type. The commands share argument groups that are generic
+/// over the schema type, so this also checks that one job type does not
+/// show (or send) the defaults of another: conversion is parsed first, and
+/// its `apply_di_cal` default (false) differs from imaging's (true).
+#[test]
+fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
+    use crate::mwa_asvo::api::openapi::{
+        BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
+        ImagingJobFlow1Params, ImagingJobFlow2Params,
+    };
+
+    let obs_id: crate::obs_id::ObsId = TEST_OBS_ID.parse().expect("a valid Obs ID");
+
+    let conv = match parse(&["giant-squid", "submit-conv", TEST_OBS_ID]) {
+        Args::SubmitConv { conv, .. } => conv.to_params(obs_id).expect("a body"),
+        other => panic!("expected SubmitConv, got {other:?}"),
+    };
+    let expected: ConversionJobParams = ConversionJobParams::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(body_json(&conv), body_json(&expected));
+
+    let image = match parse(&["giant-squid", "submit-image", TEST_OBS_ID]) {
+        Args::SubmitImage { image, .. } => image.to_params(obs_id).expect("a body"),
+        other => panic!("expected SubmitImage, got {other:?}"),
+    };
+    let expected: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .try_into()
+        .expect("defaults build");
+    assert!(
+        expected.apply_di_cal,
+        "the test needs imaging's default to differ"
+    );
+    assert_eq!(body_json(&image), body_json(&expected));
+
+    let from_job = match parse(&[
+        "giant-squid",
+        "submit-image-from-job",
+        "--source-job-id",
+        "5",
+        TEST_OBS_ID,
+    ]) {
+        Args::SubmitImageFromJob { image, .. } => image.to_params(obs_id).expect("a body"),
+        other => panic!("expected SubmitImageFromJob, got {other:?}"),
+    };
+    let expected: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .source_job_id(std::num::NonZeroU64::new(5).expect("not zero"))
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(body_json(&from_job), body_json(&expected));
+
+    let vis = match parse(&["giant-squid", "submit-vis", TEST_OBS_ID]) {
+        Args::SubmitVis { download, .. } => download.to_vis_params(obs_id).expect("a body"),
+        other => panic!("expected SubmitVis, got {other:?}"),
+    };
+    let expected: DownloadJobParams = DownloadJobParams::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .download_type(DownloadType::Vis)
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(body_json(&vis), body_json(&expected));
+
+    let bf = match parse(&["giant-squid", "submit-bf", TEST_OBS_ID]) {
+        Args::SubmitBf { bf, .. } => bf.to_params(obs_id).expect("a body"),
+        other => panic!("expected SubmitBf, got {other:?}"),
+    };
+    let expected: BeamformerJobParams = BeamformerJobParams::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(body_json(&bf), body_json(&expected));
+}
+
+/// A request body as JSON, for the comparisons above.
+fn body_json<T: serde::Serialize>(body: &T) -> Value {
+    serde_json::to_value(body).expect("a request body serialises")
+}

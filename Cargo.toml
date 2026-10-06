@@ -39,7 +39,7 @@ resolver = "3"
 
 [features]
 default = ["bin"]
-bin = ["anyhow", "clap", "simplelog", "indicatif", "indicatif-log-bridge", "prettytable-rs"]
+bin = ["anyhow", "clap", "simplelog", "indicatif", "indicatif-log-bridge", "comfy-table"]
 # Regenerates src/mwa_asvo/api/openapi.rs from src/mwa_asvo/api/openapi-schema.json
 # via build.rs (see the `regen_openapi` module there). Off by default so a
 # normal build doesn't need typify and friends; enable when the schema has
@@ -94,7 +94,6 @@ inherits = "release"
 panic = "unwind"
 
 [dependencies]
-backoff = "0.4"
 base64 = "0.23"
 bytesize = "2.0"
 # Dates and times. Only `Timestamp` is used (every MWA ASVO time is UTC), so
@@ -105,7 +104,6 @@ jiff = { version = "0.2", default-features = false, features = ["std", "serde"] 
 log = "0.4"
 rayon = "1.10"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "charset", "form", "http2", "json", "rustls"] }
-reqwest_cookie_store = { version = "0.10", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha1 = "0.11"
@@ -116,9 +114,9 @@ thiserror = "2.0"
 anyhow = { version = "1.0", optional = true }
 # "string": lets the value parsers of the schema enums (src/cli/value_enums/mod.rs) list their values in --help.
 clap = { version = "4.6", features = ["derive", "env", "string"], optional = true }
+comfy-table = { version = "8.0", optional = true }
 indicatif = { version = "0.18", optional = true}
 indicatif-log-bridge = {version = "0.2", optional = true}
-prettytable-rs = { version = "0.10", optional = true }
 simplelog = { version = "0.12", optional = true }
 
 # Dependencies only for the Python module ("python" feature).

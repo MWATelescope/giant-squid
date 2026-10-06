@@ -11,6 +11,7 @@
 //! mapping in pure functions means it can be tested without a server: see
 //! `src/cli/tests.rs`.
 
+use std::marker::PhantomData;
 use std::num::NonZeroU64;
 
 use clap::ArgAction;
@@ -20,8 +21,8 @@ use crate::mwa_asvo::api::job_args::{
 };
 use crate::mwa_asvo::api::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest, Output,
-    OutputMode, Polarization, VoltageJobParams, Weighting,
+    DownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest,
+    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
 use crate::mwa_asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
@@ -160,18 +161,359 @@ pub fn imaging2_defaults() -> ImagingJobFlow2Params {
         .expect("BUG: a required ImagingJobFlow2Params field is missing from imaging2_defaults()")
 }
 
+/// A request body type of the OpenAPI schema, with its schema defaults. The
+/// argument groups below take their clap defaults from it, so that each job
+/// type keeps the defaults of its own schema type.
+pub trait SchemaDefaults: Clone + std::fmt::Debug + Send + Sync + 'static {
+    /// The body with every field at the schema's default.
+    fn schema_defaults() -> Self;
+}
+
+impl SchemaDefaults for DownloadJobParams {
+    fn schema_defaults() -> Self {
+        download_defaults()
+    }
+}
+
+impl SchemaDefaults for ConversionJobParams {
+    fn schema_defaults() -> Self {
+        conversion_defaults()
+    }
+}
+
+impl SchemaDefaults for ImagingJobFlow1Params {
+    fn schema_defaults() -> Self {
+        imaging1_defaults()
+    }
+}
+
+impl SchemaDefaults for ImagingJobFlow2Params {
+    fn schema_defaults() -> Self {
+        imaging2_defaults()
+    }
+}
+
+impl SchemaDefaults for BeamformerJobParams {
+    fn schema_defaults() -> Self {
+        beamformer_defaults()
+    }
+}
+
+/// Implement an accessor trait: each method returns that field of the
+/// schema type.
+macro_rules! impl_fields {
+    ($trait:ident for [$($ty:ty),+ $(,)?] $fields:tt) => {
+        $(impl_fields!(@one $trait, $ty, $fields);)+
+    };
+    (@one $trait:ident, $ty:ty, { $($field:ident: $field_ty:ty),+ $(,)? }) => {
+        impl $trait for $ty {
+            $(
+                fn $field(&self) -> $field_ty {
+                    self.$field.clone()
+                }
+            )+
+        }
+    };
+}
+
+/// The delivery fields of a schema type.
+pub trait DeliveryFields: SchemaDefaults {
+    fn delivery(&self) -> Delivery;
+    fn delivery_format(&self) -> DeliveryFormat;
+}
+
+impl_fields!(DeliveryFields for [
+    DownloadJobParams,
+    ConversionJobParams,
+    ImagingJobFlow1Params,
+    ImagingJobFlow2Params,
+    BeamformerJobParams,
+] {
+    delivery: Delivery,
+    delivery_format: DeliveryFormat,
+});
+
+/// The preprocessing fields of a schema type (conversion and imaging flow 1).
+pub trait PreprocessingFields: SchemaDefaults {
+    fn avg_freq_res(&self) -> f64;
+    fn avg_time_res(&self) -> f64;
+    fn flag_edge_width(&self) -> f64;
+    fn apply_di_cal(&self) -> bool;
+    fn centre(&self) -> Centre;
+}
+
+impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params] {
+    avg_freq_res: f64,
+    avg_time_res: f64,
+    flag_edge_width: f64,
+    apply_di_cal: bool,
+    centre: Centre,
+});
+
+/// The WSClean fields of a schema type (both imaging flows).
+pub trait WscleanFields: SchemaDefaults {
+    fn apply_primary_beam(&self) -> bool;
+    fn auto_mask(&self) -> i64;
+    fn auto_threshold(&self) -> f64;
+    fn abs_threshold(&self) -> Option<f64>;
+    fn channels_out(&self) -> i64;
+    fn clean_iterations(&self) -> i64;
+    fn clean_threshold(&self) -> Option<f64>;
+    fn image_size(&self) -> ImageSizes;
+    fn join_channels(&self) -> bool;
+    fn mgain(&self) -> f64;
+    fn nmiter(&self) -> NonZeroU64;
+    fn output_mode(&self) -> OutputMode;
+    fn pixel_scale(&self) -> f64;
+    fn pol(&self) -> Polarization;
+    fn robust(&self) -> f64;
+    fn uvw_min(&self) -> f64;
+    fn weighting(&self) -> Weighting;
+}
+
+impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
+    apply_primary_beam: bool,
+    auto_mask: i64,
+    auto_threshold: f64,
+    abs_threshold: Option<f64>,
+    channels_out: i64,
+    clean_iterations: i64,
+    clean_threshold: Option<f64>,
+    image_size: ImageSizes,
+    join_channels: bool,
+    mgain: f64,
+    nmiter: NonZeroU64,
+    output_mode: OutputMode,
+    pixel_scale: f64,
+    pol: Polarization,
+    robust: f64,
+    uvw_min: f64,
+    weighting: Weighting,
+});
+
+// The argument groups below are generic over the schema type, so their
+// defaults use `default_value` with a `String`, never `default_value_t`:
+// clap's `default_value_t` keeps the text in a `static` of the generic
+// function, which all the schema types share, so every group would show
+// the defaults of the first type used.
+
+/// Where and how the MWA ASVO delivers a job's files. The defaults are those
+/// of the schema type `P`.
+#[derive(clap::Args, Debug, Clone)]
+pub struct DeliveryArgs<P: DeliveryFields> {
+    /// Tell MWA ASVO where to deliver the data.
+    #[arg(short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
+    pub delivery: Delivery,
+
+    /// Tell MWA ASVO to deliver the data in a particular format.
+    #[arg(short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    pub delivery_format: DeliveryFormat,
+
+    #[arg(skip)]
+    schema: PhantomData<fn() -> P>,
+}
+
+/// The preprocessing arguments of the conversion and imaging (flow 1) jobs.
+/// The defaults are those of the schema type `P`.
+#[derive(clap::Args, Debug, Clone)]
+pub struct PreprocessingArgs<P: PreprocessingFields> {
+    /// Frequency resolution to average to (kHz).
+    #[arg(long, default_value = P::schema_defaults().avg_freq_res().to_string(), value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
+    pub avg_freq_res: f64,
+
+    /// Time resolution to average to (s).
+    #[arg(long, default_value = P::schema_defaults().avg_time_res().to_string(), value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
+    pub avg_time_res: f64,
+
+    /// Width of frequency edge flagging (kHz).
+    #[arg(long, default_value = P::schema_defaults().flag_edge_width().to_string(), value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
+    pub flag_edge_width: f64,
+
+    /// Whether to apply the DI calibration solution.
+    #[arg(
+        long,
+        default_value = P::schema_defaults().apply_di_cal().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
+    pub apply_di_cal: bool,
+
+    /// Phase centre: "phase", "pointing", or "custom".
+    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
+    #[arg(long, alias = "phase-center", default_value = P::schema_defaults().centre().to_string(), value_parser = SchemaEnumParser::<Centre>::new())]
+    pub centre: Centre,
+
+    /// Custom phase centre right ascension (degrees). Requires --centre custom.
+    #[arg(long, aliases = ["phase-centre-ra", "custom-ra"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
+    pub custom_centre_ra: Option<f64>,
+
+    /// Custom phase centre declination (degrees). Requires --centre custom.
+    #[arg(long, aliases = ["phase-centre-dec", "custom-dec"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
+    pub custom_centre_dec: Option<f64>,
+
+    /// Whether to skip applying amplitude calibration solutions.
+    #[arg(long)]
+    pub no_apply_amps: bool,
+
+    /// Whether to skip applying digital gains.
+    #[arg(long)]
+    pub no_digital_gains: bool,
+
+    /// Whether to skip flagging the DC channel.
+    #[arg(long)]
+    pub no_flag_dc: bool,
+
+    /// Whether to skip applying geometric delay corrections.
+    #[arg(long)]
+    pub no_geometry_delay: bool,
+
+    /// Whether to skip applying passband gain corrections.
+    #[arg(long)]
+    pub no_passband_gains: bool,
+
+    /// Whether to skip applying cable delay corrections.
+    #[arg(long)]
+    pub no_cable_delay: bool,
+
+    /// Whether to skip RFI flagging.
+    #[arg(long)]
+    pub no_rfi: bool,
+
+    #[arg(skip)]
+    schema: PhantomData<fn() -> P>,
+}
+
+/// The WSClean arguments of both imaging jobs. The defaults are those of
+/// the schema type `P`.
+#[derive(clap::Args, Debug, Clone)]
+pub struct WscleanArgs<P: WscleanFields> {
+    /// Whether to apply the primary beam correction.
+    #[arg(
+        long,
+        default_value = P::schema_defaults().apply_primary_beam().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
+    pub apply_primary_beam: bool,
+
+    /// WSClean -auto-mask value.
+    #[arg(long, default_value = P::schema_defaults().auto_mask().to_string(), value_parser = parse_i64_bounds(validate::AUTO_MASK))]
+    pub auto_mask: i64,
+
+    /// WSClean -auto-threshold value.
+    #[arg(long, default_value = P::schema_defaults().auto_threshold().to_string(), value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
+    pub auto_threshold: f64,
+
+    /// Absolute cleaning threshold (Jy).
+    #[arg(long, default_value = P::schema_defaults().abs_threshold().expect("BUG: the schema has no default for abs_threshold").to_string(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
+    pub abs_threshold: f64,
+
+    /// Number of output channel groups.
+    #[arg(long, default_value = P::schema_defaults().channels_out().to_string())]
+    pub channels_out: i64,
+
+    /// WSClean -niter value (max clean iterations).
+    #[arg(long, default_value = P::schema_defaults().clean_iterations().to_string(), value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
+    pub clean_iterations: i64,
+
+    /// WSClean cleaning threshold (Jy).
+    #[arg(long, default_value = P::schema_defaults().clean_threshold().expect("BUG: the schema has no default for clean_threshold").to_string(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
+    pub clean_threshold: f64,
+
+    /// WSClean image size in pixels.
+    #[arg(long, default_value = (*P::schema_defaults().image_size()).to_string(), value_parser = parse_image_size)]
+    pub image_size: i64,
+
+    /// Join output channel groups for cleaning.
+    #[arg(
+        long,
+        default_value = P::schema_defaults().join_channels().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
+    pub join_channels: bool,
+
+    /// Join polarisations for cleaning.
+    #[arg(long)]
+    pub join_polarizations: bool,
+
+    /// WSClean -mgain value.
+    #[arg(long, default_value = P::schema_defaults().mgain().to_string(), value_parser = parse_f64_bounds(validate::MGAIN))]
+    pub mgain: f64,
+
+    /// Enable WSClean multiscale cleaning.
+    #[arg(long)]
+    pub multiscale: bool,
+
+    /// WSClean -nmiter value (max major cleaning iterations).
+    #[arg(long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_i64_bounds(validate::NMITER))]
+    pub nmiter: i64,
+
+    /// Number of w-projection layers. Leave unset to let the server
+    /// decide.
+    #[arg(long, value_parser = parse_i64_bounds(validate::NWLAYERS))]
+    pub nwlayers: Option<i64>,
+
+    /// The output mode / product to request.
+    #[arg(short = 'o', long, default_value = P::schema_defaults().output_mode().to_string(), value_parser = SchemaEnumParser::<OutputMode>::new())]
+    pub output_mode: OutputMode,
+
+    /// Pixel scale (arcsec/pixel).
+    #[arg(long, default_value = P::schema_defaults().pixel_scale().to_string(), value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
+    pub pixel_scale: f64,
+
+    /// Polarisation to image: XX, YY or XXYY.
+    #[arg(long, default_value = P::schema_defaults().pol().to_string(), value_parser = polarization_parser())]
+    pub pol: String,
+
+    /// WSClean -robust (Briggs robustness) value.
+    #[arg(long, default_value = P::schema_defaults().robust().to_string(), value_parser = parse_f64_bounds(validate::ROBUST))]
+    pub robust: f64,
+
+    /// Maximum uv distance to image, in wavelengths (upper bound on
+    /// the range that can be requested).
+    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
+    pub uvw_max: Option<f64>,
+
+    /// Minimum uv distance to image, in wavelengths.
+    #[arg(long, default_value = P::schema_defaults().uvw_min().to_string(), value_parser = parse_f64_bounds(validate::UVW_MIN))]
+    pub uvw_min: f64,
+
+    /// WSClean weighting scheme.
+    #[arg(long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<Weighting>::new())]
+    pub weighting: Weighting,
+
+    /// Number of w-stacking layers. Leave unset to let the server
+    /// decide.
+    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
+    pub wstack_nwlayers: Option<i64>,
+
+    #[arg(skip)]
+    schema: PhantomData<fn() -> P>,
+}
+
+impl<P: WscleanFields> WscleanArgs<P> {
+    /// `nmiter` as the library takes it. clap's range check keeps it at
+    /// least 1; a value that is not a `u64` becomes 0, which the library
+    /// refuses with its message.
+    fn nmiter(&self) -> u64 {
+        u64::try_from(self.nmiter).unwrap_or_default()
+    }
+}
+
 /// Arguments shared by the visibility and metadata download jobs, which use
 /// the same request body and the same endpoint, differing only in their
 /// `download_type`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = download_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
-
-    /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = download_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
@@ -193,8 +535,8 @@ impl DownloadJobArgs {
     /// defaults are the schema's), so every field is set.
     fn args(&self) -> DownloadArgs {
         DownloadArgs {
-            delivery: Some(self.delivery),
-            delivery_format: Some(self.delivery_format),
+            delivery: Some(self.delivery_args.delivery),
+            delivery_format: Some(self.delivery_args.delivery_format),
             allow_resubmit: Some(self.allow_resubmit),
         }
     }
@@ -203,74 +545,15 @@ impl DownloadJobArgs {
 /// Arguments for a preprocessing/conversion job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ConversionJobArgs {
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = conversion_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
-
-    /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = conversion_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<ConversionJobParams>,
 
     /// Output format: "ms" (measurement set) or "uvfits".
     #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<Output>::new())]
     pub output: Output,
 
-    /// Frequency resolution to average to (kHz).
-    #[arg(long, default_value_t = conversion_defaults().avg_freq_res, value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
-    pub avg_freq_res: f64,
-
-    /// Time resolution to average to (s).
-    #[arg(long, default_value_t = conversion_defaults().avg_time_res, value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
-    pub avg_time_res: f64,
-
-    /// Width of frequency edge flagging (kHz).
-    #[arg(long, default_value_t = conversion_defaults().flag_edge_width, value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
-    pub flag_edge_width: f64,
-
-    /// Whether to apply the DI calibration solution.
-    #[arg(long)]
-    pub apply_di_cal: bool,
-
-    /// Phase centre mode: "phase", "pointing", or "custom".
-    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, default_value_t = conversion_defaults().centre, value_parser = SchemaEnumParser::<Centre>::new())]
-    pub centre: Centre,
-
-    /// Custom phase centre right ascension (degrees). Requires --centre custom.
-    #[arg(long, alias = "phase-centre-ra", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
-    pub custom_centre_ra: Option<f64>,
-
-    /// Custom phase centre declination (degrees). Requires --centre custom.
-    #[arg(long, alias = "phase-centre-dec", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
-    pub custom_centre_dec: Option<f64>,
-
-    /// Whether to skip applying amplitude calibration solutions.
-    #[arg(long)]
-    pub no_apply_amps: bool,
-
-    /// Whether to skip applying digital gains.
-    #[arg(long)]
-    pub no_digital_gains: bool,
-
-    /// Whether to skip flagging the DC channel.
-    #[arg(long)]
-    pub no_flag_dc: bool,
-
-    /// Whether to skip applying geometric delay corrections.
-    #[arg(long)]
-    pub no_geometry_delay: bool,
-
-    /// Whether to skip applying passband gain corrections.
-    #[arg(long)]
-    pub no_passband_gains: bool,
-
-    /// Whether to skip applying cable delay corrections.
-    #[arg(long)]
-    pub no_cable_delay: bool,
-
-    /// Whether to skip RFI flagging.
-    #[arg(long)]
-    pub no_rfi: bool,
+    #[command(flatten)]
+    pub preprocessing: PreprocessingArgs<ConversionJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
@@ -282,24 +565,25 @@ impl ConversionJobArgs {
     /// the library's [`ConversionArgs`]. Every field is set (the CLI's
     /// defaults are the schema's).
     pub fn to_params(&self, obs_id: ObsId) -> Result<ConversionJobParams, AsvoApiError> {
+        let pre = &self.preprocessing;
         ConversionArgs {
-            delivery: Some(self.delivery),
-            delivery_format: Some(self.delivery_format),
+            delivery: Some(self.delivery_args.delivery),
+            delivery_format: Some(self.delivery_args.delivery_format),
             output: Some(self.output),
-            avg_freq_res: Some(self.avg_freq_res),
-            avg_time_res: Some(self.avg_time_res),
-            flag_edge_width: Some(self.flag_edge_width),
-            apply_di_cal: Some(self.apply_di_cal),
-            centre: Some(self.centre),
-            custom_centre_ra: self.custom_centre_ra,
-            custom_centre_dec: self.custom_centre_dec,
-            no_apply_amps: Some(self.no_apply_amps),
-            no_digital_gains: Some(self.no_digital_gains),
-            no_flag_dc: Some(self.no_flag_dc),
-            no_geometry_delay: Some(self.no_geometry_delay),
-            no_passband_gains: Some(self.no_passband_gains),
-            no_cable_delay: Some(self.no_cable_delay),
-            no_rfi: Some(self.no_rfi),
+            avg_freq_res: Some(pre.avg_freq_res),
+            avg_time_res: Some(pre.avg_time_res),
+            flag_edge_width: Some(pre.flag_edge_width),
+            apply_di_cal: Some(pre.apply_di_cal),
+            centre: Some(pre.centre),
+            custom_centre_ra: pre.custom_centre_ra,
+            custom_centre_dec: pre.custom_centre_dec,
+            no_apply_amps: Some(pre.no_apply_amps),
+            no_digital_gains: Some(pre.no_digital_gains),
+            no_flag_dc: Some(pre.no_flag_dc),
+            no_geometry_delay: Some(pre.no_geometry_delay),
+            no_passband_gains: Some(pre.no_passband_gains),
+            no_cable_delay: Some(pre.no_cable_delay),
+            no_rfi: Some(pre.no_rfi),
             allow_resubmit: Some(self.allow_resubmit),
         }
         .into_params(obs_id)
@@ -309,183 +593,14 @@ impl ConversionJobArgs {
 /// Arguments for an imaging job that starts from raw visibilities (flow 1).
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingJobArgs {
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging1_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<ImagingJobFlow1Params>,
 
-    /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging1_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
+    #[command(flatten)]
+    pub preprocessing: PreprocessingArgs<ImagingJobFlow1Params>,
 
-    /// Whether to apply the DI calibration solution.
-    #[arg(
-        long,
-        default_value_t = imaging1_defaults().apply_di_cal,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-    )]
-    pub apply_di_cal: bool,
-
-    /// Whether to apply the primary beam correction.
-    #[arg(
-        long,
-        default_value_t = imaging1_defaults().apply_primary_beam,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-    )]
-    pub apply_primary_beam: bool,
-
-    /// WSClean -auto-mask value.
-    #[arg(long, default_value_t = imaging1_defaults().auto_mask, value_parser = parse_i64_bounds(validate::AUTO_MASK))]
-    pub auto_mask: i64,
-
-    /// WSClean -auto-threshold value.
-    #[arg(long, default_value_t = imaging1_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
-    pub auto_threshold: f64,
-
-    /// Absolute cleaning threshold (Jy).
-    #[arg(long, default_value_t = imaging1_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
-    pub abs_threshold: f64,
-
-    /// Frequency resolution to average to before imaging (kHz).
-    #[arg(long, default_value_t = imaging1_defaults().avg_freq_res, value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
-    pub avg_freq_res: f64,
-
-    /// Time resolution to average to before imaging (s).
-    #[arg(long, default_value_t = imaging1_defaults().avg_time_res, value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
-    pub avg_time_res: f64,
-
-    /// Number of output channel groups.
-    #[arg(long, default_value_t = imaging1_defaults().channels_out)]
-    pub channels_out: i64,
-
-    /// WSClean -niter value (max clean iterations).
-    #[arg(long, default_value_t = imaging1_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
-    pub clean_iterations: i64,
-
-    /// WSClean cleaning threshold (Jy).
-    #[arg(long, default_value_t = imaging1_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
-    pub clean_threshold: f64,
-
-    /// Custom phase centre declination (degrees). Requires --centre custom.
-    #[arg(long, alias = "custom-dec", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
-    pub custom_centre_dec: Option<f64>,
-
-    /// Custom phase centre right ascension (degrees). Requires --centre custom.
-    #[arg(long, alias = "custom-ra", value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
-    pub custom_centre_ra: Option<f64>,
-
-    /// Width of frequency edge flagging (kHz).
-    #[arg(long, default_value_t = imaging1_defaults().flag_edge_width, value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
-    pub flag_edge_width: f64,
-
-    /// WSClean image size in pixels.
-    #[arg(long, default_value_t = *imaging1_defaults().image_size, value_parser = parse_image_size)]
-    pub image_size: i64,
-
-    /// Join output channel groups for cleaning.
-    #[arg(
-        long,
-        default_value_t = imaging1_defaults().join_channels,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-    )]
-    pub join_channels: bool,
-
-    /// Join polarisations for cleaning.
-    #[arg(long)]
-    pub join_polarizations: bool,
-
-    /// WSClean -mgain value.
-    #[arg(long, default_value_t = imaging1_defaults().mgain, value_parser = parse_f64_bounds(validate::MGAIN))]
-    pub mgain: f64,
-
-    /// Enable WSClean multiscale cleaning.
-    #[arg(long)]
-    pub multiscale: bool,
-
-    /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value_t = imaging1_defaults().nmiter.get() as i64, value_parser = parse_i64_bounds(validate::NMITER))]
-    pub nmiter: i64,
-
-    /// Number of w-projection layers. Leave unset to let the server
-    /// decide.
-    #[arg(long, value_parser = parse_i64_bounds(validate::NWLAYERS))]
-    pub nwlayers: Option<i64>,
-
-    /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value_t = imaging1_defaults().output_mode, value_parser = SchemaEnumParser::<OutputMode>::new())]
-    pub output_mode: OutputMode,
-
-    /// Where to centre the image: "phase", "pointing", or "custom".
-    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, alias = "phase-center", default_value_t = imaging1_defaults().centre, value_parser = SchemaEnumParser::<Centre>::new())]
-    pub centre: Centre,
-
-    /// Pixel scale (arcsec/pixel).
-    #[arg(long, default_value_t = imaging1_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
-    pub pixel_scale: f64,
-
-    /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value_t = imaging1_defaults().pol.to_string(), value_parser = polarization_parser())]
-    pub pol: String,
-
-    /// WSClean -robust (Briggs robustness) value.
-    #[arg(long, default_value_t = imaging1_defaults().robust, value_parser = parse_f64_bounds(validate::ROBUST))]
-    pub robust: f64,
-
-    /// Maximum uv distance to image, in wavelengths (upper bound on
-    /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
-    pub uvw_max: Option<f64>,
-
-    /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value_t = imaging1_defaults().uvw_min, value_parser = parse_f64_bounds(validate::UVW_MIN))]
-    pub uvw_min: f64,
-
-    /// WSClean weighting scheme.
-    #[arg(long, default_value_t = imaging1_defaults().weighting, value_parser = SchemaEnumParser::<Weighting>::new())]
-    pub weighting: Weighting,
-
-    /// Number of w-stacking layers. Leave unset to let the server
-    /// decide.
-    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
-    pub wstack_nwlayers: Option<i64>,
-
-    /// Whether to skip applying amplitude calibration solutions.
-    /// Leave at the default (false) unless you know you need this.
-    #[arg(long)]
-    pub no_apply_amps: bool,
-
-    /// Whether to skip applying digital gains.
-    #[arg(long)]
-    pub no_digital_gains: bool,
-
-    /// Whether to skip flagging the DC channel.
-    #[arg(long)]
-    pub no_flag_dc: bool,
-
-    /// Whether to skip applying geometric delay corrections.
-    #[arg(long)]
-    pub no_geometry_delay: bool,
-
-    /// Whether to skip applying passband gain corrections.
-    #[arg(long)]
-    pub no_passband_gains: bool,
-
-    /// Whether to skip applying cable delay corrections.
-    #[arg(long)]
-    pub no_cable_delay: bool,
-
-    /// Whether to skip RFI flagging.
-    #[arg(long)]
-    pub no_rfi: bool,
+    #[command(flatten)]
+    pub wsclean: WscleanArgs<ImagingJobFlow1Params>,
 
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
@@ -496,48 +611,48 @@ impl ImagingJobArgs {
     /// Build the request body for an imaging job for a single Obs ID, with
     /// the library's [`ImagingArgs`]. Every field that has a value is set.
     pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow1Params, AsvoApiError> {
+        let pre = &self.preprocessing;
+        let ws = &self.wsclean;
         ImagingArgs {
-            delivery: Some(self.delivery),
-            delivery_format: Some(self.delivery_format),
-            apply_primary_beam: Some(self.apply_primary_beam),
-            auto_mask: Some(self.auto_mask),
-            auto_threshold: Some(self.auto_threshold),
-            abs_threshold: Some(self.abs_threshold),
-            channels_out: Some(self.channels_out),
-            clean_iterations: Some(self.clean_iterations),
-            clean_threshold: Some(self.clean_threshold),
-            image_size: Some(self.image_size),
-            join_channels: Some(self.join_channels),
-            join_polarizations: Some(self.join_polarizations),
-            mgain: Some(self.mgain),
-            multiscale: Some(self.multiscale),
-            // clap's range check keeps it at least 1; a value that is not a
-            // `u64` becomes 0, which the library refuses with its message.
-            nmiter: Some(u64::try_from(self.nmiter).unwrap_or_default()),
-            nwlayers: self.nwlayers,
-            output_mode: Some(self.output_mode),
-            pixel_scale: Some(self.pixel_scale),
-            pol: Some(self.pol.parse::<Polarization>()?),
-            robust: Some(self.robust),
-            uvw_max: self.uvw_max,
-            uvw_min: Some(self.uvw_min),
-            weighting: Some(self.weighting),
-            wstack_nwlayers: self.wstack_nwlayers,
+            delivery: Some(self.delivery_args.delivery),
+            delivery_format: Some(self.delivery_args.delivery_format),
+            apply_primary_beam: Some(ws.apply_primary_beam),
+            auto_mask: Some(ws.auto_mask),
+            auto_threshold: Some(ws.auto_threshold),
+            abs_threshold: Some(ws.abs_threshold),
+            channels_out: Some(ws.channels_out),
+            clean_iterations: Some(ws.clean_iterations),
+            clean_threshold: Some(ws.clean_threshold),
+            image_size: Some(ws.image_size),
+            join_channels: Some(ws.join_channels),
+            join_polarizations: Some(ws.join_polarizations),
+            mgain: Some(ws.mgain),
+            multiscale: Some(ws.multiscale),
+            nmiter: Some(ws.nmiter()),
+            nwlayers: ws.nwlayers,
+            output_mode: Some(ws.output_mode),
+            pixel_scale: Some(ws.pixel_scale),
+            pol: Some(ws.pol.parse::<Polarization>()?),
+            robust: Some(ws.robust),
+            uvw_max: ws.uvw_max,
+            uvw_min: Some(ws.uvw_min),
+            weighting: Some(ws.weighting),
+            wstack_nwlayers: ws.wstack_nwlayers,
             allow_resubmit: Some(self.allow_resubmit),
-            apply_di_cal: Some(self.apply_di_cal),
-            avg_freq_res: Some(self.avg_freq_res),
-            avg_time_res: Some(self.avg_time_res),
-            centre: Some(self.centre),
-            custom_centre_dec: self.custom_centre_dec,
-            custom_centre_ra: self.custom_centre_ra,
-            flag_edge_width: Some(self.flag_edge_width),
-            no_apply_amps: Some(self.no_apply_amps),
-            no_digital_gains: Some(self.no_digital_gains),
-            no_flag_dc: Some(self.no_flag_dc),
-            no_geometry_delay: Some(self.no_geometry_delay),
-            no_passband_gains: Some(self.no_passband_gains),
-            no_cable_delay: Some(self.no_cable_delay),
-            no_rfi: Some(self.no_rfi),
+            apply_di_cal: Some(pre.apply_di_cal),
+            avg_freq_res: Some(pre.avg_freq_res),
+            avg_time_res: Some(pre.avg_time_res),
+            centre: Some(pre.centre),
+            custom_centre_dec: pre.custom_centre_dec,
+            custom_centre_ra: pre.custom_centre_ra,
+            flag_edge_width: Some(pre.flag_edge_width),
+            no_apply_amps: Some(pre.no_apply_amps),
+            no_digital_gains: Some(pre.no_digital_gains),
+            no_flag_dc: Some(pre.no_flag_dc),
+            no_geometry_delay: Some(pre.no_geometry_delay),
+            no_passband_gains: Some(pre.no_passband_gains),
+            no_cable_delay: Some(pre.no_cable_delay),
+            no_rfi: Some(pre.no_rfi),
         }
         .into_params(obs_id)
     }
@@ -551,118 +666,11 @@ pub struct ImagingFromJobArgs {
     #[arg(long)]
     pub source_job_id: NonZeroU64,
 
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = imaging2_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<ImagingJobFlow2Params>,
 
-    /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = imaging2_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
-
-    /// Whether to apply the primary beam correction.
-    #[arg(
-        long,
-        default_value_t = imaging2_defaults().apply_primary_beam,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-    )]
-    pub apply_primary_beam: bool,
-
-    /// WSClean -auto-mask value.
-    #[arg(long, default_value_t = imaging2_defaults().auto_mask, value_parser = parse_i64_bounds(validate::AUTO_MASK))]
-    pub auto_mask: i64,
-
-    /// WSClean -auto-threshold value.
-    #[arg(long, default_value_t = imaging2_defaults().auto_threshold, value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
-    pub auto_threshold: f64,
-
-    /// Absolute cleaning threshold (Jy).
-    #[arg(long, default_value_t = imaging2_defaults().abs_threshold.unwrap(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
-    pub abs_threshold: f64,
-
-    /// Number of output channel groups.
-    #[arg(long, default_value_t = imaging2_defaults().channels_out)]
-    pub channels_out: i64,
-
-    /// WSClean -niter value (max clean iterations).
-    #[arg(long, default_value_t = imaging2_defaults().clean_iterations, value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
-    pub clean_iterations: i64,
-
-    /// WSClean cleaning threshold (Jy).
-    #[arg(long, default_value_t = imaging2_defaults().clean_threshold.unwrap(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
-    pub clean_threshold: f64,
-
-    /// WSClean image size in pixels.
-    #[arg(long, default_value_t = *imaging2_defaults().image_size, value_parser = parse_image_size)]
-    pub image_size: i64,
-
-    /// Join output channel groups for cleaning.
-    #[arg(
-        long,
-        default_value_t = imaging2_defaults().join_channels,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-    )]
-    pub join_channels: bool,
-
-    /// Join polarisations for cleaning.
-    #[arg(long)]
-    pub join_polarizations: bool,
-
-    /// WSClean -mgain value.
-    #[arg(long, default_value_t = imaging2_defaults().mgain, value_parser = parse_f64_bounds(validate::MGAIN))]
-    pub mgain: f64,
-
-    /// Enable WSClean multiscale cleaning.
-    #[arg(long)]
-    pub multiscale: bool,
-
-    /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value_t = imaging2_defaults().nmiter.get() as i64, value_parser = parse_i64_bounds(validate::NMITER))]
-    pub nmiter: i64,
-
-    /// Number of w-projection layers. Leave unset to let the server
-    /// decide.
-    #[arg(long, value_parser = parse_i64_bounds(validate::NWLAYERS))]
-    pub nwlayers: Option<i64>,
-
-    /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value_t = imaging2_defaults().output_mode, value_parser = SchemaEnumParser::<OutputMode>::new())]
-    pub output_mode: OutputMode,
-
-    /// Pixel scale (arcsec/pixel).
-    #[arg(long, default_value_t = imaging2_defaults().pixel_scale, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
-    pub pixel_scale: f64,
-
-    /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value_t = imaging2_defaults().pol.to_string(), value_parser = polarization_parser())]
-    pub pol: String,
-
-    /// WSClean -robust (Briggs robustness) value.
-    #[arg(long, default_value_t = imaging2_defaults().robust, value_parser = parse_f64_bounds(validate::ROBUST))]
-    pub robust: f64,
-
-    /// Maximum uv distance to image, in wavelengths (upper bound on
-    /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
-    pub uvw_max: Option<f64>,
-
-    /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value_t = imaging2_defaults().uvw_min, value_parser = parse_f64_bounds(validate::UVW_MIN))]
-    pub uvw_min: f64,
-
-    /// WSClean weighting scheme.
-    #[arg(long, default_value_t = imaging2_defaults().weighting, value_parser = SchemaEnumParser::<Weighting>::new())]
-    pub weighting: Weighting,
-
-    /// Number of w-stacking layers. Leave unset to let the server
-    /// decide.
-    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
-    pub wstack_nwlayers: Option<i64>,
+    #[command(flatten)]
+    pub wsclean: WscleanArgs<ImagingJobFlow2Params>,
 
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
@@ -673,33 +681,32 @@ impl ImagingFromJobArgs {
     /// Build the request body for an image of the conversion job
     /// `--source-job-id`, with the library's [`ImageFromJobArgs`].
     pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow2Params, AsvoApiError> {
+        let ws = &self.wsclean;
         ImageFromJobArgs {
-            delivery: Some(self.delivery),
-            delivery_format: Some(self.delivery_format),
-            apply_primary_beam: Some(self.apply_primary_beam),
-            auto_mask: Some(self.auto_mask),
-            auto_threshold: Some(self.auto_threshold),
-            abs_threshold: Some(self.abs_threshold),
-            channels_out: Some(self.channels_out),
-            clean_iterations: Some(self.clean_iterations),
-            clean_threshold: Some(self.clean_threshold),
-            image_size: Some(self.image_size),
-            join_channels: Some(self.join_channels),
-            join_polarizations: Some(self.join_polarizations),
-            mgain: Some(self.mgain),
-            multiscale: Some(self.multiscale),
-            // clap's range check keeps it at least 1; a value that is not a
-            // `u64` becomes 0, which the library refuses with its message.
-            nmiter: Some(u64::try_from(self.nmiter).unwrap_or_default()),
-            nwlayers: self.nwlayers,
-            output_mode: Some(self.output_mode),
-            pixel_scale: Some(self.pixel_scale),
-            pol: Some(self.pol.parse::<Polarization>()?),
-            robust: Some(self.robust),
-            uvw_max: self.uvw_max,
-            uvw_min: Some(self.uvw_min),
-            weighting: Some(self.weighting),
-            wstack_nwlayers: self.wstack_nwlayers,
+            delivery: Some(self.delivery_args.delivery),
+            delivery_format: Some(self.delivery_args.delivery_format),
+            apply_primary_beam: Some(ws.apply_primary_beam),
+            auto_mask: Some(ws.auto_mask),
+            auto_threshold: Some(ws.auto_threshold),
+            abs_threshold: Some(ws.abs_threshold),
+            channels_out: Some(ws.channels_out),
+            clean_iterations: Some(ws.clean_iterations),
+            clean_threshold: Some(ws.clean_threshold),
+            image_size: Some(ws.image_size),
+            join_channels: Some(ws.join_channels),
+            join_polarizations: Some(ws.join_polarizations),
+            mgain: Some(ws.mgain),
+            multiscale: Some(ws.multiscale),
+            nmiter: Some(ws.nmiter()),
+            nwlayers: ws.nwlayers,
+            output_mode: Some(ws.output_mode),
+            pixel_scale: Some(ws.pixel_scale),
+            pol: Some(ws.pol.parse::<Polarization>()?),
+            robust: Some(ws.robust),
+            uvw_max: ws.uvw_max,
+            uvw_min: Some(ws.uvw_min),
+            weighting: Some(ws.weighting),
+            wstack_nwlayers: ws.wstack_nwlayers,
             allow_resubmit: Some(self.allow_resubmit),
         }
         .into_params(obs_id, self.source_job_id.get())
@@ -755,13 +762,8 @@ impl VoltageJobArgs {
 /// Arguments for a beamformer download job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct BeamformerJobArgs {
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value_t = beamformer_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
-
-    /// Tell MWA ASVO to deliver the data in a particular format.
-    #[arg(short = 'f', long, default_value_t = beamformer_defaults().delivery_format, env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<BeamformerJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
     #[arg(short = 'r', long, action = ArgAction::SetTrue)]
@@ -773,8 +775,8 @@ impl BeamformerJobArgs {
     /// [`BeamformerArgs`].
     pub fn to_params(&self, obs_id: ObsId) -> Result<BeamformerJobParams, AsvoApiError> {
         BeamformerArgs {
-            delivery: Some(self.delivery),
-            delivery_format: Some(self.delivery_format),
+            delivery: Some(self.delivery_args.delivery),
+            delivery_format: Some(self.delivery_args.delivery_format),
             allow_resubmit: Some(self.allow_resubmit),
         }
         .into_params(obs_id)

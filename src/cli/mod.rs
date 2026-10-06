@@ -75,6 +75,32 @@ const ABOUT: &str = r#"The official MWA ASVO command-line client to download dat
 Source:   https://github.com/MWATelescope/giant-squid
 MWA ASVO: https://asvo.mwatelescope.org"#;
 
+/// The options that every submit command has (except the Obs IDs, whose
+/// help differs between commands).
+#[derive(clap::Args, Debug, Clone)]
+pub struct SubmitOptions {
+    /// Do not exit giant-squid until the specified Obs IDs are ready for
+    /// download.
+    #[arg(short, long)]
+    pub wait: bool,
+
+    /// Don't actually submit; print information on what would've happened
+    /// instead.
+    #[arg(short = 'n', long)]
+    pub dry_run: bool,
+
+    /// Print each submitted job's response from the MWA ASVO as one line
+    /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
+    /// with the obs_id. No logs are printed.
+    #[arg(short, long)]
+    pub json: bool,
+
+    /// The verbosity of the program. The default is to print high-level
+    /// information. Cannot be used with --json.
+    #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
+    pub verbosity: u8,
+}
+
 #[derive(Parser, Debug)]
 #[command(name = PROGRAM_NAME, author, about = ABOUT, version, color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true)]
 pub enum Args {
@@ -192,26 +218,8 @@ pub enum Args {
         #[command(flatten)]
         download: DownloadJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
@@ -227,26 +235,8 @@ pub enum Args {
         #[command(flatten)]
         conv: ConversionJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
@@ -262,26 +252,8 @@ pub enum Args {
         #[command(flatten)]
         image: ImagingJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to submit for imaging. Files containing Obs IDs are
         /// also accepted. All Obs IDs in one invocation share the same
@@ -300,26 +272,8 @@ pub enum Args {
         #[command(flatten)]
         image: ImagingFromJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs ID to image. Exactly one Obs ID is required (the
         /// source_job_id identifies the conversion job for this Obs ID).
@@ -334,26 +288,8 @@ pub enum Args {
         #[command(flatten)]
         download: DownloadJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
@@ -369,26 +305,8 @@ pub enum Args {
         #[command(flatten)]
         volt: VoltageJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.
@@ -402,26 +320,8 @@ pub enum Args {
         #[command(flatten)]
         bf: BeamformerJobArgs,
 
-        /// Do not exit giant-squid until the specified Obs IDs are ready for
-        /// download.
-        #[arg(short, long)]
-        wait: bool,
-
-        /// Don't actually submit; print information on what would've happened
-        /// instead.
-        #[arg(short = 'n', long)]
-        dry_run: bool,
-
-        /// Print each submitted job's response from the MWA ASVO as one line
-        /// of JSON on stdout, and each error as an MWA ASVO ErrorResponse
-        /// with the obs_id. No logs are printed.
-        #[arg(short, long)]
-        json: bool,
-
-        /// The verbosity of the program. The default is to print high-level
-        /// information. Cannot be used with --json.
-        #[arg(short, long, action=ArgAction::Count, conflicts_with = "json")]
-        verbosity: u8,
+        #[command(flatten)]
+        submit: SubmitOptions,
 
         /// The Obs IDs to be submitted. Files containing Obs IDs are also
         /// accepted.

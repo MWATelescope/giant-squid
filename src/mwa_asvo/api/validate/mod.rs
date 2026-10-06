@@ -126,14 +126,9 @@ pub const AUTO_THRESHOLD: Bounds = Bounds::between(0.1, 5.0);
 pub const AVG_FREQ_RES: Bounds = Bounds::between(0.0, 1280.0);
 /// `avg_time_res`: the time resolution to average to (s).
 pub const AVG_TIME_RES: Bounds = Bounds::at_least(0.0);
-/// `clean_iterations`: the WSClean -niter value.
-///
-/// The schema sets only the upper limit. The lower limit of 0 is the CLI's
-/// own, kept from before the limits moved here (a negative number of
-/// iterations has no meaning). It is the one limit in this module that is
-/// not in the schema; the test that compares the limits with the schema
-/// names it.
-pub const CLEAN_ITERATIONS: Bounds = Bounds::between(0.0, 1_000_000.0);
+/// `clean_iterations`: the WSClean -niter value. The schema sets only the
+/// upper limit.
+pub const CLEAN_ITERATIONS: Bounds = Bounds::at_most(1_000_000.0);
 /// `clean_threshold`: the WSClean cleaning threshold (Jy).
 pub const CLEAN_THRESHOLD: Bounds = Bounds::between(0.0, 10.0);
 /// `custom_centre_dec`: the custom phase centre's declination (degrees).
