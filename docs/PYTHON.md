@@ -246,6 +246,7 @@ threads run during the download.
 | `buffer_size` | How many bytes to hold in memory before they are written. Default: the library's `DEFAULT_DOWNLOAD_BUFFER_SIZE`. |
 | `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: the library's `DEFAULT_DOWNLOAD_RETRY_DURATION`. |
 | `download_number`, `download_count` | The place of this download in a series. They set the `[1/2]` text in labels. |
+| `jobs` | A job list from `get_jobs` or `list_jobs` to find the job in. By default the call gets the job list first. To download several jobs, get the list once and pass it to each call. |
 
 ### Resume and Ctrl-C
 

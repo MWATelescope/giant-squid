@@ -26,8 +26,9 @@ use std::env;
 use std::error::Error;
 use std::path::Path;
 
+use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, JobState, JobsFilter, DEFAULT_ASVO_HOST,
+    default_token_cache_path, AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_ASVO_HOST,
 };
 
 /// The environment variable that holds the API key.

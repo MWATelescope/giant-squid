@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use log::{debug, error, info, warn};
-use simplelog::*;
+use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 
 use rayon::prelude::*;
 
@@ -25,13 +25,19 @@ use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use crate::mwa_asvo::api::openapi::{JobSubmittedResponse, Status, Type as FileType};
-use crate::mwa_asvo::*;
-use crate::*;
+use crate::mwa_asvo::{
+    client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
+    DownloadOptions, DownloadProgress, DownloadSettings, JobQuery, JobState, JobsFilter,
+    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
+    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+};
+use crate::obs_id::ObsId;
+use crate::{parse_job_ids_only, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, ParseError};
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::table::{job_files, job_size_text, print_jobs_table};
-use super::{Args, SubmitOptions};
+use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL};
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     let pb = multi_progress_bar.add(ProgressBar::new(0));
@@ -110,12 +116,17 @@ impl DownloadTarget {
         }
     }
 
-    /// Download the target.
-    fn download(self, client: &AsvoClient, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
+    /// Download the target, found in the job list `jobs`.
+    fn download(
+        self,
+        client: &AsvoClient,
+        jobs: &AsvoJobVec,
+        opts: &DownloadOptions,
+    ) -> anyhow::Result<AsvoJob> {
         thread::sleep(DOWNLOAD_START_DELAY);
         Ok(match self {
-            Self::Job(job_id) => client.download_job(job_id, opts)?,
-            Self::Obs(obs_id) => client.download_obs(obs_id, opts)?,
+            Self::Job(job_id) => client.download_job_from(jobs, job_id, opts)?,
+            Self::Obs(obs_id) => client.download_obs_from(jobs, obs_id, opts)?,
         })
     }
 }
@@ -576,11 +587,6 @@ fn run(args: Args) -> anyhow::Result<()> {
             // messages don't mess up the progress bars!
             init_logger_with_progressbar_support(verbosity, json, &mpb);
 
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(concurrent_downloads)
-                .build_global()
-                .unwrap();
-
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let hash = !skip_hash;
             let DownloadSettings {
@@ -617,33 +623,42 @@ fn run(args: Args) -> anyhow::Result<()> {
                 }
             } else {
                 let t: usize = job_ids.len() + obs_ids.len();
-                // One client for all the downloads: it logs in once, and the
-                // server permits only a few logins a minute.
+                // One client and one job list for all the downloads: the
+                // client logs in once (the server permits only a few logins
+                // a minute), and the job list is fetched once.
                 let client = connect()?;
+                let jobs = client.get_jobs(&JobsFilter::default())?;
+                // A pool of its own, not rayon's global pool, which can be
+                // set only once in a process.
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(concurrent_downloads)
+                    .build()?;
 
                 let targets = DownloadTarget::all(&job_ids, &obs_ids);
-                let results: Vec<anyhow::Result<AsvoJob>> = targets
-                    .par_iter()
-                    .enumerate()
-                    .map(|(c, target)| {
-                        let pb = create_progress_bar(&mpb);
-                        let progress = |event| update_progress_bar(&pb, event);
-                        let opts = DownloadOptions {
-                            keep_tar,
-                            no_resume,
-                            hash,
-                            download_dir: &download_dir,
-                            progress: Some(&progress),
-                            download_number: c + 1,
-                            download_count: t,
-                            buffer_size,
-                            retry_duration,
-                            // Ctrl-C ends the CLI process.
-                            should_stop: None,
-                        };
-                        target.download(&client, &opts)
-                    })
-                    .collect();
+                let results: Vec<anyhow::Result<AsvoJob>> = pool.install(|| {
+                    targets
+                        .par_iter()
+                        .enumerate()
+                        .map(|(c, target)| {
+                            let pb = create_progress_bar(&mpb);
+                            let progress = |event| update_progress_bar(&pb, event);
+                            let opts = DownloadOptions {
+                                keep_tar,
+                                no_resume,
+                                hash,
+                                download_dir: &download_dir,
+                                progress: Some(&progress),
+                                download_number: c + 1,
+                                download_count: t,
+                                buffer_size,
+                                retry_duration,
+                                // Ctrl-C ends the CLI process.
+                                should_stop: None,
+                            };
+                            target.download(&client, &jobs, &opts)
+                        })
+                        .collect()
+                });
 
                 // Every download runs to completion before anything is
                 // reported, so one failure doesn't hide the rest. Report

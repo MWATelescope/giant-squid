@@ -18,7 +18,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use log::{debug, warn};
+use log::debug;
 
 use crate::mwa_asvo::{
     default_token_cache_path, AsvoApiError, AsvoClientConfig, AsvoError, BYTES_PER_MIB,
@@ -65,22 +65,21 @@ fn process_env(name: &str) -> Option<String> {
 ///
 /// - `MWA_ASVO_API_KEY` is required.
 /// - `MWA_ASVO_HOST` defaults to [`DEFAULT_ASVO_HOST`].
-/// - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds. A value that is
-///   not one is logged as a warning and the default is used.
+/// - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds.
 /// - The session is cached under `HOME` (see [`default_token_cache_path`]).
 ///   Without `HOME` it is not cached.
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::MissingAuthKey`] if `MWA_ASVO_API_KEY` is not set.
-pub fn client_config_from_env() -> Result<AsvoClientConfig, AsvoApiError> {
+/// [`AsvoError::AsvoApi`] with [`AsvoApiError::MissingAuthKey`] if
+/// `MWA_ASVO_API_KEY` is not set, and [`AsvoError::InvalidEnvironment`] if
+/// `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of seconds.
+pub fn client_config_from_env() -> Result<AsvoClientConfig, AsvoError> {
     client_config_from(process_env)
 }
 
 /// As [`client_config_from_env`], reading the variables with `get`.
-fn client_config_from(
-    get: impl Fn(&str) -> Option<String>,
-) -> Result<AsvoClientConfig, AsvoApiError> {
+fn client_config_from(get: impl Fn(&str) -> Option<String>) -> Result<AsvoClientConfig, AsvoError> {
     let api_key = get(ENV_MWA_ASVO_API_KEY).ok_or(AsvoApiError::MissingAuthKey {
         variable: Some(ENV_MWA_ASVO_API_KEY),
     })?;
@@ -89,22 +88,11 @@ fn client_config_from(
     let mut config = AsvoClientConfig::new(host, api_key);
     config.api_timeout = match get(ENV_MWA_ASVO_API_TIMEOUT) {
         None => DEFAULT_API_TIMEOUT,
-        Some(value) => match value.parse::<u64>() {
-            Ok(seconds) => {
-                debug!("{ENV_MWA_ASVO_API_TIMEOUT} timeout overridden to {seconds} seconds");
-                Duration::from_secs(seconds)
-            }
-            Err(e) => {
-                warn_default(
-                    ENV_MWA_ASVO_API_TIMEOUT,
-                    &value,
-                    DEFAULT_API_TIMEOUT.as_secs(),
-                    EXPECTED_SECONDS,
-                    &e,
-                );
-                DEFAULT_API_TIMEOUT
-            }
-        },
+        Some(value) => {
+            let seconds = whole_number(ENV_MWA_ASVO_API_TIMEOUT, &value, EXPECTED_SECONDS)?;
+            debug!("{ENV_MWA_ASVO_API_TIMEOUT} timeout overridden to {seconds} seconds");
+            Duration::from_secs(seconds)
+        }
     };
     config.token_cache_path = get(ENV_HOME).map(|home| default_token_cache_path(Path::new(&home)));
     if config.token_cache_path.is_none() {
@@ -114,18 +102,22 @@ fn client_config_from(
     Ok(config)
 }
 
-/// Log that a variable is not valid and its default is used instead.
-fn warn_default(
+/// The value `value` of the variable `name` as a whole number.
+///
+/// # Errors
+///
+/// [`AsvoError::InvalidEnvironment`] if it is not one; the message says it
+/// should be `expected`.
+fn whole_number<T: std::str::FromStr>(
     name: &str,
     value: &str,
-    default: impl std::fmt::Display,
     expected: &str,
-    error: &dyn std::fmt::Display,
-) {
-    warn!(
-        "Environment variable {name}='{value}' is not valid, defaulting to {default}. \
-         (It should be {expected}). Error: {error}"
-    );
+) -> Result<T, AsvoError> {
+    value.parse().map_err(|_| AsvoError::InvalidEnvironment {
+        name: name.to_string(),
+        value: value.to_string(),
+        problem: format!("is not valid. (It should be {expected})"),
+    })
 }
 
 /// The download settings that come from the environment.
@@ -145,13 +137,14 @@ impl DownloadSettings {
     /// - `GIANT_SQUID_BUF_SIZE` is a whole number of MiB (default
     ///   [`DEFAULT_DOWNLOAD_BUFFER_SIZE`]).
     /// - `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is a whole number of seconds
-    ///   (default [`DEFAULT_DOWNLOAD_RETRY_DURATION`]). A value that is not
-    ///   one is logged as a warning and the default is used.
+    ///   (default [`DEFAULT_DOWNLOAD_RETRY_DURATION`]).
     ///
     /// # Errors
     ///
     /// [`AsvoError::InvalidEnvironment`] if `GIANT_SQUID_BUF_SIZE` is set but
-    /// is not a whole number of MiB, or is too large.
+    /// is not a whole number of MiB, or is too large, or if
+    /// `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is set but is not a whole number of
+    /// seconds.
     pub fn from_env() -> Result<Self, AsvoError> {
         Self::from(process_env)
     }
@@ -161,11 +154,7 @@ impl DownloadSettings {
         let buffer_size = match get(ENV_GIANT_SQUID_BUF_SIZE) {
             None => DEFAULT_DOWNLOAD_BUFFER_SIZE,
             Some(value) => {
-                let mib: usize = value.parse().map_err(|_| AsvoError::InvalidEnvironment {
-                    name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),
-                    value: value.clone(),
-                    problem: format!("is not valid. (It should be {EXPECTED_MIB})"),
-                })?;
+                let mib: usize = whole_number(ENV_GIANT_SQUID_BUF_SIZE, &value, EXPECTED_MIB)?;
                 mib.checked_mul(BYTES_PER_MIB)
                     .ok_or_else(|| AsvoError::InvalidEnvironment {
                         name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),
@@ -177,19 +166,11 @@ impl DownloadSettings {
 
         let retry_duration = match get(ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS) {
             None => DEFAULT_DOWNLOAD_RETRY_DURATION,
-            Some(value) => match value.parse::<u64>() {
-                Ok(seconds) => Duration::from_secs(seconds),
-                Err(e) => {
-                    warn_default(
-                        ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS,
-                        &value,
-                        DEFAULT_DOWNLOAD_RETRY_DURATION.as_secs(),
-                        EXPECTED_SECONDS,
-                        &e,
-                    );
-                    DEFAULT_DOWNLOAD_RETRY_DURATION
-                }
-            },
+            Some(value) => Duration::from_secs(whole_number(
+                ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS,
+                &value,
+                EXPECTED_SECONDS,
+            )?),
         };
 
         Ok(Self {

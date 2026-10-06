@@ -45,9 +45,20 @@ pub(super) fn job_size_text(job: &AsvoJob) -> String {
     bytesize::ByteSize(bytes).display().iec().to_string()
 }
 
+/// The environment variable that turns colours off when it is set and not
+/// empty (<https://no-color.org>). The help honours it too (see
+/// [`HELP_STYLES`](super::HELP_STYLES)).
+const ENV_NO_COLOR: &str = "NO_COLOR";
+
+/// Whether the job table is monochrome: with `--no-colour`, or when
+/// `no_color` (the value of [`ENV_NO_COLOR`]) is set and not empty.
+pub(super) fn monochrome(no_colour: bool, no_color: Option<std::ffi::OsString>) -> bool {
+    no_colour || no_color.is_some_and(|value| !value.is_empty())
+}
+
 /// Print `jobs` to stdout as a table, or a short message if there are none.
-/// If `no_colour` is true then don't colour the output. The table is
-/// coloured only on a terminal.
+/// The table is coloured only on a terminal, and not with `no_colour` or
+/// `NO_COLOR` (set and not empty).
 pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
     if jobs.0.is_empty() {
         println!("You have no jobs.");
@@ -55,7 +66,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
     }
     let mut table = Table::new();
     table.load_style(JOB_TABLE_STYLE);
-    if no_colour {
+    if monochrome(no_colour, std::env::var_os(ENV_NO_COLOR)) {
         // Without a terminal, the table has no colours and no bold.
         table.force_no_tty();
     }

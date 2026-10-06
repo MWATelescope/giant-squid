@@ -117,6 +117,15 @@ fn http_error_code(status: u16) -> String {
     format!("{ERROR_CODE_HTTP_PREFIX}{status}")
 }
 
+/// The reason phrase of the HTTP status `status`, for example `Bad
+/// Gateway`, or the code itself if it has none.
+fn status_reason(status: u16) -> String {
+    reqwest::StatusCode::from_u16(status)
+        .ok()
+        .and_then(|code| code.canonical_reason())
+        .map_or_else(|| status.to_string(), str::to_string)
+}
+
 impl AsvoApiError {
     /// The error as an `ErrorResponse`.
     ///
@@ -172,12 +181,9 @@ impl AsvoApiError {
                 request_id: request_id.clone(),
                 suggestion: suggestion.clone(),
             },
-            AsvoApiError::BadStatus { code, message } => ErrorResponse {
+            AsvoApiError::BadStatus { status, message } => ErrorResponse {
                 detail: Some(message.clone()),
-                ..new_error_response(
-                    &http_error_code(code.as_u16()),
-                    code.canonical_reason().unwrap_or(code.as_str()),
-                )
+                ..new_error_response(&http_error_code(*status), status_reason(*status))
             },
         }
     }

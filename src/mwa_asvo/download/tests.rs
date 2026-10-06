@@ -2565,3 +2565,70 @@ fn a_reachable_scratch_job_is_moved_into_the_download_directory() {
         .expect("the files should be in the download directory");
     assert_eq!(moved, "data");
 }
+
+/// The copy of a cross-file-system move copies a whole directory (files,
+/// subdirectories and symbolic links, as links), then removes the source.
+#[test]
+fn a_move_by_copy_copies_everything_and_removes_the_source() {
+    use crate::mwa_asvo::download::copy_then_remove;
+
+    let scratch = TempDir::new().expect("could not create a directory");
+    let from = scratch.path().join("12345");
+    std::fs::create_dir_all(from.join("sub")).expect("could not create directories");
+    std::fs::write(from.join("a.fits"), "a").expect("could not write a file");
+    std::fs::write(from.join("sub").join("b.fits"), "b").expect("could not write a file");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("a.fits", from.join("link")).expect("could not make a link");
+    let dir = TempDir::new().expect("could not create a download directory");
+    let to = dir.path().join("12345");
+
+    copy_then_remove(&from, &to).expect("the copy should succeed");
+
+    assert!(!from.exists(), "the source should be removed");
+    assert_eq!(std::fs::read_to_string(to.join("a.fits")).unwrap(), "a");
+    assert_eq!(
+        std::fs::read_to_string(to.join("sub").join("b.fits")).unwrap(),
+        "b"
+    );
+    #[cfg(unix)]
+    assert_eq!(
+        std::fs::read_link(to.join("link")).unwrap(),
+        std::path::Path::new("a.fits")
+    );
+}
+
+/// A job list that the caller already has is used as it is: no job list
+/// request is made.
+#[test]
+fn a_download_from_a_job_list_makes_no_job_list_request() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid job list payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    let listing = env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&crate::mwa_asvo::JobsFilter::default())
+        .expect("the job list");
+    client
+        .download_job_from(&jobs, crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the download by Job ID should succeed");
+    let obs_id = crate::test_config::test_obs_id();
+    std::fs::remove_file(dir.path().join(DOWNLOAD_FILE)).expect("the file was written");
+    client
+        .download_obs_from(&jobs, obs_id, &opts)
+        .expect("the download by Obs ID should succeed");
+
+    assert_eq!(listing.calls(), 1, "only the one get_jobs call");
+}

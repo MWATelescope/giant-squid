@@ -393,8 +393,8 @@ fn a_non_json_error_body_becomes_a_bad_status() {
     };
 
     match err {
-        AsvoApiError::BadStatus { code, message } => {
-            assert_eq!(code.as_u16(), 502);
+        AsvoApiError::BadStatus { status, message } => {
+            assert_eq!(status, 502);
             assert!(message.contains("bad gateway"), "got {message}");
         }
         other => panic!("expected BadStatus, got {other:?}"),

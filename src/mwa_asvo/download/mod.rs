@@ -18,7 +18,7 @@ use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};
 use std::fmt;
-use std::fs::{rename, File};
+use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
@@ -43,10 +43,6 @@ pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
 /// The default [`DownloadOptions::retry_duration`]: how long a download
 /// keeps retrying transient failures before giving up.
 pub const DEFAULT_DOWNLOAD_RETRY_DURATION: Duration = Duration::from_secs(900);
-
-/// The default number of downloads that the `giant-squid` commands run at
-/// the same time.
-pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
 
 /// A download progress event, given to [`DownloadOptions::progress`].
 ///
@@ -146,7 +142,7 @@ const SIDECAR_WRITE_INTERVAL: Duration = Duration::from_secs(10);
 /// Look up a single job by Job ID from the supplied list and download it.
 pub(crate) fn download_by_job_id(
     http_client: &Client,
-    jobs: AsvoJobVec,
+    jobs: &AsvoJobVec,
     job_id: AsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
@@ -154,41 +150,34 @@ pub(crate) fn download_by_job_id(
     // A Job ID is unique. If the list ever has it twice, the first is used.
     let job = jobs
         .0
-        .into_iter()
+        .iter()
         .find(|j| j.job_id() == job_id)
         .ok_or(AsvoError::NoAsvoJob(job_id))?;
-    download_job(http_client, &job, opts)?;
-    Ok(job)
+    download_job(http_client, job, opts)?;
+    Ok(job.clone())
 }
 
 /// Look up a single ready job by Obs ID from the supplied list and download it.
 /// Fails if zero, or more than one, ready jobs match the Obs ID.
 pub(crate) fn download_by_obs_id(
     http_client: &Client,
-    jobs: AsvoJobVec,
+    jobs: &AsvoJobVec,
     obs_id: ObsId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
-    let mut all_jobs = jobs.clone();
-
     debug!("Attempting to download Obs ID {}", obs_id);
-    let mut ready_jobs = jobs;
-    ready_jobs
-        .0
-        .retain(|j| j.obs_id() == obs_id && j.job_state == JobState::Completed);
-
-    match ready_jobs.0.len() {
-        0 => {
-            all_jobs.0.retain(|j| j.obs_id() == obs_id);
-            match all_jobs.0.len() {
-                0 => Err(AsvoError::NoObsId(obs_id)),
-                _ => Err(AsvoError::NoJobReadyForObsId(obs_id)),
-            }
-        }
-        1 => {
-            let job = ready_jobs.0.swap_remove(0);
-            download_job(http_client, &job, opts)?;
-            Ok(job)
+    let mut of_obs_id = jobs.0.iter().filter(|j| j.obs_id() == obs_id).peekable();
+    if of_obs_id.peek().is_none() {
+        return Err(AsvoError::NoObsId(obs_id));
+    }
+    let ready: Vec<&AsvoJob> = of_obs_id
+        .filter(|j| j.job_state == JobState::Completed)
+        .collect();
+    match ready.as_slice() {
+        [] => Err(AsvoError::NoJobReadyForObsId(obs_id)),
+        [job] => {
+            download_job(http_client, job, opts)?;
+            Ok((*job).clone())
         }
         _ => Err(AsvoError::TooManyObsIds(obs_id)),
     }
@@ -354,7 +343,7 @@ fn download_job(
                         path,
                         target.display()
                     );
-                    rename(path, target)?;
+                    move_path(path_obj, &target)?;
                 }
             }
         }
@@ -1948,6 +1937,67 @@ fn copy_with_progress(
         report(opts, DownloadProgress::Advanced { bytes: len as u64 });
     }
     Ok(())
+}
+
+/// Move the file or directory `from` to `to`. A rename does it when both are
+/// on the same file system. Across file systems (for example from Pawsey's
+/// /scratch to a home directory), `from` is copied to `to` and then removed.
+/// If the copy fails, `from` is kept, and what was copied stays at `to`.
+fn move_path(from: &Path, to: &Path) -> io::Result<()> {
+    match fs::rename(from, to) {
+        Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
+            debug!(
+                "{} is on another file system than {}; copying it",
+                from.display(),
+                to.display()
+            );
+            copy_then_remove(from, to)
+        }
+        result => result,
+    }
+}
+
+/// The move of [`move_path`] across file systems: copy `from` to `to`, then
+/// remove `from`.
+fn copy_then_remove(from: &Path, to: &Path) -> io::Result<()> {
+    copy_recursively(from, to)?;
+    if fs::symlink_metadata(from)?.is_dir() {
+        fs::remove_dir_all(from)
+    } else {
+        fs::remove_file(from)
+    }
+}
+
+/// Copy the file, symbolic link or directory `from` to `to`. A directory is
+/// copied with everything in it. A symbolic link is copied as a link, not
+/// followed. `to` must not exist yet.
+fn copy_recursively(from: &Path, to: &Path) -> io::Result<()> {
+    let file_type = fs::symlink_metadata(from)?.file_type();
+    if file_type.is_symlink() {
+        copy_symlink(from, to)
+    } else if file_type.is_dir() {
+        fs::create_dir(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            copy_recursively(&entry.path(), &to.join(entry.file_name()))?;
+        }
+        Ok(())
+    } else {
+        fs::copy(from, to).map(|_| ())
+    }
+}
+
+/// Copy the symbolic link `from` to `to`, as a link to the same target.
+#[cfg(unix)]
+fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(fs::read_link(from)?, to)
+}
+
+/// Copy the symbolic link `from` to `to`. Off Unix (no Scratch file system),
+/// the file it points to is copied.
+#[cfg(not(unix))]
+fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
+    fs::copy(from, to).map(|_| ())
 }
 
 /// Create a file, logging on failure.

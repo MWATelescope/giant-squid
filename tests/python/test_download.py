@@ -23,7 +23,7 @@ from werkzeug import Request, Response
 
 import mwa_giant_squid as gs
 
-from .conftest import TEST_API_KEY, TEST_OBS_ID, job_detail
+from .conftest import GET_JOBS_PATH, TEST_API_KEY, TEST_OBS_ID, job_detail
 
 # The job that the mock says is ready, and the name its file is served and saved under.
 JOB_ID = 12345
@@ -235,6 +235,21 @@ def test_a_download_returns_the_job_it_downloaded(
     assert by_obs_id.job_id == JOB_ID
     assert by_obs_id.obs_id == TEST_OBS_ID
     assert len(served_tar) > 0
+
+
+def test_a_download_from_a_job_list_gets_no_job_list(
+    client: gs.AsvoClient, served_tar: bytes, httpserver: HTTPServer, tmp_path: pathlib.Path
+) -> None:
+    """With ``jobs``, download_job and download_obs find the job there and make no job list request."""
+    jobs = client.get_jobs()
+    listings = sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH)
+
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, jobs=jobs)
+    (tmp_path / FILE_NAME).unlink()
+    client.download_obs(TEST_OBS_ID, tmp_path, keep_tar=True, jobs=jobs)
+
+    assert sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH) == listings
+    assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
 
 def test_download_obs_id_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:

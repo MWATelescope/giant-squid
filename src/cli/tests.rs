@@ -379,11 +379,11 @@ fn submit_conv_output_can_be_overridden() {
 #[test]
 fn submit_image_defaults_come_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.wsclean.image_size, *imaging1_defaults().image_size);
+    assert_eq!(args.wsclean.image_size, imaging1_defaults().image_size);
     assert_eq!(args.wsclean.weighting, imaging1_defaults().weighting);
     assert_eq!(args.wsclean.output_mode, imaging1_defaults().output_mode);
     assert_eq!(args.wsclean.auto_mask, imaging1_defaults().auto_mask);
-    assert_eq!(args.wsclean.nmiter, imaging1_defaults().nmiter.get() as i64);
+    assert_eq!(args.wsclean.nmiter, imaging1_defaults().nmiter);
 }
 
 #[test]
@@ -406,7 +406,7 @@ fn submit_image_builds_an_imaging_body() {
 #[test]
 fn submit_image_default_pol_comes_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.wsclean.pol, imaging1_defaults().pol.to_string());
+    assert_eq!(args.wsclean.pol, imaging1_defaults().pol);
     assert!(args.to_params(crate::test_config::test_obs_id()).is_ok());
 }
 
@@ -425,7 +425,8 @@ fn submit_image_accepts_each_supported_polarisation() {
 
 #[test]
 fn submit_image_rejects_an_unsupported_polarisation() {
-    for bad in ["XX,YY", "xx", "Q"] {
+    // `xx` is `XX`: the case does not matter.
+    for bad in ["XX,YY", "X", "Q"] {
         let err = parse_err(&["giant-squid", "submit-image", "--pol", bad, TEST_OBS_ID]);
         assert_eq!(
             err.kind(),
@@ -663,7 +664,7 @@ fn submit_image_from_job_builds_a_flow2_body() {
     ]);
     assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
-    assert_eq!(args.wsclean.pol, imaging2_defaults().pol.to_string());
+    assert_eq!(args.wsclean.pol, imaging2_defaults().pol);
 
     let json = json_of(
         &args
@@ -1261,8 +1262,8 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
 fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
-    use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
-    use crate::mwa_asvo::{AsvoJobVec, JobFile, JobProduct, JobState};
+    use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobProduct, Type as FileType};
+    use crate::mwa_asvo::{AsvoJobVec, JobFile, JobState};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
@@ -1676,30 +1677,23 @@ fn job_ids_only_needs_a_job_id() {
 // The help of `list --job-states` and `--job-types`
 // ---------------------------------------------------------------------------
 
-/// The names that the help of an option of `list` offers: the text after
-/// "Options:", split at the commas and the last "or".
+/// The names that the help of an option of `list` offers: its
+/// `[possible values: ...]`.
 fn names_offered_by_list_help(option: &str) -> Vec<String> {
     use clap::CommandFactory;
 
     let cli = Args::command();
     let list = cli.find_subcommand("list").expect("list exists");
-    let help = list
+    let names: Vec<String> = list
         .get_arguments()
         .find(|arg| arg.get_long() == Some(option))
         .unwrap_or_else(|| panic!("list has no --{option}"))
-        .get_help()
-        .unwrap_or_else(|| panic!("--{option} has no help"))
-        .to_string();
-    let (_, names) = help
-        .split_once("Options:")
-        .unwrap_or_else(|| panic!("the help of --{option} has no list of options: {help}"));
-
+        .get_value_parser()
+        .possible_values()
+        .unwrap_or_else(|| panic!("--{option} lists no values"))
+        .map(|value| value.get_name().to_string())
+        .collect();
     names
-        .replace(" or ", ", ")
-        .split(',')
-        .map(|name| name.trim().to_string())
-        .filter(|name| !name.is_empty())
-        .collect()
 }
 
 /// The help must offer every job state that the parser accepts, and only
@@ -1898,4 +1892,17 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
 /// A request body as JSON, for the comparisons above.
 fn body_json<T: serde::Serialize>(body: &T) -> Value {
     serde_json::to_value(body).expect("a request body serialises")
+}
+
+/// The job table is monochrome with `--no-colour`, or with `NO_COLOR` set to
+/// any text that is not empty.
+#[test]
+fn the_job_table_is_monochrome_with_no_colour_or_no_color() {
+    use super::table::monochrome;
+    use std::ffi::OsString;
+
+    assert!(!monochrome(false, None));
+    assert!(monochrome(true, None));
+    assert!(monochrome(false, Some(OsString::from("1"))));
+    assert!(!monochrome(false, Some(OsString::new())));
 }

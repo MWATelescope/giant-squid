@@ -76,7 +76,7 @@ mod stub_attributes {
                 attr!("suggestion", Option<String>, "ApiError and AuthenticationFailed."),
                 attr!("field_errors", Vec<HashMap<String, String>>, "ApiError and AuthenticationFailed: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
                 attr!("request_id", Option<String>, "ApiError and AuthenticationFailed: the server's ID for the request, for a support request."),
-                attr!("code", u16, "BadStatus: the HTTP status code."),
+                attr!("status", u16, "BadStatus: the HTTP status code (as `status` of an AsvoError HttpError)."),
             ],
             getters: &[],
             setters: &[],
@@ -229,10 +229,10 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
                 ("request_id", Field::OptStr(request_id)),
             ],
         ),
-        lib::AsvoApiError::BadStatus { code, message } => (
+        lib::AsvoApiError::BadStatus { status, message } => (
             "BadStatus",
             vec![
-                ("code", Field::Int(u64::from(code.as_u16()))),
+                ("status", Field::Int(u64::from(status))),
                 ("message", Field::Str(message)),
             ],
         ),

@@ -48,9 +48,9 @@ fn a_missing_api_key_is_an_error() {
     assert!(
         matches!(
             err,
-            AsvoApiError::MissingAuthKey {
+            AsvoError::AsvoApi(AsvoApiError::MissingAuthKey {
                 variable: Some(ENV_MWA_ASVO_API_KEY)
-            }
+            })
         ),
         "{err:?}"
     );
@@ -88,18 +88,24 @@ fn the_host_the_timeout_and_the_home_are_read() {
     );
 }
 
-/// A timeout that is not a whole number of seconds is not an error: the
-/// default is used (and a warning is logged).
+/// A timeout that is not a whole number of seconds is an error, with the
+/// same message as the other variables.
 #[test]
-fn a_bad_timeout_gives_the_default() {
+fn a_bad_timeout_is_an_error() {
     for bad in ["soon", "-1", "1.5", ""] {
-        let config = client_config_from(vars([
+        let err = client_config_from(vars([
             (ENV_MWA_ASVO_API_KEY, KEY),
             (ENV_MWA_ASVO_API_TIMEOUT, bad),
         ]))
-        .expect("a config");
+        .expect_err("a bad timeout");
 
-        assert_eq!(config.api_timeout, DEFAULT_API_TIMEOUT, "{bad:?}");
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "Environment variable MWA_ASVO_API_TIMEOUT='{bad}' is not valid. \
+                 (It should be an integer number of seconds)"
+            )
+        );
     }
 }
 
@@ -153,17 +159,20 @@ fn a_buffer_size_too_big_for_memory_is_an_error() {
     );
 }
 
-/// A retry duration that is not a whole number of seconds is not an error:
-/// the default is used (and a warning is logged).
+/// A retry duration that is not a whole number of seconds is an error, with
+/// the same message as the other variables.
 #[test]
-fn a_bad_retry_duration_gives_the_default() {
+fn a_bad_retry_duration_is_an_error() {
     for bad in ["forever", "-5", "1.5"] {
-        let settings = DownloadSettings::from(vars([(ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS, bad)]))
-            .expect("settings");
+        let err = DownloadSettings::from(vars([(ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS, bad)]))
+            .expect_err("a bad retry duration");
 
         assert_eq!(
-            settings.retry_duration, DEFAULT_DOWNLOAD_RETRY_DURATION,
-            "{bad:?}"
+            err.to_string(),
+            format!(
+                "Environment variable GIANT_SQUID_DOWNLOAD_RETRY_SECS='{bad}' is not valid. \
+                 (It should be an integer number of seconds)"
+            )
         );
     }
 }

@@ -497,6 +497,13 @@ py_job_response!(
 #[pyclass(frozen, name = "AsvoJobVec", module = "mwa_giant_squid")]
 pub struct PyAsvoJobVec(AsvoJobVec);
 
+impl PyAsvoJobVec {
+    /// The library's job list.
+    pub(crate) fn inner(&self) -> &AsvoJobVec {
+        &self.0
+    }
+}
+
 impl From<AsvoJobVec> for PyAsvoJobVec {
     fn from(jobs: AsvoJobVec) -> Self {
         Self(jobs)

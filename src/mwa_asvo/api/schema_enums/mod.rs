@@ -24,6 +24,35 @@ use super::openapi::{
 pub trait SchemaEnum: Copy + Display + FromStr + PartialEq + Send + Sync + 'static {
     /// Every variant, in the schema's order.
     const VARIANTS: &'static [Self];
+
+    /// The API values of the variants (for example `completed`), in the
+    /// schema's order.
+    fn names() -> Vec<String> {
+        Self::VARIANTS.iter().map(ToString::to_string).collect()
+    }
+
+    /// The variant whose API value is `text`, as a user types it: the case,
+    /// spaces, hyphens and underscores do not matter, so `WAIT-CAL` and
+    /// `waitcal` are the same job state. (The schema's own `FromStr` accepts
+    /// only the exact value.) `None` for any other text.
+    fn from_name(text: &str) -> Option<Self> {
+        let wanted = sanitize_identifier(text);
+        Self::VARIANTS
+            .iter()
+            .find(|variant| sanitize_identifier(&variant.to_string()) == wanted)
+            .copied()
+    }
+}
+
+/// The characters that do not matter in a name, as well as the case.
+const NAME_SEPARATORS: [char; 3] = [' ', '-', '_'];
+
+/// `s` in lower case, without spaces, hyphens and underscores: the form in
+/// which two names of a value are compared (see [`SchemaEnum::from_name`]).
+pub(crate) fn sanitize_identifier(s: &str) -> String {
+    let mut sanitized = s.to_lowercase();
+    sanitized.retain(|c| !NAME_SEPARATORS.contains(&c));
+    sanitized
 }
 
 /// Call the macro `$callback` once for each schema enum, with: the type, the

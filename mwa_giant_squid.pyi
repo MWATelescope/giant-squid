@@ -74,9 +74,9 @@ class AsvoApiError(builtins.Exception):
     r"""
     ApiError and AuthenticationFailed: the server's ID for the request, for a support request.
     """
-    code: builtins.int
+    status: builtins.int
     r"""
-    BadStatus: the HTTP status code.
+    BadStatus: the HTTP status code (as `status` of an AsvoError HttpError).
     """
 
 @typing.final
@@ -543,6 +543,7 @@ class AsvoClient:
         retry_duration: builtins.float | None = None,
         download_number: builtins.int = 1,
         download_count: builtins.int = 1,
+        jobs: AsvoJobVec | None = None,
     ) -> AsvoJob:
         r"""
         Download the files of a job.
@@ -576,6 +577,9 @@ class AsvoClient:
             download_number: The number of this download, in a series,
                 for the progress and log label (`[1/2]`).
             download_count: How many downloads there are in the series.
+            jobs: A job list from `get_jobs` or `list_jobs` to find the job
+                in. `None` gets the job list first. To download several jobs,
+                get the job list once and pass it to each call.
 
         Returns:
             The job that was downloaded.
@@ -583,7 +587,8 @@ class AsvoClient:
         Raises:
             AsvoError: The job is missing, not ready or has no files, a
                 transfer failed, or the hash does not match.
-            AsvoApiError: Getting the job list failed.
+            AsvoApiError: Getting the job list failed (only when `jobs` is
+                `None`).
             ValueError: `download_dir` or `retry_duration` is not valid.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
@@ -600,6 +605,7 @@ class AsvoClient:
         retry_duration: builtins.float | None = None,
         download_number: builtins.int = 1,
         download_count: builtins.int = 1,
+        jobs: AsvoJobVec | None = None,
     ) -> AsvoJob:
         r"""
         Download the files of the one ready job for an Obs ID.
@@ -618,7 +624,8 @@ class AsvoClient:
             ValueError: `obs_id` is not a valid Obs ID.
             AsvoError: No job, no ready job, or more than one ready job has
                 this Obs ID, or the download failed (see `download_job`).
-            AsvoApiError: Getting the job list failed.
+            AsvoApiError: Getting the job list failed (only when `jobs` is
+                `None`).
             KeyboardInterrupt: Ctrl-C was pressed.
         """
 

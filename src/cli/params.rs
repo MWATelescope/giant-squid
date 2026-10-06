@@ -79,21 +79,19 @@ pub fn parse_utc_time(s: &str) -> Result<jiff::Timestamp, String> {
     crate::parse_utc_time(s).map_err(|e| e.to_string())
 }
 
-/// Validates a WSClean image size against the MWA ASVO API's fixed set of
-/// allowed sizes (see [`validate::image_size`]).
-pub fn parse_image_size(s: &str) -> Result<i64, String> {
+/// The clap value parser of `--image-size`: one of the MWA ASVO API's fixed
+/// image sizes (see [`validate::image_size`]), as the schema's type.
+pub fn parse_image_size(s: &str) -> Result<ImageSizes, String> {
     let v: i64 = s.parse().map_err(|e| format!("not a valid integer: {e}"))?;
-    validate::image_size(v)
-        .map(i64::from)
-        .map_err(|e| e.to_string())
+    validate::image_size(v).map_err(|e| e.to_string())
 }
 
-/// The parser of `--pol`: one of the API's `Polarization` values, kept as the
-/// text that the request body carries. Both imaging endpoints take the enum
-/// (flow 2 since schema v1.11), so an unsupported value is rejected by the
-/// CLI rather than only when the request body is built.
-fn polarization_parser() -> impl clap::builder::TypedValueParser<Value = String> {
-    clap::builder::TypedValueParser::map(SchemaEnumParser::<Polarization>::new(), |p| p.to_string())
+/// The clap value parser of `--nmiter`: an integer within
+/// [`validate::NMITER`], as the schema's type.
+pub fn parse_nmiter(s: &str) -> Result<NonZeroU64, String> {
+    let v = parse_i64_bounds(validate::NMITER)(s)?;
+    // The bounds start at 1, so `v` is positive.
+    validate::nmiter(v.unsigned_abs()).map_err(|e| e.to_string())
 }
 
 /// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
@@ -426,7 +424,7 @@ pub struct WscleanArgs<P: WscleanFields> {
 
     /// WSClean image size in pixels.
     #[arg(long, default_value = (*P::schema_defaults().image_size()).to_string(), value_parser = parse_image_size)]
-    pub image_size: i64,
+    pub image_size: ImageSizes,
 
     /// Join output channel groups for cleaning.
     #[arg(
@@ -452,8 +450,8 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub multiscale: bool,
 
     /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_i64_bounds(validate::NMITER))]
-    pub nmiter: i64,
+    #[arg(long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_nmiter)]
+    pub nmiter: NonZeroU64,
 
     /// Number of w-projection layers. Leave unset to let the server
     /// decide.
@@ -469,8 +467,8 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub pixel_scale: f64,
 
     /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value = P::schema_defaults().pol().to_string(), value_parser = polarization_parser())]
-    pub pol: String,
+    #[arg(long, default_value = P::schema_defaults().pol().to_string(), value_parser = SchemaEnumParser::<Polarization>::new())]
+    pub pol: Polarization,
 
     /// WSClean -robust (Briggs robustness) value.
     #[arg(long, default_value = P::schema_defaults().robust().to_string(), value_parser = parse_f64_bounds(validate::ROBUST))]
@@ -496,15 +494,6 @@ pub struct WscleanArgs<P: WscleanFields> {
 
     #[arg(skip)]
     schema: PhantomData<fn() -> P>,
-}
-
-impl<P: WscleanFields> WscleanArgs<P> {
-    /// `nmiter` as the library takes it. clap's range check keeps it at
-    /// least 1; a value that is not a `u64` becomes 0, which the library
-    /// refuses with its message.
-    fn nmiter(&self) -> u64 {
-        u64::try_from(self.nmiter).unwrap_or_default()
-    }
 }
 
 /// Arguments shared by the visibility and metadata download jobs, which use
@@ -623,16 +612,16 @@ impl ImagingJobArgs {
             channels_out: Some(ws.channels_out),
             clean_iterations: Some(ws.clean_iterations),
             clean_threshold: Some(ws.clean_threshold),
-            image_size: Some(ws.image_size),
+            image_size: Some(ws.image_size.clone()),
             join_channels: Some(ws.join_channels),
             join_polarizations: Some(ws.join_polarizations),
             mgain: Some(ws.mgain),
             multiscale: Some(ws.multiscale),
-            nmiter: Some(ws.nmiter()),
+            nmiter: Some(ws.nmiter),
             nwlayers: ws.nwlayers,
             output_mode: Some(ws.output_mode),
             pixel_scale: Some(ws.pixel_scale),
-            pol: Some(ws.pol.parse::<Polarization>()?),
+            pol: Some(ws.pol),
             robust: Some(ws.robust),
             uvw_max: ws.uvw_max,
             uvw_min: Some(ws.uvw_min),
@@ -692,16 +681,16 @@ impl ImagingFromJobArgs {
             channels_out: Some(ws.channels_out),
             clean_iterations: Some(ws.clean_iterations),
             clean_threshold: Some(ws.clean_threshold),
-            image_size: Some(ws.image_size),
+            image_size: Some(ws.image_size.clone()),
             join_channels: Some(ws.join_channels),
             join_polarizations: Some(ws.join_polarizations),
             mgain: Some(ws.mgain),
             multiscale: Some(ws.multiscale),
-            nmiter: Some(ws.nmiter()),
+            nmiter: Some(ws.nmiter),
             nwlayers: ws.nwlayers,
             output_mode: Some(ws.output_mode),
             pixel_scale: Some(ws.pixel_scale),
-            pol: Some(ws.pol.parse::<Polarization>()?),
+            pol: Some(ws.pol),
             robust: Some(ws.robust),
             uvw_max: ws.uvw_max,
             uvw_min: Some(ws.uvw_min),
@@ -709,7 +698,7 @@ impl ImagingFromJobArgs {
             wstack_nwlayers: ws.wstack_nwlayers,
             allow_resubmit: Some(self.allow_resubmit),
         }
-        .into_params(obs_id, self.source_job_id.get())
+        .into_params(obs_id, self.source_job_id)
     }
 }
 

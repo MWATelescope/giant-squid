@@ -11,7 +11,7 @@ use std::{fs, io};
 use sha1::{Digest, Sha1};
 use thiserror::Error;
 
-use crate::mwa_asvo::*;
+use crate::mwa_asvo::{AsvoError, AsvoJobId};
 use crate::obs_id::ObsId;
 
 enum ObsIdOrJobId {

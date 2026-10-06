@@ -16,13 +16,14 @@ use crate::mwa_asvo::api::openapi::{
     Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting,
 };
 
-const DELIVERY: &[&str] = &["acacia", "dug", "scratch"];
-const DELIVERY_FORMAT: &[&str] = &["files", "tar"];
+// The values in the schema's order, which `--help` and the messages use.
+const DELIVERY: &[&str] = &["acacia", "scratch", "dug"];
+const DELIVERY_FORMAT: &[&str] = &["tar", "files"];
 const OUTPUT: &[&str] = &["ms", "uvfits"];
-const CENTRE: &[&str] = &["custom", "phase", "pointing"];
-const OUTPUT_MODE: &[&str] = &["all_files", "all_fits", "fits"];
-const POLARIZATION: &[&str] = &["XX", "XXYY", "YY"];
-const WEIGHTING: &[&str] = &["briggs", "natural", "uniform"];
+const CENTRE: &[&str] = &["phase", "pointing", "custom"];
+const OUTPUT_MODE: &[&str] = &["fits", "all_fits", "all_files"];
+const POLARIZATION: &[&str] = &["XX", "YY", "XXYY"];
+const WEIGHTING: &[&str] = &["briggs", "uniform", "natural"];
 
 /// Every option that takes a schema enum: the command, the option and the
 /// values that `--help` must list for it. The voltage command is not here:
@@ -70,15 +71,15 @@ fn listed_values(command: &str, option: &str) -> Vec<String> {
 }
 
 /// Checks one enum: each variant is listed once, the parser offers the
-/// values in alphabetical order, and each API value parses back to the
-/// variant. (The library's list is in the schema's order.)
+/// values in the schema's order (the library's list), and each API value
+/// parses back to the variant.
 fn check_enum<T: SchemaEnum + PartialEq + Debug>() {
     let names: Vec<String> = T::VARIANTS.iter().map(ToString::to_string).collect();
-    let mut sorted = names.clone();
-    sorted.sort();
-    sorted.dedup();
-    assert_eq!(names.len(), sorted.len(), "a variant twice");
-    assert_eq!(sorted_values::<T>(), sorted);
+    let mut unique = names.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(names.len(), unique.len(), "a variant twice");
+    assert_eq!(T::value_names(), names);
 
     for variant in T::VARIANTS {
         assert_eq!(
@@ -120,11 +121,11 @@ fn the_long_help_shows_the_values() {
         .to_string();
 
     assert!(
-        help.contains("[possible values: acacia, dug, scratch]"),
+        help.contains("[possible values: acacia, scratch, dug]"),
         "help: {help}"
     );
     assert!(
-        help.contains("[possible values: files, tar]"),
+        help.contains("[possible values: tar, files]"),
         "help: {help}"
     );
     assert!(
@@ -149,7 +150,7 @@ fn a_value_that_is_not_allowed_names_the_allowed_values() {
     let text = err.to_string();
     assert!(text.contains("--delivery"), "error: {text}");
     assert!(text.contains("tape"), "error: {text}");
-    assert!(text.contains("acacia, dug, scratch"), "error: {text}");
+    assert!(text.contains("acacia, scratch, dug"), "error: {text}");
 }
 
 /// The polarisation stays the text that the request body carries.
@@ -158,7 +159,60 @@ fn the_polarisation_option_gives_the_api_text() {
     let args = Args::try_parse_from(["giant-squid", "submit-image", "--pol", "XXYY", "1065880128"])
         .expect("XXYY is a polarisation");
     match args {
-        Args::SubmitImage { image, .. } => assert_eq!(image.wsclean.pol, "XXYY"),
+        Args::SubmitImage { image, .. } => assert_eq!(image.wsclean.pol.to_string(), "XXYY"),
         other => panic!("expected SubmitImage, got {other:?}"),
+    }
+}
+
+/// Every named value is parsed in the same way: the case, hyphens and
+/// underscores do not matter, for a schema enum, a job state and a job type.
+#[test]
+fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
+    let args = Args::try_parse_from([
+        "giant-squid",
+        "submit-image",
+        "--delivery",
+        "ACACIA",
+        "--output-mode",
+        "All-Fits",
+        "--pol",
+        "xxyy",
+        "1065880128",
+    ])
+    .expect("the values parse");
+    match args {
+        Args::SubmitImage { image, .. } => {
+            assert_eq!(image.delivery_args.delivery, Delivery::Acacia);
+            assert_eq!(image.wsclean.output_mode, OutputMode::AllFits);
+            assert_eq!(image.wsclean.pol, Polarization::Xxyy);
+        }
+        other => panic!("expected SubmitImage, got {other:?}"),
+    }
+
+    let args = Args::try_parse_from([
+        "giant-squid",
+        "list",
+        "--job-states",
+        "WAIT-CAL,Completed",
+        "--job-types",
+        "VISIBILITY",
+    ])
+    .expect("the values parse");
+    match args {
+        Args::List {
+            job_states,
+            job_types,
+            ..
+        } => {
+            assert_eq!(
+                job_states,
+                [
+                    crate::mwa_asvo::JobState::Waitcal,
+                    crate::mwa_asvo::JobState::Completed
+                ]
+            );
+            assert_eq!(job_types, [crate::test_config::job_type("visibility")]);
+        }
+        other => panic!("expected List, got {other:?}"),
     }
 }

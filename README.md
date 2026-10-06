@@ -264,9 +264,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -o, --output <OUTPUT>
           Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
       --avg-freq-res <AVG_FREQ_RES>
@@ -278,7 +278,7 @@ Options:
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply the DI calibration solution [default: false] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
           Custom phase centre right ascension (degrees). Requires --centre custom
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
@@ -374,9 +374,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --avg-freq-res <AVG_FREQ_RES>
           Frequency resolution to average to (kHz) [default: 40]
       --avg-time-res <AVG_TIME_RES>
@@ -386,7 +386,7 @@ Options:
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply the DI calibration solution [default: true] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: custom, phase, pointing]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
           Custom phase centre right ascension (degrees). Requires --centre custom
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
@@ -434,11 +434,11 @@ Options:
       --nwlayers <NWLAYERS>
           Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request [default: fits] [possible values: all_files, all_fits, fits]
+          The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
           Pixel scale (arcsec/pixel) [default: 20]
       --pol <POL>
-          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, XXYY, YY]
+          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, YY, XXYY]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -446,7 +446,7 @@ Options:
       --uvw-min <UVW_MIN>
           Minimum uv distance to image, in wavelengths [default: 75]
       --weighting <WEIGHTING>
-          WSClean weighting scheme [default: briggs] [possible values: briggs, natural, uniform]
+          WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
           Number of w-stacking layers. Leave unset to let the server decide
   -r, --allow-resubmit
@@ -541,9 +541,9 @@ Options:
       --source-job-id <SOURCE_JOB_ID>
           The MWA ASVO conversion Job ID to image from. Required
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
@@ -573,11 +573,11 @@ Options:
       --nwlayers <NWLAYERS>
           Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request [default: fits] [possible values: all_files, all_fits, fits]
+          The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
           Pixel scale (arcsec/pixel) [default: 20]
       --pol <POL>
-          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, XXYY, YY]
+          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, YY, XXYY]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -585,7 +585,7 @@ Options:
       --uvw-min <UVW_MIN>
           Minimum uv distance to image, in wavelengths [default: 75]
       --weighting <WEIGHTING>
-          WSClean weighting scheme [default: briggs] [possible values: briggs, natural, uniform]
+          WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
           Number of w-stacking layers. Leave unset to let the server decide
   -r, --allow-resubmit
@@ -625,9 +625,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
@@ -667,9 +667,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
@@ -708,9 +708,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, dug, scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: files, tar]
+          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit
           Allow resubmitting a job even if an identical one has completed
   -w, --wait
@@ -799,8 +799,8 @@ Options:
   -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
-      --job-states <JOB_STATE>  show only jobs matching the provided states, case insensitive. Options: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled
-      --job-types <JOB_TYPE>    filter job list by type, case insensitive with underscores. Options: conversion, visibility, metadata, voltage, cancel, beamformer, imaging
+      --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
+      --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30) [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
@@ -1243,6 +1243,10 @@ command uses it, and your own Rust programs can use it too. The library:
 - has an `AsvoClient` that is `Send + Sync`, so threads can share one
   client. If the server rejects the session token, only one thread logs in
   again, and the other threads use the new token.
+- has one path for each item: the client, jobs, errors and downloads are at
+  the crate root (`mwa_giant_squid::AsvoClient`), and the types of the MWA
+  ASVO OpenAPI schema are in `mwa_giant_squid::mwa_asvo::api::openapi` (for
+  example `JobState`).
 
 Add the crate without its default `bin` feature, so that the command line
 dependencies are not built. The API below is from version 3.0.0.
@@ -1261,10 +1265,10 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams;
+use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
-    JobState, JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -1316,6 +1320,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         should_stop: None,
     };
     client.download_job(job_id, &opts)?;
+    // To download several jobs, get the job list once with `get_jobs` and
+    // call `download_job_from(&jobs, job_id, &opts)` for each.
     Ok(())
 }
 ```
@@ -1353,6 +1359,9 @@ reads no environment variables (see
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB: the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |
+
+A value of `MWA_ASVO_API_TIMEOUT`, `GIANT_SQUID_BUF_SIZE` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole
+number is an error.
 
 ---
 

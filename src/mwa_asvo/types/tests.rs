@@ -80,7 +80,7 @@ fn the_job_type_names_are_listed_in_order() {
 #[test]
 fn a_job_type_is_parsed_from_its_name() {
     for name in JobType::names() {
-        let job_type = JobType::parse_name(name).expect("a listed name should parse");
+        let job_type = JobType::parse_name(&name).expect("a listed name should parse");
         assert_eq!(job_type.name(), name);
         assert_eq!(job_type.to_string(), name);
     }

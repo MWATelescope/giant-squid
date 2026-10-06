@@ -24,8 +24,8 @@ fn no_argument_gives_the_schema_defaults() {
 #[test]
 fn a_set_argument_reaches_the_body() {
     let body = ImagingArgs {
-        image_size: Some(4096),
-        nmiter: Some(5),
+        image_size: Some(crate::mwa_asvo::api::validate::image_size(4096).expect("an image size")),
+        nmiter: Some(std::num::NonZeroU64::new(5).expect("not zero")),
         pol: Some(Polarization::Xx),
         ..ImagingArgs::default()
     }
@@ -36,16 +36,12 @@ fn a_set_argument_reaches_the_body() {
     assert_eq!(body.pol, Polarization::Xx);
 }
 
-/// A value that has no schema type of its own is refused with the
-/// library's message.
+/// A plain number that the schema's type does not allow is refused with the
+/// library's message when the schema value is made from it.
 #[test]
 fn a_value_the_schema_does_not_allow_is_refused() {
-    let err = ImagingArgs {
-        image_size: Some(1000),
-        ..ImagingArgs::default()
-    }
-    .into_params(test_obs_id())
-    .expect_err("1000 is not an image size");
+    let err =
+        crate::mwa_asvo::api::validate::image_size(1000).expect_err("1000 is not an image size");
     assert!(
         matches!(
             err,
@@ -57,9 +53,7 @@ fn a_value_the_schema_does_not_allow_is_refused() {
         "{err:?}"
     );
 
-    let err = ImageFromJobArgs::default()
-        .into_params(test_obs_id(), 0)
-        .expect_err("0 is not a job ID");
+    let err = crate::mwa_asvo::api::validate::source_job_id(0).expect_err("0 is not a Job ID");
     assert!(
         matches!(
             err,

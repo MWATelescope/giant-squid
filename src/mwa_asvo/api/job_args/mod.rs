@@ -11,17 +11,20 @@
 //!
 //! The CLI (from its clap arguments) and the Python module (from its keyword
 //! arguments) fill these structs, so the request bodies are made in one
-//! place. `into_params` also makes the values that need a schema type of
-//! their own (`image_size`, `nmiter`, `source_job_id`) and the derived
-//! `channel_range` of a voltage job. The limits of the numbers are checked
-//! by the client's submit methods ([`super::validate`]).
+//! place. The fields have the schema's types; `into_params` also makes the
+//! derived `channel_range` of a voltage job. The limits of the numbers are
+//! checked by the client's submit methods ([`super::validate`]), and the
+//! functions there make a schema value from a plain number (for example
+//! [`super::validate::image_size`]).
+
+use std::num::NonZeroU64;
 
 use super::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode, Polarization,
-    VoltageJobParams, Weighting,
+    DownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, Output, OutputMode,
+    Polarization, VoltageJobParams, Weighting,
 };
-use super::{validate, AsvoApiError};
+use super::AsvoApiError;
 use crate::obs_id::ObsId;
 
 /// Set each field of `$builder` whose argument is not `None`.
@@ -142,14 +145,16 @@ pub struct ImagingArgs {
     pub custom_centre_dec: Option<f64>,
     pub custom_centre_ra: Option<f64>,
     pub flag_edge_width: Option<f64>,
-    /// One of the schema's image sizes ([`validate::image_size`]).
-    pub image_size: Option<i64>,
+    /// One of the schema's image sizes. [`super::validate::image_size`] makes one
+    /// from a number.
+    pub image_size: Option<ImageSizes>,
     pub join_channels: Option<bool>,
     pub join_polarizations: Option<bool>,
     pub mgain: Option<f64>,
     pub multiscale: Option<bool>,
-    /// At least 1 ([`validate::nmiter`]).
-    pub nmiter: Option<u64>,
+    /// The schema's type. The upper limit ([`super::validate::NMITER`]) is checked
+    /// when the job is submitted; [`super::validate::nmiter`] checks it at once.
+    pub nmiter: Option<NonZeroU64>,
     pub no_apply_amps: Option<bool>,
     pub no_digital_gains: Option<bool>,
     pub no_flag_dc: Option<bool>,
@@ -174,9 +179,7 @@ impl ImagingArgs {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] for an `image_size` or `nmiter`
-    /// that the schema does not allow; [`AsvoApiError::Conversion`] if the
-    /// body cannot be made.
+    /// [`AsvoApiError::Conversion`] if the body cannot be made.
     pub fn into_params(self, obs_id: ObsId) -> Result<ImagingJobFlow1Params, AsvoApiError> {
         let mut builder = ImagingJobFlow1Params::builder().obs_id(i64::from(obs_id));
         set_if_some!(
@@ -197,12 +200,12 @@ impl ImagingArgs {
             custom_centre_dec => self.custom_centre_dec.map(Some),
             custom_centre_ra => self.custom_centre_ra.map(Some),
             flag_edge_width => self.flag_edge_width,
-            image_size => self.image_size.map(validate::image_size).transpose()?,
+            image_size => self.image_size,
             join_channels => self.join_channels,
             join_polarizations => self.join_polarizations,
             mgain => self.mgain,
             multiscale => self.multiscale,
-            nmiter => self.nmiter.map(validate::nmiter).transpose()?,
+            nmiter => self.nmiter,
             no_apply_amps => self.no_apply_amps,
             no_digital_gains => self.no_digital_gains.map(Some),
             no_flag_dc => self.no_flag_dc.map(Some),
@@ -238,14 +241,16 @@ pub struct ImageFromJobArgs {
     pub channels_out: Option<i64>,
     pub clean_iterations: Option<i64>,
     pub clean_threshold: Option<f64>,
-    /// One of the schema's image sizes ([`validate::image_size`]).
-    pub image_size: Option<i64>,
+    /// One of the schema's image sizes. [`super::validate::image_size`] makes one
+    /// from a number.
+    pub image_size: Option<ImageSizes>,
     pub join_channels: Option<bool>,
     pub join_polarizations: Option<bool>,
     pub mgain: Option<f64>,
     pub multiscale: Option<bool>,
-    /// At least 1 ([`validate::nmiter`]).
-    pub nmiter: Option<u64>,
+    /// The schema's type. The upper limit ([`super::validate::NMITER`]) is checked
+    /// when the job is submitted; [`super::validate::nmiter`] checks it at once.
+    pub nmiter: Option<NonZeroU64>,
     pub nwlayers: Option<i64>,
     pub output_mode: Option<OutputMode>,
     pub pixel_scale: Option<f64>,
@@ -264,17 +269,15 @@ impl ImageFromJobArgs {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] for a `source_job_id` of 0, or an
-    /// `image_size` or `nmiter` that the schema does not allow;
     /// [`AsvoApiError::Conversion`] if the body cannot be made.
     pub fn into_params(
         self,
         obs_id: ObsId,
-        source_job_id: u64,
+        source_job_id: NonZeroU64,
     ) -> Result<ImagingJobFlow2Params, AsvoApiError> {
         let mut builder = ImagingJobFlow2Params::builder()
             .obs_id(i64::from(obs_id))
-            .source_job_id(validate::source_job_id(source_job_id)?);
+            .source_job_id(source_job_id);
         set_if_some!(
             builder,
             delivery => self.delivery,
@@ -286,12 +289,12 @@ impl ImageFromJobArgs {
             channels_out => self.channels_out,
             clean_iterations => self.clean_iterations,
             clean_threshold => self.clean_threshold.map(Some),
-            image_size => self.image_size.map(validate::image_size).transpose()?,
+            image_size => self.image_size,
             join_channels => self.join_channels,
             join_polarizations => self.join_polarizations,
             mgain => self.mgain,
             multiscale => self.multiscale,
-            nmiter => self.nmiter.map(validate::nmiter).transpose()?,
+            nmiter => self.nmiter,
             nwlayers => self.nwlayers.map(Some),
             output_mode => self.output_mode,
             pixel_scale => self.pixel_scale,

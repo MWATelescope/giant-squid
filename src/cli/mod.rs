@@ -21,17 +21,28 @@ pub mod value_enums;
 mod tests;
 
 use std::num::NonZeroU64;
+use std::time::Duration;
 
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
-use crate::mwa_asvo::DEFAULT_CONCURRENT_DOWNLOADS;
 use crate::mwa_asvo::{JobState, JobType};
 use params::{
     list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
 };
+use value_enums::SchemaEnumParser;
+
+/// The default number of downloads that `download` runs at the same time.
+pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
+
+/// The time between two job list requests while waiting for jobs.
+pub const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How long to wait before the first job list request of a wait, so that
+/// the user's queue is hopefully current.
+pub const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
 
 /// The name of the program, which `--version` prints. Without it, clap
 /// prints the name of the crate (`mwa_giant_squid`).
@@ -49,27 +60,6 @@ pub const HELP_STYLES: Styles = Styles::styled()
     .error(AnsiColor::Red.on_default().bold())
     .valid(AnsiColor::Cyan.on_default().bold())
     .invalid(AnsiColor::Yellow.on_default().bold());
-
-/// The help of `list --job-states`, before the list of states.
-const JOB_STATES_HELP: &str = "show only jobs matching the provided states, case insensitive.";
-
-/// The help of `list --job-types`, before the list of types.
-const JOB_TYPES_HELP: &str = "filter job list by type, case insensitive with underscores.";
-
-/// The help of `list --job-states`: the text above and the states that the
-/// library accepts, so that the help cannot differ from the parser.
-fn job_states_help() -> String {
-    format!(
-        "{JOB_STATES_HELP} Options: {}",
-        JobState::names().join(", ")
-    )
-}
-
-/// The help of `list --job-types`: the text above and the job types that the
-/// library accepts.
-fn job_types_help() -> String {
-    format!("{JOB_TYPES_HELP} Options: {}", JobType::names().join(", "))
-}
 
 const ABOUT: &str = r#"The official MWA ASVO command-line client to download data from the Murchison Widefield Array.
 Source:   https://github.com/MWATelescope/giant-squid
@@ -125,12 +115,14 @@ pub enum Args {
         #[arg(short, long, action=ArgAction::Count, conflicts_with_all = ["json", "legacy_json"])]
         verbosity: u8,
 
-        // The help is built from the library's names (see `job_states_help`).
-        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',', value_parser = JobState::parse_name, help = job_states_help())]
+        /// Show only the jobs in these states (comma separated). The case,
+        /// hyphens and underscores do not matter.
+        #[arg(long, id = "JOB_STATE", alias = "states", value_delimiter = ',', value_parser = SchemaEnumParser::<JobState>::new())]
         job_states: Vec<JobState>,
 
-        // The help is built from the library's names (see `job_types_help`).
-        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', value_parser = JobType::parse_name, help = job_types_help())]
+        /// Show only the jobs of these types (comma separated). The case,
+        /// hyphens and underscores do not matter.
+        #[arg(long, id = "JOB_TYPE", alias = "types", value_delimiter = ',', value_parser = SchemaEnumParser::<JobType>::new())]
         job_types: Vec<JobType>,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example

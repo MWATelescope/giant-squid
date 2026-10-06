@@ -24,8 +24,8 @@
 //! the body, which is the same as `null`, the API's default. The tests in
 //! `client/tests.rs`, `cli/tests.rs` and `tests/python` keep it that way.
 
-pub mod client;
-mod error;
+pub(crate) mod client;
+pub(crate) mod error;
 // Generated code. Lints are allowed here, on the module declaration, so
 // that the allows survive regeneration of openapi.rs itself:
 // - `dead_code`: typify emits a serde default helper for every schema
@@ -42,4 +42,4 @@ pub mod job_args;
 pub mod schema_enums;
 pub mod validate;
 
-pub use error::AsvoApiError;
+pub(crate) use error::AsvoApiError;

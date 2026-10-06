@@ -132,9 +132,16 @@ pub enum AsvoError {
     #[error("{path:?} is a symbolic link; giant-squid does not download through one. Remove it, or use another download directory.")]
     SymlinkInDownloadDir { path: std::path::PathBuf },
 
-    /// The server answered a file download with an HTTP error.
+    /// The server answered a file download with an HTTP error. The fields
+    /// are those of [`AsvoApiError::BadStatus`], the same failure of an API
+    /// request.
     #[error("HTTP error {status} downloading file: {message}")]
-    HttpError { status: u16, message: String },
+    HttpError {
+        /// The HTTP status code.
+        status: u16,
+        /// The body of the reply.
+        message: String,
+    },
 
     /// The file to download is not on the server (HTTP 404).
     #[error("The file for job {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]

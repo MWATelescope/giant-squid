@@ -553,6 +553,14 @@ impl PyAsvoClient {
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
+        let image_size = image_size
+            .map(validate::image_size)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
+        let nmiter = nmiter
+            .map(validate::nmiter)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let params = ImagingArgs {
             delivery: delivery.map(Into::into),
             delivery_format: delivery_format.map(Into::into),
@@ -683,6 +691,15 @@ impl PyAsvoClient {
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
+        let source_job_id = validate::source_job_id(source_job_id).map_err(|e| api_error(py, e))?;
+        let image_size = image_size
+            .map(validate::image_size)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
+        let nmiter = nmiter
+            .map(validate::nmiter)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let params = ImageFromJobArgs {
             delivery: delivery.map(Into::into),
             delivery_format: delivery_format.map(Into::into),
@@ -865,6 +882,9 @@ impl PyAsvoClient {
     ///     download_number: The number of this download, in a series,
     ///         for the progress and log label (`[1/2]`).
     ///     download_count: How many downloads there are in the series.
+    ///     jobs: A job list from `get_jobs` or `list_jobs` to find the job
+    ///         in. `None` gets the job list first. To download several jobs,
+    ///         get the job list once and pass it to each call.
     ///
     /// Returns:
     ///     The job that was downloaded.
@@ -872,7 +892,8 @@ impl PyAsvoClient {
     /// Raises:
     ///     AsvoError: The job is missing, not ready or has no files, a
     ///         transfer failed, or the hash does not match.
-    ///     AsvoApiError: Getting the job list failed.
+    ///     AsvoApiError: Getting the job list failed (only when `jobs` is
+    ///         `None`).
     ///     ValueError: `download_dir` or `retry_duration` is not valid.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     #[pyo3(signature = (
@@ -887,6 +908,7 @@ impl PyAsvoClient {
         retry_duration=None,
         download_number=1,
         download_count=1,
+        jobs=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn download_job(
@@ -902,6 +924,7 @@ impl PyAsvoClient {
         retry_duration: Option<f64>,
         download_number: usize,
         download_count: usize,
+        jobs: Option<PyRef<'_, PyAsvoJobVec>>,
     ) -> PyResult<PyAsvoJob> {
         let args = PyDownloadArgs {
             download_dir,
@@ -914,7 +937,13 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_job(job_id.0, opts)).map(PyAsvoJob::from)
+        // A copy, so that the download can run without the GIL.
+        let jobs = jobs.map(|jobs| jobs.inner().clone());
+        run_download(py, args, |opts| match &jobs {
+            Some(jobs) => self.inner.download_job_from(jobs, job_id.0, opts),
+            None => self.inner.download_job(job_id.0, opts),
+        })
+        .map(PyAsvoJob::from)
     }
 
     /// Download the files of the one ready job for an Obs ID.
@@ -933,7 +962,8 @@ impl PyAsvoClient {
     ///     ValueError: `obs_id` is not a valid Obs ID.
     ///     AsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
-    ///     AsvoApiError: Getting the job list failed.
+    ///     AsvoApiError: Getting the job list failed (only when `jobs` is
+    ///         `None`).
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     #[pyo3(signature = (
         obs_id,
@@ -947,6 +977,7 @@ impl PyAsvoClient {
         retry_duration=None,
         download_number=1,
         download_count=1,
+        jobs=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn download_obs(
@@ -962,8 +993,9 @@ impl PyAsvoClient {
         retry_duration: Option<f64>,
         download_number: usize,
         download_count: usize,
+        jobs: Option<PyRef<'_, PyAsvoJobVec>>,
     ) -> PyResult<PyAsvoJob> {
-        let obs_id = ObsId::validate(obs_id).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let obs_id = job_obs_id(obs_id)?;
         let args = PyDownloadArgs {
             download_dir,
             keep_tar,
@@ -975,7 +1007,13 @@ impl PyAsvoClient {
             download_number,
             download_count,
         };
-        run_download(py, args, |opts| self.inner.download_obs(obs_id, opts)).map(PyAsvoJob::from)
+        // A copy, so that the download can run without the GIL.
+        let jobs = jobs.map(|jobs| jobs.inner().clone());
+        run_download(py, args, |opts| match &jobs {
+            Some(jobs) => self.inner.download_obs_from(jobs, obs_id, opts),
+            None => self.inner.download_obs(obs_id, opts),
+        })
+        .map(PyAsvoJob::from)
     }
 
     fn __repr__(&self) -> String {

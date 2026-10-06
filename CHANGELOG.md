@@ -32,6 +32,27 @@ before you upgrade scripts.**
 * The job table of `list` and `wait` is drawn with `comfy-table` (was `prettytable-rs`, whose `term` dependency is
   unmaintained). The layout and the colours are the same.
 * Library: `ObsId::MIN` and `ObsId::MAX`, the range of a valid Obs ID.
+* A value of `MWA_ASVO_API_TIMEOUT` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number is an error
+  (`AsvoError::InvalidEnvironment`, `INVALID_ENVIRONMENT`), as it already was for `GIANT_SQUID_BUF_SIZE`. Before,
+  giant-squid warned and used the default. Library: `client_config_from_env` returns `AsvoError` (a missing API key is
+  `AsvoError::AsvoApi` with `AsvoApiError::MissingAuthKey`).
+* Every option that takes a named value (`--delivery`, `--centre`, `--pol`, `--job-states`, `--job-types` and so on)
+  parses it in the same way: the case, spaces, hyphens and underscores do not matter (for example `--delivery ACACIA`,
+  `--job-states WAIT-CAL`). The help (`[possible values: ...]`) and the message for a bad value list the values in the
+  schema's order. `--job-states` and `--job-types` show their values as the other options do. Library:
+  `SchemaEnum::names` and `SchemaEnum::from_name`; `JobType::names` returns `Vec<String>`, as `JobState::names` does.
+* Library: each public item has one path. The client, jobs, errors, downloads, environment helpers, Obs IDs and the
+  ID parsers are at the crate root (for example `mwa_giant_squid::AsvoClient`, `mwa_giant_squid::ObsIdError`). The
+  OpenAPI schema's types, the job arguments and their checks are in `mwa_giant_squid::mwa_asvo::api` (`openapi`,
+  `job_args`, `validate`, `schema_enums`), and the `--json` error codes in `mwa_giant_squid::mwa_asvo::error_response`.
+  The other paths (for example `mwa_giant_squid::mwa_asvo::AsvoClient`, `mwa_giant_squid::JobState`,
+  `mwa_giant_squid::obs_id::ObsId`) are gone.
+* Library: the argument structs of `mwa_asvo::api::job_args` use the schema's types: `image_size` is `ImageSizes`
+  and `nmiter` is `NonZeroU64` (in `ImagingArgs` and `ImageFromJobArgs`), and `ImageFromJobArgs::into_params` takes
+  `source_job_id` as `NonZeroU64`. `validate::image_size`, `validate::nmiter` and `validate::source_job_id` make
+  these from a plain number. The Python arguments are still plain integers, with the same `ValueError`s.
+* Library: `AsvoApiError::BadStatus` has the fields of `AsvoError::HttpError`: `status` (the HTTP status code, a
+  `u16`; was `code`, a `reqwest::StatusCode`) and `message`. In Python, the attribute is `status` (was `code`).
 * `AsvoError::HashMismatch` names the downloaded file by its path in the download directory, not by its download URL,
   which is a signed URL.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
@@ -149,6 +170,10 @@ before you upgrade scripts.**
 
 ### Added in 3.0.0
 
+* Library: `AsvoClient::download_job_from` and `download_obs_from` find the job in a job list that the caller already
+  has, so several downloads need one job list request. In Python, `download_job` and `download_obs` take it as
+  `jobs=`.
+* `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
 * `submit-image` takes six more options, as the MWA ASVO API (schema 1.13.0) does: `--no-digital-gains`, `--no-flag-dc`,
   `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi`, the same as `submit-conv` has. In
   Python they are the arguments of `submit_imaging_job`.
@@ -181,6 +206,10 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
+* `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID), and runs the
+  downloads in a thread pool of its own, so `run_cli` can run more than once in a process.
+* `download` of a reachable Scratch job moves the files across file systems too (by copy, then removal). Before, a
+  move from another file system failed.
 * `download` of Job IDs and Obs IDs together numbers the downloads from 1 to the total (`[3/4]`). Before, the Obs ID
   downloads started again from 1.
 * `download` logs in once for all its downloads. Before, each download logged in on its own, and a long list could

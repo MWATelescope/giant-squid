@@ -27,9 +27,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
-use crate::mwa_asvo::{
-    AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions, DEFAULT_ASVO_HOST,
-};
+use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions};
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
@@ -43,6 +41,11 @@ use super::validate::{
     self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
     validate_voltage_params,
 };
+
+/// The production MWA ASVO host. Callers that do not need a different
+/// server (for example a test or development instance) use this as
+/// [`AsvoClientConfig::host`].
+pub const DEFAULT_ASVO_HOST: &str = "https://asvo.mwatelescope.org:443";
 
 /// The default timeout for a single MWA ASVO API request.
 pub const DEFAULT_API_TIMEOUT: Duration = Duration::from_secs(60);
@@ -363,13 +366,26 @@ impl AsvoClient {
     /// Download the MWA ASVO job with the given Job ID.
     /// Fetches the current job list, locates the job, and downloads its
     /// files according to the supplied options. Returns the job that was
-    /// downloaded.
+    /// downloaded. To download several jobs, get the job list once and use
+    /// [`Self::download_job_from`].
     pub fn download_job(
         &self,
         job_id: AsvoJobId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
         let jobs = self.get_jobs(&JobsFilter::default())?;
+        self.download_job_from(&jobs, job_id, opts)
+    }
+
+    /// As [`Self::download_job`], with the job looked up in `jobs` (a job
+    /// list from [`Self::get_jobs`] or [`Self::list_jobs`]) instead of a new
+    /// job list request.
+    pub fn download_job_from(
+        &self,
+        jobs: &AsvoJobVec,
+        job_id: AsvoJobId,
+        opts: &DownloadOptions,
+    ) -> Result<AsvoJob, AsvoError> {
         download_by_job_id(&self.current_session().0, jobs, job_id, opts)
     }
 
@@ -377,13 +393,25 @@ impl AsvoClient {
     /// Fetches the current job list, locates the single ready job for
     /// the Obs ID, and downloads its files according to the supplied options.
     /// Returns the job that was downloaded (so the caller learns its Job
-    /// ID).
+    /// ID). To download several jobs, get the job list once and use
+    /// [`Self::download_obs_from`].
     pub fn download_obs(
         &self,
         obs_id: ObsId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
         let jobs = self.get_jobs(&JobsFilter::default())?;
+        self.download_obs_from(&jobs, obs_id, opts)
+    }
+
+    /// As [`Self::download_obs`], with the job looked up in `jobs` instead
+    /// of a new job list request.
+    pub fn download_obs_from(
+        &self,
+        jobs: &AsvoJobVec,
+        obs_id: ObsId,
+        opts: &DownloadOptions,
+    ) -> Result<AsvoJob, AsvoError> {
         download_by_obs_id(&self.current_session().0, jobs, obs_id, opts)
     }
 
@@ -637,7 +665,7 @@ impl AsvoClient {
                 request_id: err.request_id,
             },
             Err(_) => AsvoApiError::BadStatus {
-                code: status,
+                status: status.as_u16(),
                 message: body,
             },
         }

@@ -61,7 +61,7 @@ fn an_api_error_without_field_errors_has_no_field_errors_key() {
 fn a_bad_status_is_the_http_code_with_the_body_as_the_detail() {
     let body = "<html><body>503</body></html>\n";
     let error = AsvoApiError::BadStatus {
-        code: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+        status: 503,
         message: body.to_string(),
     };
 
@@ -131,7 +131,7 @@ fn a_missing_api_key_has_its_code() {
 #[test]
 fn a_download_error_from_the_api_is_the_api_error() {
     let error = AsvoError::AsvoApi(AsvoApiError::BadStatus {
-        code: reqwest::StatusCode::BAD_GATEWAY,
+        status: 502,
         message: String::new(),
     });
 

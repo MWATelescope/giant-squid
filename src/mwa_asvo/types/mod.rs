@@ -8,17 +8,8 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobFile, JobState, JobType};
-use crate::mwa_asvo::api::schema_enums::SchemaEnum;
+use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
 use crate::{obs_id::ObsId, AsvoError};
-
-/// Sanitize a string to lowercase, and ascii 'a'-'z' only.
-///
-/// Used to sanitize user input for ASVO identifiers.
-fn sanitize_identifier(s: &str) -> String {
-    let mut sanitized = s.to_lowercase();
-    sanitized.retain(|c| c.is_ascii_lowercase());
-    sanitized
-}
 
 /// The job types of the OpenAPI schema: each `JobType` code, with the name
 /// that the schema gives it. The schema's `JobType` is only an integer; the
@@ -44,10 +35,13 @@ impl JobType {
             .expect("every JobType code of the schema is in JOB_TYPE_NAMES")
     }
 
-    /// The names of the job types, in the order of their codes.
-    /// [`JobType::parse_name`] accepts each of them.
-    pub fn names() -> Vec<&'static str> {
-        JOB_TYPE_NAMES.iter().map(|(_, name)| *name).collect()
+    /// The names of the job types, in the order of their codes (the
+    /// schema's order). [`JobType::parse_name`] accepts each of them.
+    pub fn names() -> Vec<String> {
+        JOB_TYPE_NAMES
+            .iter()
+            .map(|(_, name)| name.to_string())
+            .collect()
     }
 
     /// Parse the name of a job type, as a user types it: the case, spaces,
@@ -78,24 +72,18 @@ impl JobState {
     /// `completed`), in the schema's order. [`JobState::parse_name`]
     /// accepts each of them.
     pub fn names() -> Vec<String> {
-        JobState::VARIANTS.iter().map(ToString::to_string).collect()
+        <Self as SchemaEnum>::names()
     }
 
-    /// Parse the name of a job state, as a user types it: the case,
-    /// spaces, hyphens and underscores do not matter, so `WAIT-CAL` and
-    /// `waitcal` are the same state. (The schema's own `FromStr` accepts
-    /// only the exact value.)
+    /// Parse the name of a job state, as a user types it (see
+    /// [`SchemaEnum::from_name`]): the case, spaces, hyphens and underscores
+    /// do not matter.
     ///
     /// # Errors
     ///
     /// [`AsvoError::InvalidJobState`] for any other text.
     pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        let wanted = sanitize_identifier(s);
-        JobState::VARIANTS
-            .iter()
-            .find(|state| sanitize_identifier(&state.to_string()) == wanted)
-            .copied()
-            .ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
+        Self::from_name(s).ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
     }
 }
 
