@@ -27,9 +27,29 @@ pub enum AsvoApiError {
         variable: Option<&'static str>,
     },
 
-    /// Login or token refresh against the MWA ASVO v2 API failed.
-    #[error("Authentication with MWA ASVO failed: {message}")]
-    AuthenticationFailed { message: String },
+    /// Login or token refresh against the MWA ASVO API failed.
+    ///
+    /// When the server sent an `ErrorResponse`, its fields are copied here
+    /// verbatim, as for [`AsvoApiError::ApiError`], and `error_code` is set.
+    /// Otherwise `message` is the server's body (or what went wrong with
+    /// the tokens), and the other fields are empty.
+    #[error(
+        "Authentication with MWA ASVO failed{}: {message}{}",
+        error_code_suffix(error_code.as_deref()),
+        api_error_extra(detail.as_deref(), suggestion.as_deref(), field_errors, request_id.as_deref())
+    )]
+    AuthenticationFailed {
+        message: String,
+        /// The server's error code, if it sent an `ErrorResponse`.
+        error_code: Option<String>,
+        detail: Option<String>,
+        suggestion: Option<String>,
+        /// The fields that failed validation, and why. Empty if the server
+        /// gave none.
+        field_errors: Vec<FieldError>,
+        /// The server's ID for the request, for a support request.
+        request_id: Option<String>,
+    },
 
     /// A value generated from the MWA ASVO OpenAPI schema failed to
     /// validate (e.g. didn't satisfy a schema constraint like a length or
@@ -114,6 +134,28 @@ fn api_error_extra(
         extra.push_str(&format!("\n  (request ID: {id})"));
     }
     extra
+}
+
+impl AsvoApiError {
+    /// An [`AsvoApiError::AuthenticationFailed`] with only a message: a
+    /// failure that is not an error reply from the server (for example a
+    /// token that cannot be decoded).
+    pub(crate) fn authentication_failed(message: impl Into<String>) -> Self {
+        AsvoApiError::AuthenticationFailed {
+            message: message.into(),
+            error_code: None,
+            detail: None,
+            suggestion: None,
+            field_errors: Vec::new(),
+            request_id: None,
+        }
+    }
+}
+
+/// The error code of an [`AsvoApiError::AuthenticationFailed`] message, as
+/// ` (CODE)`, or nothing when the server gave no code.
+fn error_code_suffix(error_code: Option<&str>) -> String {
+    error_code.map(|c| format!(" ({c})")).unwrap_or_default()
 }
 
 /// The end of the message of [`AsvoApiError::MissingAuthKey`]: what to set,

@@ -1028,7 +1028,7 @@ cancel, use [`list`](#list-mwa-asvo-jobs).
 
 ### Download MWA ASVO jobs
 
-Once an MWA ASVO job is `completed`, its data is ready to be downloaded. If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do.
+Once an MWA ASVO job is `completed`, its data is ready to be downloaded. If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do: `download` of a DUG job fails with `FILES_NOT_REACHABLE` (see below for Scratch).
 
 ```text
 Download an MWA ASVO job
@@ -1115,8 +1115,8 @@ checked:
 Jobs which were submitted with the /scratch data delivery option behave differently
 than jobs submitted with the other data delivery options. When attempting to download
 a /scratch job, if the path of the job (eg /scratch/mwaops/asvo/12345) is reachable from
-the current host, it will be moved to the current working directory. Otherwise, it will
-be skipped.
+the current host, it will be moved to the current working directory. Otherwise, the
+download of that job fails with `FILES_NOT_REACHABLE`, and the exit code is not zero.
 
 #### Download performance: Concurrent Downloads
 

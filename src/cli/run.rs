@@ -12,8 +12,8 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::thread;
 use std::time::Duration;
-use std::{thread, time};
 
 use clap::Parser;
 use log::{debug, error, info, warn};
@@ -73,21 +73,25 @@ fn connect() -> anyhow::Result<AsvoClient> {
     Ok(AsvoClient::new(client_config_from_env()?)?)
 }
 
-fn run_job_id_download(job_id: AsvoJobId, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
-    // Add a small delay to hopefully have the downloads start in order
-    // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
-    thread::sleep(time::Duration::from_millis(100));
+/// The wait before each download starts, so that the downloads start (and
+/// log) in their order: 1/2 before 2/2. It is for the display only.
+const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(100);
 
-    let client = connect()?;
+fn run_job_id_download(
+    client: &AsvoClient,
+    job_id: AsvoJobId,
+    opts: &DownloadOptions,
+) -> anyhow::Result<AsvoJob> {
+    thread::sleep(DOWNLOAD_START_DELAY);
     Ok(client.download_job(job_id, opts)?)
 }
 
-fn run_obs_id_download(obs_id: ObsId, opts: &DownloadOptions) -> anyhow::Result<AsvoJob> {
-    // Add a small delay to hopefully have the downloads start in order
-    // (this is just a log display thing! So 1/2 shows before 2/2 (at least initially!))
-    thread::sleep(time::Duration::from_millis(100));
-
-    let client = connect()?;
+fn run_obs_id_download(
+    client: &AsvoClient,
+    obs_id: ObsId,
+    opts: &DownloadOptions,
+) -> anyhow::Result<AsvoJob> {
+    thread::sleep(DOWNLOAD_START_DELAY);
     Ok(client.download_obs(obs_id, opts)?)
 }
 
@@ -169,8 +173,8 @@ struct DryRunCancel {
 }
 
 /// What a successful download did, for its JSON report: the size and the
-/// directory of an Acacia download, or where the MWA ASVO delivered the
-/// files of a Scratch or DUG job.
+/// directory of an Acacia download, or the Scratch path that was moved to
+/// the current directory.
 fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
     let files = job
         .product
@@ -179,14 +183,15 @@ fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
         .unwrap_or_default();
     let size: u64 = files.iter().map(JobFile::size_bytes).sum();
     match files.first().map(|f| f.type_) {
+        // A Scratch job that this host can reach is moved to the current
+        // directory. (One that it cannot reach, or a DUG job, is an error.)
         Some(FileType::Scratch) => format!(
-            "The files are on the scratch filesystem at Pawsey: {}",
+            "Moved {} to the current directory.",
             files
                 .first()
                 .and_then(|f| f.path.as_deref())
                 .unwrap_or_default()
         ),
-        Some(FileType::Dug) => "The files are on the DUG filesystem.".to_string(),
         _ => format!(
             "Downloaded {} to {}",
             bytesize::ByteSize(size).display().iec(),
@@ -550,6 +555,9 @@ fn run(args: Args) -> anyhow::Result<()> {
                 }
             } else {
                 let t: usize = job_ids.len() + obs_ids.len();
+                // One client for all the downloads: it logs in once, and the
+                // server permits only a few logins a minute.
+                let client = connect()?;
 
                 let mut job_ids_results: Vec<anyhow::Result<AsvoJob>> = job_ids
                     .par_iter()
@@ -570,7 +578,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             // Ctrl-C ends the CLI process.
                             should_stop: None,
                         };
-                        run_job_id_download(*j, &opts)
+                        run_job_id_download(&client, *j, &opts)
                     })
                     .collect();
 
@@ -593,7 +601,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                             // Ctrl-C ends the CLI process.
                             should_stop: None,
                         };
-                        run_obs_id_download(*o, &opts)
+                        run_obs_id_download(&client, *o, &opts)
                     })
                     .collect();
 

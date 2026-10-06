@@ -153,18 +153,15 @@ pub(crate) fn download_by_job_id(
     job_id: AsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
-    let mut jobs = jobs;
     debug!("Attempting to download job {}", job_id);
-    jobs.0.retain(|j| j.job_id() == job_id);
-    match jobs.0.len() {
-        0 => Err(AsvoError::NoAsvoJob(job_id)),
-        1 => {
-            let job = jobs.0.swap_remove(0);
-            download_job(http_client, &job, opts)?;
-            Ok(job)
-        }
-        _ => unreachable!(),
-    }
+    // A Job ID is unique. If the list ever has it twice, the first is used.
+    let job = jobs
+        .0
+        .into_iter()
+        .find(|j| j.job_id() == job_id)
+        .ok_or(AsvoError::NoAsvoJob(job_id))?;
+    download_job(http_client, &job, opts)?;
+    Ok(job)
 }
 
 /// Look up a single ready job by Obs ID from the supplied list and download it.
@@ -227,19 +224,34 @@ fn download_job(
         opts.download_count
     );
 
-    let start_time = Instant::now();
-
     for f in files {
         match f.type_ {
             FileType::Acacia => {
-                let url = f.url.as_deref().ok_or(AsvoError::NoUrl {
+                let start_time = Instant::now();
+                let no_url = || AsvoError::NoUrl {
                     job_id: job.job_id(),
-                })?;
+                };
+                let url = f.url.as_deref().ok_or_else(no_url)?;
+                // Every downloaded file is checked against the MWA ASVO hash
+                // when it is resumed, so a file without one is refused before
+                // any request.
+                if f.sha1.is_none() {
+                    return Err(AsvoError::NoHash {
+                        job_id: job.job_id(),
+                    });
+                }
 
                 debug!("{} Downloading from url {}", log_prefix, url);
-                let url_obj = reqwest::Url::parse(url).unwrap();
-                let out_path = Path::new(opts.download_dir)
-                    .join(url_obj.path_segments().unwrap().next_back().unwrap());
+                // The file is named after the last part of the URL's path.
+                let file_name = reqwest::Url::parse(url)
+                    .ok()
+                    .and_then(|u| {
+                        u.path_segments()
+                            .and_then(|mut segments| segments.next_back().map(str::to_string))
+                    })
+                    .filter(|name| !name.is_empty())
+                    .ok_or_else(no_url)?;
+                let out_path = Path::new(opts.download_dir).join(file_name);
 
                 // Shared by the attempts at this file, so that a retry
                 // carries on from what an earlier attempt wrote.
@@ -316,35 +328,30 @@ fn download_job(
                 );
             }
             FileType::Dug => {
-                error!(
-                    "{} Files for Job are not reachable from the current host. \
-                     You will find your job's files on the DUG filesystem.",
-                    log_prefix
-                );
+                return Err(AsvoError::FilesNotReachable {
+                    job_id: job.job_id(),
+                    delivery: f.type_,
+                    path: f.path.clone(),
+                });
             }
             FileType::Scratch => {
-                let path = f.path.as_deref().ok_or(AsvoError::NoPath {
+                let no_path = || AsvoError::NoPath {
                     job_id: job.job_id(),
-                })?;
+                };
+                let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);
-                let folder_name = path_obj
-                    .components()
-                    .next_back()
-                    .unwrap()
-                    .as_os_str()
-                    .to_str()
-                    .unwrap();
+                let folder_name = path_obj.file_name().ok_or_else(no_path)?;
 
                 if !path_obj.exists() {
-                    error!(
-                        "{} Files for Job are not reachable from the current host. \
-                         You will find your job's files on the scratch filesystem at Pawsey.",
-                        log_prefix
-                    );
+                    return Err(AsvoError::FilesNotReachable {
+                        job_id: job.job_id(),
+                        delivery: f.type_,
+                        path: f.path.clone(),
+                    });
                 } else {
                     info!(
                         "{} Files for Job are reachable from the current host. \
-                         Copying to current directory.",
+                         Moving them to the current directory.",
                         log_prefix
                     );
                     let mut current_path = current_dir()?;
@@ -368,9 +375,10 @@ fn download_job(
 fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Error<AsvoError> {
     match &e {
         AsvoError::IO(io_error) if is_network_read_error(io_error) => Error::transient(e),
-        AsvoError::IO(_) | AsvoError::Interrupted | AsvoError::SymlinkInDownloadDir { .. } => {
-            Error::permanent(e)
-        }
+        AsvoError::IO(_)
+        | AsvoError::Interrupted
+        | AsvoError::SymlinkInDownloadDir { .. }
+        | AsvoError::NoHash { .. } => Error::permanent(e),
         AsvoError::HttpError { status: 404, .. } => {
             Error::permanent(AsvoError::Http404Error { job_id })
         }
@@ -410,13 +418,9 @@ fn try_download(
     opts: &DownloadOptions,
     retry_state: &mut RetryState,
 ) -> Result<(), AsvoError> {
-    let mwa_asvo_hash = file_info.sha1.as_deref().unwrap_or_else(|| {
-        panic!(
-            "{} job does not have an Sha1 hash! \
-             Please report this to asvo_support@mwatelescope.org",
-            log_prefix
-        )
-    });
+    let mwa_asvo_hash = file_info.sha1.as_deref().ok_or(AsvoError::NoHash {
+        job_id: job.job_id(),
+    })?;
 
     info!(
         "{} Download starting (type: {}, {})",
@@ -542,7 +546,7 @@ fn try_download(
             if !hash.eq_ignore_ascii_case(mwa_asvo_hash) {
                 return Err(AsvoError::HashMismatch {
                     job_id: job.job_id(),
-                    file: url.to_string(),
+                    file: out_path.display().to_string(),
                     calculated_hash: hash,
                     expected_hash: mwa_asvo_hash.to_string(),
                 });
@@ -833,7 +837,7 @@ fn try_download_untar(
             sidecar.remove();
             return Err(AsvoError::HashMismatch {
                 job_id,
-                file: url.to_string(),
+                file: out_path.display().to_string(),
                 calculated_hash: hash,
                 expected_hash: mwa_asvo_hash.to_string(),
             });

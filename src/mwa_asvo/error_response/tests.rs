@@ -75,7 +75,12 @@ fn a_bad_status_is_the_http_code_with_the_body_as_the_detail() {
 #[test]
 fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
     let error = AsvoApiError::AuthenticationFailed {
-        message: r#"{"error_code":"AUTH_INVALID_KEY","message":"Bad API key"}"#.to_string(),
+        message: "Bad API key".to_string(),
+        error_code: Some("AUTH_INVALID_KEY".to_string()),
+        detail: None,
+        suggestion: None,
+        field_errors: Vec::new(),
+        request_id: None,
     };
 
     let resp = error.error_response();
@@ -86,9 +91,7 @@ fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
 
 #[test]
 fn a_failed_login_with_another_body_is_authentication_failed() {
-    let error = AsvoApiError::AuthenticationFailed {
-        message: "no".to_string(),
-    };
+    let error = AsvoApiError::authentication_failed("no");
 
     let resp = error.error_response();
 
@@ -195,4 +198,31 @@ fn a_parse_error_is_an_invalid_argument() {
 
     assert_eq!(resp.error_code, ERROR_CODE_INVALID_ARGUMENT);
     assert_eq!(resp.message, error.to_string());
+}
+
+#[test]
+fn a_download_error_without_a_hash_has_its_own_code() {
+    let error = AsvoError::NoHash { job_id: job_id(5) };
+
+    let resp = error.error_response();
+
+    assert_eq!(resp.error_code, ERROR_CODE_NO_HASH);
+    assert_eq!(error.job_id(), Some(job_id(5)));
+}
+
+#[test]
+fn files_that_cannot_be_reached_have_their_own_code() {
+    use crate::mwa_asvo::api::openapi::Type as FileType;
+
+    let error = AsvoError::FilesNotReachable {
+        job_id: job_id(5),
+        delivery: FileType::Dug,
+        path: None,
+    };
+
+    let resp = error.error_response();
+
+    assert_eq!(resp.error_code, ERROR_CODE_FILES_NOT_REACHABLE);
+    assert_eq!(resp.message, error.to_string());
+    assert_eq!(error.job_id(), Some(job_id(5)));
 }

@@ -127,7 +127,10 @@ pub enum ParseError {
 
     /// A command that takes Obs IDs only was given Job IDs
     /// ([`parse_obs_ids_only`]).
-    #[error("Expected only Obs IDs, but found these Job IDs: {job_ids:?}")]
+    #[error(
+        "Expected only Obs IDs, but found these Job IDs: {}",
+        ids_text(job_ids)
+    )]
     JobIdsGiven {
         /// The Job IDs, in the order given.
         job_ids: Vec<AsvoJobId>,
@@ -137,7 +140,7 @@ pub enum ParseError {
     /// ([`parse_job_ids_only`]).
     #[error(
         "Expected only Job IDs, but found these Obs IDs: {}. {OBS_ID_HINT}",
-        obs_ids_text(obs_ids)
+        ids_text(obs_ids)
     )]
     ObsIdsGiven {
         /// The Obs IDs, in the order given.
@@ -167,10 +170,9 @@ pub const OBS_ID_HINT: &str = "To find the Job IDs of an Obs ID, use 'giant-squi
 /// The date-only form that [`parse_utc_time`] accepts.
 const DATE_ONLY_FORMAT: &str = "%Y-%m-%d";
 
-/// The Obs IDs as text for a message: `1065880128, 1065880248`.
-fn obs_ids_text(obs_ids: &[ObsId]) -> String {
-    obs_ids
-        .iter()
+/// The IDs as text for a message: `1065880128, 1065880248`.
+fn ids_text<T: std::fmt::Display>(ids: &[T]) -> String {
+    ids.iter()
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join(", ")

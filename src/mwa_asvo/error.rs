@@ -6,6 +6,7 @@
 
 use thiserror::Error;
 
+use super::api::openapi::Type as FileType;
 use super::{AsvoApiError, AsvoJobId, JobState};
 use crate::obs_id::ObsId;
 
@@ -107,6 +108,21 @@ pub enum AsvoError {
     #[error("Could not determine the URL for job {job_id}")]
     NoUrl { job_id: AsvoJobId },
 
+    /// A file of an Acacia job has no SHA-1 hash, so the download could not
+    /// be checked. Nothing is downloaded.
+    #[error("MWA ASVO Job ID {job_id} has a file with no SHA-1 hash. Please report this to asvo_support@mwatelescope.org.")]
+    NoHash { job_id: AsvoJobId },
+
+    /// The files of a DUG or Scratch job are not on a file system that this
+    /// host can reach, so there is nothing to download here. `path` is
+    /// where the MWA ASVO delivered them, if it said.
+    #[error("{}", files_not_reachable_message(*.job_id, *.delivery, .path.as_deref()))]
+    FilesNotReachable {
+        job_id: AsvoJobId,
+        delivery: FileType,
+        path: Option<String>,
+    },
+
     /// A file of a Scratch job has no path.
     #[error("Could not determine the path for job {job_id}")]
     NoPath { job_id: AsvoJobId },
@@ -133,6 +149,21 @@ fn error_code_suffix(error_code: &Option<i64>) -> String {
         Some(code) => format!(" (code {code})"),
         None => String::new(),
     }
+}
+
+/// The message of [`AsvoError::FilesNotReachable`].
+fn files_not_reachable_message(
+    job_id: AsvoJobId,
+    delivery: FileType,
+    path: Option<&str>,
+) -> String {
+    let place = match delivery {
+        FileType::Dug => "the DUG file system".to_string(),
+        FileType::Scratch => "the Pawsey scratch file system".to_string(),
+        FileType::Acacia => "Acacia".to_string(),
+    };
+    let at = path.map(|p| format!(" at {p}")).unwrap_or_default();
+    format!("MWA ASVO Job ID {job_id}: the files are on {place}{at}, which this host cannot reach.")
 }
 
 /// A request error of the download path is an API error of the kind

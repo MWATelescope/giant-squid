@@ -54,25 +54,25 @@ class AsvoApiError(builtins.Exception):
     r"""
     AuthenticationFailed, ApiError and BadStatus.
     """
-    error_code: builtins.str
+    error_code: builtins.str | None
     r"""
-    ApiError: the server's machine-readable error code.
+    ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse.
     """
     detail: builtins.str | None
     r"""
-    ApiError.
+    ApiError and AuthenticationFailed.
     """
     suggestion: builtins.str | None
     r"""
-    ApiError.
+    ApiError and AuthenticationFailed.
     """
     field_errors: builtins.list[builtins.dict[builtins.str, builtins.str]]
     r"""
-    ApiError: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
+    ApiError and AuthenticationFailed: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
     """
     request_id: builtins.str | None
     r"""
-    ApiError: the server's ID for the request, for a support request.
+    ApiError and AuthenticationFailed: the server's ID for the request, for a support request.
     """
     code: builtins.int
     r"""
@@ -635,7 +635,7 @@ class AsvoError(builtins.Exception):
     """
     job_id: builtins.int
     r"""
-    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error.
+    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable and Http404Error.
     """
     obs_id: builtins.int
     r"""
@@ -652,6 +652,14 @@ class AsvoError(builtins.Exception):
     job_state: JobState
     r"""
     NotReady: the job's state.
+    """
+    delivery: Type
+    r"""
+    FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch).
+    """
+    path: builtins.str | None
+    r"""
+    FilesNotReachable: the path of the files, if the MWA ASVO gave one.
     """
     file: builtins.str
     r"""

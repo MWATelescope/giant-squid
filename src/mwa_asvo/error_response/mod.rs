@@ -72,6 +72,13 @@ pub const ERROR_CODE_NO_FILES: &str = "NO_FILES";
 /// The job has no URL to download its files from.
 pub const ERROR_CODE_NO_URL: &str = "NO_URL";
 
+/// A file of the job has no SHA-1 hash.
+pub const ERROR_CODE_NO_HASH: &str = "NO_HASH";
+
+/// The job's files are on a file system (DUG or Scratch) that this host
+/// cannot reach.
+pub const ERROR_CODE_FILES_NOT_REACHABLE: &str = "FILES_NOT_REACHABLE";
+
 /// The job has no path of its files.
 pub const ERROR_CODE_NO_PATH: &str = "NO_PATH";
 
@@ -122,10 +129,24 @@ impl AsvoApiError {
             AsvoApiError::MissingAuthKey { .. } => {
                 new_error_response(ERROR_CODE_MISSING_API_KEY, self)
             }
-            AsvoApiError::AuthenticationFailed { message } => {
-                serde_json::from_str::<ErrorResponse>(message)
-                    .unwrap_or_else(|_| new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self))
-            }
+            AsvoApiError::AuthenticationFailed {
+                message,
+                error_code: Some(error_code),
+                detail,
+                suggestion,
+                field_errors,
+                request_id,
+            } => ErrorResponse {
+                detail: detail.clone(),
+                error_code: error_code.clone(),
+                field_errors: (!field_errors.is_empty()).then(|| field_errors.clone()),
+                message: message.clone(),
+                request_id: request_id.clone(),
+                suggestion: suggestion.clone(),
+            },
+            AsvoApiError::AuthenticationFailed {
+                error_code: None, ..
+            } => new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self),
             AsvoApiError::Conversion(_) => new_error_response(ERROR_CODE_INVALID_PARAMETER, self),
             AsvoApiError::InvalidParameter { name, message } => ErrorResponse {
                 field_errors: Some(vec![FieldError {
@@ -204,6 +225,8 @@ impl AsvoError {
             AsvoError::Interrupted => ERROR_CODE_INTERRUPTED,
             AsvoError::NoUrl { .. } => ERROR_CODE_NO_URL,
             AsvoError::NoPath { .. } => ERROR_CODE_NO_PATH,
+            AsvoError::NoHash { .. } => ERROR_CODE_NO_HASH,
+            AsvoError::FilesNotReachable { .. } => ERROR_CODE_FILES_NOT_REACHABLE,
             AsvoError::SymlinkInDownloadDir { .. } => ERROR_CODE_SYMLINK_IN_DOWNLOAD_DIR,
         };
         new_error_response(code, self)
@@ -220,6 +243,8 @@ impl AsvoError {
             | AsvoError::HashMismatch { job_id, .. }
             | AsvoError::NoUrl { job_id }
             | AsvoError::NoPath { job_id }
+            | AsvoError::NoHash { job_id }
+            | AsvoError::FilesNotReachable { job_id, .. }
             | AsvoError::Http404Error { job_id } => Some(*job_id),
             _ => None,
         }

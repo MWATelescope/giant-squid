@@ -122,6 +122,61 @@ fn a_fresh_login_is_performed_and_cached_when_no_session_exists() {
     assert_eq!(cached["user_id"], TEST_USER_ID);
 }
 
+/// A rejected login whose body is an MWA ASVO `ErrorResponse` keeps the
+/// kind `AuthenticationFailed`, with the server's fields, so that its
+/// detail and suggestion are shown.
+#[test]
+fn a_rejected_login_with_an_error_response_has_its_fields() {
+    let env = TestEnv::without_session();
+    let login = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/api_login");
+        then.status(401)
+            .header("content-type", "application/json")
+            .json_body(json!({
+                "error_code": "AUTH_INVALID_KEY",
+                "message": "Bad API key",
+                "detail": "The key was revoked",
+                "suggestion": "Make a new key in your MWA ASVO profile",
+                "request_id": "req-1"
+            }));
+    });
+
+    let err = AsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
+
+    assert_eq!(login.calls(), 1);
+    let text = err.to_string();
+    match err {
+        AsvoApiError::AuthenticationFailed {
+            message,
+            error_code,
+            detail,
+            suggestion,
+            field_errors,
+            request_id,
+        } => {
+            assert_eq!(message, "Bad API key");
+            assert_eq!(error_code.as_deref(), Some("AUTH_INVALID_KEY"));
+            assert_eq!(detail.as_deref(), Some("The key was revoked"));
+            assert_eq!(
+                suggestion.as_deref(),
+                Some("Make a new key in your MWA ASVO profile")
+            );
+            assert!(field_errors.is_empty());
+            assert_eq!(request_id.as_deref(), Some("req-1"));
+        }
+        other => panic!("expected AuthenticationFailed, got {other:?}"),
+    }
+    assert!(
+        text.starts_with("Authentication with MWA ASVO failed (AUTH_INVALID_KEY): Bad API key"),
+        "{text}"
+    );
+    assert!(text.contains("Detail: The key was revoked"), "{text}");
+    assert!(
+        text.contains("Suggestion: Make a new key in your MWA ASVO profile"),
+        "{text}"
+    );
+}
+
 #[test]
 fn a_rejected_login_is_reported_as_an_authentication_failure() {
     let env = TestEnv::without_session();
@@ -131,8 +186,13 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
 
     assert_eq!(login.calls(), 1);
     match err {
-        AsvoApiError::AuthenticationFailed { message } => {
+        AsvoApiError::AuthenticationFailed {
+            message,
+            error_code,
+            ..
+        } => {
             assert!(message.contains("invalid api key"), "got {message}");
+            assert_eq!(error_code, None);
         }
         other => panic!("expected AuthenticationFailed, got {other:?}"),
     }

@@ -14,6 +14,14 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
+  (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
+  reported success.
+* A failed login or token refresh whose reply is an MWA ASVO `ErrorResponse` is still
+  `AsvoApiError::AuthenticationFailed`, now with the server's fields (`error_code`, `detail`, `suggestion`,
+  `field_errors`, `request_id`; also in Python), so the message shows the detail and the suggestion.
+* `AsvoError::HashMismatch` names the downloaded file by its path in the download directory, not by its download URL,
+  which is a signed URL.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
   "Obsid"). JSON keys and argument names do not change (`job_id`, `obs_id`).
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
@@ -160,6 +168,11 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
+* `download` logs in once for all its downloads. Before, each download logged in on its own, and a long list could
+  hit the server's limit on logins.
+* `download` no longer panics on a job file with no SHA-1 hash (`AsvoError::NoHash`, `NO_HASH`), or on a download URL
+  or Scratch path that names no file (`NoUrl`, `NoPath`). The time and speed in "Completed download of ..." are for
+  that file, not for the job so far.
 * `download --keep-tar` resume: the range request was sent with a wrong header, so the server sent the whole file
   and giant-squid appended it to the partial file. A complete file was downloaded again. The SHA-1 of a resumed
   download covered only the new bytes. All three are fixed. If a server ignores the range request, giant-squid

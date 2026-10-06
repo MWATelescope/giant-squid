@@ -105,7 +105,7 @@ fn obsids_only_refuses_a_job_id_and_names_it() {
     );
     assert_eq!(
         err.to_string(),
-        "Expected only Obs IDs, but found these Job IDs: [31]"
+        "Expected only Obs IDs, but found these Job IDs: 31"
     );
 }
 

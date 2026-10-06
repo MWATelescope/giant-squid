@@ -182,6 +182,23 @@ def test_a_rejected_login_raises_an_authentication_failure(host: str, httpserver
     assert "invalid api key" in err.value.message
 
 
+def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, httpserver: HTTPServer) -> None:
+    """A failed login with an ErrorResponse body raises AuthenticationFailed with the server's fields."""
+    httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_json(
+        error_response("AUTH_INVALID_KEY", "Bad API key"), status=401
+    )
+
+    with pytest.raises(gs.AsvoApiError) as err:
+        gs.AsvoClient(host, TEST_API_KEY)
+
+    assert err.value.kind == "AuthenticationFailed"
+    assert err.value.error_code == "AUTH_INVALID_KEY"
+    assert err.value.message == "Bad API key"
+    assert err.value.detail == "detail from the mock"
+    assert err.value.suggestion == "try again"
+    assert "Suggestion: try again" in str(err.value)
+
+
 @pytest.mark.usefixtures("mock_login")
 def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPServer) -> None:
     """A structured error response raises AsvoApiError with error_code, message, detail and suggestion."""

@@ -2307,3 +2307,165 @@ mod sidecar {
         assert!(!sidecar_file(&dir).exists());
     }
 }
+
+// ---------------------------------------------------------------------------
+// Files that cannot be downloaded
+// ---------------------------------------------------------------------------
+
+/// A completed job with one file, `file`, in its `product`.
+fn ready_job_with_file(file: Value) -> Value {
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
+    detail["product"] = json!({ "files": [file] });
+    detail
+}
+
+/// Download the test job into a new directory, which must stay empty.
+fn download_fails(env: &TestEnv) -> AsvoError {
+    let dir = TempDir::new().expect("could not create a download directory");
+    let client = AsvoClient::new(client_config(env)).expect("client should be created");
+    let err = client
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
+        .expect_err("expected the download to fail");
+    assert_eq!(
+        std::fs::read_dir(dir.path())
+            .expect("the download directory should exist")
+            .count(),
+        0,
+        "nothing should have been written"
+    );
+    err
+}
+
+/// The files of a DUG job are not reachable from here, so the download
+/// fails rather than reporting a success.
+#[test]
+fn a_dug_job_is_reported_as_not_reachable() {
+    use crate::mwa_asvo::api::openapi::Type as FileType;
+
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(
+        json!({ "type": "dug", "path": "/dug/asvo/12345", "size": 5 }),
+    )]);
+
+    match download_fails(&env) {
+        AsvoError::FilesNotReachable {
+            job_id,
+            delivery,
+            path,
+        } => {
+            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID);
+            assert_eq!(delivery, FileType::Dug);
+            assert_eq!(path.as_deref(), Some("/dug/asvo/12345"));
+        }
+        other => panic!("expected FilesNotReachable, got {other:?}"),
+    }
+}
+
+/// A Scratch job whose path this host cannot reach fails the download.
+#[test]
+fn a_scratch_job_that_this_host_cannot_reach_is_reported() {
+    use crate::mwa_asvo::api::openapi::Type as FileType;
+
+    let unreachable = TempDir::new().expect("could not create a directory");
+    let path = unreachable.path().join("not-here").display().to_string();
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(
+        json!({ "type": "scratch", "path": path, "size": 5 }),
+    )]);
+
+    match download_fails(&env) {
+        AsvoError::FilesNotReachable {
+            delivery,
+            path: reported,
+            ..
+        } => {
+            assert_eq!(delivery, FileType::Scratch);
+            assert_eq!(reported.as_deref(), Some(path.as_str()));
+        }
+        other => panic!("expected FilesNotReachable, got {other:?}"),
+    }
+}
+
+/// An Acacia file without a SHA-1 hash is refused before any request, with
+/// an error rather than a panic.
+#[test]
+fn a_file_without_a_hash_is_refused_before_any_request() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("not fetched");
+    });
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "acacia",
+        "url": env.server.url(DOWNLOAD_PATH),
+        "size": 11
+    }))]);
+
+    match download_fails(&env) {
+        AsvoError::NoHash { job_id } => {
+            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        }
+        other => panic!("expected NoHash, got {other:?}"),
+    }
+    assert_eq!(file.calls(), 0);
+}
+
+/// A download URL whose path names no file is reported, with an error
+/// rather than a panic, and nothing is fetched.
+#[test]
+fn a_download_url_with_no_file_name_is_reported() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path("/downloads/");
+        then.status(200).body("not fetched");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url("/downloads/"),
+        11,
+        &"0".repeat(40),
+    )]);
+
+    match download_fails(&env) {
+        AsvoError::NoUrl { job_id } => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
+        other => panic!("expected NoUrl, got {other:?}"),
+    }
+    assert_eq!(file.calls(), 0);
+}
+
+/// A hash mismatch names the file by its name in the download directory,
+/// not by its download URL, which is a signed URL.
+#[test]
+fn a_hash_mismatch_names_the_file_not_the_url() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid hash mismatch payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    let url = format!("{}?Signature=secret", env.server.url(DOWNLOAD_PATH));
+    env.mock_get_jobs(vec![ready_job_serving(
+        &url,
+        payload.len() as u64,
+        &"0".repeat(40),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("the hash check should fail");
+
+    match err {
+        AsvoError::HashMismatch { file, .. } => {
+            assert_eq!(file, dir.path().join(DOWNLOAD_FILE).display().to_string());
+            assert!(!file.contains("Signature"), "{file}");
+        }
+        other => panic!("expected HashMismatch, got {other:?}"),
+    }
+}

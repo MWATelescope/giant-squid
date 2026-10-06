@@ -210,27 +210,30 @@ fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
         exp: i64,
     }
 
-    let payload_b64 =
-        token
-            .split('.')
-            .nth(1)
-            .ok_or_else(|| AsvoApiError::AuthenticationFailed {
-                message: "Malformed JWT returned by MWA ASVO: no payload segment".to_string(),
-            })?;
+    let payload_b64 = token.split('.').nth(1).ok_or_else(|| {
+        AsvoApiError::authentication_failed(
+            "Malformed JWT returned by MWA ASVO: no payload segment",
+        )
+    })?;
 
     let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload_b64)
-        .map_err(|e| AsvoApiError::AuthenticationFailed {
-            message: format!("Could not base64-decode JWT payload from MWA ASVO: {}", e),
+        .map_err(|e| {
+            AsvoApiError::authentication_failed(format!(
+                "Could not base64-decode JWT payload from MWA ASVO: {}",
+                e
+            ))
         })?;
 
-    let claim: JwtExpClaim =
-        serde_json::from_slice(&payload_bytes).map_err(|e| AsvoApiError::AuthenticationFailed {
-            message: format!("Could not parse JWT payload JSON from MWA ASVO: {}", e),
-        })?;
+    let claim: JwtExpClaim = serde_json::from_slice(&payload_bytes).map_err(|e| {
+        AsvoApiError::authentication_failed(format!(
+            "Could not parse JWT payload JSON from MWA ASVO: {}",
+            e
+        ))
+    })?;
 
-    Timestamp::from_second(claim.exp).map_err(|_| AsvoApiError::AuthenticationFailed {
-        message: "JWT `exp` claim from MWA ASVO was out of range".to_string(),
+    Timestamp::from_second(claim.exp).map_err(|_| {
+        AsvoApiError::authentication_failed("JWT `exp` claim from MWA ASVO was out of range")
     })
 }
 
@@ -316,9 +319,10 @@ impl AsvoClient {
         headers.insert(
             reqwest::header::COOKIE,
             HeaderValue::from_str(&format!("mwa_access_token={}", access_token)).map_err(|e| {
-                AsvoApiError::AuthenticationFailed {
-                    message: format!("MWA ASVO returned an invalid access token: {}", e),
-                }
+                AsvoApiError::authentication_failed(format!(
+                    "MWA ASVO returned an invalid access token: {}",
+                    e
+                ))
             })?,
         );
 
@@ -467,9 +471,7 @@ impl AsvoClient {
         )?;
 
         if !response.status.is_success() {
-            return Err(AsvoApiError::AuthenticationFailed {
-                message: response.body,
-            });
+            return Err(Self::auth_error_from_body(response.body));
         }
 
         let auth: ApiLoginResponse = serde_json::from_str(&response.body)?;
@@ -497,9 +499,7 @@ impl AsvoClient {
         )?;
 
         if !response.status.is_success() {
-            return Err(AsvoApiError::AuthenticationFailed {
-                message: response.body,
-            });
+            return Err(Self::auth_error_from_body(response.body));
         }
 
         let token: TokenResponse = serde_json::from_str(&response.body)?;
@@ -557,11 +557,11 @@ impl AsvoClient {
         // cache format), but the generated `UserResponse.id` is an i64.
         // A negative user ID from the server would be unexpected, but
         // let's not panic or silently wrap if it ever happened.
-        let user_id = u64::try_from(user.id).map_err(|_| AsvoApiError::AuthenticationFailed {
-            message: format!(
+        let user_id = u64::try_from(user.id).map_err(|_| {
+            AsvoApiError::authentication_failed(format!(
                 "MWA ASVO returned an invalid (negative) user ID: {}",
                 user.id
-            ),
+            ))
         })?;
 
         Self::stored_tokens_from_parts(access_token, refresh_token, user_id, user.login, user.email)
@@ -649,6 +649,23 @@ impl AsvoClient {
                 code: status,
                 message: body,
             },
+        }
+    }
+
+    /// Map the body of a failed login or refresh to an
+    /// [`AsvoApiError::AuthenticationFailed`]: the fields of a structured
+    /// `ErrorResponse`, verbatim, or else the body as the message.
+    fn auth_error_from_body(body: String) -> AsvoApiError {
+        match serde_json::from_str::<ErrorResponse>(&body) {
+            Ok(err) => AsvoApiError::AuthenticationFailed {
+                message: err.message,
+                error_code: Some(err.error_code),
+                detail: err.detail,
+                suggestion: err.suggestion,
+                field_errors: err.field_errors.unwrap_or_default(),
+                request_id: err.request_id,
+            },
+            Err(_) => AsvoApiError::authentication_failed(body),
         }
     }
 

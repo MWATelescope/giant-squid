@@ -385,6 +385,23 @@ def test_a_hash_mismatch_raises_asvo_error(
     assert err.value.job_id == JOB_ID
 
 
+def test_a_dug_job_raises_files_not_reachable(
+    client: gs.AsvoClient, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
+) -> None:
+    """A job delivered to DUG cannot be downloaded from here: it raises AsvoError with kind FilesNotReachable."""
+    serve_jobs(
+        [job_detail(JOB_ID, "completed", product={"files": [{"type": "dug", "path": "/dug/asvo/12345", "size": 5}]})]
+    )
+
+    with pytest.raises(gs.AsvoError) as err:
+        client.download_job(JOB_ID, tmp_path)
+
+    assert err.value.kind == "FilesNotReachable"
+    assert err.value.job_id == JOB_ID
+    assert err.value.delivery == gs.Type.Dug
+    assert err.value.path == "/dug/asvo/12345"
+
+
 def test_an_unknown_job_raises_asvo_error(
     client: gs.AsvoClient, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
 ) -> None:

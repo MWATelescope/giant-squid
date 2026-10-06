@@ -13,7 +13,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-use super::types::PyJobState;
+use super::types::{PyJobState, PyType};
 // The library's error enums have the same names as the Python exceptions,
 // so they are used through this path.
 use crate::mwa_asvo as lib;
@@ -48,7 +48,7 @@ mod stub_attributes {
     use pyo3_stub_gen::type_info::{MemberInfo, PyMethodsInfo};
     use pyo3_stub_gen::PyStubType;
 
-    use super::super::types::PyJobState;
+    use super::super::types::{PyJobState, PyType};
     use super::{AsvoApiError, AsvoError};
 
     /// One attribute: its name, its Rust type (for the Python type) and its
@@ -71,11 +71,11 @@ mod stub_attributes {
             attrs: &[
                 attr!("kind", String, "\"MissingAuthKey\" (the `api_key` given to `AsvoClient` is empty), \"AuthenticationFailed\", \"Conversion\", \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\". An argument outside the MWA ASVO limits raises `ValueError`, not this."),
                 attr!("message", String, "AuthenticationFailed, ApiError and BadStatus."),
-                attr!("error_code", String, "ApiError: the server's machine-readable error code."),
-                attr!("detail", Option<String>, "ApiError."),
-                attr!("suggestion", Option<String>, "ApiError."),
-                attr!("field_errors", Vec<HashMap<String, String>>, "ApiError: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
-                attr!("request_id", Option<String>, "ApiError: the server's ID for the request, for a support request."),
+                attr!("error_code", Option<String>, "ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse."),
+                attr!("detail", Option<String>, "ApiError and AuthenticationFailed."),
+                attr!("suggestion", Option<String>, "ApiError and AuthenticationFailed."),
+                attr!("field_errors", Vec<HashMap<String, String>>, "ApiError and AuthenticationFailed: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
+                attr!("request_id", Option<String>, "ApiError and AuthenticationFailed: the server's ID for the request, for a support request."),
                 attr!("code", u16, "BadStatus: the HTTP status code."),
             ],
             getters: &[],
@@ -92,11 +92,13 @@ mod stub_attributes {
             struct_id: std::any::TypeId::of::<AsvoError>,
             attrs: &[
                 attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
-                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath and Http404Error."),
+                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable and Http404Error."),
                 attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
+                attr!("delivery", PyType, "FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch)."),
+                attr!("path", Option<String>, "FilesNotReachable: the path of the files, if the MWA ASVO gave one."),
                 attr!("file", String, "HashMismatch, and SymlinkInDownloadDir: the path of the symbolic link."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
@@ -128,6 +130,8 @@ enum Field {
     Int(u64),
     OptInt(Option<i64>),
     State(PyJobState),
+    /// A delivery type (`Type`), or `None`.
+    Delivery(PyType),
     /// A list of `{"field": ..., "message": ...}` dicts.
     ErrorDicts(Vec<lib::api::openapi::FieldError>),
 }
@@ -150,6 +154,7 @@ fn build<T: pyo3::PyTypeInfo>(
             Field::Int(n) => value.setattr(name, n),
             Field::OptInt(n) => value.setattr(name, n),
             Field::State(s) => value.setattr(name, s),
+            Field::Delivery(d) => value.setattr(name, d),
             Field::ErrorDicts(errors) => {
                 let list = errors
                     .into_iter()
@@ -182,9 +187,23 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
     let (kind, fields) = match e {
         lib::AsvoApiError::MissingAuthKey { .. } => ("MissingAuthKey", vec![]),
-        lib::AsvoApiError::AuthenticationFailed { message } => (
+        lib::AsvoApiError::AuthenticationFailed {
+            message,
+            error_code,
+            detail,
+            suggestion,
+            field_errors,
+            request_id,
+        } => (
             "AuthenticationFailed",
-            vec![("message", Field::Str(message))],
+            vec![
+                ("message", Field::Str(message)),
+                ("error_code", Field::OptStr(error_code)),
+                ("detail", Field::OptStr(detail)),
+                ("suggestion", Field::OptStr(suggestion)),
+                ("field_errors", Field::ErrorDicts(field_errors)),
+                ("request_id", Field::OptStr(request_id)),
+            ],
         ),
         lib::AsvoApiError::InvalidParameter { .. } => {
             return PyValueError::new_err(message);
@@ -305,6 +324,19 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
         lib::AsvoError::NoUrl { job_id } => ("NoUrl", vec![("job_id", Field::Int(job_id.get()))]),
         lib::AsvoError::NoPath { job_id } => ("NoPath", vec![("job_id", Field::Int(job_id.get()))]),
+        lib::AsvoError::NoHash { job_id } => ("NoHash", vec![("job_id", Field::Int(job_id.get()))]),
+        lib::AsvoError::FilesNotReachable {
+            job_id: id,
+            delivery,
+            path,
+        } => (
+            "FilesNotReachable",
+            vec![
+                job_id(id),
+                ("delivery", Field::Delivery(PyType::from(delivery))),
+                ("path", Field::OptStr(path)),
+            ],
+        ),
         lib::AsvoError::SymlinkInDownloadDir { path } => (
             "SymlinkInDownloadDir",
             vec![("file", Field::Str(path.display().to_string()))],
