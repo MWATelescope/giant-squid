@@ -1,0 +1,64 @@
+name: Python API docs
+permissions:
+  contents: read
+
+# Build the Python API documentation with pdoc (tools/generate_python_docs.sh) and publish it to GitHub Pages:
+# https://mwatelescope.github.io/giant-squid/. It runs for a release tag, so the pages are for the latest release, and
+# by hand from the Actions tab. The repository's Pages source must be "GitHub Actions".
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+# One deployment at a time. A deployment that is running is not cancelled.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the docs
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.0.1
+
+    # tools/generate_python_docs.py reads the enum values from the built module.
+    - name: Build the module
+      run: uv sync --locked
+
+    - name: Generate the docs
+      run: tools/generate_python_docs.sh target/python-docs
+
+    - name: Upload the docs
+      uses: actions/upload-pages-artifact@v5
+      with:
+        path: target/python-docs
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy
+      id: deployment
+      uses: actions/deploy-pages@v5
