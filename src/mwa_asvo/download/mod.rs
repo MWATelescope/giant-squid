@@ -13,7 +13,7 @@ use crate::check_file_sha1_hash;
 use crate::helpers::{hash_reader, to_hex};
 use crate::obs_id::ObsId;
 
-use super::apiv2::openapi::Type as FileType;
+use super::api::openapi::Type as FileType;
 use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};

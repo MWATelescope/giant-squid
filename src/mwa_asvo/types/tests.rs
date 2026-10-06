@@ -5,7 +5,7 @@
 //! Tests for [`super`] ASVO data types.
 
 use super::*;
-use crate::asvo::apiv2::openapi::{JobProduct, Type as FileType};
+use crate::mwa_asvo::api::openapi::{JobProduct, Type as FileType};
 use crate::test_config::job_type;
 
 /// An obsid used by these tests.
@@ -28,7 +28,7 @@ fn test_created() -> jiff::Timestamp {
 }
 
 /// The schema, for the checks of the job type names.
-const SCHEMA: &str = include_str!("../apiv2/openapi-schema.json");
+const SCHEMA: &str = include_str!("../api/openapi-schema.json");
 
 /// The job type names are those that the schema gives the codes, in the
 /// description of `JobDetailResponse.job_type` ("0=conversion, 1=visibility,

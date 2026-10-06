@@ -1256,9 +1256,9 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// Three jobs that between them have every kind of value: files with a
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
-fn json_sample_jobs() -> crate::asvo::AsvoJobVec {
-    use crate::asvo::apiv2::openapi::{JobDetailResponse, Type as FileType};
-    use crate::asvo::{AsvoJobVec, JobFile, JobProduct, JobState};
+fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
+    use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
+    use crate::mwa_asvo::{AsvoJobVec, JobFile, JobProduct, JobState};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
@@ -1702,7 +1702,7 @@ fn names_offered_by_list_help(option: &str) -> Vec<String> {
 /// those: it once offered `retrieving`, which is not a state.
 #[test]
 fn the_help_of_job_states_offers_the_states_the_parser_accepts() {
-    use crate::asvo::JobState;
+    use crate::mwa_asvo::JobState;
 
     let offered = names_offered_by_list_help("job-states");
 
@@ -1734,7 +1734,7 @@ fn the_help_of_job_states_offers_the_states_the_parser_accepts() {
 /// Every name in the help must be a job type that the parser accepts.
 #[test]
 fn the_help_of_job_types_offers_the_types_the_parser_accepts() {
-    use crate::asvo::JobType;
+    use crate::mwa_asvo::JobType;
 
     let offered = names_offered_by_list_help("job-types");
 

@@ -26,8 +26,8 @@ use clap::builder::styling::{AnsiColor, Styles};
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
-use crate::asvo::DEFAULT_CONCURRENT_DOWNLOADS;
-use crate::asvo::{JobState, JobType};
+use crate::mwa_asvo::DEFAULT_CONCURRENT_DOWNLOADS;
+use crate::mwa_asvo::{JobState, JobType};
 use params::{
     list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,

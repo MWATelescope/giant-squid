@@ -4,7 +4,7 @@
 
 //! Errors when interfacing with the MWA ASVO v2 API.
 //!
-//! This is intentionally separate from [`crate::asvo::AsvoError`], which
+//! This is intentionally separate from [`crate::mwa_asvo::AsvoError`], which
 //! covers the file download path (job lookup, hash checks, HTTP transfer).
 //! This enum covers talking to the API itself: authentication and the
 //! structured error responses (`ErrorResponse`, `HttpValidationError`).

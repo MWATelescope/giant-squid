@@ -9,7 +9,7 @@
 //! mwa-cli) uses the request/response types generated from the MWA ASVO
 //! OpenAPI schema (see `super::openapi`) instead of hand-rolled structs.
 //! `token_store` is shared infrastructure and is used directly from
-//! `crate::asvo` rather than being duplicated here.
+//! `crate::mwa_asvo` rather than being duplicated here.
 //!
 //! The client reads no environment variables: the caller supplies the host,
 //! API key, timeout and token cache path in an [`AsvoClientConfig`].
@@ -25,10 +25,12 @@ use log::{debug, trace, warn};
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
-use crate::asvo::download::{download_by_job_id, download_by_obs_id};
-use crate::asvo::token_store::{self, StoredTokens};
-use crate::asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions, DEFAULT_ASVO_HOST};
 use crate::built_info;
+use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
+use crate::mwa_asvo::token_store::{self, StoredTokens};
+use crate::mwa_asvo::{
+    AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions, DEFAULT_ASVO_HOST,
+};
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;

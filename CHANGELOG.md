@@ -41,6 +41,9 @@ before you upgrade scripts.**
   as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
   lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
   `error_text` (before, it was `{"Error": "<message>"}`). `--legacy-json` still prints the 2.x values.
+* Library: the module `asvo` is renamed `mwa_asvo`, and its submodule `apiv2` is renamed `api` (for example
+  `mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams`). The items re-exported at the crate root (for
+  example `mwa_giant_squid::AsvoClient`) did not change. The Python module did not change.
 * Library: `AsvoJobState` is replaced by the OpenAPI schema's `JobState` (`JobState::Completed` and so on). Its
   `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
   the same members.
@@ -81,7 +84,7 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
-* Library: `asvo::apiv2::job_args` has one argument struct per job type (`DownloadArgs`, `ConversionArgs`,
+* Library: `mwa_asvo::api::job_args` has one argument struct per job type (`DownloadArgs`, `ConversionArgs`,
   `ImagingArgs`, `ImageFromJobArgs`, `VoltageArgs`, `BeamformerArgs`), each with `into_params(obs_id)`, which makes the
   request body. A field that is `None` is left to the schema's default. The CLI and the Python module both make their
   request bodies with them.

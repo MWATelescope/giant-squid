@@ -33,7 +33,7 @@ jobs:
       - name: Generate test lcov coverage into coverage/ dir
         env:
           # The generated openapi.rs is left out, as in tools/coverage.sh.
-          COVERAGE_IGNORE_REGEX: 'src/asvo/apiv2/openapi\.rs'
+          COVERAGE_IGNORE_REGEX: 'src/mwa_asvo/api/openapi\.rs'
         run: |
           mkdir -p coverage
           cargo llvm-cov clean --workspace

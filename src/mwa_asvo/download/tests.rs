@@ -26,7 +26,7 @@ use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
-use crate::asvo::{
+use crate::mwa_asvo::{
     AsvoApiError, AsvoClient, AsvoError, DownloadOptions, DownloadProgress,
     DEFAULT_DOWNLOAD_BUFFER_SIZE,
 };
@@ -993,12 +993,12 @@ mod retries {
     use tempfile::TempDir;
 
     use super::{options, sha1_hex};
-    use crate::asvo::apiv2::openapi::{JobDetailResponse, Type as FileType};
-    use crate::asvo::download::{
+    use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
+    use crate::mwa_asvo::download::{
         is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, RetryState, UntarCheckpoint,
     };
-    use crate::asvo::{AsvoError, AsvoJob, JobFile, JobState};
+    use crate::mwa_asvo::{AsvoError, AsvoJob, JobFile, JobState};
     use crate::obs_id::ObsId;
     use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
     use crate::test_config::job_type;
@@ -1490,8 +1490,8 @@ mod reruns {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
-    use crate::asvo::download::EARLIER_FILES_WINDOW;
-    use crate::asvo::{AsvoClient, AsvoError};
+    use crate::mwa_asvo::download::EARLIER_FILES_WINDOW;
+    use crate::mwa_asvo::{AsvoClient, AsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1604,7 +1604,7 @@ mod reruns {
     fn download(
         env: &TestEnv,
         dir: &TempDir,
-        configure: impl FnOnce(&mut crate::asvo::DownloadOptions),
+        configure: impl FnOnce(&mut crate::mwa_asvo::DownloadOptions),
     ) -> Result<(), AsvoError> {
         let dir_path = dir.path().display().to_string();
         let mut opts = options(&dir_path);
@@ -1811,8 +1811,8 @@ mod unsafe_paths {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
-    use crate::asvo::download::{untar_stream, ResumePoint, EARLIER_FILES_WINDOW};
-    use crate::asvo::AsvoClient;
+    use crate::mwa_asvo::download::{untar_stream, ResumePoint, EARLIER_FILES_WINDOW};
+    use crate::mwa_asvo::AsvoClient;
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -2040,8 +2040,8 @@ mod sidecar {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_FILE, DOWNLOAD_PATH};
-    use crate::asvo::download::{EARLIER_FILES_WINDOW, SIDECAR_SUFFIX};
-    use crate::asvo::{AsvoClient, AsvoError, DownloadOptions};
+    use crate::mwa_asvo::download::{EARLIER_FILES_WINDOW, SIDECAR_SUFFIX};
+    use crate::mwa_asvo::{AsvoClient, AsvoError, DownloadOptions};
     use crate::test_common::*;
     use crate::test_config::client_config;
 

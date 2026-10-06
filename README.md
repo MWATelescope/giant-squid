@@ -1260,7 +1260,7 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use mwa_giant_squid::asvo::apiv2::openapi::DownloadJobParams;
+use mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
     JobState, JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,

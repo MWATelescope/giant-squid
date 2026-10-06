@@ -23,7 +23,7 @@ use std::marker::PhantomData;
 use clap::builder::{PossibleValue, TypedValueParser};
 use clap::{Arg, Command};
 
-pub use crate::asvo::apiv2::schema_enums::SchemaEnum;
+pub use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 
 /// The clap value parser for a [`SchemaEnum`].
 ///

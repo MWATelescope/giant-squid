@@ -25,7 +25,7 @@ from .conftest import (
 
 # The schema's default for the days of a job listing, read from the schema that the library is built from, so
 # that the test follows the API and does not repeat its number.
-SCHEMA_PATH = pathlib.Path(__file__).parents[2] / "src" / "asvo" / "apiv2" / "openapi-schema.json"
+SCHEMA_PATH = pathlib.Path(__file__).parents[2] / "src" / "mwa_asvo" / "api" / "openapi-schema.json"
 SCHEMA_DEFAULT_DAYS = json.loads(SCHEMA_PATH.read_text())["definitions"]["JobsByUserRequest"]["properties"]["days"][
     "default"
 ]

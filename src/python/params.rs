@@ -5,7 +5,7 @@
 //! The obsid of the submit methods.
 //!
 //! The submit methods fill the library's argument struct of each job type
-//! ([`crate::asvo::apiv2::job_args`]), which makes the request body, as the
+//! ([`crate::mwa_asvo::api::job_args`]), which makes the request body, as the
 //! CLI does. Every optional Python argument is `None` by default, which
 //! leaves the field unset, so the body has the schema's default. The Python
 //! argument names are the OpenAPI field names. An argument that the schema

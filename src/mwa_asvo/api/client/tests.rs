@@ -19,13 +19,13 @@ use clap::Parser;
 use httpmock::prelude::*;
 use serde_json::json;
 
-use crate::asvo::apiv2::openapi::Type as FileType;
-#[cfg(feature = "bin")]
-use crate::asvo::apiv2::openapi::{DownloadJobParams, JobsByUserRequest};
-use crate::asvo::client_config_from_env;
-use crate::asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobQuery, JobState, JobsFilter};
 #[cfg(feature = "bin")]
 use crate::cli::Args;
+use crate::mwa_asvo::api::openapi::Type as FileType;
+#[cfg(feature = "bin")]
+use crate::mwa_asvo::api::openapi::{DownloadJobParams, JobsByUserRequest};
+use crate::mwa_asvo::client_config_from_env;
+use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobQuery, JobState, JobsFilter};
 use crate::test_common::*;
 use crate::test_config::{client_config, job_type};
 
@@ -671,7 +671,7 @@ type RecordedRequest = (String, String, serde_json::Value);
 /// with the default options, and return the requests in the order they were
 /// made. The tests below check what the library sends and where.
 fn record_every_end_user_call() -> Vec<RecordedRequest> {
-    use crate::asvo::apiv2::openapi::{
+    use crate::mwa_asvo::api::openapi::{
         BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
         ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
     };
@@ -995,8 +995,8 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
 #[test]
 fn an_out_of_range_imaging_job_is_not_sent() {
     let env = TestEnv::with_session();
-    let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow1Params =
-        crate::asvo::apiv2::openapi::ImagingJobFlow1Params::builder()
+    let mut params: crate::mwa_asvo::api::openapi::ImagingJobFlow1Params =
+        crate::mwa_asvo::api::openapi::ImagingJobFlow1Params::builder()
             .obs_id(TEST_OBS_ID_I64)
             .try_into()
             .expect("defaults build");
@@ -1021,8 +1021,8 @@ fn an_out_of_range_imaging_job_is_not_sent() {
 #[test]
 fn an_out_of_range_image_from_job_is_not_sent() {
     let env = TestEnv::with_session();
-    let mut params: crate::asvo::apiv2::openapi::ImagingJobFlow2Params =
-        crate::asvo::apiv2::openapi::ImagingJobFlow2Params::builder()
+    let mut params: crate::mwa_asvo::api::openapi::ImagingJobFlow2Params =
+        crate::mwa_asvo::api::openapi::ImagingJobFlow2Params::builder()
             .obs_id(TEST_OBS_ID_I64)
             .source_job_id(std::num::NonZeroU64::new(12345).unwrap())
             .try_into()
@@ -1054,8 +1054,8 @@ fn an_out_of_range_image_from_job_is_not_sent() {
 #[test]
 fn an_out_of_range_conversion_job_is_not_sent() {
     let env = TestEnv::with_session();
-    let mut params: crate::asvo::apiv2::openapi::ConversionJobParams =
-        crate::asvo::apiv2::openapi::ConversionJobParams::builder()
+    let mut params: crate::mwa_asvo::api::openapi::ConversionJobParams =
+        crate::mwa_asvo::api::openapi::ConversionJobParams::builder()
             .obs_id(TEST_OBS_ID_I64)
             .try_into()
             .expect("defaults build");
@@ -1086,8 +1086,8 @@ fn an_out_of_range_conversion_job_is_not_sent() {
 #[test]
 fn an_out_of_range_voltage_job_is_not_sent() {
     let env = TestEnv::with_session();
-    let params: crate::asvo::apiv2::openapi::VoltageJobParams =
-        crate::asvo::apiv2::openapi::VoltageJobParams::builder()
+    let params: crate::mwa_asvo::api::openapi::VoltageJobParams =
+        crate::mwa_asvo::api::openapi::VoltageJobParams::builder()
             .obs_id(TEST_OBS_ID_I64)
             .offset(9999_i64)
             .duration(8_u64)
@@ -1265,7 +1265,7 @@ fn record_login_and_get_jobs() {
     let path = recording.save("login_and_get_jobs").expect("save failed");
     println!("raw recording: {}", path.display());
     println!(
-        "scrub it before committing - see the section notes in src/asvo/apiv2/client/tests.rs"
+        "scrub it before committing - see the section notes in src/mwa_asvo/api/client/tests.rs"
     );
 }
 

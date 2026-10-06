@@ -47,7 +47,7 @@ Pointing the client at the mock server needs no special production code: the
 base URL of every API call comes from `AsvoClientConfig::host` (the CLI sets
 it from `MWA_ASVO_HOST`). The one thing that did need changing is TLS. Both `reqwest` clients were built with
 `https_only(true)`, which rejects the mock server's `http://127.0.0.1:PORT`
-address outright. `require_tls()` in `src/asvo/apiv2/client/mod.rs` now derives that flag from
+address outright. `require_tls()` in `src/mwa_asvo/api/client/mod.rs` now derives that flag from
 the configured host's scheme, so the default host and any `https://` host
 stay HTTPS-only, while an explicitly configured `http://` host - a mock
 server, or a plain-HTTP dev instance - is allowed.
@@ -62,7 +62,7 @@ directory, so the real token cache is never touched. No environment
 variable is set, so the tests run in parallel.
 
 Recording is manual and never runs in CI. `record_login_and_get_jobs` in
-`src/asvo/apiv2/client/tests.rs` is `#[ignore]`d and its section notes carry
+`src/mwa_asvo/api/client/tests.rs` is `#[ignore]`d and its section notes carry
 the exact command; in outline it starts a mock
 server forwarding to the target, points the client at it, exercises a
 read-only command, and saves the interactions. Run it with a throwaway
@@ -77,7 +77,7 @@ base URL cannot be overridden, which does not apply here.
 
 Recordings cover the happy paths. Error paths cannot be recorded from a
 healthy server, so these are hand-written `httpmock` mocks in
-`src/asvo/apiv2/client/tests.rs`:
+`src/mwa_asvo/api/client/tests.rs`:
 
 - A missing API key, a rejected login, and a failed login not being cached.
 - A valid cached session being reused; an expired access token being
@@ -94,7 +94,7 @@ healthy server, so these are hand-written `httpmock` mocks in
 - Submission posting the exact body the CLI built, to the right endpoint,
   and cancellation issuing a `DELETE` to the job resource.
 
-`src/asvo/download/tests.rs` covers the download path: an unknown job ID, a job that
+`src/mwa_asvo/download/tests.rs` covers the download path: an unknown job ID, a job that
 is not ready, an unknown obsid, an obsid whose only job is unfinished, an
 obsid with several ready jobs, successful downloads, resume, stop requests,
 and tar entries with unsafe paths. Stream-untar resume has three test
@@ -115,7 +115,7 @@ modules:
   another archive, after a finished file changed, or with an unsafe path.
 
 Pagination is
-covered too - `src/asvo/apiv2/client/tests.rs` serves two pages by matching on the
+covered too - `src/mwa_asvo/api/client/tests.rs` serves two pages by matching on the
 `offset` the client sends, so no per-call response variation is needed.
 
 ### Layer 2b - the binary, end to end
@@ -219,7 +219,7 @@ with it.
 
 | Decision | Where it is pinned |
 | --- | --- |
-| Limits, names and defaults come from the OpenAPI schema | `src/asvo/apiv2/validate/tests.rs` compares each limit with `openapi-schema.json`; the CLI and Python defaults are read from the generated types |
+| Limits, names and defaults come from the OpenAPI schema | `src/mwa_asvo/api/validate/tests.rs` compares each limit with `openapi-schema.json`; the CLI and Python defaults are read from the generated types |
 | Only parameters that the API defines are sent (no `flags`) | `every_field_of_every_request_body_is_in_the_schema` (Rust) and `test_every_field_of_a_body_is_in_the_schema` (Python) |
 | Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and `test_staging_count_is_not_an_argument_and_not_in_a_body` in `test_submit.py` |
 | A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
@@ -287,7 +287,7 @@ client version string rather than a username - rewriting it would stop the
 recorded request matching what the client sends.
 
 Recorded bodies are already validated against the schema, indirectly but
-effectively: the playback tests in `src/asvo/apiv2/client/tests.rs` drive the real client over the fixture, so
+effectively: the playback tests in `src/mwa_asvo/api/client/tests.rs` drive the real client over the fixture, so
 each recorded response is deserialised through the types generated from
 `openapi-schema.json`. If the schema is regenerated with a renamed or newly
 required field, that test fails rather than the fixture silently describing
@@ -337,7 +337,7 @@ It previously short-circuited before the body was built and printed
 something different per command - a count for `submit-vis` and
 `submit-meta`, a hand-picked subset of arguments for `submit-image`. The
 endpoint paths now live in `pub const ENDPOINT_*` in
-`src/asvo/apiv2/client/mod.rs`, used both
+`src/mwa_asvo/api/client/mod.rs`, used both
 by the client's requests and by the dry-run output, so the two cannot
 disagree.
 
@@ -365,8 +365,8 @@ file list reports `AsvoError::NoFiles` rather than half-downloading. Scratch
 and DUG deliveries carry a `path` instead of a `url`; those have no recorded
 sample yet.
 
-the playback tests in `src/asvo/apiv2/client/tests.rs` replay the recording and pin the mapping against that
-real payload. `src/asvo/download/tests.rs` now runs a download end to end, with the
+the playback tests in `src/mwa_asvo/api/client/tests.rs` replay the recording and pin the mapping against that
+real payload. `src/mwa_asvo/download/tests.rs` now runs a download end to end, with the
 mock server serving the file as well as the API.
 
 One thing the recording also showed: `job_params.obs_id` came back as a
@@ -413,7 +413,7 @@ already accepts both.
 
   A server that ignores the range request and answers `200` instead of
   `206` is now detected, and the download restarts from the beginning
-  rather than appending. Tests in `src/asvo/download/tests.rs` cover resume, an
+  rather than appending. Tests in `src/mwa_asvo/download/tests.rs` cover resume, an
   already-complete file, a complete-but-corrupt file, `--no-resume`, and the
   ignored-range case.
 
@@ -463,7 +463,7 @@ instrumentation; run `uv sync` afterwards for a normal build. A test that
 fails does not stop the script; the report covers the tests that ran, and
 the script exits with the failure.
 
-`tools/coverage.sh` leaves the generated `src/asvo/apiv2/openapi.rs` out of
+`tools/coverage.sh` leaves the generated `src/mwa_asvo/api/openapi.rs` out of
 the report: much of it (builders and types for endpoints the client does not
 use) is never run, and it would hide the numbers of the code that is written
 by hand. The CI workflow leaves it out too.

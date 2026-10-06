@@ -14,17 +14,17 @@ fi
 
 #
 # Downloads the MWA ASVO v2 OpenAPI schema and converts it into the format
-# typify expects, writing the result to src/asvo/apiv2/openapi-schema.json.
+# typify expects, writing the result to src/mwa_asvo/api/openapi-schema.json.
 #
 # This is a separate, manual, network-touching step, deliberately kept out
 # of the normal build. Turning that schema into Rust code
-# (src/asvo/apiv2/openapi.rs) happens in build.rs, gated behind the
+# (src/mwa_asvo/api/openapi.rs) happens in build.rs, gated behind the
 # `regen-openapi` feature so a normal build doesn't need typify at all.
 # This script also does the regeneration. To regenerate from the schema that is
 # already committed, without downloading, run:
 #
 #     cargo build --features regen-openapi
-#     git diff src/asvo/apiv2/openapi.rs
+#     git diff src/mwa_asvo/api/openapi.rs
 #
 # Commit openapi.rs as build.rs writes it. Do not run `cargo fmt` or
 # `cargo clippy --fix` on it: the openapi-drift-check CI job regenerates the
@@ -39,7 +39,7 @@ fi
 #
 
 OPENAPI_URL="${OPENAPI_URL:-https://test-asvo.mwatelescope.org/openapi.json}"
-OUTPUT_FILE="src/asvo/apiv2/openapi-schema.json"
+OUTPUT_FILE="src/mwa_asvo/api/openapi-schema.json"
 
 # --- Preflight checks (before we go anywhere, so there's nothing to unwind) -
 
@@ -109,7 +109,7 @@ def rewrite_refs(node):
 rewrite_refs(schemas)
 
 # The endpoints, each with its HTTP methods, so that a test can check the
-# paths that the client calls (ENDPOINT_* in src/asvo/apiv2/client/mod.rs).
+# paths that the client calls (ENDPOINT_* in src/mwa_asvo/api/client/mod.rs).
 # typify reads only "definitions" and ignores this key.
 HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options"}
 paths = {

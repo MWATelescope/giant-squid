@@ -7,8 +7,8 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-use crate::asvo::apiv2::openapi::{JobDetailResponse, JobFile, JobState, JobType};
-use crate::asvo::apiv2::schema_enums::SchemaEnum;
+use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobFile, JobState, JobType};
+use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::{obs_id::ObsId, AsvoError};
 
 /// Sanitize a string to lowercase, and ascii 'a'-'z' only.

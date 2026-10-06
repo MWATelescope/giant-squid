@@ -11,10 +11,10 @@ use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
 
 use super::*;
-use crate::asvo::apiv2::openapi::{
+use crate::cli::Args;
+use crate::mwa_asvo::api::openapi::{
     Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting,
 };
-use crate::cli::Args;
 
 const DELIVERY: &[&str] = &["acacia", "dug", "scratch"];
 const DELIVERY_FORMAT: &[&str] = &["files", "tar"];

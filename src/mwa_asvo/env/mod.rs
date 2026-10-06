@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use log::{debug, warn};
 
-use crate::asvo::{
+use crate::mwa_asvo::{
     default_token_cache_path, AsvoApiError, AsvoClientConfig, AsvoError, BYTES_PER_MIB,
     DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,

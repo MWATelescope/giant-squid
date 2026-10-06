@@ -16,7 +16,7 @@ use pyo3::types::PyDict;
 use super::types::PyJobState;
 // The library's error enums have the same names as the Python exceptions,
 // so they are used through this path.
-use crate::asvo as lib;
+use crate::mwa_asvo as lib;
 
 // With the "python-stubgen" feature, pyo3-stub-gen's `create_exception!`
 // wraps pyo3's and also registers the exception for the stubs.
@@ -129,7 +129,7 @@ enum Field {
     OptInt(Option<i64>),
     State(PyJobState),
     /// A list of `{"field": ..., "message": ...}` dicts.
-    ErrorDicts(Vec<lib::apiv2::openapi::FieldError>),
+    ErrorDicts(Vec<lib::api::openapi::FieldError>),
 }
 
 /// Make an exception of type `T` with the message of `message`, and set

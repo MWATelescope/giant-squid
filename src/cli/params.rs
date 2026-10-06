@@ -15,16 +15,16 @@ use std::num::NonZeroU64;
 
 use clap::ArgAction;
 
-use crate::asvo::apiv2::job_args::{
+use crate::mwa_asvo::api::job_args::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
-use crate::asvo::apiv2::openapi::{
+use crate::mwa_asvo::api::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
     DownloadType, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest, Output,
     OutputMode, Polarization, VoltageJobParams, Weighting,
 };
-use crate::asvo::apiv2::validate::{self, Bounds};
-use crate::asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
+use crate::mwa_asvo::api::validate::{self, Bounds};
+use crate::mwa_asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
 
 use super::value_enums::SchemaEnumParser;
 use crate::obs_id::ObsId;
@@ -39,7 +39,7 @@ pub fn list_days_default() -> NonZeroU64 {
 }
 
 /// Builds a clap value parser that only accepts an f64 within `bounds`.
-/// The bounds are the library's ([`crate::asvo::apiv2::validate`]), which
+/// The bounds are the library's ([`crate::mwa_asvo::api::validate`]), which
 /// come from the MWA ASVO schema, so a value that is out of range is
 /// rejected by the CLI at once rather than by the server.
 pub fn parse_f64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<f64, String> + Clone {

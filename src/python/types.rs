@@ -15,12 +15,12 @@ use pyo3::types::{PyDict, PyList};
 
 use super::error::asvo_error;
 use super::typed::{JobId, JobIterator, JsonDict};
-use crate::asvo::apiv2::openapi::{
+use crate::mwa_asvo::api::openapi::{
     Centre, DeliveryFormat, JobCancelledResponse, JobSubmittedResponse, Output, OutputMode,
     Polarization, Status, Type, Weighting,
 };
-use crate::asvo::apiv2::schema_enums::for_each_schema_enum;
-use crate::asvo::{
+use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
+use crate::mwa_asvo::{
     AsvoJob, AsvoJobId, AsvoJobVec, Delivery, DownloadProgress, JobFile, JobProduct, JobState,
     JobType,
 };
@@ -29,7 +29,7 @@ use crate::obs_id::ObsId;
 /// Define the Python enum of a schema enum: the same members, and
 /// conversions in both directions. Called by `for_each_schema_enum!`, which
 /// has the list of every schema enum (see
-/// [`crate::asvo::apiv2::schema_enums`]).
+/// [`crate::mwa_asvo::api::schema_enums`]).
 macro_rules! py_enum {
     ($lib:ident, $py:ident, $name:literal, $doc:literal, [$($variant:ident),+ $(,)?]) => {
         #[doc = $doc]

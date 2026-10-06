@@ -3,14 +3,14 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! The errors of `--json`: each error is one line of JSON on stdout, the
-//! MWA ASVO's `ErrorResponse` (see [`crate::asvo::error_response`]) with the
+//! MWA ASVO's `ErrorResponse` (see [`crate::mwa_asvo::error_response`]) with the
 //! job ID or the obsid that it is about. With `--json`, no logs are printed.
 
 use thiserror::Error;
 
-use crate::asvo::apiv2::openapi::ErrorResponse;
-use crate::asvo::error_response::{ERROR_CODE_CLIENT_ERROR, ERROR_CODE_INVALID_ARGUMENT};
-use crate::asvo::{new_error_response, AsvoApiError, AsvoError, AsvoJobId};
+use crate::mwa_asvo::api::openapi::ErrorResponse;
+use crate::mwa_asvo::error_response::{ERROR_CODE_CLIENT_ERROR, ERROR_CODE_INVALID_ARGUMENT};
+use crate::mwa_asvo::{new_error_response, AsvoApiError, AsvoError, AsvoJobId};
 use crate::obs_id::{ObsId, ObsIdError};
 use crate::ParseError;
 

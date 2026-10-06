@@ -44,7 +44,7 @@ use pyo3::prelude::*;
 
 use super::error::asvo_error;
 use super::types::PyDownloadProgress;
-use crate::asvo::{
+use crate::mwa_asvo::{
     AsvoError, DownloadOptions, DownloadProgress, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };

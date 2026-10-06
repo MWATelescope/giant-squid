@@ -26,12 +26,12 @@ use super::types::{
     PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization,
     PyWeighting,
 };
-use crate::asvo::apiv2::job_args::{
+use crate::mwa_asvo::api::job_args::{
     BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
 };
-use crate::asvo::apiv2::openapi::DownloadType;
-use crate::asvo::apiv2::validate;
-use crate::asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
+use crate::mwa_asvo::api::openapi::DownloadType;
+use crate::mwa_asvo::api::validate;
+use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.

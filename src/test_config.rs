@@ -8,8 +8,8 @@
 //! This is separate from `src/test_common.rs` because that file is also
 //! compiled into `tests/cli.rs` and so must use no `crate::` items.
 
-use crate::asvo::apiv2::openapi::JobDetailResponse;
-use crate::asvo::{AsvoClientConfig, AsvoJob, JobType};
+use crate::mwa_asvo::api::openapi::JobDetailResponse;
+use crate::mwa_asvo::{AsvoClientConfig, AsvoJob, JobType};
 use crate::obs_id::ObsId;
 use crate::test_common::{TestEnv, TEST_API_TIMEOUT};
 

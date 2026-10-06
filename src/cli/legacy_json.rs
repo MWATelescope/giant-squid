@@ -21,8 +21,8 @@ use std::collections::BTreeMap;
 use jiff::Timestamp;
 use serde::Serialize;
 
-use crate::asvo::apiv2::openapi::Type as FileType;
-use crate::asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
+use crate::mwa_asvo::api::openapi::Type as FileType;
+use crate::mwa_asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
 use crate::obs_id::ObsId;
 
 /// The warning logged (to stderr, like every log record) when

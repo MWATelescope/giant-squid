@@ -8,7 +8,7 @@
 
 use prettytable::{row, Cell, Row, Table};
 
-use crate::asvo::{AsvoJob, AsvoJobVec, JobState, JobType};
+use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobState, JobType};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";

@@ -11,7 +11,7 @@
 //! and its message. Where the API has a code with the same meaning, that
 //! code is used (for example [`ERROR_CODE_JOB_NOT_FOUND`]).
 
-use super::apiv2::openapi::{ErrorResponse, FieldError};
+use super::api::openapi::{ErrorResponse, FieldError};
 use super::{AsvoApiError, AsvoError, AsvoJobId};
 use crate::obs_id::{ObsId, ObsIdError};
 use crate::ParseError;

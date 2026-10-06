@@ -24,8 +24,8 @@ use rayon::prelude::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::asvo::apiv2::openapi::{JobSubmittedResponse, Status, Type as FileType};
-use crate::asvo::*;
+use crate::mwa_asvo::api::openapi::{JobSubmittedResponse, Status, Type as FileType};
+use crate::mwa_asvo::*;
 use crate::*;
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures};

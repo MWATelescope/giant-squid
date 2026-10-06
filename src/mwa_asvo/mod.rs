@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! Code to interface with the MWA ASVO.
-pub mod apiv2;
+pub mod api;
 mod download;
 mod env;
 mod error;
@@ -11,13 +11,13 @@ pub mod error_response;
 mod token_store;
 mod types;
 
-pub use apiv2::client::{
+pub use api::client::{
     AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT,
     ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };
-pub use apiv2::openapi::{Delivery, JobFile, JobProduct, JobState, JobType};
-pub use apiv2::AsvoApiError;
+pub use api::openapi::{Delivery, JobFile, JobProduct, JobState, JobType};
+pub use api::AsvoApiError;
 pub use download::{
     DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_CONCURRENT_DOWNLOADS,
     DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,

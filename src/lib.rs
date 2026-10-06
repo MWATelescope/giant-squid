@@ -4,7 +4,7 @@
 
 //! An alternative, efficient and easy-to-use interface for the MWA ASVO.
 
-pub mod asvo;
+pub mod mwa_asvo;
 // The CLI definition needs clap, which only the binary feature pulls in. It
 // lives here rather than in src/bin so that tests can parse argument
 // vectors directly - see docs/TESTING.md.
@@ -25,11 +25,11 @@ mod test_common;
 mod test_config;
 
 // Re-exports.
-pub use asvo::*;
 pub use helpers::*;
 /// The jiff crate, for the dates and times in this crate's API (for example
 /// the `created` field of a job), so that a program uses the same jiff version.
 pub use jiff;
+pub use mwa_asvo::*;
 pub use obs_id::ObsId;
 
 // Include the generated-file as a separate module
