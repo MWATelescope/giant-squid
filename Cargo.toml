@@ -139,7 +139,6 @@ tempfile = "3.20"
 httpmock = { version = "0.8", features = ["record"] }
 
 [build-dependencies]
-built = "0.8"
 serde_json = "1.0"
 # Only for the `python-stubgen` feature: finds the libpython directory for
 # the rpath of the `stub_gen` binary. The same version as pyo3.

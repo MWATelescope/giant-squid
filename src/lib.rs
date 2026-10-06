@@ -31,8 +31,3 @@ pub use helpers::*;
 pub use jiff;
 pub use mwa_asvo::*;
 pub use obs_id::ObsId;
-
-// Include the generated-file as a separate module
-pub mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}

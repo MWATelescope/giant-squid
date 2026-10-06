@@ -1222,7 +1222,7 @@ mod retries {
         assert_eq!(checkpoint.data_pos, B_DATA_POS);
         assert_eq!(checkpoint.size, 3000);
 
-        let resume = resume_point(&checkpoint, true, LOG_PREFIX).expect("a resume point");
+        let resume = resume_point(&checkpoint, LOG_PREFIX).expect("a resume point");
         let on_disk = std::fs::metadata(dir.path().join("b.dat"))
             .expect("b.dat should be partly written")
             .len();
@@ -1261,7 +1261,7 @@ mod retries {
         let checkpoint = failed_first_attempt(&archive, fail_at, &dir);
         assert_eq!(checkpoint.data_pos, B_DATA_POS);
 
-        let resume = resume_point(&checkpoint, true, LOG_PREFIX).expect("a resume point");
+        let resume = resume_point(&checkpoint, LOG_PREFIX).expect("a resume point");
         assert_eq!(resume.start, B_DATA_POS + 3000);
 
         let dir_path = dir.path().display().to_string();
@@ -1289,7 +1289,7 @@ mod retries {
         let archive = test_archive();
         let dir = TempDir::new().expect("could not create a download directory");
         let mut checkpoint = Some(failed_first_attempt(&archive, B_DATA_POS + 1234, &dir));
-        let start = resume_point(checkpoint.as_ref().unwrap(), false, LOG_PREFIX)
+        let start = resume_point(checkpoint.as_ref().unwrap(), LOG_PREFIX)
             .expect("a resume point")
             .start;
 

@@ -1474,7 +1474,10 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
         );
 
         let query = JobQuery {
-            days: Some(days),
+            filter: JobsFilter {
+                days: Some(days),
+                ..JobsFilter::default()
+            },
             ..JobQuery::default()
         };
         assert!(matches!(

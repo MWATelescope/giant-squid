@@ -158,7 +158,7 @@ fn the_polarisation_option_gives_the_api_text() {
     let args = Args::try_parse_from(["giant-squid", "submit-image", "--pol", "XXYY", "1065880128"])
         .expect("XXYY is a polarisation");
     match args {
-        Args::SubmitImage { image, .. } => assert_eq!(image.pol, "XXYY"),
+        Args::SubmitImage { image, .. } => assert_eq!(image.wsclean.pol, "XXYY"),
         other => panic!("expected SubmitImage, got {other:?}"),
     }
 }

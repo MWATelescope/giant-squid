@@ -730,8 +730,8 @@ fn try_download_untar(
 
     let mut resume = match checkpoint.as_ref() {
         // A resumed download always checks the hash (see below), so the
-        // bytes already on disk are always read back into the hasher.
-        Some(cp) => resume_point(cp, true, log_prefix)?,
+        // bytes already on disk are read back into the hasher.
+        Some(cp) => resume_point(cp, log_prefix)?,
         None => ResumePoint::from_start(),
     };
 
@@ -976,15 +976,11 @@ fn untar_stream_with_sidecar(
 /// Find where the attempt after `checkpoint` starts: after the bytes of the
 /// checkpoint's member that are already on disk.
 ///
-/// When `rehash` is set, those bytes are read back from disk into the
-/// hasher, so that the SHA1 still covers the whole archive. A file that is
+/// Those bytes are read back from disk into the hasher, so that the SHA1
+/// still covers the whole archive. A file that is
 /// larger than its member cannot be this download's own, so the attempt
 /// then starts again from the beginning of the archive.
-fn resume_point(
-    cp: &UntarCheckpoint,
-    rehash: bool,
-    log_prefix: &str,
-) -> Result<ResumePoint, AsvoError> {
+fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, AsvoError> {
     let mut hasher = cp.hasher.clone();
     let (on_disk, file) = match &cp.out_path {
         None => (0, None),
@@ -1002,7 +998,7 @@ fn resume_point(
                 );
                 return Ok(ResumePoint::from_start());
             }
-            if rehash && on_disk > 0 {
+            if on_disk > 0 {
                 hash_file_prefix(path, on_disk, &mut hasher)?;
             }
             let file = File::options().create(true).append(true).open(path)?;

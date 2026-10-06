@@ -225,6 +225,7 @@ before you upgrade scripts.**
 * The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
   `job_type` `None`.
 * Library: `ObsId::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
+* Library: the `built_info` module (build-time information from the `built` crate), which nothing used.
 * Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `AsvoJobVec::json` still prints the jobs as an object keyed by
   Job ID.
 

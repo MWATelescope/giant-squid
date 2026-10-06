@@ -1,6 +1,7 @@
 fn main() {
-    // Gather build time info
-    built::write_built_file().expect("Failed to acquire build-time information");
+    // Without this, cargo runs the build script again after any change in the
+    // package. (The `regen-openapi` feature adds the schema file.)
+    println!("cargo:rerun-if-changed=build.rs");
 
     #[cfg(feature = "regen-openapi")]
     regen_openapi::run();

@@ -167,7 +167,7 @@ fn unknown_command_is_rejected() {
 #[test]
 fn verbosity_counts_repeats() {
     match parse(&["giant-squid", "submit-vis", "-vv", TEST_OBS_ID]) {
-        Args::SubmitVis { verbosity, .. } => assert_eq!(verbosity, 2),
+        Args::SubmitVis { submit, .. } => assert_eq!(submit.verbosity, 2),
         other => panic!("expected SubmitVis, got {other:?}"),
     }
 }
@@ -231,8 +231,11 @@ fn a_job_id_is_distinguished_from_an_obs_id() {
 #[test]
 fn submit_vis_defaults_come_from_the_schema() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    assert_eq!(args.delivery, download_defaults().delivery);
-    assert_eq!(args.delivery_format, download_defaults().delivery_format);
+    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
+    assert_eq!(
+        args.delivery_args.delivery_format,
+        download_defaults().delivery_format
+    );
     assert!(!args.allow_resubmit);
 }
 
@@ -293,9 +296,12 @@ fn allow_resubmit_reaches_the_request_body() {
 fn submit_conv_defaults_come_from_the_schema() {
     let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
     assert_eq!(args.output, conversion_defaults().output);
-    assert_eq!(args.centre, conversion_defaults().centre);
-    assert_eq!(args.delivery, conversion_defaults().delivery);
-    assert_eq!(args.delivery_format, conversion_defaults().delivery_format);
+    assert_eq!(args.preprocessing.centre, conversion_defaults().centre);
+    assert_eq!(args.delivery_args.delivery, conversion_defaults().delivery);
+    assert_eq!(
+        args.delivery_args.delivery_format,
+        conversion_defaults().delivery_format
+    );
 
     // The numeric defaults are checked through the request body, so that
     // floats are compared as JSON values rather than directly.
@@ -373,11 +379,11 @@ fn submit_conv_output_can_be_overridden() {
 #[test]
 fn submit_image_defaults_come_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.image_size, *imaging1_defaults().image_size);
-    assert_eq!(args.weighting, imaging1_defaults().weighting);
-    assert_eq!(args.output_mode, imaging1_defaults().output_mode);
-    assert_eq!(args.auto_mask, imaging1_defaults().auto_mask);
-    assert_eq!(args.nmiter, imaging1_defaults().nmiter.get() as i64);
+    assert_eq!(args.wsclean.image_size, *imaging1_defaults().image_size);
+    assert_eq!(args.wsclean.weighting, imaging1_defaults().weighting);
+    assert_eq!(args.wsclean.output_mode, imaging1_defaults().output_mode);
+    assert_eq!(args.wsclean.auto_mask, imaging1_defaults().auto_mask);
+    assert_eq!(args.wsclean.nmiter, imaging1_defaults().nmiter.get() as i64);
 }
 
 #[test]
@@ -400,7 +406,7 @@ fn submit_image_builds_an_imaging_body() {
 #[test]
 fn submit_image_default_pol_comes_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.pol, imaging1_defaults().pol.to_string());
+    assert_eq!(args.wsclean.pol, imaging1_defaults().pol.to_string());
     assert!(args.to_params(crate::test_config::test_obs_id()).is_ok());
 }
 
@@ -522,15 +528,10 @@ fn negative_values_are_accepted_in_either_form() {
 #[test]
 fn allowing_negative_numbers_does_not_break_short_flags() {
     match parse(&["giant-squid", "submit-image", "-n", "-vv", TEST_OBS_ID]) {
-        Args::SubmitImage {
-            dry_run,
-            verbosity,
-            wait,
-            ..
-        } => {
-            assert!(dry_run);
-            assert_eq!(verbosity, 2);
-            assert!(!wait);
+        Args::SubmitImage { submit, .. } => {
+            assert!(submit.dry_run);
+            assert_eq!(submit.verbosity, 2);
+            assert!(!submit.wait);
         }
         other => panic!("expected SubmitImage, got {other:?}"),
     }
@@ -559,12 +560,12 @@ fn submit_image_boolean_flags_require_equals() {
         "--join-channels=false",
         TEST_OBS_ID,
     ]);
-    assert!(!args.apply_di_cal);
-    assert!(!args.join_channels);
+    assert!(!args.preprocessing.apply_di_cal);
+    assert!(!args.wsclean.join_channels);
 
     // Given without a value, the flag takes its default_missing_value.
     let (args, _) = image_args(&["giant-squid", "submit-image", "--apply-di-cal", TEST_OBS_ID]);
-    assert!(args.apply_di_cal);
+    assert!(args.preprocessing.apply_di_cal);
 }
 
 #[test]
@@ -589,7 +590,7 @@ fn submit_image_accepts_every_supported_image_size() {
             size,
             TEST_OBS_ID,
         ]);
-        assert_eq!(args.image_size.to_string(), size);
+        assert_eq!(args.wsclean.image_size.to_string(), size);
     }
 }
 
@@ -662,7 +663,7 @@ fn submit_image_from_job_builds_a_flow2_body() {
     ]);
     assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
-    assert_eq!(args.pol, imaging2_defaults().pol.to_string());
+    assert_eq!(args.wsclean.pol, imaging2_defaults().pol.to_string());
 
     let json = json_of(
         &args
@@ -779,8 +780,11 @@ fn submit_volt_rejects_a_channel_above_the_receiver_range() {
 #[test]
 fn submit_bf_builds_a_beamformer_body() {
     let (args, _) = bf_args(&["giant-squid", "submit-bf", TEST_OBS_ID]);
-    assert_eq!(args.delivery, beamformer_defaults().delivery);
-    assert_eq!(args.delivery_format, beamformer_defaults().delivery_format);
+    assert_eq!(args.delivery_args.delivery, beamformer_defaults().delivery);
+    assert_eq!(
+        args.delivery_args.delivery_format,
+        beamformer_defaults().delivery_format
+    );
 
     let json = json_of(
         &args
