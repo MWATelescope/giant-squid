@@ -38,9 +38,20 @@ One crate, `mwa_giant_squid`, gives three things:
   the private `_run_cli`. The stub is `mwa_giant_squid.pyi`
   (`tools/generate_stubs.sh`). The `giant-squid` command of the Python
   package (`mwa_giant_squid_cli/`) runs the Rust CLI through `_run_cli`.
+- **The Python API docs** (`tools/generate_python_docs.sh`, pinned pdoc):
+  pdoc documents an importable copy of the stub that
+  `tools/generate_python_docs.py` writes, not the built module. PyO3 orders
+  the properties of a class by a randomly seeded `HashMap`, so pages made
+  from the module change on every run, and pdoc's stub support recurses
+  without end on a complex enum (`DownloadProgress.Started.Started` is
+  `DownloadProgress.Started`). The copy adds `from __future__ import
+  annotations`, drops the enclosing class from the bases of a nested class,
+  and gives each enum member its API value from the built module.
 
 CI: `run-tests.yaml` (Rust tests, clippy, the openapi drift check),
-`python.yaml` (Python lint, tests, stubtest, the stub drift check, wheels),
+`python.yaml` (Python lint, tests, stubtest, the stub drift check, a docs
+build, wheels), `python-docs.yaml` (the Python API docs to GitHub Pages, for a
+release tag or by hand),
 `coverage.yml`, `releases.yaml` (tarballs, wheels, crates.io).
 
 ## Design rules in force

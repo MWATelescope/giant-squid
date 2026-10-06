@@ -42,6 +42,7 @@ dev = ["pytest", "pytest-httpserver", "ruff", "ty"]
 
 [project.urls]
 "Homepage" = "https://github.com/MWATelescope/giant-squid"
+"Documentation" = "https://mwatelescope.github.io/giant-squid/"
 "Bug Reports" = "https://github.com/MWATelescope/giant-squid/issues"
 "Source" = "https://github.com/MWATelescope/giant-squid"
 

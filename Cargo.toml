@@ -25,6 +25,8 @@ exclude = [
     "docs/history/",
     "mwa_giant_squid.pyi",
     "pyproject.toml",
+    "tools/generate_python_docs.py",
+    "tools/generate_python_docs.sh",
     "tools/generate_stubs.sh",
     "tools/run_stubtest.sh",
     "tools/stubtest_allowlist.txt",

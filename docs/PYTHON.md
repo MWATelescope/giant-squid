@@ -14,6 +14,9 @@ module (see [The giant-squid command](#the-giant-squid-command)).
 
 The module has the same API as the Rust library, with the same names.
 
+The API reference (every class, method and argument, with types) is at
+<https://mwatelescope.github.io/giant-squid/>.
+
 ## Install
 
 ```bash

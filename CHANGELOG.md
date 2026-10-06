@@ -41,6 +41,8 @@ before you upgrade scripts.**
   as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
   lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
   `error_text` (before, it was `{"Error": "<message>"}`). `--legacy-json` still prints the 2.x values.
+* Python: the API reference is generated with pdoc and published to GitHub Pages,
+  <https://mwatelescope.github.io/giant-squid/> (`tools/generate_python_docs.sh`).
 * Library: the module `asvo` is renamed `mwa_asvo`, and its submodule `apiv2` is renamed `api` (for example
   `mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams`). The items re-exported at the crate root (for
   example `mwa_giant_squid::AsvoClient`) did not change. The Python module did not change.

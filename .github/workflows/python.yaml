@@ -50,6 +50,10 @@ jobs:
     - name: Check mwa_giant_squid.pyi against the module (stubtest)
       run: tools/run_stubtest.sh
 
+    # The docs are published by python-docs.yaml; this only checks that they still build.
+    - name: Build the Python API docs
+      run: tools/generate_python_docs.sh
+
   stubs:
     name: Stub drift (mwa_giant_squid.pyi)
     runs-on: ubuntu-latest
