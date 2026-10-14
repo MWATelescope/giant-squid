@@ -241,7 +241,7 @@ class AsvoClient:
         no_apply_amps: builtins.bool | None = None,
         no_digital_gains: builtins.bool | None = None,
         no_flag_dc: builtins.bool | None = None,
-        no_geometry_delay: builtins.bool | None = None,
+        no_geometric_delay: builtins.bool | None = None,
         no_passband_gains: builtins.bool | None = None,
         no_cable_delay: builtins.bool | None = None,
         no_rfi: builtins.bool | None = None,
@@ -270,7 +270,7 @@ class AsvoClient:
             no_apply_amps: Do not apply the amplitude calibration solutions.
             no_digital_gains: Do not apply the digital gains.
             no_flag_dc: Do not flag the DC channel.
-            no_geometry_delay: Do not apply the geometric delay corrections.
+            no_geometric_delay: Do not apply the geometric delay corrections.
             no_passband_gains: Do not apply the passband gain corrections.
             no_cable_delay: Do not apply the cable delay corrections.
             no_rfi: Do not flag RFI.
@@ -316,7 +316,7 @@ class AsvoClient:
         no_apply_amps: builtins.bool | None = None,
         no_digital_gains: builtins.bool | None = None,
         no_flag_dc: builtins.bool | None = None,
-        no_geometry_delay: builtins.bool | None = None,
+        no_geometric_delay: builtins.bool | None = None,
         no_passband_gains: builtins.bool | None = None,
         no_cable_delay: builtins.bool | None = None,
         no_rfi: builtins.bool | None = None,
@@ -370,7 +370,7 @@ class AsvoClient:
             no_apply_amps: Do not apply the amplitude calibration solutions.
             no_digital_gains: Do not apply the digital gains.
             no_flag_dc: Do not flag the DC channel.
-            no_geometry_delay: Do not apply the geometric delay corrections.
+            no_geometric_delay: Do not apply the geometric delay corrections.
             no_passband_gains: Do not apply the passband gain corrections.
             no_cable_delay: Do not apply the cable delay corrections.
             no_rfi: Do not flag RFI.

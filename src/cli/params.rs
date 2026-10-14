@@ -231,18 +231,30 @@ impl_fields!(DeliveryFields for [
     delivery_format: DeliveryFormat,
 });
 
+/// The clap default text of a schema field that the API accepts as null.
+/// The schema gives every such field a default that is not null.
+///
+/// # Panics
+///
+/// If the schema default is null: the schema and this code disagree.
+fn nullable_default(default: Option<f64>, name: &str) -> String {
+    default
+        .unwrap_or_else(|| panic!("BUG: the schema default of {name} is null"))
+        .to_string()
+}
+
 /// The preprocessing fields of a schema type (conversion and imaging flow 1).
 pub trait PreprocessingFields: SchemaDefaults {
-    fn avg_freq_res(&self) -> f64;
-    fn avg_time_res(&self) -> f64;
+    fn avg_freq_res(&self) -> Option<f64>;
+    fn avg_time_res(&self) -> Option<f64>;
     fn flag_edge_width(&self) -> f64;
     fn apply_di_cal(&self) -> bool;
     fn centre(&self) -> Centre;
 }
 
 impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params] {
-    avg_freq_res: f64,
-    avg_time_res: f64,
+    avg_freq_res: Option<f64>,
+    avg_time_res: Option<f64>,
     flag_edge_width: f64,
     apply_di_cal: bool,
     centre: Centre,
@@ -316,11 +328,11 @@ pub struct DeliveryArgs<P: DeliveryFields> {
 #[derive(clap::Args, Debug, Clone)]
 pub struct PreprocessingArgs<P: PreprocessingFields> {
     /// Frequency resolution to average to (kHz).
-    #[arg(long, default_value = P::schema_defaults().avg_freq_res().to_string(), value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
+    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
     pub avg_freq_res: f64,
 
     /// Time resolution to average to (s).
-    #[arg(long, default_value = P::schema_defaults().avg_time_res().to_string(), value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
+    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
     pub avg_time_res: f64,
 
     /// Width of frequency edge flagging (kHz).
@@ -365,7 +377,7 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
 
     /// Whether to skip applying geometric delay corrections.
     #[arg(long)]
-    pub no_geometry_delay: bool,
+    pub no_geometric_delay: bool,
 
     /// Whether to skip applying passband gain corrections.
     #[arg(long)]
@@ -569,7 +581,7 @@ impl ConversionJobArgs {
             no_apply_amps: Some(pre.no_apply_amps),
             no_digital_gains: Some(pre.no_digital_gains),
             no_flag_dc: Some(pre.no_flag_dc),
-            no_geometry_delay: Some(pre.no_geometry_delay),
+            no_geometric_delay: Some(pre.no_geometric_delay),
             no_passband_gains: Some(pre.no_passband_gains),
             no_cable_delay: Some(pre.no_cable_delay),
             no_rfi: Some(pre.no_rfi),
@@ -638,7 +650,7 @@ impl ImagingJobArgs {
             no_apply_amps: Some(pre.no_apply_amps),
             no_digital_gains: Some(pre.no_digital_gains),
             no_flag_dc: Some(pre.no_flag_dc),
-            no_geometry_delay: Some(pre.no_geometry_delay),
+            no_geometric_delay: Some(pre.no_geometric_delay),
             no_passband_gains: Some(pre.no_passband_gains),
             no_cable_delay: Some(pre.no_cable_delay),
             no_rfi: Some(pre.no_rfi),

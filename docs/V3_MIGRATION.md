@@ -64,7 +64,6 @@ Keys whose names changed:
 |---|---|---|
 | `phase_centre_ra` | `--custom-centre-ra` | `--phase-centre-ra` still works |
 | `phase_centre_dec` | `--custom-centre-dec` | `--phase-centre-dec` still works |
-| `no_geometric_delay` | `--no-geometry-delay` | The API's name |
 | `centre` (imaging) | `--centre` | `--phase-center` still works |
 
 A flag that was `key=true` in 2.x is an option with no value in 3.0.0 (for
@@ -102,7 +101,7 @@ the correlator's time resolution of your observation to keep it.
 
 The other conversion options (`--apply-di-cal`, `--centre`, `--no-rfi`,
 `--no-cable-delay`, `--no-digital-gains`, `--no-flag-dc`,
-`--no-geometry-delay`, `--no-passband-gains`) do what the 2.x keys did.
+`--no-geometric-delay`, `--no-passband-gains`) do what the 2.x keys did.
 
 ## Imaging jobs (`submit-image` and `submit-image-from-job`)
 

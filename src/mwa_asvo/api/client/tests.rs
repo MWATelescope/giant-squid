@@ -1119,7 +1119,7 @@ fn an_out_of_range_conversion_job_is_not_sent() {
             .obs_id(TEST_OBS_ID_I64)
             .try_into()
             .expect("defaults build");
-    params.avg_freq_res = 5000.0;
+    params.avg_freq_res = Some(5000.0);
     let submit = env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/conversion_job");
         then.status(200).json_body(job_submitted_response(1));

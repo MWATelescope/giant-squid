@@ -212,8 +212,8 @@ macro_rules! shared_imaging_checks {
 /// of range.
 pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), AsvoApiError> {
     check_all(&[
-        ("avg_freq_res", AVG_FREQ_RES, Some(params.avg_freq_res)),
-        ("avg_time_res", AVG_TIME_RES, Some(params.avg_time_res)),
+        ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
+        ("avg_time_res", AVG_TIME_RES, params.avg_time_res),
         (
             "flag_edge_width",
             FLAG_EDGE_WIDTH,
@@ -253,8 +253,8 @@ pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiE
 pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), AsvoApiError> {
     check_all(&shared_imaging_checks!(params))?;
     check_all(&[
-        ("avg_freq_res", AVG_FREQ_RES, Some(params.avg_freq_res)),
-        ("avg_time_res", AVG_TIME_RES, Some(params.avg_time_res)),
+        ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
+        ("avg_time_res", AVG_TIME_RES, params.avg_time_res),
         (
             "custom_centre_dec",
             CUSTOM_CENTRE_DEC,

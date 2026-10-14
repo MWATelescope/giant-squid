@@ -310,8 +310,14 @@ fn submit_conv_defaults_come_from_the_schema() {
             .to_params(crate::test_config::test_obs_id())
             .expect("params should build"),
     );
-    assert_eq!(json["avg_freq_res"], conversion_defaults().avg_freq_res);
-    assert_eq!(json["avg_time_res"], conversion_defaults().avg_time_res);
+    assert_eq!(
+        json["avg_freq_res"],
+        conversion_defaults().avg_freq_res.expect("schema default")
+    );
+    assert_eq!(
+        json["avg_time_res"],
+        conversion_defaults().avg_time_res.expect("schema default")
+    );
     assert_eq!(
         json["flag_edge_width"],
         conversion_defaults().flag_edge_width
@@ -327,7 +333,10 @@ fn submit_conv_builds_a_conversion_body() {
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["avg_freq_res"], conversion_defaults().avg_freq_res);
+    assert_eq!(
+        json["avg_freq_res"],
+        conversion_defaults().avg_freq_res.expect("schema default")
+    );
 }
 
 #[test]
@@ -1475,7 +1484,7 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
     const SWITCHES: [&str; 6] = [
         "no_digital_gains",
         "no_flag_dc",
-        "no_geometry_delay",
+        "no_geometric_delay",
         "no_passband_gains",
         "no_cable_delay",
         "no_rfi",
@@ -1496,7 +1505,7 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
         "submit-image",
         "--no-digital-gains",
         "--no-flag-dc",
-        "--no-geometry-delay",
+        "--no-geometric-delay",
         "--no-passband-gains",
         "--no-cable-delay",
         "--no-rfi",

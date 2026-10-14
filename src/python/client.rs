@@ -311,7 +311,7 @@ impl PyAsvoClient {
     ///     no_apply_amps: Do not apply the amplitude calibration solutions.
     ///     no_digital_gains: Do not apply the digital gains.
     ///     no_flag_dc: Do not flag the DC channel.
-    ///     no_geometry_delay: Do not apply the geometric delay corrections.
+    ///     no_geometric_delay: Do not apply the geometric delay corrections.
     ///     no_passband_gains: Do not apply the passband gain corrections.
     ///     no_cable_delay: Do not apply the cable delay corrections.
     ///     no_rfi: Do not flag RFI.
@@ -343,7 +343,7 @@ impl PyAsvoClient {
         no_apply_amps=None,
         no_digital_gains=None,
         no_flag_dc=None,
-        no_geometry_delay=None,
+        no_geometric_delay=None,
         no_passband_gains=None,
         no_cable_delay=None,
         no_rfi=None,
@@ -367,7 +367,7 @@ impl PyAsvoClient {
         no_apply_amps: Option<bool>,
         no_digital_gains: Option<bool>,
         no_flag_dc: Option<bool>,
-        no_geometry_delay: Option<bool>,
+        no_geometric_delay: Option<bool>,
         no_passband_gains: Option<bool>,
         no_cable_delay: Option<bool>,
         no_rfi: Option<bool>,
@@ -387,7 +387,7 @@ impl PyAsvoClient {
             no_apply_amps,
             no_digital_gains,
             no_flag_dc,
-            no_geometry_delay,
+            no_geometric_delay,
             no_passband_gains,
             no_cable_delay,
             no_rfi,
@@ -438,7 +438,7 @@ impl PyAsvoClient {
     ///     no_apply_amps: Do not apply the amplitude calibration solutions.
     ///     no_digital_gains: Do not apply the digital gains.
     ///     no_flag_dc: Do not flag the DC channel.
-    ///     no_geometry_delay: Do not apply the geometric delay corrections.
+    ///     no_geometric_delay: Do not apply the geometric delay corrections.
     ///     no_passband_gains: Do not apply the passband gain corrections.
     ///     no_cable_delay: Do not apply the cable delay corrections.
     ///     no_rfi: Do not flag RFI.
@@ -493,7 +493,7 @@ impl PyAsvoClient {
         no_apply_amps=None,
         no_digital_gains=None,
         no_flag_dc=None,
-        no_geometry_delay=None,
+        no_geometric_delay=None,
         no_passband_gains=None,
         no_cable_delay=None,
         no_rfi=None,
@@ -538,7 +538,7 @@ impl PyAsvoClient {
         no_apply_amps: Option<bool>,
         no_digital_gains: Option<bool>,
         no_flag_dc: Option<bool>,
-        no_geometry_delay: Option<bool>,
+        no_geometric_delay: Option<bool>,
         no_passband_gains: Option<bool>,
         no_cable_delay: Option<bool>,
         no_rfi: Option<bool>,
@@ -587,7 +587,7 @@ impl PyAsvoClient {
             no_apply_amps,
             no_digital_gains,
             no_flag_dc,
-            no_geometry_delay,
+            no_geometric_delay,
             no_passband_gains,
             no_cable_delay,
             no_rfi,

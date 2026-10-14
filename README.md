@@ -289,7 +289,7 @@ Options:
           Whether to skip applying digital gains
       --no-flag-dc
           Whether to skip flagging the DC channel
-      --no-geometry-delay
+      --no-geometric-delay
           Whether to skip applying geometric delay corrections
       --no-passband-gains
           Whether to skip applying passband gain corrections
@@ -353,7 +353,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag | off |
 | `--no-digital-gains` | Do not correct the digital gains | flag | off |
 | `--no-flag-dc` | Do not flag the DC channel | flag | off |
-| `--no-geometry-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
 | `--no-passband-gains` | Do not correct the passband gains | flag | off |
 | `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
 | `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
@@ -397,7 +397,7 @@ Options:
           Whether to skip applying digital gains
       --no-flag-dc
           Whether to skip flagging the DC channel
-      --no-geometry-delay
+      --no-geometric-delay
           Whether to skip applying geometric delay corrections
       --no-passband-gains
           Whether to skip applying passband gain corrections
@@ -511,7 +511,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag | off |
 | `--no-digital-gains` | Do not correct the digital gains | flag | off |
 | `--no-flag-dc` | Do not flag the DC channel | flag | off |
-| `--no-geometry-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
+| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
 | `--no-passband-gains` | Do not correct the passband gains | flag | off |
 | `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
 | `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
@@ -604,7 +604,7 @@ Options:
           Print version
 ```
 
-It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi` excepted), and `--source-job-id`, which is required.
+It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi` excepted), and `--source-job-id`, which is required.
 
 Some notes about imaging a conversion job:
 * only conversion jobs which output a CASA measurement set are able to be imaged.

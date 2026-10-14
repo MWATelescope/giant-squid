@@ -183,7 +183,7 @@ def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: H
         no_apply_amps=True,
         no_digital_gains=True,
         no_flag_dc=True,
-        no_geometry_delay=True,
+        no_geometric_delay=True,
         no_passband_gains=True,
         allow_resubmit=True,
     )
@@ -204,7 +204,7 @@ def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: H
         "no_apply_amps": True,
         "no_digital_gains": True,
         "no_flag_dc": True,
-        "no_geometry_delay": True,
+        "no_geometric_delay": True,
         "no_passband_gains": True,
         "allow_resubmit": True,
         # Not given, so the schema defaults apply.
@@ -285,7 +285,7 @@ def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
 IMAGING_SWITCHES = (
     "no_digital_gains",
     "no_flag_dc",
-    "no_geometry_delay",
+    "no_geometric_delay",
     "no_passband_gains",
     "no_cable_delay",
     "no_rfi",
@@ -376,7 +376,7 @@ def test_imaging_job_sends_the_six_correction_and_flagging_switches(
         TEST_OBS_ID,
         no_digital_gains=True,
         no_flag_dc=True,
-        no_geometry_delay=True,
+        no_geometric_delay=True,
         no_passband_gains=True,
         no_cable_delay=True,
         no_rfi=True,

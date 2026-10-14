@@ -181,7 +181,7 @@ before you upgrade scripts.**
   `jobs=`.
 * `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
 * `submit-image` takes six more options, as the MWA ASVO API (schema 1.13.0) does: `--no-digital-gains`, `--no-flag-dc`,
-  `--no-geometry-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi`, the same as `submit-conv` has. In
+  `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi`, the same as `submit-conv` has. In
   Python they are the arguments of `submit_imaging_job`.
 * giant-squid is now a Rust library with a public API that reads no environment variables and prints nothing
   (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
