@@ -6,14 +6,7 @@ FROM dhi.io/rust:1-debian13-dev AS builder
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        clang \
         git \
-        jq \
-        lcov \
-        unzip \
-        zip \
-        automake \
-        libtool \
         ca-certificates \
     && apt-get -y autoremove \
     && apt-get clean \

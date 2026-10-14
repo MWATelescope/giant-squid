@@ -1,0 +1,35 @@
+---
+name: Lint
+permissions:
+  contents: read
+
+# Rust format, clippy, library-only build and docs. The checks are in check.sh, so that they are the same on a
+# developer machine and here. The tests are in run-tests.yaml, and the Python checks are in python.yaml.
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - "**"
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Rust format, clippy and docs
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Install Rust, stable toolchain with rustfmt and clippy
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    # The Python module is only type-checked here (clippy), not linked, so the Python of the runner is enough.
+    - name: Run check.sh
+      run: ./check.sh

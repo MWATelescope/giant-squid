@@ -57,9 +57,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@v1
-      with:
-        toolchain: stable
+      uses: dtolnay/rust-toolchain@stable
 
     # build.rs writes src/mwa_asvo/api/openapi.rs with prettyplease, and that output is what is committed. Do not run
     # `cargo fmt` or `cargo clippy --fix` here: rustfmt lays the file out differently (about 1500 lines), so the
