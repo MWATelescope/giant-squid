@@ -1361,6 +1361,55 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
     assert_eq!(output, expected);
 }
 
+/// `--legacy-json` names every job type as giant-squid 2.5.1 did, for the
+/// integer code that the API sends: 0 to 6, and no type (`Unknown`). The
+/// expected text is what 2.5.1 (tag `v2.5.1`) printed for one job of each
+/// type, made by its own `AsvoJobVec::json`. A job in the sample above has
+/// each of the other keys, so this one varies only the job type.
+#[test]
+fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
+    use crate::mwa_asvo::api::openapi::JobDetailResponse;
+    use crate::mwa_asvo::{AsvoJobVec, JobState, JobType};
+    let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
+    let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
+    let job_types: Vec<Option<JobType>> = (0..=6)
+        .map(|code| Some(JobType::try_from(code).expect("a code of the schema")))
+        .chain([None])
+        .collect();
+    let jobs = AsvoJobVec(
+        job_types
+            .into_iter()
+            .zip(201..)
+            .map(|(job_type, id)| {
+                crate::test_config::asvo_job(
+                    obs_id,
+                    JobDetailResponse {
+                        id,
+                        job_type,
+                        job_state: JobState::Completed,
+                        product: None,
+                        created,
+                        started: None,
+                        completed: None,
+                        modified: None,
+                        error_code: None,
+                        error_text: None,
+                        user_id: 4242,
+                        first_name: "Test".to_string(),
+                        last_name: "User".to_string(),
+                        job_params: serde_json::Map::new(),
+                    },
+                )
+            })
+            .collect(),
+    );
+    let expected = r#"{"201":{"obsid":1065880128,"jobId":201,"jobType":"Conversion","jobState":"Ready","files":null},"202":{"obsid":1065880128,"jobId":202,"jobType":"DownloadVisibilities","jobState":"Ready","files":null},"203":{"obsid":1065880128,"jobId":203,"jobType":"DownloadMetadata","jobState":"Ready","files":null},"204":{"obsid":1065880128,"jobId":204,"jobType":"DownloadVoltage","jobState":"Ready","files":null},"205":{"obsid":1065880128,"jobId":205,"jobType":"CancelJob","jobState":"Ready","files":null},"206":{"obsid":1065880128,"jobId":206,"jobType":"DownloadBeamformer","jobState":"Ready","files":null},"207":{"obsid":1065880128,"jobId":207,"jobType":"Imaging","jobState":"Ready","files":null},"208":{"obsid":1065880128,"jobId":208,"jobType":"Unknown","jobState":"Ready","files":null}}"#;
+
+    let output = super::legacy_json::to_legacy_json(&jobs).expect("serialises");
+
+    assert_eq!(output, expected);
+}
+
 /// `--json` prints each job as the OpenAPI schema's `JobDetailResponse`, with
 /// one more key, `obs_id`: the schema's names and values (the job type is
 /// its code), and no key for a field that has no value.
