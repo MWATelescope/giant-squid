@@ -135,18 +135,6 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "staging_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
-        },
         "mode": {
           "anyOf": [
             {
@@ -301,18 +289,6 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "staging_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
-        },
         "output": {
           "type": "string",
           "enum": [
@@ -323,15 +299,29 @@
           "default": "ms"
         },
         "avg_time_res": {
-          "type": "number",
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Avg Time Res",
           "default": 2.0
         },
         "avg_freq_res": {
-          "type": "number",
-          "maximum": 1280.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 1280.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Avg Freq Res",
           "default": 40.0
         },
@@ -400,7 +390,7 @@
           "title": "No Rfi",
           "default": false
         },
-        "no_geometry_delay": {
+        "no_geometric_delay": {
           "anyOf": [
             {
               "type": "boolean"
@@ -409,7 +399,7 @@
               "type": "null"
             }
           ],
-          "title": "No Geometry Delay",
+          "title": "No Geometric Delay",
           "default": false
         },
         "no_cable_delay": {
@@ -506,18 +496,6 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
-        },
-        "staging_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
         },
         "download_type": {
           "$ref": "#/definitions/DownloadType",
@@ -753,28 +731,30 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "staging_count": {
+        "avg_time_res": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "number",
+              "minimum": 0.0
             },
             {
               "type": "null"
             }
           ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
-        },
-        "avg_time_res": {
-          "type": "number",
-          "minimum": 0.0,
           "title": "Avg Time Res",
           "default": 2.0
         },
         "avg_freq_res": {
-          "type": "number",
-          "maximum": 1280.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 1280.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Avg Freq Res",
           "default": 40.0
         },
@@ -843,7 +823,7 @@
           "title": "No Rfi",
           "default": false
         },
-        "no_geometry_delay": {
+        "no_geometric_delay": {
           "anyOf": [
             {
               "type": "boolean"
@@ -852,7 +832,7 @@
               "type": "null"
             }
           ],
-          "title": "No Geometry Delay",
+          "title": "No Geometric Delay",
           "default": false
         },
         "no_cable_delay": {
@@ -1124,18 +1104,6 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
-        },
-        "staging_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
         },
         "source_job_id": {
           "type": "integer",
@@ -1615,6 +1583,30 @@
       ],
       "title": "JobState",
       "description": "Enum representing the possible states of a job\nInherits from str to make it JSON serializable and directly usable in SQL queries"
+    },
+    "JobStateUpdateResponse": {
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "title": "Job Id"
+        },
+        "status": {
+          "type": "string",
+          "title": "Status"
+        },
+        "message": {
+          "type": "string",
+          "title": "Message"
+        }
+      },
+      "type": "object",
+      "required": [
+        "job_id",
+        "status",
+        "message"
+      ],
+      "title": "JobStateUpdateResponse",
+      "description": "Response model for an update job state request"
     },
     "JobSubmittedResponse": {
       "properties": {
@@ -2135,6 +2127,30 @@
           "minimum": 1.0,
           "title": "User Id"
         },
+        "user_pawsey_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Pawsey Group",
+          "description": "The pawsey group the user belongs to (if any)"
+        },
+        "user_dug_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Dug Group",
+          "description": "The DUG group the user belongs to (if any)"
+        },
         "job_type": {
           "anyOf": [
             {
@@ -2327,14 +2343,47 @@
           "minimum": 1.0,
           "title": "Job Id"
         },
-        "state": {
+        "new_state": {
           "$ref": "#/definitions/JobState"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Code"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Message"
+        },
+        "product": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Product"
         }
       },
       "type": "object",
       "required": [
         "job_id",
-        "state"
+        "new_state"
       ],
       "title": "UpdateStateRequest",
       "description": "State update for a job"
@@ -2692,18 +2741,6 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
-        },
-        "staging_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Staging Count",
-          "description": "number of restage attempts by the processor"
         },
         "offset": {
           "type": "integer",

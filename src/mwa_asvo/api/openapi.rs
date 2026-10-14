@@ -70,9 +70,6 @@ pub struct BeamformerJobParams {
     #[serde(default = "defaults::beamformer_job_params_mode")]
     pub mode: ::std::option::Option<BeamformerJobParamsMode>,
     pub obs_id: i64,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
 }
 impl BeamformerJobParams {
     pub fn builder() -> builder::BeamformerJobParams {
@@ -249,9 +246,9 @@ pub struct ConversionJobParams {
     #[serde(default)]
     pub apply_di_cal: bool,
     #[serde(default = "defaults::conversion_job_params_avg_freq_res")]
-    pub avg_freq_res: f64,
+    pub avg_freq_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::conversion_job_params_avg_time_res")]
-    pub avg_time_res: f64,
+    pub avg_time_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::conversion_job_params_centre")]
     pub centre: Centre,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -272,8 +269,8 @@ pub struct ConversionJobParams {
     pub no_digital_gains: ::std::option::Option<bool>,
     #[serde(default = "defaults::conversion_job_params_no_flag_dc")]
     pub no_flag_dc: ::std::option::Option<bool>,
-    #[serde(default = "defaults::conversion_job_params_no_geometry_delay")]
-    pub no_geometry_delay: ::std::option::Option<bool>,
+    #[serde(default = "defaults::conversion_job_params_no_geometric_delay")]
+    pub no_geometric_delay: ::std::option::Option<bool>,
     #[serde(default = "defaults::conversion_job_params_no_passband_gains")]
     pub no_passband_gains: ::std::option::Option<bool>,
     #[serde(default = "defaults::conversion_job_params_no_rfi")]
@@ -281,9 +278,6 @@ pub struct ConversionJobParams {
     pub obs_id: i64,
     #[serde(default = "defaults::conversion_job_params_output")]
     pub output: Output,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
 }
 impl ConversionJobParams {
     pub fn builder() -> builder::ConversionJobParams {
@@ -427,9 +421,6 @@ pub struct DownloadJobParams {
     #[serde(default = "defaults::download_job_params_download_type")]
     pub download_type: DownloadType,
     pub obs_id: i64,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
 }
 impl DownloadJobParams {
     pub fn builder() -> builder::DownloadJobParams {
@@ -596,9 +587,9 @@ pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_auto_threshold")]
     pub auto_threshold: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_avg_freq_res")]
-    pub avg_freq_res: f64,
+    pub avg_freq_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_avg_time_res")]
-    pub avg_time_res: f64,
+    pub avg_time_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_centre")]
     pub centre: Centre,
     #[serde(default = "defaults::default_u64::<i64, 4>")]
@@ -638,8 +629,8 @@ pub struct ImagingJobFlow1Params {
     pub no_digital_gains: ::std::option::Option<bool>,
     #[serde(default = "defaults::imaging_job_flow1_params_no_flag_dc")]
     pub no_flag_dc: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_geometry_delay")]
-    pub no_geometry_delay: ::std::option::Option<bool>,
+    #[serde(default = "defaults::imaging_job_flow1_params_no_geometric_delay")]
+    pub no_geometric_delay: ::std::option::Option<bool>,
     #[serde(default = "defaults::imaging_job_flow1_params_no_passband_gains")]
     pub no_passband_gains: ::std::option::Option<bool>,
     #[serde(default = "defaults::imaging_job_flow1_params_no_rfi")]
@@ -656,9 +647,6 @@ pub struct ImagingJobFlow1Params {
     pub pol: Polarization,
     #[serde(default = "defaults::imaging_job_flow1_params_robust")]
     pub robust: f64,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_uvw_min")]
@@ -721,9 +709,6 @@ pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_robust")]
     pub robust: f64,
     pub source_job_id: ::std::num::NonZeroU64,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow2_params_uvw_min")]
@@ -933,6 +918,18 @@ impl ::std::convert::TryFrom<::std::string::String> for JobState {
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+///Response model for an update job state request
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct JobStateUpdateResponse {
+    pub job_id: i64,
+    pub message: ::std::string::String,
+    pub status: ::std::string::String,
+}
+impl JobStateUpdateResponse {
+    pub fn builder() -> builder::JobStateUpdateResponse {
+        Default::default()
     }
 }
 ///`JobSubmittedResponse`
@@ -1485,7 +1482,13 @@ pub struct QueuedJob {
     ///Cached queue position updated by scheduler (invalidated when queue changes)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub queue_position_cache: ::std::option::Option<u64>,
+    ///The DUG group the user belongs to (if any)
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub user_dug_group: ::std::option::Option<::std::string::String>,
     pub user_id: ::std::num::NonZeroU64,
+    ///The pawsey group the user belongs to (if any)
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub user_pawsey_group: ::std::option::Option<::std::string::String>,
 }
 impl QueuedJob {
     pub fn builder() -> builder::QueuedJob {
@@ -1678,8 +1681,14 @@ impl ::std::convert::TryFrom<::std::string::String> for Type {
 ///State update for a job
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UpdateStateRequest {
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub error_code: ::std::option::Option<i64>,
     pub job_id: ::std::num::NonZeroU64,
-    pub state: JobState,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub message: ::std::option::Option<::std::string::String>,
+    pub new_state: JobState,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub product: ::std::option::Option<::std::string::String>,
 }
 impl UpdateStateRequest {
     pub fn builder() -> builder::UpdateStateRequest {
@@ -1888,9 +1897,6 @@ pub struct VoltageJobParams {
     pub from_channel: ::std::option::Option<u8>,
     pub obs_id: i64,
     pub offset: i64,
-    ///number of restage attempts by the processor
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub staging_count: ::std::option::Option<i64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub to_channel: ::std::option::Option<u8>,
 }
@@ -2242,10 +2248,6 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
     }
     impl ::std::default::Default for BeamformerJobParams {
         fn default() -> Self {
@@ -2259,7 +2261,6 @@ pub mod builder {
                 ),
                 mode: Ok(super::defaults::beamformer_job_params_mode()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
-                staging_count: Ok(Default::default()),
             }
         }
     }
@@ -2322,18 +2323,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
     }
     impl ::std::convert::TryFrom<BeamformerJobParams> for super::BeamformerJobParams {
         type Error = super::error::ConversionError;
@@ -2346,7 +2335,6 @@ pub mod builder {
                 delivery_format: value.delivery_format?,
                 mode: value.mode?,
                 obs_id: value.obs_id?,
-                staging_count: value.staging_count?,
             })
         }
     }
@@ -2358,7 +2346,6 @@ pub mod builder {
                 delivery_format: Ok(value.delivery_format),
                 mode: Ok(value.mode),
                 obs_id: Ok(value.obs_id),
-                staging_count: Ok(value.staging_count),
             }
         }
     }
@@ -2599,8 +2586,14 @@ pub mod builder {
             ::std::string::String,
         >,
         apply_di_cal: ::std::result::Result<bool, ::std::string::String>,
-        avg_freq_res: ::std::result::Result<f64, ::std::string::String>,
-        avg_time_res: ::std::result::Result<f64, ::std::string::String>,
+        avg_freq_res: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        avg_time_res: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         centre: ::std::result::Result<super::Centre, ::std::string::String>,
         custom_centre_dec: ::std::result::Result<
             ::std::option::Option<f64>,
@@ -2629,7 +2622,7 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        no_geometry_delay: ::std::result::Result<
+        no_geometric_delay: ::std::result::Result<
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
@@ -2643,10 +2636,6 @@ pub mod builder {
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         output: ::std::result::Result<super::Output, ::std::string::String>,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
     }
     impl ::std::default::Default for ConversionJobParams {
         fn default() -> Self {
@@ -2675,8 +2664,8 @@ pub mod builder {
                     super::defaults::conversion_job_params_no_digital_gains(),
                 ),
                 no_flag_dc: Ok(super::defaults::conversion_job_params_no_flag_dc()),
-                no_geometry_delay: Ok(
-                    super::defaults::conversion_job_params_no_geometry_delay(),
+                no_geometric_delay: Ok(
+                    super::defaults::conversion_job_params_no_geometric_delay(),
                 ),
                 no_passband_gains: Ok(
                     super::defaults::conversion_job_params_no_passband_gains(),
@@ -2684,7 +2673,6 @@ pub mod builder {
                 no_rfi: Ok(super::defaults::conversion_job_params_no_rfi()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 output: Ok(super::defaults::conversion_job_params_output()),
-                staging_count: Ok(Default::default()),
             }
         }
     }
@@ -2715,7 +2703,7 @@ pub mod builder {
         }
         pub fn avg_freq_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_freq_res = value
@@ -2727,7 +2715,7 @@ pub mod builder {
         }
         pub fn avg_time_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_time_res = value
@@ -2855,15 +2843,17 @@ pub mod builder {
                 });
             self
         }
-        pub fn no_geometry_delay<T>(mut self, value: T) -> Self
+        pub fn no_geometric_delay<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<bool>>,
             T::Error: ::std::fmt::Display,
         {
-            self.no_geometry_delay = value
+            self.no_geometric_delay = value
                 .try_into()
                 .map_err(|e| {
-                    format!("error converting supplied value for no_geometry_delay: {e}")
+                    format!(
+                        "error converting supplied value for no_geometric_delay: {e}"
+                    )
                 });
             self
         }
@@ -2909,18 +2899,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for output: {e}"));
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
     }
     impl ::std::convert::TryFrom<ConversionJobParams> for super::ConversionJobParams {
         type Error = super::error::ConversionError;
@@ -2942,12 +2920,11 @@ pub mod builder {
                 no_cable_delay: value.no_cable_delay?,
                 no_digital_gains: value.no_digital_gains?,
                 no_flag_dc: value.no_flag_dc?,
-                no_geometry_delay: value.no_geometry_delay?,
+                no_geometric_delay: value.no_geometric_delay?,
                 no_passband_gains: value.no_passband_gains?,
                 no_rfi: value.no_rfi?,
                 obs_id: value.obs_id?,
                 output: value.output?,
-                staging_count: value.staging_count?,
             })
         }
     }
@@ -2968,12 +2945,11 @@ pub mod builder {
                 no_cable_delay: Ok(value.no_cable_delay),
                 no_digital_gains: Ok(value.no_digital_gains),
                 no_flag_dc: Ok(value.no_flag_dc),
-                no_geometry_delay: Ok(value.no_geometry_delay),
+                no_geometric_delay: Ok(value.no_geometric_delay),
                 no_passband_gains: Ok(value.no_passband_gains),
                 no_rfi: Ok(value.no_rfi),
                 obs_id: Ok(value.obs_id),
                 output: Ok(value.output),
-                staging_count: Ok(value.staging_count),
             }
         }
     }
@@ -2990,10 +2966,6 @@ pub mod builder {
         >,
         download_type: ::std::result::Result<super::DownloadType, ::std::string::String>,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
     }
     impl ::std::default::Default for DownloadJobParams {
         fn default() -> Self {
@@ -3007,7 +2979,6 @@ pub mod builder {
                 ),
                 download_type: Ok(super::defaults::download_job_params_download_type()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
-                staging_count: Ok(Default::default()),
             }
         }
     }
@@ -3070,18 +3041,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
     }
     impl ::std::convert::TryFrom<DownloadJobParams> for super::DownloadJobParams {
         type Error = super::error::ConversionError;
@@ -3094,7 +3053,6 @@ pub mod builder {
                 delivery_format: value.delivery_format?,
                 download_type: value.download_type?,
                 obs_id: value.obs_id?,
-                staging_count: value.staging_count?,
             })
         }
     }
@@ -3106,7 +3064,6 @@ pub mod builder {
                 delivery_format: Ok(value.delivery_format),
                 download_type: Ok(value.download_type),
                 obs_id: Ok(value.obs_id),
-                staging_count: Ok(value.staging_count),
             }
         }
     }
@@ -3402,8 +3359,14 @@ pub mod builder {
         apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
         auto_mask: ::std::result::Result<i64, ::std::string::String>,
         auto_threshold: ::std::result::Result<f64, ::std::string::String>,
-        avg_freq_res: ::std::result::Result<f64, ::std::string::String>,
-        avg_time_res: ::std::result::Result<f64, ::std::string::String>,
+        avg_freq_res: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        avg_time_res: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         centre: ::std::result::Result<super::Centre, ::std::string::String>,
         channels_out: ::std::result::Result<i64, ::std::string::String>,
         clean_iterations: ::std::result::Result<i64, ::std::string::String>,
@@ -3444,7 +3407,7 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        no_geometry_delay: ::std::result::Result<
+        no_geometric_delay: ::std::result::Result<
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
@@ -3465,10 +3428,6 @@ pub mod builder {
         pixel_scale: ::std::result::Result<f64, ::std::string::String>,
         pol: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
         uvw_max: ::std::result::Result<
             ::std::option::Option<f64>,
             ::std::string::String,
@@ -3532,8 +3491,8 @@ pub mod builder {
                     super::defaults::imaging_job_flow1_params_no_digital_gains(),
                 ),
                 no_flag_dc: Ok(super::defaults::imaging_job_flow1_params_no_flag_dc()),
-                no_geometry_delay: Ok(
-                    super::defaults::imaging_job_flow1_params_no_geometry_delay(),
+                no_geometric_delay: Ok(
+                    super::defaults::imaging_job_flow1_params_no_geometric_delay(),
                 ),
                 no_passband_gains: Ok(
                     super::defaults::imaging_job_flow1_params_no_passband_gains(),
@@ -3545,7 +3504,6 @@ pub mod builder {
                 pixel_scale: Ok(super::defaults::imaging_job_flow1_params_pixel_scale()),
                 pol: Ok(super::defaults::imaging_job_flow1_params_pol()),
                 robust: Ok(super::defaults::imaging_job_flow1_params_robust()),
-                staging_count: Ok(Default::default()),
                 uvw_max: Ok(Default::default()),
                 uvw_min: Ok(super::defaults::imaging_job_flow1_params_uvw_min()),
                 weighting: Ok(super::defaults::imaging_job_flow1_params_weighting()),
@@ -3630,7 +3588,7 @@ pub mod builder {
         }
         pub fn avg_freq_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_freq_res = value
@@ -3642,7 +3600,7 @@ pub mod builder {
         }
         pub fn avg_time_res<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.avg_time_res = value
@@ -3876,15 +3834,17 @@ pub mod builder {
                 });
             self
         }
-        pub fn no_geometry_delay<T>(mut self, value: T) -> Self
+        pub fn no_geometric_delay<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<bool>>,
             T::Error: ::std::fmt::Display,
         {
-            self.no_geometry_delay = value
+            self.no_geometric_delay = value
                 .try_into()
                 .map_err(|e| {
-                    format!("error converting supplied value for no_geometry_delay: {e}")
+                    format!(
+                        "error converting supplied value for no_geometric_delay: {e}"
+                    )
                 });
             self
         }
@@ -3976,18 +3936,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for robust: {e}"));
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
         pub fn uvw_max<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<f64>>,
@@ -4071,7 +4019,7 @@ pub mod builder {
                 no_cable_delay: value.no_cable_delay?,
                 no_digital_gains: value.no_digital_gains?,
                 no_flag_dc: value.no_flag_dc?,
-                no_geometry_delay: value.no_geometry_delay?,
+                no_geometric_delay: value.no_geometric_delay?,
                 no_passband_gains: value.no_passband_gains?,
                 no_rfi: value.no_rfi?,
                 nwlayers: value.nwlayers?,
@@ -4080,7 +4028,6 @@ pub mod builder {
                 pixel_scale: value.pixel_scale?,
                 pol: value.pol?,
                 robust: value.robust?,
-                staging_count: value.staging_count?,
                 uvw_max: value.uvw_max?,
                 uvw_min: value.uvw_min?,
                 weighting: value.weighting?,
@@ -4118,7 +4065,7 @@ pub mod builder {
                 no_cable_delay: Ok(value.no_cable_delay),
                 no_digital_gains: Ok(value.no_digital_gains),
                 no_flag_dc: Ok(value.no_flag_dc),
-                no_geometry_delay: Ok(value.no_geometry_delay),
+                no_geometric_delay: Ok(value.no_geometric_delay),
                 no_passband_gains: Ok(value.no_passband_gains),
                 no_rfi: Ok(value.no_rfi),
                 nwlayers: Ok(value.nwlayers),
@@ -4127,7 +4074,6 @@ pub mod builder {
                 pixel_scale: Ok(value.pixel_scale),
                 pol: Ok(value.pol),
                 robust: Ok(value.robust),
-                staging_count: Ok(value.staging_count),
                 uvw_max: Ok(value.uvw_max),
                 uvw_min: Ok(value.uvw_min),
                 weighting: Ok(value.weighting),
@@ -4176,10 +4122,6 @@ pub mod builder {
         robust: ::std::result::Result<f64, ::std::string::String>,
         source_job_id: ::std::result::Result<
             ::std::num::NonZeroU64,
-            ::std::string::String,
-        >,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
             ::std::string::String,
         >,
         uvw_max: ::std::result::Result<
@@ -4231,7 +4173,6 @@ pub mod builder {
                 pol: Ok(super::defaults::imaging_job_flow2_params_pol()),
                 robust: Ok(super::defaults::imaging_job_flow2_params_robust()),
                 source_job_id: Err("no value supplied for source_job_id".to_string()),
-                staging_count: Ok(Default::default()),
                 uvw_max: Ok(Default::default()),
                 uvw_min: Ok(super::defaults::imaging_job_flow2_params_uvw_min()),
                 weighting: Ok(super::defaults::imaging_job_flow2_params_weighting()),
@@ -4510,18 +4451,6 @@ pub mod builder {
                 });
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
         pub fn uvw_max<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<f64>>,
@@ -4601,7 +4530,6 @@ pub mod builder {
                 pol: value.pol?,
                 robust: value.robust?,
                 source_job_id: value.source_job_id?,
-                staging_count: value.staging_count?,
                 uvw_max: value.uvw_max?,
                 uvw_min: value.uvw_min?,
                 weighting: value.weighting?,
@@ -4635,7 +4563,6 @@ pub mod builder {
                 pol: Ok(value.pol),
                 robust: Ok(value.robust),
                 source_job_id: Ok(value.source_job_id),
-                staging_count: Ok(value.staging_count),
                 uvw_max: Ok(value.uvw_max),
                 uvw_min: Ok(value.uvw_min),
                 weighting: Ok(value.weighting),
@@ -5202,6 +5129,77 @@ pub mod builder {
     impl ::std::convert::From<super::JobProduct> for JobProduct {
         fn from(value: super::JobProduct) -> Self {
             Self { files: Ok(value.files) }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct JobStateUpdateResponse {
+        job_id: ::std::result::Result<i64, ::std::string::String>,
+        message: ::std::result::Result<::std::string::String, ::std::string::String>,
+        status: ::std::result::Result<::std::string::String, ::std::string::String>,
+    }
+    impl ::std::default::Default for JobStateUpdateResponse {
+        fn default() -> Self {
+            Self {
+                job_id: Err("no value supplied for job_id".to_string()),
+                message: Err("no value supplied for message".to_string()),
+                status: Err("no value supplied for status".to_string()),
+            }
+        }
+    }
+    impl JobStateUpdateResponse {
+        pub fn job_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
+            self
+        }
+        pub fn message<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::string::String>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.message = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
+            self
+        }
+        pub fn status<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::string::String>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.status = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for status: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobStateUpdateResponse>
+    for super::JobStateUpdateResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobStateUpdateResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                job_id: value.job_id?,
+                message: value.message?,
+                status: value.status?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobStateUpdateResponse> for JobStateUpdateResponse {
+        fn from(value: super::JobStateUpdateResponse) -> Self {
+            Self {
+                job_id: Ok(value.job_id),
+                message: Ok(value.message),
+                status: Ok(value.status),
+            }
         }
     }
     #[derive(Clone, Debug)]
@@ -6361,7 +6359,15 @@ pub mod builder {
             ::std::option::Option<u64>,
             ::std::string::String,
         >,
+        user_dug_group: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         user_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        user_pawsey_group: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for QueuedJob {
         fn default() -> Self {
@@ -6372,7 +6378,9 @@ pub mod builder {
                 job_type: Ok(Default::default()),
                 priority_score: Ok(Default::default()),
                 queue_position_cache: Ok(Default::default()),
+                user_dug_group: Ok(Default::default()),
                 user_id: Err("no value supplied for user_id".to_string()),
+                user_pawsey_group: Ok(Default::default()),
             }
         }
     }
@@ -6451,6 +6459,18 @@ pub mod builder {
                 });
             self
         }
+        pub fn user_dug_group<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.user_dug_group = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for user_dug_group: {e}")
+                });
+            self
+        }
         pub fn user_id<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::num::NonZeroU64>,
@@ -6460,6 +6480,18 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for user_id: {e}")
+                });
+            self
+        }
+        pub fn user_pawsey_group<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.user_pawsey_group = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for user_pawsey_group: {e}")
                 });
             self
         }
@@ -6476,7 +6508,9 @@ pub mod builder {
                 job_type: value.job_type?,
                 priority_score: value.priority_score?,
                 queue_position_cache: value.queue_position_cache?,
+                user_dug_group: value.user_dug_group?,
                 user_id: value.user_id?,
+                user_pawsey_group: value.user_pawsey_group?,
             })
         }
     }
@@ -6489,7 +6523,9 @@ pub mod builder {
                 job_type: Ok(value.job_type),
                 priority_score: Ok(value.priority_score),
                 queue_position_cache: Ok(value.queue_position_cache),
+                user_dug_group: Ok(value.user_dug_group),
                 user_id: Ok(value.user_id),
+                user_pawsey_group: Ok(value.user_pawsey_group),
             }
         }
     }
@@ -6802,18 +6838,45 @@ pub mod builder {
     }
     #[derive(Clone, Debug)]
     pub struct UpdateStateRequest {
+        error_code: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        state: ::std::result::Result<super::JobState, ::std::string::String>,
+        message: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        new_state: ::std::result::Result<super::JobState, ::std::string::String>,
+        product: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
     }
     impl ::std::default::Default for UpdateStateRequest {
         fn default() -> Self {
             Self {
+                error_code: Ok(Default::default()),
                 job_id: Err("no value supplied for job_id".to_string()),
-                state: Err("no value supplied for state".to_string()),
+                message: Ok(Default::default()),
+                new_state: Err("no value supplied for new_state".to_string()),
+                product: Ok(Default::default()),
             }
         }
     }
     impl UpdateStateRequest {
+        pub fn error_code<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.error_code = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for error_code: {e}")
+                });
+            self
+        }
         pub fn job_id<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::num::NonZeroU64>,
@@ -6824,14 +6887,40 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for job_id: {e}"));
             self
         }
-        pub fn state<T>(mut self, value: T) -> Self
+        pub fn message<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.message = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
+            self
+        }
+        pub fn new_state<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::JobState>,
             T::Error: ::std::fmt::Display,
         {
-            self.state = value
+            self.new_state = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for state: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for new_state: {e}")
+                });
+            self
+        }
+        pub fn product<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.product = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for product: {e}")
+                });
             self
         }
     }
@@ -6841,16 +6930,22 @@ pub mod builder {
             value: UpdateStateRequest,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
+                error_code: value.error_code?,
                 job_id: value.job_id?,
-                state: value.state?,
+                message: value.message?,
+                new_state: value.new_state?,
+                product: value.product?,
             })
         }
     }
     impl ::std::convert::From<super::UpdateStateRequest> for UpdateStateRequest {
         fn from(value: super::UpdateStateRequest) -> Self {
             Self {
+                error_code: Ok(value.error_code),
                 job_id: Ok(value.job_id),
-                state: Ok(value.state),
+                message: Ok(value.message),
+                new_state: Ok(value.new_state),
+                product: Ok(value.product),
             }
         }
     }
@@ -7572,10 +7667,6 @@ pub mod builder {
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
         offset: ::std::result::Result<i64, ::std::string::String>,
-        staging_count: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
         to_channel: ::std::result::Result<
             ::std::option::Option<u8>,
             ::std::string::String,
@@ -7594,7 +7685,6 @@ pub mod builder {
                 from_channel: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 offset: Err("no value supplied for offset".to_string()),
-                staging_count: Ok(Default::default()),
                 to_channel: Ok(Default::default()),
             }
         }
@@ -7692,18 +7782,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for offset: {e}"));
             self
         }
-        pub fn staging_count<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.staging_count = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for staging_count: {e}")
-                });
-            self
-        }
         pub fn to_channel<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<u8>>,
@@ -7731,7 +7809,6 @@ pub mod builder {
                 from_channel: value.from_channel?,
                 obs_id: value.obs_id?,
                 offset: value.offset?,
-                staging_count: value.staging_count?,
                 to_channel: value.to_channel?,
             })
         }
@@ -7747,7 +7824,6 @@ pub mod builder {
                 from_channel: Ok(value.from_channel),
                 obs_id: Ok(value.obs_id),
                 offset: Ok(value.offset),
-                staging_count: Ok(value.staging_count),
                 to_channel: Ok(value.to_channel),
             }
         }
@@ -7836,11 +7912,11 @@ pub mod defaults {
     pub(super) fn conversion_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_avg_freq_res() -> f64 {
-        40.0_f64
+    pub(super) fn conversion_job_params_avg_freq_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(40.0_f64)
     }
-    pub(super) fn conversion_job_params_avg_time_res() -> f64 {
-        2.0_f64
+    pub(super) fn conversion_job_params_avg_time_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(2.0_f64)
     }
     pub(super) fn conversion_job_params_centre() -> super::Centre {
         super::Centre::Phase
@@ -7865,7 +7941,7 @@ pub mod defaults {
     pub(super) fn conversion_job_params_no_flag_dc() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_no_geometry_delay() -> ::std::option::Option<
+    pub(super) fn conversion_job_params_no_geometric_delay() -> ::std::option::Option<
         bool,
     > {
         ::std::option::Option::Some(false)
@@ -7906,11 +7982,11 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_auto_threshold() -> f64 {
         0.5_f64
     }
-    pub(super) fn imaging_job_flow1_params_avg_freq_res() -> f64 {
-        40.0_f64
+    pub(super) fn imaging_job_flow1_params_avg_freq_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(40.0_f64)
     }
-    pub(super) fn imaging_job_flow1_params_avg_time_res() -> f64 {
-        2.0_f64
+    pub(super) fn imaging_job_flow1_params_avg_time_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(2.0_f64)
     }
     pub(super) fn imaging_job_flow1_params_centre() -> super::Centre {
         super::Centre::Phase
@@ -7948,7 +8024,7 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_no_flag_dc() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow1_params_no_geometry_delay() -> ::std::option::Option<
+    pub(super) fn imaging_job_flow1_params_no_geometric_delay() -> ::std::option::Option<
         bool,
     > {
         ::std::option::Option::Some(false)
