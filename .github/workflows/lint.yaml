@@ -25,9 +25,16 @@ jobs:
     - name: Checkout sources
       uses: actions/checkout@v6
 
-    - name: Install Rust, stable toolchain with rustfmt and clippy
-      uses: dtolnay/rust-toolchain@stable
+    # The lint job uses the Rust version in `rust-version` of Cargo.toml (the MSRV), not `stable`, so that a new Rust
+    # release cannot make clippy find new things without a change in the code. To move to a newer Rust, raise
+    # `rust-version` and fix what its clippy finds in the same commit.
+    - name: Get MSRV
+      run: echo "MSRV=$(grep -m1 'rust-version' Cargo.toml | sed 's|.*\"\(.*\)\"|\1|')" >> "$GITHUB_ENV"
+
+    - name: Install Rust at the MSRV, with rustfmt and clippy
+      uses: dtolnay/rust-toolchain@v1
       with:
+        toolchain: ${{ env.MSRV }}
         components: rustfmt, clippy
 
     # The Python module is only type-checked here (clippy), not linked, so the Python of the runner is enough.

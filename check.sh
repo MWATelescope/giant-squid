@@ -3,7 +3,8 @@
 # Checks the Rust code. This script does not change any file or dependency:
 # it uses Cargo.lock as it is (--locked), and it does not fix anything.
 # The CI workflow .github/workflows/lint.yaml runs this script, so a pass here
-# means a pass in CI. To fix a finding, run `cargo fmt` or `cargo clippy --fix`.
+# means a pass in CI. CI uses the Rust version in `rust-version` of Cargo.toml; a newer
+# Rust can report more. To fix a finding, run `cargo fmt` or `cargo clippy --fix`.
 #
 set -euo pipefail
 
