@@ -211,12 +211,14 @@ fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
     match job_files(job).first() {
         // A Scratch job that this host can reach is moved to the download
         // directory. (One that it cannot reach, or a DUG job, is an error.)
-        Some(file) if file.type_ == FileType::Scratch => format!(
-            "Moved {} to {}",
-            file.path.as_deref().unwrap_or_default(),
-            download_dir
-        ),
-        _ => format!("Downloaded {} to {}", job_size_text(job), download_dir),
+        Some(file) if file.type_ == FileType::Scratch => {
+            let path = file.path.as_deref().unwrap_or_default();
+            format!("Moved {path} to {download_dir}")
+        }
+        _ => {
+            let size = job_size_text(job);
+            format!("Downloaded {size} to {download_dir}")
+        }
     }
 }
 
@@ -246,24 +248,15 @@ where
         }
     }
 
-    let submitted = obs_ids.len() - failures;
-    info!(
-        "Submitted {} of {} Obs IDs for {}.",
-        submitted,
-        obs_ids.len(),
-        description
-    );
+    let total = obs_ids.len();
+    let submitted = total - failures;
+    info!("Submitted {submitted} of {total} Obs IDs for {description}.");
 
     if failures == 0 {
         return Ok(());
     }
 
-    Err(ReportedFailures(format!(
-        "{} of {} job submissions failed",
-        failures,
-        obs_ids.len()
-    ))
-    .into())
+    Err(ReportedFailures(format!("{failures} of {total} job submissions failed")).into())
 }
 
 /// What a submit command was asked to do, for [`run_submit`].
@@ -310,8 +303,9 @@ where
         let params = build(*o)?;
         let resp = submit(&client, &params)?;
         print_json_line(&resp, json)?;
-        info!("Submitted {} as MWA ASVO Job ID {}", o, resp.job_id);
-        job_ids.push(resp.job_id);
+        let job_id = resp.job_id;
+        info!("Submitted {o} as MWA ASVO Job ID {job_id}");
+        job_ids.push(job_id);
         Ok(())
     });
     if wait {
@@ -326,7 +320,7 @@ fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(
     if json {
         print_json_line(&JsonError::new(e).with_obs_id(obs_id), true)
     } else {
-        error!("Obs ID {}: {}", obs_id, e);
+        error!("Obs ID {obs_id}: {e}");
         Ok(())
     }
 }
@@ -362,7 +356,8 @@ fn obs_ids_only(
 /// back without parsing log text.
 fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyhow::Error> {
     if json {
-        println!("{}", serde_json::to_string(resp)?);
+        let line = serde_json::to_string(resp)?;
+        println!("{line}");
     }
     Ok(())
 }
@@ -397,19 +392,12 @@ where
             )?;
             continue;
         }
-        info!(
-            "[dry run] Would POST {} for Obs ID {}:\n{}",
-            endpoint,
-            o,
-            serde_json::to_string_pretty(&params)?
-        );
+        let body = serde_json::to_string_pretty(&params)?;
+        info!("[dry run] Would POST {endpoint} for Obs ID {o}:\n{body}");
     }
 
-    info!(
-        "[dry run] Would have submitted {} Obs IDs to {}. Nothing was sent.",
-        obs_ids.len(),
-        endpoint
-    );
+    let total = obs_ids.len();
+    info!("[dry run] Would have submitted {total} Obs IDs to {endpoint}. Nothing was sent.");
     Ok(())
 }
 
@@ -466,7 +454,8 @@ fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar:
 /// state when it changes. Fails as soon as a job is missing, has an error,
 /// or has been cancelled (see `AsvoJobVec::all_ready`).
 fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
-    info!("Waiting for {} jobs to be ready...", job_ids.len());
+    let job_count = job_ids.len();
+    info!("Waiting for {job_count} jobs to be ready...");
     let mut last_state = BTreeMap::<AsvoJobId, JobState>::new();
     // Offer the MWA ASVO a kindness by waiting a moment, so that the
     // user's queue is hopefully current.
@@ -482,13 +471,16 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
             .iter()
             .filter_map(|id| jobs.0.iter().find(|j| j.job_id() == *id))
         {
-            let log_prefix = format!("Job ID {} (Obs ID: {}):", job.job_id(), job.obs_id());
+            let job_id = job.job_id();
+            let obs_id = job.obs_id();
+            let state = job.job_state;
+            let log_prefix = format!("Job ID {job_id} (Obs ID: {obs_id}):");
             match last_state.insert(job.job_id(), job.job_state) {
                 Some(last_state) if last_state != job.job_state => {
-                    info!("{} is {}", log_prefix, job.job_state);
+                    info!("{log_prefix} is {state}");
                 }
                 Some(_) => (), // State did not change from last_state
-                None => info!("{} is {}", log_prefix, job.job_state), // First time just report current state
+                None => info!("{log_prefix} is {state}"), // First time just report current state
             }
         }
 
@@ -497,10 +489,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
         }
         std::thread::sleep(WAIT_POLL_INTERVAL);
     }
-    info!(
-        "All {} MWA ASVO jobs are ready for download.",
-        job_ids.len()
-    );
+    info!("All {job_count} MWA ASVO jobs are ready for download.");
     Ok(())
 }
 
@@ -543,9 +532,11 @@ fn run(args: Args) -> anyhow::Result<()> {
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");
-                println!("{}", to_legacy_json(&jobs)?);
+                let legacy = to_legacy_json(&jobs)?;
+                println!("{legacy}");
             } else if json {
-                println!("{}", jobs.json()?);
+                let jobs_json = jobs.json()?;
+                println!("{jobs_json}");
             } else {
                 print_jobs_table(jobs, no_colour);
             }
@@ -595,18 +586,14 @@ fn run(args: Args) -> anyhow::Result<()> {
             } = DownloadSettings::from_env()?;
             if dry_run {
                 if !job_ids.is_empty() {
-                    debug!("Parsed Job IDs: {:#?}", job_ids);
+                    debug!("Parsed Job IDs: {job_ids:#?}");
                 }
                 if !obs_ids.is_empty() {
-                    debug!("Parsed Obs IDs: {:#?}", obs_ids);
+                    debug!("Parsed Obs IDs: {obs_ids:#?}");
                 }
-                info!(
-                    "Parsed {} Job IDs and {} Obs IDs for download. keep_tar={:?}, hash={:?}",
-                    job_ids.len(),
-                    obs_ids.len(),
-                    keep_tar,
-                    hash,
-                );
+                let job_count = job_ids.len();
+                let obs_count = obs_ids.len();
+                info!("Parsed {job_count} Job IDs and {obs_count} Obs IDs for download. keep_tar={keep_tar:?}, hash={hash:?}");
                 if json {
                     for target in DownloadTarget::all(&job_ids, &obs_ids) {
                         print_json_line(
@@ -670,7 +657,8 @@ fn run(args: Args) -> anyhow::Result<()> {
                     failures += 1;
                 }
 
-                info!("Downloaded {} of {}.", t - failures, t);
+                let downloaded = t - failures;
+                info!("Downloaded {downloaded} of {t}.");
 
                 if json {
                     for (target, result) in targets.iter().zip(&results) {
@@ -813,7 +801,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 };
                 print_json_line(&resp, json)?;
                 let job_id = resp.job_id;
-                info!("Submitted {} as MWA ASVO Job ID {}", o, job_id);
+                info!("Submitted {o} as MWA ASVO Job ID {job_id}");
 
                 if wait {
                     wait_loop(&client, &[job_id])?;
@@ -923,9 +911,11 @@ fn run(args: Args) -> anyhow::Result<()> {
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");
-                println!("{}", to_legacy_json(&jobs)?);
+                let legacy = to_legacy_json(&jobs)?;
+                println!("{legacy}");
             } else if json {
-                println!("{}", jobs.json()?);
+                let jobs_json = jobs.json()?;
+                println!("{jobs_json}");
             } else {
                 print_jobs_table(jobs, no_colour);
             }
@@ -942,17 +932,15 @@ fn run(args: Args) -> anyhow::Result<()> {
 
             if dry_run {
                 for j in &parsed_job_ids {
-                    info!("[dry run] Would DELETE {}/{}", ENDPOINT_JOBS, j);
+                    info!("[dry run] Would DELETE {ENDPOINT_JOBS}/{j}");
                     let line = DryRunCancel {
                         endpoint: format!("{ENDPOINT_JOBS}/{j}"),
                         job_id: *j,
                     };
                     print_json_line(&line, json)?;
                 }
-                info!(
-                    "[dry run] Would have cancelled {} Job IDs. Nothing was sent.",
-                    parsed_job_ids.len()
-                );
+                let job_count = parsed_job_ids.len();
+                info!("[dry run] Would have cancelled {job_count} Job IDs. Nothing was sent.");
             } else {
                 let client = connect()?;
 
@@ -964,11 +952,12 @@ fn run(args: Args) -> anyhow::Result<()> {
                 for j in parsed_job_ids {
                     match client.cancel_job(j) {
                         Ok(resp) => {
-                            info!("Cancel request for job {}: {}", j, resp.message);
+                            let message = &resp.message;
+                            info!("Cancel request for job {j}: {message}");
                             print_json_line(&resp, json)?;
                         }
                         Err(e) => {
-                            error!("Failed to cancel MWA ASVO Job ID {}: {}", j, e);
+                            error!("Failed to cancel MWA ASVO Job ID {j}: {e}");
                             print_json_line(
                                 &JsonError::new(&anyhow::Error::from(e)).with_job_id(j),
                                 json,
@@ -977,10 +966,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         }
                     }
                 }
-                info!(
-                    "Cancel requests: {} sent, {} failed.",
-                    sent_count, failed_count
-                );
+                info!("Cancel requests: {sent_count} sent, {failed_count} failed.");
 
                 // A refusal with an HTTP error is a failure, so the run
                 // fails, after every request was sent. (A job that is

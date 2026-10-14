@@ -188,7 +188,7 @@ fn execute_logged(
     let request = builder.build()?;
     let method = request.method().clone();
     let url = request.url().clone();
-    debug!("HTTP request:  {} {}", method, url);
+    debug!("HTTP request:  {method} {url}");
 
     if let Some(body) = request.body().and_then(|b| b.as_bytes()) {
         trace!("HTTP request body: {}", String::from_utf8_lossy(body));
@@ -196,10 +196,10 @@ fn execute_logged(
 
     let response = client.execute(request)?;
     let status = response.status();
-    debug!("HTTP response: {} {} -> {}", method, url, status);
+    debug!("HTTP response: {method} {url} -> {status}");
 
     let body = response.text()?;
-    trace!("HTTP response body: {}", body);
+    trace!("HTTP response body: {body}");
 
     Ok(HttpResponse { status, body })
 }
@@ -224,15 +224,13 @@ fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
         .decode(payload_b64)
         .map_err(|e| {
             AsvoApiError::authentication_failed(format!(
-                "Could not base64-decode JWT payload from MWA ASVO: {}",
-                e
+                "Could not base64-decode JWT payload from MWA ASVO: {e}"
             ))
         })?;
 
     let claim: JwtExpClaim = serde_json::from_slice(&payload_bytes).map_err(|e| {
         AsvoApiError::authentication_failed(format!(
-            "Could not parse JWT payload JSON from MWA ASVO: {}",
-            e
+            "Could not parse JWT payload JSON from MWA ASVO: {e}"
         ))
     })?;
 
@@ -271,16 +269,14 @@ impl AsvoClient {
 
         // If we are using a non-default MWA ASVO host, then upgrade this
         // debug message to a warn message.
+        let host = &config.host;
         if config.host == DEFAULT_ASVO_HOST {
-            debug!("Connecting to MWA ASVO... {}", config.host);
+            debug!("Connecting to MWA ASVO... {host}");
         } else {
-            warn!(
-                "Connecting to MWA ASVO non-default host: {}...",
-                config.host
-            );
+            warn!("Connecting to MWA ASVO non-default host: {host}...");
         }
 
-        debug!("User Agent string: {}", APP_USER_AGENT);
+        debug!("User Agent string: {APP_USER_AGENT}");
 
         // Figure out which access token we're going to use: a cached one
         // (as-is, or refreshed), or a fresh login. Whichever path we take,
@@ -317,10 +313,9 @@ impl AsvoClient {
         let mut headers = HeaderMap::new();
         headers.insert(
             reqwest::header::COOKIE,
-            HeaderValue::from_str(&format!("mwa_access_token={}", access_token)).map_err(|e| {
+            HeaderValue::from_str(&format!("mwa_access_token={access_token}")).map_err(|e| {
                 AsvoApiError::authentication_failed(format!(
-                    "MWA ASVO returned an invalid access token: {}",
-                    e
+                    "MWA ASVO returned an invalid access token: {e}"
                 ))
             })?,
         );
@@ -447,10 +442,7 @@ impl AsvoClient {
                         // token was already rotated by another process, or
                         // by mwa-cli). Fall through to a fresh login rather
                         // than treating this as fatal.
-                        debug!(
-                            "MWA ASVO session refresh failed, falling back to fresh login: {}",
-                            e
-                        );
+                        debug!("MWA ASVO session refresh failed, falling back to fresh login: {e}");
                     }
                 }
             }
@@ -479,10 +471,11 @@ impl AsvoClient {
     ) -> Result<StoredTokens, AsvoApiError> {
         let login: Login = CLIENT_VERSION.try_into()?;
 
+        let host = &config.host;
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!("{}{}", config.host, ENDPOINT_API_LOGIN))
+                .post(format!("{host}{ENDPOINT_API_LOGIN}"))
                 .json(&ApiLoginRequest {
                     login,
                     password: config.api_key.clone(),
@@ -507,13 +500,14 @@ impl AsvoClient {
         host: &str,
         previous: &StoredTokens,
     ) -> Result<StoredTokens, AsvoApiError> {
+        let refresh_token = &previous.refresh_token;
         let response = execute_logged(
             auth_client,
             auth_client
-                .post(format!("{}{}", host, ENDPOINT_REFRESH))
+                .post(format!("{host}{ENDPOINT_REFRESH}"))
                 .header(
                     reqwest::header::COOKIE,
-                    format!("mwa_refresh_token={}", previous.refresh_token),
+                    format!("mwa_refresh_token={refresh_token}"),
                 ),
         )?;
 
@@ -577,9 +571,9 @@ impl AsvoClient {
         // A negative user ID from the server would be unexpected, but
         // let's not panic or silently wrap if it ever happened.
         let user_id = u64::try_from(user.id).map_err(|_| {
+            let negative_id = user.id;
             AsvoApiError::authentication_failed(format!(
-                "MWA ASVO returned an invalid (negative) user ID: {}",
-                user.id
+                "MWA ASVO returned an invalid (negative) user ID: {negative_id}"
             ))
         })?;
 
@@ -751,9 +745,10 @@ impl AsvoClient {
             // The job list is a POST to /api/v2/get_jobs. (The schema's
             // description of `JobsByUserRequest` says /job_history, which is
             // stale.)
+            let host = &self.config.host;
             let body = self.send_authed(|client| {
                 client
-                    .post(format!("{}{}", self.config.host, ENDPOINT_GET_JOBS))
+                    .post(format!("{host}{ENDPOINT_GET_JOBS}"))
                     .json(&request)
             })?;
             // Not parsed as `JobsByUserResponse` at once: since schema
@@ -927,11 +922,9 @@ impl AsvoClient {
         endpoint: &str,
         params: &impl serde::Serialize,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        let body = self.send_authed(|client| {
-            client
-                .post(format!("{}{}", self.config.host, endpoint))
-                .json(params)
-        })?;
+        let host = &self.config.host;
+        let body =
+            self.send_authed(|client| client.post(format!("{host}{endpoint}")).json(params))?;
         Ok(serde_json::from_str(&body)?)
     }
 
@@ -952,9 +945,9 @@ impl AsvoClient {
     pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobCancelledResponse, AsvoApiError> {
         debug!("Cancelling MWA ASVO job {job_id}");
 
-        let body = self.send_authed(|client| {
-            client.delete(format!("{}{}/{}", self.config.host, ENDPOINT_JOBS, job_id))
-        })?;
+        let host = &self.config.host;
+        let body =
+            self.send_authed(|client| client.delete(format!("{host}{ENDPOINT_JOBS}/{job_id}")))?;
 
         let resp: JobCancelledResponse = serde_json::from_str(&body)?;
         Ok(resp)

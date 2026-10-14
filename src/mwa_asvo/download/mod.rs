@@ -146,7 +146,7 @@ pub(crate) fn download_by_job_id(
     job_id: AsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
-    debug!("Attempting to download job {}", job_id);
+    debug!("Attempting to download job {job_id}");
     // A Job ID is unique. If the list ever has it twice, the first is used.
     let job = jobs
         .0
@@ -165,7 +165,7 @@ pub(crate) fn download_by_obs_id(
     obs_id: ObsId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
-    debug!("Attempting to download Obs ID {}", obs_id);
+    debug!("Attempting to download Obs ID {obs_id}");
     let mut of_obs_id = jobs.0.iter().filter(|j| j.obs_id() == obs_id).peekable();
     if of_obs_id.peek().is_none() {
         return Err(AsvoError::NoObsId(obs_id));
@@ -202,13 +202,11 @@ fn download_job(
         Some(p) => &p.files,
     };
 
-    let log_prefix = format!(
-        "Job ID {} (Obs ID: {}) [{}/{}]:",
-        job.job_id(),
-        job.obs_id(),
-        opts.download_number,
-        opts.download_count
-    );
+    let job_id = job.job_id();
+    let obs_id = job.obs_id();
+    let number = opts.download_number;
+    let count = opts.download_count;
+    let log_prefix = format!("Job ID {job_id} (Obs ID: {obs_id}) [{number}/{count}]:");
 
     for f in files {
         match f.type_ {
@@ -227,7 +225,7 @@ fn download_job(
                     });
                 }
 
-                debug!("{} Downloading from url {}", log_prefix, url);
+                debug!("{log_prefix} Downloading from url {url}");
                 // The file is named after the last part of the URL's path.
                 let file_name = reqwest::Url::parse(url)
                     .ok()
@@ -296,22 +294,16 @@ fn download_job(
                 };
 
                 let duration_str = if elapsed.as_secs() > 60 {
-                    format!(
-                        "{} min {:.2} s",
-                        elapsed.as_secs() / 60,
-                        (elapsed.as_millis() as f64 / 1e3) % 60.0
-                    )
+                    let minutes = elapsed.as_secs() / 60;
+                    let seconds = (elapsed.as_millis() as f64 / 1e3) % 60.0;
+                    format!("{minutes} min {seconds:.2} s")
                 } else {
-                    format!("{:.3} s", elapsed.as_millis() as f64 / 1e3)
+                    let seconds = elapsed.as_millis() as f64 / 1e3;
+                    format!("{seconds:.3} s")
                 };
 
-                info!(
-                    "{} Completed download of {} in {} ({}/s)",
-                    log_prefix,
-                    bytesize::ByteSize(f.size_bytes()).display().iec(),
-                    duration_str,
-                    throughput_str
-                );
+                let size_text = bytesize::ByteSize(f.size_bytes()).display().iec();
+                info!("{log_prefix} Completed download of {size_text} in {duration_str} ({throughput_str}/s)");
             }
             FileType::Dug => {
                 return Err(AsvoError::FilesNotReachable {
@@ -336,12 +328,10 @@ fn download_job(
                     });
                 } else {
                     let target = Path::new(opts.download_dir).join(folder_name);
+                    let target_display = target.display();
                     info!(
-                        "{} Files for Job are reachable from the current host. \
-                         Moving {} to {}.",
-                        log_prefix,
-                        path,
-                        target.display()
+                        "{log_prefix} Files for Job are reachable from the current host. \
+                         Moving {path} to {target_display}."
                     );
                     move_path(path_obj, &target)?;
                 }
@@ -420,12 +410,9 @@ fn try_download(
         job_id: job.job_id(),
     })?;
 
-    info!(
-        "{} Download starting (type: {}, {})",
-        log_prefix,
-        job.job_type.map(|t| t.name()).unwrap_or_default(),
-        bytesize::ByteSize(file_info.size_bytes()).display().iec(),
-    );
+    let job_type = job.job_type.map(|t| t.name()).unwrap_or_default();
+    let size_text = bytesize::ByteSize(file_info.size_bytes()).display().iec();
+    info!("{log_prefix} Download starting (type: {job_type}, {size_text})");
 
     if !opts.keep_tar {
         return try_download_untar(
@@ -450,7 +437,7 @@ fn try_download(
         log_prefix,
     )? {
         OutputTarget::AlreadyDone { reason } => {
-            info!("{} {} Skipping {:?}.", log_prefix, reason, out_path);
+            info!("{log_prefix} {reason} Skipping {out_path:?}.");
             report(opts, DownloadProgress::Finished);
             return Ok(());
         }
@@ -466,16 +453,12 @@ fn try_download(
         resume_from,
     );
 
-    info!(
-        "{} {} tar archive {:?}",
-        log_prefix,
-        if resume_from > 0 {
-            "Resuming download of"
-        } else {
-            "Downloading"
-        },
-        out_path,
-    );
+    let action = if resume_from > 0 {
+        "Resuming download of"
+    } else {
+        "Downloading"
+    };
+    info!("{log_prefix} {action} tar archive {out_path:?}");
 
     let http_response = send_checked(http_client, url, range_from(resume_from), job.job_id())?;
 
@@ -508,17 +491,14 @@ fn try_download(
 
     // Drain any remaining bytes so the stream's hash covers everything.
     let final_bytes = io::copy(&mut reader, &mut io::sink())?;
-    debug!("{} Read final bytes: {}", log_prefix, final_bytes);
+    debug!("{log_prefix} Read final bytes: {final_bytes}");
     drop(reader);
 
     report(opts, DownloadProgress::Finished);
 
     if hash_is_checked(opts, resumed, log_prefix) {
-        info!(
-            "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-            log_prefix, out_path
-        );
-        debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
+        info!("{log_prefix} Checking downloaded file hash against provided MWA ASVO hash for {out_path:?}...");
+        debug!("{log_prefix} MWA ASVO hash: {mwa_asvo_hash}");
 
         if resumed {
             // The stream's hash only covers the bytes fetched this time, so
@@ -533,7 +513,7 @@ fn try_download(
                 out_path,
             )?;
         }
-        info!("{} File matches the MWA ASVO provided hash.", log_prefix);
+        info!("{log_prefix} File matches the MWA ASVO provided hash.");
     }
 
     Ok(())
@@ -726,20 +706,13 @@ fn try_download_untar(
         None => ResumePoint::from_start(),
     };
 
+    let unpack_display = unpack_path.display();
     if resume.start > 0 {
-        info!(
-            "{} Resuming the download and untar to {} at byte {} of {}",
-            log_prefix,
-            unpack_path.display(),
-            resume.start,
-            file_info.size_bytes()
-        );
+        let start = resume.start;
+        let archive_size = file_info.size_bytes();
+        info!("{log_prefix} Resuming the download and untar to {unpack_display} at byte {start} of {archive_size}");
     } else {
-        info!(
-            "{} Downloading and untarring to {}",
-            log_prefix,
-            unpack_path.display()
-        );
+        info!("{log_prefix} Downloading and untarring to {unpack_display}");
     }
 
     let response = send_checked(http_client, url, range_from(resume.start), job_id)?;
@@ -791,11 +764,8 @@ fn try_download_untar(
     report(opts, DownloadProgress::Finished);
 
     if check_hash {
-        info!(
-            "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-            log_prefix, out_path
-        );
-        debug!("{} MWA ASVO hash: {}", log_prefix, mwa_asvo_hash);
+        info!("{log_prefix} Checking downloaded file hash against provided MWA ASVO hash for {out_path:?}...");
+        debug!("{log_prefix} MWA ASVO hash: {mwa_asvo_hash}");
         if let Err(e) = check_sha1_hash(hasher, mwa_asvo_hash, job_id, out_path) {
             // The bytes behind the checkpoint are now suspect, so the retry
             // must fetch the whole archive again.
@@ -803,7 +773,7 @@ fn try_download_untar(
             sidecar.remove();
             return Err(e);
         }
-        info!("{} File matches the MWA ASVO provided hash.", log_prefix);
+        info!("{log_prefix} File matches the MWA ASVO provided hash.");
     }
 
     *checkpoint = None;
@@ -916,7 +886,8 @@ fn untar_stream_with_sidecar(
 
             match target {
                 EntryTarget::File(out_full) => {
-                    debug!("{} Writing file {}", log_prefix, out_full.display());
+                    let out_display = out_full.display();
+                    debug!("{log_prefix} Writing file {out_display}");
                     let mut out_file = create_file(&out_full)?;
                     copy_with_progress(
                         BufReader::with_capacity(buffer_size, entry),
@@ -928,24 +899,22 @@ fn untar_stream_with_sidecar(
                     stamp_done(&done, unpack_path, &out_full, size);
                 }
                 EntryTarget::Dir(out_full) if !out_full.exists() => {
-                    debug!("{} Creating directory {:?}", log_prefix, out_full);
+                    debug!("{log_prefix} Creating directory {out_full:?}");
                     std::fs::create_dir(&out_full).map_err(|source| AsvoError::CannotCreate {
                         path: out_full.clone(),
                         source,
                     })?;
                 }
                 EntryTarget::Dir(out_full) => {
-                    debug!("{} Directory exists {}", log_prefix, out_full.display());
+                    let out_display = out_full.display();
+                    debug!("{log_prefix} Directory exists {out_display}");
                 }
                 EntryTarget::Skip => {
                     // The tar parser passes over the entry's data, which the
                     // hash still covers.
-                    warn!(
-                        "{} Skipping tar entry {:?}: it would not be written inside the \
+                    warn!("{log_prefix} Skipping tar entry {entry_path:?}: it would not be written inside the \
                          download directory (its path is absolute, has '..', names no file, \
-                         or goes through a symbolic link).",
-                        log_prefix, entry_path
-                    );
+                         or goes through a symbolic link).");
                 }
             }
         }
@@ -954,7 +923,7 @@ fn untar_stream_with_sidecar(
     // Read the rest of the archive (its end-of-archive blocks), so that the
     // hash covers all of it.
     let final_bytes = io::copy(&mut reader, &mut io::sink())?;
-    debug!("{} Read final bytes: {}", log_prefix, final_bytes);
+    debug!("{log_prefix} Read final bytes: {final_bytes}");
     drop(reader);
 
     Ok(hasher.into_inner())
@@ -979,9 +948,8 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
             };
             if on_disk > cp.size {
                 warn!(
-                    "{} {:?} is larger than the tar member it is written from. \
-                     Starting again from the beginning.",
-                    log_prefix, path
+                    "{log_prefix} {path:?} is larger than the tar member it is written from. \
+                     Starting again from the beginning."
                 );
                 return Ok(ResumePoint::from_start());
             }
@@ -1011,9 +979,10 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
 fn hash_file_prefix(path: &Path, len: u64, hasher: &mut Sha1) -> Result<(), AsvoError> {
     let copied = hash_reader(File::open(path)?.take(len), hasher)?;
     if copied < len {
+        let path_display = path.display();
         return Err(io::Error::new(
             io::ErrorKind::UnexpectedEof,
-            format!("{} became shorter while it was read", path.display()),
+            format!("{path_display} became shorter while it was read"),
         )
         .into());
     }
@@ -1092,9 +1061,8 @@ fn untar_checkpoint_from_disk(
         Err(AsvoError::Interrupted) => Err(AsvoError::Interrupted),
         Err(e) => {
             warn!(
-                "{} Could not check for files from an earlier download ({}). \
-                 Downloading the whole archive.",
-                log_prefix, e
+                "{log_prefix} Could not check for files from an earlier download ({e}). \
+                 Downloading the whole archive."
             );
             Ok(None)
         }
@@ -1163,7 +1131,8 @@ fn find_files_on_disk(
                 _ => break,
             };
 
-            debug!("{} Already on disk: {}", log_prefix, out_full.display());
+            let out_display = out_full.display();
+            debug!("{log_prefix} Already on disk: {out_display}");
             if files_on_disk == 0 {
                 report_started(opts, job_id, log_prefix, file_info.size_bytes(), 0);
             }
@@ -1202,14 +1171,10 @@ fn find_files_on_disk(
     }
 
     if files_on_disk > 0 {
-        info!(
-            "{} Found {} files ({}) from an earlier download in {}. \
-             Only the rest of the archive is fetched.",
-            log_prefix,
-            files_on_disk,
-            bytesize::ByteSize(bytes_on_disk).display().iec(),
-            unpack_path.display()
-        );
+        let size_text = bytesize::ByteSize(bytes_on_disk).display().iec();
+        let unpack_display = unpack_path.display();
+        info!("{log_prefix} Found {files_on_disk} files ({size_text}) from an earlier download in {unpack_display}. \
+             Only the rest of the archive is fetched.");
     }
     Ok(Some(checkpoint))
 }
@@ -1267,10 +1232,12 @@ impl SpliceReader<'_> {
     /// Fetch the range of the archive that starts at `position`.
     fn fetch_window(&mut self) -> io::Result<()> {
         let end = (self.position + EARLIER_FILES_WINDOW).min(self.archive_size);
+        let from = self.position;
+        let last = end - 1;
         let mut headers = HeaderMap::new();
         headers.insert(
             RANGE,
-            HeaderValue::from_str(&format!("bytes={}-{}", self.position, end - 1))
+            HeaderValue::from_str(&format!("bytes={from}-{last}"))
                 .expect("a byte range is always a valid header value"),
         );
         let response = send_checked(self.http_client, self.url, Some(headers), self.job_id)
@@ -1284,11 +1251,10 @@ impl SpliceReader<'_> {
             .bytes()
             .map_err(|e| io::Error::other(e.to_string()))?;
         if bytes.len() as u64 != end - self.position {
+            let wanted = end - self.position;
+            let got = bytes.len();
             return Err(io::Error::other(format!(
-                "asked for {} bytes from byte {}, but the server sent {}",
-                end - self.position,
-                self.position,
-                bytes.len()
+                "asked for {wanted} bytes from byte {from}, but the server sent {got}"
             )));
         }
         self.window_start = self.position;
@@ -1430,17 +1396,15 @@ impl<'a> SidecarWriter<'a> {
     /// resume file is only a short cut.
     fn write(&self, cp: &UntarCheckpoint) {
         self.last_write.set(Instant::now());
+        let log_prefix = &self.log_prefix;
         match self.contents(cp) {
             None => debug!(
-                "{} A finished file could not be stamped, so no resume file is written.",
-                self.log_prefix
+                "{log_prefix} A finished file could not be stamped, so no resume file is written."
             ),
             Some(sidecar) => {
                 if let Err(e) = self.write_atomically(&sidecar) {
-                    warn!(
-                        "{} Could not write the resume file {:?}: {}",
-                        self.log_prefix, self.path, e
-                    );
+                    let path = &self.path;
+                    warn!("{log_prefix} Could not write the resume file {path:?}: {e}");
                 }
             }
         }
@@ -1487,13 +1451,12 @@ impl<'a> SidecarWriter<'a> {
     /// Delete the resume file: the download finished, or its bytes are
     /// suspect.
     fn remove(&self) {
-        match std::fs::remove_file(&self.path) {
+        let log_prefix = &self.log_prefix;
+        let path = &self.path;
+        match std::fs::remove_file(path) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-            Err(e) => warn!(
-                "{} Could not delete the resume file {:?}: {}",
-                self.log_prefix, self.path, e
-            ),
+            Err(e) => warn!("{log_prefix} Could not delete the resume file {path:?}: {e}"),
         }
     }
 }
@@ -1519,27 +1482,19 @@ fn checkpoint_from_sidecar(
         Ok(bytes) => bytes,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return None,
         Err(e) => {
-            warn!(
-                "{} Could not read the resume file {:?} ({}). Checking the files on disk instead.",
-                log_prefix, path, e
-            );
+            warn!("{log_prefix} Could not read the resume file {path:?} ({e}). Checking the files on disk instead.");
             return None;
         }
     };
     match parse_sidecar(&bytes, unpack_path, file_info) {
         Ok(checkpoint) => {
-            info!(
-                "{} Found a resume file from an earlier download: {} files are already on disk. \
-                 Only the rest of the archive is fetched.",
-                log_prefix, checkpoint.done_count
-            );
+            let done_count = checkpoint.done_count;
+            info!("{log_prefix} Found a resume file from an earlier download: {done_count} files are already on disk. \
+                 Only the rest of the archive is fetched.");
             Some(checkpoint)
         }
         Err(reason) => {
-            info!(
-                "{} Not using the resume file {:?}: {}. Checking the files on disk instead.",
-                log_prefix, path, reason
-            );
+            info!("{log_prefix} Not using the resume file {path:?}: {reason}. Checking the files on disk instead.");
             None
         }
     }
@@ -1568,13 +1523,12 @@ fn parse_sidecar(
 
     for stamp in &sidecar.files {
         let EntryTarget::File(out_full) = entry_target(unpack_path, Path::new(&stamp.path)) else {
-            return Err(format!("it names an unsafe path {:?}", stamp.path));
+            let path = &stamp.path;
+            return Err(format!("it names an unsafe path {path:?}"));
         };
         if file_stamp(unpack_path, &out_full).as_ref() != Some(stamp) {
-            return Err(format!(
-                "{:?} changed after the earlier download",
-                stamp.path
-            ));
+            let path = &stamp.path;
+            return Err(format!("{path:?} changed after the earlier download"));
         }
     }
 
@@ -1636,12 +1590,10 @@ impl<R: Read> Read for NetworkReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.inner.read(buf) {
             Ok(0) if !buf.is_empty() && self.remaining.is_some_and(|left| left > 0) => {
+                let remaining = self.remaining.unwrap_or_default();
                 Err(network_error(io::Error::new(
                     io::ErrorKind::UnexpectedEof,
-                    format!(
-                        "The connection closed with {} bytes of the download still to come",
-                        self.remaining.unwrap_or_default()
-                    ),
+                    format!("The connection closed with {remaining} bytes of the download still to come"),
                 )))
             }
             Ok(n) => {
@@ -1718,7 +1670,7 @@ fn retry_unless_stopped<T>(
                 let Some(wait) = backoff.next_backoff() else {
                     return Err(err);
                 };
-                debug!("Retrying the download in {:?}: {}", wait, err);
+                debug!("Retrying the download in {wait:?}: {err}");
                 sleep_unless_stopped(wait, opts)?;
             }
         }
@@ -1865,9 +1817,8 @@ fn range_was_ignored(response: &reqwest::blocking::Response, from: u64, log_pref
     let ignored = from > 0 && response.status() != reqwest::StatusCode::PARTIAL_CONTENT;
     if ignored {
         warn!(
-            "{} Asked to resume from byte {}, but the server sent the whole file. \
-             Starting again from the beginning.",
-            log_prefix, from
+            "{log_prefix} Asked to resume from byte {from}, but the server sent the whole file. \
+             Starting again from the beginning."
         );
     }
     ignored
@@ -1878,10 +1829,7 @@ fn range_was_ignored(response: &reqwest::blocking::Response, from: u64, log_pref
 /// than one attempt (or run). Logs when only the resume makes the check.
 fn hash_is_checked(opts: &DownloadOptions, resumed: bool, log_prefix: &str) -> bool {
     if !opts.hash && resumed {
-        info!(
-            "{} The download is resumed, so the hash is checked.",
-            log_prefix
-        );
+        info!("{log_prefix} The download is resumed, so the hash is checked.");
     }
     opts.hash || resumed
 }
@@ -1946,11 +1894,9 @@ fn copy_with_progress(
 fn move_path(from: &Path, to: &Path) -> io::Result<()> {
     match fs::rename(from, to) {
         Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
-            debug!(
-                "{} is on another file system than {}; copying it",
-                from.display(),
-                to.display()
-            );
+            let from_display = from.display();
+            let to_display = to.display();
+            debug!("{from_display} is on another file system than {to_display}; copying it");
             copy_then_remove(from, to)
         }
         result => result,
@@ -2060,36 +2006,28 @@ fn prepare_output_file(
     let file_size_bytes = std::fs::metadata(out_path)?.len();
 
     if file_size_bytes == file_info.size_bytes() {
-        info!(
-            "{} Checking downloaded file hash against provided MWA ASVO hash for {:?}...",
-            log_prefix, out_path
-        );
+        info!("{log_prefix} Checking downloaded file hash against provided MWA ASVO hash for {out_path:?}...");
         if check_file_sha1_hash(out_path, mwa_asvo_hash, job_id).is_ok() {
             return Ok(OutputTarget::AlreadyDone {
                 reason: "File exists, is the correct size and matches the MWA ASVO hash.",
             });
         }
         warn!(
-            "{} File exists and is the correct size, but the hash does not match \
-             the provided MWA ASVO hash. Restarting download...",
-            log_prefix
+            "{log_prefix} File exists and is the correct size, but the hash does not match \
+             the provided MWA ASVO hash. Restarting download..."
         );
         return start_again();
     }
 
     if file_size_bytes > file_info.size_bytes() {
         warn!(
-            "{} {:?} is larger than the file to download. Restarting download...",
-            log_prefix, out_path
+            "{log_prefix} {out_path:?} is larger than the file to download. Restarting download..."
         );
         return start_again();
     }
 
     if no_resume {
-        info!(
-            "{} Partial file exists, and resuming is off (no_resume). Restarting download...",
-            log_prefix
-        );
+        info!("{log_prefix} Partial file exists, and resuming is off (no_resume). Restarting download...");
         return start_again();
     }
 
