@@ -26,7 +26,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
 use serde::{Deserialize, Serialize};
@@ -355,14 +355,16 @@ fn download_job(
 /// Sort the error of one download attempt into a failure that the retry
 /// loop gives up on (permanent) or tries again (transient).
 ///
-/// An IO error is permanent, because it is usually a problem with the local
-/// disk, except when it came from reading the download itself (see
-/// [`NetworkReader`]): a dropped connection is worth another attempt.
+/// An IO error, or a file or directory that cannot be created, is permanent,
+/// because it is usually a problem with the local disk, except when an IO
+/// error came from reading the download itself (see [`NetworkReader`]): a
+/// dropped connection is worth another attempt.
 #[allow(clippy::result_large_err)]
 fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Retry<AsvoError> {
     match &e {
         AsvoError::IO(io_error) if is_network_read_error(io_error) => Retry::Transient(e),
         AsvoError::IO(_)
+        | AsvoError::CannotCreate { .. }
         | AsvoError::Interrupted
         | AsvoError::SymlinkInDownloadDir { .. }
         | AsvoError::NoHash { .. } => Retry::Permanent(e),
@@ -475,13 +477,13 @@ fn try_download(
         out_path,
     );
 
-    let http_response = send_checked(http_client, url, range_from(resume_from), log_prefix)?;
+    let http_response = send_checked(http_client, url, range_from(resume_from), job.job_id())?;
 
     // A server that ignores the range answers 200 with the whole file.
     // Appending that to a partial file would silently corrupt it, so
     // start again from the beginning instead.
     if range_was_ignored(&http_response, resume_from, log_prefix) {
-        out_file = create_file_logged(out_path, log_prefix)?;
+        out_file = create_file(out_path)?;
         resume_from = 0;
         report_started(
             opts,
@@ -740,7 +742,7 @@ fn try_download_untar(
         );
     }
 
-    let response = send_checked(http_client, url, range_from(resume.start), log_prefix)?;
+    let response = send_checked(http_client, url, range_from(resume.start), job_id)?;
 
     // A server that ignores the range answers 200 with the whole archive.
     // Start again from the beginning: the members are written again, from
@@ -915,7 +917,7 @@ fn untar_stream_with_sidecar(
             match target {
                 EntryTarget::File(out_full) => {
                     debug!("{} Writing file {}", log_prefix, out_full.display());
-                    let mut out_file = create_file_logged(&out_full, log_prefix)?;
+                    let mut out_file = create_file(&out_full)?;
                     copy_with_progress(
                         BufReader::with_capacity(buffer_size, entry),
                         &mut out_file,
@@ -927,13 +929,9 @@ fn untar_stream_with_sidecar(
                 }
                 EntryTarget::Dir(out_full) if !out_full.exists() => {
                     debug!("{} Creating directory {:?}", log_prefix, out_full);
-                    std::fs::create_dir(&out_full).map_err(|e| {
-                        error!(
-                            "{} Cannot create directory {}",
-                            log_prefix,
-                            out_full.display()
-                        );
-                        AsvoError::IO(e)
+                    std::fs::create_dir(&out_full).map_err(|source| AsvoError::CannotCreate {
+                        path: out_full.clone(),
+                        source,
                     })?;
                 }
                 EntryTarget::Dir(out_full) => {
@@ -1119,7 +1117,7 @@ fn find_files_on_disk(
         inner: SpliceReader {
             http_client,
             url,
-            log_prefix,
+            job_id,
             archive_size: file_info.size_bytes(),
             position: 0,
             window_start: 0,
@@ -1232,7 +1230,8 @@ struct LocalData {
 struct SpliceReader<'a> {
     http_client: &'a Client,
     url: &'a str,
-    log_prefix: &'a str,
+    /// The job whose archive this is, for the errors of the requests.
+    job_id: AsvoJobId,
     /// The size of the archive, in bytes.
     archive_size: u64,
     /// The archive offset of the next byte.
@@ -1274,7 +1273,7 @@ impl SpliceReader<'_> {
             HeaderValue::from_str(&format!("bytes={}-{}", self.position, end - 1))
                 .expect("a byte range is always a valid header value"),
         );
-        let response = send_checked(self.http_client, self.url, Some(headers), self.log_prefix)
+        let response = send_checked(self.http_client, self.url, Some(headers), self.job_id)
             .map_err(|e| io::Error::other(e.to_string()))?;
         if response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
             return Err(io::Error::other(
@@ -1834,12 +1833,13 @@ fn range_from(offset: u64) -> Option<HeaderMap> {
     })
 }
 
-/// Send an HTTP GET and check for a successful status code.
+/// Send an HTTP GET for a file of job `job_id` and check for a successful
+/// status code. A failure is only returned: the caller reports it.
 fn send_checked(
     http_client: &Client,
     url: &str,
     headers: Option<HeaderMap>,
-    log_prefix: &str,
+    job_id: AsvoJobId,
 ) -> Result<reqwest::blocking::Response, AsvoError> {
     let mut req = http_client.get(url);
     if let Some(h) = headers {
@@ -1849,8 +1849,8 @@ fn send_checked(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().unwrap_or_default();
-        error!("{} HTTP error {}: {}", log_prefix, status, body);
         return Err(AsvoError::HttpError {
+            job_id,
             status: status.as_u16(),
             message: body,
         });
@@ -2000,11 +2000,12 @@ fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
     fs::copy(from, to).map(|_| ())
 }
 
-/// Create a file, logging on failure.
-fn create_file_logged(path: &Path, log_prefix: &str) -> Result<File, AsvoError> {
-    File::create(path).map_err(|e| {
-        error!("{} Cannot create file {}", log_prefix, path.display());
-        AsvoError::IO(e)
+/// Create a file. A failure is only returned, with the path: the caller
+/// reports it.
+fn create_file(path: &Path) -> Result<File, AsvoError> {
+    File::create(path).map_err(|source| AsvoError::CannotCreate {
+        path: path.to_path_buf(),
+        source,
     })
 }
 
@@ -2039,7 +2040,7 @@ fn prepare_output_file(
 ) -> Result<OutputTarget, AsvoError> {
     let start_again = || -> Result<OutputTarget, AsvoError> {
         Ok(OutputTarget::Download {
-            file: create_file_logged(out_path, log_prefix)?,
+            file: create_file(out_path)?,
             offset: 0,
         })
     };

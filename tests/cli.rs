@@ -841,6 +841,30 @@ fn download_json_prints_a_line_for_a_failure() {
         .is_some_and(|m| m.contains(TEST_OBS_ID)));
 }
 
+/// The summary of failed downloads has the same form as the summaries of
+/// failed submissions and failed cancel requests: "N of M <things> failed".
+/// Each error is already shown when it happens, so the summary says no more.
+#[test]
+fn a_failed_download_summary_has_the_same_form_as_the_other_summaries() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![]);
+    let dir = tempfile::TempDir::new().expect("a download directory");
+
+    let mut cmd = env.command();
+    cmd.args(["download", "-d"])
+        .arg(dir.path())
+        .args(["12345", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    let output = result.combined();
+    assert!(
+        output.contains("Error: 2 of 2 downloads failed"),
+        "output: {output}"
+    );
+    assert!(!output.contains("see the errors above"), "output: {output}");
+}
+
 /// The server answers a cancellation of a job that is already cancelled with
 /// a normal (HTTP 200) reply whose `status` is "failed". The CLI can tell it
 /// from a success only by the message, so it must not say that the job was

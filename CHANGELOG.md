@@ -51,8 +51,14 @@ before you upgrade scripts.**
   and `nmiter` is `NonZeroU64` (in `ImagingArgs` and `ImageFromJobArgs`), and `ImageFromJobArgs::into_params` takes
   `source_job_id` as `NonZeroU64`. `validate::image_size`, `validate::nmiter` and `validate::source_job_id` make
   these from a plain number. The Python arguments are still plain integers, with the same `ValueError`s.
-* Library: `AsvoApiError::BadStatus` has the fields of `AsvoError::HttpError`: `status` (the HTTP status code, a
-  `u16`; was `code`, a `reqwest::StatusCode`) and `message`. In Python, the attribute is `status` (was `code`).
+* Library: `AsvoApiError::BadStatus` has the `status` (the HTTP status code, a `u16`; was `code`, a
+  `reqwest::StatusCode`) and the `message` of `AsvoError::HttpError`. In Python, the attribute is `status` (was
+  `code`).
+* Library: a failed download is reported once, by the caller, and the error has what the log line had. The download
+  no longer also logs it. `AsvoError::HttpError` has the `job_id` of the download (Python: `job_id`; `--json`
+  errors have it too). A file or directory that cannot be created is the new `AsvoError::CannotCreate { path, source }`
+  (Python: kind `CannotCreate`, attribute `file`; JSON code `IO_ERROR`), not `AsvoError::IO`. It is not retried.
+* The summary of failed downloads is "N of M downloads failed", as for submissions and cancel requests.
 * `AsvoError::HashMismatch` names the downloaded file by its path in the download directory, not by its download URL,
   which is a signed URL.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and

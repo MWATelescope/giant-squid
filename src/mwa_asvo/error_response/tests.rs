@@ -180,6 +180,7 @@ fn a_missing_obs_id_names_the_obs_id() {
 #[test]
 fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
     let error = AsvoError::HttpError {
+        job_id: job_id(7),
         status: 500,
         message: "body".to_string(),
     };
@@ -188,6 +189,36 @@ fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
 
     assert_eq!(resp.error_code, "HTTP_500");
     assert_eq!(resp.detail.as_deref(), Some("body"));
+}
+
+#[test]
+fn a_download_http_error_names_its_job() {
+    let error = AsvoError::HttpError {
+        job_id: job_id(7),
+        status: 503,
+        message: "try later".to_string(),
+    };
+
+    assert_eq!(error.job_id(), Some(job_id(7)));
+    assert!(error.to_string().contains("Job ID 7"), "message: {error}");
+}
+
+#[test]
+fn a_file_that_cannot_be_created_is_an_io_error_that_names_the_path() {
+    let error = AsvoError::CannotCreate {
+        path: std::path::PathBuf::from("/data/a.dat"),
+        source: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+    };
+
+    let resp = error.error_response();
+
+    assert_eq!(resp.error_code, ERROR_CODE_IO_ERROR);
+    assert!(
+        resp.message.contains("/data/a.dat"),
+        "message: {}",
+        resp.message
+    );
+    assert_eq!(error.job_id(), None);
 }
 
 #[test]

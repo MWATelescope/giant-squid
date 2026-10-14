@@ -679,10 +679,9 @@ fn run(args: Args) -> anyhow::Result<()> {
                 }
 
                 if failures > 0 {
-                    return Err(ReportedFailures(format!(
-                        "{failures} of {t} downloads failed; see the errors above."
-                    ))
-                    .into());
+                    return Err(
+                        ReportedFailures(format!("{failures} of {t} downloads failed")).into(),
+                    );
                 }
             }
         }

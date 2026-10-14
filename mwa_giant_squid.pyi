@@ -642,7 +642,7 @@ class AsvoError(builtins.Exception):
     """
     job_id: builtins.int
     r"""
-    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable and Http404Error.
+    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, HttpError and Http404Error.
     """
     obs_id: builtins.int
     r"""
@@ -670,7 +670,7 @@ class AsvoError(builtins.Exception):
     """
     file: builtins.str
     r"""
-    HashMismatch, and SymlinkInDownloadDir: the path of the symbolic link.
+    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. CannotCreate: the file or directory that could not be created.
     """
     calculated_hash: builtins.str
     r"""

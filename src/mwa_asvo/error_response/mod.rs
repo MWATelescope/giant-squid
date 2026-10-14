@@ -201,7 +201,9 @@ impl AsvoError {
                     ..new_error_response(ERROR_CODE_JOB_FAILED, self)
                 }
             }
-            AsvoError::HttpError { status, message } => {
+            AsvoError::HttpError {
+                status, message, ..
+            } => {
                 return ErrorResponse {
                     detail: Some(message.clone()),
                     ..new_error_response(&http_error_code(*status), self)
@@ -227,7 +229,7 @@ impl AsvoError {
                 ERROR_CODE_INVALID_ARGUMENT
             }
             AsvoError::InvalidEnvironment { .. } => ERROR_CODE_INVALID_ENVIRONMENT,
-            AsvoError::IO(_) => ERROR_CODE_IO_ERROR,
+            AsvoError::IO(_) | AsvoError::CannotCreate { .. } => ERROR_CODE_IO_ERROR,
             AsvoError::Interrupted => ERROR_CODE_INTERRUPTED,
             AsvoError::NoUrl { .. } => ERROR_CODE_NO_URL,
             AsvoError::NoPath { .. } => ERROR_CODE_NO_PATH,
@@ -251,6 +253,7 @@ impl AsvoError {
             | AsvoError::NoPath { job_id }
             | AsvoError::NoHash { job_id }
             | AsvoError::FilesNotReachable { job_id, .. }
+            | AsvoError::HttpError { job_id, .. }
             | AsvoError::Http404Error { job_id } => Some(*job_id),
             _ => None,
         }

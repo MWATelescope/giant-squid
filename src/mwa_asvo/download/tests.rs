@@ -508,6 +508,39 @@ fn a_forbidden_download_fails_without_retrying() {
     }
 }
 
+/// The error of a file request that fails says which job it was for, because
+/// the download does not log it as well: the caller reports it once.
+#[test]
+fn a_failed_file_request_names_the_job() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(403).body("SignatureDoesNotMatch");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        10,
+        "0000000000000000000000000000000000000000",
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("a 403 should fail the download");
+
+    assert_eq!(err.job_id(), Some(crate::test_config::TEST_ASVO_JOB_ID));
+    assert!(
+        err.to_string()
+            .contains(&format!("Job ID {}", crate::test_config::TEST_ASVO_JOB_ID)),
+        "message: {err}"
+    );
+}
+
 /// Since schema 1.13 a file's `type` is `acacia`, `scratch` or `dug`. A type
 /// that the schema does not list fails the listing, and so the download
 /// (it does not skip the file). The user chose this over skipping the file.
@@ -1052,6 +1085,7 @@ mod backoff_policy {
 
 mod retries {
     use std::io::{self, Read};
+    use std::path::Path;
 
     use httpmock::prelude::*;
     use sha1::Digest;
@@ -1060,7 +1094,7 @@ mod retries {
     use super::{options, sha1_hex};
     use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
     use crate::mwa_asvo::download::{
-        is_network_read_error, network_error, resume_point, retry_class, try_download,
+        create_file, is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, Retry, RetryState,
         UntarCheckpoint,
     };
@@ -1532,6 +1566,24 @@ mod retries {
         ));
         assert!(matches!(
             retry_class(disk, crate::test_config::TEST_ASVO_JOB_ID),
+            Retry::Permanent(_)
+        ));
+    }
+
+    /// Like another disk error, a file that cannot be created is not
+    /// retried, and the error says which path it was.
+    #[test]
+    fn a_file_that_cannot_be_created_is_not_retried_and_names_the_path() {
+        let path = Path::new("/no/such/directory/file.dat");
+
+        let error = create_file(path).expect_err("the directory does not exist");
+
+        assert!(
+            error.to_string().contains("/no/such/directory/file.dat"),
+            "message: {error}"
+        );
+        assert!(matches!(
+            retry_class(error, crate::test_config::TEST_ASVO_JOB_ID),
             Retry::Permanent(_)
         ));
     }
@@ -2212,7 +2264,7 @@ mod sidecar {
     fn failed_first_run(server: &Server, dir: &TempDir) {
         std::fs::create_dir(dir.path().join("c.dat")).expect("could not create the obstacle");
         let err = download(server, dir, |_| {}).expect_err("writing c.dat should fail");
-        assert!(matches!(err, AsvoError::IO(_)), "got {err:?}");
+        assert!(matches!(err, AsvoError::CannotCreate { .. }), "got {err:?}");
         std::fs::remove_dir(dir.path().join("c.dat")).expect("could not remove the obstacle");
         assert!(
             sidecar_file(dir).exists(),

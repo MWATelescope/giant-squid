@@ -92,14 +92,14 @@ mod stub_attributes {
             struct_id: std::any::TypeId::of::<AsvoError>,
             attrs: &[
                 attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
-                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable and Http404Error."),
+                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, HttpError and Http404Error."),
                 attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
                 attr!("delivery", PyType, "FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch)."),
                 attr!("path", Option<String>, "FilesNotReachable: the path of the files, if the MWA ASVO gave one."),
-                attr!("file", String, "HashMismatch, and SymlinkInDownloadDir: the path of the symbolic link."),
+                attr!("file", String, "HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. CannotCreate: the file or directory that could not be created."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
                 attr!("status", u16, "HttpError: the HTTP status code."),
@@ -341,12 +341,21 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             "SymlinkInDownloadDir",
             vec![("file", Field::Str(path.display().to_string()))],
         ),
-        lib::AsvoError::HttpError { status, message } => (
+        lib::AsvoError::HttpError {
+            job_id: id,
+            status,
+            message,
+        } => (
             "HttpError",
             vec![
+                job_id(id),
                 ("status", Field::Int(u64::from(status))),
                 ("message", Field::Str(message)),
             ],
+        ),
+        lib::AsvoError::CannotCreate { path, .. } => (
+            "CannotCreate",
+            vec![("file", Field::Str(path.display().to_string()))],
         ),
         lib::AsvoError::Http404Error { job_id } => {
             ("Http404Error", vec![("job_id", Field::Int(job_id.get()))])

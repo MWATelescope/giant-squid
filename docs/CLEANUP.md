@@ -37,7 +37,7 @@
   - A Scratch move works across file systems (copy, then remove).
   - The CLI-only constants moved to `cli`.
   - The job table is monochrome with `NO_COLOR`.
-- **7b:** `AsvoApiError::BadStatus { status: u16, message }`, the same fields as `HttpError`. The Python attribute is `status`.
+- **7b:** `AsvoApiError::BadStatus { status: u16, message }`, the same `status` and `message` as `HttpError` (which also has `job_id`). The Python attribute is `status`.
 - **7c:** a bad `MWA_ASVO_API_TIMEOUT` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is an error. `client_config_from_env` returns `AsvoError`.
 - **7d:** `pol`, `nmiter`, `image_size` and `source_job_id` use the schema types. `DownloadOptions.download_dir` stays a `&str`.
 - **7e:** one parser for every named value: case, spaces, `-` and `_` do not matter. The values are listed in schema order. `--job-states` and `--job-types` show `[possible values]`.

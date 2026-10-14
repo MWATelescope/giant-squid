@@ -103,8 +103,9 @@ pub enum AsvoApiError {
 
     /// The server responded with a non-success status code, but the body
     /// wasn't in the structured `ErrorResponse` shape we expected. The
-    /// fields are those of [`AsvoError::HttpError`](crate::AsvoError::HttpError),
-    /// the same failure of a file download.
+    /// `status` and `message` are also fields of
+    /// [`AsvoError::HttpError`](crate::AsvoError::HttpError), the same failure
+    /// of a file download (which also has the `job_id`).
     #[error("The server responded with status code {status}, message:\n{message}")]
     BadStatus {
         /// The HTTP status code.
