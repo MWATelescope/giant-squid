@@ -4,11 +4,16 @@
 
 //! The errors of `--json`: each error is one line of JSON on stdout, the
 //! MWA ASVO's `ErrorResponse` (see [`crate::mwa_asvo::error_response`]) with the
-//! Job ID or the Obs ID that it is about. With `--json`, no logs are printed.
+//! Job ID or the Obs ID that it is about, and `"status": "failed"`. With
+//! `--json`, no logs are printed.
+//!
+//! Every line that reports a result (a reply of the MWA ASVO, a download, an
+//! error) has `status` as its first key, so a script can read it first.
 
+use serde::ser::{Error as _, SerializeMap};
 use thiserror::Error;
 
-use crate::mwa_asvo::api::openapi::ErrorResponse;
+use crate::mwa_asvo::api::openapi::{ErrorResponse, Status};
 use crate::mwa_asvo::error_response::{ERROR_CODE_CLIENT_ERROR, ERROR_CODE_INVALID_ARGUMENT};
 use crate::mwa_asvo::{new_error_response, AsvoApiError, AsvoError, AsvoJobId};
 use crate::obs_id::{ObsId, ObsIdError};
@@ -29,10 +34,14 @@ pub(super) struct ArgumentError(pub String);
 #[error("{0}")]
 pub(super) struct ReportedFailures(pub String);
 
-/// One error line of `--json`: the `ErrorResponse`, then the Job ID and the
-/// Obs ID that the error is about (a key that is not known is left out).
+/// One error line of `--json`: `"status": "failed"` (the schema's
+/// [`Status::Failed`], the value that the MWA ASVO's own failed replies have),
+/// the `ErrorResponse`, then
+/// the Job ID and the Obs ID that the error is about (a key that is not known
+/// is left out).
 #[derive(serde::Serialize)]
 pub(super) struct JsonError {
+    status: Status,
     #[serde(flatten)]
     error: ErrorResponse,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,6 +100,7 @@ impl JsonError {
         obs_id: Option<ObsId>,
     ) -> Self {
         Self {
+            status: Status::Failed,
             error,
             job_id,
             obs_id,
@@ -107,5 +117,31 @@ impl JsonError {
     pub(super) fn with_obs_id(mut self, obs_id: ObsId) -> Self {
         self.obs_id = Some(obs_id);
         self
+    }
+}
+
+/// A reply of the MWA ASVO (an object with a `status` key) as a line of
+/// `--json`, with `status` first and the other keys as they are. The reply
+/// types of the schema have their keys in alphabetical order, which puts
+/// `status` last.
+pub(super) struct StatusFirst<'a, T>(pub &'a T);
+
+impl<T: serde::Serialize> serde::Serialize for StatusFirst<'_, T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let serde_json::Value::Object(mut keys) =
+            serde_json::to_value(self.0).map_err(S::Error::custom)?
+        else {
+            return Err(S::Error::custom(
+                "a line with a status must be a JSON object",
+            ));
+        };
+        let mut line = serializer.serialize_map(Some(keys.len()))?;
+        if let Some(status) = keys.remove("status") {
+            line.serialize_entry("status", &status)?;
+        }
+        for (key, value) in &keys {
+            line.serialize_entry(key, value)?;
+        }
+        line.end()
     }
 }

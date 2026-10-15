@@ -141,6 +141,10 @@ before you upgrade scripts.**
   allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
   the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
   (`job_params::set_channel_range`).
+* `--json`: an error line has `"status": "failed"` (the value of a failed reply of the MWA ASVO), and `status` is the
+  first key of every line that reports a result:
+  the reply of the MWA ASVO to a submission or a cancellation (`success` or `failed`, as it sent it), a download
+  (`success`) and an error (`failed`). Before, `status` was the last key of a reply, and an error had none.
 * The jobs of `list` and `get_jobs` are selected by `days` or by the dates (`date_from`, `date_to`), not by both: a
   filter with `days` and a date is refused before any request (`JobsFilter::validate`, `InvalidParameter`; `ValueError`
   in Python), and `list --days` conflicts with `--date-from` and `--date-to`. With a date and no `days`, the request

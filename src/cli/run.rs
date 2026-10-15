@@ -36,7 +36,7 @@ use crate::mwa_asvo::{
 use crate::obs_id::ObsId;
 use crate::{parse_job_ids_only, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, ParseError};
 
-use super::json_output::{ArgumentError, JsonError, ReportedFailures};
+use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL};
@@ -134,23 +134,24 @@ impl DownloadTarget {
 }
 
 /// The result of one successful download, for `download --json`: the keys
-/// of the MWA ASVO's replies (`job_id`, `status`, `message`), and the Obs ID.
+/// of the MWA ASVO's replies (`status` first, `job_id`, `message`), and the
+/// Obs ID.
 /// A failed download is a [`JsonError`] line.
 #[derive(serde::Serialize)]
-struct DownloadReport {
-    job_id: AsvoJobId,
-    obs_id: ObsId,
-    status: Status,
-    message: String,
+pub(super) struct DownloadReport {
+    pub(super) status: Status,
+    pub(super) job_id: AsvoJobId,
+    pub(super) obs_id: ObsId,
+    pub(super) message: String,
 }
 
 impl DownloadReport {
     /// The report of the download of `job`.
     fn new(job: &AsvoJob, download_dir: &str) -> Self {
         Self {
+            status: Status::Success,
             job_id: job.job_id(),
             obs_id: job.obs_id(),
-            status: Status::Success,
             message: downloaded_message(job, download_dir),
         }
     }
@@ -304,7 +305,7 @@ where
     let outcome = submit_each_obs_id(obs_ids, description, json, |o| {
         let params = build(*o);
         let resp = submit(&client, &params)?;
-        print_json_line(&resp, json)?;
+        print_json_line(&StatusFirst(&resp), json)?;
         let job_id = resp.job_id;
         info!("Submitted {o} as MWA ASVO Job ID {job_id}");
         job_ids.push(job_id);
@@ -817,7 +818,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     }
                     Err(e) => return Err(e),
                 };
-                print_json_line(&resp, json)?;
+                print_json_line(&StatusFirst(&resp), json)?;
                 let job_id = resp.job_id;
                 info!("Submitted {o} as MWA ASVO Job ID {job_id}");
 
@@ -972,7 +973,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                         Ok(resp) => {
                             let message = &resp.message;
                             info!("Cancel request for job {j}: {message}");
-                            print_json_line(&resp, json)?;
+                            print_json_line(&StatusFirst(&resp), json)?;
                         }
                         Err(e) => {
                             error!("Failed to cancel MWA ASVO Job ID {j}: {e}");

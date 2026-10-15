@@ -203,10 +203,10 @@ pub enum Args {
         verbosity: u8,
 
         /// Print the result of each download as one line of JSON on stdout,
-        /// in the order of the Job IDs and then the Obs IDs: job_id, obs_id,
-        /// status and message for a success, an MWA ASVO ErrorResponse with
-        /// the job_id or obs_id for a failure. No logs or progress bars are
-        /// printed.
+        /// in the order of the Job IDs and then the Obs IDs: status, job_id,
+        /// obs_id and message for a success, status "failed" and an MWA ASVO
+        /// ErrorResponse with the job_id or obs_id for a failure. No logs or
+        /// progress bars are printed.
         #[arg(short, long)]
         json: bool,
 

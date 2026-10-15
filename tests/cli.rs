@@ -1106,6 +1106,7 @@ fn submit_json_copies_an_api_error_and_prints_the_successes() {
     assert_eq!(
         lines[0],
         serde_json::json!({
+            "status": "failed",
             "error_code": "VALID_MISSING_FIELD",
             "message": "Bad obsid",
             "detail": "detail from the mock server",
@@ -1279,4 +1280,122 @@ fn download_dry_run_json_prints_each_id() {
     assert_eq!(lines[0]["job_id"], 12345);
     assert_eq!(lines[1]["obs_id"].to_string(), TEST_OBS_ID);
     assert_eq!(lines[1]["keep_tar"], false);
+}
+
+// ---------------------------------------------------------------------------
+// `status` is the first key of a `--json` line that reports a result
+// ---------------------------------------------------------------------------
+
+/// The first key of each line of standard output that is JSON.
+fn first_keys(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .filter(|l| l.trim_start().starts_with('{'))
+        .map(|l| {
+            l.trim_start()
+                .split('"')
+                .nth(1)
+                .expect("the line has a key")
+                .to_string()
+        })
+        .collect()
+}
+
+/// A reply of the MWA ASVO has `status` first, as the MWA ASVO sent it, and an
+/// error has `"status": "failed"` first: for a submission, a cancellation and
+/// a command-line error.
+#[test]
+fn json_lines_have_the_status_first() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(4321));
+    });
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(r#"{ "obs_id": 1115977528 }"#);
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_ALREADY_SUBMITTED", "Already submitted"));
+    });
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/12345");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(12345));
+    });
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/777");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(serde_json::json!({
+                "job_id": 777, "message": "Already cancelled", "status": "failed"
+            }));
+    });
+    env.server.mock(|when, then| {
+        when.method(DELETE).path("/api/v2/jobs/404");
+        then.status(404)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_NOT_FOUND", "No such job"));
+    });
+
+    // A success, then an error.
+    let mut cmd = env.command();
+    cmd.args(["submit-vis", "--json", "1061311664", "1115977528"]);
+    let result = run(cmd);
+    assert_eq!(
+        first_keys(&result.stdout),
+        ["status", "status"],
+        "stdout: {}",
+        result.stdout
+    );
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines[0]["status"], "success");
+    assert!(
+        result.stdout.starts_with(r#"{"status":"success","#),
+        "{}",
+        result.stdout
+    );
+    assert_eq!(lines[1]["status"], "failed");
+    assert_eq!(lines[1]["error_code"], "JOB_ALREADY_SUBMITTED");
+    assert_eq!(lines[1]["obs_id"], 1115977528);
+
+    // A cancellation: success, the reply of an already cancelled job, an error.
+    let mut cmd = env.command();
+    cmd.args(["cancel", "--json", "12345", "777", "404"]);
+    let result = run(cmd);
+    assert_eq!(
+        first_keys(&result.stdout),
+        ["status", "status", "status"],
+        "{}",
+        result.stdout
+    );
+    let statuses: Vec<_> = result
+        .stdout_json_lines()
+        .iter()
+        .map(|l| l["status"].clone())
+        .collect();
+    assert_eq!(statuses, ["success", "failed", "failed"]);
+
+    // A command-line error found by clap.
+    let mut cmd = env.command();
+    cmd.args([
+        "submit-vis",
+        "--json",
+        "--delivery-format",
+        "files",
+        "1061311664",
+    ]);
+    let result = run(cmd);
+    assert_eq!(result.code, Some(2), "{}", result.combined());
+    assert!(
+        result.stdout.starts_with(r#"{"status":"failed","#),
+        "{}",
+        result.stdout
+    );
 }

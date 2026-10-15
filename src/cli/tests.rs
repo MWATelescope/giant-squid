@@ -2063,3 +2063,95 @@ fn list_with_a_date_has_no_days() {
     assert_eq!(list_days(days, None, Some(time)), None);
     assert_eq!(list_days(days, Some(time), Some(time)), None);
 }
+
+// ---------------------------------------------------------------------------
+// status of the JSON lines
+// ---------------------------------------------------------------------------
+
+/// An error line has `"status": "failed"` as its first key, whatever the
+/// error is, and the key of the `ErrorResponse` follow it.
+#[test]
+fn an_error_line_has_the_failed_status_first() {
+    use super::json_output::JsonError;
+
+    let line = |error: &anyhow::Error| serde_json::to_string(&JsonError::new(error)).expect("JSON");
+
+    let plain = line(&anyhow::anyhow!("something broke"));
+    assert!(
+        plain.starts_with(r#"{"status":"failed","error_code":"#),
+        "{plain}"
+    );
+
+    // With the Job ID and the Obs ID that the error is about.
+    let with_ids = serde_json::to_string(
+        &JsonError::new(&anyhow::anyhow!("not found"))
+            .with_job_id(crate::test_config::nonzero(12345))
+            .with_obs_id(crate::test_config::test_obs_id()),
+    )
+    .expect("JSON");
+    assert!(with_ids.starts_with(r#"{"status":"failed","#), "{with_ids}");
+    let json: Value = serde_json::from_str(&with_ids).expect("JSON");
+    assert_eq!(json["status"], "failed");
+    assert_eq!(json["job_id"], 12345);
+    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
+
+    // A usage error found by clap is an error line too.
+    let usage = parse_err(&["giant-squid", "list", "--days", "99"]);
+    let usage = serde_json::to_string(&JsonError::usage(&usage)).expect("JSON");
+    assert!(usage.starts_with(r#"{"status":"failed","#), "{usage}");
+}
+
+/// The reply of the MWA ASVO has `status` first, as the MWA ASVO sent it
+/// (`success` or `failed`), and all its other keys.
+#[test]
+fn a_reply_line_has_the_status_first() {
+    use super::json_output::StatusFirst;
+    use crate::mwa_asvo::api::openapi::{JobCancelledResponse, JobSubmittedResponse, Status};
+
+    for status in [Status::Success, Status::Failed] {
+        let submitted = JobSubmittedResponse {
+            job_id: crate::test_config::nonzero(4321),
+            message: "Job submitted".to_string(),
+            status,
+        };
+        let line = serde_json::to_string(&StatusFirst(&submitted)).expect("JSON");
+        assert!(
+            line.starts_with(&format!(r#"{{"status":"{status}","#)),
+            "{line}"
+        );
+        let json: Value = serde_json::from_str(&line).expect("JSON");
+        assert_eq!(json["job_id"], 4321);
+        assert_eq!(json["message"], "Job submitted");
+        assert_eq!(json.as_object().expect("an object").len(), 3);
+
+        let cancelled = JobCancelledResponse {
+            job_id: crate::test_config::nonzero(12345),
+            message: "Job cancelled".to_string(),
+            status,
+        };
+        let line = serde_json::to_string(&StatusFirst(&cancelled)).expect("JSON");
+        assert!(
+            line.starts_with(&format!(r#"{{"status":"{status}","#)),
+            "{line}"
+        );
+    }
+}
+
+/// The report of a successful download has `status` first too.
+#[test]
+fn a_download_report_has_the_status_first() {
+    use super::run::DownloadReport;
+    use crate::mwa_asvo::api::openapi::Status;
+
+    let report = DownloadReport {
+        status: Status::Success,
+        job_id: crate::test_config::nonzero(12345),
+        obs_id: crate::test_config::test_obs_id(),
+        message: "Downloaded".to_string(),
+    };
+    let line = serde_json::to_string(&report).expect("JSON");
+    assert!(
+        line.starts_with(r#"{"status":"success","job_id":12345,"obs_id":"#),
+        "{line}"
+    );
+}

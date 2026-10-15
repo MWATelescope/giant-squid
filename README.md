@@ -200,10 +200,12 @@ Log messages go to standard error, so standard output has only the output of the
 #### JSON output and errors
 
 With `-j`, `--json`, every command prints only JSON, on standard output. It prints no log messages and no
-progress bars, and nothing on standard error. Each error is one line of JSON in the form of the MWA ASVO's error
+progress bars, and nothing on standard error. Each error is one line of JSON with `"status": "failed"`, then the MWA ASVO's error
 response: `error_code` and `message`, and `detail`, `suggestion`, `field_errors` and `request_id` when they are
 known. An error about one Obs ID or job also has its `obs_id` or `job_id`. A script finds an error line by its
-`error_code` key. The exit code is 1 if anything failed, and 2 for a bad command line.
+`error_code` key. The line of a result has `status` as its first key, and it is `success` or `failed`: the reply of
+the MWA ASVO to a submission or a cancellation (as the MWA ASVO sent it; a refused cancellation of a job that is
+already cancelled is a reply with `failed`), a download (`success`) or an error (`failed`). A listing, and a dry run, are not results of that kind and have no `status`. The exit code is 1 if anything failed, and 2 for a bad command line.
 
 An error that the MWA ASVO sent in this form is printed as the MWA ASVO sent it. Other errors have a giant-squid
 error code, for example `HTTP_503` (an HTTP error, with the body of the reply as the `detail`), `NETWORK_ERROR`,
@@ -211,7 +213,7 @@ error code, for example `HTTP_503` (an HTTP error, with the body of the reply as
 
 ```bash
 $ giant-squid submit-vis 1065880128 --json
-{"error_code":"HTTP_503","message":"Service Unavailable","detail":"<html>...</html>\n","obs_id":1065880128}
+{"status":"failed","error_code":"HTTP_503","message":"Service Unavailable","detail":"<html>...</html>\n","obs_id":1065880128}
 ``` To check that your command works without submitting anything, use `--dry-run`:
 
 ```bash
@@ -1072,7 +1074,7 @@ Options:
   -v, --verbosity...
           The verbosity of the program. The default is to print high-level information. Cannot be used with --json
   -j, --json
-          Print the result of each download as one line of JSON on stdout, in the order of the Job IDs and then the Obs IDs: job_id, obs_id, status and message for a success, an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
+          Print the result of each download as one line of JSON on stdout, in the order of the Job IDs and then the Obs IDs: status, job_id, obs_id and message for a success, status "failed" and an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
   -h, --help
           Print help
   -V, --version
