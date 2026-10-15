@@ -32,6 +32,11 @@
 //! - Nothing is downloaded: a submitted job is not ready in the time a test
 //!   runs.
 //!
+//! Results are read from `--json` output, never from log text: each line is
+//! a reply of the MWA ASVO (`status`, `job_id`, `message`) or an error (an
+//! `ErrorResponse`, with `error_code`). The one exception is the test of a
+//! rejected cached token, which reads the server's code in the `-vv` trace.
+//!
 //! Rejections: where the schema documents the error code (`JOB_NOT_FOUND`,
 //! `AUTH_REQUIRED`), or the client depends on it (`AUTH_INVALID_TOKEN`), the
 //! test asserts the exact code. Otherwise it asserts that the server sent a
@@ -51,6 +56,10 @@ use sha1::{Digest, Sha1};
 use tempfile::{NamedTempFile, TempDir};
 
 use common::{jwt_expiring_in, run, write_session_at, Run};
+use mwa_giant_squid::mwa_asvo::api::openapi::Status;
+use mwa_giant_squid::mwa_asvo::error_response::{
+    ERROR_CODE_JOB_CANCELLED, ERROR_CODE_JOB_NOT_FOUND,
+};
 
 /// The server to test against. Required.
 const ENV_E2E_TARGET: &str = "MWA_ASVO_E2E_TARGET";
@@ -78,13 +87,7 @@ const LIVE_VOLTAGE_OFFSET_SECS: &str = "0";
 const LIVE_VOLTAGE_DURATION_SECS: &str = "8";
 /// A look-back window for `list --days`.
 const LIVE_LIST_DAYS: &str = "7";
-
-/// The start of the server's message when it refuses to cancel a job (for
-/// example, one that is already cancelled).
-const CANCEL_REFUSED_MESSAGE: &str = "Unable to cancel job";
 /// A short look-back window, for the one request that primes the session.
-/// The smallest value the server accepts: the schema limits `days` to
-/// more than 1 and at most 30.
 const LIVE_LOGIN_LIST_DAYS: &str = "2";
 
 /// The directory, under `CARGO_TARGET_TMPDIR`, holding the shared `HOME`s.
@@ -100,12 +103,11 @@ static LIVE_LOCK: Mutex<()> = Mutex::new(());
 /// by every test without another request to the rate-limited endpoint.
 static SHARED_SESSION: OnceLock<Result<(), String>> = OnceLock::new();
 
-/// How the CLI renders a structured `ErrorResponse` (see `AsvoApiError`).
-const API_ERROR_PREFIX: &str = "MWA ASVO returned an error (";
-/// How the CLI renders a failed login.
-const AUTH_FAILED_PREFIX: &str = "Authentication with MWA ASVO failed";
-/// Error codes named in the OpenAPI schema or relied on by the client.
-const ERR_JOB_NOT_FOUND: &str = "JOB_NOT_FOUND";
+/// The keys of a `--json` line.
+const KEY_ERROR_CODE: &str = "error_code";
+const KEY_STATUS: &str = "status";
+const KEY_JOB_ID: &str = "job_id";
+/// Error codes relied on by the client.
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
 /// An API key the server cannot know.
 const INVALID_API_KEY: &str = "not-a-real-api-key";
@@ -237,7 +239,7 @@ impl LiveEnv {
             "expected the server to reject {args:?}: {}",
             result.combined()
         );
-        let code = api_error_code(&result.combined())
+        let code = json_error_code(&result)
             .unwrap_or_else(|| panic!("expected a structured error: {}", result.combined()));
         eprintln!("{args:?} rejected with {code}");
         code
@@ -376,22 +378,37 @@ fn host_of(url: &str) -> &str {
     rest.split(['/', ':']).next().unwrap_or(rest)
 }
 
-/// The job IDs from the `--json` lines a submission printed.
-fn submitted_job_ids(result: &Run) -> Vec<u64> {
+/// The replies of the MWA ASVO among the `--json` lines of `result`: the
+/// lines with no `error_code`. Every line of `--json` output is JSON.
+fn json_replies(result: &Run) -> Vec<Value> {
     result
-        .stdout
-        .lines()
-        .filter(|l| l.trim_start().starts_with('{'))
-        .filter_map(|l| serde_json::from_str::<Value>(l.trim()).ok())
-        .filter_map(|v| v["job_id"].as_u64())
+        .stdout_json_lines()
+        .into_iter()
+        .filter(|line| line.get(KEY_ERROR_CODE).is_none())
         .collect()
 }
 
-/// The code in the first structured API error in `output`.
-fn api_error_code(output: &str) -> Option<String> {
-    let start = output.find(API_ERROR_PREFIX)? + API_ERROR_PREFIX.len();
-    let end = output[start..].find(')')? + start;
-    Some(output[start..end].to_string())
+/// The `error_code` of the first error line among the `--json` lines of
+/// `result`, or `None` if there is no error line.
+fn json_error_code(result: &Run) -> Option<String> {
+    result
+        .stdout_json_lines()
+        .iter()
+        .find_map(|line| line[KEY_ERROR_CODE].as_str().map(str::to_string))
+}
+
+/// The `status` of a `--json` line, as text: `success` or `failed`.
+fn status_of(line: &Value) -> &str {
+    line[KEY_STATUS].as_str().unwrap_or_default()
+}
+
+/// The job IDs from the replies (not the errors) that a `--json`
+/// submission printed.
+fn submitted_job_ids(result: &Run) -> Vec<u64> {
+    json_replies(result)
+        .iter()
+        .filter_map(|reply| reply[KEY_JOB_ID].as_u64())
+        .collect()
 }
 
 /// A listed job's state name: the schema's value, for example `completed`.
@@ -675,12 +692,14 @@ fn live_cancel() {
     let id = env.submit(&mut guard, &["submit-meta", "-r", LIVE_TEST_OBS_ID])[0];
     let id_str = id.to_string();
 
-    let result = env.run(&["cancel", &id_str]);
+    let result = env.run(&["cancel", "--json", &id_str]);
     assert!(result.success, "{}", result.combined());
-    assert!(
-        result
-            .combined()
-            .contains("Cancel requests: 1 sent, 0 failed."),
+    let replies = json_replies(&result);
+    assert_eq!(replies.len(), 1, "one reply: {}", result.combined());
+    assert_eq!(replies[0][KEY_JOB_ID], id, "{}", result.combined());
+    assert_eq!(
+        status_of(&replies[0]),
+        Status::Success.to_string(),
         "{}",
         result.combined()
     );
@@ -688,18 +707,21 @@ fn live_cancel() {
     assert_eq!(state_name(&env.listed_job(id)), STATE_CANCELLED);
 
     // A second cancellation is refused by the server, but with a normal
-    // (HTTP 200) reply whose `status` is "failed" and whose message says
-    // why. The API developer's rule is that `status` is descriptive and
-    // success is the HTTP status, so this is not an error to the client:
-    // the CLI logs the server's message and carries on. The message is
-    // the only sign of the refusal.
-    let result = env.run(&["cancel", &id_str]);
+    // (HTTP 200) reply whose `status` is "failed". The API developer's rule
+    // is that `status` is descriptive and success is the HTTP status, so
+    // this is not an error to the client: the exit code is 0, and the line
+    // is a reply (no `error_code`), not an error line.
+    let result = env.run(&["cancel", "--json", &id_str]);
     assert!(result.success, "{}", result.combined());
-    assert!(
-        result.combined().contains(CANCEL_REFUSED_MESSAGE),
-        "expected the server's message about the refusal: {}",
+    let replies = json_replies(&result);
+    assert_eq!(replies.len(), 1, "one reply: {}", result.combined());
+    assert_eq!(
+        status_of(&replies[0]),
+        Status::Failed.to_string(),
+        "expected the server's refusal: {}",
         result.combined()
     );
+    assert_eq!(json_error_code(&result), None, "{}", result.combined());
 }
 
 #[test]
@@ -707,11 +729,11 @@ fn live_cancel() {
 fn live_cancelling_an_unknown_job_reports_job_not_found() {
     let env = LiveEnv::new();
 
-    let result = env.run(&["cancel", LIVE_UNKNOWN_JOB_ID]);
+    let result = env.run(&["cancel", "--json", LIVE_UNKNOWN_JOB_ID]);
     assert!(!result.success, "{}", result.combined());
     assert_eq!(
-        api_error_code(&result.combined()).as_deref(),
-        Some(ERR_JOB_NOT_FOUND),
+        json_error_code(&result).as_deref(),
+        Some(ERROR_CODE_JOB_NOT_FOUND),
         "{}",
         result.combined()
     );
@@ -730,10 +752,11 @@ fn live_wait_on_a_cancelled_job_fails() {
     assert!(result.success, "{}", result.combined());
     guard.forget(id);
 
-    let result = env.run(&["wait", &id_str]);
+    let result = env.run(&["wait", "--json", &id_str]);
     assert!(!result.success, "{}", result.combined());
-    assert!(
-        result.combined().contains("has been cancelled"),
+    assert_eq!(
+        json_error_code(&result).as_deref(),
+        Some(ERROR_CODE_JOB_CANCELLED),
         "{}",
         result.combined()
     );
@@ -744,12 +767,11 @@ fn live_wait_on_a_cancelled_job_fails() {
 fn live_wait_on_an_unknown_job_fails() {
     let env = LiveEnv::new();
 
-    let result = env.run(&["wait", LIVE_UNKNOWN_JOB_ID]);
+    let result = env.run(&["wait", "--json", LIVE_UNKNOWN_JOB_ID]);
     assert!(!result.success, "{}", result.combined());
-    assert!(
-        result
-            .combined()
-            .contains("wasn't found in your list of jobs"),
+    assert_eq!(
+        json_error_code(&result).as_deref(),
+        Some(ERROR_CODE_JOB_NOT_FOUND),
         "{}",
         result.combined()
     );
@@ -766,15 +788,14 @@ fn live_an_invalid_api_key_is_rejected() {
     let env = LiveEnv::isolated();
 
     let mut cmd = env.command();
-    cmd.env(ENV_API_KEY, INVALID_API_KEY).arg("list");
+    cmd.env(ENV_API_KEY, INVALID_API_KEY)
+        .args(["list", "--json"]);
     let result = run(cmd);
 
     assert!(!result.success, "{}", result.combined());
-    assert!(
-        result.combined().contains(AUTH_FAILED_PREFIX),
-        "{}",
-        result.combined()
-    );
+    let code = json_error_code(&result)
+        .unwrap_or_else(|| panic!("expected a structured error: {}", result.combined()));
+    eprintln!("an invalid API key is rejected with {code}");
 }
 
 /// A cached token the server did not issue is rejected with an auth error
