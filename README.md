@@ -239,6 +239,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 - Files are tarred up and uploaded to Pawsey's Acacia object store.
 - To submit a job with the Acacia delivery option specify `--delivery=acacia` on any job submission command.
 - A URL which expires in 7 days is generated- allowing you to download the file via giant-squid, wget, curl, etc from anywhere in the world.
+- Acacia delivers a tar only: `--delivery-format=files` with the Acacia delivery is an error, in giant-squid before anything is sent. Use `--delivery-format=tar` (the default), or the scratch or DUG delivery to get the individual files.
 
 ##### Delivery: Pawsey Scratch Filesystem
 
@@ -282,7 +283,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -o, --output <OUTPUT>
           Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
       --avg-freq-res <AVG_FREQ_RES>
@@ -392,7 +393,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --avg-freq-res <AVG_FREQ_RES>
           Frequency resolution to average to (kHz), or null [default: 40]
       --avg-time-res <AVG_TIME_RES>
@@ -559,7 +560,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
@@ -643,7 +644,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
@@ -685,7 +686,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
@@ -726,7 +727,7 @@ Options:
   -d, --delivery <DELIVERY>
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
@@ -818,7 +819,7 @@ Options:
       --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
       --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
   -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
-      --days <DAYS>             Only fetch jobs from the past N days (1 to 30) [default: 30]
+      --days <DAYS>             Only fetch jobs from the past N days (1 to 30). Cannot be used with --date-from or --date-to, which select the jobs by date instead [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
       --sort-by <SORT_BY>       The column to sort the jobs by, for example "id"
@@ -907,7 +908,8 @@ Additionally, the `--job-states` and `--job-types` options can be used to furthe
 shown in `--help`, so `list` shows your recent jobs and not your full history), `--date-from` and `--date-to`
 (a date such as `2026-09-01`, which is midnight UTC, or an RFC 3339 time such as
 `2026-09-01T12:00:00Z`) limit the listing by when the jobs were created, and `--sort-by` sets the
-order.
+order. The jobs are selected by `--days` or by the dates, not by both: `--days` with `--date-from` or `--date-to` is
+an error, and with a date the default of `--days` is not used.
 
 These both take a comma-separated, case-insensitive list of the job type names and job states
 above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,

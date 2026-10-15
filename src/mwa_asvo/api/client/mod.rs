@@ -39,8 +39,8 @@ use super::openapi::{
     JobsByUserRequest, Login, TokenResponse, UserResponse, VoltageJobParams,
 };
 use super::validate::{
-    self, validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
-    validate_voltage_params,
+    self, validate_beamformer_params, validate_conversion_params, validate_download_params,
+    validate_image_from_job_params, validate_imaging_params, validate_voltage_params,
 };
 
 /// The production MWA ASVO host. Callers that do not need a different
@@ -701,11 +701,13 @@ impl AsvoClient {
     /// at most; to filter by several, use [`AsvoJobVec::filter`] on the
     /// result.
     ///
-    /// `filter.days` must be from 1 to 30 ([`validate::DAYS`], the schema's
-    /// limits). With it unset, the request has the schema's default for
-    /// `days` (30 in the current schema), like every other filter that is
-    /// unset: the library adds no default of its own, and does not ask for
-    /// "all" jobs.
+    /// The jobs are selected by `days` or by `date_from` and `date_to`, not
+    /// by both ([`JobsFilter::validate`]). `filter.days` must be from 1 to 30
+    /// ([`validate::DAYS`], the schema's limits). With neither `days` nor a
+    /// date, the request has the schema's default for `days` (30 in the
+    /// current schema): the library does not ask for "all" jobs. With a date,
+    /// the request has `"days": null`, so that the dates alone select the
+    /// jobs.
     ///
     /// A job without a usable obs_id in its untyped `job_params` is skipped
     /// with a warning, rather than failing the whole listing (see
@@ -715,9 +717,12 @@ impl AsvoClient {
     /// # Errors
     ///
     /// [`AsvoApiError::InvalidParameter`] before any request, for a `days`
-    /// outside 1 to 30; otherwise the error from the request.
+    /// outside 1 to 30, or `days` together with `date_from` or `date_to`;
+    /// otherwise the error from the request.
     pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
-        let days = filter.days.map(validate::check_days).transpose()?;
+        filter.validate()?;
+        let days = filter.days;
+        let dates = filter.date_from.is_some() || filter.date_to.is_some();
         let job_state = filter.job_state;
         let job_type = filter.job_type;
 
@@ -726,16 +731,18 @@ impl AsvoClient {
 
         loop {
             // The builder starts from the schema defaults (the page size,
-            // `limit`, is the schema's), and `days` keeps its default unless
-            // the filter has one. (Passing `None` would
-            // send `"days": null`, which is not the default.)
+            // `limit`, is the schema's). `days` keeps its default unless the
+            // filter has `days`, or has a date: then `days` is `null`, so
+            // that it does not limit the dates.
             let mut builder = JobsByUserRequest::builder()
                 .job_state(job_state)
                 .job_type(job_type)
                 .date_from(filter.date_from)
                 .date_to(filter.date_to)
                 .offset(offset);
-            if let Some(days) = days {
+            if dates {
+                builder = builder.days(None::<NonZeroU64>);
+            } else if let Some(days) = days {
                 builder = builder.days(days);
             }
             if let Some(sort_by) = &filter.sort_by {
@@ -809,9 +816,10 @@ impl AsvoClient {
     /// Like every other submit endpoint, a success returns a
     /// `JobSubmittedResponse` carrying the new job's ID.
     ///
-    /// The numbers in `params` are checked against the schema's limits
-    /// first ([`validate_imaging_params`]); nothing is sent if one is out
-    /// of range, and the error is [`AsvoApiError::InvalidParameter`].
+    /// The numbers in `params` are checked against the schema's limits, and
+    /// the delivery against its format, first ([`validate_imaging_params`]);
+    /// nothing is sent if one is wrong, and the error is
+    /// [`AsvoApiError::InvalidParameter`].
     pub fn submit_imaging_job(
         &self,
         params: &ImagingJobFlow1Params,
@@ -824,10 +832,10 @@ impl AsvoClient {
 
     /// Submit an MWA ASVO imaging job (flow 2: from a conversion job).
     ///
-    /// The numbers in `params` are checked against the schema's limits
-    /// first ([`validate_image_from_job_params`]); nothing is sent if one
-    /// is out of range, and the error is
-    /// [`AsvoApiError::InvalidParameter`].
+    /// The numbers in `params` are checked against the schema's limits, and
+    /// the delivery against its format, first
+    /// ([`validate_image_from_job_params`]); nothing is sent if one is
+    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_image_from_job(
         &self,
         params: &ImagingJobFlow2Params,
@@ -859,11 +867,16 @@ impl AsvoClient {
     /// Submit a download job of `download_type`. Visibility and metadata
     /// jobs use the same endpoint and request body; the server uses the
     /// body's `download_type` to decide which kind of job to create.
+    ///
+    /// The delivery and its format are checked first
+    /// ([`validate_download_params`]); nothing is sent if they do not agree,
+    /// and the error is [`AsvoApiError::InvalidParameter`].
     fn submit_download_job(
         &self,
         params: &DownloadJobParams,
         download_type: DownloadType,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_download_params(params)?;
         debug!("Submitting a download-{download_type} job to MWA ASVO");
 
         let mut params = params.clone();
@@ -874,9 +887,10 @@ impl AsvoClient {
 
     /// Submit an MWA ASVO conversion job.
     ///
-    /// The numbers in `params` are checked against the schema's limits
-    /// first ([`validate_conversion_params`]); nothing is sent if one is out
-    /// of range, and the error is [`AsvoApiError::InvalidParameter`].
+    /// The numbers in `params` are checked against the schema's limits, and
+    /// the delivery against its format, first
+    /// ([`validate_conversion_params`]); nothing is sent if one is wrong, and
+    /// the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_conversion_job(
         &self,
         params: &ConversionJobParams,
@@ -912,11 +926,14 @@ impl AsvoClient {
     /// Submit an MWA ASVO beamformer download job.
     ///
     /// The schema gives the beamformer request body no numeric limits, so
-    /// nothing is checked before the request is sent.
+    /// only the delivery and its format are checked before the request is
+    /// sent ([`validate_beamformer_params`]); nothing is sent if they do not
+    /// agree, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_beamformer_job(
         &self,
         params: &BeamformerJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_beamformer_params(params)?;
         debug!("Submitting a beamformer job to MWA ASVO");
 
         self.submit(ENDPOINT_BEAMFORMER_JOB, params)
@@ -1027,7 +1044,10 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// The server-side filters of [`AsvoClient::get_jobs`], which are those of
 /// the MWA ASVO API's `JobsByUserRequest`. A field that is `None` does not
 /// filter, except `days` and `sort_by`, which use the API's defaults (the
-/// past 30 days, and the order `id`, in the current schema).
+/// past 30 days, and the order `id`, in the current schema). `days` and the
+/// dates are exclusive: the jobs are selected by one or the other, and a
+/// filter with `days` and a date is refused ([`JobsFilter::validate`]). With
+/// a date and no `days`, the request has `"days": null`.
 ///
 /// `job_state` and `job_type` are the schema's `JobState` and `JobType`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1045,6 +1065,29 @@ pub struct JobsFilter {
     pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
     pub sort_by: Option<String>,
+}
+
+impl JobsFilter {
+    /// Check the filter before any request.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoApiError::InvalidParameter`] if `days` is outside 1 to 30, or if
+    /// `days` is given with `date_from` or `date_to`: the jobs are selected
+    /// by `days` or by the dates, not by both.
+    pub fn validate(&self) -> Result<(), AsvoApiError> {
+        if let Some(days) = self.days {
+            validate::check_days(days)?;
+            if self.date_from.is_some() || self.date_to.is_some() {
+                return Err(AsvoApiError::InvalidParameter {
+                    name: "days",
+                    message: "can't be used with date_from or date_to; use days or the dates"
+                        .to_string(),
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A job listing: the server-side filters of [`JobsFilter`], plus the
@@ -1079,7 +1122,8 @@ impl JobQuery {
     /// # Errors
     ///
     /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids`
-    /// are given, or `days` is outside 1 to 30.
+    /// are given, or the filter is refused ([`JobsFilter::validate`]): `days`
+    /// is outside 1 to 30, or is given with a date.
     pub fn validate(&self) -> Result<(), AsvoApiError> {
         if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
             return Err(AsvoApiError::InvalidParameter {
@@ -1087,10 +1131,7 @@ impl JobQuery {
                 message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
             });
         }
-        if let Some(days) = self.filter.days {
-            validate::check_days(days)?;
-        }
-        Ok(())
+        self.filter.validate()
     }
 
     /// The server-side part of the query: [`JobQuery::filter`], with a

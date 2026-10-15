@@ -288,20 +288,61 @@ impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
 // function, which all the schema types share, so every group would show
 // the defaults of the first type used.
 
-/// Where and how the MWA ASVO delivers a job's files. The defaults are those
-/// of the schema type `P`.
+/// The clap options of [`DeliveryArgs`], as clap reads them. [`DeliveryArgs`]
+/// adds the check that the delivery and its format agree.
 #[derive(clap::Args, Debug, Clone)]
-pub struct DeliveryArgs<P: DeliveryFields> {
+struct RawDeliveryArgs<P: DeliveryFields> {
     /// Tell MWA ASVO where to deliver the data.
     #[arg(short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    pub delivery: Delivery,
+    delivery: Delivery,
 
-    /// Tell MWA ASVO to deliver the data in a particular format.
+    /// Tell MWA ASVO to deliver the data in a particular format. Must be tar
+    /// when the delivery is acacia.
     #[arg(short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    pub delivery_format: DeliveryFormat,
+    delivery_format: DeliveryFormat,
 
     #[arg(skip)]
     schema: PhantomData<fn() -> P>,
+}
+
+/// Where and how the MWA ASVO delivers a job's files. The defaults are those
+/// of the schema type `P`. The options are `--delivery` and `--delivery-format`; a
+/// `delivery_format` of `files` with a `delivery` of `acacia` is a usage
+/// error ([`validate::check_delivery_format`], the library's check), whether
+/// the values come from the command line or the environment.
+#[derive(Debug, Clone)]
+pub struct DeliveryArgs<P: DeliveryFields> {
+    pub delivery: Delivery,
+    pub delivery_format: DeliveryFormat,
+    schema: PhantomData<fn() -> P>,
+}
+
+impl<P: DeliveryFields> clap::Args for DeliveryArgs<P> {
+    fn augment_args(cmd: clap::Command) -> clap::Command {
+        <RawDeliveryArgs<P> as clap::Args>::augment_args(cmd)
+    }
+
+    fn augment_args_for_update(cmd: clap::Command) -> clap::Command {
+        <RawDeliveryArgs<P> as clap::Args>::augment_args_for_update(cmd)
+    }
+}
+
+impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        let raw = <RawDeliveryArgs<P> as clap::FromArgMatches>::from_arg_matches(matches)?;
+        validate::check_delivery_format(raw.delivery, raw.delivery_format)
+            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::ArgumentConflict, e))?;
+        Ok(Self {
+            delivery: raw.delivery,
+            delivery_format: raw.delivery_format,
+            schema: PhantomData,
+        })
+    }
+
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        *self = Self::from_arg_matches(matches)?;
+        Ok(())
+    }
 }
 
 /// The preprocessing arguments of the conversion and imaging (flow 1) jobs.

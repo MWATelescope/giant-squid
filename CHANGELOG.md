@@ -141,6 +141,14 @@ before you upgrade scripts.**
   allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
   the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
   (`job_params::set_channel_range`).
+* The jobs of `list` and `get_jobs` are selected by `days` or by the dates (`date_from`, `date_to`), not by both: a
+  filter with `days` and a date is refused before any request (`JobsFilter::validate`, `InvalidParameter`; `ValueError`
+  in Python), and `list --days` conflicts with `--date-from` and `--date-to`. With a date and no `days`, the request
+  has `"days": null` (it had the default `days`, 30, with the dates).
+* Acacia delivers a tar only: `delivery_format` `files` with `delivery` `acacia` is refused before any request by
+  every submit method (`validate::check_delivery_format`; `InvalidParameter` for `delivery_format`, `ValueError` in
+  Python), and is a usage error in every `submit-*` command (`--delivery-format files` with the default or a given
+  `--delivery acacia`, also from `GIANT_SQUID_DELIVERY_FORMAT`). The other deliveries take either format.
 * `giant-squid --version` also prints the version of the MWA ASVO API and of the OpenAPI specification that the
   library was generated from (`MWA ASVO API 2.3.0`, `OpenAPI 3.1.0`). The library has them as
   `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`. `tools/generate_openapi.sh` takes them from

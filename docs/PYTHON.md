@@ -121,7 +121,8 @@ To use a different MWA ASVO server (for example, to test a new feature), give it
 `get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
 does not filter, except `days` and `sort_by`: with `days=None` you get the jobs from the MWA ASVO's default
 window (the schema's default for `days`, which is also the most `days` can be), not your
-full history. A job older than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find
+full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both: `days` with a date
+raises `ValueError`, and with a date and no `days` the request has `"days": null`. A job older than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find
 it either.
 
 ```python
@@ -203,7 +204,8 @@ print(reply.job_id, reply.status, reply.message)
 ```
 
 The methods check the arguments before they send a request. A value outside the MWA ASVO limits raises
-`ValueError` (or `OverflowError`) that names the argument. Nothing is sent.
+`ValueError` (or `OverflowError`) that names the argument. Nothing is sent. So does `delivery_format=DeliveryFormat.Files` with `delivery=Delivery.Acacia` (the default): Acacia delivers a tar
+only. The other deliveries take either format.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
 (a `Status`: `Success` or `Failed`) and the `message` describe the reply and are for display. A call that fails

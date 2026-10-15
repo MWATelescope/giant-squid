@@ -125,7 +125,10 @@ class AsvoClient:
 
         Args:
             days: Only the jobs from the past `days` days, from 1 to 30.
-                `None` is the default of the MWA ASVO API.
+                Cannot be given with `date_from` or `date_to`: the jobs are
+                selected by `days` or by the dates. `None` is the default of
+                the MWA ASVO API (30 days), unless a date is given, and then
+                `days` is sent as `null`.
             job_state: Only the jobs in this state. The server takes one
                 state; to filter by several, use `AsvoJobVec.filter`.
             job_type: Only the jobs of this type.
@@ -137,7 +140,8 @@ class AsvoClient:
                 `None` uses the server's default order.
 
         Raises:
-            ValueError: `days` is not from 1 to 30.
+            ValueError: `days` is not from 1 to 30, or is given with
+                `date_from` or `date_to`.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
@@ -164,7 +168,10 @@ class AsvoClient:
             job_types: Only the jobs of these types.
             job_states: Only the jobs in these states.
             days: Only the jobs from the past `days` days, from 1 to 30.
-                `None` is the default of the MWA ASVO API.
+                Cannot be given with `date_from` or `date_to`: the jobs are
+                selected by `days` or by the dates. `None` is the default of
+                the MWA ASVO API (30 days), unless a date is given, and then
+                `days` is sent as `null`.
             date_from: Only the jobs created at or after this time. It must
                 have a time zone.
             date_to: Only the jobs created at or before this time. It must
@@ -173,7 +180,8 @@ class AsvoClient:
 
         Raises:
             ValueError: Both `job_ids` and `obs_ids` are given, an Obs ID is
-                not valid, or `days` is not from 1 to 30.
+                not valid, or `days` is not from 1 to 30 or is given with
+                `date_from` or `date_to`.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
@@ -196,7 +204,8 @@ class AsvoClient:
         Args:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files.
+            delivery_format: How the MWA ASVO packages the files. Must be
+                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
             allow_resubmit: Submit the job even if an identical one has
                 completed.
 
@@ -204,7 +213,10 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID.
+            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
+                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
+                is sent.
             AsvoApiError: The request failed.
         """
     def submit_download_meta_job(
@@ -224,7 +236,10 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID.
+            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
+                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
+                is sent.
             AsvoApiError: The request failed.
         """
     def submit_conversion_job(
@@ -261,7 +276,8 @@ class AsvoClient:
         Args:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files.
+            delivery_format: How the MWA ASVO packages the files. Must be
+                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
             output: The output format.
             avg_freq_res: The frequency resolution to average to (kHz).
             avg_time_res: The time resolution to average to (s).
@@ -287,10 +303,11 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or a number is outside
+            ValueError: `obs_id` is not a valid Obs ID, a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
-                1280). The message names the argument and its limits.
-                Nothing is sent.
+                1280), or `delivery` is `Delivery.Acacia` and `delivery_format`
+                is `DeliveryFormat.Files` (Acacia delivers a tar only). The
+                message names the argument and its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_imaging_job(
@@ -348,7 +365,8 @@ class AsvoClient:
         Args:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files.
+            delivery_format: How the MWA ASVO packages the files. Must be
+                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
             apply_di_cal: Apply the DI calibration solution.
             apply_primary_beam: Apply the primary beam correction.
             auto_mask: The WSClean -auto-mask value.
@@ -402,9 +420,10 @@ class AsvoClient:
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, or an argument is
                 outside what the MWA ASVO accepts (for example `mgain`
-                above 1, or an `image_size` that is not a supported size).
-                The message names the argument and its limits. Nothing is
-                sent.
+                above 1, or an `image_size` that is not a supported size), or
+                `delivery` is `Delivery.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only). The
+                message names the argument and its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_image_from_job(
@@ -459,8 +478,9 @@ class AsvoClient:
 
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, `source_job_id` is
-                zero, or an argument is outside what the MWA ASVO accepts
-                (see `submit_imaging_job`). Nothing is sent.
+                zero, or an argument is outside what the MWA ASVO accepts or
+                does not agree with another (see `submit_imaging_job`).
+                Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_voltage_job(
@@ -521,7 +541,10 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID.
+            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
+                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
+                is sent.
             AsvoApiError: The request failed.
         """
     def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:

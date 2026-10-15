@@ -548,3 +548,80 @@ fn a_value_the_schema_does_not_allow_is_refused() {
         "{err:?}"
     );
 }
+
+/// Only acacia with files is refused: the error is for `delivery_format`, and
+/// it says what the format must be.
+#[test]
+fn only_acacia_delivery_with_files_is_refused() {
+    use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
+
+    for delivery in [Delivery::Acacia, Delivery::Scratch, Delivery::Dug] {
+        for delivery_format in [DeliveryFormat::Tar, DeliveryFormat::Files] {
+            let result = check_delivery_format(delivery, delivery_format);
+            if delivery == Delivery::Acacia && delivery_format == DeliveryFormat::Files {
+                let err = result.expect_err("acacia with files is refused");
+                assert!(
+                    matches!(
+                        err,
+                        AsvoApiError::InvalidParameter {
+                            name: "delivery_format",
+                            ..
+                        }
+                    ),
+                    "{err:?}"
+                );
+                assert_eq!(
+                    err.to_string(),
+                    "Invalid delivery_format: must be tar when delivery is acacia (got files)"
+                );
+            } else {
+                result.expect("any other combination is valid");
+            }
+        }
+    }
+}
+
+/// Every request body that has a delivery and a format is checked.
+#[test]
+fn every_body_with_a_delivery_is_checked() {
+    use crate::mwa_asvo::api::openapi::{BeamformerJobParams, DeliveryFormat, DownloadJobParams};
+
+    let mut download: DownloadJobParams = DownloadJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build");
+    let mut beamformer: BeamformerJobParams = BeamformerJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build");
+    let mut conversion = conversion_defaults();
+    let mut flow1 = flow1_defaults();
+    let mut flow2 = flow2_defaults();
+    validate_download_params(&download).expect("the defaults are valid");
+    validate_beamformer_params(&beamformer).expect("the defaults are valid");
+
+    download.delivery_format = DeliveryFormat::Files;
+    beamformer.delivery_format = DeliveryFormat::Files;
+    conversion.delivery_format = DeliveryFormat::Files;
+    flow1.delivery_format = DeliveryFormat::Files;
+    flow2.delivery_format = DeliveryFormat::Files;
+    for result in [
+        validate_download_params(&download),
+        validate_beamformer_params(&beamformer),
+        validate_conversion_params(&conversion),
+        validate_imaging_params(&flow1),
+        validate_image_from_job_params(&flow2),
+    ] {
+        let err = result.expect_err("acacia with files is refused");
+        assert!(
+            matches!(
+                err,
+                AsvoApiError::InvalidParameter {
+                    name: "delivery_format",
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+}

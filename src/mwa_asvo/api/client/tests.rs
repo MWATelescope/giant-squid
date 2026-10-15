@@ -1198,6 +1198,103 @@ fn channel_range_is_derived_from_the_channels() {
     }
 }
 
+/// The MWA ASVO delivers to Acacia as a tar only: every submit method refuses
+/// `delivery_format` `files` with `delivery` `acacia` before any request, and
+/// sends the other combinations.
+#[test]
+fn acacia_delivery_with_files_is_refused_before_any_request() {
+    use crate::mwa_asvo::api::job_params::{
+        beamformer_params, conversion_params, download_params, image_from_job_params,
+        imaging_params,
+    };
+    use crate::mwa_asvo::api::openapi::{
+        Delivery, DeliveryFormat, DownloadType, JobSubmittedResponse,
+    };
+
+    let env = TestEnv::with_session();
+    let submit = env.server.mock(|when, then| {
+        when.method(POST);
+        then.status(200).json_body(job_submitted_response(1));
+    });
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = crate::test_config::test_obs_id();
+    let source_job_id = crate::test_config::nonzero(TEST_JOB_ID);
+
+    let refused = |result: Result<JobSubmittedResponse, AsvoApiError>| {
+        let err = result.expect_err("acacia with files should be refused");
+        assert!(
+            matches!(
+                err,
+                AsvoApiError::InvalidParameter {
+                    name: "delivery_format",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
+        assert!(err.to_string().contains("tar"), "{err}");
+    };
+
+    // The schema's defaults are acacia and tar, so each body is acacia with
+    // files once the format is set.
+    let mut vis = download_params(obs_id, DownloadType::Vis);
+    vis.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_download_vis_job(&vis));
+    refused(client.submit_download_meta_job(&vis));
+    let mut conversion = conversion_params(obs_id);
+    conversion.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_conversion_job(&conversion));
+    let mut imaging = imaging_params(obs_id);
+    imaging.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_imaging_job(&imaging));
+    let mut image_from_job = image_from_job_params(obs_id, source_job_id);
+    image_from_job.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_image_from_job(&image_from_job));
+    let mut beamformer = beamformer_params(obs_id);
+    beamformer.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_beamformer_job(&beamformer));
+    assert_eq!(submit.calls(), 0, "nothing should be sent");
+
+    // The other combinations are sent: acacia with tar, and the other
+    // deliveries with either format.
+    let mut sent = 0;
+    for (delivery, delivery_format) in [
+        (Delivery::Acacia, DeliveryFormat::Tar),
+        (Delivery::Scratch, DeliveryFormat::Files),
+        (Delivery::Scratch, DeliveryFormat::Tar),
+        (Delivery::Dug, DeliveryFormat::Files),
+        (Delivery::Dug, DeliveryFormat::Tar),
+    ] {
+        vis.delivery = delivery;
+        vis.delivery_format = delivery_format;
+        client
+            .submit_download_vis_job(&vis)
+            .expect("a valid delivery");
+        conversion.delivery = delivery;
+        conversion.delivery_format = delivery_format;
+        client
+            .submit_conversion_job(&conversion)
+            .expect("a valid delivery");
+        imaging.delivery = delivery;
+        imaging.delivery_format = delivery_format;
+        client
+            .submit_imaging_job(&imaging)
+            .expect("a valid delivery");
+        image_from_job.delivery = delivery;
+        image_from_job.delivery_format = delivery_format;
+        client
+            .submit_image_from_job(&image_from_job)
+            .expect("a valid delivery");
+        beamformer.delivery = delivery;
+        beamformer.delivery_format = delivery_format;
+        client
+            .submit_beamformer_job(&beamformer)
+            .expect("a valid delivery");
+        sent += 5;
+    }
+    assert_eq!(submit.calls(), sent);
+}
+
 // ---------------------------------------------------------------------------
 // Playback of a recording captured from a live MWA ASVO
 // ---------------------------------------------------------------------------
@@ -1410,7 +1507,8 @@ fn a_product_without_files_does_not_fail_the_listing() {
 // ---------------------------------------------------------------------------
 
 /// Every filter reaches the request body under its OpenAPI name, with the
-/// API's own values (a `Ready` job is `completed`; a type is its number).
+/// API's own values (a `Ready` job is `completed`; a type is its number). The
+/// dates are in their own test, because `days` and the dates are exclusive.
 #[test]
 fn get_jobs_sends_every_filter_to_the_server() {
     let env = TestEnv::with_session();
@@ -1419,7 +1517,6 @@ fn get_jobs_sends_every_filter_to_the_server() {
             .path("/api/v2/get_jobs")
             .json_body_includes(
                 r#"{ "days": 7, "job_state": "completed", "job_type": 6,
-                 "date_from": "2026-09-01T00:00:00Z", "date_to": "2026-09-30T00:00:00Z",
                  "sort_by": "created" }"#,
             );
         then.status(200)
@@ -1430,9 +1527,8 @@ fn get_jobs_sends_every_filter_to_the_server() {
         days: Some(crate::test_config::nonzero(7)),
         job_state: Some(JobState::Completed),
         job_type: Some(job_type("imaging")),
-        date_from: Some("2026-09-01T00:00:00Z".parse().expect("a valid time")),
-        date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
         sort_by: Some("created".to_string()),
+        ..JobsFilter::default()
     };
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     client
@@ -1473,6 +1569,114 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
         .expect("the listing should succeed");
 
     assert_eq!(unfiltered.calls(), 1);
+}
+
+/// The jobs are selected by `days` or by the dates, not by both: a filter with
+/// `days` and a date is refused before any request, by `get_jobs`, by
+/// `list_jobs` and by `JobQuery::validate`.
+#[test]
+fn days_with_a_date_is_refused_before_any_request() {
+    let env = TestEnv::with_session();
+    let listing = env.mock_get_jobs(vec![]);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let time: jiff::Timestamp = "2026-09-01T00:00:00Z".parse().expect("a valid time");
+
+    for (date_from, date_to) in [
+        (Some(time), None),
+        (None, Some(time)),
+        (Some(time), Some(time)),
+    ] {
+        let filter = JobsFilter {
+            days: Some(crate::test_config::nonzero(7)),
+            date_from,
+            date_to,
+            ..JobsFilter::default()
+        };
+        let query = JobQuery {
+            filter: filter.clone(),
+            ..JobQuery::default()
+        };
+
+        for err in [
+            filter.validate().expect_err("the filter is refused"),
+            query.validate().expect_err("the query is refused"),
+            client.get_jobs(&filter).expect_err("get_jobs is refused"),
+            client.list_jobs(&query).expect_err("list_jobs is refused"),
+        ] {
+            assert!(
+                matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
+                "got {err:?}"
+            );
+            assert!(err.to_string().contains("date_from"), "{err}");
+        }
+    }
+    assert_eq!(listing.calls(), 0);
+}
+
+/// With a date and no `days`, the request has `"days": null` and the dates,
+/// so that the default of `days` does not limit them. With `days` and no
+/// date, the request has `days` and no date.
+#[test]
+fn a_date_sends_null_days_and_days_alone_sends_no_date() {
+    let env = TestEnv::with_session();
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let empty = json!({ "jobs": [], "total_count": 0 });
+
+    let mut dated = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs").json_body_includes(
+            json!({ "days": null, "date_from": "2026-09-01T00:00:00Z", "date_to": "2026-09-30T00:00:00Z" })
+                .to_string(),
+        );
+        then.status(200).json_body(empty.clone());
+    });
+    client
+        .get_jobs(&JobsFilter {
+            date_from: Some("2026-09-01T00:00:00Z".parse().expect("a valid time")),
+            date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
+            ..JobsFilter::default()
+        })
+        .expect("the listing with dates should succeed");
+    assert_eq!(dated.calls(), 1);
+    dated.delete();
+
+    // One date is enough to make `days` null.
+    let mut one_date = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(
+                json!({ "days": null, "date_to": "2026-09-30T00:00:00Z" }).to_string(),
+            );
+        then.status(200).json_body(empty.clone());
+    });
+    client
+        .get_jobs(&JobsFilter {
+            date_to: Some("2026-09-30T00:00:00Z".parse().expect("a valid time")),
+            ..JobsFilter::default()
+        })
+        .expect("the listing with one date should succeed");
+    assert_eq!(one_date.calls(), 1);
+    one_date.delete();
+
+    let by_days = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/get_jobs")
+            .json_body_includes(json!({ "days": 7 }).to_string())
+            .is_true(|req| {
+                let body: serde_json::Value =
+                    serde_json::from_slice(req.body().as_ref()).unwrap_or_default();
+                ["date_from", "date_to"]
+                    .iter()
+                    .all(|key| body.get(key).is_none())
+            });
+        then.status(200).json_body(empty.clone());
+    });
+    client
+        .get_jobs(&JobsFilter {
+            days: Some(crate::test_config::nonzero(7)),
+            ..JobsFilter::default()
+        })
+        .expect("the listing by days should succeed");
+    assert_eq!(by_days.calls(), 1);
 }
 
 /// A `days` above the schema's 1 to 30 is refused before any request, by

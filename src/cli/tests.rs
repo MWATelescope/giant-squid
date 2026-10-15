@@ -1959,3 +1959,107 @@ fn a_threshold_takes_null_and_a_bad_value_is_refused() {
     let err = parse_err(&["giant-squid", "submit-conv", "--no-rfi=maybe", TEST_OBS_ID]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
+
+// ---------------------------------------------------------------------------
+// delivery and format, and days and dates
+// ---------------------------------------------------------------------------
+
+/// The MWA ASVO delivers to Acacia as a tar only: `--delivery-format files`
+/// with the delivery `acacia` (the default, or given) is a usage error for
+/// every submit command, and the other deliveries take either format.
+#[test]
+fn acacia_with_files_is_a_usage_error_for_every_submit_command() {
+    let commands: [&[&'static str]; 6] = [
+        &["submit-vis"],
+        &["submit-meta"],
+        &["submit-conv"],
+        &["submit-image"],
+        &["submit-image-from-job", "--source-job-id", "5"],
+        &["submit-bf"],
+    ];
+    for command in commands {
+        let argv = |delivery: &[&'static str]| {
+            let mut argv = vec!["giant-squid"];
+            argv.extend_from_slice(command);
+            argv.extend_from_slice(delivery);
+            argv.extend_from_slice(&["--delivery-format", "files", TEST_OBS_ID]);
+            argv
+        };
+
+        // The delivery is acacia by default, and when it is given.
+        for delivery in [
+            &[][..],
+            &["--delivery", "acacia"][..],
+            &["-d", "acacia"][..],
+        ] {
+            let err = parse_err(&argv(delivery));
+            assert_eq!(
+                err.kind(),
+                clap::error::ErrorKind::ArgumentConflict,
+                "{command:?}"
+            );
+            assert!(
+                err.to_string()
+                    .contains("must be tar when delivery is acacia (got files)"),
+                "{err}"
+            );
+        }
+
+        // The other deliveries take files; acacia takes tar.
+        for delivery in ["scratch", "dug"] {
+            Args::try_parse_from(argv(&["--delivery", delivery]))
+                .unwrap_or_else(|e| panic!("{command:?} {delivery}: {e}"));
+        }
+        let mut tar = vec!["giant-squid"];
+        tar.extend_from_slice(command);
+        tar.extend_from_slice(&[
+            "--delivery",
+            "acacia",
+            "--delivery-format",
+            "tar",
+            TEST_OBS_ID,
+        ]);
+        Args::try_parse_from(tar).expect("acacia with tar is valid");
+    }
+}
+
+/// The jobs of `list` are selected by `--days` or by the dates: clap refuses
+/// `--days` given with a date, and a date does not conflict with the default
+/// of `--days`.
+#[test]
+fn list_days_conflicts_with_the_dates() {
+    for date in [
+        ["--date-from", "2026-09-01"],
+        ["--date-to", "2026-09-30T00:00:00Z"],
+    ] {
+        let err = parse_err(&["giant-squid", "list", "--days", "5", date[0], date[1]]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{date:?}"
+        );
+
+        // A date alone is fine, and `days` has its default.
+        let args = Args::try_parse_from(["giant-squid", "list", date[0], date[1]])
+            .expect("a date without --days is valid");
+        let Args::List { days, .. } = args else {
+            panic!("expected list");
+        };
+        assert_eq!(days, Some(super::params::list_days_default()));
+    }
+}
+
+/// With a date, `list` does not send the default `days`: the library gets no
+/// `days`, so that the request has `"days": null` and the dates select the
+/// jobs. Without a date, `days` is kept.
+#[test]
+fn list_with_a_date_has_no_days() {
+    use super::run::list_days;
+
+    let days = Some(super::params::list_days_default());
+    let time: jiff::Timestamp = "2026-09-01T00:00:00Z".parse().expect("a valid time");
+    assert_eq!(list_days(days, None, None), days);
+    assert_eq!(list_days(days, Some(time), None), None);
+    assert_eq!(list_days(days, None, Some(time)), None);
+    assert_eq!(list_days(days, Some(time), Some(time)), None);
+}

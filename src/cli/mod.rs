@@ -140,8 +140,9 @@ pub enum Args {
         #[arg(short, long)]
         no_colour: bool,
 
-        /// Only fetch jobs from the past N days (1 to 30)
-        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_days)]
+        /// Only fetch jobs from the past N days (1 to 30). Cannot be used with
+        /// --date-from or --date-to, which select the jobs by date instead
+        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_days, conflicts_with_all = ["date_from", "date_to"])]
         days: Option<NonZeroU64>,
 
         /// Only jobs created at or after this time: RFC 3339 (for example

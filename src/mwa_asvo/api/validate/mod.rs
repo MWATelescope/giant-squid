@@ -26,7 +26,8 @@ use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    ConversionJobParams, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
+    BeamformerJobParams, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
+    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
 };
 
 #[cfg(test)]
@@ -203,14 +204,63 @@ macro_rules! shared_imaging_checks {
     };
 }
 
-/// Check the numbers of a conversion request body against the schema's
-/// limits.
+/// Check that the `delivery` and the `delivery_format` of a job agree: the
+/// MWA ASVO delivers to Acacia as a tar only, so `delivery_format` must be
+/// `tar` when `delivery` is `acacia`. The other deliveries take either
+/// format.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] for `delivery_format`, if `delivery` is
+/// `acacia` and `delivery_format` is `files`.
+pub fn check_delivery_format(
+    delivery: Delivery,
+    delivery_format: DeliveryFormat,
+) -> Result<(), AsvoApiError> {
+    if delivery == Delivery::Acacia && delivery_format == DeliveryFormat::Files {
+        return Err(AsvoApiError::InvalidParameter {
+            name: "delivery_format",
+            message: format!(
+                "must be {} when delivery is {} (got {delivery_format})",
+                DeliveryFormat::Tar,
+                Delivery::Acacia
+            ),
+        });
+    }
+    Ok(())
+}
+
+/// Check a visibility or metadata download request body: its delivery
+/// ([`check_delivery_format`]). The schema gives it no numeric limits.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
+/// agree.
+pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)
+}
+
+/// Check a beamformer request body: its delivery
+/// ([`check_delivery_format`]). The schema gives it no numeric limits.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
+/// agree.
+pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)
+}
+
+/// Check a conversion request body: its delivery ([`check_delivery_format`])
+/// and its numbers against the schema's limits.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range.
+/// of range or the delivery and its format that do not agree.
 pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&[
         ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
         ("avg_time_res", AVG_TIME_RES, params.avg_time_res),
@@ -243,14 +293,15 @@ pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiE
     VOLTAGE_OFFSET.check("offset", params.offset as f64)
 }
 
-/// Check the numbers of an imaging (flow 1) request body against the
-/// schema's limits.
+/// Check an imaging (flow 1) request body: its delivery
+/// ([`check_delivery_format`]) and its numbers against the schema's limits.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range.
+/// of range or the delivery and its format that do not agree.
 pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))?;
     check_all(&[
         ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
@@ -273,14 +324,15 @@ pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), Asv
     ])
 }
 
-/// Check the numbers of an image-from-job (flow 2) request body against the
-/// schema's limits.
+/// Check an image-from-job (flow 2) request body: its delivery
+/// ([`check_delivery_format`]) and its numbers against the schema's limits.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range.
+/// of range or the delivery and its format that do not agree.
 pub fn validate_image_from_job_params(params: &ImagingJobFlow2Params) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))
 }
 

@@ -11,11 +11,13 @@
 //! [`run_cli`].
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
 use clap::Parser;
+use jiff::Timestamp;
 use log::{debug, error, info, warn};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 
@@ -362,6 +364,21 @@ fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyho
     Ok(())
 }
 
+/// The `days` of `list`. clap refuses `--days` given with a date, so with a
+/// date `days` is only its default, which the dates replace: the jobs are
+/// selected by `days` or by the dates, not by both (the library refuses both).
+pub(super) fn list_days(
+    days: Option<NonZeroU64>,
+    date_from: Option<Timestamp>,
+    date_to: Option<Timestamp>,
+) -> Option<NonZeroU64> {
+    if date_from.is_some() || date_to.is_some() {
+        None
+    } else {
+        days
+    }
+}
+
 /// Report what a submission would have sent, for `--dry-run`.
 ///
 /// Every submit command prints the same thing: the endpoint the request
@@ -512,6 +529,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(verbosity, json);
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
+            let days = list_days(days, date_from, date_to);
             let query = JobQuery {
                 job_ids,
                 obs_ids,

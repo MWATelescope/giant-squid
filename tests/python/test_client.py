@@ -368,15 +368,16 @@ def get_jobs_body(httpserver: HTTPServer) -> dict[str, Any]:
 def test_get_jobs_sends_every_filter_to_the_server(
     host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None]
 ) -> None:
-    """Each filter reaches the request body under its OpenAPI name, with the API's own values."""
+    """Each filter reaches the request body under its OpenAPI name, with the API's own values.
+
+    The dates are in their own test: ``days`` and the dates are exclusive.
+    """
     serve_jobs([])
 
     gs.AsvoClient(host, TEST_API_KEY).get_jobs(
         FILTER_DAYS,
         job_state=gs.JobState.Completed,
         job_type=gs.JobType.Imaging,
-        date_from=FILTER_FROM,
-        date_to=FILTER_TO,
         sort_by=FILTER_SORT,
     )
 
@@ -384,9 +385,22 @@ def test_get_jobs_sends_every_filter_to_the_server(
     assert body["days"] == FILTER_DAYS
     assert body["job_state"] == "completed"
     assert body["job_type"] == IMAGING_JOB_TYPE_NUMBER
+    assert body["sort_by"] == FILTER_SORT
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_get_jobs_sends_the_dates_to_the_server(
+    host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None]
+) -> None:
+    """The dates reach the request body, and ``days`` is ``null``: the jobs are selected by days or by dates."""
+    serve_jobs([])
+
+    gs.AsvoClient(host, TEST_API_KEY).get_jobs(date_from=FILTER_FROM, date_to=FILTER_TO)
+
+    body = get_jobs_body(httpserver)
+    assert body["days"] is None
     assert parse_rfc3339(body["date_from"]) == FILTER_FROM
     assert parse_rfc3339(body["date_to"]) == FILTER_TO
-    assert body["sort_by"] == FILTER_SORT
 
 
 @pytest.mark.usefixtures("mock_login")
