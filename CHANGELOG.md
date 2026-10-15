@@ -141,6 +141,12 @@ before you upgrade scripts.**
   allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
   the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
   (`job_params::set_channel_range`).
+* Library: `AsvoClient::get_jobs` and `list_jobs` are one method, `get_jobs`, and `JobQuery` is part of `JobsFilter`.
+  `JobsFilter` has the lists `job_ids`, `obs_ids`, `job_types` and `job_states` as well as `days`, the dates and
+  `sort_by`; `JobsFilter::validate` checks it (Job IDs with Obs IDs, `days`, `days` with a date). `get_jobs` sends a
+  list of exactly one state or one type to the server, and applies every list to the jobs that come back. The
+  single `job_state` and `job_type` of `JobsFilter` are gone: use a list of one. In Python, `get_jobs` and
+  `list_jobs` are unchanged.
 * `--json`: an error line has `"status": "failed"` (the value of a failed reply of the MWA ASVO), and `status` is the
   first key of every line that reports a result:
   the reply of the MWA ASVO to a submission or a cancellation (`success` or `failed`, as it sent it), a download
@@ -174,8 +180,7 @@ before you upgrade scripts.**
   variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with
   `AsvoApiError::Reqwest`, as for every other request (in Python, `AsvoApiError` of kind `Reqwest`).
 * Library: `JobsFilter::days` is `Option<NonZeroU64>`, the schema's type (was `Option<i64>`); a value above 30 is
-  still refused before any request. `JobQuery` holds a `JobsFilter` (`filter`) for the server-side filters, in place
-  of its own `days`, `date_from`, `date_to` and `sort_by`. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
+  still refused before any request. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
 * Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In
   Python it is the new class `JobCancelledResponse`, and the `status` of both reply classes is the new enum `Status`
   (`Status.Success` or `Status.Failed`; `str()` is the API value), not a `str`.

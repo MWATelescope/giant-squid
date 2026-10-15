@@ -20,7 +20,7 @@ pub(crate) mod types;
 // build without that feature does not use them.
 #[allow(unused_imports)]
 pub(crate) use api::client::{
-    AsvoClient, AsvoClientConfig, JobQuery, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
+    AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
     ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };

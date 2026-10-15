@@ -25,7 +25,7 @@ use crate::mwa_asvo::api::openapi::Type as FileType;
 #[cfg(feature = "bin")]
 use crate::mwa_asvo::api::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::mwa_asvo::client_config_from_env;
-use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobQuery, JobState, JobsFilter};
+use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobState, JobsFilter};
 use crate::test_common::*;
 use crate::test_config::{client_config, job_type};
 
@@ -1525,8 +1525,8 @@ fn get_jobs_sends_every_filter_to_the_server() {
 
     let filter = JobsFilter {
         days: Some(crate::test_config::nonzero(7)),
-        job_state: Some(JobState::Completed),
-        job_type: Some(job_type("imaging")),
+        job_states: vec![JobState::Completed],
+        job_types: vec![job_type("imaging")],
         sort_by: Some("created".to_string()),
         ..JobsFilter::default()
     };
@@ -1572,8 +1572,8 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
 }
 
 /// The jobs are selected by `days` or by the dates, not by both: a filter with
-/// `days` and a date is refused before any request, by `get_jobs`, by
-/// `list_jobs` and by `JobQuery::validate`.
+/// `days` and a date is refused before any request, by `get_jobs` and by
+/// `JobsFilter::validate`.
 #[test]
 fn days_with_a_date_is_refused_before_any_request() {
     let env = TestEnv::with_session();
@@ -1592,16 +1592,10 @@ fn days_with_a_date_is_refused_before_any_request() {
             date_to,
             ..JobsFilter::default()
         };
-        let query = JobQuery {
-            filter: filter.clone(),
-            ..JobQuery::default()
-        };
 
         for err in [
             filter.validate().expect_err("the filter is refused"),
-            query.validate().expect_err("the query is refused"),
             client.get_jobs(&filter).expect_err("get_jobs is refused"),
-            client.list_jobs(&query).expect_err("list_jobs is refused"),
         ] {
             assert!(
                 matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
@@ -1680,8 +1674,7 @@ fn a_date_sends_null_days_and_days_alone_sends_no_date() {
 }
 
 /// A `days` above the schema's 1 to 30 is refused before any request, by
-/// `get_jobs` and by `list_jobs` (and `JobQuery::validate`); the ends are
-/// accepted.
+/// `get_jobs` (and `JobsFilter::validate`); the ends are accepted.
 #[test]
 fn days_outside_the_schema_limits_are_refused_before_any_request() {
     let env = TestEnv::with_session();
@@ -1705,18 +1698,14 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
             "the message should give the limits: {err}"
         );
 
-        let query = JobQuery {
-            filter: JobsFilter {
+        assert!(matches!(
+            JobsFilter {
                 days: Some(days),
                 ..JobsFilter::default()
-            },
-            ..JobQuery::default()
-        };
-        assert!(matches!(
-            query.validate(),
+            }
+            .validate(),
             Err(AsvoApiError::InvalidParameter { name: "days", .. })
         ));
-        assert!(client.list_jobs(&query).is_err());
     }
     assert_eq!(listing.calls(), 0);
 
@@ -1873,7 +1862,7 @@ fn an_api_error_with_only_a_suggestion_shows_only_the_suggestion() {
 }
 
 // ---------------------------------------------------------------------------
-// list_jobs: the listing that the CLI's list and wait use
+// get_jobs with lists: the listing that the CLI's list and wait use
 // ---------------------------------------------------------------------------
 
 /// Three jobs: a ready conversion, a queued imaging job and a cancelled
@@ -1889,7 +1878,7 @@ fn three_jobs() -> Vec<serde_json::Value> {
 /// One state and one type go to the server; the listing is then filtered
 /// on the client too, so the result is right whatever the server does.
 #[test]
-fn list_jobs_sends_a_single_state_and_type_to_the_server() {
+fn get_jobs_sends_a_single_state_and_type_to_the_server() {
     let env = TestEnv::with_session();
     let listing = env.server.mock(|when, then| {
         when.method(POST)
@@ -1901,10 +1890,10 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
-        .list_jobs(&JobQuery {
+        .get_jobs(&JobsFilter {
             job_states: vec![JobState::Queued],
             job_types: vec![job_type("imaging")],
-            ..JobQuery::default()
+            ..JobsFilter::default()
         })
         .expect("the listing should succeed");
 
@@ -1915,7 +1904,7 @@ fn list_jobs_sends_a_single_state_and_type_to_the_server() {
 
 /// Several states are not a server filter; they are applied to the result.
 #[test]
-fn list_jobs_filters_several_states_on_the_client() {
+fn get_jobs_filters_several_states_on_the_client() {
     let env = TestEnv::with_session();
     let listing = env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/get_jobs").is_true(|req| {
@@ -1929,9 +1918,9 @@ fn list_jobs_filters_several_states_on_the_client() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
-        .list_jobs(&JobQuery {
+        .get_jobs(&JobsFilter {
             job_states: vec![JobState::Completed, JobState::Queued],
-            ..JobQuery::default()
+            ..JobsFilter::default()
         })
         .expect("the listing should succeed");
 
@@ -1945,17 +1934,17 @@ fn list_jobs_filters_several_states_on_the_client() {
 
 /// Job IDs and obsids together are refused before any request.
 #[test]
-fn list_jobs_refuses_job_ids_and_obs_ids_together() {
+fn get_jobs_refuses_job_ids_and_obs_ids_together() {
     let env = TestEnv::with_session();
     let listing = env.mock_get_jobs(vec![]);
-    let query = JobQuery {
+    let filter = JobsFilter {
         job_ids: vec![crate::test_config::job_id(1)],
         obs_ids: vec![crate::ObsId::validate(1065880128).expect("a valid obsid")],
-        ..JobQuery::default()
+        ..JobsFilter::default()
     };
 
     assert!(matches!(
-        query.validate(),
+        filter.validate(),
         Err(AsvoApiError::InvalidParameter {
             name: "job_ids",
             ..
@@ -1963,39 +1952,25 @@ fn list_jobs_refuses_job_ids_and_obs_ids_together() {
     ));
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .list_jobs(&query)
-        .expect_err("the query should be refused");
+        .get_jobs(&filter)
+        .expect_err("the filter should be refused");
 
     assert!(err.to_string().contains("can't specify both"), "{err}");
     assert_eq!(listing.calls(), 0);
 }
 
-/// The filter's own state and type are sent as given; a single entry of a
-/// list is sent only when the filter has none.
+/// The server takes one state and one type: a list with exactly one entry
+/// gives the server's filter, and a list of none or of several gives none.
 #[test]
-fn a_query_sends_the_filters_state_and_type_before_a_single_list_entry() {
-    let one_of_each = JobQuery {
-        job_states: vec![JobState::Queued],
-        job_types: vec![job_type("conversion")],
-        ..JobQuery::default()
-    };
-    let server = one_of_each.server_filter();
-    assert_eq!(server.job_state, Some(JobState::Queued));
-    assert_eq!(server.job_type, Some(job_type("conversion")));
-
-    let own = JobQuery {
-        job_states: vec![JobState::Queued],
-        filter: JobsFilter {
-            job_state: Some(JobState::Completed),
-            ..JobsFilter::default()
-        },
-        ..JobQuery::default()
-    };
-    assert_eq!(own.server_filter().job_state, Some(JobState::Completed));
-
-    let several = JobQuery {
-        job_states: vec![JobState::Queued, JobState::Completed],
-        ..JobQuery::default()
-    };
-    assert_eq!(several.server_filter().job_state, None);
+fn a_list_of_one_entry_is_the_servers_filter() {
+    assert_eq!(super::single(&[JobState::Queued]), Some(JobState::Queued));
+    assert_eq!(
+        super::single(&[job_type("conversion")]),
+        Some(job_type("conversion"))
+    );
+    assert_eq!(super::single::<JobState>(&[]), None);
+    assert_eq!(
+        super::single(&[JobState::Queued, JobState::Completed]),
+        None
+    );
 }

@@ -29,7 +29,7 @@ use indicatif_log_bridge::LogWrapper;
 use crate::mwa_asvo::api::openapi::{JobSubmittedResponse, Status, Type as FileType};
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
-    DownloadOptions, DownloadProgress, DownloadSettings, JobQuery, JobState, JobsFilter,
+    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
     ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };
@@ -531,23 +531,20 @@ fn run(args: Args) -> anyhow::Result<()> {
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let days = list_days(days, date_from, date_to);
-            let query = JobQuery {
+            let filter = JobsFilter {
+                days,
+                date_from,
+                date_to,
+                sort_by,
                 job_ids,
                 obs_ids,
                 job_types,
                 job_states,
-                filter: JobsFilter {
-                    days,
-                    date_from,
-                    date_to,
-                    sort_by,
-                    ..JobsFilter::default()
-                },
             };
-            // Before connecting, so that a bad query does not log in.
-            query.validate()?;
+            // Before connecting, so that a bad filter does not log in.
+            filter.validate()?;
             let client = connect()?;
-            let jobs = client.list_jobs(&query)?;
+            let jobs = client.get_jobs(&filter)?;
 
             if legacy_json {
                 warn!("{LEGACY_JSON_WARNING}");
@@ -923,9 +920,9 @@ fn run(args: Args) -> anyhow::Result<()> {
             // they're all ready.
             wait_loop(&client, &parsed_job_ids)?;
 
-            let jobs = client.list_jobs(&JobQuery {
+            let jobs = client.get_jobs(&JobsFilter {
                 job_ids: parsed_job_ids,
-                ..JobQuery::default()
+                ..JobsFilter::default()
             })?;
 
             if legacy_json {

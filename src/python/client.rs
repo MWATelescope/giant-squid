@@ -29,7 +29,7 @@ use super::types::{
 use crate::mwa_asvo::api::job_params as schema;
 use crate::mwa_asvo::api::openapi::DownloadType;
 use crate::mwa_asvo::api::validate;
-use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
+use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobsFilter};
 use crate::obs_id::ObsId;
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -126,11 +126,12 @@ impl PyAsvoClient {
             .map_err(|e| api_error(py, e))?;
         let filter = JobsFilter {
             days,
-            job_state: job_state.map(Into::into),
-            job_type: job_type.map(Into::into),
             date_from,
             date_to,
             sort_by,
+            job_types: job_type.map(Into::into).into_iter().collect(),
+            job_states: job_state.map(Into::into).into_iter().collect(),
+            ..JobsFilter::default()
         };
         py.detach(|| self.inner.get_jobs(&filter))
             .map(PyAsvoJobVec::from)
@@ -196,7 +197,11 @@ impl PyAsvoClient {
             .map(validate::days)
             .transpose()
             .map_err(|e| api_error(py, e))?;
-        let query = JobQuery {
+        let filter = JobsFilter {
+            days,
+            date_from,
+            date_to,
+            sort_by,
             job_ids: job_ids
                 .unwrap_or_default()
                 .into_iter()
@@ -213,15 +218,8 @@ impl PyAsvoClient {
                 .into_iter()
                 .map(Into::into)
                 .collect(),
-            filter: JobsFilter {
-                days,
-                date_from,
-                date_to,
-                sort_by,
-                ..JobsFilter::default()
-            },
         };
-        py.detach(|| self.inner.list_jobs(&query))
+        py.detach(|| self.inner.get_jobs(&filter))
             .map(PyAsvoJobVec::from)
             .map_err(|e| api_error(py, e))
     }

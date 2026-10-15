@@ -374,7 +374,7 @@ impl AsvoClient {
     }
 
     /// As [`Self::download_job`], with the job looked up in `jobs` (a job
-    /// list from [`Self::get_jobs`] or [`Self::list_jobs`]) instead of a new
+    /// list from [`Self::get_jobs`]) instead of a new
     /// job list request.
     pub fn download_job_from(
         &self,
@@ -693,13 +693,17 @@ impl AsvoClient {
         )
     }
 
-    /// Fetch the caller's MWA ASVO jobs, all pages of them.
+    /// Fetch the caller's MWA ASVO jobs, all pages of them, as `giant-squid
+    /// list` does.
     ///
-    /// `filter` gives the server-side filters of the MWA ASVO API
-    /// (`JobsByUserRequest`); [`JobsFilter::default()`] gets the jobs that
-    /// the API returns by default. The server takes one state and one type
-    /// at most; to filter by several, use [`AsvoJobVec::filter`] on the
-    /// result.
+    /// `filter` selects the jobs ([`JobsFilter`]); [`JobsFilter::default()`]
+    /// gets the jobs that the API returns by default. The filters that the
+    /// MWA ASVO API has (`JobsByUserRequest`: `days`, the dates, the sort
+    /// order, one state and one type) are sent to the server. The server takes
+    /// one state and one type at most, so a list of several states or types
+    /// (and the lists of Job IDs and Obs IDs) is applied to the jobs that
+    /// come back ([`AsvoJobVec::filter`]); a list of exactly one state or one
+    /// type is sent to the server as well, so that less comes back.
     ///
     /// The jobs are selected by `days` or by `date_from` and `date_to`, not
     /// by both ([`JobsFilter::validate`]). `filter.days` must be from 1 to 30
@@ -716,15 +720,16 @@ impl AsvoClient {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] before any request, for a `days`
-    /// outside 1 to 30, or `days` together with `date_from` or `date_to`;
-    /// otherwise the error from the request.
+    /// [`AsvoApiError::InvalidParameter`] before any request, if the filter
+    /// is refused ([`JobsFilter::validate`]); otherwise the error from the
+    /// request.
     pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
         filter.validate()?;
         let days = filter.days;
         let dates = filter.date_from.is_some() || filter.date_to.is_some();
-        let job_state = filter.job_state;
-        let job_type = filter.job_type;
+        // The server takes one state and one type.
+        let job_state = single(&filter.job_states);
+        let job_type = single(&filter.job_types);
 
         let mut all_jobs = Vec::new();
         let mut offset: u64 = 0;
@@ -790,24 +795,11 @@ impl AsvoClient {
             }
         }
 
-        Ok(AsvoJobVec(all_jobs))
-    }
-
-    /// List jobs as `giant-squid list` does: [`JobQuery::validate`], then
-    /// [`get_jobs`](Self::get_jobs) with the server-side part of `query`,
-    /// then [`AsvoJobVec::filter`] with its lists.
-    ///
-    /// # Errors
-    ///
-    /// [`AsvoApiError::InvalidParameter`] before any request, if the query
-    /// is not valid; otherwise the error from the request.
-    pub fn list_jobs(&self, query: &JobQuery) -> Result<AsvoJobVec, AsvoApiError> {
-        query.validate()?;
-        Ok(self.get_jobs(&query.server_filter())?.filter(
-            &query.job_ids,
-            &query.obs_ids,
-            &query.job_types,
-            &query.job_states,
+        Ok(AsvoJobVec(all_jobs).filter(
+            &filter.job_ids,
+            &filter.obs_ids,
+            &filter.job_types,
+            &filter.job_states,
         ))
     }
 
@@ -1041,30 +1033,40 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
     }
 }
 
-/// The server-side filters of [`AsvoClient::get_jobs`], which are those of
-/// the MWA ASVO API's `JobsByUserRequest`. A field that is `None` does not
-/// filter, except `days` and `sort_by`, which use the API's defaults (the
-/// past 30 days, and the order `id`, in the current schema). `days` and the
-/// dates are exclusive: the jobs are selected by one or the other, and a
-/// filter with `days` and a date is refused ([`JobsFilter::validate`]). With
-/// a date and no `days`, the request has `"days": null`.
+/// Which jobs [`AsvoClient::get_jobs`] gets, as `giant-squid list` selects
+/// them. An empty list, or a field that is `None`, does not filter, except
+/// `days` and `sort_by`, which use the API's defaults (the past 30 days, and
+/// the order `id`, in the current schema).
 ///
-/// `job_state` and `job_type` are the schema's `JobState` and `JobType`.
+/// `days`, the dates, `sort_by` and, when a list has exactly one entry, that
+/// state or type are filters of the MWA ASVO API (`JobsByUserRequest`) and are
+/// sent to the server. The lists are also applied to the jobs that come back
+/// ([`AsvoJobVec::filter`]), because the server takes one state and one type
+/// at most. `days` and the dates are exclusive: the jobs are selected by one
+/// or the other, and a filter with `days` and a date is refused
+/// ([`JobsFilter::validate`]). With a date and no `days`, the request has
+/// `"days": null`.
+///
+/// The states and types are the schema's `JobState` and `JobType`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JobsFilter {
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]). `None` is the API's default.
     pub days: Option<NonZeroU64>,
-    /// Only the jobs in this state.
-    pub job_state: Option<JobState>,
-    /// Only the jobs of this type.
-    pub job_type: Option<JobType>,
     /// Only the jobs created at or after this time.
     pub date_from: Option<Timestamp>,
     /// Only the jobs created at or before this time.
     pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
     pub sort_by: Option<String>,
+    /// Only these jobs. Cannot be combined with `obs_ids`.
+    pub job_ids: Vec<AsvoJobId>,
+    /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
+    pub obs_ids: Vec<ObsId>,
+    /// Only the jobs of these types.
+    pub job_types: Vec<JobType>,
+    /// Only the jobs in these states.
+    pub job_states: Vec<JobState>,
 }
 
 impl JobsFilter {
@@ -1072,10 +1074,17 @@ impl JobsFilter {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] if `days` is outside 1 to 30, or if
-    /// `days` is given with `date_from` or `date_to`: the jobs are selected
-    /// by `days` or by the dates, not by both.
+    /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids` are
+    /// given, if `days` is outside 1 to 30, or if `days` is given with
+    /// `date_from` or `date_to`: the jobs are selected by `days` or by the
+    /// dates, not by both.
     pub fn validate(&self) -> Result<(), AsvoApiError> {
+        if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
+            return Err(AsvoApiError::InvalidParameter {
+                name: "job_ids",
+                message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
+            });
+        }
         if let Some(days) = self.days {
             validate::check_days(days)?;
             if self.date_from.is_some() || self.date_to.is_some() {
@@ -1090,62 +1099,12 @@ impl JobsFilter {
     }
 }
 
-/// A job listing: the server-side filters of [`JobsFilter`], plus the
-/// filters that the MWA ASVO API does not have (several Job IDs, Obs IDs,
-/// types or states), which [`AsvoClient::list_jobs`] applies to the result.
-/// An empty list does not filter.
-///
-/// `filter.job_state` and `filter.job_type` are sent as given. When one is
-/// `None` and its list (`job_states`, `job_types`) has exactly one entry,
-/// that entry is sent instead, so that less comes back.
-///
-/// This is what `giant-squid list` and `wait` do, so a program (or a Python
-/// CLI) does not need to repeat it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct JobQuery {
-    /// Only these jobs. Cannot be combined with `obs_ids`.
-    pub job_ids: Vec<AsvoJobId>,
-    /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
-    pub obs_ids: Vec<ObsId>,
-    /// Only the jobs of these types.
-    pub job_types: Vec<JobType>,
-    /// Only the jobs in these states.
-    pub job_states: Vec<JobState>,
-    /// The server-side filters: `days`, the dates, the sort order, and
-    /// one state and one type.
-    pub filter: JobsFilter,
-}
-
-impl JobQuery {
-    /// Check the query before any request.
-    ///
-    /// # Errors
-    ///
-    /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids`
-    /// are given, or the filter is refused ([`JobsFilter::validate`]): `days`
-    /// is outside 1 to 30, or is given with a date.
-    pub fn validate(&self) -> Result<(), AsvoApiError> {
-        if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
-            return Err(AsvoApiError::InvalidParameter {
-                name: "job_ids",
-                message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
-            });
-        }
-        self.filter.validate()
-    }
-
-    /// The server-side part of the query: [`JobQuery::filter`], with a
-    /// single state or a single type of the lists when the filter has none.
-    /// The list filters are applied to the result in any case.
-    fn server_filter(&self) -> JobsFilter {
-        let mut filter = self.filter.clone();
-        if let (None, [state]) = (filter.job_state, self.job_states.as_slice()) {
-            filter.job_state = Some(*state);
-        }
-        if let (None, [job_type]) = (filter.job_type, self.job_types.as_slice()) {
-            filter.job_type = Some(*job_type);
-        }
-        filter
+/// The only entry of `items`: the filter that the server takes. With none or
+/// several entries, the server does not filter.
+fn single<T: Copy>(items: &[T]) -> Option<T> {
+    match items {
+        [one] => Some(*one),
+        _ => None,
     }
 }
 
