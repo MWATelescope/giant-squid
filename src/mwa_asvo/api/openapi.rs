@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.3.0";
+pub const MWA_ASVO_API_VERSION: &str = "2.3.4";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
