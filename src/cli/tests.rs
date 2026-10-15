@@ -23,6 +23,7 @@ use crate::mwa_asvo::api::job_params::{
     beamformer_defaults, conversion_defaults, download_defaults, image_from_job_defaults,
     imaging_defaults, voltage_defaults,
 };
+use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::parse_many_job_ids_or_obs_ids;
 
 /// An obsid used throughout these tests, and its `i64` form as the request
@@ -1753,7 +1754,13 @@ fn run_cli_returns_zero_for_help_and_version() {
 fn the_version_has_the_name_of_the_program() {
     use clap::CommandFactory;
 
-    let expected = format!("{} {}\n", super::PROGRAM_NAME, env!("CARGO_PKG_VERSION"));
+    let expected = format!(
+        "{} {}\nMWA ASVO API {}\nOpenAPI {}\n",
+        super::PROGRAM_NAME,
+        env!("CARGO_PKG_VERSION"),
+        MWA_ASVO_API_VERSION,
+        OPENAPI_VERSION
+    );
     assert_eq!(Args::command().render_version(), expected);
 
     let err = Args::try_parse_from(["/some/dir/another-name", "--version"])

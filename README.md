@@ -147,6 +147,18 @@ giant-squid download --help
 giant-squid --version
 ```
 
+It also prints the version of the MWA ASVO API and of the OpenAPI specification that this version of giant-squid was
+built for:
+
+```
+giant-squid 3.0.0
+MWA ASVO API 2.3.0
+OpenAPI 3.1.0
+```
+
+A Rust program can read them as `mwa_giant_squid::mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and
+`OPENAPI_VERSION`.
+
 ### Submit MWA ASVO jobs
 
 If you upgrade from giant-squid 2.x, the job options changed: see the [3.0 migration guide](docs/V3_MIGRATION.md).

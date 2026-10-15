@@ -141,6 +141,11 @@ before you upgrade scripts.**
   allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
   the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
   (`job_params::set_channel_range`).
+* `giant-squid --version` also prints the version of the MWA ASVO API and of the OpenAPI specification that the
+  library was generated from (`MWA ASVO API 2.3.0`, `OpenAPI 3.1.0`). The library has them as
+  `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`. `tools/generate_openapi.sh` takes them from
+  the server's document into `openapi-schema.json` (`info.version` and `openapi`), and `build.rs` writes them into
+  `openapi.rs`.
 * CLI: an option for a field that the MWA ASVO allows to be `null` takes the word `null` (`--avg-freq-res null`,
   `--no-rfi=null`, `--allow-resubmit=null`): `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`,
   `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,

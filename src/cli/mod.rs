@@ -27,6 +27,7 @@ use clap::builder::styling::{AnsiColor, Styles};
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
+use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::mwa_asvo::{JobState, JobType};
 use params::{
     list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
@@ -47,6 +48,16 @@ pub const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
 /// The name of the program, which `--version` prints. Without it, clap
 /// prints the name of the crate (`mwa_giant_squid`).
 pub const PROGRAM_NAME: &str = "giant-squid";
+
+/// The text that `--version` prints after the name of the program: the
+/// version of giant-squid, then the version of the MWA ASVO API and of the
+/// OpenAPI specification that the library was generated from.
+fn version_text() -> String {
+    format!(
+        "{}\nMWA ASVO API {MWA_ASVO_API_VERSION}\nOpenAPI {OPENAPI_VERSION}",
+        env!("CARGO_PKG_VERSION")
+    )
+}
 
 /// The colours of the help and of clap's messages. clap's own default has
 /// no colours (only bold and underline), so the help looks monochrome; these
@@ -92,7 +103,7 @@ pub struct SubmitOptions {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = PROGRAM_NAME, author, about = ABOUT, version, color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true)]
+#[command(name = PROGRAM_NAME, author, about = ABOUT, version = version_text(), color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true)]
 pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]

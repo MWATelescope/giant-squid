@@ -80,6 +80,31 @@ mod regen_openapi {
 //
 ";
 
+    /// The Rust source of the two version constants of `openapi.rs`: the
+    /// version of the OpenAPI specification (the `openapi` key of the schema
+    /// file) and the version of the MWA ASVO API (`info.version`). Both are
+    /// written by tools/generate_openapi.sh from the server's document.
+    fn versions_source(schema_file: &str) -> String {
+        let document: serde_json::Value = serde_json::from_str(schema_file)
+            .unwrap_or_else(|e| panic!("failed to parse {SCHEMA_PATH} as JSON: {e}"));
+        let version = |value: Option<&serde_json::Value>, key: &str| {
+            value
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_else(|| {
+                    panic!("{SCHEMA_PATH} has no {key}: run tools/generate_openapi.sh")
+                })
+                .to_string()
+        };
+        let openapi = version(document.get("openapi"), "openapi");
+        let api = version(document.pointer("/info/version"), "info.version");
+        format!(
+            "/// The version of the OpenAPI specification that the MWA ASVO API's document is written in.\n\
+             pub const OPENAPI_VERSION: &str = {openapi:?};\n\
+             /// The version of the MWA ASVO API that this file was generated from.\n\
+             pub const MWA_ASVO_API_VERSION: &str = {api:?};\n\n"
+        )
+    }
+
     pub fn run() {
         // Only rerun this build script when the schema itself changes -
         // without this, cargo's default is to rerun on ANY file change in
@@ -130,8 +155,12 @@ mod regen_openapi {
                 .expect("typify produced tokens that aren't a valid Rust file"),
         );
 
-        fs::write(Path::new(OUTPUT_PATH), format!("{HEADER}{generated}"))
-            .unwrap_or_else(|e| panic!("failed to write {OUTPUT_PATH}: {e}"));
+        let versions = versions_source(&content);
+        fs::write(
+            Path::new(OUTPUT_PATH),
+            format!("{HEADER}{versions}{generated}"),
+        )
+        .unwrap_or_else(|e| panic!("failed to write {OUTPUT_PATH}: {e}"));
 
         println!(
             "cargo:warning=Regenerated {OUTPUT_PATH} from {SCHEMA_PATH} - review and commit it."

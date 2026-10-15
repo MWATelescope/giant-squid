@@ -15,6 +15,9 @@ fi
 #
 # Downloads the MWA ASVO v2 OpenAPI schema and converts it into the format
 # typify expects, writing the result to src/mwa_asvo/api/openapi-schema.json.
+# The file also keeps the document's `openapi` version and the MWA ASVO API
+# version (`info.version`), which build.rs writes into openapi.rs as
+# OPENAPI_VERSION and MWA_ASVO_API_VERSION, and giant-squid --version prints.
 #
 # This is a separate, manual, network-touching step, deliberately kept out
 # of the normal build. Turning that schema into Rust code
@@ -119,8 +122,20 @@ paths = {
 if not paths:
     sys.exit("Error: no paths found in the downloaded OpenAPI document.")
 
+# The version of the OpenAPI specification that the document is written in
+# (`openapi`), and the version of the MWA ASVO API (`info.version`). build.rs
+# writes both into openapi.rs, and giant-squid --version prints them. typify
+# ignores these keys, as it does "paths".
+openapi_version = doc.get("openapi")
+info = doc.get("info", {})
+api_version = info.get("version")
+if not openapi_version or not api_version:
+    sys.exit("Error: no openapi or info.version found in the downloaded OpenAPI document.")
+
 out = {
     "$schema": "http://json-schema.org/draft-07/schema#",
+    "openapi": openapi_version,
+    "info": {"title": info.get("title", ""), "version": api_version},
     "definitions": schemas,
     "paths": paths,
 }

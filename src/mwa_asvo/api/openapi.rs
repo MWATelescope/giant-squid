@@ -7,6 +7,11 @@
 // --features regen-openapi), from src/mwa_asvo/api/openapi-schema.json.
 // Manual edits or modifications will be lost next time it is generated!
 //
+/// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
+pub const OPENAPI_VERSION: &str = "3.1.0";
+/// The version of the MWA ASVO API that this file was generated from.
+pub const MWA_ASVO_API_VERSION: &str = "2.3.0";
+
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ApiKeyResponse {

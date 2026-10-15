@@ -6,6 +6,7 @@ MWA ASVO server.
 """
 
 import importlib.metadata
+import json
 import os
 import signal
 import subprocess
@@ -22,6 +23,7 @@ from pytest_httpserver import HTTPServer
 import mwa_giant_squid as gs
 
 from .conftest import GET_JOBS_PATH, TEST_API_KEY, TEST_OBS_ID, job_detail
+from .test_client import SCHEMA_PATH
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -132,14 +134,19 @@ def test_help_is_the_rust_help_and_exits_zero(run: Callable[..., Result]) -> Non
 
 
 def test_the_version_is_the_modules(run: Callable[..., Result]) -> None:
-    """``--version`` prints the version of the crate, which the module has too.
+    """``--version`` prints the version of the crate, which the module has too, and then the versions of the API.
 
     The name before the version is the name of the program (``giant-squid``), not the name of the crate.
     """
     result = run("--version")
 
+    schema = json.loads(SCHEMA_PATH.read_text())
     assert result.code == EXIT_OK
-    assert result.out.split() == [COMMAND_NAME, gs.__version__]
+    assert result.out.splitlines() == [
+        f"{COMMAND_NAME} {gs.__version__}",
+        f"MWA ASVO API {schema['info']['version']}",
+        f"OpenAPI {schema['openapi']}",
+    ]
 
 
 def test_a_bad_argument_is_a_usage_error(run: Callable[..., Result]) -> None:

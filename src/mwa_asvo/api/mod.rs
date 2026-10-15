@@ -43,3 +43,6 @@ pub mod schema_enums;
 pub mod validate;
 
 pub(crate) use error::AsvoApiError;
+
+#[cfg(test)]
+mod tests;
