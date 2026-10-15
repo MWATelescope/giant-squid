@@ -3,12 +3,10 @@
 ## Start here
 
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
-2. Check the head commit:
-   - If Greg committed step 7, the head is a commit after `9c35411` "step 5(part 2)".
-   - If not, the head is still `9c35411`. Then ask Greg for `step7-all.diff`, or for the step diffs 7a–7f, and apply them.
+2. Check that the head is `ed92fd9` "Live tests read --json results, not log text", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 308 Rust unit tests and 51 CLI tests pass; 1 unit test and 18 live tests are ignored;
-   - 155 Python tests pass;
+   - 343 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
+   - 197 Python tests pass;
    - clippy is clean in all three configurations.
 
 ## Rules for this work
@@ -29,77 +27,110 @@
 - Do not use magic numbers or strings. Put them in constants.
 - Communicate in Simplified Technical English. No fluff.
 
-## Step 7 (delivered; check that it is in the branch)
+## Done (all committed and pushed)
 
-- **7a:**
-  - `AsvoClient::download_job_from` and `download_obs_from`; Python `download_job`/`download_obs` take `jobs=`. The CLI gets the job list once.
-  - Downloads run in a local rayon pool.
-  - A Scratch move works across file systems (copy, then remove).
-  - The CLI-only constants moved to `cli`.
-  - The job table is monochrome with `NO_COLOR`.
-- **7b:** `AsvoApiError::BadStatus { status: u16, message }`, the same `status` and `message` as `HttpError` (which also has `job_id`). The Python attribute is `status`.
-- **7c:** a bad `MWA_ASVO_API_TIMEOUT` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is an error. `client_config_from_env` returns `AsvoError`.
-- **7d:** `pol`, `nmiter`, `image_size` and `source_job_id` use the schema types. `DownloadOptions.download_dir` stays a `&str`.
-- **7e:** one parser for every named value: case, spaces, `-` and `_` do not matter. The values are listed in schema order. `--job-states` and `--job-types` show `[possible values]`.
-- **7f:** one public path for each item.
-  - Crate root: the client, jobs, errors, downloads, the environment helpers, `ObsId`/`ObsIdError`, the parsers and `API_PREFIX`.
-  - `mwa_giant_squid::mwa_asvo::api`: `openapi`, `job_params`, `validate` and `schema_enums`.
-  - `mwa_giant_squid::mwa_asvo::error_response`: the `--json` error codes.
+- CI: a check-only `check.sh` run by a lint workflow; the lint workflow uses the MSRV; `serde_json` build dependency optional.
+- Logging: inline format arguments in `run.rs`, `client/mod.rs` and `download/mod.rs`; one "N of M ... failed" summary; no duplicate `error!` logs.
+- Legacy JSON: a test for every job type, checked against tag `v2.5.1`.
+- `e891d31`: review logic items L1–L10 (see below).
+- `ed92fd9`: the live tests read `error_code` and `status` from `--json` lines, not log text.
 
-## Open items, in Greg's order
+## Review of 15 Oct 2026
 
-### 1. A13 — `days` (design is still to be discussed)
+The IDs below are from that review. Its "L" items are logic errors (not the older logging items L1/L5/L6).
 
-- The schema type is `integer | null`, with a default of 30. A request has three states: key absent (the API default), `null`, or 1–30.
-- Today the library cannot send `null`. Greg wants Rust and Python to allow it.
-- First ask the API developer what `null` means. Is it "no day limit"? Does the 30-day maximum still apply?
-- Proposed design, if `null` is "no day limit":
-  - Rust: `enum Days { ApiDefault, NoLimit, Last(NonZeroU64) }` in `JobsFilter`;
-  - Python: `days=None` stays the API default, and a module constant sends `null`;
-  - CLI: `--days` is unset by default (the API default), and `--days all` sends `null`. Today `--days` always sends 30 (A13 in the review).
+### Done in `e891d31`
 
-### 2. CI (Greg changes the CI himself: send proposals as diffs for him to review)
+- **L1:** downloads use a client that sends no access token (the files are on Acacia).
+- **L2:** `Bounds::contains` refuses values that are not finite (serde_json sends them as `null`).
+- **L3:** stream-untar creates the parent directories of an entry.
+- **L4:** stream-untar unpacks only files and directories; it skips links and special files with a warning.
+- **L5:** `download` fails when its ID files hold no ID.
+- **L6:** `-d` must be a directory.
+- **L7:** no completion log for a file already on disk; the throughput is of the last attempt.
+- **L8:** `--wait` does not wait when no job was submitted; a failed wait keeps the submission summary.
+- **L9:** a Scratch move checks its target first: new error `DestinationExists` (`DESTINATION_EXISTS`); a symbolic link gives `SymlinkInDownloadDir`.
+- **L10 (part A):** `centre` `custom` needs both `custom_centre_ra` and `custom_centre_dec`; each submit command checks its body once, before login, also with `--dry-run`.
 
-- **CI1:** no workflow runs `cargo clippy -D warnings` or `cargo fmt --check`.
-- **CI2:** no workflow builds `--no-default-features` (the library only) or runs clippy with `--features python`.
-- **CI3:** `check.sh` runs `cargo clean`, `cargo update` and `clippy --fix`, and has the typo "Upadting". Proposal: a check-only script.
-- **CI4:** the action versions are mixed (`checkout@v4` vs `@v6`; `rust-toolchain@stable` vs `@v1`), and `releases.yaml` has a commented-out ARM job.
-- **CI5:** the Dockerfile builder installs `clang`, `jq`, `lcov`, `unzip`, `zip`, `automake` and `libtool`. They are probably not needed; ask Greg first.
-- **Possible:** make the build dependency `serde_json` optional (only `regen-openapi` uses it). This needs a `regen-openapi` build to test.
+### Waiting for a decision by Greg
 
-### 3. Logging
+- **L10 part B:** refuse `custom_centre_ra`/`custom_centre_dec` when `centre` is not `custom`. This needs a change to two existing tests: `every_limit_is_enforced_on_both_ends_for_the_conversion_body` and `every_limit_is_enforced_on_both_ends_for_the_imaging_body` (they set one coordinate with the default centre). Proposed change: base parameters with `centre: Custom` and both coordinates valid. Ask Greg before you edit them. Until then, the help text "Requires --centre custom" is only half true.
+- **Symbolic links (suggestions given, no choice yet):**
+  1. one rule for keep-tar and stream-untar: a link in the download directory is an error in both (today stream-untar only warns and skips);
+  2. close the check-then-create race with `O_NOFOLLOW` (Unix), or with `openat` if a shared download directory is a real case;
+  3. links inside a Scratch job folder are copied as links: keep this, and warn for a link that points outside the job folder;
+  4. the download directory itself may be a symbolic link; write this rule in the README.
 
-- **L1:** mixed format style. About 100 positional `"{}"` arguments in `run.rs`, `client/mod.rs` and `download/mod.rs`. Proposal: inline arguments everywhere.
-- **L5:** the three failure summaries use different wording:
-  - downloads: "N of M downloads failed; see the errors above.";
-  - submissions: "N of M job submissions failed";
-  - cancel: "N of M cancel requests failed".
-  
-  Proposal: one pattern, based on the submission wording.
-- **L6:** `send_checked` and `create_file_logged` log at `error!` and then return the error, so the error is reported twice. Proposal: remove these lines, or make them `debug!`.
+### Open, not started
 
-### 4. Test coverage
+Logic:
+- **L11 (high):** a cached session is reused for another API key (and another host). The mwa-cli token format has no key field. Greg must choose the fix (for example a key fingerprint and host in the cache, or a separate giant-squid cache). Failing test: `AsvoClient::new` with another `api_key` and `TestEnv::with_session()` makes no login.
+- **L12 (high):** a buffer size of 0 (`GIANT_SQUID_BUF_SIZE=0`, Python `buffer_size=0`) gives an empty file and a success with `--skip-hash --keep-tar`, or 15 minutes of retries with the hash check. Refuse 0.
+- **L13:** `wait_loop` has no retry: one 5xx or network error ends a long `wait`. `AsvoApiError::ApiError` drops the HTTP status.
+- **L14:** `token_store::save` writes with the umask, then sets 0600 (a short window, and no 0600 if `chmod` fails); the write is not atomic; `.mwa-asvo` gets the default mode.
+- **L15:** `MWA_ASVO_API_TIMEOUT=0` and Python `api_timeout=0` are accepted, and every request then times out.
+- Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 
-- **Legacy JSON:** add a new test for the 4 job types without one (`DownloadMetadata`, `DownloadVoltage`, `CancelJob`, `DownloadBeamformer`) and for no type (`Unknown`), checked against tag `v2.5.1`.
+OpenAPI, library and CLI:
+- **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging. A typify patch in `build.rs` could keep two types (the API fix is also pending).
+- **O2:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` are plain flags: they show no schema default and cannot send `false`.
+- **O5:** short flags differ between commands (`-f`, `-o`).
+- **O8:** the `api/mod.rs` doc lists only the processor endpoints as not wrapped; end-user endpoints (`observation/metadata`, `project_permissions`, `user`, and others) are not wrapped either.
+- **O9:** `legacy_json::legacy_job_type` and `table::job_type_colour` match job-type names as string literals; use `JOB_TYPE_NAMES` or the codes.
+
+Documentation:
+- **D1:** README line 155 shows `MWA ASVO API 2.3.0`; `--version` prints 2.3.4.
+- **D2:** README `submit-volt --help` block differs from the real help.
+- **D4:** `staging_count` is not in schema 2.3.4, but the `api/mod.rs` doc, `PYTHON_BINDINGS.md`, `TESTING.md` and `CHANGELOG.md` still describe it.
+- **D5:** `TESTING.md` names `submit_each_obsid` (now `submit_each_obs_id`, in the library) and `test_wait_and_cancel_refuse_an_obsid` (not found).
+- **D6:** "job" instead of "Job ID" in `AsvoError::NoUrl`, `NoPath`, `Http404Error`, `InvalidJob`, the cancel log and the `submit-image-from-job` message.
+- **D7/D16:** positional `{}` arguments left in `client/mod.rs:195`, `helpers`, `mwa_asvo/error.rs`, `table.rs`, `value_enums`, `api/error.rs`, `token_store` and `python/download.rs`.
+- **D8:** the CHANGELOG 3.0.0 section mixes in-development history with changes against 2.5.1; heading levels differ.
+- **D9:** `client/mod.rs` lines 7–12 tell history, not the design.
+- **D11–D15:** `api/error.rs` names `HttpValidationError` (not in the schema); the `ApiError` doc reason for copying fields is not correct; `PYTHON_BINDINGS.md` "For the API developer" is partly stale (`JobState` numbers, `staging_count`); two `build.rs` comments are not correct; the `env` doc says the Python module reads the environment (it does not).
+- `docs/CLEANUP.md` (this file) ships in the crate and the sdist; exclude it before the release.
+
+Duplication and verbosity:
+- **C1/C2:** in `cli/params.rs`, the nullable-bool `#[arg]` block (6 times) and `allow_resubmit` (6 times); the WSClean and preprocessing assignments in `to_params` are repeated. Proposal: a generic `ResubmitArgs<P>` and a setter macro next to `impl_fields!`.
+- **C3:** `validate` repeats the preprocessing checks for conversion and imaging; `days` bounds are checked twice.
+- **C4:** the `SchemaDefaults` impls are one-line wrappers.
+- **C5/C6:** `SubmitImageFromJob` re-implements `run_submit` (different error output); the 6 submit arms repeat ~25 lines.
+- **C7:** two logger set-ups; `list` and `wait` repeat the output branch.
+- **C13:** the six `ErrorResponse` fields are copied in four places; the variants could hold an `ErrorResponse`.
+- **C14:** the `cli/tests.rs` tests `job_ids_only_*` repeat the `helpers/tests.rs` tests.
+- **C15:** `build.rs` writes into `src/` (an anti-pattern; an xtask is the usual pattern). Low priority.
+- **C16:** CI `openapi-drift-check` builds without `--locked`.
+- **V1–V3:** long docs (`normalize_job_value`, `get_jobs`, `require_tls`, a comment repeated 3 times in `cli/mod.rs`); repeated `job.job_id()` calls; 10 `#[allow(unused_imports)]` re-export lines.
+
+Tests:
+- **T1:** the three `staging_count` tests (Rust client, CLI, Python) cannot fail now.
+- **T5:** tests of clap itself (`verbosity_counts_repeats`, `unknown_command_is_rejected`, `single_obs_id_is_collected`, `many_obs_ids_are_collected`) and `the_recorded_versions_look_like_versions`.
+
+Not reviewed yet: `src/python/types.rs`, `error.rs`, `params.rs`, `typed.rs`; `tests/cli.rs` and the Python tests in detail; `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows.
+
+### A13 — `days: null` (waits for the API developer)
+
+- The schema type is `integer | null`, default 30. A request has three states: key absent, `null`, or 1–30.
+- Ask the API developer what `null` means. Proposed design if it is "no day limit": Rust `enum Days { ApiDefault, NoLimit, Last(NonZeroU64) }` in `JobsFilter`; Python `days=None` stays the API default and a module constant sends `null`; CLI `--days all` sends `null`.
 
 ### Items to leave as they are (Greg agreed)
 
-- D7: the Python mapping of error kinds that are never raised.
-- U13: the Python error mapping repeats `job_id()`/`obs_id()`.
+- The Python mapping of error kinds that are never raised.
+- The Python error mapping repeats `job_id()`/`obs_id()`.
 - The hidden `download --hash` no-op.
 
 ## Questions still with the API developer
 
-These are listed in `docs/PYTHON_BINDINGS.md`, section "For the API developer":
-- the `obs_id` minimum (888888889, but an Obs ID has 10 digits);
-- `clean_iterations` has no minimum;
-- `dug` delivery for conversion and imaging;
-- the voltage fields (`delivery`, `delivery_format`, `channel_range`);
-- the flow-2 `obs_id`;
-- `JobFile.type` uses its own `Type` enum;
-- a typed `obs_id` in `JobDetailResponse`;
-- `staging_count`;
-- the meaning of `days: null` (see item 1).
+- The `obs_id` minimum (888888889, but an Obs ID has 10 digits).
+- `clean_iterations` has no minimum.
+- `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
+- The voltage fields (`delivery`, `delivery_format`, `channel_range`).
+- The flow-2 `obs_id`.
+- `JobFile.type` uses its own `Type` enum.
+- A typed `obs_id` in `JobDetailResponse`.
+- The meaning of `days: null` (A13).
+- New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.
+- Server-side, not a question: test-asvo sometimes returns `EXT_TAP_SERVICE_ERROR` (TAP connection reset). This made `live_cancel` fail once.
 
 ## How to check (sandbox)
 
@@ -115,4 +146,4 @@ These are listed in `docs/PYTHON_BINDINGS.md`, section "For the API developer":
   - `uv run ruff check`, `uv run ruff format --check` and `uv run ty check`;
   - `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`.
 - **README `--help` blocks:** they must match the real `--help` output (with `NO_COLOR=1` and `GIANT_SQUID_DELIVERY*` unset). Regenerate them when a help text changes.
-- **Before a commit that touches the API client:** Greg runs `tools/run_live_tests.sh` against test-asvo. This matters especially for the removal of the cookie jar.
+- **Before a commit that touches the API client:** Greg runs `tools/run_live_tests.sh` against test-asvo.
