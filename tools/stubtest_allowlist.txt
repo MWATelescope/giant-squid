@@ -64,3 +64,15 @@ mwa_giant_squid.__all__
 # `DownloadProgress` is the base of the three event classes, and pyo3 makes it a "disjoint base" (it has its own
 # layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which pyo3-stub-gen does not write.
 mwa_giant_squid.DownloadProgress
+
+# The defaults of the submit methods are made from the schema's defaults at run time (see
+# `mwa_asvo/api/job_params`). The run-time signature of each method is a hand-written `text_signature`, because pyo3
+# writes only a literal default in a run-time signature, and `inspect.signature` accepts only literals: an enum
+# default is written as its quoted name (`'Delivery.Acacia'`), while the stub has the member (`Delivery.Acacia`).
+# tests/python/test_signatures.py checks the text signatures against the schema.
+mwa_giant_squid.AsvoClient.submit_download_vis_job
+mwa_giant_squid.AsvoClient.submit_download_meta_job
+mwa_giant_squid.AsvoClient.submit_conversion_job
+mwa_giant_squid.AsvoClient.submit_imaging_job
+mwa_giant_squid.AsvoClient.submit_image_from_job
+mwa_giant_squid.AsvoClient.submit_beamformer_job

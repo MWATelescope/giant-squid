@@ -16,8 +16,10 @@ use std::num::NonZeroU64;
 
 use clap::ArgAction;
 
-use crate::mwa_asvo::api::job_args::{
-    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
+use crate::mwa_asvo::api::job_params::{
+    beamformer_defaults, beamformer_params, conversion_defaults, conversion_params,
+    download_defaults, download_params, image_from_job_defaults, image_from_job_params,
+    imaging_defaults, imaging_params, set_channel_range, voltage_defaults, voltage_params,
 };
 use crate::mwa_asvo::api::openapi::{
     BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
@@ -25,7 +27,7 @@ use crate::mwa_asvo::api::openapi::{
     Output, OutputMode, Polarization, VoltageJobParams, Weighting,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
-use crate::mwa_asvo::{AsvoApiError, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
+use crate::mwa_asvo::{ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
 
 use super::value_enums::SchemaEnumParser;
 use crate::obs_id::ObsId;
@@ -66,6 +68,38 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
     }
 }
 
+/// The word that gives a field of the request body the value `null`.
+const NULL_WORD: &str = "null";
+
+/// The value of an option for a field that the MWA ASVO schema allows to be
+/// `null`: `None` is `null`. The option's schema default is the `Some` value
+/// that clap shows in `--help`, and the word `null` gives `None`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Nullable<T>(pub Option<T>);
+
+/// Builds a clap value parser for a field that can be `null` from `inner`,
+/// the parser of the field's other values: the word `null` (in any case) is
+/// `None`, and anything else is `inner`'s.
+pub fn nullable<T>(
+    inner: impl Fn(&str) -> Result<T, String> + Clone + Send + Sync + 'static,
+) -> impl Fn(&str) -> Result<Nullable<T>, String> + Clone + Send + Sync + 'static {
+    move |s: &str| {
+        if s.eq_ignore_ascii_case(NULL_WORD) {
+            Ok(Nullable(None))
+        } else {
+            inner(s).map(|v| Nullable(Some(v)))
+        }
+    }
+}
+
+/// The clap value parser of a field that is `true`, `false` or `null`.
+pub fn parse_nullable_bool(s: &str) -> Result<Nullable<bool>, String> {
+    nullable(|s: &str| {
+        s.parse::<bool>()
+            .map_err(|_| format!("expected true, false or {NULL_WORD} (got \"{s}\")"))
+    })(s)
+}
+
 /// The clap value parser of `list --days`: an integer from 1 to 30
 /// ([`validate::DAYS`]), as the schema's type.
 pub fn parse_days(s: &str) -> Result<NonZeroU64, String> {
@@ -94,71 +128,6 @@ pub fn parse_nmiter(s: &str) -> Result<NonZeroU64, String> {
     validate::nmiter(v.unsigned_abs()).map_err(|e| e.to_string())
 }
 
-/// A [`ConversionJobParams`] populated entirely from the OpenAPI schema
-/// defaults (via the generated builder's `Default`), used to source the
-/// clap arg defaults below so they can't drift from the schema. `obs_id` is
-/// required by the builder but irrelevant to the defaults - every real
-/// submission sets its own - so we pass a placeholder.
-pub fn conversion_defaults() -> ConversionJobParams {
-    ConversionJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required ConversionJobParams field is missing from conversion_defaults()")
-}
-
-/// A [`DownloadJobParams`] populated from the OpenAPI schema defaults, used
-/// to source the SubmitVis/SubmitMeta clap arg defaults. As with
-/// `conversion_defaults`, `obs_id` is a required placeholder.
-pub fn download_defaults() -> DownloadJobParams {
-    DownloadJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required DownloadJobParams field is missing from download_defaults()")
-}
-
-/// A [`VoltageJobParams`] populated from the OpenAPI schema defaults, used
-/// to source the SubmitVolt clap arg defaults. `obs_id`, `offset` and
-/// `duration` are required placeholders - every real submission sets them.
-pub fn voltage_defaults() -> VoltageJobParams {
-    VoltageJobParams::builder()
-        .obs_id(0_i64)
-        .offset(0_i64)
-        .duration(0_u64)
-        .try_into()
-        .expect("BUG: a required VoltageJobParams field is missing from voltage_defaults()")
-}
-
-/// A [`BeamformerJobParams`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitBf clap arg defaults. `obs_id` is a required
-/// placeholder.
-pub fn beamformer_defaults() -> BeamformerJobParams {
-    BeamformerJobParams::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required BeamformerJobParams field is missing from beamformer_defaults()")
-}
-
-/// An [`ImagingJobFlow1Params`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitImage clap arg defaults. `obs_id` is a required
-/// placeholder.
-pub fn imaging1_defaults() -> ImagingJobFlow1Params {
-    ImagingJobFlow1Params::builder()
-        .obs_id(0_i64)
-        .try_into()
-        .expect("BUG: a required ImagingJobFlow1Params field is missing from imaging1_defaults()")
-}
-
-/// An [`ImagingJobFlow2Params`] populated from the OpenAPI schema defaults,
-/// used to source the SubmitImageFromJob clap arg defaults. `obs_id` and
-/// `source_job_id` are required placeholders.
-pub fn imaging2_defaults() -> ImagingJobFlow2Params {
-    ImagingJobFlow2Params::builder()
-        .obs_id(0_i64)
-        .source_job_id(NonZeroU64::new(1).unwrap())
-        .try_into()
-        .expect("BUG: a required ImagingJobFlow2Params field is missing from imaging2_defaults()")
-}
-
 /// A request body type of the OpenAPI schema, with its schema defaults. The
 /// argument groups below take their clap defaults from it, so that each job
 /// type keeps the defaults of its own schema type.
@@ -181,13 +150,13 @@ impl SchemaDefaults for ConversionJobParams {
 
 impl SchemaDefaults for ImagingJobFlow1Params {
     fn schema_defaults() -> Self {
-        imaging1_defaults()
+        imaging_defaults()
     }
 }
 
 impl SchemaDefaults for ImagingJobFlow2Params {
     fn schema_defaults() -> Self {
-        imaging2_defaults()
+        image_from_job_defaults()
     }
 }
 
@@ -237,7 +206,7 @@ impl_fields!(DeliveryFields for [
 /// # Panics
 ///
 /// If the schema default is null: the schema and this code disagree.
-fn nullable_default(default: Option<f64>, name: &str) -> String {
+fn nullable_default<T: ToString>(default: Option<T>, name: &str) -> String {
     default
         .unwrap_or_else(|| panic!("BUG: the schema default of {name} is null"))
         .to_string()
@@ -250,6 +219,12 @@ pub trait PreprocessingFields: SchemaDefaults {
     fn flag_edge_width(&self) -> f64;
     fn apply_di_cal(&self) -> bool;
     fn centre(&self) -> Centre;
+    fn no_digital_gains(&self) -> Option<bool>;
+    fn no_flag_dc(&self) -> Option<bool>;
+    fn no_geometric_delay(&self) -> Option<bool>;
+    fn no_passband_gains(&self) -> Option<bool>;
+    fn no_cable_delay(&self) -> Option<bool>;
+    fn no_rfi(&self) -> Option<bool>;
 }
 
 impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params] {
@@ -258,6 +233,12 @@ impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params
     flag_edge_width: f64,
     apply_di_cal: bool,
     centre: Centre,
+    no_digital_gains: Option<bool>,
+    no_flag_dc: Option<bool>,
+    no_geometric_delay: Option<bool>,
+    no_passband_gains: Option<bool>,
+    no_cable_delay: Option<bool>,
+    no_rfi: Option<bool>,
 });
 
 /// The WSClean fields of a schema type (both imaging flows).
@@ -327,13 +308,13 @@ pub struct DeliveryArgs<P: DeliveryFields> {
 /// The defaults are those of the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct PreprocessingArgs<P: PreprocessingFields> {
-    /// Frequency resolution to average to (kHz).
-    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = parse_f64_bounds(validate::AVG_FREQ_RES))]
-    pub avg_freq_res: f64,
+    /// Frequency resolution to average to (kHz), or null.
+    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_FREQ_RES)))]
+    pub avg_freq_res: Nullable<f64>,
 
-    /// Time resolution to average to (s).
-    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = parse_f64_bounds(validate::AVG_TIME_RES))]
-    pub avg_time_res: f64,
+    /// Time resolution to average to (s), or null.
+    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_TIME_RES)))]
+    pub avg_time_res: Nullable<f64>,
 
     /// Width of frequency edge flagging (kHz).
     #[arg(long, default_value = P::schema_defaults().flag_edge_width().to_string(), value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
@@ -367,29 +348,77 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     #[arg(long)]
     pub no_apply_amps: bool,
 
-    /// Whether to skip applying digital gains.
-    #[arg(long)]
-    pub no_digital_gains: bool,
+    /// Whether to skip applying digital gains. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_digital_gains(), "no_digital_gains"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_digital_gains: Nullable<bool>,
 
-    /// Whether to skip flagging the DC channel.
-    #[arg(long)]
-    pub no_flag_dc: bool,
+    /// Whether to skip flagging the DC channel. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_flag_dc(), "no_flag_dc"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_flag_dc: Nullable<bool>,
 
-    /// Whether to skip applying geometric delay corrections.
-    #[arg(long)]
-    pub no_geometric_delay: bool,
+    /// Whether to skip applying geometric delay corrections. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_geometric_delay(), "no_geometric_delay"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_geometric_delay: Nullable<bool>,
 
-    /// Whether to skip applying passband gain corrections.
-    #[arg(long)]
-    pub no_passband_gains: bool,
+    /// Whether to skip applying passband gain corrections. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_passband_gains(), "no_passband_gains"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_passband_gains: Nullable<bool>,
 
-    /// Whether to skip applying cable delay corrections.
-    #[arg(long)]
-    pub no_cable_delay: bool,
+    /// Whether to skip applying cable delay corrections. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_cable_delay(), "no_cable_delay"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_cable_delay: Nullable<bool>,
 
-    /// Whether to skip RFI flagging.
-    #[arg(long)]
-    pub no_rfi: bool,
+    /// Whether to skip RFI flagging. Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(P::schema_defaults().no_rfi(), "no_rfi"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub no_rfi: Nullable<bool>,
 
     #[arg(skip)]
     schema: PhantomData<fn() -> P>,
@@ -418,9 +447,9 @@ pub struct WscleanArgs<P: WscleanFields> {
     #[arg(long, default_value = P::schema_defaults().auto_threshold().to_string(), value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
-    /// Absolute cleaning threshold (Jy).
-    #[arg(long, default_value = P::schema_defaults().abs_threshold().expect("BUG: the schema has no default for abs_threshold").to_string(), value_parser = parse_f64_bounds(validate::ABS_THRESHOLD))]
-    pub abs_threshold: f64,
+    /// Absolute cleaning threshold (Jy), or null.
+    #[arg(long, default_value = nullable_default(P::schema_defaults().abs_threshold(), "abs_threshold"), value_parser = nullable(parse_f64_bounds(validate::ABS_THRESHOLD)))]
+    pub abs_threshold: Nullable<f64>,
 
     /// Number of output channel groups.
     #[arg(long, default_value = P::schema_defaults().channels_out().to_string())]
@@ -430,9 +459,9 @@ pub struct WscleanArgs<P: WscleanFields> {
     #[arg(long, default_value = P::schema_defaults().clean_iterations().to_string(), value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
-    /// WSClean cleaning threshold (Jy).
-    #[arg(long, default_value = P::schema_defaults().clean_threshold().expect("BUG: the schema has no default for clean_threshold").to_string(), value_parser = parse_f64_bounds(validate::CLEAN_THRESHOLD))]
-    pub clean_threshold: f64,
+    /// WSClean cleaning threshold (Jy), or null.
+    #[arg(long, default_value = nullable_default(P::schema_defaults().clean_threshold(), "clean_threshold"), value_parser = nullable(parse_f64_bounds(validate::CLEAN_THRESHOLD)))]
+    pub clean_threshold: Nullable<f64>,
 
     /// WSClean image size in pixels.
     #[arg(long, default_value = (*P::schema_defaults().image_size()).to_string(), value_parser = parse_image_size)]
@@ -517,28 +546,40 @@ pub struct DownloadJobArgs {
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(download_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl DownloadJobArgs {
-    /// Build the request body for a raw visibility download job.
-    pub fn to_vis_params(&self, obs_id: ObsId) -> Result<DownloadJobParams, AsvoApiError> {
-        self.args().into_params(obs_id, DownloadType::Vis)
+    /// The request body for a raw visibility download job.
+    pub fn to_vis_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        self.to_params(obs_id, DownloadType::Vis)
     }
 
-    /// Build the request body for a metadata download job.
-    pub fn to_meta_params(&self, obs_id: ObsId) -> Result<DownloadJobParams, AsvoApiError> {
-        self.args().into_params(obs_id, DownloadType::Meta)
+    /// The request body for a metadata download job.
+    pub fn to_meta_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        self.to_params(obs_id, DownloadType::Meta)
     }
 
-    /// The library's arguments. The CLI has a value for every option (its
-    /// defaults are the schema's), so every field is set.
-    fn args(&self) -> DownloadArgs {
-        DownloadArgs {
-            delivery: Some(self.delivery_args.delivery),
-            delivery_format: Some(self.delivery_args.delivery_format),
-            allow_resubmit: Some(self.allow_resubmit),
+    /// The request body for a download job of `download_type`. The CLI has a
+    /// value for every option (its defaults are the schema's), so each field
+    /// that the options cover is set.
+    fn to_params(&self, obs_id: ObsId, download_type: DownloadType) -> DownloadJobParams {
+        DownloadJobParams {
+            delivery: self.delivery_args.delivery,
+            delivery_format: self.delivery_args.delivery_format,
+            allow_resubmit: self.allow_resubmit.0,
+            ..download_params(obs_id, download_type)
         }
     }
 }
@@ -557,37 +598,47 @@ pub struct ConversionJobArgs {
     pub preprocessing: PreprocessingArgs<ConversionJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(conversion_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl ConversionJobArgs {
-    /// Build the request body for a conversion job for a single Obs ID, with
-    /// the library's [`ConversionArgs`]. Every field is set (the CLI's
-    /// defaults are the schema's).
-    pub fn to_params(&self, obs_id: ObsId) -> Result<ConversionJobParams, AsvoApiError> {
+    /// The request body for a conversion job for a single Obs ID. The CLI has
+    /// a value for every option (its defaults are the schema's), so each
+    /// field that the options cover is set.
+    pub fn to_params(&self, obs_id: ObsId) -> ConversionJobParams {
         let pre = &self.preprocessing;
-        ConversionArgs {
-            delivery: Some(self.delivery_args.delivery),
-            delivery_format: Some(self.delivery_args.delivery_format),
-            output: Some(self.output),
-            avg_freq_res: Some(pre.avg_freq_res),
-            avg_time_res: Some(pre.avg_time_res),
-            flag_edge_width: Some(pre.flag_edge_width),
-            apply_di_cal: Some(pre.apply_di_cal),
-            centre: Some(pre.centre),
+        ConversionJobParams {
+            delivery: self.delivery_args.delivery,
+            delivery_format: self.delivery_args.delivery_format,
+            output: self.output,
+            avg_freq_res: pre.avg_freq_res.0,
+            avg_time_res: pre.avg_time_res.0,
+            flag_edge_width: pre.flag_edge_width,
+            apply_di_cal: pre.apply_di_cal,
+            centre: pre.centre,
             custom_centre_ra: pre.custom_centre_ra,
             custom_centre_dec: pre.custom_centre_dec,
-            no_apply_amps: Some(pre.no_apply_amps),
-            no_digital_gains: Some(pre.no_digital_gains),
-            no_flag_dc: Some(pre.no_flag_dc),
-            no_geometric_delay: Some(pre.no_geometric_delay),
-            no_passband_gains: Some(pre.no_passband_gains),
-            no_cable_delay: Some(pre.no_cable_delay),
-            no_rfi: Some(pre.no_rfi),
-            allow_resubmit: Some(self.allow_resubmit),
+            no_apply_amps: pre.no_apply_amps,
+            no_digital_gains: pre.no_digital_gains.0,
+            no_flag_dc: pre.no_flag_dc.0,
+            no_geometric_delay: pre.no_geometric_delay.0,
+            no_passband_gains: pre.no_passband_gains.0,
+            no_cable_delay: pre.no_cable_delay.0,
+            no_rfi: pre.no_rfi.0,
+            allow_resubmit: self.allow_resubmit.0,
+            ..conversion_params(obs_id)
         }
-        .into_params(obs_id)
     }
 }
 
@@ -604,58 +655,69 @@ pub struct ImagingJobArgs {
     pub wsclean: WscleanArgs<ImagingJobFlow1Params>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(imaging_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl ImagingJobArgs {
-    /// Build the request body for an imaging job for a single Obs ID, with
-    /// the library's [`ImagingArgs`]. Every field that has a value is set.
-    pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow1Params, AsvoApiError> {
+    /// The request body for an imaging job for a single Obs ID. The CLI has a
+    /// value for every option (its defaults are the schema's), so each field
+    /// that the options cover is set.
+    pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow1Params {
         let pre = &self.preprocessing;
         let ws = &self.wsclean;
-        ImagingArgs {
-            delivery: Some(self.delivery_args.delivery),
-            delivery_format: Some(self.delivery_args.delivery_format),
-            apply_primary_beam: Some(ws.apply_primary_beam),
-            auto_mask: Some(ws.auto_mask),
-            auto_threshold: Some(ws.auto_threshold),
-            abs_threshold: Some(ws.abs_threshold),
-            channels_out: Some(ws.channels_out),
-            clean_iterations: Some(ws.clean_iterations),
-            clean_threshold: Some(ws.clean_threshold),
-            image_size: Some(ws.image_size.clone()),
-            join_channels: Some(ws.join_channels),
-            join_polarizations: Some(ws.join_polarizations),
-            mgain: Some(ws.mgain),
-            multiscale: Some(ws.multiscale),
-            nmiter: Some(ws.nmiter),
+        ImagingJobFlow1Params {
+            delivery: self.delivery_args.delivery,
+            delivery_format: self.delivery_args.delivery_format,
+            apply_primary_beam: ws.apply_primary_beam,
+            auto_mask: ws.auto_mask,
+            auto_threshold: ws.auto_threshold,
+            abs_threshold: ws.abs_threshold.0,
+            channels_out: ws.channels_out,
+            clean_iterations: ws.clean_iterations,
+            clean_threshold: ws.clean_threshold.0,
+            image_size: ws.image_size.clone(),
+            join_channels: ws.join_channels,
+            join_polarizations: ws.join_polarizations,
+            mgain: ws.mgain,
+            multiscale: ws.multiscale,
+            nmiter: ws.nmiter,
             nwlayers: ws.nwlayers,
-            output_mode: Some(ws.output_mode),
-            pixel_scale: Some(ws.pixel_scale),
-            pol: Some(ws.pol),
-            robust: Some(ws.robust),
+            output_mode: ws.output_mode,
+            pixel_scale: ws.pixel_scale,
+            pol: ws.pol,
+            robust: ws.robust,
             uvw_max: ws.uvw_max,
-            uvw_min: Some(ws.uvw_min),
-            weighting: Some(ws.weighting),
+            uvw_min: ws.uvw_min,
+            weighting: ws.weighting,
             wstack_nwlayers: ws.wstack_nwlayers,
-            allow_resubmit: Some(self.allow_resubmit),
-            apply_di_cal: Some(pre.apply_di_cal),
-            avg_freq_res: Some(pre.avg_freq_res),
-            avg_time_res: Some(pre.avg_time_res),
-            centre: Some(pre.centre),
+            allow_resubmit: self.allow_resubmit.0,
+            apply_di_cal: pre.apply_di_cal,
+            avg_freq_res: pre.avg_freq_res.0,
+            avg_time_res: pre.avg_time_res.0,
+            centre: pre.centre,
             custom_centre_dec: pre.custom_centre_dec,
             custom_centre_ra: pre.custom_centre_ra,
-            flag_edge_width: Some(pre.flag_edge_width),
-            no_apply_amps: Some(pre.no_apply_amps),
-            no_digital_gains: Some(pre.no_digital_gains),
-            no_flag_dc: Some(pre.no_flag_dc),
-            no_geometric_delay: Some(pre.no_geometric_delay),
-            no_passband_gains: Some(pre.no_passband_gains),
-            no_cable_delay: Some(pre.no_cable_delay),
-            no_rfi: Some(pre.no_rfi),
+            flag_edge_width: pre.flag_edge_width,
+            no_apply_amps: pre.no_apply_amps,
+            no_digital_gains: pre.no_digital_gains.0,
+            no_flag_dc: pre.no_flag_dc.0,
+            no_geometric_delay: pre.no_geometric_delay.0,
+            no_passband_gains: pre.no_passband_gains.0,
+            no_cable_delay: pre.no_cable_delay.0,
+            no_rfi: pre.no_rfi.0,
+            ..imaging_params(obs_id)
         }
-        .into_params(obs_id)
     }
 }
 
@@ -674,43 +736,54 @@ pub struct ImagingFromJobArgs {
     pub wsclean: WscleanArgs<ImagingJobFlow2Params>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(image_from_job_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl ImagingFromJobArgs {
-    /// Build the request body for an image of the conversion job
-    /// `--source-job-id`, with the library's [`ImageFromJobArgs`].
-    pub fn to_params(&self, obs_id: ObsId) -> Result<ImagingJobFlow2Params, AsvoApiError> {
+    /// The request body for an image of the conversion job
+    /// `--source-job-id`. The CLI has a value for every option (its defaults
+    /// are the schema's), so each field that the options cover is set.
+    pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow2Params {
         let ws = &self.wsclean;
-        ImageFromJobArgs {
-            delivery: Some(self.delivery_args.delivery),
-            delivery_format: Some(self.delivery_args.delivery_format),
-            apply_primary_beam: Some(ws.apply_primary_beam),
-            auto_mask: Some(ws.auto_mask),
-            auto_threshold: Some(ws.auto_threshold),
-            abs_threshold: Some(ws.abs_threshold),
-            channels_out: Some(ws.channels_out),
-            clean_iterations: Some(ws.clean_iterations),
-            clean_threshold: Some(ws.clean_threshold),
-            image_size: Some(ws.image_size.clone()),
-            join_channels: Some(ws.join_channels),
-            join_polarizations: Some(ws.join_polarizations),
-            mgain: Some(ws.mgain),
-            multiscale: Some(ws.multiscale),
-            nmiter: Some(ws.nmiter),
+        ImagingJobFlow2Params {
+            delivery: self.delivery_args.delivery,
+            delivery_format: self.delivery_args.delivery_format,
+            apply_primary_beam: ws.apply_primary_beam,
+            auto_mask: ws.auto_mask,
+            auto_threshold: ws.auto_threshold,
+            abs_threshold: ws.abs_threshold.0,
+            channels_out: ws.channels_out,
+            clean_iterations: ws.clean_iterations,
+            clean_threshold: ws.clean_threshold.0,
+            image_size: ws.image_size.clone(),
+            join_channels: ws.join_channels,
+            join_polarizations: ws.join_polarizations,
+            mgain: ws.mgain,
+            multiscale: ws.multiscale,
+            nmiter: ws.nmiter,
             nwlayers: ws.nwlayers,
-            output_mode: Some(ws.output_mode),
-            pixel_scale: Some(ws.pixel_scale),
-            pol: Some(ws.pol),
-            robust: Some(ws.robust),
+            output_mode: ws.output_mode,
+            pixel_scale: ws.pixel_scale,
+            pol: ws.pol,
+            robust: ws.robust,
             uvw_max: ws.uvw_max,
-            uvw_min: Some(ws.uvw_min),
-            weighting: Some(ws.weighting),
+            uvw_min: ws.uvw_min,
+            weighting: ws.weighting,
             wstack_nwlayers: ws.wstack_nwlayers,
-            allow_resubmit: Some(self.allow_resubmit),
+            allow_resubmit: self.allow_resubmit.0,
+            ..image_from_job_params(obs_id, self.source_job_id)
         }
-        .into_params(obs_id, self.source_job_id)
     }
 }
 
@@ -740,23 +813,34 @@ pub struct VoltageJobArgs {
     pub to_channel: Option<u8>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(voltage_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl VoltageJobArgs {
-    /// Build the request body for a voltage job, with the library's
-    /// [`VoltageArgs`] (which derives `channel_range`).
-    pub fn to_params(&self, obs_id: ObsId) -> Result<VoltageJobParams, AsvoApiError> {
-        VoltageArgs {
-            offset: self.offset,
-            duration: self.duration,
-            delivery: Some(self.delivery.clone()),
+    /// The request body for a voltage job, with `channel_range` derived
+    /// from the channels as the client derives it when it submits, so that
+    /// `--dry-run` shows what is sent.
+    pub fn to_params(&self, obs_id: ObsId) -> VoltageJobParams {
+        let mut params = VoltageJobParams {
+            delivery: self.delivery.clone(),
             from_channel: self.from_channel,
             to_channel: self.to_channel,
-            allow_resubmit: Some(self.allow_resubmit),
-        }
-        .into_params(obs_id)
+            allow_resubmit: self.allow_resubmit.0,
+            ..voltage_params(obs_id, self.offset, self.duration)
+        };
+        set_channel_range(&mut params);
+        params
     }
 }
 
@@ -767,19 +851,28 @@ pub struct BeamformerJobArgs {
     pub delivery_args: DeliveryArgs<BeamformerJobParams>,
 
     /// Allow resubmitting a job even if an identical one has completed.
-    #[arg(short = 'r', long, action = ArgAction::SetTrue)]
-    pub allow_resubmit: bool,
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(beamformer_defaults().allow_resubmit, "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
 }
 
 impl BeamformerJobArgs {
-    /// Build the request body for a beamformer job, with the library's
-    /// [`BeamformerArgs`].
-    pub fn to_params(&self, obs_id: ObsId) -> Result<BeamformerJobParams, AsvoApiError> {
-        BeamformerArgs {
-            delivery: Some(self.delivery_args.delivery),
-            delivery_format: Some(self.delivery_args.delivery_format),
-            allow_resubmit: Some(self.allow_resubmit),
+    /// The request body for a beamformer job.
+    pub fn to_params(&self, obs_id: ObsId) -> BeamformerJobParams {
+        BeamformerJobParams {
+            delivery: self.delivery_args.delivery,
+            delivery_format: self.delivery_args.delivery_format,
+            allow_resubmit: self.allow_resubmit.0,
+            ..beamformer_params(obs_id)
         }
-        .into_params(obs_id)
     }
 }

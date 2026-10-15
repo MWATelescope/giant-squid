@@ -172,11 +172,15 @@ each Obs ID and carries on if one fails. It ends with a summary and a non-zero e
 |---|---|
 | `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). `submit-volt` takes `scratch` only |
 | `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have it, because voltage data is always delivered as files |
-| `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed: see [Resubmitting jobs](#resubmitting-jobs) |
+| `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed (`-r` alone is true; the value can be true, false or null): see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
 | `-j`, `--json` | Print the MWA ASVO's reply for each submitted job as one line of JSON on standard output. See [JSON output and errors](#json-output-and-errors) |
 | `-v`, `--verbosity` | Show more log messages. Repeat it for more. Cannot be used with `--json` |
+
+#### Sending `null`
+
+The MWA ASVO allows some request fields to be `null`, and `null` is not the same as the field's default. An option for such a field takes the word `null` (in any case): `--avg-freq-res null`, `--no-rfi=null` or `--allow-resubmit=null`. The options are `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`, `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The flags also take `true` and `false` (`--no-rfi=false`); the bare flag, for example `--no-rfi` or `-r`, is `true`. The MWA ASVO does not say what it does with a `null` for each field: use `--dry-run` to see the request.
 
 Log messages go to standard error, so standard output has only the output of the command (for example, the
 `--json` lines).
@@ -270,9 +274,9 @@ Options:
   -o, --output <OUTPUT>
           Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz) [default: 40]
+          Frequency resolution to average to (kHz), or null [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s) [default: 2]
+          Time resolution to average to (s), or null [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
           Width of frequency edge flagging (kHz) [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
@@ -285,20 +289,20 @@ Options:
           Custom phase centre declination (degrees). Requires --centre custom
       --no-apply-amps
           Whether to skip applying amplitude calibration solutions
-      --no-digital-gains
-          Whether to skip applying digital gains
-      --no-flag-dc
-          Whether to skip flagging the DC channel
-      --no-geometric-delay
-          Whether to skip applying geometric delay corrections
-      --no-passband-gains
-          Whether to skip applying passband gain corrections
-      --no-cable-delay
-          Whether to skip applying cable delay corrections
-      --no-rfi
-          Whether to skip RFI flagging
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+      --no-digital-gains[=<NO_DIGITAL_GAINS>]
+          Whether to skip applying digital gains. Takes true, false or null [default: false]
+      --no-flag-dc[=<NO_FLAG_DC>]
+          Whether to skip flagging the DC channel. Takes true, false or null [default: false]
+      --no-geometric-delay[=<NO_GEOMETRIC_DELAY>]
+          Whether to skip applying geometric delay corrections. Takes true, false or null [default: false]
+      --no-passband-gains[=<NO_PASSBAND_GAINS>]
+          Whether to skip applying passband gain corrections. Takes true, false or null [default: false]
+      --no-cable-delay[=<NO_CABLE_DELAY>]
+          Whether to skip applying cable delay corrections. Takes true, false or null [default: false]
+      --no-rfi[=<NO_RFI>]
+          Whether to skip RFI flagging. Takes true, false or null [default: false]
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -343,20 +347,20 @@ In addition to the [options that every submit command has](#options-that-every-s
 | Option | Meaning | Values | Default |
 |---|---|---|---|
 | `-o`, `--output` | Output data format (CASA measurement set or UVFITS) | one of `ms`, `uvfits` | ms |
-| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
-| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
+| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280, or null | 40 |
+| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
 | `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available). `--apply-di-cal` alone is `--apply-di-cal=true` | `true` or `false` | false |
 | `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag | off |
-| `--no-digital-gains` | Do not correct the digital gains | flag | off |
-| `--no-flag-dc` | Do not flag the DC channel | flag | off |
-| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
-| `--no-passband-gains` | Do not correct the passband gains | flag | off |
-| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
-| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
+| `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
+| `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
+| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
+| `--no-passband-gains` | Do not correct the passband gains | flag, or true, false or null | false |
+| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
+| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag, or true, false or null | false |
 
 #### Imaging downloads
 
@@ -378,9 +382,9 @@ Options:
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz) [default: 40]
+          Frequency resolution to average to (kHz), or null [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s) [default: 2]
+          Time resolution to average to (s), or null [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
           Width of frequency edge flagging (kHz) [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
@@ -393,18 +397,18 @@ Options:
           Custom phase centre declination (degrees). Requires --centre custom
       --no-apply-amps
           Whether to skip applying amplitude calibration solutions
-      --no-digital-gains
-          Whether to skip applying digital gains
-      --no-flag-dc
-          Whether to skip flagging the DC channel
-      --no-geometric-delay
-          Whether to skip applying geometric delay corrections
-      --no-passband-gains
-          Whether to skip applying passband gain corrections
-      --no-cable-delay
-          Whether to skip applying cable delay corrections
-      --no-rfi
-          Whether to skip RFI flagging
+      --no-digital-gains[=<NO_DIGITAL_GAINS>]
+          Whether to skip applying digital gains. Takes true, false or null [default: false]
+      --no-flag-dc[=<NO_FLAG_DC>]
+          Whether to skip flagging the DC channel. Takes true, false or null [default: false]
+      --no-geometric-delay[=<NO_GEOMETRIC_DELAY>]
+          Whether to skip applying geometric delay corrections. Takes true, false or null [default: false]
+      --no-passband-gains[=<NO_PASSBAND_GAINS>]
+          Whether to skip applying passband gain corrections. Takes true, false or null [default: false]
+      --no-cable-delay[=<NO_CABLE_DELAY>]
+          Whether to skip applying cable delay corrections. Takes true, false or null [default: false]
+      --no-rfi[=<NO_RFI>]
+          Whether to skip RFI flagging. Takes true, false or null [default: false]
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
@@ -412,13 +416,13 @@ Options:
       --auto-threshold <AUTO_THRESHOLD>
           WSClean -auto-threshold value [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy) [default: 0.001]
+          Absolute cleaning threshold (Jy), or null [default: 0.001]
       --channels-out <CHANNELS_OUT>
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy) [default: 0.001]
+          WSClean cleaning threshold (Jy), or null [default: 0.001]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -449,8 +453,8 @@ Options:
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
           Number of w-stacking layers. Leave unset to let the server decide
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -483,12 +487,12 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--apply-primary-beam` | Calculate and apply the primary beam and save images for the Jones components, with weighting identical to the weighting as used by the imager | `true` or `false`, given as `--apply-primary-beam=false` | true |
 | `--auto-mask` | WSClean -auto-mask value | 2 to 512 | 3 |
 | `--auto-threshold` | Relative clean threshold. Estimate noise level using a robust estimator and stop at sigma x stddev | 0.1 to 5 | 0.5 |
-| `--abs-threshold` | Absolute cleaning threshold (Jy) | 0 to 10 | 0.001 |
-| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280 | 40 |
-| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more | 2 |
+| `--abs-threshold` | Absolute cleaning threshold (Jy) | 0 to 10, or null | 0.001 |
+| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280, or null | 40 |
+| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
 | `--channels-out` | Number of output channel groups | any whole number | 4 |
 | `--clean-iterations` | Maximum number of clean iterations to perform | at most 1000000 | 100000 |
-| `--clean-threshold` | Absolute stopping clean thresholding in Jy | 0 to 10 | 0.001 |
+| `--clean-threshold` | Absolute stopping clean thresholding in Jy | 0 to 10, or null | 0.001 |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
@@ -509,12 +513,12 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag | off |
-| `--no-digital-gains` | Do not correct the digital gains | flag | off |
-| `--no-flag-dc` | Do not flag the DC channel | flag | off |
-| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag | off |
-| `--no-passband-gains` | Do not correct the passband gains | flag | off |
-| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag | off |
-| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag | off |
+| `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
+| `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
+| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
+| `--no-passband-gains` | Do not correct the passband gains | flag, or true, false or null | false |
+| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
+| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag, or true, false or null | false |
 
 The options `--apply-di-cal`, `--apply-primary-beam` and `--join-channels` are true by default. To turn one off,
 join the value to the option with an equals sign, for example `--join-channels=false`.
@@ -551,13 +555,13 @@ Options:
       --auto-threshold <AUTO_THRESHOLD>
           WSClean -auto-threshold value [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy) [default: 0.001]
+          Absolute cleaning threshold (Jy), or null [default: 0.001]
       --channels-out <CHANNELS_OUT>
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy) [default: 0.001]
+          WSClean cleaning threshold (Jy), or null [default: 0.001]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -588,8 +592,8 @@ Options:
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
           Number of w-stacking layers. Leave unset to let the server decide
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -628,8 +632,8 @@ Options:
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -670,8 +674,8 @@ Options:
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -711,8 +715,8 @@ Options:
           Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit
-          Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
           Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run
@@ -753,7 +757,7 @@ Options:
   -u, --duration <DURATION>          The duration (in seconds) to download
   -f, --from-channel <FROM_CHANNEL>  The 'from' receiver channel number (0-255)
   -t, --to-channel <TO_CHANNEL>      The 'to' receiver channel number (0-255)
-  -r, --allow-resubmit               Allow resubmitting a job even if an identical one has completed
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]  Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait                         Do not exit giant-squid until the specified Obs IDs are ready for download
   -n, --dry-run                      Don't actually submit; print information on what would've happened instead
   -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed

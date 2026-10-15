@@ -181,14 +181,17 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit a job to download an observation's raw visibilities.
 
-        Every keyword argument that is `None` uses the MWA ASVO's default.
+        Every keyword argument has the MWA ASVO's default as its default
+        value (the type stubs show it). `None` is accepted by the arguments
+        that the MWA ASVO allows to be `null`, and is sent as `null`: it
+        does not mean "use the default".
 
         Args:
             obs_id: The Obs ID.
@@ -208,9 +211,9 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit a job to download an observation's metadata.
@@ -228,29 +231,32 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        output: Output | None = None,
-        avg_freq_res: builtins.float | None = None,
-        avg_time_res: builtins.float | None = None,
-        flag_edge_width: builtins.float | None = None,
-        apply_di_cal: builtins.bool | None = None,
-        centre: Centre | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        output: Output = Output.Ms,
+        avg_freq_res: builtins.float | None = 40.0,
+        avg_time_res: builtins.float | None = 2.0,
+        flag_edge_width: builtins.float = 80.0,
+        apply_di_cal: builtins.bool = False,
+        centre: Centre = Centre.Phase,
         custom_centre_ra: builtins.float | None = None,
         custom_centre_dec: builtins.float | None = None,
-        no_apply_amps: builtins.bool | None = None,
-        no_digital_gains: builtins.bool | None = None,
-        no_flag_dc: builtins.bool | None = None,
-        no_geometric_delay: builtins.bool | None = None,
-        no_passband_gains: builtins.bool | None = None,
-        no_cable_delay: builtins.bool | None = None,
-        no_rfi: builtins.bool | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        no_apply_amps: builtins.bool = False,
+        no_digital_gains: builtins.bool | None = False,
+        no_flag_dc: builtins.bool | None = False,
+        no_geometric_delay: builtins.bool | None = False,
+        no_passband_gains: builtins.bool | None = False,
+        no_cable_delay: builtins.bool | None = False,
+        no_rfi: builtins.bool | None = False,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit a conversion (preprocessing) job.
 
-        Every keyword argument that is `None` uses the MWA ASVO's default.
+        Every keyword argument has the MWA ASVO's default as its default
+        value (the type stubs show it). `None` is accepted by the arguments
+        that the MWA ASVO allows to be `null`, and is sent as `null`: it
+        does not mean "use the default".
 
         Args:
             obs_id: The Obs ID.
@@ -291,50 +297,53 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        apply_di_cal: builtins.bool | None = None,
-        apply_primary_beam: builtins.bool | None = None,
-        auto_mask: builtins.int | None = None,
-        auto_threshold: builtins.float | None = None,
-        abs_threshold: builtins.float | None = None,
-        avg_freq_res: builtins.float | None = None,
-        avg_time_res: builtins.float | None = None,
-        channels_out: builtins.int | None = None,
-        clean_iterations: builtins.int | None = None,
-        clean_threshold: builtins.float | None = None,
-        centre: Centre | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        apply_di_cal: builtins.bool = True,
+        apply_primary_beam: builtins.bool = True,
+        auto_mask: builtins.int = 3,
+        auto_threshold: builtins.float = 0.5,
+        abs_threshold: builtins.float | None = 0.001,
+        avg_freq_res: builtins.float | None = 40.0,
+        avg_time_res: builtins.float | None = 2.0,
+        channels_out: builtins.int = 4,
+        clean_iterations: builtins.int = 100000,
+        clean_threshold: builtins.float | None = 0.001,
+        centre: Centre = Centre.Phase,
         custom_centre_dec: builtins.float | None = None,
         custom_centre_ra: builtins.float | None = None,
-        flag_edge_width: builtins.float | None = None,
-        image_size: builtins.int | None = None,
-        join_channels: builtins.bool | None = None,
-        join_polarizations: builtins.bool | None = None,
-        mgain: builtins.float | None = None,
-        multiscale: builtins.bool | None = None,
-        nmiter: builtins.int | None = None,
-        no_apply_amps: builtins.bool | None = None,
-        no_digital_gains: builtins.bool | None = None,
-        no_flag_dc: builtins.bool | None = None,
-        no_geometric_delay: builtins.bool | None = None,
-        no_passband_gains: builtins.bool | None = None,
-        no_cable_delay: builtins.bool | None = None,
-        no_rfi: builtins.bool | None = None,
+        flag_edge_width: builtins.float = 80.0,
+        image_size: builtins.int = 3072,
+        join_channels: builtins.bool = True,
+        join_polarizations: builtins.bool = False,
+        mgain: builtins.float = 0.8,
+        multiscale: builtins.bool = False,
+        nmiter: builtins.int = 10,
+        no_apply_amps: builtins.bool = False,
+        no_digital_gains: builtins.bool | None = False,
+        no_flag_dc: builtins.bool | None = False,
+        no_geometric_delay: builtins.bool | None = False,
+        no_passband_gains: builtins.bool | None = False,
+        no_cable_delay: builtins.bool | None = False,
+        no_rfi: builtins.bool | None = False,
         nwlayers: builtins.int | None = None,
-        output_mode: OutputMode | None = None,
-        pixel_scale: builtins.float | None = None,
-        pol: Polarization | None = None,
-        robust: builtins.float | None = None,
+        output_mode: OutputMode = OutputMode.Fits,
+        pixel_scale: builtins.float = 20.0,
+        pol: Polarization = Polarization.Xxyy,
+        robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float | None = None,
-        weighting: Weighting | None = None,
+        uvw_min: builtins.float = 75.0,
+        weighting: Weighting = Weighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit an imaging job that starts from an Obs ID.
 
-        Every keyword argument that is `None` uses the MWA ASVO's default.
+        Every keyword argument has the MWA ASVO's default as its default
+        value (the type stubs show it). `None` is accepted by the arguments
+        that the MWA ASVO allows to be `null`, and is sent as `null`: it
+        does not mean "use the default".
 
         Args:
             obs_id: The Obs ID.
@@ -403,36 +412,39 @@ class AsvoClient:
         obs_id: builtins.int,
         source_job_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        apply_primary_beam: builtins.bool | None = None,
-        auto_mask: builtins.int | None = None,
-        auto_threshold: builtins.float | None = None,
-        abs_threshold: builtins.float | None = None,
-        channels_out: builtins.int | None = None,
-        clean_iterations: builtins.int | None = None,
-        clean_threshold: builtins.float | None = None,
-        image_size: builtins.int | None = None,
-        join_channels: builtins.bool | None = None,
-        join_polarizations: builtins.bool | None = None,
-        mgain: builtins.float | None = None,
-        multiscale: builtins.bool | None = None,
-        nmiter: builtins.int | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        apply_primary_beam: builtins.bool = True,
+        auto_mask: builtins.int = 3,
+        auto_threshold: builtins.float = 0.5,
+        abs_threshold: builtins.float | None = 0.001,
+        channels_out: builtins.int = 4,
+        clean_iterations: builtins.int = 100000,
+        clean_threshold: builtins.float | None = 0.001,
+        image_size: builtins.int = 3072,
+        join_channels: builtins.bool = True,
+        join_polarizations: builtins.bool = False,
+        mgain: builtins.float = 0.8,
+        multiscale: builtins.bool = False,
+        nmiter: builtins.int = 10,
         nwlayers: builtins.int | None = None,
-        output_mode: OutputMode | None = None,
-        pixel_scale: builtins.float | None = None,
-        pol: Polarization | None = None,
-        robust: builtins.float | None = None,
+        output_mode: OutputMode = OutputMode.Fits,
+        pixel_scale: builtins.float = 20.0,
+        pol: Polarization = Polarization.Xxyy,
+        robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float | None = None,
-        weighting: Weighting | None = None,
+        uvw_min: builtins.float = 75.0,
+        weighting: Weighting = Weighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit an imaging job that starts from an existing conversion job.
 
-        Every keyword argument that is `None` uses the MWA ASVO's default.
+        Every keyword argument has the MWA ASVO's default as its default
+        value (the type stubs show it). `None` is accepted by the arguments
+        that the MWA ASVO allows to be `null`, and is sent as `null`: it
+        does not mean "use the default".
         The arguments are those of `submit_imaging_job`, except that the
         data come from a conversion job, so there are no calibration,
         averaging, flagging or phase centre arguments.
@@ -457,15 +469,18 @@ class AsvoClient:
         offset: builtins.int,
         duration: builtins.int,
         *,
-        delivery: builtins.str | None = None,
+        delivery: builtins.str = "scratch",
         from_channel: builtins.int | None = None,
         to_channel: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit a job to download an observation's voltage data.
 
-        Every keyword argument that is `None` uses the MWA ASVO's default.
+        Every keyword argument has the MWA ASVO's default as its default
+        value (the type stubs show it). `None` is accepted by the arguments
+        that the MWA ASVO allows to be `null`, and is sent as `null`: it
+        does not mean "use the default".
 
         Args:
             obs_id: The Obs ID.
@@ -493,9 +508,9 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        delivery: Delivery = Delivery.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
         r"""
         Submit a job to download an observation's beamformer data.

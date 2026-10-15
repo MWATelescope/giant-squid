@@ -31,6 +31,7 @@ use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
+use super::job_params::set_channel_range;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
     DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
@@ -891,6 +892,10 @@ impl AsvoClient {
     /// `params.offset` is checked against the schema's limits first
     /// ([`validate_voltage_params`]); nothing is sent if it is out of range,
     /// and the error is [`AsvoApiError::InvalidParameter`].
+    ///
+    /// `channel_range` is derived, not taken from `params`: it is sent as
+    /// `true` when `from_channel` or `to_channel` is set, and as `false`
+    /// when neither is (the API needs it until it removes the field).
     pub fn submit_voltage_job(
         &self,
         params: &VoltageJobParams,
@@ -898,7 +903,10 @@ impl AsvoClient {
         validate_voltage_params(params)?;
         debug!("Submitting a voltage job to MWA ASVO");
 
-        self.submit(ENDPOINT_VOLTAGE_JOB, params)
+        let mut params = params.clone();
+        set_channel_range(&mut params);
+
+        self.submit(ENDPOINT_VOLTAGE_JOB, &params)
     }
 
     /// Submit an MWA ASVO beamformer download job.

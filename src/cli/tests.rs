@@ -15,11 +15,14 @@ use serde_json::Value;
 use tempfile::NamedTempFile;
 
 use super::params::{
-    beamformer_defaults, conversion_defaults, download_defaults, imaging1_defaults,
-    imaging2_defaults, voltage_defaults, BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs,
-    ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
+    BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs,
+    Nullable, VoltageJobArgs,
 };
 use super::Args;
+use crate::mwa_asvo::api::job_params::{
+    beamformer_defaults, conversion_defaults, download_defaults, image_from_job_defaults,
+    imaging_defaults, voltage_defaults,
+};
 use crate::parse_many_job_ids_or_obs_ids;
 
 /// An obsid used throughout these tests, and its `i64` form as the request
@@ -236,15 +239,13 @@ fn submit_vis_defaults_come_from_the_schema() {
         args.delivery_args.delivery_format,
         download_defaults().delivery_format
     );
-    assert!(!args.allow_resubmit);
+    assert_eq!(args.allow_resubmit, Nullable(Some(false)));
 }
 
 #[test]
 fn submit_vis_builds_a_vis_download_body() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    let params = args
-        .to_vis_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    let params = args.to_vis_params(crate::test_config::test_obs_id());
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
@@ -255,9 +256,7 @@ fn submit_vis_builds_a_vis_download_body() {
 #[test]
 fn submit_meta_builds_a_meta_download_body() {
     let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBS_ID]);
-    let params = args
-        .to_meta_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    let params = args.to_meta_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["download_type"], "meta");
 }
 
@@ -272,19 +271,15 @@ fn delivery_and_format_can_be_overridden() {
         "tar",
         TEST_OBS_ID,
     ]);
-    let params = args
-        .to_vis_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    let params = args.to_vis_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["delivery"], "scratch");
 }
 
 #[test]
 fn allow_resubmit_reaches_the_request_body() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", "-r", TEST_OBS_ID]);
-    assert!(args.allow_resubmit);
-    let params = args
-        .to_vis_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    assert_eq!(args.allow_resubmit, Nullable(Some(true)));
+    let params = args.to_vis_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["allow_resubmit"], true);
 }
 
@@ -305,11 +300,7 @@ fn submit_conv_defaults_come_from_the_schema() {
 
     // The numeric defaults are checked through the request body, so that
     // floats are compared as JSON values rather than directly.
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(
         json["avg_freq_res"],
         conversion_defaults().avg_freq_res.expect("schema default")
@@ -327,9 +318,7 @@ fn submit_conv_defaults_come_from_the_schema() {
 #[test]
 fn submit_conv_builds_a_conversion_body() {
     let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
-    let params = args
-        .to_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    let params = args.to_params(crate::test_config::test_obs_id());
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
@@ -352,9 +341,7 @@ fn submit_conv_custom_phase_centre_is_passed_through() {
         "-26.7",
         TEST_OBS_ID,
     ]);
-    let params = args
-        .to_params(crate::test_config::test_obs_id())
-        .expect("params should build");
+    let params = args.to_params(crate::test_config::test_obs_id());
     let json = json_of(&params);
 
     assert_eq!(json["custom_centre_ra"], 10.5);
@@ -372,11 +359,7 @@ fn submit_conv_output_can_be_overridden() {
         "40",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["output"], "ms");
     assert_eq!(json["avg_freq_res"], 40.0);
 }
@@ -388,25 +371,21 @@ fn submit_conv_output_can_be_overridden() {
 #[test]
 fn submit_image_defaults_come_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.wsclean.image_size, imaging1_defaults().image_size);
-    assert_eq!(args.wsclean.weighting, imaging1_defaults().weighting);
-    assert_eq!(args.wsclean.output_mode, imaging1_defaults().output_mode);
-    assert_eq!(args.wsclean.auto_mask, imaging1_defaults().auto_mask);
-    assert_eq!(args.wsclean.nmiter, imaging1_defaults().nmiter);
+    assert_eq!(args.wsclean.image_size, imaging_defaults().image_size);
+    assert_eq!(args.wsclean.weighting, imaging_defaults().weighting);
+    assert_eq!(args.wsclean.output_mode, imaging_defaults().output_mode);
+    assert_eq!(args.wsclean.auto_mask, imaging_defaults().auto_mask);
+    assert_eq!(args.wsclean.nmiter, imaging_defaults().nmiter);
 }
 
 #[test]
 fn submit_image_builds_an_imaging_body() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["image_size"], *imaging1_defaults().image_size);
-    assert_eq!(json["pol"], imaging1_defaults().pol.to_string());
+    assert_eq!(json["image_size"], *imaging_defaults().image_size);
+    assert_eq!(json["pol"], imaging_defaults().pol.to_string());
 }
 
 /// `--pol` is sourced from the schema, which accepts only XX, YY or XXYY on
@@ -415,19 +394,18 @@ fn submit_image_builds_an_imaging_body() {
 #[test]
 fn submit_image_default_pol_comes_from_the_schema() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.wsclean.pol, imaging1_defaults().pol);
-    assert!(args.to_params(crate::test_config::test_obs_id()).is_ok());
+    assert_eq!(args.wsclean.pol, imaging_defaults().pol);
+    assert_eq!(
+        args.to_params(crate::test_config::test_obs_id()).pol,
+        imaging_defaults().pol
+    );
 }
 
 #[test]
 fn submit_image_accepts_each_supported_polarisation() {
     for pol in ["XX", "YY", "XXYY"] {
         let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", pol, TEST_OBS_ID]);
-        let json = json_of(
-            &args
-                .to_params(crate::test_config::test_obs_id())
-                .expect("params should build"),
-        );
+        let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
         assert_eq!(json["pol"], pol);
     }
 }
@@ -458,11 +436,7 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
         "-26.7",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert_eq!(json["custom_centre_ra"], 10.5);
     assert_eq!(json["custom_centre_dec"], -26.7);
@@ -495,11 +469,7 @@ fn negative_values_are_accepted_in_either_form() {
         ],
     ] {
         let (args, _) = image_args(&argv);
-        let json = json_of(
-            &args
-                .to_params(crate::test_config::test_obs_id())
-                .expect("params should build"),
-        );
+        let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
         assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
         assert_eq!(json["robust"], -1.5, "argv: {argv:?}");
     }
@@ -524,11 +494,7 @@ fn negative_values_are_accepted_in_either_form() {
         ],
     ] {
         let (args, _) = conv_args(&argv);
-        let json = json_of(
-            &args
-                .to_params(crate::test_config::test_obs_id())
-                .expect("params should build"),
-        );
+        let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
         assert_eq!(json["custom_centre_dec"], -26.7, "argv: {argv:?}");
     }
 }
@@ -550,11 +516,7 @@ fn allowing_negative_numbers_does_not_break_short_flags() {
 #[test]
 fn submit_image_optional_fields_are_omitted_when_unset() {
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert!(json.get("nwlayers").is_none());
     assert!(json.get("uvw_max").is_none());
@@ -673,20 +635,16 @@ fn submit_image_from_job_builds_a_flow2_body() {
     ]);
     assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
-    assert_eq!(args.wsclean.pol, imaging2_defaults().pol);
+    assert_eq!(args.wsclean.pol, image_from_job_defaults().pol);
 
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["source_job_id"], 4242);
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     // Since schema v1.11 clean_threshold has a default here, as in the flow
     // 1 imaging job, and the CLI sends it.
     assert_eq!(
         json["clean_threshold"],
-        imaging2_defaults().clean_threshold.unwrap()
+        image_from_job_defaults().clean_threshold.unwrap()
     );
 }
 
@@ -737,11 +695,7 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         "8",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["channel_range"], false);
     assert_eq!(json["offset"], 16);
     assert_eq!(json["duration"], 8);
@@ -757,11 +711,7 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         "109",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["channel_range"], true);
     assert_eq!(json["from_channel"], 109);
     assert!(json.get("to_channel").is_none());
@@ -796,11 +746,7 @@ fn submit_bf_builds_a_beamformer_body() {
         beamformer_defaults().delivery_format
     );
 
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
 }
 
@@ -1138,11 +1084,7 @@ fn submit_conv_takes_the_schema_names_for_a_custom_centre() {
         "-26.7",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert_eq!(json["centre"], "custom");
     assert_eq!(json["custom_centre_ra"], 10.5);
@@ -1162,11 +1104,7 @@ fn submit_image_takes_the_schema_names_for_the_centre() {
         "-26.7",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert_eq!(json["centre"], "custom");
     assert_eq!(json["custom_centre_ra"], 10.5);
@@ -1458,20 +1396,12 @@ fn submit_conv_sends_no_cable_delay_and_no_rfi() {
         "--no-rfi",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["no_cable_delay"], true);
     assert_eq!(json["no_rfi"], true);
 
     let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["no_cable_delay"], false);
     assert_eq!(json["no_rfi"], false);
 }
@@ -1491,11 +1421,7 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
     ];
 
     let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     for name in SWITCHES {
         assert_eq!(json[name], false, "{name} is off by default");
     }
@@ -1511,11 +1437,7 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
         "--no-rfi",
         TEST_OBS_ID,
     ]);
-    let json = json_of(
-        &args
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     for name in SWITCHES {
         assert_eq!(json[name], true, "{name} is on when given");
     }
@@ -1618,20 +1540,17 @@ fn staging_count_is_not_an_option_and_not_in_any_body() {
         json_of(
             &vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID])
                 .0
-                .to_vis_params(crate::test_config::test_obs_id())
-                .expect("vis body"),
+                .to_vis_params(crate::test_config::test_obs_id()),
         ),
         json_of(
             &conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID])
                 .0
-                .to_params(crate::test_config::test_obs_id())
-                .expect("conversion body"),
+                .to_params(crate::test_config::test_obs_id()),
         ),
         json_of(
             &image_args(&["giant-squid", "submit-image", TEST_OBS_ID])
                 .0
-                .to_params(crate::test_config::test_obs_id())
-                .expect("imaging body"),
+                .to_params(crate::test_config::test_obs_id()),
         ),
     ];
     for body in bodies {
@@ -1885,7 +1804,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     let obs_id: crate::obs_id::ObsId = TEST_OBS_ID.parse().expect("a valid Obs ID");
 
     let conv = match parse(&["giant-squid", "submit-conv", TEST_OBS_ID]) {
-        Args::SubmitConv { conv, .. } => conv.to_params(obs_id).expect("a body"),
+        Args::SubmitConv { conv, .. } => conv.to_params(obs_id),
         other => panic!("expected SubmitConv, got {other:?}"),
     };
     let expected: ConversionJobParams = ConversionJobParams::builder()
@@ -1895,7 +1814,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     assert_eq!(body_json(&conv), body_json(&expected));
 
     let image = match parse(&["giant-squid", "submit-image", TEST_OBS_ID]) {
-        Args::SubmitImage { image, .. } => image.to_params(obs_id).expect("a body"),
+        Args::SubmitImage { image, .. } => image.to_params(obs_id),
         other => panic!("expected SubmitImage, got {other:?}"),
     };
     let expected: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
@@ -1915,7 +1834,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         "5",
         TEST_OBS_ID,
     ]) {
-        Args::SubmitImageFromJob { image, .. } => image.to_params(obs_id).expect("a body"),
+        Args::SubmitImageFromJob { image, .. } => image.to_params(obs_id),
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     };
     let expected: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
@@ -1926,7 +1845,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     assert_eq!(body_json(&from_job), body_json(&expected));
 
     let vis = match parse(&["giant-squid", "submit-vis", TEST_OBS_ID]) {
-        Args::SubmitVis { download, .. } => download.to_vis_params(obs_id).expect("a body"),
+        Args::SubmitVis { download, .. } => download.to_vis_params(obs_id),
         other => panic!("expected SubmitVis, got {other:?}"),
     };
     let expected: DownloadJobParams = DownloadJobParams::builder()
@@ -1937,7 +1856,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     assert_eq!(body_json(&vis), body_json(&expected));
 
     let bf = match parse(&["giant-squid", "submit-bf", TEST_OBS_ID]) {
-        Args::SubmitBf { bf, .. } => bf.to_params(obs_id).expect("a body"),
+        Args::SubmitBf { bf, .. } => bf.to_params(obs_id),
         other => panic!("expected SubmitBf, got {other:?}"),
     };
     let expected: BeamformerJobParams = BeamformerJobParams::builder()
@@ -1963,4 +1882,73 @@ fn the_job_table_is_monochrome_with_no_colour_or_no_color() {
     assert!(monochrome(true, None));
     assert!(monochrome(false, Some(OsString::from("1"))));
     assert!(!monochrome(false, Some(OsString::new())));
+}
+
+// ---------------------------------------------------------------------------
+// null
+// ---------------------------------------------------------------------------
+
+/// An option for a field that the schema allows to be `null` takes the word
+/// `null`, which is sent as `null`; its default is the schema's value, and
+/// the bare flag is `true`.
+#[test]
+fn a_nullable_option_takes_null() {
+    let body = |extra: &[&str]| {
+        let mut argv = vec!["giant-squid", "submit-conv"];
+        argv.extend_from_slice(extra);
+        argv.push(TEST_OBS_ID);
+        let (args, _) = conv_args(&argv);
+        json_of(&args.to_params(crate::test_config::test_obs_id()))
+    };
+
+    let defaults = body(&[]);
+    assert_eq!(defaults["avg_freq_res"], 40.0);
+    assert_eq!(defaults["no_rfi"], false);
+    assert_eq!(defaults["allow_resubmit"], false);
+
+    let nulls = body(&[
+        "--avg-freq-res",
+        "null",
+        "--avg-time-res=NULL",
+        "--no-rfi=null",
+        "--allow-resubmit=null",
+    ]);
+    for field in ["avg_freq_res", "avg_time_res", "no_rfi", "allow_resubmit"] {
+        assert_eq!(nulls[field], Value::Null, "{field}");
+    }
+
+    let flags = body(&["--no-rfi", "--no-flag-dc=false", "-r"]);
+    assert_eq!(flags["no_rfi"], true);
+    assert_eq!(flags["no_flag_dc"], false);
+    assert_eq!(flags["allow_resubmit"], true);
+}
+
+/// The thresholds of an imaging job can be `null` too, and a value that is not
+/// a number or `null` is refused.
+#[test]
+fn a_threshold_takes_null_and_a_bad_value_is_refused() {
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--abs-threshold",
+        "null",
+        TEST_OBS_ID,
+    ]);
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    assert_eq!(json["abs_threshold"], Value::Null);
+    assert_eq!(
+        json["clean_threshold"],
+        imaging_defaults().clean_threshold.expect("default")
+    );
+
+    let err = parse_err(&[
+        "giant-squid",
+        "submit-conv",
+        "--avg-freq-res",
+        "nope",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    let err = parse_err(&["giant-squid", "submit-conv", "--no-rfi=maybe", TEST_OBS_ID]);
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }

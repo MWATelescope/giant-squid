@@ -519,3 +519,32 @@ fn the_source_job_id_minimum_is_the_schema_minimum() {
         Some(1.0)
     );
 }
+
+/// A plain number that the schema's type does not allow is refused with the
+/// library's message when the schema value is made from it.
+#[test]
+fn a_value_the_schema_does_not_allow_is_refused() {
+    let err = image_size(1000).expect_err("1000 is not an image size");
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "image_size",
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+
+    let err = source_job_id(0).expect_err("0 is not a Job ID");
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "source_job_id",
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}

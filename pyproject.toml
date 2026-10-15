@@ -80,3 +80,8 @@ testpaths = ["tests/python"]
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint.per-file-ignores]
+# The generated stub writes a default such as `Delivery.Acacia` in the submit methods of `AsvoClient`, and the
+# enum classes come later in the file. A stub may refer to a name that is defined later, but ruff checks a default
+# as it does code.
+"mwa_giant_squid.pyi" = ["F821"]

@@ -44,12 +44,11 @@ before you upgrade scripts.**
 * Library: each public item has one path. The client, jobs, errors, downloads, environment helpers, Obs IDs and the
   ID parsers are at the crate root (for example `mwa_giant_squid::AsvoClient`, `mwa_giant_squid::ObsIdError`). The
   OpenAPI schema's types, the job arguments and their checks are in `mwa_giant_squid::mwa_asvo::api` (`openapi`,
-  `job_args`, `validate`, `schema_enums`), and the `--json` error codes in `mwa_giant_squid::mwa_asvo::error_response`.
+  `job_params`, `validate`, `schema_enums`), and the `--json` error codes in `mwa_giant_squid::mwa_asvo::error_response`.
   The other paths (for example `mwa_giant_squid::mwa_asvo::AsvoClient`, `mwa_giant_squid::JobState`,
   `mwa_giant_squid::obs_id::ObsId`) are gone.
-* Library: the argument structs of `mwa_asvo::api::job_args` use the schema's types: `image_size` is `ImageSizes`
-  and `nmiter` is `NonZeroU64` (in `ImagingArgs` and `ImageFromJobArgs`), and `ImageFromJobArgs::into_params` takes
-  `source_job_id` as `NonZeroU64`. `validate::image_size`, `validate::nmiter` and `validate::source_job_id` make
+* Library: in the request bodies, `image_size` is `ImageSizes`, `nmiter` is `NonZeroU64` and `source_job_id` is
+  `NonZeroU64`, as the schema has them. `validate::image_size`, `validate::nmiter` and `validate::source_job_id` make
   these from a plain number. The Python arguments are still plain integers, with the same `ValueError`s.
 * Library: `AsvoApiError::BadStatus` has the `status` (the HTTP status code, a `u16`; was `code`, a
   `reqwest::StatusCode`) and the `message` of `AsvoError::HttpError`. In Python, the attribute is `status` (was
@@ -135,10 +134,21 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The Job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
-* Library: `mwa_asvo::api::job_args` has one argument struct per job type (`DownloadArgs`, `ConversionArgs`,
-  `ImagingArgs`, `ImageFromJobArgs`, `VoltageArgs`, `BeamformerArgs`), each with `into_params(obs_id)`, which makes the
-  request body. A field that is `None` is left to the schema's default. The CLI and the Python module both make their
-  request bodies with them.
+* Library: `mwa_asvo::api::job_params` has, for each job type, a function that makes the request body at the
+  schema's defaults (`download_params`, `conversion_params`, `imaging_params`, `image_from_job_params`,
+  `voltage_params`, `beamformer_params`). The caller sets the fields it wants, and the fields are the schema's types.
+  The CLI and the Python module both make their request bodies this way. A field that the schema
+  allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
+  the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
+  (`job_params::set_channel_range`).
+* CLI: an option for a field that the MWA ASVO allows to be `null` takes the word `null` (`--avg-freq-res null`,
+  `--no-rfi=null`, `--allow-resubmit=null`): `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`,
+  `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,
+  `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The last seven also take `true` and `false`, and
+  the bare flag (`--no-rfi`, `-r`) is still `true`. `--help` shows each option's default.
+* Python: each optional argument of the submit methods has the schema's default as its default value (for example
+  `avg_freq_res=40.0`, `delivery=Delivery.Acacia`), shown in the type stub and in `help()`, and `None` is sent as `null` for the
+  arguments that the schema allows to be `null`. `None` was "use the default".
 * Library: every type generated from the OpenAPI schema derives `PartialEq`, and `JobType` also `Copy`, `Eq` and
   `Hash` (set in `build.rs`, so they survive regeneration). `AsvoJob`, `AsvoJobVec` and `AsvoJobMap` derive
   `PartialEq` again.

@@ -26,9 +26,7 @@ use super::types::{
     PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization,
     PyWeighting,
 };
-use crate::mwa_asvo::api::job_args::{
-    BeamformerArgs, ConversionArgs, DownloadArgs, ImageFromJobArgs, ImagingArgs, VoltageArgs,
-};
+use crate::mwa_asvo::api::job_params as schema;
 use crate::mwa_asvo::api::openapi::DownloadType;
 use crate::mwa_asvo::api::validate;
 use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobQuery, JobsFilter};
@@ -222,7 +220,10 @@ impl PyAsvoClient {
 
     /// Submit a job to download an observation's raw visibilities.
     ///
-    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// Every keyword argument has the MWA ASVO's default as its default
+    /// value (the type stubs show it). `None` is accepted by the arguments
+    /// that the MWA ASVO allows to be `null`, and is sent as `null`: it
+    /// does not mean "use the default".
     ///
     /// Args:
     ///     obs_id: The Obs ID.
@@ -237,22 +238,30 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID.
     ///     AsvoApiError: The request failed.
-    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    #[pyo3(text_signature = "($self, obs_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        allow_resubmit=False\
+        )")]
+    #[pyo3(signature = (
+        obs_id,
+        *,
+        delivery = PyDelivery::from(schema::download_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
+        allow_resubmit = schema::download_defaults().allow_resubmit,
+    ))]
     fn submit_download_vis_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = DownloadArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?, DownloadType::Vis)
-        .map_err(|e| api_error(py, e))?;
+        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Vis);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_download_vis_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -268,22 +277,30 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID.
     ///     AsvoApiError: The request failed.
-    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    #[pyo3(text_signature = "($self, obs_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        allow_resubmit=False\
+        )")]
+    #[pyo3(signature = (
+        obs_id,
+        *,
+        delivery = PyDelivery::from(schema::download_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
+        allow_resubmit = schema::download_defaults().allow_resubmit,
+    ))]
     fn submit_download_meta_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = DownloadArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?, DownloadType::Meta)
-        .map_err(|e| api_error(py, e))?;
+        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Meta);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_download_meta_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -291,7 +308,10 @@ impl PyAsvoClient {
 
     /// Submit a conversion (preprocessing) job.
     ///
-    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// Every keyword argument has the MWA ASVO's default as its default
+    /// value (the type stubs show it). `None` is accepted by the arguments
+    /// that the MWA ASVO allows to be `null`, and is sent as `null`: it
+    /// does not mean "use the default".
     ///
     /// Args:
     ///     obs_id: The Obs ID.
@@ -327,44 +347,64 @@ impl PyAsvoClient {
     ///         1280). The message names the argument and its limits.
     ///         Nothing is sent.
     ///     AsvoApiError: The request failed.
+    #[pyo3(text_signature = "($self, obs_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        output='Output.Ms', \
+        avg_freq_res=40.0, \
+        avg_time_res=2.0, \
+        flag_edge_width=80.0, \
+        apply_di_cal=False, \
+        centre='Centre.Phase', \
+        custom_centre_ra=None, \
+        custom_centre_dec=None, \
+        no_apply_amps=False, \
+        no_digital_gains=False, \
+        no_flag_dc=False, \
+        no_geometric_delay=False, \
+        no_passband_gains=False, \
+        no_cable_delay=False, \
+        no_rfi=False, \
+        allow_resubmit=False\
+        )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery=None,
-        delivery_format=None,
-        output=None,
-        avg_freq_res=None,
-        avg_time_res=None,
-        flag_edge_width=None,
-        apply_di_cal=None,
-        centre=None,
-        custom_centre_ra=None,
-        custom_centre_dec=None,
-        no_apply_amps=None,
-        no_digital_gains=None,
-        no_flag_dc=None,
-        no_geometric_delay=None,
-        no_passband_gains=None,
-        no_cable_delay=None,
-        no_rfi=None,
-        allow_resubmit=None,
+        delivery = PyDelivery::from(schema::conversion_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::conversion_defaults().delivery_format),
+        output = PyOutput::from(schema::conversion_defaults().output),
+        avg_freq_res = schema::conversion_defaults().avg_freq_res,
+        avg_time_res = schema::conversion_defaults().avg_time_res,
+        flag_edge_width = schema::conversion_defaults().flag_edge_width,
+        apply_di_cal = schema::conversion_defaults().apply_di_cal,
+        centre = PyCentre::from(schema::conversion_defaults().centre),
+        custom_centre_ra = schema::conversion_defaults().custom_centre_ra,
+        custom_centre_dec = schema::conversion_defaults().custom_centre_dec,
+        no_apply_amps = schema::conversion_defaults().no_apply_amps,
+        no_digital_gains = schema::conversion_defaults().no_digital_gains,
+        no_flag_dc = schema::conversion_defaults().no_flag_dc,
+        no_geometric_delay = schema::conversion_defaults().no_geometric_delay,
+        no_passband_gains = schema::conversion_defaults().no_passband_gains,
+        no_cable_delay = schema::conversion_defaults().no_cable_delay,
+        no_rfi = schema::conversion_defaults().no_rfi,
+        allow_resubmit = schema::conversion_defaults().allow_resubmit,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn submit_conversion_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
-        output: Option<PyOutput>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
+        output: PyOutput,
         avg_freq_res: Option<f64>,
         avg_time_res: Option<f64>,
-        flag_edge_width: Option<f64>,
-        apply_di_cal: Option<bool>,
-        centre: Option<PyCentre>,
+        flag_edge_width: f64,
+        apply_di_cal: bool,
+        centre: PyCentre,
         custom_centre_ra: Option<f64>,
         custom_centre_dec: Option<f64>,
-        no_apply_amps: Option<bool>,
+        no_apply_amps: bool,
         no_digital_gains: Option<bool>,
         no_flag_dc: Option<bool>,
         no_geometric_delay: Option<bool>,
@@ -373,28 +413,25 @@ impl PyAsvoClient {
         no_rfi: Option<bool>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = ConversionArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            output: output.map(Into::into),
-            avg_freq_res,
-            avg_time_res,
-            flag_edge_width,
-            apply_di_cal,
-            centre: centre.map(Into::into),
-            custom_centre_ra,
-            custom_centre_dec,
-            no_apply_amps,
-            no_digital_gains,
-            no_flag_dc,
-            no_geometric_delay,
-            no_passband_gains,
-            no_cable_delay,
-            no_rfi,
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?)
-        .map_err(|e| api_error(py, e))?;
+        let mut params = schema::conversion_params(job_obs_id(obs_id)?);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.output = output.into();
+        params.avg_freq_res = avg_freq_res;
+        params.avg_time_res = avg_time_res;
+        params.flag_edge_width = flag_edge_width;
+        params.apply_di_cal = apply_di_cal;
+        params.centre = centre.into();
+        params.custom_centre_ra = custom_centre_ra;
+        params.custom_centre_dec = custom_centre_dec;
+        params.no_apply_amps = no_apply_amps;
+        params.no_digital_gains = no_digital_gains;
+        params.no_flag_dc = no_flag_dc;
+        params.no_geometric_delay = no_geometric_delay;
+        params.no_passband_gains = no_passband_gains;
+        params.no_cable_delay = no_cable_delay;
+        params.no_rfi = no_rfi;
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_conversion_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -402,7 +439,10 @@ impl PyAsvoClient {
 
     /// Submit an imaging job that starts from an Obs ID.
     ///
-    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// Every keyword argument has the MWA ASVO's default as its default
+    /// value (the type stubs show it). `None` is accepted by the arguments
+    /// that the MWA ASVO allows to be `null`, and is sent as `null`: it
+    /// does not mean "use the default".
     ///
     /// Args:
     ///     obs_id: The Obs ID.
@@ -465,77 +505,118 @@ impl PyAsvoClient {
     ///         The message names the argument and its limits. Nothing is
     ///         sent.
     ///     AsvoApiError: The request failed.
+    #[pyo3(text_signature = "($self, obs_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        apply_di_cal=True, \
+        apply_primary_beam=True, \
+        auto_mask=3, \
+        auto_threshold=0.5, \
+        abs_threshold=0.001, \
+        avg_freq_res=40.0, \
+        avg_time_res=2.0, \
+        channels_out=4, \
+        clean_iterations=100000, \
+        clean_threshold=0.001, \
+        centre='Centre.Phase', \
+        custom_centre_dec=None, \
+        custom_centre_ra=None, \
+        flag_edge_width=80.0, \
+        image_size=3072, \
+        join_channels=True, \
+        join_polarizations=False, \
+        mgain=0.8, \
+        multiscale=False, \
+        nmiter=10, \
+        no_apply_amps=False, \
+        no_digital_gains=False, \
+        no_flag_dc=False, \
+        no_geometric_delay=False, \
+        no_passband_gains=False, \
+        no_cable_delay=False, \
+        no_rfi=False, \
+        nwlayers=None, \
+        output_mode='OutputMode.Fits', \
+        pixel_scale=20.0, \
+        pol='Polarization.Xxyy', \
+        robust=-0.5, \
+        uvw_max=None, \
+        uvw_min=75.0, \
+        weighting='Weighting.Briggs', \
+        wstack_nwlayers=None, \
+        allow_resubmit=False\
+        )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery=None,
-        delivery_format=None,
-        apply_di_cal=None,
-        apply_primary_beam=None,
-        auto_mask=None,
-        auto_threshold=None,
-        abs_threshold=None,
-        avg_freq_res=None,
-        avg_time_res=None,
-        channels_out=None,
-        clean_iterations=None,
-        clean_threshold=None,
-        centre=None,
-        custom_centre_dec=None,
-        custom_centre_ra=None,
-        flag_edge_width=None,
-        image_size=None,
-        join_channels=None,
-        join_polarizations=None,
-        mgain=None,
-        multiscale=None,
-        nmiter=None,
-        no_apply_amps=None,
-        no_digital_gains=None,
-        no_flag_dc=None,
-        no_geometric_delay=None,
-        no_passband_gains=None,
-        no_cable_delay=None,
-        no_rfi=None,
-        nwlayers=None,
-        output_mode=None,
-        pixel_scale=None,
-        pol=None,
-        robust=None,
-        uvw_max=None,
-        uvw_min=None,
-        weighting=None,
-        wstack_nwlayers=None,
-        allow_resubmit=None,
+        delivery = PyDelivery::from(schema::imaging_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::imaging_defaults().delivery_format),
+        apply_di_cal = schema::imaging_defaults().apply_di_cal,
+        apply_primary_beam = schema::imaging_defaults().apply_primary_beam,
+        auto_mask = schema::imaging_defaults().auto_mask,
+        auto_threshold = schema::imaging_defaults().auto_threshold,
+        abs_threshold = schema::imaging_defaults().abs_threshold,
+        avg_freq_res = schema::imaging_defaults().avg_freq_res,
+        avg_time_res = schema::imaging_defaults().avg_time_res,
+        channels_out = schema::imaging_defaults().channels_out,
+        clean_iterations = schema::imaging_defaults().clean_iterations,
+        clean_threshold = schema::imaging_defaults().clean_threshold,
+        centre = PyCentre::from(schema::imaging_defaults().centre),
+        custom_centre_dec = schema::imaging_defaults().custom_centre_dec,
+        custom_centre_ra = schema::imaging_defaults().custom_centre_ra,
+        flag_edge_width = schema::imaging_defaults().flag_edge_width,
+        image_size = i64::from(schema::imaging_defaults().image_size),
+        join_channels = schema::imaging_defaults().join_channels,
+        join_polarizations = schema::imaging_defaults().join_polarizations,
+        mgain = schema::imaging_defaults().mgain,
+        multiscale = schema::imaging_defaults().multiscale,
+        nmiter = schema::imaging_defaults().nmiter.get(),
+        no_apply_amps = schema::imaging_defaults().no_apply_amps,
+        no_digital_gains = schema::imaging_defaults().no_digital_gains,
+        no_flag_dc = schema::imaging_defaults().no_flag_dc,
+        no_geometric_delay = schema::imaging_defaults().no_geometric_delay,
+        no_passband_gains = schema::imaging_defaults().no_passband_gains,
+        no_cable_delay = schema::imaging_defaults().no_cable_delay,
+        no_rfi = schema::imaging_defaults().no_rfi,
+        nwlayers = schema::imaging_defaults().nwlayers,
+        output_mode = PyOutputMode::from(schema::imaging_defaults().output_mode),
+        pixel_scale = schema::imaging_defaults().pixel_scale,
+        pol = PyPolarization::from(schema::imaging_defaults().pol),
+        robust = schema::imaging_defaults().robust,
+        uvw_max = schema::imaging_defaults().uvw_max,
+        uvw_min = schema::imaging_defaults().uvw_min,
+        weighting = PyWeighting::from(schema::imaging_defaults().weighting),
+        wstack_nwlayers = schema::imaging_defaults().wstack_nwlayers,
+        allow_resubmit = schema::imaging_defaults().allow_resubmit,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn submit_imaging_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
-        apply_di_cal: Option<bool>,
-        apply_primary_beam: Option<bool>,
-        auto_mask: Option<i64>,
-        auto_threshold: Option<f64>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
+        apply_di_cal: bool,
+        apply_primary_beam: bool,
+        auto_mask: i64,
+        auto_threshold: f64,
         abs_threshold: Option<f64>,
         avg_freq_res: Option<f64>,
         avg_time_res: Option<f64>,
-        channels_out: Option<i64>,
-        clean_iterations: Option<i64>,
+        channels_out: i64,
+        clean_iterations: i64,
         clean_threshold: Option<f64>,
-        centre: Option<PyCentre>,
+        centre: PyCentre,
         custom_centre_dec: Option<f64>,
         custom_centre_ra: Option<f64>,
-        flag_edge_width: Option<f64>,
-        image_size: Option<i64>,
-        join_channels: Option<bool>,
-        join_polarizations: Option<bool>,
-        mgain: Option<f64>,
-        multiscale: Option<bool>,
-        nmiter: Option<u64>,
-        no_apply_amps: Option<bool>,
+        flag_edge_width: f64,
+        image_size: i64,
+        join_channels: bool,
+        join_polarizations: bool,
+        mgain: f64,
+        multiscale: bool,
+        nmiter: u64,
+        no_apply_amps: bool,
         no_digital_gains: Option<bool>,
         no_flag_dc: Option<bool>,
         no_geometric_delay: Option<bool>,
@@ -543,67 +624,58 @@ impl PyAsvoClient {
         no_cable_delay: Option<bool>,
         no_rfi: Option<bool>,
         nwlayers: Option<i64>,
-        output_mode: Option<PyOutputMode>,
-        pixel_scale: Option<f64>,
-        pol: Option<PyPolarization>,
-        robust: Option<f64>,
+        output_mode: PyOutputMode,
+        pixel_scale: f64,
+        pol: PyPolarization,
+        robust: f64,
         uvw_max: Option<f64>,
-        uvw_min: Option<f64>,
-        weighting: Option<PyWeighting>,
+        uvw_min: f64,
+        weighting: PyWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let image_size = image_size
-            .map(validate::image_size)
-            .transpose()
-            .map_err(|e| api_error(py, e))?;
-        let nmiter = nmiter
-            .map(validate::nmiter)
-            .transpose()
-            .map_err(|e| api_error(py, e))?;
-        let params = ImagingArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            apply_di_cal,
-            apply_primary_beam,
-            auto_mask,
-            auto_threshold,
-            abs_threshold,
-            avg_freq_res,
-            avg_time_res,
-            channels_out,
-            clean_iterations,
-            clean_threshold,
-            centre: centre.map(Into::into),
-            custom_centre_dec,
-            custom_centre_ra,
-            flag_edge_width,
-            image_size,
-            join_channels,
-            join_polarizations,
-            mgain,
-            multiscale,
-            nmiter,
-            no_apply_amps,
-            no_digital_gains,
-            no_flag_dc,
-            no_geometric_delay,
-            no_passband_gains,
-            no_cable_delay,
-            no_rfi,
-            nwlayers,
-            output_mode: output_mode.map(Into::into),
-            pixel_scale,
-            pol: pol.map(Into::into),
-            robust,
-            uvw_max,
-            uvw_min,
-            weighting: weighting.map(Into::into),
-            wstack_nwlayers,
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?)
-        .map_err(|e| api_error(py, e))?;
+        let image_size = validate::image_size(image_size).map_err(|e| api_error(py, e))?;
+        let nmiter = validate::nmiter(nmiter).map_err(|e| api_error(py, e))?;
+        let mut params = schema::imaging_params(job_obs_id(obs_id)?);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.apply_di_cal = apply_di_cal;
+        params.apply_primary_beam = apply_primary_beam;
+        params.auto_mask = auto_mask;
+        params.auto_threshold = auto_threshold;
+        params.abs_threshold = abs_threshold;
+        params.avg_freq_res = avg_freq_res;
+        params.avg_time_res = avg_time_res;
+        params.channels_out = channels_out;
+        params.clean_iterations = clean_iterations;
+        params.clean_threshold = clean_threshold;
+        params.centre = centre.into();
+        params.custom_centre_dec = custom_centre_dec;
+        params.custom_centre_ra = custom_centre_ra;
+        params.flag_edge_width = flag_edge_width;
+        params.image_size = image_size;
+        params.join_channels = join_channels;
+        params.join_polarizations = join_polarizations;
+        params.mgain = mgain;
+        params.multiscale = multiscale;
+        params.nmiter = nmiter;
+        params.no_apply_amps = no_apply_amps;
+        params.no_digital_gains = no_digital_gains;
+        params.no_flag_dc = no_flag_dc;
+        params.no_geometric_delay = no_geometric_delay;
+        params.no_passband_gains = no_passband_gains;
+        params.no_cable_delay = no_cable_delay;
+        params.no_rfi = no_rfi;
+        params.nwlayers = nwlayers;
+        params.output_mode = output_mode.into();
+        params.pixel_scale = pixel_scale;
+        params.pol = pol.into();
+        params.robust = robust;
+        params.uvw_max = uvw_max;
+        params.uvw_min = uvw_min;
+        params.weighting = weighting.into();
+        params.wstack_nwlayers = wstack_nwlayers;
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_imaging_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -611,7 +683,10 @@ impl PyAsvoClient {
 
     /// Submit an imaging job that starts from an existing conversion job.
     ///
-    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// Every keyword argument has the MWA ASVO's default as its default
+    /// value (the type stubs show it). `None` is accepted by the arguments
+    /// that the MWA ASVO allows to be `null`, and is sent as `null`: it
+    /// does not mean "use the default".
     /// The arguments are those of `submit_imaging_job`, except that the
     /// data come from a conversion job, so there are no calibration,
     /// averaging, flagging or phase centre arguments.
@@ -629,35 +704,62 @@ impl PyAsvoClient {
     ///         zero, or an argument is outside what the MWA ASVO accepts
     ///         (see `submit_imaging_job`). Nothing is sent.
     ///     AsvoApiError: The request failed.
+    #[pyo3(text_signature = "($self, obs_id, source_job_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        apply_primary_beam=True, \
+        auto_mask=3, \
+        auto_threshold=0.5, \
+        abs_threshold=0.001, \
+        channels_out=4, \
+        clean_iterations=100000, \
+        clean_threshold=0.001, \
+        image_size=3072, \
+        join_channels=True, \
+        join_polarizations=False, \
+        mgain=0.8, \
+        multiscale=False, \
+        nmiter=10, \
+        nwlayers=None, \
+        output_mode='OutputMode.Fits', \
+        pixel_scale=20.0, \
+        pol='Polarization.Xxyy', \
+        robust=-0.5, \
+        uvw_max=None, \
+        uvw_min=75.0, \
+        weighting='Weighting.Briggs', \
+        wstack_nwlayers=None, \
+        allow_resubmit=False\
+        )")]
     #[pyo3(signature = (
         obs_id,
         source_job_id,
         *,
-        delivery=None,
-        delivery_format=None,
-        apply_primary_beam=None,
-        auto_mask=None,
-        auto_threshold=None,
-        abs_threshold=None,
-        channels_out=None,
-        clean_iterations=None,
-        clean_threshold=None,
-        image_size=None,
-        join_channels=None,
-        join_polarizations=None,
-        mgain=None,
-        multiscale=None,
-        nmiter=None,
-        nwlayers=None,
-        output_mode=None,
-        pixel_scale=None,
-        pol=None,
-        robust=None,
-        uvw_max=None,
-        uvw_min=None,
-        weighting=None,
-        wstack_nwlayers=None,
-        allow_resubmit=None,
+        delivery = PyDelivery::from(schema::image_from_job_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::image_from_job_defaults().delivery_format),
+        apply_primary_beam = schema::image_from_job_defaults().apply_primary_beam,
+        auto_mask = schema::image_from_job_defaults().auto_mask,
+        auto_threshold = schema::image_from_job_defaults().auto_threshold,
+        abs_threshold = schema::image_from_job_defaults().abs_threshold,
+        channels_out = schema::image_from_job_defaults().channels_out,
+        clean_iterations = schema::image_from_job_defaults().clean_iterations,
+        clean_threshold = schema::image_from_job_defaults().clean_threshold,
+        image_size = i64::from(schema::image_from_job_defaults().image_size),
+        join_channels = schema::image_from_job_defaults().join_channels,
+        join_polarizations = schema::image_from_job_defaults().join_polarizations,
+        mgain = schema::image_from_job_defaults().mgain,
+        multiscale = schema::image_from_job_defaults().multiscale,
+        nmiter = schema::image_from_job_defaults().nmiter.get(),
+        nwlayers = schema::image_from_job_defaults().nwlayers,
+        output_mode = PyOutputMode::from(schema::image_from_job_defaults().output_mode),
+        pixel_scale = schema::image_from_job_defaults().pixel_scale,
+        pol = PyPolarization::from(schema::image_from_job_defaults().pol),
+        robust = schema::image_from_job_defaults().robust,
+        uvw_max = schema::image_from_job_defaults().uvw_max,
+        uvw_min = schema::image_from_job_defaults().uvw_min,
+        weighting = PyWeighting::from(schema::image_from_job_defaults().weighting),
+        wstack_nwlayers = schema::image_from_job_defaults().wstack_nwlayers,
+        allow_resubmit = schema::image_from_job_defaults().allow_resubmit,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn submit_image_from_job(
@@ -665,70 +767,61 @@ impl PyAsvoClient {
         py: Python<'_>,
         obs_id: u64,
         source_job_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
-        apply_primary_beam: Option<bool>,
-        auto_mask: Option<i64>,
-        auto_threshold: Option<f64>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
+        apply_primary_beam: bool,
+        auto_mask: i64,
+        auto_threshold: f64,
         abs_threshold: Option<f64>,
-        channels_out: Option<i64>,
-        clean_iterations: Option<i64>,
+        channels_out: i64,
+        clean_iterations: i64,
         clean_threshold: Option<f64>,
-        image_size: Option<i64>,
-        join_channels: Option<bool>,
-        join_polarizations: Option<bool>,
-        mgain: Option<f64>,
-        multiscale: Option<bool>,
-        nmiter: Option<u64>,
+        image_size: i64,
+        join_channels: bool,
+        join_polarizations: bool,
+        mgain: f64,
+        multiscale: bool,
+        nmiter: u64,
         nwlayers: Option<i64>,
-        output_mode: Option<PyOutputMode>,
-        pixel_scale: Option<f64>,
-        pol: Option<PyPolarization>,
-        robust: Option<f64>,
+        output_mode: PyOutputMode,
+        pixel_scale: f64,
+        pol: PyPolarization,
+        robust: f64,
         uvw_max: Option<f64>,
-        uvw_min: Option<f64>,
-        weighting: Option<PyWeighting>,
+        uvw_min: f64,
+        weighting: PyWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let source_job_id = validate::source_job_id(source_job_id).map_err(|e| api_error(py, e))?;
-        let image_size = image_size
-            .map(validate::image_size)
-            .transpose()
-            .map_err(|e| api_error(py, e))?;
-        let nmiter = nmiter
-            .map(validate::nmiter)
-            .transpose()
-            .map_err(|e| api_error(py, e))?;
-        let params = ImageFromJobArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            apply_primary_beam,
-            auto_mask,
-            auto_threshold,
-            abs_threshold,
-            channels_out,
-            clean_iterations,
-            clean_threshold,
-            image_size,
-            join_channels,
-            join_polarizations,
-            mgain,
-            multiscale,
-            nmiter,
-            nwlayers,
-            output_mode: output_mode.map(Into::into),
-            pixel_scale,
-            pol: pol.map(Into::into),
-            robust,
-            uvw_max,
-            uvw_min,
-            weighting: weighting.map(Into::into),
-            wstack_nwlayers,
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?, source_job_id)
-        .map_err(|e| api_error(py, e))?;
+        let image_size = validate::image_size(image_size).map_err(|e| api_error(py, e))?;
+        let nmiter = validate::nmiter(nmiter).map_err(|e| api_error(py, e))?;
+        let mut params = schema::image_from_job_params(job_obs_id(obs_id)?, source_job_id);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.apply_primary_beam = apply_primary_beam;
+        params.auto_mask = auto_mask;
+        params.auto_threshold = auto_threshold;
+        params.abs_threshold = abs_threshold;
+        params.channels_out = channels_out;
+        params.clean_iterations = clean_iterations;
+        params.clean_threshold = clean_threshold;
+        params.image_size = image_size;
+        params.join_channels = join_channels;
+        params.join_polarizations = join_polarizations;
+        params.mgain = mgain;
+        params.multiscale = multiscale;
+        params.nmiter = nmiter;
+        params.nwlayers = nwlayers;
+        params.output_mode = output_mode.into();
+        params.pixel_scale = pixel_scale;
+        params.pol = pol.into();
+        params.robust = robust;
+        params.uvw_max = uvw_max;
+        params.uvw_min = uvw_min;
+        params.weighting = weighting.into();
+        params.wstack_nwlayers = wstack_nwlayers;
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_image_from_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -736,7 +829,10 @@ impl PyAsvoClient {
 
     /// Submit a job to download an observation's voltage data.
     ///
-    /// Every keyword argument that is `None` uses the MWA ASVO's default.
+    /// Every keyword argument has the MWA ASVO's default as its default
+    /// value (the type stubs show it). `None` is accepted by the arguments
+    /// that the MWA ASVO allows to be `null`, and is sent as `null`: it
+    /// does not mean "use the default".
     ///
     /// Args:
     ///     obs_id: The Obs ID.
@@ -759,15 +855,21 @@ impl PyAsvoClient {
     ///         from 0 to 5400. Nothing is sent.
     ///     OverflowError: A channel number is not from 0 to 255.
     ///     AsvoApiError: The request failed.
+    #[pyo3(text_signature = "($self, obs_id, offset, duration, *, \
+        delivery='scratch', \
+        from_channel=None, \
+        to_channel=None, \
+        allow_resubmit=False\
+        )")]
     #[pyo3(signature = (
         obs_id,
         offset,
         duration,
         *,
-        delivery=None,
-        from_channel=None,
-        to_channel=None,
-        allow_resubmit=None,
+        delivery = schema::voltage_defaults().delivery,
+        from_channel = schema::voltage_defaults().from_channel,
+        to_channel = schema::voltage_defaults().to_channel,
+        allow_resubmit = schema::voltage_defaults().allow_resubmit,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn submit_voltage_job(
@@ -776,21 +878,16 @@ impl PyAsvoClient {
         obs_id: u64,
         offset: i64,
         duration: u64,
-        delivery: Option<String>,
+        delivery: String,
         from_channel: Option<u8>,
         to_channel: Option<u8>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = VoltageArgs {
-            offset,
-            duration,
-            delivery,
-            from_channel,
-            to_channel,
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?)
-        .map_err(|e| api_error(py, e))?;
+        let mut params = schema::voltage_params(job_obs_id(obs_id)?, offset, duration);
+        params.delivery = delivery;
+        params.from_channel = from_channel;
+        params.to_channel = to_channel;
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_voltage_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -806,22 +903,30 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID.
     ///     AsvoApiError: The request failed.
-    #[pyo3(signature = (obs_id, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    #[pyo3(text_signature = "($self, obs_id, *, \
+        delivery='Delivery.Acacia', \
+        delivery_format='DeliveryFormat.Tar', \
+        allow_resubmit=False\
+        )")]
+    #[pyo3(signature = (
+        obs_id,
+        *,
+        delivery = PyDelivery::from(schema::beamformer_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::beamformer_defaults().delivery_format),
+        allow_resubmit = schema::beamformer_defaults().allow_resubmit,
+    ))]
     fn submit_beamformer_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: Option<PyDelivery>,
-        delivery_format: Option<PyDeliveryFormat>,
+        delivery: PyDelivery,
+        delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = BeamformerArgs {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            allow_resubmit,
-        }
-        .into_params(job_obs_id(obs_id)?)
-        .map_err(|e| api_error(py, e))?;
+        let mut params = schema::beamformer_params(job_obs_id(obs_id)?);
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
+        params.allow_resubmit = allow_resubmit;
         py.detach(|| self.inner.submit_beamformer_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))

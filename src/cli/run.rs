@@ -282,7 +282,7 @@ struct Submission<'a> {
 fn run_submit<P, B, S>(submission: &Submission, build: B, submit: S) -> anyhow::Result<()>
 where
     P: serde::Serialize,
-    B: Fn(ObsId) -> Result<P, AsvoApiError>,
+    B: Fn(ObsId) -> P,
     S: Fn(&AsvoClient, &P) -> Result<JobSubmittedResponse, AsvoApiError>,
 {
     let Submission {
@@ -300,7 +300,7 @@ where
     let client = connect()?;
     let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
     let outcome = submit_each_obs_id(obs_ids, description, json, |o| {
-        let params = build(*o)?;
+        let params = build(*o);
         let resp = submit(&client, &params)?;
         print_json_line(&resp, json)?;
         let job_id = resp.job_id;
@@ -377,10 +377,10 @@ fn report_dry_run_submissions<T, F>(
 ) -> Result<(), anyhow::Error>
 where
     T: serde::Serialize,
-    F: Fn(ObsId) -> Result<T, AsvoApiError>,
+    F: Fn(ObsId) -> T,
 {
     for o in obs_ids {
-        let params = build_params(*o)?;
+        let params = build_params(*o);
         if json {
             print_json_line(
                 &DryRunSubmission {
@@ -788,7 +788,7 @@ fn run(args: Args) -> anyhow::Result<()> {
 
                 let o = &obs_ids[0];
                 let submit = || -> anyhow::Result<JobSubmittedResponse> {
-                    let params = image.to_params(*o)?;
+                    let params = image.to_params(*o);
                     Ok(client.submit_image_from_job(&params)?)
                 };
                 let resp = match submit() {

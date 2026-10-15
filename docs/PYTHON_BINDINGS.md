@@ -19,8 +19,8 @@ One crate, `mwa_giant_squid`, gives three things:
     `openapi-schema.json` (`build.rs`, feature `regen-openapi`).
   - `mwa_asvo/api/client/`: `AsvoClient` (login, the job list, the submissions,
     the cancellation) and the `ENDPOINT_*` paths.
-  - `mwa_asvo/api/job_args/`: one argument struct per job type, which makes the
-    request body (`into_params`).
+  - `mwa_asvo/api/job_params/`: for each job type, a function that makes the
+    request body at the schema's defaults. The CLI and Python set its fields.
   - `mwa_asvo/api/schema_enums/`: the list of the variants of each schema enum
     (`SchemaEnum`, `for_each_schema_enum!`), for the CLI and Python.
   - `mwa_asvo/api/validate/`: the schema's limits, checked before a request.
@@ -56,6 +56,19 @@ release tag or by hand),
 
 ## Design rules in force
 
+- **Every default is the schema's, and `None` is `null`.** The request body
+  of each job type starts at the schema's defaults (`mwa_asvo/api/job_params`),
+  and the CLI and Python set fields on it. A field that the schema allows to be
+  `null` is an `Option`, and `None` is sent as `null`; it never means "use the
+  API's default". In Python the default value of each argument is made from
+  the schema when the method runs, so it cannot drift. Each submit method also
+  has a hand-written `text_signature`, because pyo3 writes only literal
+  defaults in a run-time signature and `help()` must show the defaults. Python
+  accepts only literals there, so an enum default is its quoted name
+  (`'Delivery.Acacia'`). `tests/python/test_signatures.py` checks the text
+  signatures against the schema, and the six methods with an enum default are
+  in `tools/stubtest_allowlist.txt` (the stub has the member, the run-time
+  signature the name).
 - **The OpenAPI schema dictates the library.** Defaults, names, limits and
   types come from the schema. Where a schema type exists, the library uses
   it instead of a copy of its own (`JobState`, `JobType`, `JobDetailResponse`
@@ -135,7 +148,7 @@ Sent by the user (October 2026), not fixed yet:
 - Voltage jobs: `delivery` (always scratch), `delivery_format` (always
   files) and `channel_range` (only "from/to channel given") are redundant,
   and `delivery`/`delivery_format` are free `String`s.
-  `job_args::VoltageArgs` derives `channel_range` until then.
+  `AsvoClient::submit_voltage_job` derives `channel_range` until then.
 - `ImagingJobFlow2Params.obs_id` is not needed (the source job has it).
 - `obs_id` should be a typed field of `JobDetailResponse`; it is only in the
   untyped `job_params`, as a number or a string (`AsvoJob::try_from` reads

@@ -42,9 +42,9 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 #[cfg(feature = "bin")]
 fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
-        Args::SubmitVis { download, .. } => download
-            .to_vis_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitVis { download, .. } => {
+            download.to_vis_params(crate::test_config::test_obs_id())
+        }
         _ => panic!("expected submit-vis"),
     }
 }
@@ -600,9 +600,9 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
     let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitMeta { download, .. } => download
-            .to_meta_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitMeta { download, .. } => {
+            download.to_meta_params(crate::test_config::test_obs_id())
+        }
         _ => panic!("expected submit-meta"),
     };
 
@@ -655,9 +655,9 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
     let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitMeta { download, .. } => download
-            .to_meta_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitMeta { download, .. } => {
+            download.to_meta_params(crate::test_config::test_obs_id())
+        }
         _ => panic!("expected submit-meta"),
     };
 
@@ -684,9 +684,7 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
     let params = match Args::try_parse_from(["giant-squid", "submit-conv", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitConv { conv, .. } => conv
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitConv { conv, .. } => conv.to_params(crate::test_config::test_obs_id()),
         _ => panic!("expected submit-conv"),
     };
 
@@ -997,9 +995,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
     let params = match Args::try_parse_from(["giant-squid", "submit-image", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitImage { image, .. } => image
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitImage { image, .. } => image.to_params(crate::test_config::test_obs_id()),
         _ => panic!("expected submit-image"),
     };
 
@@ -1030,9 +1026,9 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
     ])
     .expect("arguments should parse")
     {
-        Args::SubmitImageFromJob { image, .. } => image
-            .to_params(crate::test_config::test_obs_id())
-            .expect("params should build"),
+        Args::SubmitImageFromJob { image, .. } => {
+            image.to_params(crate::test_config::test_obs_id())
+        }
         _ => panic!("expected submit-image-from-job"),
     };
 
@@ -1168,6 +1164,38 @@ fn an_out_of_range_voltage_job_is_not_sent() {
         "got {err:?}"
     );
     assert_eq!(submit.calls(), 0);
+}
+
+/// `channel_range` is derived from the channels: it is set exactly when a
+/// channel bound is given, whatever value the caller put in `params`.
+#[test]
+fn channel_range_is_derived_from_the_channels() {
+    for (from_channel, to_channel, expected) in [
+        (None, None, false),
+        (Some(109), None, true),
+        (None, Some(132), true),
+    ] {
+        let env = TestEnv::with_session();
+        let mut params = crate::mwa_asvo::api::job_params::voltage_params(
+            crate::test_config::test_obs_id(),
+            0,
+            8,
+        );
+        params.from_channel = from_channel;
+        params.to_channel = to_channel;
+        params.channel_range = Some(!expected);
+        let submit = env.server.mock(|when, then| {
+            when.method(POST)
+                .path("/api/v2/voltage_job")
+                .json_body_includes(json!({ "channel_range": expected }).to_string());
+            then.status(200).json_body(job_submitted_response(1));
+        });
+
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        client.submit_voltage_job(&params).expect("submitted");
+
+        assert_eq!(submit.calls(), 1, "{from_channel:?} {to_channel:?}");
+    }
 }
 
 // ---------------------------------------------------------------------------

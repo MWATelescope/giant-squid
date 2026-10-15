@@ -43,7 +43,7 @@
 - **7e:** one parser for every named value: case, spaces, `-` and `_` do not matter. The values are listed in schema order. `--job-states` and `--job-types` show `[possible values]`.
 - **7f:** one public path for each item.
   - Crate root: the client, jobs, errors, downloads, the environment helpers, `ObsId`/`ObsIdError`, the parsers and `API_PREFIX`.
-  - `mwa_giant_squid::mwa_asvo::api`: `openapi`, `job_args`, `validate` and `schema_enums`.
+  - `mwa_giant_squid::mwa_asvo::api`: `openapi`, `job_params`, `validate` and `schema_enums`.
   - `mwa_giant_squid::mwa_asvo::error_response`: the `--json` error codes.
 
 ## Open items, in Greg's order

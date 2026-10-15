@@ -163,7 +163,15 @@ Notes:
 
 ## Submit jobs
 
-Each job type has one method. Every keyword argument that is `None` uses the MWA ASVO default.
+Each job type has one method. Every keyword argument has the MWA ASVO's default as its default value. The type stub
+(`mwa_giant_squid.pyi`) shows it, for example `avg_freq_res: float | None = 40.0`, and so does `help()`. In
+`help()` (and `inspect.signature`) an enum default is written as a quoted name, for example
+`delivery='Delivery.Acacia'`, because Python accepts only literals there; the default is the enum member
+`Delivery.Acacia`. Leave an argument out to use the default.
+
+`None` is not the default. An argument that the MWA ASVO allows to be `null` (its type in the stub has `| None`)
+accepts `None`, and `None` is sent as `null`. For example, `avg_freq_res=None` sends `"avg_freq_res": null`. The
+MWA ASVO schema does not say what the MWA ASVO does with a `null` for each argument.
 
 | Method | `giant-squid` command |
 |---|---|
