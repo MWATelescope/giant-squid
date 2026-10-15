@@ -16,6 +16,8 @@ A stub is not made to be executed, so this script writes a copy that executes, a
   body of `DownloadProgress`).
 - The members of an enum, which are `...` in the stub, get their API value from the built module. With `...`, every
   member would be an alias of the first one.
+- The enums come first. A default such as `delivery: Delivery = Delivery.Acacia` is evaluated when its method is
+  defined, so the enum must exist by then. (A stub may refer to a class that is defined later; code may not.)
 
 Usage:
     uv run python tools/generate_python_docs.py <stub> <output .py file>
@@ -130,6 +132,25 @@ def has_docstring(module: ast.Module) -> bool:
     )
 
 
+def enums_first(module: ast.Module) -> None:
+    """Move the enum classes before the first other class, in their order, so that a default can name a member.
+
+    Args:
+        module: The module, changed in place.
+    """
+    enums = [node for node in module.body if isinstance(node, ast.ClassDef) and is_enum_class(node)]
+    body: list[ast.stmt] = []
+    placed = False
+    for node in module.body:
+        if node in enums:
+            continue
+        if isinstance(node, ast.ClassDef) and not placed:
+            body.extend(enums)
+            placed = True
+        body.append(node)
+    module.body = body
+
+
 def stub_to_module(stub: str) -> str:
     """Make an importable module of the stub.
 
@@ -140,6 +161,7 @@ def stub_to_module(stub: str) -> str:
         The text of the module.
     """
     tree = StubToModule().visit(ast.parse(stub))
+    enums_first(tree)
     future = ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)
     # After the module docstring, so that it stays the docstring.
     tree.body.insert(1 if has_docstring(tree) else 0, future)
