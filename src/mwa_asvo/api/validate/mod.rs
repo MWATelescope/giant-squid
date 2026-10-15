@@ -26,7 +26,7 @@ use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    BeamformerJobParams, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
+    BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
     ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
 };
 
@@ -70,9 +70,11 @@ impl Bounds {
         }
     }
 
-    /// Whether `value` is in the range. `NaN` never is.
+    /// Whether `value` is in the range. A value that is not finite (`NaN`,
+    /// an infinity) never is: JSON has no such number, and `serde_json`
+    /// would send it as `null`.
     pub fn contains(&self, value: f64) -> bool {
-        !value.is_nan()
+        value.is_finite()
             && self.min.is_none_or(|min| value >= min)
             && self.max.is_none_or(|max| value <= max)
     }
@@ -230,6 +232,36 @@ pub fn check_delivery_format(
     Ok(())
 }
 
+/// Check the phase centre of a request body: `custom_centre_ra` and
+/// `custom_centre_dec` are both given when `centre` is `custom`.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] for the first of `custom_centre_ra` and
+/// `custom_centre_dec` that is missing when `centre` is `custom`.
+pub fn check_centre(
+    centre: Centre,
+    custom_centre_ra: Option<f64>,
+    custom_centre_dec: Option<f64>,
+) -> Result<(), AsvoApiError> {
+    let custom = Centre::Custom;
+    if centre != custom {
+        return Ok(());
+    }
+    for (name, value) in [
+        ("custom_centre_ra", custom_centre_ra),
+        ("custom_centre_dec", custom_centre_dec),
+    ] {
+        if value.is_none() {
+            return Err(AsvoApiError::InvalidParameter {
+                name,
+                message: format!("is required when centre is {custom}"),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Check a visibility or metadata download request body: its delivery
 /// ([`check_delivery_format`]). The schema gives it no numeric limits.
 ///
@@ -252,8 +284,9 @@ pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), As
     check_delivery_format(params.delivery, params.delivery_format)
 }
 
-/// Check a conversion request body: its delivery ([`check_delivery_format`])
-/// and its numbers against the schema's limits.
+/// Check a conversion request body: its delivery ([`check_delivery_format`]),
+/// its numbers against the schema's limits, and its phase centre
+/// ([`check_centre`]).
 ///
 /// # Errors
 ///
@@ -279,7 +312,12 @@ pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), As
             CUSTOM_CENTRE_DEC,
             params.custom_centre_dec,
         ),
-    ])
+    ])?;
+    check_centre(
+        params.centre,
+        params.custom_centre_ra,
+        params.custom_centre_dec,
+    )
 }
 
 /// Check the numbers of a voltage request body against the schema's
@@ -294,7 +332,8 @@ pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiE
 }
 
 /// Check an imaging (flow 1) request body: its delivery
-/// ([`check_delivery_format`]) and its numbers against the schema's limits.
+/// ([`check_delivery_format`]), its numbers against the schema's limits, and
+/// its phase centre ([`check_centre`]).
 ///
 /// # Errors
 ///
@@ -321,7 +360,12 @@ pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), Asv
             FLAG_EDGE_WIDTH,
             Some(params.flag_edge_width),
         ),
-    ])
+    ])?;
+    check_centre(
+        params.centre,
+        params.custom_centre_ra,
+        params.custom_centre_dec,
+    )
 }
 
 /// Check an image-from-job (flow 2) request body: its delivery

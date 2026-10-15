@@ -139,6 +139,14 @@ const SIDECAR_VERSION: u32 = 1;
 /// runs. A failed attempt always writes it.
 const SIDECAR_WRITE_INTERVAL: Duration = Duration::from_secs(10);
 
+/// One minute. A download that takes longer has its time logged in minutes
+/// and seconds.
+const MINUTE: Duration = Duration::from_secs(60);
+
+/// The number of milliseconds in one second, for the throughput of a
+/// download.
+const MILLIS_PER_SECOND: u64 = 1000;
+
 /// Look up a single job by Job ID from the supplied list and download it.
 pub(crate) fn download_by_job_id(
     http_client: &Client,
@@ -260,8 +268,11 @@ fn download_job(
                         };
                 }
 
+                // When the last attempt started, for the throughput.
+                let attempt_start = Cell::new(start_time);
                 #[allow(clippy::result_large_err)]
                 let op = || {
+                    attempt_start.set(Instant::now());
                     try_download(
                         http_client,
                         url,
@@ -275,35 +286,20 @@ fn download_job(
                     .map_err(|e| retry_class(e, job.job_id()))
                 };
 
-                retry_unless_stopped(DownloadBackoff::new(opts.retry_duration), op, opts)?;
+                let fetched =
+                    retry_unless_stopped(DownloadBackoff::new(opts.retry_duration), op, opts)?;
 
-                let elapsed = start_time.elapsed();
-                let elapsed_ms = elapsed.as_millis() as u64;
-
-                let throughput_str = if elapsed_ms == 0 {
-                    "N/A".to_string()
-                } else {
-                    bytesize::ByteSize(
-                        (f.size_bytes() * 1000)
-                            .checked_div(elapsed_ms)
-                            .unwrap_or_default(),
-                    )
-                    .display()
-                    .iec()
-                    .to_string()
-                };
-
-                let duration_str = if elapsed.as_secs() > 60 {
-                    let minutes = elapsed.as_secs() / 60;
-                    let seconds = (elapsed.as_millis() as f64 / 1e3) % 60.0;
-                    format!("{minutes} min {seconds:.2} s")
-                } else {
-                    let seconds = elapsed.as_millis() as f64 / 1e3;
-                    format!("{seconds:.3} s")
-                };
-
-                let size_text = bytesize::ByteSize(f.size_bytes()).display().iec();
-                info!("{log_prefix} Completed download of {size_text} in {duration_str} ({throughput_str}/s)");
+                // Nothing fetched: the file was already on disk, and that
+                // was logged.
+                if fetched > 0 {
+                    let text = completion_text(
+                        f.size_bytes(),
+                        fetched,
+                        start_time.elapsed(),
+                        attempt_start.get().elapsed(),
+                    );
+                    info!("{log_prefix} {text}");
+                }
             }
             FileType::Dug => {
                 return Err(AsvoError::FilesNotReachable {
@@ -319,21 +315,28 @@ fn download_job(
                 let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);
                 let folder_name = path_obj.file_name().ok_or_else(no_path)?;
+                let target = Path::new(opts.download_dir).join(folder_name);
+                let target_display = target.display();
 
-                if !path_obj.exists() {
-                    return Err(AsvoError::FilesNotReachable {
-                        job_id: job.job_id(),
-                        delivery: f.type_,
-                        path: f.path.clone(),
-                    });
-                } else {
-                    let target = Path::new(opts.download_dir).join(folder_name);
-                    let target_display = target.display();
-                    info!(
-                        "{log_prefix} Files for Job are reachable from the current host. \
-                         Moving {path} to {target_display}."
-                    );
-                    move_path(path_obj, &target)?;
+                // The target is checked first, so that nothing is replaced.
+                match move_target(path_obj, &target, job.job_id())? {
+                    MoveTarget::AlreadyThere => {
+                        info!("{log_prefix} The files are already in the download directory: {target_display}.");
+                    }
+                    MoveTarget::Free if !path_obj.exists() => {
+                        return Err(AsvoError::FilesNotReachable {
+                            job_id: job.job_id(),
+                            delivery: f.type_,
+                            path: f.path.clone(),
+                        });
+                    }
+                    MoveTarget::Free => {
+                        info!(
+                            "{log_prefix} Files for Job are reachable from the current host. \
+                             Moving {path} to {target_display}."
+                        );
+                        move_path(path_obj, &target)?;
+                    }
                 }
             }
         }
@@ -394,7 +397,8 @@ struct RetryState {
 
 /// Execute a single HTTP file download (Acacia delivery), with optional
 /// resume support, stream-untarring, on-the-fly SHA1 hashing, and progress
-/// reporting.
+/// reporting. Returns the bytes that this attempt fetched: 0 when the file
+/// was already on disk.
 #[allow(clippy::too_many_arguments)]
 fn try_download(
     http_client: &Client,
@@ -405,7 +409,7 @@ fn try_download(
     log_prefix: &str,
     opts: &DownloadOptions,
     retry_state: &mut RetryState,
-) -> Result<(), AsvoError> {
+) -> Result<u64, AsvoError> {
     let mwa_asvo_hash = file_info.sha1.as_deref().ok_or(AsvoError::NoHash {
         job_id: job.job_id(),
     })?;
@@ -439,7 +443,7 @@ fn try_download(
         OutputTarget::AlreadyDone { reason } => {
             info!("{log_prefix} {reason} Skipping {out_path:?}.");
             report(opts, DownloadProgress::Finished);
-            return Ok(());
+            return Ok(0);
         }
         OutputTarget::Download { file, offset } => (file, offset),
     };
@@ -492,6 +496,7 @@ fn try_download(
     // Drain any remaining bytes so the stream's hash covers everything.
     let final_bytes = io::copy(&mut reader, &mut io::sink())?;
     debug!("{log_prefix} Read final bytes: {final_bytes}");
+    let fetched = reader.position - resume_from;
     drop(reader);
 
     report(opts, DownloadProgress::Finished);
@@ -516,7 +521,7 @@ fn try_download(
         info!("{log_prefix} File matches the MWA ASVO provided hash.");
     }
 
-    Ok(())
+    Ok(fetched)
 }
 
 // --- stream-untar ----------------------------------------------------------
@@ -531,6 +536,10 @@ enum EntryTarget {
     /// file, or goes through a symbolic link, so it might not be written
     /// inside the download directory.
     Skip,
+    /// Not unpacked: the entry is not a file or a directory (for example a
+    /// symbolic link, a hard link or a device). giant-squid unpacks only
+    /// files and directories.
+    NotAFile,
 }
 
 impl EntryTarget {
@@ -538,7 +547,7 @@ impl EntryTarget {
     fn file_path(&self) -> Option<PathBuf> {
         match self {
             Self::File(path) => Some(path.clone()),
-            Self::Dir(_) | Self::Skip => None,
+            Self::Dir(_) | Self::Skip | Self::NotAFile => None,
         }
     }
 }
@@ -579,6 +588,43 @@ fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
         EntryTarget::File(unpack_path.join(entry_path))
     } else {
         EntryTarget::Skip
+    }
+}
+
+/// Decide where the tar entry at `entry_path`, of the type `entry_type`, is
+/// unpacked in `unpack_path` (see [`entry_target`]). A directory entry is a
+/// directory, whether or not its path ends in `/`. Only files and
+/// directories are unpacked: any other type is [`EntryTarget::NotAFile`].
+fn tar_entry_target(
+    unpack_path: &Path,
+    entry_path: &Path,
+    entry_type: tar::EntryType,
+) -> EntryTarget {
+    if entry_type.is_dir() {
+        match entry_target(unpack_path, entry_path) {
+            EntryTarget::File(path) => EntryTarget::Dir(path),
+            other => other,
+        }
+    } else if entry_type.is_file() || entry_type.is_contiguous() {
+        entry_target(unpack_path, entry_path)
+    } else {
+        EntryTarget::NotAFile
+    }
+}
+
+/// Create the directories above `path`, the file or directory of a tar
+/// entry, as `tar -x` does: an archive does not have to list them before
+/// the entry. [`entry_target`] has checked that none of them is a symbolic
+/// link.
+fn create_parent_dirs(path: &Path) -> Result<(), AsvoError> {
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => {
+            fs::create_dir_all(parent).map_err(|source| AsvoError::CannotCreate {
+                path: parent.to_path_buf(),
+                source,
+            })
+        }
+        _ => Ok(()),
     }
 }
 
@@ -684,7 +730,7 @@ struct MemberTail {
 /// the server only for the rest of the archive, so a retry after a dropped
 /// connection does not fetch or write the earlier members again. The SHA1
 /// still covers the whole archive: the bytes that are not fetched again are
-/// read back from disk.
+/// read back from disk. Returns the bytes that this attempt fetched.
 #[allow(clippy::too_many_arguments)]
 fn try_download_untar(
     http_client: &Client,
@@ -696,7 +742,7 @@ fn try_download_untar(
     opts: &DownloadOptions,
     mwa_asvo_hash: &str,
     checkpoint: &mut Option<UntarCheckpoint>,
-) -> Result<(), AsvoError> {
+) -> Result<u64, AsvoError> {
     let unpack_path = Path::new(opts.download_dir);
 
     let mut resume = match checkpoint.as_ref() {
@@ -735,6 +781,8 @@ fn try_download_untar(
 
     let check_hash = hash_is_checked(opts, resume.start > 0, log_prefix);
 
+    // The bytes that this attempt fetches, for the log of the download.
+    let fetched = Cell::new(0);
     let sidecar = SidecarWriter::new(
         unpack_path,
         out_path,
@@ -743,7 +791,10 @@ fn try_download_untar(
         log_prefix,
     );
     let hasher = match untar_stream_with_sidecar(
-        response_reader(response),
+        CountingReader {
+            inner: response_reader(response),
+            count: &fetched,
+        },
         resume,
         unpack_path,
         log_prefix,
@@ -778,7 +829,7 @@ fn try_download_untar(
 
     *checkpoint = None;
     sidecar.remove();
-    Ok(())
+    Ok(fetched.get())
 }
 
 /// Unpack the archive bytes from `source` into `unpack_path`, and return
@@ -868,7 +919,8 @@ fn untar_stream_with_sidecar(
         for entry in tar.entries()? {
             let entry = entry?;
             let entry_path = entry.path()?.to_path_buf();
-            let target = entry_target(unpack_path, &entry_path);
+            let entry_type = entry.header().entry_type();
+            let target = tar_entry_target(unpack_path, &entry_path, entry_type);
 
             let size = entry.size();
             let done_count = done.borrow().stamps.len();
@@ -888,6 +940,7 @@ fn untar_stream_with_sidecar(
                 EntryTarget::File(out_full) => {
                     let out_display = out_full.display();
                     debug!("{log_prefix} Writing file {out_display}");
+                    create_parent_dirs(&out_full)?;
                     let mut out_file = create_file(&out_full)?;
                     copy_with_progress(
                         BufReader::with_capacity(buffer_size, entry),
@@ -900,9 +953,11 @@ fn untar_stream_with_sidecar(
                 }
                 EntryTarget::Dir(out_full) if !out_full.exists() => {
                     debug!("{log_prefix} Creating directory {out_full:?}");
-                    std::fs::create_dir(&out_full).map_err(|source| AsvoError::CannotCreate {
-                        path: out_full.clone(),
-                        source,
+                    std::fs::create_dir_all(&out_full).map_err(|source| {
+                        AsvoError::CannotCreate {
+                            path: out_full.clone(),
+                            source,
+                        }
                     })?;
                 }
                 EntryTarget::Dir(out_full) => {
@@ -915,6 +970,11 @@ fn untar_stream_with_sidecar(
                     warn!("{log_prefix} Skipping tar entry {entry_path:?}: it would not be written inside the \
                          download directory (its path is absolute, has '..', names no file, \
                          or goes through a symbolic link).");
+                }
+                EntryTarget::NotAFile => {
+                    // As for `Skip`, the hash still covers the entry.
+                    warn!("{log_prefix} Skipping tar entry {entry_path:?}: it is a {entry_type:?} entry. \
+                         giant-squid unpacks only files and directories.");
                 }
             }
         }
@@ -956,6 +1016,8 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
             if on_disk > 0 {
                 hash_file_prefix(path, on_disk, &mut hasher)?;
             }
+            // A resume file can name a member whose file was not created yet.
+            create_parent_dirs(path)?;
             let file = File::options().create(true).append(true).open(path)?;
             (on_disk, Some(file))
         }
@@ -1010,6 +1072,20 @@ impl<R: Read> Read for HashingReader<'_, R> {
         let n = self.inner.read(buf)?;
         self.hasher.borrow_mut().update(&buf[..n]);
         self.position += n as u64;
+        Ok(n)
+    }
+}
+
+/// A reader that adds the number of bytes it reads to `count`.
+struct CountingReader<'c, R> {
+    inner: R,
+    count: &'c Cell<u64>,
+}
+
+impl<R: Read> Read for CountingReader<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.count.set(self.count.get() + n as u64);
         Ok(n)
     }
 }
@@ -1105,7 +1181,7 @@ fn find_files_on_disk(
         for entry in tar.entries()? {
             let entry = entry?;
             let entry_path = entry.path()?.to_path_buf();
-            let target = entry_target(unpack_path, &entry_path);
+            let target = tar_entry_target(unpack_path, &entry_path, entry.header().entry_type());
             let size = entry.size();
             let data_pos = entry.raw_file_position();
 
@@ -1885,6 +1961,79 @@ fn copy_with_progress(
         report(opts, DownloadProgress::Advanced { bytes: len as u64 });
     }
     Ok(())
+}
+
+/// The log text of a finished download: the size of the file and the
+/// time of the whole download. `fetched` is what the last attempt fetched
+/// (a resumed download, or a retry, fetches less than the size), and the
+/// throughput is of those bytes, in the time of that attempt (`attempt`).
+fn completion_text(size: u64, fetched: u64, elapsed: Duration, attempt: Duration) -> String {
+    let attempt_ms = u64::try_from(attempt.as_millis()).unwrap_or(u64::MAX);
+    let throughput = match fetched
+        .saturating_mul(MILLIS_PER_SECOND)
+        .checked_div(attempt_ms)
+    {
+        Some(bytes_per_second) => {
+            let rate = bytesize::ByteSize(bytes_per_second).display().iec();
+            format!("{rate}/s")
+        }
+        None => "N/A".to_string(),
+    };
+    let duration = if elapsed > MINUTE {
+        let minutes = elapsed.as_secs() / MINUTE.as_secs();
+        let seconds = elapsed.as_secs_f64() % MINUTE.as_secs_f64();
+        format!("{minutes} min {seconds:.2} s")
+    } else {
+        let seconds = elapsed.as_secs_f64();
+        format!("{seconds:.3} s")
+    };
+    let size_text = bytesize::ByteSize(size).display().iec();
+    if fetched == size {
+        format!("Completed download of {size_text} in {duration} ({throughput})")
+    } else {
+        let fetched_text = bytesize::ByteSize(fetched).display().iec();
+        format!("Completed download of {size_text} in {duration}. The last attempt fetched {fetched_text} ({throughput}).")
+    }
+}
+
+/// What is at the path that the files of a Scratch job are moved to.
+#[derive(Debug, PartialEq, Eq)]
+enum MoveTarget {
+    /// Nothing: the move can go there.
+    Free,
+    /// The files themselves: the download directory is where they are.
+    AlreadyThere,
+}
+
+/// Check `to`, where the Scratch files at `from` would be moved, before the
+/// move. Nothing that is there is replaced.
+///
+/// # Errors
+///
+/// [`AsvoError::SymlinkInDownloadDir`] if `to` is a symbolic link (even one
+/// that points nowhere), and [`AsvoError::DestinationExists`] if something
+/// else is there that is not `from` itself.
+fn move_target(from: &Path, to: &Path, job_id: AsvoJobId) -> Result<MoveTarget, AsvoError> {
+    match fs::symlink_metadata(to) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(MoveTarget::Free),
+        Err(e) => Err(e.into()),
+        Ok(metadata) if metadata.file_type().is_symlink() => Err(AsvoError::SymlinkInDownloadDir {
+            path: to.to_path_buf(),
+        }),
+        Ok(_) if same_path(from, to) => Ok(MoveTarget::AlreadyThere),
+        Ok(_) => Err(AsvoError::DestinationExists {
+            job_id,
+            path: to.to_path_buf(),
+        }),
+    }
+}
+
+/// Whether `a` and `b` are the same file or directory.
+fn same_path(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// Move the file or directory `from` to `to`. A rename does it when both are

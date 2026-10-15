@@ -132,6 +132,17 @@ pub enum AsvoError {
     #[error("{path:?} is a symbolic link; giant-squid does not download through one. Remove it, or use another download directory.")]
     SymlinkInDownloadDir { path: std::path::PathBuf },
 
+    /// The files of a Scratch job are moved into the download directory,
+    /// but something is already at the path that they would be moved to.
+    /// giant-squid does not replace it.
+    #[error("MWA ASVO Job ID {job_id}: {path:?} already exists, and giant-squid does not replace it. Remove it, or use another download directory. (An earlier download may have moved the files of this job there.)")]
+    DestinationExists {
+        /// The job whose files were to be moved.
+        job_id: AsvoJobId,
+        /// What is already there.
+        path: std::path::PathBuf,
+    },
+
     /// The server answered a file download with an HTTP error. `status` and
     /// `message` are the fields of [`AsvoApiError::BadStatus`], the same
     /// failure of an API request; a download is always for one job, so this

@@ -15,7 +15,10 @@ before you upgrade scripts.**
 ### Changed in 3.0.0
 
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
-  `--download-dir`), as for an Acacia job. Before, they went to the current directory.
+  `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
+  anything: if something is already at the target, the download fails (`AsvoError::DestinationExists`,
+  `DESTINATION_EXISTS`; `SymlinkInDownloadDir` for a symbolic link) and nothing changes. If the download directory
+  is where the files already are, nothing is moved.
 * `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
   (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
   reported success.
@@ -272,6 +275,18 @@ before you upgrade scripts.**
   only the `--flag=value` form worked. This applies to `submit-conv`, `submit-image`, `submit-image-from-job`
   and `submit-volt`.
 * `--version` prints `giant-squid 3.0.0`. Before, it printed the name of the crate (`mwa_giant_squid`).
+* `download` fails when its files of IDs hold no Job ID or Obs ID, and when `-d`/`--download-dir` is not a
+  directory. Before, the first did nothing and exited 0, and the second was accepted.
+* A stream-untar download creates the directories of a tar entry that the archive does not list before it, as
+  `tar -x` does. A directory entry is a directory also when its path does not end in `/`.
+* "Completed download of ..." is not logged for a file that was already on disk. For a resumed download, or after
+  a retry, the log gives the bytes that the last attempt fetched, and the throughput is of those bytes.
+* `submit-* --wait` does not wait when no job was submitted. When the wait fails after some submissions failed, the
+  error has the summary of the failed submissions too.
+* `submit-conv` and `submit-image` (and `submit_conversion_job`, `submit_imaging_job` in the library and in Python)
+  refuse `centre` `custom` without both `custom_centre_ra` and `custom_centre_dec`, before any request
+  (`InvalidParameter`; `ValueError` in Python). Each submit command checks its request body once, before it logs
+  in, also with `--dry-run`.
 
 ### Security in 3.0.0
 
@@ -284,6 +299,9 @@ before you upgrade scripts.**
   whose file, or a directory on the way to it, is a symbolic link is skipped with a warning. A `--keep-tar` download
   whose tar file is a symbolic link (even one that points nowhere) fails with `AsvoError::SymlinkInDownloadDir`, and
   nothing is fetched. Before, the download wrote wherever the link pointed.
+* A stream-untar download unpacks only files and directories. A symbolic link, a hard link or a special file in the
+  archive is skipped with a warning (the SHA-1 check still covers it). In 2.x, such an entry was unpacked, so a link
+  could point outside the download directory.
 
 ### Removed in 3.0.0
 

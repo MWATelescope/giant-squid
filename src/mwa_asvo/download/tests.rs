@@ -2684,3 +2684,246 @@ fn a_download_from_a_job_list_makes_no_job_list_request() {
 
     assert_eq!(listing.calls(), 1, "only the one get_jobs call");
 }
+
+/// The access token goes only to the MWA ASVO: a file of a job is fetched
+/// from its own host (Acacia, here a second mock server) without it.
+#[test]
+fn the_access_token_is_not_sent_to_the_host_of_a_file() {
+    let env = TestEnv::with_session();
+    let acacia = MockServer::start();
+    let payload = "giant-squid payload from another host";
+    let file = acacia.mock(|when, then| {
+        when.method(GET)
+            .path(DOWNLOAD_PATH)
+            .cookie_missing("mwa_access_token");
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &acacia.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let result = client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts);
+
+    assert_eq!(
+        file.calls(),
+        1,
+        "the file request had the access token: {result:?}"
+    );
+    assert!(result.is_ok(), "{result:?}");
+}
+
+/// Download the tar `archive` of the test job with stream-untar into a new
+/// directory, and return the directory and the result.
+fn untar_download(archive: Vec<u8>) -> (TempDir, Result<crate::AsvoJob, AsvoError>) {
+    let env = TestEnv::with_session();
+    let sha1 = sha1_hex(&archive);
+    let size = archive.len() as u64;
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(archive);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        size,
+        &sha1,
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let result = client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path));
+    (dir, result)
+}
+
+/// A tar member in a subdirectory is unpacked when the archive has no
+/// entry for the directory, as `tar -x` does: the directories are created.
+#[test]
+fn a_member_in_a_subdirectory_without_a_directory_entry_is_unpacked() {
+    let archive = tar_containing("1065880128/sub/a.fits", "abc").into_bytes();
+
+    let (dir, result) = untar_download(archive);
+
+    assert!(result.is_ok(), "{result:?}");
+    let written = std::fs::read_to_string(dir.path().join("1065880128/sub/a.fits"))
+        .expect("the member should be unpacked");
+    assert_eq!(written, "abc");
+}
+
+/// A directory entry whose path does not end in `/` is still a directory.
+#[test]
+fn a_directory_entry_without_a_slash_is_a_directory() {
+    let mut builder = tar::Builder::new(Vec::new());
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Directory);
+    header.set_size(0);
+    header.set_mode(0o755);
+    header.set_path("1065880128").expect("a valid path");
+    header.set_cksum();
+    builder
+        .append(&header, std::io::empty())
+        .expect("could not add the directory");
+    let archive = builder.into_inner().expect("could not finish the test tar");
+
+    let (dir, result) = untar_download(archive);
+
+    assert!(result.is_ok(), "{result:?}");
+    assert!(dir.path().join("1065880128").is_dir());
+}
+
+/// A symbolic link and a hard link in an archive are not unpacked (not as
+/// links, and not as empty files), and the rest of the archive is.
+#[test]
+fn a_link_in_an_archive_is_not_unpacked() {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (kind, name) in [
+        (tar::EntryType::Symlink, "symlink.fits"),
+        (tar::EntryType::Link, "hardlink.fits"),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(kind);
+        header.set_size(0);
+        header.set_mode(0o644);
+        builder
+            .append_link(&mut header, name, "/etc/passwd")
+            .expect("could not add the link");
+    }
+    let mut header = tar::Header::new_gnu();
+    header.set_size(3);
+    header.set_mode(0o644);
+    header.set_cksum();
+    builder
+        .append_data(&mut header, "a.fits", &b"abc"[..])
+        .expect("could not add the file");
+    let archive = builder.into_inner().expect("could not finish the test tar");
+
+    let (dir, result) = untar_download(archive);
+
+    assert!(result.is_ok(), "{result:?}");
+    for name in ["symlink.fits", "hardlink.fits"] {
+        assert!(
+            std::fs::symlink_metadata(dir.path().join(name)).is_err(),
+            "{name} should not be unpacked"
+        );
+    }
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("a.fits")).expect("the file"),
+        "abc"
+    );
+}
+
+/// The completion log gives the bytes of the last attempt when they are not
+/// the size of the file, and the throughput of that attempt.
+#[test]
+fn the_completion_text_gives_the_fetched_bytes_and_their_throughput() {
+    use crate::mwa_asvo::download::completion_text;
+    use std::time::Duration;
+
+    let mib = crate::BYTES_PER_MIB as u64;
+
+    assert_eq!(
+        completion_text(
+            10 * mib,
+            10 * mib,
+            Duration::from_secs(10),
+            Duration::from_secs(10)
+        ),
+        "Completed download of 10.0 MiB in 10.000 s (1.0 MiB/s)"
+    );
+    assert_eq!(
+        completion_text(
+            10 * mib,
+            2 * mib,
+            Duration::from_secs(30),
+            Duration::from_secs(2)
+        ),
+        "Completed download of 10.0 MiB in 30.000 s. The last attempt fetched 2.0 MiB (1.0 MiB/s)."
+    );
+    assert_eq!(
+        completion_text(mib, mib, Duration::ZERO, Duration::ZERO),
+        "Completed download of 1.0 MiB in 0.000 s (N/A)"
+    );
+    assert_eq!(
+        completion_text(mib, mib, Duration::from_secs(61), Duration::from_secs(61)),
+        "Completed download of 1.0 MiB in 1 min 1.00 s (16.8 KiB/s)"
+    );
+}
+
+/// A Scratch job's files are not moved onto something that is already in
+/// the download directory, and nothing is changed.
+#[test]
+fn a_scratch_move_does_not_replace_what_is_already_there() {
+    let scratch = TempDir::new().expect("could not create a scratch directory");
+    let job_dir = scratch.path().join("12345");
+    std::fs::create_dir(&job_dir).expect("could not create the job directory");
+    std::fs::write(job_dir.join("a.fits"), "new").expect("could not write a file");
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "scratch",
+        "path": job_dir.display().to_string(),
+        "size": 3
+    }))]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    std::fs::create_dir(dir.path().join("12345")).expect("could not create the target");
+    std::fs::write(dir.path().join("12345").join("a.fits"), "old").expect("a file");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
+        .expect_err("the move should be refused");
+
+    assert!(
+        matches!(err, AsvoError::DestinationExists { .. }),
+        "expected DestinationExists, got {err:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(job_dir.join("a.fits")).unwrap(),
+        "new"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("12345").join("a.fits")).unwrap(),
+        "old"
+    );
+}
+
+/// The target of a Scratch move is checked first: free, the files
+/// themselves, a symbolic link, or something else.
+#[test]
+fn the_target_of_a_scratch_move_is_checked_first() {
+    use crate::mwa_asvo::download::{move_target, MoveTarget};
+
+    let dir = TempDir::new().expect("could not create a directory");
+    let from = dir.path().join("12345");
+    std::fs::create_dir(&from).expect("could not create the job directory");
+    let job_id = crate::test_config::TEST_ASVO_JOB_ID;
+
+    let free = dir.path().join("free");
+    assert_eq!(move_target(&from, &free, job_id).unwrap(), MoveTarget::Free);
+    assert_eq!(
+        move_target(&from, &from, job_id).unwrap(),
+        MoveTarget::AlreadyThere
+    );
+    let other = dir.path().join("other");
+    std::fs::write(&other, "x").expect("could not write a file");
+    assert!(matches!(
+        move_target(&from, &other, job_id),
+        Err(AsvoError::DestinationExists { .. })
+    ));
+    #[cfg(unix)]
+    {
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink("nowhere", &link).expect("could not make a link");
+        assert!(matches!(
+            move_target(&from, &link, job_id),
+            Err(AsvoError::SymlinkInDownloadDir { .. })
+        ));
+    }
+}

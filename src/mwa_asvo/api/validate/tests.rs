@@ -625,3 +625,30 @@ fn every_body_with_a_delivery_is_checked() {
         );
     }
 }
+
+/// A value that is not finite is never in bounds: serde_json would send it
+/// as `null`.
+#[test]
+fn an_infinite_value_is_never_in_bounds() {
+    assert!(!Bounds::at_least(0.0).contains(f64::INFINITY));
+    assert!(!Bounds::at_most(100.0).contains(f64::NEG_INFINITY));
+    assert!(!Bounds::between(0.0, 1.0).contains(f64::INFINITY));
+}
+
+/// The coordinates of a custom phase centre are needed with `custom`.
+#[test]
+fn the_custom_centre_coordinates_go_with_a_custom_centre() {
+    use crate::mwa_asvo::api::openapi::Centre;
+
+    assert!(check_centre(Centre::Custom, Some(10.0), Some(-26.0)).is_ok());
+    assert!(check_centre(Centre::Phase, None, None).is_ok());
+    for (centre, ra, dec, name) in [
+        (Centre::Custom, None, Some(-26.0), "custom_centre_ra"),
+        (Centre::Custom, Some(10.0), None, "custom_centre_dec"),
+    ] {
+        match check_centre(centre, ra, dec) {
+            Err(AsvoApiError::InvalidParameter { name: got, .. }) => assert_eq!(got, name),
+            other => panic!("{centre} {ra:?} {dec:?}: expected {name}, got {other:?}"),
+        }
+    }
+}

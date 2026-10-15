@@ -88,6 +88,9 @@ pub const ERROR_CODE_HASH_MISMATCH: &str = "HASH_MISMATCH";
 /// The file to download to is a symbolic link.
 pub const ERROR_CODE_SYMLINK_IN_DOWNLOAD_DIR: &str = "SYMLINK_IN_DOWNLOAD_DIR";
 
+/// Something is already where the files of a Scratch job would be moved.
+pub const ERROR_CODE_DESTINATION_EXISTS: &str = "DESTINATION_EXISTS";
+
 /// A file could not be read or written.
 pub const ERROR_CODE_IO_ERROR: &str = "IO_ERROR";
 
@@ -236,6 +239,7 @@ impl AsvoError {
             AsvoError::NoHash { .. } => ERROR_CODE_NO_HASH,
             AsvoError::FilesNotReachable { .. } => ERROR_CODE_FILES_NOT_REACHABLE,
             AsvoError::SymlinkInDownloadDir { .. } => ERROR_CODE_SYMLINK_IN_DOWNLOAD_DIR,
+            AsvoError::DestinationExists { .. } => ERROR_CODE_DESTINATION_EXISTS,
         };
         new_error_response(code, self)
     }
@@ -253,6 +257,7 @@ impl AsvoError {
             | AsvoError::NoPath { job_id }
             | AsvoError::NoHash { job_id }
             | AsvoError::FilesNotReachable { job_id, .. }
+            | AsvoError::DestinationExists { job_id, .. }
             | AsvoError::HttpError { job_id, .. }
             | AsvoError::Http404Error { job_id } => Some(*job_id),
             _ => None,

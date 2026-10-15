@@ -305,9 +305,11 @@ class AsvoClient:
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
-                1280), or `delivery` is `Delivery.Acacia` and `delivery_format`
-                is `DeliveryFormat.Files` (Acacia delivers a tar only). The
-                message names the argument and its limits. Nothing is sent.
+                1280), `delivery` is `Delivery.Acacia` and `delivery_format`
+                is `DeliveryFormat.Files` (Acacia delivers a tar only), or
+                `centre` is `Centre.Custom` without both `custom_centre_ra`
+                and `custom_centre_dec`. The message names the argument and
+                its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_imaging_job(
@@ -420,10 +422,12 @@ class AsvoClient:
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, or an argument is
                 outside what the MWA ASVO accepts (for example `mgain`
-                above 1, or an `image_size` that is not a supported size), or
+                above 1, or an `image_size` that is not a supported size),
                 `delivery` is `Delivery.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only). The
-                message names the argument and its limits. Nothing is sent.
+                `DeliveryFormat.Files` (Acacia delivers a tar only), or
+                `centre` is `Centre.Custom` without both `custom_centre_ra`
+                and `custom_centre_dec`. The message names the argument and
+                its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_image_from_job(
@@ -680,7 +684,7 @@ class AsvoError(builtins.Exception):
     """
     job_id: builtins.int
     r"""
-    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, HttpError and Http404Error.
+    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
     """
     obs_id: builtins.int
     r"""
@@ -708,7 +712,7 @@ class AsvoError(builtins.Exception):
     """
     file: builtins.str
     r"""
-    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. CannotCreate: the file or directory that could not be created.
+    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there. CannotCreate: the file or directory that could not be created.
     """
     calculated_hash: builtins.str
     r"""

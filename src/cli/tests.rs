@@ -2155,3 +2155,145 @@ fn a_download_report_has_the_status_first() {
         "{line}"
     );
 }
+
+/// An infinite number is refused by the option, as any value outside the
+/// schema's limits is: serde_json would send it as `null`.
+#[test]
+fn an_infinite_number_is_refused() {
+    for bad in [
+        vec![
+            "giant-squid",
+            "submit-conv",
+            "--avg-time-res",
+            "inf",
+            TEST_OBS_ID,
+        ],
+        vec!["giant-squid", "submit-image", "--uvw-min=-inf", TEST_OBS_ID],
+    ] {
+        let err = parse_err(&bad);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "{bad:?}"
+        );
+    }
+}
+
+/// `download` fails, before any request, when a file of IDs has none, or
+/// when the download directory is not a directory.
+#[test]
+fn download_refuses_no_ids_and_a_download_dir_that_is_a_file() {
+    use super::run::run_cli;
+
+    let empty = NamedTempFile::new().expect("could not create a file");
+    let empty_path = empty.path().display().to_string();
+    assert_eq!(
+        run_cli(["giant-squid", "download", "-n", empty_path.as_str()]),
+        1
+    );
+
+    let file = NamedTempFile::new().expect("could not create a file");
+    let file_path = file.path().display().to_string();
+    assert_eq!(
+        run_cli([
+            "giant-squid",
+            "download",
+            "-n",
+            "-d",
+            file_path.as_str(),
+            TEST_OBS_ID
+        ]),
+        1
+    );
+}
+
+/// A dry run checks the request body as a submission does: here
+/// `--centre custom` without both coordinates.
+#[test]
+fn a_dry_run_refuses_a_custom_centre_without_its_coordinates() {
+    use super::run::run_cli;
+
+    for command in ["submit-conv", "submit-image"] {
+        assert_eq!(
+            run_cli([
+                "giant-squid",
+                command,
+                "-n",
+                "--centre",
+                "custom",
+                "--custom-centre-ra",
+                "10",
+                TEST_OBS_ID
+            ]),
+            1,
+            "{command}"
+        );
+    }
+    assert_eq!(
+        run_cli([
+            "giant-squid",
+            "submit-conv",
+            "-n",
+            "--centre",
+            "custom",
+            "--custom-centre-ra",
+            "10",
+            "--custom-centre-dec",
+            "-26",
+            TEST_OBS_ID
+        ]),
+        0
+    );
+}
+
+/// `--wait` with no job submitted makes no request, and returns the result
+/// of the submissions.
+#[test]
+fn waiting_for_no_submitted_job_makes_no_request() {
+    use super::json_output::ReportedFailures;
+    use super::run::wait_for_submitted;
+    use crate::test_common::TestEnv;
+
+    let env = TestEnv::with_session();
+    let client = crate::AsvoClient::new(crate::test_config::client_config(&env))
+        .expect("client should be created");
+
+    assert!(wait_for_submitted(&client, &[], Ok(())).is_ok());
+    let failed = wait_for_submitted(
+        &client,
+        &[],
+        Err(ReportedFailures("1 of 1 job submissions failed".to_string()).into()),
+    );
+    assert!(failed.is_err());
+}
+
+/// A wait that fails after some submissions failed keeps both: the wait's
+/// error, with the summary of the submissions as its context.
+#[test]
+fn a_failed_wait_keeps_the_summary_of_the_failed_submissions() {
+    use super::json_output::ReportedFailures;
+    use super::run::wait_for_submitted;
+    use crate::test_common::TestEnv;
+
+    let env = TestEnv::with_session();
+    // An empty job list: the submitted job is not in it.
+    env.mock_get_jobs(vec![]);
+    let client = crate::AsvoClient::new(crate::test_config::client_config(&env))
+        .expect("client should be created");
+    let summary = "1 of 2 job submissions failed";
+
+    let err = wait_for_submitted(
+        &client,
+        &[crate::test_config::TEST_ASVO_JOB_ID],
+        Err(ReportedFailures(summary.to_string()).into()),
+    )
+    .expect_err("the wait should fail");
+
+    let text = format!("{err:#}");
+    assert!(text.contains(summary), "{text}");
+    assert!(
+        err.chain()
+            .any(|cause| cause.downcast_ref::<crate::AsvoError>().is_some()),
+        "{text}"
+    );
+}

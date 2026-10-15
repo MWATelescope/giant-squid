@@ -358,9 +358,11 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, a number is outside
     ///         what the MWA ASVO accepts (for example `avg_freq_res` above
-    ///         1280), or `delivery` is `Delivery.Acacia` and `delivery_format`
-    ///         is `DeliveryFormat.Files` (Acacia delivers a tar only). The
-    ///         message names the argument and its limits. Nothing is sent.
+    ///         1280), `delivery` is `Delivery.Acacia` and `delivery_format`
+    ///         is `DeliveryFormat.Files` (Acacia delivers a tar only), or
+    ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
+    ///         and `custom_centre_dec`. The message names the argument and
+    ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
         delivery='Delivery.Acacia', \
@@ -517,10 +519,12 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, or an argument is
     ///         outside what the MWA ASVO accepts (for example `mgain`
-    ///         above 1, or an `image_size` that is not a supported size), or
+    ///         above 1, or an `image_size` that is not a supported size),
     ///         `delivery` is `Delivery.Acacia` and `delivery_format` is
-    ///         `DeliveryFormat.Files` (Acacia delivers a tar only). The
-    ///         message names the argument and its limits. Nothing is sent.
+    ///         `DeliveryFormat.Files` (Acacia delivers a tar only), or
+    ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
+    ///         and `custom_centre_dec`. The message names the argument and
+    ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
         delivery='Delivery.Acacia', \

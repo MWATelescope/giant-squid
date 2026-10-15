@@ -165,6 +165,9 @@ pub struct AsvoClient {
     /// demand (i.e. when the current token is rejected), and so that every
     /// request uses the same host.
     config: AsvoClientConfig,
+    /// The HTTP client for the files of a job. It sends no access token:
+    /// the files are on another host (Acacia), and their URLs are signed.
+    download_client: Client,
 }
 
 /// A minimal view of an HTTP response - the pieces callers need once the
@@ -289,6 +292,7 @@ impl AsvoClient {
         // token, `send_authed` re-logs-in and swaps in a new client, which
         // is why we hold on to the config below.
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
+        let download_client = Self::build_plain_client(&config)?;
 
         Ok(AsvoClient {
             session: Mutex::new(Session {
@@ -297,6 +301,7 @@ impl AsvoClient {
             }),
             login_lock: Mutex::new(()),
             config,
+            download_client,
         })
     }
 
@@ -330,9 +335,10 @@ impl AsvoClient {
             .build()?)
     }
 
-    /// Build the short-lived [Client] used purely for login/refresh calls
-    /// (it needs no default auth headers).
-    fn build_auth_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
+    /// Build a [Client] that sends no access token: for the login and
+    /// refresh calls, and for the files of a job. The access token must
+    /// not go to the host of a file (Acacia).
+    fn build_plain_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
         Ok(ClientBuilder::new()
             .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
@@ -382,7 +388,7 @@ impl AsvoClient {
         job_id: AsvoJobId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
-        download_by_job_id(&self.current_session().0, jobs, job_id, opts)
+        download_by_job_id(&self.download_client, jobs, job_id, opts)
     }
 
     /// Download the MWA ASVO job associated with the given Obs ID.
@@ -408,7 +414,7 @@ impl AsvoClient {
         obs_id: ObsId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
-        download_by_obs_id(&self.current_session().0, jobs, obs_id, opts)
+        download_by_obs_id(&self.download_client, jobs, obs_id, opts)
     }
 
     /// Returns a valid, ready-to-use `StoredTokens`, preferring (in order):
@@ -419,7 +425,7 @@ impl AsvoClient {
     fn get_valid_tokens(config: &AsvoClientConfig) -> Result<StoredTokens, AsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the auth headers).
-        let auth_client = Self::build_auth_client(config)?;
+        let auth_client = Self::build_plain_client(config)?;
 
         let cached = config
             .token_cache_path
@@ -548,7 +554,7 @@ impl AsvoClient {
         }
 
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
-        let auth_client = Self::build_auth_client(&self.config)?;
+        let auth_client = Self::build_plain_client(&self.config)?;
         let fresh = Self::login(&auth_client, &self.config)?;
         Self::cache_tokens(&self.config, &fresh);
         let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
@@ -808,8 +814,9 @@ impl AsvoClient {
     /// Like every other submit endpoint, a success returns a
     /// `JobSubmittedResponse` carrying the new job's ID.
     ///
-    /// The numbers in `params` are checked against the schema's limits, and
-    /// the delivery against its format, first ([`validate_imaging_params`]);
+    /// The numbers in `params` are checked against the schema's limits, the
+    /// delivery against its format, and the phase centre against its
+    /// coordinates, first ([`validate_imaging_params`]);
     /// nothing is sent if one is wrong, and the error is
     /// [`AsvoApiError::InvalidParameter`].
     pub fn submit_imaging_job(
@@ -879,9 +886,10 @@ impl AsvoClient {
 
     /// Submit an MWA ASVO conversion job.
     ///
-    /// The numbers in `params` are checked against the schema's limits, and
-    /// the delivery against its format, first
-    /// ([`validate_conversion_params`]); nothing is sent if one is wrong, and
+    /// The numbers in `params` are checked against the schema's limits, the
+    /// delivery against its format, and the phase centre against its
+    /// coordinates, first ([`validate_conversion_params`]); nothing is sent
+    /// if one is wrong, and
     /// the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_conversion_job(
         &self,

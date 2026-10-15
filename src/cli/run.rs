@@ -27,6 +27,10 @@ use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
 use crate::mwa_asvo::api::openapi::{JobSubmittedResponse, Status, Type as FileType};
+use crate::mwa_asvo::api::validate::{
+    validate_beamformer_params, validate_conversion_params, validate_download_params,
+    validate_image_from_job_params, validate_imaging_params, validate_voltage_params,
+};
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
     DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
@@ -278,14 +282,23 @@ struct Submission<'a> {
     json: bool,
 }
 
-/// Run a submit command: with `--dry-run`, report the body that `build`
-/// makes for each Obs ID; otherwise log in, `submit` one job per Obs ID
-/// (carrying on past failures, see [`submit_each_obs_id`]), and with
-/// `--wait`, wait for the jobs that were submitted.
-fn run_submit<P, B, S>(submission: &Submission, build: B, submit: S) -> anyhow::Result<()>
+/// Run a submit command. First `check` (the library's check of the request
+/// body) checks the body that `build` makes, so that a bad body fails once,
+/// before any login, also with `--dry-run`: the bodies differ only in their
+/// Obs ID. Then, with `--dry-run`, report the body for each Obs ID;
+/// otherwise log in, `submit` one job per Obs ID (carrying on past failures,
+/// see [`submit_each_obs_id`]), and with `--wait`, wait for the jobs that
+/// were submitted.
+fn run_submit<P, B, C, S>(
+    submission: &Submission,
+    build: B,
+    check: C,
+    submit: S,
+) -> anyhow::Result<()>
 where
     P: serde::Serialize,
     B: Fn(ObsId) -> P,
+    C: Fn(&P) -> Result<(), AsvoApiError>,
     S: Fn(&AsvoClient, &P) -> Result<JobSubmittedResponse, AsvoApiError>,
 {
     let Submission {
@@ -296,6 +309,9 @@ where
         dry_run,
         json,
     } = *submission;
+    if let Some(first) = obs_ids.first() {
+        check(&build(*first))?;
+    }
     if dry_run {
         return report_dry_run_submissions(endpoint, obs_ids, json, build);
     }
@@ -312,9 +328,34 @@ where
         Ok(())
     });
     if wait {
-        wait_loop(&client, &job_ids)?;
+        wait_for_submitted(&client, &job_ids, outcome)
+    } else {
+        outcome
     }
-    outcome
+}
+
+/// `--wait` of a submit command: wait for `job_ids`, the jobs that were
+/// submitted, then return `outcome`, the result of the submissions. With
+/// no job submitted, there is nothing to wait for. If the wait fails, its
+/// error is returned, with the summary of the failed submissions (if any)
+/// as its context, so that neither is lost.
+pub(super) fn wait_for_submitted(
+    client: &AsvoClient,
+    job_ids: &[AsvoJobId],
+    outcome: anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    if job_ids.is_empty() {
+        info!("No job was submitted, so there is nothing to wait for.");
+        return outcome;
+    }
+    match (wait_loop(client, job_ids), outcome) {
+        (Ok(()), outcome) => outcome,
+        (Err(wait_error), Ok(())) => Err(wait_error),
+        (Err(wait_error), Err(submit_error)) => {
+            let summary = submit_error.to_string();
+            Err(wait_error.context(summary))
+        }
+    }
 }
 
 /// Report the error `e` of the Obs ID `obs_id`: a [`JsonError`] line with
@@ -327,6 +368,10 @@ fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(
         Ok(())
     }
 }
+
+/// The message of `download` when no Job ID or Obs ID is given, on the
+/// command line or in a file.
+const NO_DOWNLOAD_IDS_MESSAGE: &str = "No Job IDs or Obs IDs specified.";
 
 /// The message of `submit-image` for a Job ID: this command takes Obs IDs
 /// only, and `submit-image-from-job` is the command for a conversion job.
@@ -570,14 +615,16 @@ fn run(args: Args) -> anyhow::Result<()> {
             json,
             ..
         } => {
-            if job_ids_or_obs_ids.is_empty() {
-                return Err(ArgumentError("No Job IDs or Obs IDs specified.".to_string()).into());
+            // The IDs can come from files, so they are checked after they
+            // are read.
+            let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
+            if job_ids.is_empty() && obs_ids.is_empty() {
+                return Err(ArgumentError(NO_DOWNLOAD_IDS_MESSAGE.to_string()).into());
             }
 
-            // Validate the download directory
-            if !Path::new(&download_dir).exists() {
+            if !Path::new(&download_dir).is_dir() {
                 return Err(ArgumentError(format!(
-                    "Download directory `{download_dir}` does not exist or is not accessible."
+                    "Download directory `{download_dir}` is not a directory, does not exist or is not accessible."
                 ))
                 .into());
             }
@@ -594,7 +641,6 @@ fn run(args: Args) -> anyhow::Result<()> {
             // messages don't mess up the progress bars!
             init_logger_with_progressbar_support(verbosity, json, &mpb);
 
-            let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             let hash = !skip_hash;
             let DownloadSettings {
                 buffer_size,
@@ -713,6 +759,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| download.to_vis_params(obs_id),
+                validate_download_params,
                 |client, params| client.submit_download_vis_job(params),
             )?;
         }
@@ -740,6 +787,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| conv.to_params(obs_id),
+                validate_conversion_params,
                 |client, params| client.submit_conversion_job(params),
             )?;
         }
@@ -767,6 +815,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| image.to_params(obs_id),
+                validate_imaging_params,
                 |client, params| client.submit_imaging_job(params),
             )?;
         }
@@ -794,6 +843,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             }
 
             init_logger(verbosity, json);
+            validate_image_from_job_params(&image.to_params(obs_ids[0]))?;
 
             if dry_run {
                 report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obs_ids, json, |obs_id| {
@@ -848,6 +898,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| download.to_meta_params(obs_id),
+                validate_download_params,
                 |client, params| client.submit_download_meta_job(params),
             )?;
         }
@@ -875,6 +926,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| volt.to_params(obs_id),
+                validate_voltage_params,
                 |client, params| client.submit_voltage_job(params),
             )?;
         }
@@ -902,6 +954,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     json,
                 },
                 |obs_id| bf.to_params(obs_id),
+                validate_beamformer_params,
                 |client, params| client.submit_beamformer_job(params),
             )?;
         }
