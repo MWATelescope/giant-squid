@@ -27,7 +27,7 @@ use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
 use crate::mwa_asvo::{
-    AsvoApiError, AsvoClient, AsvoError, DownloadOptions, DownloadProgress,
+    AsvoApiError, AsvoClient, AsvoError, AsvoJobVec, DownloadOptions, DownloadProgress,
     DEFAULT_DOWNLOAD_BUFFER_SIZE,
 };
 use crate::test_common::*;
@@ -87,6 +87,41 @@ fn options(dir: &str) -> DownloadOptions<'_> {
         buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
         retry_duration: std::time::Duration::ZERO,
         should_stop: None,
+    }
+}
+
+/// A buffer of 0 bytes is refused before any request: the test server has
+/// no job list, so a job list request would give another error.
+#[test]
+fn a_buffer_size_of_zero_is_refused_before_any_request() {
+    let env = TestEnv::with_session();
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        buffer_size: 0,
+        ..options(&dir)
+    };
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
+
+    let errors = [
+        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts),
+        client.download_obs(obs_id, &opts),
+        client.download_job_from(
+            &AsvoJobVec(vec![]),
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &opts,
+        ),
+        client.download_obs_from(&AsvoJobVec(vec![]), obs_id, &opts),
+    ];
+
+    for result in errors {
+        let err = result.expect_err("a buffer of 0 bytes");
+        assert_eq!(
+            err.to_string(),
+            "Invalid buffer_size: must be at least 1 (got 0)"
+        );
+        assert!(matches!(err, AsvoError::InvalidOption { .. }), "{err:?}");
     }
 }
 

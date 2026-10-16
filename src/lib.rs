@@ -42,7 +42,7 @@ pub use mwa_asvo::api::client::{
 pub use mwa_asvo::api::error::AsvoApiError;
 pub use mwa_asvo::download::{
     DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
 };
 pub use mwa_asvo::env::{
     client_config_from_env, DownloadSettings, ENV_GIANT_SQUID_BUF_SIZE, ENV_GIANT_SQUID_DELIVERY,

@@ -375,6 +375,7 @@ impl AsvoClient {
         job_id: AsvoJobId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
+        opts.check()?; // before the job list request
         let jobs = self.get_jobs(&JobsFilter::default())?;
         self.download_job_from(&jobs, job_id, opts)
     }
@@ -402,6 +403,7 @@ impl AsvoClient {
         obs_id: ObsId,
         opts: &DownloadOptions,
     ) -> Result<AsvoJob, AsvoError> {
+        opts.check()?; // before the job list request
         let jobs = self.get_jobs(&JobsFilter::default())?;
         self.download_obs_from(&jobs, obs_id, opts)
     }

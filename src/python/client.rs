@@ -1004,7 +1004,7 @@ impl PyAsvoClient {
     ///         called about 10 times a second at most. If it raises, the
     ///         download stops and its exception is raised.
     ///     buffer_size: How many bytes to hold in memory before they are
-    ///         written. `None` uses the library default
+    ///         written. At least 1. `None` uses the library default
     ///         (`DEFAULT_DOWNLOAD_BUFFER_SIZE` of the Rust library).
     ///     retry_duration: How long to retry a failing download, in
     ///         seconds. 0 disables retries. `None` uses the library default
@@ -1024,7 +1024,7 @@ impl PyAsvoClient {
     ///         transfer failed, or the hash does not match.
     ///     AsvoApiError: Getting the job list failed (only when `jobs` is
     ///         `None`).
-    ///     ValueError: `download_dir` or `retry_duration` is not valid.
+    ///     ValueError: `download_dir`, `buffer_size` or `retry_duration` is not valid.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     #[pyo3(signature = (
         job_id,

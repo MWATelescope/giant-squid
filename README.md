@@ -1376,12 +1376,12 @@ reads no environment variables (see
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
 | `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands. | The schema's default for each job type |
 | `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands. | The schema's default for each job type |
-| `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB: the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
+| `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |
 
 A value of `MWA_ASVO_API_TIMEOUT`, `GIANT_SQUID_BUF_SIZE` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole
-number is an error.
+number is an error. So is a `GIANT_SQUID_BUF_SIZE` of `0`.
 
 ---
 

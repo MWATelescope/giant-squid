@@ -245,12 +245,16 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
 /// `lib::AsvoError::AsvoApi` wraps an API error (for example, the job list
 /// request before a download), so it becomes a Python `AsvoApiError`, and
 /// the caller can catch every API failure in the same way.
+/// `lib::AsvoError::InvalidOption` (a download option that cannot be used,
+/// found before any request) becomes a `ValueError`, like an argument that
+/// the API does not allow.
 pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
     let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(id.get()));
     let obs_id = |o: crate::ObsId| ("obs_id", Field::Int(u64::from(o)));
     let (kind, fields) = match e {
         lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
+        lib::AsvoError::InvalidOption { .. } => return PyValueError::new_err(message),
         lib::AsvoError::NoAsvoJob(id) => ("NoAsvoJob", vec![job_id(id)]),
         lib::AsvoError::JobFailed {
             job_id: id,

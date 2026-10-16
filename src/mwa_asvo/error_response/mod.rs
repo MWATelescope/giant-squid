@@ -228,9 +228,9 @@ impl AsvoError {
             AsvoError::TooManyObsIds(_) => ERROR_CODE_AMBIGUOUS_OBS_ID,
             AsvoError::NoFiles(_) => ERROR_CODE_NO_FILES,
             AsvoError::HashMismatch { .. } => ERROR_CODE_HASH_MISMATCH,
-            AsvoError::InvalidJobState { .. } | AsvoError::InvalidJobType { .. } => {
-                ERROR_CODE_INVALID_ARGUMENT
-            }
+            AsvoError::InvalidJobState { .. }
+            | AsvoError::InvalidJobType { .. }
+            | AsvoError::InvalidOption { .. } => ERROR_CODE_INVALID_ARGUMENT,
             AsvoError::InvalidEnvironment { .. } => ERROR_CODE_INVALID_ENVIRONMENT,
             AsvoError::IO(_) | AsvoError::CannotCreate { .. } => ERROR_CODE_IO_ERROR,
             AsvoError::Interrupted => ERROR_CODE_INTERRUPTED,

@@ -155,6 +155,13 @@ impl DownloadSettings {
             None => DEFAULT_DOWNLOAD_BUFFER_SIZE,
             Some(value) => {
                 let mib: usize = whole_number(ENV_GIANT_SQUID_BUF_SIZE, &value, EXPECTED_MIB)?;
+                if mib == 0 {
+                    return Err(AsvoError::InvalidEnvironment {
+                        name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),
+                        value,
+                        problem: format!("is not valid. (It should be {EXPECTED_MIB}, at least 1)"),
+                    });
+                }
                 mib.checked_mul(BYTES_PER_MIB)
                     .ok_or_else(|| AsvoError::InvalidEnvironment {
                         name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),

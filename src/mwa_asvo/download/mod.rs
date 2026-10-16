@@ -37,6 +37,10 @@ use tar::Archive;
 /// The number of bytes in one MiB.
 pub const BYTES_PER_MIB: usize = 1024 * 1024;
 
+/// The smallest [`DownloadOptions::buffer_size`], in bytes. A buffer of 0
+/// bytes writes nothing, so a download would end with an empty file.
+pub const MIN_DOWNLOAD_BUFFER_SIZE: usize = 1;
+
 /// The default [`DownloadOptions::buffer_size`]: 100 MiB.
 pub const DEFAULT_DOWNLOAD_BUFFER_SIZE: usize = 100 * BYTES_PER_MIB;
 
@@ -97,7 +101,10 @@ pub struct DownloadOptions<'a> {
     /// How many downloads the series has, for the log label.
     pub download_count: usize,
     /// How much data, in bytes, is held in memory before it is written to
-    /// disk. See [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
+    /// disk. At least [`MIN_DOWNLOAD_BUFFER_SIZE`](crate::MIN_DOWNLOAD_BUFFER_SIZE);
+    /// a download with a smaller value fails with
+    /// [`AsvoError::InvalidOption`](crate::AsvoError::InvalidOption). See
+    /// [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
     pub buffer_size: usize,
     /// How long to retry transient download failures before giving up.
     /// Zero disables retrying. See
@@ -111,6 +118,26 @@ pub struct DownloadOptions<'a> {
     /// no signals. A file that is being written stays on disk, partial, so
     /// a later download can resume it.
     pub should_stop: Option<&'a dyn Fn() -> bool>,
+}
+
+impl DownloadOptions<'_> {
+    /// Check that every option has a value that a download can use.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoError::InvalidOption`] for the first option that has not.
+    pub(crate) fn check(&self) -> Result<(), AsvoError> {
+        if self.buffer_size < MIN_DOWNLOAD_BUFFER_SIZE {
+            return Err(AsvoError::InvalidOption {
+                name: "buffer_size",
+                message: format!(
+                    "must be at least {MIN_DOWNLOAD_BUFFER_SIZE} (got {})",
+                    self.buffer_size
+                ),
+            });
+        }
+        Ok(())
+    }
 }
 
 /// The longest the library sleeps before it asks
@@ -154,6 +181,7 @@ pub(crate) fn download_by_job_id(
     job_id: AsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
+    opts.check()?;
     debug!("Attempting to download job {job_id}");
     // A Job ID is unique. If the list ever has it twice, the first is used.
     let job = jobs
@@ -173,6 +201,7 @@ pub(crate) fn download_by_obs_id(
     obs_id: ObsId,
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
+    opts.check()?;
     debug!("Attempting to download Obs ID {obs_id}");
     let mut of_obs_id = jobs.0.iter().filter(|j| j.obs_id() == obs_id).peekable();
     if of_obs_id.peek().is_none() {

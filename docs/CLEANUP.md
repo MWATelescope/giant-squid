@@ -52,6 +52,19 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 - **L9:** a Scratch move checks its target first: new error `DestinationExists` (`DESTINATION_EXISTS`); a symbolic link gives `SymlinkInDownloadDir`.
 - **L10 (part A):** `centre` `custom` needs both `custom_centre_ra` and `custom_centre_dec`; each submit command checks its body once, before login, also with `--dry-run`.
 
+### Decisions by Greg (16 Oct 2026)
+
+- **L10 part B:** approved, including the edit of the two tests.
+- **Symbolic links:** do both `O_NOFOLLOW` and `openat`.
+- **L11:** add a key fingerprint and the host to the cached session (mwa-cli will be deprecated before release).
+- **L12:** refuse a buffer size of 0. Done: new `AsvoError::InvalidOption` (a download option that cannot be used; a `ValueError` in Python, code `INVALID_ARGUMENT`), `DownloadOptions::check`, and `GIANT_SQUID_BUF_SIZE=0` is an `InvalidEnvironment` error.
+- **L15:** refuse a timeout of 0 (the error type for `AsvoClient::new` is still to be chosen: it returns `AsvoApiError`).
+- **L13:** `wait_loop` retries. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700.
+- **O1/O7:** wait for the API fix.
+- **O2:** the three flags work like the other nullable fields and follow the API.
+- **C1, C2, C5, C13:** approved (do C1/C2 before O2).
+- **T1:** remove the three `staging_count` tests. **T5:** keep the clap and version tests.
+
 ### Waiting for a decision by Greg
 
 - **L10 part B:** refuse `custom_centre_ra`/`custom_centre_dec` when `centre` is not `custom`. This needs a change to two existing tests: `every_limit_is_enforced_on_both_ends_for_the_conversion_body` and `every_limit_is_enforced_on_both_ends_for_the_imaging_body` (they set one coordinate with the default centre). Proposed change: base parameters with `centre: Custom` and both coordinates valid. Ask Greg before you edit them. Until then, the help text "Requires --centre custom" is only half true.
@@ -65,7 +78,6 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 
 Logic:
 - **L11 (high):** a cached session is reused for another API key (and another host). The mwa-cli token format has no key field. Greg must choose the fix (for example a key fingerprint and host in the cache, or a separate giant-squid cache). Failing test: `AsvoClient::new` with another `api_key` and `TestEnv::with_session()` makes no login.
-- **L12 (high):** a buffer size of 0 (`GIANT_SQUID_BUF_SIZE=0`, Python `buffer_size=0`) gives an empty file and a success with `--skip-hash --keep-tar`, or 15 minutes of retries with the hash check. Refuse 0.
 - **L13:** `wait_loop` has no retry: one 5xx or network error ends a long `wait`. `AsvoApiError::ApiError` drops the HTTP status.
 - **L14:** `token_store::save` writes with the umask, then sets 0600 (a short window, and no 0600 if `chmod` fails); the write is not atomic; `.mwa-asvo` gets the default mode.
 - **L15:** `MWA_ASVO_API_TIMEOUT=0` and Python `api_timeout=0` are accepted, and every request then times out.

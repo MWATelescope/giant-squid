@@ -147,6 +147,20 @@ fn a_bad_buffer_size_is_an_error_with_one_message() {
     }
 }
 
+/// A buffer of 0 bytes writes nothing, so a download with it would end with
+/// an empty file.
+#[test]
+fn a_buffer_size_of_zero_is_an_error() {
+    let err = DownloadSettings::from(vars([(ENV_GIANT_SQUID_BUF_SIZE, "0")]))
+        .expect_err("a buffer of 0 MiB");
+
+    assert_eq!(
+        err.to_string(),
+        "Environment variable GIANT_SQUID_BUF_SIZE='0' is not valid. \
+         (It should be an integer number of MiB, at least 1)"
+    );
+}
+
 #[test]
 fn a_buffer_size_too_big_for_memory_is_an_error() {
     let value = usize::MAX.to_string();

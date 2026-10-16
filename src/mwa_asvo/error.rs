@@ -90,6 +90,17 @@ pub enum AsvoError {
         problem: String,
     },
 
+    /// A download option has a value that cannot be used, for example a
+    /// `buffer_size` of 0. Found before any request is sent. (An environment
+    /// variable with such a value is [`AsvoError::InvalidEnvironment`].)
+    #[error("Invalid {name}: {message}")]
+    InvalidOption {
+        /// The name of the option, as in [`DownloadOptions`](super::DownloadOptions).
+        name: &'static str,
+        /// What is wrong with it, for example `must be at least 1 (got 0)`.
+        message: String,
+    },
+
     /// An MWA ASVO API call failed, for example the job list request that
     /// a download does first.
     #[error("{0}")]

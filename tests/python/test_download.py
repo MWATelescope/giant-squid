@@ -385,6 +385,16 @@ def test_ctrl_c_that_lands_in_a_log_call_still_stops_the_download(
     assert time.monotonic() - started < SIGINT_AFTER + SLOW_LOG_DELAY + MAX_STOP_TIME
 
 
+def test_a_buffer_size_of_zero_raises_value_error_before_any_request(
+    client: gs.AsvoClient, tmp_path: pathlib.Path
+) -> None:
+    """A buffer of 0 bytes would write nothing, so the library refuses it (the server has no job list)."""
+    with pytest.raises(ValueError, match="buffer_size"):
+        client.download_job(JOB_ID, tmp_path, buffer_size=0)
+    with pytest.raises(ValueError, match="buffer_size"):
+        client.download_obs(TEST_OBS_ID, tmp_path, buffer_size=0)
+
+
 def test_a_hash_mismatch_raises_asvo_error(
     client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
 ) -> None:

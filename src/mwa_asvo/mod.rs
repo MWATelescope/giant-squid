@@ -31,7 +31,7 @@ pub(crate) use api::AsvoApiError;
 #[allow(unused_imports)]
 pub(crate) use download::{
     DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
 };
 #[allow(unused_imports)]
 pub(crate) use env::{
