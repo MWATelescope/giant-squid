@@ -250,6 +250,14 @@ def test_a_bad_timeout_is_rejected(host: str) -> None:
         gs.AsvoClient(host, TEST_API_KEY, api_timeout=-1.0)
 
 
+def test_a_timeout_of_zero_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
+    """An api_timeout of 0 would time out every request, so the library refuses it before the login."""
+    with pytest.raises(ValueError, match="api_timeout"):
+        gs.AsvoClient(host, TEST_API_KEY, api_timeout=0.0)
+
+    assert logins(httpserver) == 0
+
+
 @pytest.mark.usefixtures("mock_login")
 def test_rust_log_records_reach_python_logging(host: str, caplog: pytest.LogCaptureFixture) -> None:
     """The library's warning about a non-default host arrives on a mwa_giant_squid logger."""

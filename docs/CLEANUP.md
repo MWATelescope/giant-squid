@@ -58,7 +58,7 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 - **Symbolic links:** do both `O_NOFOLLOW` and `openat`.
 - **L11:** add a key fingerprint and the host to the cached session (mwa-cli will be deprecated before release).
 - **L12:** refuse a buffer size of 0. Done: new `AsvoError::InvalidOption` (a download option that cannot be used; a `ValueError` in Python, code `INVALID_ARGUMENT`), `DownloadOptions::check`, and `GIANT_SQUID_BUF_SIZE=0` is an `InvalidEnvironment` error.
-- **L15:** refuse a timeout of 0 (the error type for `AsvoClient::new` is still to be chosen: it returns `AsvoApiError`).
+- **L15:** refuse a timeout of 0. Done: `AsvoClient::new` now returns `AsvoError` (Greg chose this, not `AsvoApiError`); a zero `api_timeout` gives `InvalidOption` (`ValueError` in Python), and `MWA_ASVO_API_TIMEOUT=0` is an `InvalidEnvironment` error. Three tests in `api/client/tests.rs` were edited with Greg's approval (the patterns are wrapped in `AsvoError::AsvoApi`).
 - **L13:** `wait_loop` retries. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700.
 - **O1/O7:** wait for the API fix.
 - **O2:** the three flags work like the other nullable fields and follow the API.
@@ -80,7 +80,6 @@ Logic:
 - **L11 (high):** a cached session is reused for another API key (and another host). The mwa-cli token format has no key field. Greg must choose the fix (for example a key fingerprint and host in the cache, or a separate giant-squid cache). Failing test: `AsvoClient::new` with another `api_key` and `TestEnv::with_session()` makes no login.
 - **L13:** `wait_loop` has no retry: one 5xx or network error ends a long `wait`. `AsvoApiError::ApiError` drops the HTTP status.
 - **L14:** `token_store::save` writes with the umask, then sets 0600 (a short window, and no 0600 if `chmod` fails); the write is not atomic; `.mwa-asvo` gets the default mode.
-- **L15:** `MWA_ASVO_API_TIMEOUT=0` and Python `api_timeout=0` are accepted, and every request then times out.
 - Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 
 OpenAPI, library and CLI:

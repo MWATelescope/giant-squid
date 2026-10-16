@@ -368,7 +368,8 @@ No change to `MWA_ASVO_API_KEY`, `MWA_ASVO_HOST` (a full URL, as in 2.x),
 `GIANT_SQUID_DELIVERY`, `GIANT_SQUID_DELIVERY_FORMAT` or
 `GIANT_SQUID_BUF_SIZE`. `MWA_ASVO_API_TIMEOUT` is the same, except that a
 value that is not a whole number of seconds is now an error (2.x warned and
-used the default), as it already was for `GIANT_SQUID_BUF_SIZE`.
+used the default), as it already was for `GIANT_SQUID_BUF_SIZE`. A value of
+`0` is also an error, for both variables.
 
 New: giant-squid 3.0.0 logs in to the MWA ASVO with your API key and keeps
 the session in `~/.mwa-asvo/tokens.json` (the same file as `mwa-cli`), so

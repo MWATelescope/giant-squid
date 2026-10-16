@@ -97,7 +97,7 @@ client = mwa_giant_squid.AsvoClient(
 |---|---|
 | `host` | The MWA ASVO URL. Use `http://` only for a local test server. All other hosts must use TLS. |
 | `api_key` | Your API key. |
-| `api_timeout` | The time limit for one API request, in seconds. `None` uses the library's `DEFAULT_API_TIMEOUT`. |
+| `api_timeout` | The time limit for one API request, in seconds (more than 0). `None` uses the library's `DEFAULT_API_TIMEOUT`. |
 | `token_cache_path` | A file in which to keep the session between runs. `None` keeps the session in memory only. |
 
 The MWA ASVO allows only a few logins each minute. A program that runs often must set

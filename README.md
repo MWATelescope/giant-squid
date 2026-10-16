@@ -1372,7 +1372,7 @@ reads no environment variables (see
 |---|---|---|
 | `MWA_ASVO_API_KEY` | Your MWA ASVO API key. **Required** for all operations. | — |
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
-| `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds. | `DEFAULT_API_TIMEOUT` in the library |
+| `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
 | `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands. | The schema's default for each job type |
 | `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands. | The schema's default for each job type |
@@ -1381,7 +1381,7 @@ reads no environment variables (see
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |
 
 A value of `MWA_ASVO_API_TIMEOUT`, `GIANT_SQUID_BUF_SIZE` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole
-number is an error. So is a `GIANT_SQUID_BUF_SIZE` of `0`.
+number is an error. So is a `GIANT_SQUID_BUF_SIZE` or `MWA_ASVO_API_TIMEOUT` of `0`.
 
 ---
 

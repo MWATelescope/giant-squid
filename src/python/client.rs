@@ -18,7 +18,7 @@ use pyo3::prelude::*;
 
 use super::connect_python_logging;
 use super::download::{run_download, PyDownloadArgs};
-use super::error::api_error;
+use super::error::{api_error, asvo_error};
 use super::params::job_obs_id;
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
@@ -39,8 +39,8 @@ use crate::obs_id::ObsId;
 ///         "https://asvo.mwatelescope.org:443". An "http://" host is
 ///         permitted (a local test server); every other host must use TLS.
 ///     api_key: Your MWA ASVO API key.
-///     api_timeout: The timeout for one API request, in seconds. `None`
-///         uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
+///     api_timeout: The timeout for one API request, in seconds. More
+///         than 0. `None` uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
 ///         library).
 ///     token_cache_path: Where to cache the session between runs. `None`
 ///         keeps the session in memory only, so every new client logs in.
@@ -49,7 +49,7 @@ use crate::obs_id::ObsId;
 ///
 /// Raises:
 ///     AsvoApiError: The API key is empty, or the login failed.
-///     ValueError: `api_timeout` is negative or not finite.
+///     ValueError: `api_timeout` is not finite, or is not more than 0.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "AsvoClient", module = "mwa_giant_squid")]
 pub struct PyAsvoClient {
@@ -80,7 +80,7 @@ impl PyAsvoClient {
 
         let inner = py
             .detach(|| AsvoClient::new(config))
-            .map_err(|e| api_error(py, e))?;
+            .map_err(|e| asvo_error(py, e))?;
         Ok(Self { inner, host })
     }
 

@@ -109,6 +109,22 @@ fn a_bad_timeout_is_an_error() {
     }
 }
 
+/// A timeout of 0 would make every request time out.
+#[test]
+fn a_timeout_of_zero_is_an_error() {
+    let err = client_config_from(vars([
+        (ENV_MWA_ASVO_API_KEY, KEY),
+        (ENV_MWA_ASVO_API_TIMEOUT, "0"),
+    ]))
+    .expect_err("a timeout of 0 seconds");
+
+    assert_eq!(
+        err.to_string(),
+        "Environment variable MWA_ASVO_API_TIMEOUT='0' is not valid. \
+         (It should be an integer number of seconds, at least 1)"
+    );
+}
+
 #[test]
 fn the_download_defaults_are_used_when_nothing_is_set() {
     let settings = DownloadSettings::from(vars([])).expect("settings");

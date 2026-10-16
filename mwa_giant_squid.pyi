@@ -89,8 +89,8 @@ class AsvoClient:
             "https://asvo.mwatelescope.org:443". An "http://" host is
             permitted (a local test server); every other host must use TLS.
         api_key: Your MWA ASVO API key.
-        api_timeout: The timeout for one API request, in seconds. `None`
-            uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
+        api_timeout: The timeout for one API request, in seconds. More
+            than 0. `None` uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
             library).
         token_cache_path: Where to cache the session between runs. `None`
             keeps the session in memory only, so every new client logs in.
@@ -99,7 +99,7 @@ class AsvoClient:
 
     Raises:
         AsvoApiError: The API key is empty, or the login failed.
-        ValueError: `api_timeout` is negative or not finite.
+        ValueError: `api_timeout` is not finite, or is not more than 0.
     """
     def __new__(
         cls,

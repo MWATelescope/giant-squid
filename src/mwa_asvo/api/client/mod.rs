@@ -109,7 +109,8 @@ pub struct AsvoClientConfig {
     pub host: String,
     /// The user's MWA ASVO API key.
     pub api_key: String,
-    /// The timeout for a single API request.
+    /// The timeout for a single API request. It must be more than zero:
+    /// [`AsvoClient::new`] refuses zero.
     pub api_timeout: Duration,
     /// Where to cache the session tokens between runs. `None` keeps the
     /// session in memory only, so every new client logs in again. Use
@@ -265,10 +266,21 @@ impl AsvoClient {
     /// cache can't be read or written for any reason, the client just falls
     /// back to a fresh login. With no cache path, the client always logs in.
     ///
-    /// Returns [`AsvoApiError::MissingAuthKey`] if `config.api_key` is empty.
-    pub fn new(config: AsvoClientConfig) -> Result<AsvoClient, AsvoApiError> {
+    /// # Errors
+    ///
+    /// [`AsvoError::InvalidOption`] if `config.api_timeout` is zero (every
+    /// request would time out). [`AsvoError::AsvoApi`] with
+    /// [`AsvoApiError::MissingAuthKey`] if `config.api_key` is empty, or
+    /// with the error of the login.
+    pub fn new(config: AsvoClientConfig) -> Result<AsvoClient, AsvoError> {
+        if config.api_timeout.is_zero() {
+            return Err(AsvoError::InvalidOption {
+                name: "api_timeout",
+                message: "must be more than 0 seconds".to_string(),
+            });
+        }
         if config.api_key.is_empty() {
-            return Err(AsvoApiError::MissingAuthKey { variable: None });
+            return Err(AsvoApiError::MissingAuthKey { variable: None }.into());
         }
 
         // If we are using a non-default MWA ASVO host, then upgrade this

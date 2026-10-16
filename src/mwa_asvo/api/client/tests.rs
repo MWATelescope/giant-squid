@@ -25,7 +25,7 @@ use crate::mwa_asvo::api::openapi::Type as FileType;
 #[cfg(feature = "bin")]
 use crate::mwa_asvo::api::openapi::{DownloadJobParams, JobsByUserRequest};
 use crate::mwa_asvo::client_config_from_env;
-use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoJobId, JobState, JobsFilter};
+use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoError, AsvoJobId, JobState, JobsFilter};
 use crate::test_common::*;
 use crate::test_config::{client_config, job_type};
 
@@ -82,13 +82,33 @@ fn one_client_can_be_used_from_several_threads_at_once() {
     assert_eq!(get_jobs.calls(), 4);
 }
 
+/// A timeout of 0 is refused before any request: the test server has no
+/// login, so a login request would give another error.
+#[test]
+fn a_timeout_of_zero_is_refused_before_any_request() {
+    let env = TestEnv::without_session();
+    let mut config = client_config(&env);
+    config.api_timeout = std::time::Duration::ZERO;
+
+    let err = AsvoClient::new(config).expect_err("a timeout of 0 seconds");
+
+    assert_eq!(
+        err.to_string(),
+        "Invalid api_timeout: must be more than 0 seconds"
+    );
+    assert!(matches!(err, AsvoError::InvalidOption { .. }), "{err:?}");
+}
+
 #[test]
 fn a_missing_api_key_is_reported_before_any_request() {
     let env = TestEnv::without_api_key();
 
     let err = AsvoClient::new(client_config(&env)).expect_err("expected a missing-key failure");
     assert!(
-        matches!(err, AsvoApiError::MissingAuthKey { variable: None }),
+        matches!(
+            err,
+            AsvoError::AsvoApi(AsvoApiError::MissingAuthKey { variable: None })
+        ),
         "got {err:?}"
     );
 }
@@ -146,14 +166,14 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
     assert_eq!(login.calls(), 1);
     let text = err.to_string();
     match err {
-        AsvoApiError::AuthenticationFailed {
+        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed {
             message,
             error_code,
             detail,
             suggestion,
             field_errors,
             request_id,
-        } => {
+        }) => {
             assert_eq!(message, "Bad API key");
             assert_eq!(error_code.as_deref(), Some("AUTH_INVALID_KEY"));
             assert_eq!(detail.as_deref(), Some("The key was revoked"));
@@ -186,11 +206,11 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
 
     assert_eq!(login.calls(), 1);
     match err {
-        AsvoApiError::AuthenticationFailed {
+        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed {
             message,
             error_code,
             ..
-        } => {
+        }) => {
             assert!(message.contains("invalid api key"), "got {message}");
             assert_eq!(error_code, None);
         }

@@ -89,7 +89,14 @@ fn client_config_from(get: impl Fn(&str) -> Option<String>) -> Result<AsvoClient
     config.api_timeout = match get(ENV_MWA_ASVO_API_TIMEOUT) {
         None => DEFAULT_API_TIMEOUT,
         Some(value) => {
-            let seconds = whole_number(ENV_MWA_ASVO_API_TIMEOUT, &value, EXPECTED_SECONDS)?;
+            let seconds: u64 = whole_number(ENV_MWA_ASVO_API_TIMEOUT, &value, EXPECTED_SECONDS)?;
+            if seconds == 0 {
+                return Err(AsvoError::InvalidEnvironment {
+                    name: ENV_MWA_ASVO_API_TIMEOUT.to_string(),
+                    value,
+                    problem: format!("is not valid. (It should be {EXPECTED_SECONDS}, at least 1)"),
+                });
+            }
             debug!("{ENV_MWA_ASVO_API_TIMEOUT} timeout overridden to {seconds} seconds");
             Duration::from_secs(seconds)
         }
