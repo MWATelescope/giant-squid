@@ -366,8 +366,166 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
 }
 
 // ---------------------------------------------------------------------------
+// Job list requests that are tried again
+// ---------------------------------------------------------------------------
+
+/// A retry duration long enough that a test never reaches it.
+const LONG_RETRY: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// Serve `POST /api/v2/get_jobs` with a failure of HTTP status `status`.
+fn mock_get_jobs_failure(env: &TestEnv, status: u16) -> httpmock::Mock<'_> {
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(status).body("try later");
+    })
+}
+
+#[test]
+fn a_job_list_that_fails_with_a_503_is_tried_again_until_it_works() {
+    let env = TestEnv::with_session();
+    let mut failing = mock_get_jobs_failure(&env, 503);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let jobs = std::thread::scope(|scope| {
+        let poll =
+            scope.spawn(|| client.get_jobs_retrying(&JobsFilter::default(), LONG_RETRY, None));
+        // The server recovers after the first failure.
+        while failing.calls() == 0 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        failing.delete();
+        env.mock_get_jobs(vec![]);
+        poll.join().expect("the poll should not panic")
+    })
+    .expect("the job list should arrive after the server recovers");
+
+    assert!(jobs.0.is_empty());
+}
+
+#[test]
+fn a_job_list_error_that_is_not_transient_is_not_tried_again() {
+    let env = TestEnv::with_session();
+    let refused = mock_get_jobs_failure(&env, 403);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs_retrying(&JobsFilter::default(), LONG_RETRY, None)
+        .expect_err("a refusal is final");
+
+    assert_eq!(refused.calls(), 1);
+    assert!(
+        matches!(
+            err,
+            AsvoError::AsvoApi(AsvoApiError::BadStatus { status: 403, .. })
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn a_job_list_that_keeps_failing_gives_up_after_the_retry_duration() {
+    let env = TestEnv::with_session();
+    let failing = mock_get_jobs_failure(&env, 503);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs_retrying(
+            &JobsFilter::default(),
+            std::time::Duration::from_secs(1),
+            None,
+        )
+        .expect_err("the server never recovers");
+
+    assert!(failing.calls() >= 2, "it should have tried again");
+    assert!(
+        matches!(
+            err,
+            AsvoError::AsvoApi(AsvoApiError::BadStatus { status: 503, .. })
+        ),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn a_zero_retry_duration_gives_the_first_failure() {
+    let env = TestEnv::with_session();
+    let failing = mock_get_jobs_failure(&env, 503);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs_retrying(&JobsFilter::default(), std::time::Duration::ZERO, None)
+        .expect_err("no retries");
+
+    assert_eq!(failing.calls(), 1);
+    assert!(matches!(err, AsvoError::AsvoApi(_)), "{err:?}");
+}
+
+#[test]
+fn a_stop_request_ends_the_retries() {
+    let env = TestEnv::with_session();
+    let failing = mock_get_jobs_failure(&env, 503);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs_retrying(&JobsFilter::default(), LONG_RETRY, Some(&|| true))
+        .expect_err("the caller asked to stop");
+
+    assert_eq!(failing.calls(), 1);
+    assert!(matches!(err, AsvoError::Interrupted), "{err:?}");
+}
+
+#[test]
+fn only_a_failure_that_may_pass_is_transient() {
+    let api_error = |status| AsvoApiError::ApiError {
+        status,
+        error_code: "CODE".to_string(),
+        message: "message".to_string(),
+        detail: None,
+        suggestion: None,
+        field_errors: vec![],
+        request_id: None,
+    };
+    let bad_status = |status| AsvoApiError::BadStatus {
+        status,
+        message: String::new(),
+    };
+
+    for status in [429, 500, 502, 503, 504] {
+        assert!(api_error(status).is_transient(), "ApiError {status}");
+        assert!(bad_status(status).is_transient(), "BadStatus {status}");
+    }
+    for status in [400, 401, 403, 404, 409, 422] {
+        assert!(!api_error(status).is_transient(), "ApiError {status}");
+        assert!(!bad_status(status).is_transient(), "BadStatus {status}");
+    }
+    assert!(!AsvoApiError::MissingAuthKey { variable: None }.is_transient());
+    assert!(!AsvoApiError::authentication_failed("no").is_transient());
+}
+
+// ---------------------------------------------------------------------------
 // Error mapping
 // ---------------------------------------------------------------------------
+
+#[test]
+fn an_api_error_has_the_http_status_of_the_reply() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/get_jobs");
+        then.status(409)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
+    });
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("the call should fail");
+
+    assert!(
+        matches!(err, AsvoApiError::ApiError { status: 409, .. }),
+        "{err:?}"
+    );
+}
 
 #[test]
 fn a_structured_error_body_becomes_an_api_error() {

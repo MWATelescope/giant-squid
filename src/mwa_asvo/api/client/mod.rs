@@ -26,6 +26,7 @@ use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
+use crate::mwa_asvo::retry::{sleep_unless_stopped, Backoff};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
 use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions};
 use crate::obs_id::ObsId;
@@ -672,6 +673,7 @@ impl AsvoClient {
     fn error_from_body(status: reqwest::StatusCode, body: String) -> AsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
             Ok(err) => AsvoApiError::ApiError {
+                status: status.as_u16(),
                 error_code: err.error_code,
                 message: err.message,
                 detail: err.detail,
@@ -821,6 +823,44 @@ impl AsvoClient {
             &filter.job_types,
             &filter.job_states,
         ))
+    }
+
+    /// As [`Self::get_jobs`], and when the request fails in a way that may
+    /// pass (see [`AsvoApiError::is_transient`]), try again after a wait
+    /// that grows (see the retry policy of the downloads). It gives up with
+    /// the last error when the failures have gone on for `retry_duration`,
+    /// and at once for any other error. A zero `retry_duration` never
+    /// retries. Use it where a long task polls the job list, such as a wait
+    /// for jobs, and one failure should not end the task.
+    ///
+    /// `should_stop` is asked during each wait. When it returns `true`,
+    /// the call ends with [`AsvoError::Interrupted`]. `None` never stops.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoError::AsvoApi`] with the error from the request, as for
+    /// [`Self::get_jobs`], and [`AsvoError::Interrupted`].
+    pub fn get_jobs_retrying(
+        &self,
+        filter: &JobsFilter,
+        retry_duration: Duration,
+        should_stop: Option<&dyn Fn() -> bool>,
+    ) -> Result<AsvoJobVec, AsvoError> {
+        let mut backoff = Backoff::new(retry_duration);
+        loop {
+            let err = match self.get_jobs(filter) {
+                Ok(jobs) => return Ok(jobs),
+                Err(err) => err,
+            };
+            if !err.is_transient() {
+                return Err(err.into());
+            }
+            let Some(wait) = backoff.next_backoff() else {
+                return Err(err.into());
+            };
+            warn!("Could not get the job list; trying again in {wait:?}: {err}");
+            sleep_unless_stopped(wait, should_stop)?;
+        }
     }
 
     /// Submit an MWA ASVO imaging job (flow 1: from an Obs ID).

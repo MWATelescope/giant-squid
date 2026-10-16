@@ -170,6 +170,7 @@ impl AsvoApiError {
             AsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
             AsvoApiError::Reqwest(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
             AsvoApiError::ApiError {
+                status: _,
                 error_code,
                 message,
                 detail,

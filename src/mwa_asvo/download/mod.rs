@@ -14,6 +14,7 @@ use crate::helpers::{check_sha1_hash, hash_reader};
 use crate::obs_id::ObsId;
 
 use super::api::openapi::Type as FileType;
+use super::retry::{sleep_unless_stopped, Backoff};
 use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};
@@ -139,10 +140,6 @@ impl DownloadOptions<'_> {
         Ok(())
     }
 }
-
-/// The longest the library sleeps before it asks
-/// [`DownloadOptions::should_stop`] again, while it waits to retry.
-const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
 /// The size of a tar block. Every tar header is one block, and the data of
 /// each member is padded with zeros to a whole number of blocks.
@@ -315,8 +312,7 @@ fn download_job(
                     .map_err(|e| retry_class(e, job.job_id()))
                 };
 
-                let fetched =
-                    retry_unless_stopped(DownloadBackoff::new(opts.retry_duration), op, opts)?;
+                let fetched = retry_unless_stopped(Backoff::new(opts.retry_duration), op, opts)?;
 
                 // Nothing fetched: the file was already on disk, and that
                 // was logged.
@@ -405,7 +401,7 @@ fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Retry<AsvoError> {
 enum Retry<E> {
     /// Give up: another attempt would fail in the same way.
     Permanent(E),
-    /// Try again after a wait (see [`DownloadBackoff`]).
+    /// Try again after a wait (see [`Backoff`]).
     Transient(E),
 }
 
@@ -1758,12 +1754,12 @@ fn stop_requested(opts: &DownloadOptions) -> bool {
 
 /// Run `op`, and retry it under `backoff` while it fails with a transient
 /// error. The wait before each retry is cut into steps of at most
-/// [`STOP_CHECK_INTERVAL`], and the retries end with
+/// `STOP_CHECK_INTERVAL` (see [`sleep_unless_stopped`]), and the retries end with
 /// [`AsvoError::Interrupted`] when the caller asks the download to stop.
 /// Otherwise a stop could wait for the whole back-off interval, which grows
 /// to a minute.
 fn retry_unless_stopped<T>(
-    mut backoff: DownloadBackoff,
+    mut backoff: Backoff,
     mut op: impl FnMut() -> Result<T, Retry<AsvoError>>,
     opts: &DownloadOptions,
 ) -> Result<T, AsvoError> {
@@ -1776,101 +1772,10 @@ fn retry_unless_stopped<T>(
                     return Err(err);
                 };
                 debug!("Retrying the download in {wait:?}: {err}");
-                sleep_unless_stopped(wait, opts)?;
+                sleep_unless_stopped(wait, opts.should_stop)?;
             }
         }
     }
-}
-
-/// Sleep for `wait`, and stop early with [`AsvoError::Interrupted`] if the
-/// caller asks the download to stop.
-fn sleep_unless_stopped(wait: Duration, opts: &DownloadOptions) -> Result<(), AsvoError> {
-    if opts.should_stop.is_none() {
-        std::thread::sleep(wait);
-        return Ok(());
-    }
-    let deadline = Instant::now() + wait;
-    loop {
-        if stop_requested(opts) {
-            return Err(AsvoError::Interrupted);
-        }
-        let now = Instant::now();
-        if now >= deadline {
-            return Ok(());
-        }
-        std::thread::sleep((deadline - now).min(STOP_CHECK_INTERVAL));
-    }
-}
-
-/// The first wait before a retry, before the jitter.
-const BACKOFF_INITIAL_INTERVAL: Duration = Duration::from_millis(500);
-/// How much each wait grows over the one before.
-const BACKOFF_MULTIPLIER: f64 = 1.5;
-/// The longest wait before a retry, before the jitter.
-const BACKOFF_MAX_INTERVAL: Duration = Duration::from_secs(60);
-/// The jitter: each wait is a random value within this fraction of the
-/// interval either side, so that parallel downloads do not retry together.
-const BACKOFF_RANDOMIZATION_FACTOR: f64 = 0.5;
-
-/// The retry policy for a download: exponential backoff with jitter.
-///
-/// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
-/// retried for `retry_duration` ([`DownloadOptions::retry_duration`]). The
-/// waits start at [`BACKOFF_INITIAL_INTERVAL`] and grow by
-/// [`BACKOFF_MULTIPLIER`] up to [`BACKOFF_MAX_INTERVAL`]. Zero disables
-/// retrying, which is what the test suite uses: a test that deliberately
-/// triggers a transient failure would otherwise sit in backoff for fifteen
-/// minutes.
-struct DownloadBackoff {
-    /// When the first attempt started.
-    start: Instant,
-    /// How long retries may go on, from `start`.
-    max_elapsed: Duration,
-    /// The next wait, before the jitter.
-    interval: Duration,
-}
-
-impl DownloadBackoff {
-    /// A new policy, which retries for `retry_duration` from now.
-    fn new(retry_duration: Duration) -> Self {
-        Self {
-            start: Instant::now(),
-            max_elapsed: retry_duration,
-            interval: BACKOFF_INITIAL_INTERVAL,
-        }
-    }
-
-    /// The wait before the next retry, or `None` to give up: the wait would
-    /// end after `max_elapsed`.
-    fn next_backoff(&mut self) -> Option<Duration> {
-        let elapsed = self.start.elapsed();
-        if elapsed > self.max_elapsed {
-            return None;
-        }
-        let wait = jittered(self.interval, random_fraction());
-        self.interval = self
-            .interval
-            .mul_f64(BACKOFF_MULTIPLIER)
-            .min(BACKOFF_MAX_INTERVAL);
-        (elapsed + wait <= self.max_elapsed).then_some(wait)
-    }
-}
-
-/// `interval`, moved by up to [`BACKOFF_RANDOMIZATION_FACTOR`] of itself:
-/// `fraction` (from 0 to 1) picks the point in that range.
-fn jittered(interval: Duration, fraction: f64) -> Duration {
-    let spread = BACKOFF_RANDOMIZATION_FACTOR * (2.0 * fraction - 1.0);
-    interval.mul_f64(1.0 + spread)
-}
-
-/// A random number from 0 to 1, for the jitter. It needs no random number
-/// crate: the standard library seeds each `RandomState` at random.
-fn random_fraction() -> f64 {
-    use std::hash::{BuildHasher, Hasher};
-    let bits = std::collections::hash_map::RandomState::new()
-        .build_hasher()
-        .finish();
-    (bits >> 11) as f64 / (1u64 << 53) as f64
 }
 
 /// A `Range` header that asks for the file from byte `offset` on, or `None`

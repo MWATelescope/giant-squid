@@ -76,7 +76,7 @@ class AsvoApiError(builtins.Exception):
     """
     status: builtins.int
     r"""
-    BadStatus: the HTTP status code (as `status` of an AsvoError HttpError).
+    ApiError and BadStatus: the HTTP status code (as `status` of an AsvoError HttpError).
     """
 
 @typing.final

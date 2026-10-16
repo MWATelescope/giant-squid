@@ -41,6 +41,11 @@ pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
 /// The time between two job list requests while waiting for jobs.
 pub const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
 
+/// How long a wait goes on trying again when the job list request fails
+/// in a way that may pass (a network error, an HTTP 5xx or 429 reply). A
+/// poll that succeeds starts the count again.
+pub const WAIT_RETRY_DURATION: Duration = Duration::from_secs(900);
+
 /// How long to wait before the first job list request of a wait, so that
 /// the user's queue is hopefully current.
 pub const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);

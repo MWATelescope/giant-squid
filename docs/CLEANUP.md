@@ -59,7 +59,7 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 - **L11:** add a key fingerprint and the host to the cached session (mwa-cli will be deprecated before release).
 - **L12:** refuse a buffer size of 0. Done: new `AsvoError::InvalidOption` (a download option that cannot be used; a `ValueError` in Python, code `INVALID_ARGUMENT`), `DownloadOptions::check`, and `GIANT_SQUID_BUF_SIZE=0` is an `InvalidEnvironment` error.
 - **L15:** refuse a timeout of 0. Done: `AsvoClient::new` now returns `AsvoError` (Greg chose this, not `AsvoApiError`); a zero `api_timeout` gives `InvalidOption` (`ValueError` in Python), and `MWA_ASVO_API_TIMEOUT=0` is an `InvalidEnvironment` error. Three tests in `api/client/tests.rs` were edited with Greg's approval (the patterns are wrapped in `AsvoError::AsvoApi`).
-- **L13:** `wait_loop` retries. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700.
+- **L13:** `wait_loop` retries. Done: new `AsvoClient::get_jobs_retrying` (network errors, HTTP 429 and 5xx; `AsvoApiError::is_transient`), the backoff moved to `src/mwa_asvo/retry/` and shared with the downloads, `AsvoApiError::ApiError` has `status`, and the CLI retries for `WAIT_RETRY_DURATION` (900 s, no environment variable; Greg chose this). Existing tests moved or edited with Greg's approval: the four `backoff_policy` tests (now `retry/tests.rs`) and the two `ApiError` constructors in `error_response/tests.rs`. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700.
 - **O1/O7:** wait for the API fix.
 - **O2:** the three flags work like the other nullable fields and follow the API.
 - **C1, C2, C5, C13:** approved (do C1/C2 before O2).
@@ -78,7 +78,6 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 
 Logic:
 - **L11 (high):** a cached session is reused for another API key (and another host). The mwa-cli token format has no key field. Greg must choose the fix (for example a key fingerprint and host in the cache, or a separate giant-squid cache). Failing test: `AsvoClient::new` with another `api_key` and `TestEnv::with_session()` makes no login.
-- **L13:** `wait_loop` has no retry: one 5xx or network error ends a long `wait`. `AsvoApiError::ApiError` drops the HTTP status.
 - **L14:** `token_store::save` writes with the umask, then sets 0600 (a short window, and no 0600 if `chmod` fails); the write is not atomic; `.mwa-asvo` gets the default mode.
 - Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 

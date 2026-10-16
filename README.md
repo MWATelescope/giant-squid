@@ -959,6 +959,10 @@ Use this command to wait until MWA ASVO jobs are ready for download. It checks y
 logs a job's state when it changes. When every job is ready it prints the jobs, as `list` does (as a table, or
 as JSON with `--json`), and exits.
 
+If a check fails in a way that may pass (a network error, or a reply with an HTTP status of 429 or 5xx), `wait`
+logs a warning and tries again after a short pause that grows. It gives up when such failures have lasted 15
+minutes without one success. Any other failure, such as a refusal with a 4xx status, ends the wait at once.
+
 ```text
 Wait for MWA ASVO jobs to complete, then print them
 

@@ -90,6 +90,8 @@ pub enum AsvoApiError {
         api_error_extra(detail.as_deref(), suggestion.as_deref(), field_errors, request_id.as_deref())
     )]
     ApiError {
+        /// The HTTP status code of the reply.
+        status: u16,
         error_code: String,
         message: String,
         detail: Option<String>,
@@ -142,6 +144,26 @@ fn api_error_extra(
 }
 
 impl AsvoApiError {
+    /// Whether the same request might succeed if it is sent again later: it
+    /// did not reach the server or got no complete reply (a timeout, a
+    /// refused or dropped connection), or the server said that it is
+    /// overloaded or in error (HTTP 429 or 5xx). A refusal of the request
+    /// itself (any other 4xx), a failed login, a bad argument and a reply
+    /// that cannot be decoded are not.
+    pub fn is_transient(&self) -> bool {
+        match self {
+            AsvoApiError::Reqwest(e) => {
+                e.is_timeout() || e.is_connect() || e.is_request() || e.is_body()
+            }
+            AsvoApiError::ApiError { status, .. } | AsvoApiError::BadStatus { status, .. } => {
+                reqwest::StatusCode::from_u16(*status).is_ok_and(|code| {
+                    code.is_server_error() || code == reqwest::StatusCode::TOO_MANY_REQUESTS
+                })
+            }
+            _ => false,
+        }
+    }
+
     /// An [`AsvoApiError::AuthenticationFailed`] with only a message: a
     /// failure that is not an error reply from the server (for example a
     /// token that cannot be decoded).

@@ -17,6 +17,7 @@ fn obs_id() -> ObsId {
 #[test]
 fn an_api_error_is_copied_verbatim() {
     let error = AsvoApiError::ApiError {
+        status: 404,
         error_code: "JOB_NOT_FOUND".to_string(),
         message: "No such job".to_string(),
         detail: Some("detail text".to_string()),
@@ -41,6 +42,7 @@ fn an_api_error_is_copied_verbatim() {
 #[test]
 fn an_api_error_without_field_errors_has_no_field_errors_key() {
     let error = AsvoApiError::ApiError {
+        status: 401,
         error_code: "AUTH_REQUIRED".to_string(),
         message: "Log in".to_string(),
         detail: None,

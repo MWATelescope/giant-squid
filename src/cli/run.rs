@@ -43,7 +43,7 @@ use crate::{parse_job_ids_only, parse_many_job_ids_or_obs_ids, parse_obs_ids_onl
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::table::{job_files, job_size_text, print_jobs_table};
-use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL};
+use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION};
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     let pb = multi_progress_bar.add(ProgressBar::new(0));
@@ -525,7 +525,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
     std::thread::sleep(WAIT_INITIAL_DELAY);
     loop {
         // The default window of the API, as `list` without `--days` has.
-        let jobs = client.get_jobs(&JobsFilter::default())?;
+        let jobs = client.get_jobs_retrying(&JobsFilter::default(), WAIT_RETRY_DURATION, None)?;
         let all_ready = jobs.all_ready(job_ids)?;
 
         // Log if there was a change in state. `all_ready` has already

@@ -222,6 +222,21 @@ def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPSer
 
 
 @pytest.mark.usefixtures("mock_login")
+def test_a_structured_server_error_has_the_http_status(host: str, httpserver: HTTPServer) -> None:
+    """An ApiError has the HTTP status of the reply, as a BadStatus does."""
+    httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(
+        error_response("JOB_INVALID_STATE", "Job is not ready"), status=409
+    )
+    client = gs.AsvoClient(host, TEST_API_KEY)
+
+    with pytest.raises(gs.AsvoApiError) as err:
+        client.get_jobs()
+
+    assert err.value.kind == "ApiError"
+    assert err.value.status == 409
+
+
+@pytest.mark.usefixtures("mock_login")
 def test_a_token_cache_path_lets_a_second_client_skip_the_login(
     host: str, httpserver: HTTPServer, tmp_path: pathlib.Path
 ) -> None:

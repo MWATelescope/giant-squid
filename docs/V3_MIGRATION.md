@@ -285,6 +285,12 @@ refused any of them with an HTTP error. The cancellation of a job that is
 already cancelled is not a failure (exit code 0), because the MWA ASVO
 answers it as normal.
 
+**`wait` tries again after a failed check.** In 2.x, one failed request for the
+job list ended a long `wait`. In 3.0.0, a network error, or a reply with an HTTP
+status of 429 or 5xx, is logged as a warning and the check is tried again after
+a short pause that grows. `wait` gives up after 15 minutes of such failures
+without one success. Any other failure ends `wait` at once.
+
 The JSON keys of `wait --json` changed as for `list`: see the next section.
 
 ## JSON output (`list --json`, `wait --json`)
