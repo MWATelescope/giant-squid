@@ -60,3 +60,110 @@ fn the_file_is_written_as_rfc3339_utc() {
 fn a_time_without_an_offset_is_refused() {
     assert!(serde_json::from_str::<StoredTokens>(&tokens_json("2026-09-30T06:00:00")).is_err());
 }
+
+// ---------------------------------------------------------------------------
+// Saving
+// ---------------------------------------------------------------------------
+
+/// Tokens to save.
+fn sample_tokens() -> StoredTokens {
+    serde_json::from_str(&tokens_json("2026-09-30T06:00:00Z")).expect("valid tokens")
+}
+
+/// The permission bits of `path`.
+#[cfg(unix)]
+fn mode_of(path: &Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    fs::metadata(path)
+        .expect("the path exists")
+        .permissions()
+        .mode()
+        & PERMISSION_BITS
+}
+
+#[test]
+fn a_saved_session_is_loaded_again_and_leaves_no_temporary_file() {
+    let dir = tempfile::TempDir::new().expect("a temporary directory");
+    let path = dir.path().join(".mwa-asvo").join(TOKEN_CACHE_FILE);
+    let tokens = sample_tokens();
+
+    save(&path, &tokens);
+    save(&path, &tokens);
+
+    let loaded = load(&path).expect("the saved session loads");
+    assert_eq!(loaded.access_token, tokens.access_token);
+    let names: Vec<_> = fs::read_dir(path.parent().expect("a parent"))
+        .expect("the directory is there")
+        .map(|e| e.expect("an entry").file_name())
+        .collect();
+    assert_eq!(names, [TOKEN_CACHE_FILE]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_new_directory_is_private_and_so_is_the_file() {
+    let dir = tempfile::TempDir::new().expect("a temporary directory");
+    let path = dir.path().join(".mwa-asvo").join(TOKEN_CACHE_FILE);
+
+    save(&path, &sample_tokens());
+
+    assert_eq!(mode_of(path.parent().expect("a parent")), TOKEN_DIR_MODE);
+    assert_eq!(mode_of(&path), TOKEN_FILE_MODE);
+}
+
+/// A file that is there with open permissions is replaced by a private one.
+#[cfg(unix)]
+#[test]
+fn a_file_with_open_permissions_is_replaced_by_a_private_one() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::TempDir::new().expect("a temporary directory");
+    let path = dir.path().join(TOKEN_CACHE_FILE);
+    fs::write(&path, "old").expect("write the old file");
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("open the file");
+
+    save(&path, &sample_tokens());
+
+    assert_eq!(mode_of(&path), TOKEN_FILE_MODE);
+    assert!(load(&path).is_some());
+}
+
+/// A directory that is there is not changed, even if it is open.
+#[cfg(unix)]
+#[test]
+fn an_existing_directory_keeps_its_mode() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::TempDir::new().expect("a temporary directory");
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).expect("open the directory");
+
+    save(&dir.path().join(TOKEN_CACHE_FILE), &sample_tokens());
+
+    assert_eq!(mode_of(dir.path()), 0o755);
+}
+
+/// The warning is for a directory on which group or others have any
+/// permission; the mode of the owner does not matter.
+#[cfg(unix)]
+#[test]
+fn a_directory_is_open_when_group_or_others_have_a_permission() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::TempDir::new().expect("a temporary directory");
+
+    for (mode, open) in [
+        (0o700, false),
+        (0o500, false),
+        (0o750, true),
+        (0o710, true),
+        (0o705, true),
+        (0o755, true),
+        (0o777, true),
+    ] {
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(mode)).expect("set the mode");
+        let found = open_directory_mode(dir.path());
+        assert_eq!(found.is_some(), open, "mode {mode:03o}");
+        if open {
+            assert_eq!(found, Some(mode));
+        }
+    }
+    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700))
+        .expect("close the directory");
+}

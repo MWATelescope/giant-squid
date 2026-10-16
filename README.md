@@ -117,10 +117,12 @@ It is recommended to add the `export` line to your shell profile (e.g. `~/.bashr
 ### Session caching
 
 Behind the scenes, `giant-squid` exchanges your API key for a short-lived session (JWT access/refresh
-tokens) with the MWA ASVO. This session is cached at `$HOME/.mwa-asvo/tokens.json` (permissions `0600`)
+tokens) with the MWA ASVO. This session is cached at `$HOME/.mwa-asvo/tokens.json` (permissions `0600` from the moment the file exists)
 and reused across commands until it expires, so you won't see a fresh login on every invocation. This
 cache is shared with `manta-ray-client` (if you use it too), so logging in with either client makes a 
-valid session available to the other. You can safely delete this file at any time - `giant-squid` will 
+valid session available to the other. `giant-squid` makes the `.mwa-asvo` directory with permissions `0700`. If the directory
+is already there and other users have any permission on it, `giant-squid` logs a warning (with the `chmod` command that
+closes it) and does not change it. You can safely delete this file at any time - `giant-squid` will 
 just log in again using your API key.
 
 ---

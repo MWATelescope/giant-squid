@@ -14,8 +14,9 @@
 //! relative to a home directory that the caller finds.
 
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use jiff::Timestamp;
@@ -36,6 +37,26 @@ const TOKEN_CACHE_DIR: &str = ".mwa-asvo";
 /// The token cache file name, inside [`TOKEN_CACHE_DIR`]. Shared with
 /// mwa-cli.
 const TOKEN_CACHE_FILE: &str = "tokens.json";
+
+/// The mode of the token cache file: the user can read and write it, and
+/// nobody else can.
+#[cfg(unix)]
+const TOKEN_FILE_MODE: u32 = 0o600;
+/// The mode of a token cache directory that giant-squid creates.
+#[cfg(unix)]
+const TOKEN_DIR_MODE: u32 = 0o700;
+/// The permission bits of a mode, without the file type.
+#[cfg(unix)]
+const PERMISSION_BITS: u32 = 0o777;
+/// The permission bits of the group and of others.
+#[cfg(unix)]
+const GROUP_AND_OTHER_BITS: u32 = 0o077;
+
+/// The end of the name of the temporary file that a save writes first.
+const TEMPORARY_SUFFIX: &str = ".tmp";
+/// Makes the names of the temporary files of the saves in one process
+/// different from each other, for the threads that save at the same time.
+static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A cached MWA ASVO JWT session, as persisted to disk.
 ///
@@ -103,8 +124,11 @@ pub fn load(path: &Path) -> Option<StoredTokens> {
     }
 }
 
-/// Persist tokens to disk at `path`, creating the directory if needed and
-/// restricting permissions to the current user.
+/// Persist tokens to disk at `path`, creating the directory if needed (with
+/// mode 0700 on Unix) and restricting the file to the current user (mode
+/// 0600 from the moment it exists). The file is replaced in one step, so a
+/// reader or a crash never sees a half-written file. A directory that is
+/// there and is open to other users is not changed, but a warning says so.
 ///
 /// This is best-effort: a failure to save is logged but is not treated as
 /// fatal, since the JWT itself is still usable for the remainder of this
@@ -119,21 +143,97 @@ pub fn save(path: &Path, tokens: &StoredTokens) {
     }
 }
 
+/// Write `tokens` to `path` so that the file is never half written and is
+/// never readable by other users, not even for a moment: the JSON goes to a
+/// new file in the same directory, which is created with mode 0600 (Unix),
+/// and the new file then replaces `path` in one step.
 fn save_inner(path: &Path, tokens: &StoredTokens) -> io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
+    if let Some(dir) = path.parent() {
+        prepare_directory(dir)?;
     }
 
     let json = serde_json::to_string_pretty(tokens)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    fs::write(path, json)?;
+    let temporary = temporary_path(path);
+    let result = write_private_file(&temporary, &json).and_then(|()| fs::rename(&temporary, path));
+    if result.is_err() {
+        // Best effort: the file may not exist, and the error that matters
+        // is the one of the save.
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+/// Make sure that the directory `dir` of the token cache exists. A directory
+/// that has to be made gets mode 0700 (Unix). A directory that is there is
+/// not changed, because the user (or mwa-cli) made it; if other users can
+/// use it, a warning says so.
+fn prepare_directory(dir: &Path) -> io::Result<()> {
+    if dir.as_os_str().is_empty() {
+        return Ok(());
+    }
+    if dir.is_dir() {
+        #[cfg(unix)]
+        warn_if_directory_is_open(dir);
+        return Ok(());
     }
 
-    Ok(())
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(TOKEN_DIR_MODE);
+    }
+    builder.create(dir)
+}
+
+/// Log a warning if other users have any permission on the existing
+/// directory `dir` of the token cache.
+#[cfg(unix)]
+fn warn_if_directory_is_open(dir: &Path) {
+    if let Some(mode) = open_directory_mode(dir) {
+        let shown = dir.display();
+        log::warn!(
+            "The directory {shown} of the cached MWA ASVO session is open to other users (mode {mode:03o}). \
+             The session file in it is private (mode {TOKEN_FILE_MODE:03o}), but to close the directory too, \
+             run: chmod {TOKEN_DIR_MODE:03o} {shown}"
+        );
+    }
+}
+
+/// The mode of the directory `dir`, if group or others have any permission
+/// on it. `None` if only its owner has, or if its mode cannot be read.
+#[cfg(unix)]
+fn open_directory_mode(dir: &Path) -> Option<u32> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = fs::metadata(dir).ok()?.permissions().mode() & PERMISSION_BITS;
+    (mode & GROUP_AND_OTHER_BITS != 0).then_some(mode)
+}
+
+/// A name for the temporary file of a save of `path`, in the same
+/// directory (a rename from another file system is not one step).
+fn temporary_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(|| TOKEN_CACHE_FILE.into(), |n| n.to_string_lossy());
+    let process = std::process::id();
+    let count = TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed);
+    path.with_file_name(format!(".{name}.{process}.{count}{TEMPORARY_SUFFIX}"))
+}
+
+/// Create the new file `path` with mode 0600 (Unix), write `contents` to it
+/// and make sure that they are on disk. It fails if `path` is there already.
+fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(TOKEN_FILE_MODE);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(contents.as_bytes())?;
+    file.sync_all()
 }
