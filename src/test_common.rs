@@ -111,7 +111,25 @@ impl TestEnv {
     /// tokens. The stored expiry timestamps are taken from each token's own
     /// `exp` claim, so the file is self-consistent.
     pub fn write_session(&self, access_token: String, refresh_token: String) {
-        write_session_at(self.home.path(), access_token, refresh_token);
+        write_session_at(
+            self.home.path(),
+            &self.base_url(),
+            self.api_key,
+            access_token,
+            refresh_token,
+        );
+    }
+
+    /// As [`Self::write_session`], for a session that was made for `host`
+    /// and `api_key`, which need not be those of this environment.
+    pub fn write_session_for(
+        &self,
+        host: &str,
+        api_key: &str,
+        access_token: String,
+        refresh_token: String,
+    ) {
+        write_session_at(self.home.path(), host, api_key, access_token, refresh_token);
     }
 
     /// The cached session as it stands on disk, or `None` if there isn't
@@ -158,8 +176,16 @@ fn token_cache_path_at(home: &std::path::Path) -> PathBuf {
     home.join(".mwa-asvo").join("tokens.json")
 }
 
-/// Write a token cache under `home`, as the CLI expects to find it.
-pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_token: String) {
+/// Write a token cache under `home`, as the CLI expects to find it, for a
+/// client with this `host` and `api_key` (a session is used only by the
+/// host and the API key that it was made for).
+pub fn write_session_at(
+    home: &std::path::Path,
+    host: &str,
+    api_key: &str,
+    access_token: String,
+    refresh_token: String,
+) {
     let path = token_cache_path_at(home);
     let dir = path.parent().expect("the token cache path has a parent");
     std::fs::create_dir_all(dir).expect("could not create the token cache directory");
@@ -171,9 +197,22 @@ pub fn write_session_at(home: &std::path::Path, access_token: String, refresh_to
         "user_id": TEST_USER_ID,
         "user_login": TEST_USER_LOGIN,
         "user_email": TEST_USER_EMAIL,
+        "host": host,
+        "api_key_sha256": sha256_hex(api_key),
     });
     std::fs::write(&path, serde_json::to_string_pretty(&tokens).unwrap())
         .expect("could not write the token cache");
+}
+
+/// The SHA-256 of `text` as lower-case hexadecimal. It does not use the
+/// library's own function, so that the tests check the format of the file
+/// and not just that the library agrees with itself.
+pub fn sha256_hex(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// A JWT whose payload carries an `exp` claim `seconds` from now.

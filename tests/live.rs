@@ -808,7 +808,13 @@ fn live_an_invalid_api_key_is_rejected() {
 fn live_an_invalid_cached_token_is_replaced_by_a_fresh_login() {
     let env = LiveEnv::isolated();
     let fake_access = jwt_expiring_in(3600);
-    write_session_at(&env.home, fake_access.clone(), jwt_expiring_in(86400));
+    write_session_at(
+        &env.home,
+        &env.target,
+        &env.api_key,
+        fake_access.clone(),
+        jwt_expiring_in(86400),
+    );
 
     let result = env.run(&["list", "-vv"]);
     let output = result.combined();

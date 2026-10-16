@@ -22,6 +22,9 @@ use std::time::Duration;
 use jiff::Timestamp;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+use crate::helpers::to_hex;
 
 #[cfg(test)]
 mod tests;
@@ -60,8 +63,12 @@ static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A cached MWA ASVO JWT session, as persisted to disk.
 ///
-/// The field names and shape here must exactly match mwa-cli's own
-/// `tokens.json`, since the file is shared between the two clients.
+/// The fields up to `user_email` are those of mwa-cli's own `tokens.json`.
+/// `host` and `api_key_sha256` are added by giant-squid: a session is for
+/// one host and one API key, and the file must say which, or a client with
+/// another key (or another host) would use the session of someone else.
+/// A file without them (one from mwa-cli, or from an older giant-squid)
+/// has empty values, which never match: see [`StoredTokens::belongs_to`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredTokens {
     pub access_token: String,
@@ -71,9 +78,24 @@ pub struct StoredTokens {
     pub user_id: u64,
     pub user_login: String,
     pub user_email: String,
+    /// The MWA ASVO host that issued the session, as in
+    /// [`AsvoClientConfig::host`](crate::AsvoClientConfig::host).
+    #[serde(default)]
+    pub host: String,
+    /// The SHA-256 of the API key that the session was made with, as
+    /// lower-case hexadecimal. The key itself is never stored.
+    #[serde(default)]
+    pub api_key_sha256: String,
 }
 
 impl StoredTokens {
+    /// Whether this session was made for `host` and `api_key`. A session of
+    /// another host or another key, or a session in the old format (with no
+    /// host and no fingerprint), is not.
+    pub fn belongs_to(&self, host: &str, api_key: &str) -> bool {
+        self.host == host && self.api_key_sha256 == api_key_sha256(api_key)
+    }
+
     /// Is the access token still safe to use right now?
     pub fn is_access_valid(&self) -> bool {
         self.access_expires_at > Timestamp::now() + EXPIRY_SAFETY_BUFFER
@@ -83,6 +105,12 @@ impl StoredTokens {
     pub fn is_refresh_valid(&self) -> bool {
         self.refresh_expires_at > Timestamp::now() + EXPIRY_SAFETY_BUFFER
     }
+}
+
+/// The SHA-256 of `api_key`, as lower-case hexadecimal: what the cached
+/// session holds in place of the key.
+pub(crate) fn api_key_sha256(api_key: &str) -> String {
+    to_hex(&Sha256::digest(api_key.as_bytes()))
 }
 
 /// Returns `<home>/.mwa-asvo/tokens.json`: the token cache that mwa-cli

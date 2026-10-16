@@ -56,7 +56,7 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 
 - **L10 part B:** approved, including the edit of the two tests.
 - **Symbolic links:** do both `O_NOFOLLOW` and `openat`.
-- **L11:** add a key fingerprint and the host to the cached session (mwa-cli will be deprecated before release).
+- **L11:** add a key fingerprint and the host to the cached session (mwa-cli will be deprecated before release). Done: `StoredTokens` has `host` and `api_key_sha256` (SHA-256 of the key in lower-case hex; the key is never stored; new dependency `sha2`). A session that does not match, or a file in the old format (no fields, `#[serde(default)]`), is ignored, and a fresh login replaces it. A refresh keeps the fields of the session. Greg approved changing `write_session_at` (now takes the host and the API key) and its two callers in `tests/common/mod.rs` and `tests/live.rs`.
 - **L12:** refuse a buffer size of 0. Done: new `AsvoError::InvalidOption` (a download option that cannot be used; a `ValueError` in Python, code `INVALID_ARGUMENT`), `DownloadOptions::check`, and `GIANT_SQUID_BUF_SIZE=0` is an `InvalidEnvironment` error.
 - **L15:** refuse a timeout of 0. Done: `AsvoClient::new` now returns `AsvoError` (Greg chose this, not `AsvoApiError`); a zero `api_timeout` gives `InvalidOption` (`ValueError` in Python), and `MWA_ASVO_API_TIMEOUT=0` is an `InvalidEnvironment` error. Three tests in `api/client/tests.rs` were edited with Greg's approval (the patterns are wrapped in `AsvoError::AsvoApi`).
 - **L13:** `wait_loop` retries. Done: new `AsvoClient::get_jobs_retrying` (network errors, HTTP 429 and 5xx; `AsvoApiError::is_transient`), the backoff moved to `src/mwa_asvo/retry/` and shared with the downloads, `AsvoApiError::ApiError` has `status`, and the CLI retries for `WAIT_RETRY_DURATION` (900 s, no environment variable; Greg chose this). Existing tests moved or edited with Greg's approval: the four `backoff_policy` tests (now `retry/tests.rs`) and the two `ApiError` constructors in `error_response/tests.rs`. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700. Done: `token_store::save` writes a temporary file in the same directory (created with mode 0600), syncs it and renames it over `tokens.json`; a new `.mwa-asvo` gets mode 0700; an existing directory is not changed, and a warning with the `chmod` command is logged if group or others have any permission on it (Greg chose the warning, not a change of mode). Unix only; on Windows the file is written the same way without modes. L11 will change the file content (key fingerprint and host).
@@ -77,7 +77,6 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 ### Open, not started
 
 Logic:
-- **L11 (high):** a cached session is reused for another API key (and another host). The mwa-cli token format has no key field. Greg must choose the fix (for example a key fingerprint and host in the cache, or a separate giant-squid cache). Failing test: `AsvoClient::new` with another `api_key` and `TestEnv::with_session()` makes no login.
 - Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 
 OpenAPI, library and CLI:

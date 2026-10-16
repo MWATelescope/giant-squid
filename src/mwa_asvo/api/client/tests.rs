@@ -222,6 +222,121 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// A cached session belongs to one host and one API key
+// ---------------------------------------------------------------------------
+
+/// The `host` and `api_key_sha256` of the cached session on disk.
+fn cached_owner(env: &TestEnv) -> (String, String) {
+    let session = env.cached_session().expect("a cached session");
+    let text = |key: &str| {
+        session[key]
+            .as_str()
+            .unwrap_or_else(|| panic!("the cached session has no {key}: {session}"))
+            .to_string()
+    };
+    (text("host"), text("api_key_sha256"))
+}
+
+#[test]
+fn a_fresh_login_is_cached_with_its_host_and_the_hash_of_its_key() {
+    let env = TestEnv::without_session();
+    env.mock_login();
+
+    AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    assert_eq!(
+        cached_owner(&env),
+        (env.base_url(), sha256_hex(TEST_API_KEY))
+    );
+    let file = std::fs::read_to_string(env.token_cache_path()).expect("the cache file");
+    assert!(!file.contains(TEST_API_KEY), "the key must not be stored");
+}
+
+#[test]
+fn a_cached_session_for_another_api_key_is_not_used() {
+    let env = TestEnv::with_session();
+    let login = env.mock_login();
+    let mut config = client_config(&env);
+    config.api_key = "another-api-key".to_string();
+
+    AsvoClient::new(config).expect("client should be created");
+
+    assert_eq!(
+        login.calls(),
+        1,
+        "the session of another key must not be used"
+    );
+    assert_eq!(
+        cached_owner(&env),
+        (env.base_url(), sha256_hex("another-api-key")),
+        "the new session replaces the old one"
+    );
+}
+
+#[test]
+fn a_cached_session_for_another_host_is_not_used() {
+    let env = TestEnv::without_session();
+    env.write_session_for(
+        "https://another-host.example.org",
+        TEST_API_KEY,
+        jwt_expiring_in(3600),
+        jwt_expiring_in(86400),
+    );
+    let login = env.mock_login();
+
+    AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    assert_eq!(
+        login.calls(),
+        1,
+        "the session of another host must not be used"
+    );
+    assert_eq!(
+        cached_owner(&env),
+        (env.base_url(), sha256_hex(TEST_API_KEY))
+    );
+}
+
+/// A file from mwa-cli or an older giant-squid has no host and no key hash.
+#[test]
+fn a_cached_session_in_the_old_format_is_replaced_by_a_fresh_login() {
+    let env = TestEnv::with_session();
+    let mut old = env.cached_session().expect("a cached session");
+    let fields = old.as_object_mut().expect("the session is an object");
+    fields.remove("host");
+    fields.remove("api_key_sha256");
+    std::fs::write(env.token_cache_path(), old.to_string()).expect("write the old file");
+    let login = env.mock_login();
+
+    AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    assert_eq!(login.calls(), 1);
+    assert_eq!(
+        cached_owner(&env),
+        (env.base_url(), sha256_hex(TEST_API_KEY))
+    );
+}
+
+#[test]
+fn a_refreshed_session_keeps_its_host_and_key_hash() {
+    let env = TestEnv::with_session();
+    env.write_session(jwt_expiring_in(-60), jwt_expiring_in(86400));
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/refresh");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(token_response());
+    });
+
+    AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    assert_eq!(
+        cached_owner(&env),
+        (env.base_url(), sha256_hex(TEST_API_KEY))
+    );
+}
+
 #[test]
 fn an_expired_access_token_is_refreshed_rather_than_re_logged_in() {
     let env = TestEnv::with_session();

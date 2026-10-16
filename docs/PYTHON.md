@@ -98,11 +98,11 @@ client = mwa_giant_squid.AsvoClient(
 | `host` | The MWA ASVO URL. Use `http://` only for a local test server. All other hosts must use TLS. |
 | `api_key` | Your API key. |
 | `api_timeout` | The time limit for one API request, in seconds (more than 0). `None` uses the library's `DEFAULT_API_TIMEOUT`. |
-| `token_cache_path` | A file in which to keep the session between runs. `None` keeps the session in memory only. |
+| `token_cache_path` | A file in which to keep the session between runs. `None` keeps the session in memory only. A session is used only by a client with the same `host` and `api_key` as the one that made it; the file holds a hash of the key, never the key. |
 
 The MWA ASVO allows only a few logins each minute. A program that runs often must set
-`token_cache_path`. The `giant-squid` command and `manta-ray-client` use `$HOME/.mwa-asvo/tokens.json`.
-You can give the same path to share their session:
+`token_cache_path`. The `giant-squid` command uses `$HOME/.mwa-asvo/tokens.json`.
+You can give the same path to share its session (for the same host and API key):
 
 ```python
 from pathlib import Path

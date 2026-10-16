@@ -251,6 +251,22 @@ def test_a_token_cache_path_lets_a_second_client_skip_the_login(
 
 
 @pytest.mark.usefixtures("mock_login")
+def test_a_cached_session_is_not_used_by_another_api_key(
+    host: str, httpserver: HTTPServer, tmp_path: pathlib.Path
+) -> None:
+    """A session is for one API key: a client with another key logs in again, and the file never holds a key."""
+    cache = tmp_path / "tokens.json"
+
+    gs.AsvoClient(host, TEST_API_KEY, token_cache_path=cache)
+    gs.AsvoClient(host, "another-api-key", token_cache_path=cache)
+
+    assert logins(httpserver) == 2
+    stored = cache.read_text()
+    assert TEST_API_KEY not in stored
+    assert "another-api-key" not in stored
+
+
+@pytest.mark.usefixtures("mock_login")
 def test_without_a_token_cache_every_client_logs_in(host: str, httpserver: HTTPServer) -> None:
     """With no token cache, the session is in memory only."""
     for _ in range(CLIENTS):

@@ -95,7 +95,9 @@ class AsvoClient:
         token_cache_path: Where to cache the session between runs. `None`
             keeps the session in memory only, so every new client logs in.
             Give a path for a script that runs often, because the server
-            permits only a few logins a minute.
+            permits only a few logins a minute. A cached session is used
+            only by a client with the same `host` and `api_key`; the file
+            holds a hash of the key, never the key.
 
     Raises:
         AsvoApiError: The API key is empty, or the login failed.

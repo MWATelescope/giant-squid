@@ -120,7 +120,10 @@ Behind the scenes, `giant-squid` exchanges your API key for a short-lived sessio
 tokens) with the MWA ASVO. This session is cached at `$HOME/.mwa-asvo/tokens.json` (permissions `0600` from the moment the file exists)
 and reused across commands until it expires, so you won't see a fresh login on every invocation. This
 cache is shared with `manta-ray-client` (if you use it too), so logging in with either client makes a 
-valid session available to the other. `giant-squid` makes the `.mwa-asvo` directory with permissions `0700`. If the directory
+valid session available to the other. The file also holds the host and a hash of the API key (never the key
+itself): `giant-squid` uses a session only for the host and the API key that it was made for, so a command with
+another API key logs in again and replaces it. A file written by `mwa-cli` or by an older `giant-squid` has neither,
+so `giant-squid` does not use it either. `giant-squid` makes the `.mwa-asvo` directory with permissions `0700`. If the directory
 is already there and other users have any permission on it, `giant-squid` logs a warning (with the `chmod` command that
 closes it) and does not change it. You can safely delete this file at any time - `giant-squid` will 
 just log in again using your API key.

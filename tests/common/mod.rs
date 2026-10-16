@@ -38,7 +38,13 @@ impl CliEnv {
     pub fn with_session() -> Self {
         let server = MockServer::start();
         let home = TempDir::new().expect("could not create a temporary HOME");
-        write_session_at(home.path(), jwt_expiring_in(3600), jwt_expiring_in(86400));
+        write_session_at(
+            home.path(),
+            &server.base_url(),
+            TEST_API_KEY,
+            jwt_expiring_in(3600),
+            jwt_expiring_in(86400),
+        );
         Self { server, home }
     }
 

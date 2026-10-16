@@ -114,9 +114,12 @@ pub struct AsvoClientConfig {
     /// [`AsvoClient::new`] refuses zero.
     pub api_timeout: Duration,
     /// Where to cache the session tokens between runs. `None` keeps the
-    /// session in memory only, so every new client logs in again. Use
-    /// [`default_token_cache_path`](crate::default_token_cache_path) to
-    /// share the cache with mwa-cli.
+    /// session in memory only, so every new client logs in again. A cached
+    /// session is used only by a client with the same `host` and `api_key`
+    /// that it was made for; any other session in the file is replaced by
+    /// a fresh login. Use
+    /// [`default_token_cache_path`](crate::default_token_cache_path) for
+    /// the same place that the `giant-squid` command uses.
     pub token_cache_path: Option<PathBuf>,
 }
 
@@ -445,7 +448,16 @@ impl AsvoClient {
         let cached = config
             .token_cache_path
             .as_deref()
-            .and_then(token_store::load);
+            .and_then(token_store::load)
+            .filter(|cached| {
+                let belongs = cached.belongs_to(&config.host, &config.api_key);
+                if !belongs {
+                    debug!(
+                        "Ignoring the cached MWA ASVO session: it is for another host or API key, or in the old format"
+                    );
+                }
+                belongs
+            });
         if let Some(cached) = cached {
             if cached.is_access_valid() {
                 debug!("Reusing cached MWA ASVO session (shared with mwa-cli)");
@@ -510,7 +522,13 @@ impl AsvoClient {
 
         let auth: ApiLoginResponse = serde_json::from_str(&response.body)?;
 
-        Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, auth.user)
+        let tokens =
+            Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, auth.user)?;
+        Ok(StoredTokens {
+            host: config.host.clone(),
+            api_key_sha256: token_store::api_key_sha256(&config.api_key),
+            ..tokens
+        })
     }
 
     /// Refresh an existing session against the MWA ASVO v2 API. The refresh
@@ -539,13 +557,18 @@ impl AsvoClient {
 
         let token: TokenResponse = serde_json::from_str(&response.body)?;
 
-        Self::stored_tokens_from_parts(
+        let tokens = Self::stored_tokens_from_parts(
             token.access_token,
             token.refresh_token,
             previous.user_id,
             previous.user_login.clone(),
             previous.user_email.clone(),
-        )
+        )?;
+        Ok(StoredTokens {
+            host: previous.host.clone(),
+            api_key_sha256: previous.api_key_sha256.clone(),
+            ..tokens
+        })
     }
 
     /// Force a fresh login (ignoring any cached session), persist the new
@@ -620,6 +643,8 @@ impl AsvoClient {
             user_id,
             user_login,
             user_email,
+            host: String::new(),
+            api_key_sha256: String::new(),
         })
     }
 

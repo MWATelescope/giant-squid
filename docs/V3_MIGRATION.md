@@ -378,9 +378,13 @@ used the default), as it already was for `GIANT_SQUID_BUF_SIZE`. A value of
 `0` is also an error, for both variables.
 
 New: giant-squid 3.0.0 logs in to the MWA ASVO with your API key and keeps
-the session in `~/.mwa-asvo/tokens.json` (the same file as `mwa-cli`), so
-that it does not log in again on every command. You can delete the file at
-any time; giant-squid logs in again when it needs to. The MWA ASVO allows
+the session in `~/.mwa-asvo/tokens.json` (the same place as `mwa-cli`), so
+that it does not log in again on every command. The file also holds the host
+and a hash of the API key (never the key itself), because a session is used
+only for the host and the API key that it was made for. A file without them,
+such as one written by `mwa-cli`, is not used: giant-squid logs in again and
+replaces it. You can delete the file at any time; giant-squid logs in again
+when it needs to. The MWA ASVO allows
 only a few logins a minute, so a script that runs giant-squid very often
 works best with `HOME` set, so that the file can be used.
 

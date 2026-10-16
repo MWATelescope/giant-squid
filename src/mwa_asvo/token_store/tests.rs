@@ -167,3 +167,61 @@ fn a_directory_is_open_when_group_or_others_have_a_permission() {
     fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700))
         .expect("close the directory");
 }
+
+// ---------------------------------------------------------------------------
+// The owner of a session
+// ---------------------------------------------------------------------------
+
+const HOST: &str = "https://asvo.example.org";
+const KEY: &str = "the-api-key";
+
+/// Tokens for `HOST` and `KEY`.
+fn owned_tokens() -> StoredTokens {
+    StoredTokens {
+        host: HOST.to_string(),
+        api_key_sha256: api_key_sha256(KEY),
+        ..sample_tokens()
+    }
+}
+
+/// The SHA-256 test vector for "abc" (FIPS 180-2), in lower-case hex.
+#[test]
+fn the_key_hash_is_the_sha256_in_lower_case_hex() {
+    assert_eq!(
+        api_key_sha256("abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+}
+
+#[test]
+fn a_session_belongs_to_its_host_and_key_only() {
+    let tokens = owned_tokens();
+
+    assert!(tokens.belongs_to(HOST, KEY));
+    assert!(!tokens.belongs_to("https://another.example.org", KEY));
+    assert!(!tokens.belongs_to(HOST, "another-key"));
+    assert!(!tokens.belongs_to(HOST, ""));
+}
+
+/// A file from mwa-cli or an older giant-squid has neither field: it loads,
+/// and it belongs to nobody, not even a client with an empty host.
+#[test]
+fn a_session_in_the_old_format_belongs_to_nobody() {
+    let old: StoredTokens =
+        serde_json::from_str(&tokens_json("2026-09-30T06:00:00Z")).expect("an old file loads");
+
+    assert_eq!(old.host, "");
+    assert_eq!(old.api_key_sha256, "");
+    assert!(!old.belongs_to(HOST, KEY));
+    assert!(!old.belongs_to("", ""));
+}
+
+#[test]
+fn the_file_holds_the_hash_of_the_key_and_never_the_key() {
+    let written = serde_json::to_string(&owned_tokens()).expect("the tokens serialise");
+
+    assert!(written.contains(&api_key_sha256(KEY)));
+    assert!(!written.contains(KEY));
+    let back: StoredTokens = serde_json::from_str(&written).expect("the file loads again");
+    assert!(back.belongs_to(HOST, KEY));
+}
