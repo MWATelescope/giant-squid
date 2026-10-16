@@ -62,7 +62,7 @@ The IDs below are from that review. Its "L" items are logic errors (not the olde
 - **L13:** `wait_loop` retries. Done: new `AsvoClient::get_jobs_retrying` (network errors, HTTP 429 and 5xx; `AsvoApiError::is_transient`), the backoff moved to `src/mwa_asvo/retry/` and shared with the downloads, `AsvoApiError::ApiError` has `status`, and the CLI retries for `WAIT_RETRY_DURATION` (900 s, no environment variable; Greg chose this). Existing tests moved or edited with Greg's approval: the four `backoff_policy` tests (now `retry/tests.rs`) and the two `ApiError` constructors in `error_response/tests.rs`. **L14:** write the session file atomically with mode 0600 from the start, and give `.mwa-asvo` mode 0700. Done: `token_store::save` writes a temporary file in the same directory (created with mode 0600), syncs it and renames it over `tokens.json`; a new `.mwa-asvo` gets mode 0700; an existing directory is not changed, and a warning with the `chmod` command is logged if group or others have any permission on it (Greg chose the warning, not a change of mode). Unix only; on Windows the file is written the same way without modes. L11 will change the file content (key fingerprint and host).
 - **O1/O7:** wait for the API fix.
 - **O2:** the three flags work like the other nullable fields and follow the API.
-- **C1, C2, C5, C13:** approved (do C1/C2 before O2).
+- **C1, C2, C5, C13:** approved (do C1/C2 before O2). Done, with C3, C4, C6, C7, C14 and C16 (Greg: all the C items except C15). C1/C2: `ResubmitArgs<P>` (one `--allow-resubmit` option for the six submit commands) and `apply_to` for the delivery, resubmit, preprocessing and WSClean groups (macro `impl_apply_to!`); the six nullable-bool `--no-*` `#[arg]` blocks inside `PreprocessingArgs` stay, because clap's derive cannot share an attribute block between fields. C3: one `check_preprocessing` for conversion and imaging; `parse_days` checks `days` once. C4: `impl_schema_defaults!`. C5/C6: `submit-image-from-job` uses `run_submit` (Greg accepted the change of its failure output) and `SubmitOptions::submission` builds the `Submission`. C7: one `install_logger`, one `print_jobs`. C13: `ApiError` and `AuthenticationFailed` hold the schema's `ErrorResponse` (boxed, for `clippy::result_large_err`; an empty `field_errors` is stored as `None`). C14: three duplicate `job_ids_only_*` tests removed from `cli/tests.rs`, two moved to `helpers/tests.rs`. C16: `--locked` in the drift check. Existing tests edited with Greg's approval: `args.allow_resubmit` (2), the five `ApiError`/`AuthenticationFailed` patterns in `api/client/tests.rs`, the three constructors in `error_response/tests.rs`. `--help` of all 12 commands is byte-for-byte the same as before.
 - **T1:** remove the three `staging_count` tests. **T5:** keep the clap and version tests.
 
 ### Waiting for a decision by Greg
@@ -99,15 +99,7 @@ Documentation:
 - `docs/CLEANUP.md` (this file) ships in the crate and the sdist; exclude it before the release.
 
 Duplication and verbosity:
-- **C1/C2:** in `cli/params.rs`, the nullable-bool `#[arg]` block (6 times) and `allow_resubmit` (6 times); the WSClean and preprocessing assignments in `to_params` are repeated. Proposal: a generic `ResubmitArgs<P>` and a setter macro next to `impl_fields!`.
-- **C3:** `validate` repeats the preprocessing checks for conversion and imaging; `days` bounds are checked twice.
-- **C4:** the `SchemaDefaults` impls are one-line wrappers.
-- **C5/C6:** `SubmitImageFromJob` re-implements `run_submit` (different error output); the 6 submit arms repeat ~25 lines.
-- **C7:** two logger set-ups; `list` and `wait` repeat the output branch.
-- **C13:** the six `ErrorResponse` fields are copied in four places; the variants could hold an `ErrorResponse`.
-- **C14:** the `cli/tests.rs` tests `job_ids_only_*` repeat the `helpers/tests.rs` tests.
 - **C15:** `build.rs` writes into `src/` (an anti-pattern; an xtask is the usual pattern). Low priority.
-- **C16:** CI `openapi-drift-check` builds without `--locked`.
 - **V1–V3:** long docs (`normalize_job_value`, `get_jobs`, `require_tls`, a comment repeated 3 times in `cli/mod.rs`); repeated `job.job_id()` calls; 10 `#[allow(unused_imports)]` re-export lines.
 
 Tests:

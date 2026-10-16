@@ -12,7 +12,7 @@
 use thiserror::Error;
 
 use super::openapi::error::ConversionError;
-use super::openapi::FieldError;
+use super::openapi::ErrorResponse;
 
 /// An error of a request to the MWA ASVO API, or of its arguments.
 #[derive(Error, Debug)]
@@ -29,26 +29,20 @@ pub enum AsvoApiError {
 
     /// Login or token refresh against the MWA ASVO API failed.
     ///
-    /// When the server sent an `ErrorResponse`, its fields are copied here
-    /// verbatim, as for [`AsvoApiError::ApiError`], and `error_code` is set.
-    /// Otherwise `message` is the server's body (or what went wrong with
-    /// the tokens), and the other fields are empty.
+    /// When the server sent an `ErrorResponse`, it is `response`, as for
+    /// [`AsvoApiError::ApiError`], and `message` is its message. Otherwise
+    /// `message` is the server's body (or what went wrong with the tokens),
+    /// and there is no `response`.
     #[error(
         "Authentication with MWA ASVO failed{}: {message}{}",
-        error_code_suffix(error_code.as_deref()),
-        api_error_extra(detail.as_deref(), suggestion.as_deref(), field_errors, request_id.as_deref())
+        error_code_suffix(response.as_deref()),
+        api_error_extra(response.as_deref())
     )]
     AuthenticationFailed {
         message: String,
-        /// The server's error code, if it sent an `ErrorResponse`.
-        error_code: Option<String>,
-        detail: Option<String>,
-        suggestion: Option<String>,
-        /// The fields that failed validation, and why. Empty if the server
-        /// gave none.
-        field_errors: Vec<FieldError>,
-        /// The server's ID for the request, for a support request.
-        request_id: Option<String>,
+        /// The server's reply, if it was an `ErrorResponse`. (Boxed, so
+        /// that the error stays small: see `clippy::result_large_err`.)
+        response: Option<Box<ErrorResponse>>,
     },
 
     /// A value generated from the MWA ASVO OpenAPI schema failed to
@@ -77,30 +71,25 @@ pub enum AsvoApiError {
     Reqwest(#[from] reqwest::Error),
 
     /// The server responded with a non-success status code, in the
-    /// structured `ErrorResponse` shape. The fields are copied out of
-    /// `super::openapi::ErrorResponse` individually rather than wrapping it
-    /// directly, since thiserror needs a plain `Display` to format on.
+    /// structured `ErrorResponse` shape.
     ///
     /// The message is the error code and the server's message, then what
     /// the server gave of its `detail`, its `suggestion`, the field errors
     /// and the request ID, each on a line of its own. Nothing is rewritten:
     /// the text is the server's.
     #[error(
-        "MWA ASVO returned an error ({error_code}): {message}{}",
-        api_error_extra(detail.as_deref(), suggestion.as_deref(), field_errors, request_id.as_deref())
+        "MWA ASVO returned an error ({}): {}{}",
+        response.error_code,
+        response.message,
+        api_error_extra(Some(response))
     )]
     ApiError {
         /// The HTTP status code of the reply.
         status: u16,
-        error_code: String,
-        message: String,
-        detail: Option<String>,
-        suggestion: Option<String>,
-        /// The fields that failed validation, and why. Empty if the server
-        /// gave none.
-        field_errors: Vec<FieldError>,
-        /// The server's ID for the request, for a support request.
-        request_id: Option<String>,
+        /// The reply. An empty `field_errors` is `None`, as if the server
+        /// had sent none. (Boxed, so that the error stays small: see
+        /// `clippy::result_large_err`.)
+        response: Box<ErrorResponse>,
     },
 
     /// The server responded with a non-success status code, but the body
@@ -121,23 +110,21 @@ pub enum AsvoApiError {
 /// and message: the detail and the suggestion, one line for each field
 /// error, then the request ID. A part that the server did not give is left
 /// out.
-fn api_error_extra(
-    detail: Option<&str>,
-    suggestion: Option<&str>,
-    field_errors: &[FieldError],
-    request_id: Option<&str>,
-) -> String {
+fn api_error_extra(response: Option<&ErrorResponse>) -> String {
+    let Some(response) = response else {
+        return String::new();
+    };
     let mut extra = String::new();
-    if let Some(detail) = detail {
+    if let Some(detail) = &response.detail {
         extra.push_str(&format!("\n  Detail: {detail}"));
     }
-    if let Some(suggestion) = suggestion {
+    if let Some(suggestion) = &response.suggestion {
         extra.push_str(&format!("\n  Suggestion: {suggestion}"));
     }
-    for e in field_errors {
+    for e in response.field_errors.iter().flatten() {
         extra.push_str(&format!("\n  {}: {}", e.field, e.message));
     }
-    if let Some(id) = request_id {
+    if let Some(id) = &response.request_id {
         extra.push_str(&format!("\n  (request ID: {id})"));
     }
     extra
@@ -170,19 +157,43 @@ impl AsvoApiError {
     pub(crate) fn authentication_failed(message: impl Into<String>) -> Self {
         AsvoApiError::AuthenticationFailed {
             message: message.into(),
-            error_code: None,
-            detail: None,
-            suggestion: None,
-            field_errors: Vec::new(),
-            request_id: None,
+            response: None,
+        }
+    }
+
+    /// An [`AsvoApiError::ApiError`] for the reply `response` with HTTP
+    /// status `status`.
+    pub(crate) fn api_error(status: u16, response: ErrorResponse) -> Self {
+        AsvoApiError::ApiError {
+            status,
+            response: Box::new(tidy(response)),
+        }
+    }
+
+    /// An [`AsvoApiError::AuthenticationFailed`] for the reply `response`.
+    pub(crate) fn authentication_failed_with(response: ErrorResponse) -> Self {
+        AsvoApiError::AuthenticationFailed {
+            message: response.message.clone(),
+            response: Some(Box::new(tidy(response))),
         }
     }
 }
 
+/// `response` as an error variant holds it: an empty `field_errors` is
+/// `None`, as if the server had sent none.
+fn tidy(mut response: ErrorResponse) -> ErrorResponse {
+    if response.field_errors.as_ref().is_some_and(Vec::is_empty) {
+        response.field_errors = None;
+    }
+    response
+}
+
 /// The error code of an [`AsvoApiError::AuthenticationFailed`] message, as
 /// ` (CODE)`, or nothing when the server gave no code.
-fn error_code_suffix(error_code: Option<&str>) -> String {
-    error_code.map(|c| format!(" ({c})")).unwrap_or_default()
+fn error_code_suffix(response: Option<&ErrorResponse>) -> String {
+    response
+        .map(|r| format!(" ({})", r.error_code))
+        .unwrap_or_default()
 }
 
 /// The end of the message of [`AsvoApiError::MissingAuthKey`]: what to set,

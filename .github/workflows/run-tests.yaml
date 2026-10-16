@@ -64,7 +64,7 @@ jobs:
     # check would always fail, and it would not be checking the schema any more. Cargo.lock pins typify and
     # prettyplease, so the output does not change from one run to the next.
     - name: Regenerate src/mwa_asvo/api/openapi.rs
-      run: cargo build --features regen-openapi
+      run: cargo build --locked --features regen-openapi
 
     - name: Fail if regeneration produced a diff
       run: |

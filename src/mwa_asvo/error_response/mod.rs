@@ -142,23 +142,13 @@ impl AsvoApiError {
                 new_error_response(ERROR_CODE_MISSING_API_KEY, self)
             }
             AsvoApiError::AuthenticationFailed {
-                message,
-                error_code: Some(error_code),
-                detail,
-                suggestion,
-                field_errors,
-                request_id,
-            } => ErrorResponse {
-                detail: detail.clone(),
-                error_code: error_code.clone(),
-                field_errors: (!field_errors.is_empty()).then(|| field_errors.clone()),
-                message: message.clone(),
-                request_id: request_id.clone(),
-                suggestion: suggestion.clone(),
-            },
-            AsvoApiError::AuthenticationFailed {
-                error_code: None, ..
-            } => new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self),
+                response: Some(response),
+                ..
+            }
+            | AsvoApiError::ApiError { response, .. } => ErrorResponse::clone(response),
+            AsvoApiError::AuthenticationFailed { response: None, .. } => {
+                new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self)
+            }
             AsvoApiError::Conversion(_) => new_error_response(ERROR_CODE_INVALID_PARAMETER, self),
             AsvoApiError::InvalidParameter { name, message } => ErrorResponse {
                 field_errors: Some(vec![FieldError {
@@ -169,22 +159,6 @@ impl AsvoApiError {
             },
             AsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
             AsvoApiError::Reqwest(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
-            AsvoApiError::ApiError {
-                status: _,
-                error_code,
-                message,
-                detail,
-                suggestion,
-                field_errors,
-                request_id,
-            } => ErrorResponse {
-                detail: detail.clone(),
-                error_code: error_code.clone(),
-                field_errors: (!field_errors.is_empty()).then(|| field_errors.clone()),
-                message: message.clone(),
-                request_id: request_id.clone(),
-                suggestion: suggestion.clone(),
-            },
             AsvoApiError::BadStatus { status, message } => ErrorResponse {
                 detail: Some(message.clone()),
                 ..new_error_response(&http_error_code(*status), status_reason(*status))

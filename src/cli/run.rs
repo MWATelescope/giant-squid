@@ -282,6 +282,25 @@ struct Submission<'a> {
     json: bool,
 }
 
+impl SubmitOptions {
+    /// What the command was asked to do, for [`run_submit`].
+    fn submission<'a>(
+        &self,
+        obs_ids: &'a [ObsId],
+        endpoint: &'a str,
+        description: &'a str,
+    ) -> Submission<'a> {
+        Submission {
+            obs_ids,
+            endpoint,
+            description,
+            wait: self.wait,
+            dry_run: self.dry_run,
+            json: self.json,
+        }
+    }
+}
+
 /// Run a submit command. First `check` (the library's check of the request
 /// body) checks the body that `build` makes, so that a bad body fails once,
 /// before any login, also with `--dry-run`: the bodies differ only in their
@@ -485,32 +504,58 @@ fn log_level(verbosity: u8, json: bool) -> LevelFilter {
 /// kept and only the level changes: the command has no other use for the
 /// error.
 fn init_logger(verbosity: u8, json: bool) {
+    install_logger(verbosity, json, None);
+}
+
+/// As [`init_logger`], for a command that shows progress bars: the logger
+/// writes through `multiprogressbar`, so that a log line does not break a
+/// bar.
+fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar: &MultiProgress) {
+    install_logger(level, json, Some(multiprogressbar));
+}
+
+/// Install the logger (see [`init_logger`]), with `progress` if the command
+/// has progress bars.
+fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
     let log_config = ConfigBuilder::new()
         .set_time_offset_to_local()
         .expect("Unable to set time offset to local in the logger")
         .build();
     let level = log_level(verbosity, json);
-    if WriteLogger::init(level, log_config, std::io::stderr()).is_err() {
+    let installed = match progress {
+        None => WriteLogger::init(level, log_config, std::io::stderr()).is_ok(),
+        Some(multi) => LogWrapper::new(
+            multi.clone(),
+            WriteLogger::new(level, log_config, std::io::stderr()),
+        )
+        .try_init()
+        .is_ok(),
+    };
+    // A logger that is already installed is kept; only the level changes.
+    if !installed {
         log::set_max_level(level);
     }
 }
 
-fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar: &MultiProgress) {
-    let log_config = ConfigBuilder::new()
-        .set_time_offset_to_local()
-        .expect("Unable to set time offset to local in the logger")
-        .build();
-
-    // To stderr, as in `init_logger`.
-    let log = WriteLogger::new(log_level(level, json), log_config, std::io::stderr());
-
-    // As in `init_logger`, a logger that is already installed is kept.
-    if LogWrapper::new(multiprogressbar.clone(), log)
-        .try_init()
-        .is_err()
-    {
-        log::set_max_level(log_level(level, json));
+/// Print `jobs` as `list` and `wait` do: as the legacy JSON of giant-squid
+/// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
+fn print_jobs(
+    jobs: AsvoJobVec,
+    json: bool,
+    legacy_json: bool,
+    no_colour: bool,
+) -> anyhow::Result<()> {
+    if legacy_json {
+        warn!("{LEGACY_JSON_WARNING}");
+        let legacy = to_legacy_json(&jobs)?;
+        println!("{legacy}");
+    } else if json {
+        let jobs_json = jobs.json()?;
+        println!("{jobs_json}");
+    } else {
+        print_jobs_table(jobs, no_colour);
     }
+    Ok(())
 }
 
 /// Poll the job list until all of `job_ids` are ready, logging each job's
@@ -591,16 +636,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             let client = connect()?;
             let jobs = client.get_jobs(&filter)?;
 
-            if legacy_json {
-                warn!("{LEGACY_JSON_WARNING}");
-                let legacy = to_legacy_json(&jobs)?;
-                println!("{legacy}");
-            } else if json {
-                let jobs_json = jobs.json()?;
-                println!("{jobs_json}");
-            } else {
-                print_jobs_table(jobs, no_colour);
-            }
+            print_jobs(jobs, json, legacy_json, no_colour)?;
         }
 
         Args::Download {
@@ -741,23 +777,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_DOWNLOAD_VIS_JOB,
-                    description: "visibility download",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_VIS_JOB, "visibility download"),
                 |obs_id| download.to_vis_params(obs_id),
                 validate_download_params,
                 |client, params| client.submit_download_vis_job(params),
@@ -769,23 +792,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_CONVERSION_JOB,
-                    description: "conversion",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_CONVERSION_JOB, "conversion"),
                 |obs_id| conv.to_params(obs_id),
                 validate_conversion_params,
                 |client, params| client.submit_conversion_job(params),
@@ -797,23 +807,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_IMAGING_JOB,
-                    description: "imaging",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_IMAGING_JOB, "imaging"),
                 |obs_id| image.to_params(obs_id),
                 validate_imaging_params,
                 |client, params| client.submit_imaging_job(params),
@@ -825,12 +822,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_FROM_JOB_JOB_IDS_MESSAGE))?;
 
             if obs_ids.len() != 1 {
@@ -842,37 +834,16 @@ fn run(args: Args) -> anyhow::Result<()> {
                 .into());
             }
 
-            init_logger(verbosity, json);
-            validate_image_from_job_params(&image.to_params(obs_ids[0]))?;
-
-            if dry_run {
-                report_dry_run_submissions(ENDPOINT_IMAGE_FROM_JOB, &obs_ids, json, |obs_id| {
-                    image.to_params(obs_id)
-                })?;
-            } else {
-                let client = connect()?;
-
-                let o = &obs_ids[0];
-                let submit = || -> anyhow::Result<JobSubmittedResponse> {
-                    let params = image.to_params(*o);
-                    Ok(client.submit_image_from_job(&params)?)
-                };
-                let resp = match submit() {
-                    Ok(resp) => resp,
-                    Err(e) if json => {
-                        report_obs_id_error(&e, *o, json)?;
-                        return Err(ReportedFailures(e.to_string()).into());
-                    }
-                    Err(e) => return Err(e),
-                };
-                print_json_line(&StatusFirst(&resp), json)?;
-                let job_id = resp.job_id;
-                info!("Submitted {o} as MWA ASVO Job ID {job_id}");
-
-                if wait {
-                    wait_loop(&client, &[job_id])?;
-                }
-            }
+            run_submit(
+                &submit.submission(
+                    &obs_ids,
+                    ENDPOINT_IMAGE_FROM_JOB,
+                    "imaging from a conversion job",
+                ),
+                |obs_id| image.to_params(obs_id),
+                validate_image_from_job_params,
+                |client, params| client.submit_image_from_job(params),
+            )?;
         }
 
         Args::SubmitMeta {
@@ -880,23 +851,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_DOWNLOAD_VIS_JOB,
-                    description: "metadata download",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_VIS_JOB, "metadata download"),
                 |obs_id| download.to_meta_params(obs_id),
                 validate_download_params,
                 |client, params| client.submit_download_meta_job(params),
@@ -908,23 +866,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_VOLTAGE_JOB,
-                    description: "voltage download",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_VOLTAGE_JOB, "voltage download"),
                 |obs_id| volt.to_params(obs_id),
                 validate_voltage_params,
                 |client, params| client.submit_voltage_job(params),
@@ -936,23 +881,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             submit,
             obs_ids,
         } => {
-            let SubmitOptions {
-                wait,
-                dry_run,
-                json,
-                verbosity,
-            } = submit;
-            init_logger(verbosity, json);
+            init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &Submission {
-                    obs_ids: &obs_ids,
-                    endpoint: ENDPOINT_BEAMFORMER_JOB,
-                    description: "beamformer download",
-                    wait,
-                    dry_run,
-                    json,
-                },
+                &submit.submission(&obs_ids, ENDPOINT_BEAMFORMER_JOB, "beamformer download"),
                 |obs_id| bf.to_params(obs_id),
                 validate_beamformer_params,
                 |client, params| client.submit_beamformer_job(params),
@@ -978,16 +910,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 ..JobsFilter::default()
             })?;
 
-            if legacy_json {
-                warn!("{LEGACY_JSON_WARNING}");
-                let legacy = to_legacy_json(&jobs)?;
-                println!("{legacy}");
-            } else if json {
-                let jobs_json = jobs.json()?;
-                println!("{jobs_json}");
-            } else {
-                print_jobs_table(jobs, no_colour);
-            }
+            print_jobs(jobs, json, legacy_json, no_colour)?;
         }
 
         Args::Cancel {

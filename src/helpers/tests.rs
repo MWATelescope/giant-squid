@@ -144,6 +144,50 @@ fn job_ids_only_refuses_an_obsid_and_names_all_of_them() {
 }
 
 #[test]
+fn job_ids_only_reads_job_ids_from_a_file() {
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 32").expect("write the file");
+    let path = file.path().to_string_lossy().to_string();
+
+    let job_ids = parse_job_ids_only(&[path]).expect("the file parses");
+
+    assert_eq!(
+        job_ids,
+        [
+            crate::test_config::job_id(31),
+            crate::test_config::job_id(32)
+        ]
+    );
+}
+
+/// An obsid is an error that names the obsid, whether it is alone, with job
+/// IDs, or in a file: it is never ignored.
+#[test]
+fn job_ids_only_refuses_an_obsid() {
+    use crate::test_common::TEST_OBS_ID;
+
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 {TEST_OBS_ID}").expect("write the file");
+    let path = file.path().to_string_lossy().to_string();
+
+    for arguments in [
+        strings(&[TEST_OBS_ID]),
+        strings(&["31", TEST_OBS_ID]),
+        strings(&[TEST_OBS_ID, "31"]),
+        vec![path],
+    ] {
+        let err = parse_job_ids_only(&arguments).expect_err("an obsid must be refused");
+        let text = err.to_string();
+
+        assert!(
+            text.starts_with("Expected only Job IDs, but found these Obs IDs: 1065880128."),
+            "{arguments:?}: {text}"
+        );
+        assert!(text.contains("giant-squid list <OBS_ID>"), "{text}");
+    }
+}
+
+#[test]
 fn job_ids_only_refuses_nothing_at_all() {
     let err = parse_job_ids_only(&[]).expect_err("no job ID");
 

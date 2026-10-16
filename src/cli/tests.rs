@@ -240,7 +240,7 @@ fn submit_vis_defaults_come_from_the_schema() {
         args.delivery_args.delivery_format,
         download_defaults().delivery_format
     );
-    assert_eq!(args.allow_resubmit, Nullable(Some(false)));
+    assert_eq!(args.resubmit.allow_resubmit, Nullable(Some(false)));
 }
 
 #[test]
@@ -279,7 +279,7 @@ fn delivery_and_format_can_be_overridden() {
 #[test]
 fn allow_resubmit_reaches_the_request_body() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", "-r", TEST_OBS_ID]);
-    assert_eq!(args.allow_resubmit, Nullable(Some(true)));
+    assert_eq!(args.resubmit.allow_resubmit, Nullable(Some(true)));
     let params = args.to_vis_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["allow_resubmit"], true);
 }
@@ -1557,98 +1557,6 @@ fn staging_count_is_not_an_option_and_not_in_any_body() {
     for body in bodies {
         assert!(body.get("staging_count").is_none(), "{body}");
     }
-}
-
-// ---------------------------------------------------------------------------
-// `wait` and `cancel` take job IDs only
-// ---------------------------------------------------------------------------
-
-fn strings(items: &[&str]) -> Vec<String> {
-    items.iter().map(ToString::to_string).collect()
-}
-
-#[test]
-fn job_ids_only_accepts_job_ids() {
-    use crate::parse_job_ids_only;
-
-    let job_ids = parse_job_ids_only(&strings(&["31", TEST_JOB_ID])).expect("job IDs parse");
-
-    assert_eq!(
-        job_ids,
-        [
-            crate::test_config::job_id(31),
-            crate::test_config::job_id(12345)
-        ]
-    );
-}
-
-#[test]
-fn job_ids_only_reads_job_ids_from_a_file() {
-    use crate::parse_job_ids_only;
-
-    let mut file = NamedTempFile::new().expect("a temporary file");
-    writeln!(file, "31 32").expect("write the file");
-    let path = file.path().to_string_lossy().to_string();
-
-    let job_ids = parse_job_ids_only(&[path]).expect("the file parses");
-
-    assert_eq!(
-        job_ids,
-        [
-            crate::test_config::job_id(31),
-            crate::test_config::job_id(32)
-        ]
-    );
-}
-
-/// An obsid is an error that names the obsid, whether it is alone, with job
-/// IDs, or in a file: it is never ignored.
-#[test]
-fn job_ids_only_refuses_an_obsid() {
-    use crate::parse_job_ids_only;
-
-    let mut file = NamedTempFile::new().expect("a temporary file");
-    writeln!(file, "31 {TEST_OBS_ID}").expect("write the file");
-    let path = file.path().to_string_lossy().to_string();
-
-    for arguments in [
-        strings(&[TEST_OBS_ID]),
-        strings(&["31", TEST_OBS_ID]),
-        strings(&[TEST_OBS_ID, "31"]),
-        vec![path],
-    ] {
-        let err = parse_job_ids_only(&arguments).expect_err("an obsid must be refused");
-        let text = err.to_string();
-
-        assert!(
-            text.starts_with("Expected only Job IDs, but found these Obs IDs: 1065880128."),
-            "{arguments:?}: {text}"
-        );
-        assert!(text.contains("giant-squid list <OBS_ID>"), "{text}");
-    }
-}
-
-#[test]
-fn job_ids_only_names_every_obsid() {
-    use crate::parse_job_ids_only;
-
-    let err = parse_job_ids_only(&strings(&[TEST_OBS_ID, "1065880248", "31"]))
-        .expect_err("obsids must be refused");
-
-    assert!(
-        err.to_string()
-            .contains("found these Obs IDs: 1065880128, 1065880248."),
-        "{err}"
-    );
-}
-
-#[test]
-fn job_ids_only_needs_a_job_id() {
-    use crate::parse_job_ids_only;
-
-    let err = parse_job_ids_only(&[]).expect_err("no job ID is an error");
-
-    assert_eq!(err.to_string(), "No Job IDs specified.");
 }
 
 // ---------------------------------------------------------------------------

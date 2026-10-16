@@ -206,6 +206,27 @@ macro_rules! shared_imaging_checks {
     };
 }
 
+/// The checks of the preprocessing fields that conversion and imaging
+/// (flow 1) request bodies both have: the numbers against the schema's
+/// limits, and the phase centre ([`check_centre`]).
+fn check_preprocessing(
+    avg_freq_res: Option<f64>,
+    avg_time_res: Option<f64>,
+    flag_edge_width: f64,
+    centre: Centre,
+    custom_centre_ra: Option<f64>,
+    custom_centre_dec: Option<f64>,
+) -> Result<(), AsvoApiError> {
+    check_all(&[
+        ("avg_freq_res", AVG_FREQ_RES, avg_freq_res),
+        ("avg_time_res", AVG_TIME_RES, avg_time_res),
+        ("flag_edge_width", FLAG_EDGE_WIDTH, Some(flag_edge_width)),
+        ("custom_centre_ra", CUSTOM_CENTRE_RA, custom_centre_ra),
+        ("custom_centre_dec", CUSTOM_CENTRE_DEC, custom_centre_dec),
+    ])?;
+    check_centre(centre, custom_centre_ra, custom_centre_dec)
+}
+
 /// Check that the `delivery` and the `delivery_format` of a job agree: the
 /// MWA ASVO delivers to Acacia as a tar only, so `delivery_format` must be
 /// `tar` when `delivery` is `acacia`. The other deliveries take either
@@ -294,26 +315,10 @@ pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), As
 /// of range or the delivery and its format that do not agree.
 pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
-    check_all(&[
-        ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
-        ("avg_time_res", AVG_TIME_RES, params.avg_time_res),
-        (
-            "flag_edge_width",
-            FLAG_EDGE_WIDTH,
-            Some(params.flag_edge_width),
-        ),
-        (
-            "custom_centre_ra",
-            CUSTOM_CENTRE_RA,
-            params.custom_centre_ra,
-        ),
-        (
-            "custom_centre_dec",
-            CUSTOM_CENTRE_DEC,
-            params.custom_centre_dec,
-        ),
-    ])?;
-    check_centre(
+    check_preprocessing(
+        params.avg_freq_res,
+        params.avg_time_res,
+        params.flag_edge_width,
         params.centre,
         params.custom_centre_ra,
         params.custom_centre_dec,
@@ -342,26 +347,10 @@ pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiE
 pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))?;
-    check_all(&[
-        ("avg_freq_res", AVG_FREQ_RES, params.avg_freq_res),
-        ("avg_time_res", AVG_TIME_RES, params.avg_time_res),
-        (
-            "custom_centre_dec",
-            CUSTOM_CENTRE_DEC,
-            params.custom_centre_dec,
-        ),
-        (
-            "custom_centre_ra",
-            CUSTOM_CENTRE_RA,
-            params.custom_centre_ra,
-        ),
-        (
-            "flag_edge_width",
-            FLAG_EDGE_WIDTH,
-            Some(params.flag_edge_width),
-        ),
-    ])?;
-    check_centre(
+    check_preprocessing(
+        params.avg_freq_res,
+        params.avg_time_res,
+        params.flag_edge_width,
         params.centre,
         params.custom_centre_ra,
         params.custom_centre_dec,
@@ -417,8 +406,17 @@ pub fn nmiter(value: u64) -> Result<NonZeroU64, AsvoApiError> {
 /// [`AsvoApiError::InvalidParameter`] if `value` is outside [`DAYS`].
 pub fn days(value: i64) -> Result<NonZeroU64, AsvoApiError> {
     DAYS.check("days", value as f64)?;
+    Ok(days_in_range(value))
+}
+
+/// A `days` value that is already within [`DAYS`], as the schema's type.
+///
+/// # Panics
+///
+/// If `value` is not positive: the caller has not checked it.
+pub(crate) fn days_in_range(value: i64) -> NonZeroU64 {
     // DAYS' lower limit is 1, so a value that passed is positive.
-    Ok(NonZeroU64::new(value as u64).expect("DAYS excludes zero"))
+    NonZeroU64::new(value as u64).expect("DAYS excludes zero")
 }
 
 /// A `days` value of the schema's type, checked against the upper limit of

@@ -697,15 +697,7 @@ impl AsvoClient {
     /// anything that doesn't match it.
     fn error_from_body(status: reqwest::StatusCode, body: String) -> AsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
-            Ok(err) => AsvoApiError::ApiError {
-                status: status.as_u16(),
-                error_code: err.error_code,
-                message: err.message,
-                detail: err.detail,
-                suggestion: err.suggestion,
-                field_errors: err.field_errors.unwrap_or_default(),
-                request_id: err.request_id,
-            },
+            Ok(err) => AsvoApiError::api_error(status.as_u16(), err),
             Err(_) => AsvoApiError::BadStatus {
                 status: status.as_u16(),
                 message: body,
@@ -718,14 +710,7 @@ impl AsvoClient {
     /// `ErrorResponse`, verbatim, or else the body as the message.
     fn auth_error_from_body(body: String) -> AsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
-            Ok(err) => AsvoApiError::AuthenticationFailed {
-                message: err.message,
-                error_code: Some(err.error_code),
-                detail: err.detail,
-                suggestion: err.suggestion,
-                field_errors: err.field_errors.unwrap_or_default(),
-                request_id: err.request_id,
-            },
+            Ok(err) => AsvoApiError::authentication_failed_with(err),
             Err(_) => AsvoApiError::authentication_failed(body),
         }
     }
@@ -735,8 +720,8 @@ impl AsvoClient {
     fn is_auth_error(err: &AsvoApiError) -> bool {
         matches!(
             err,
-            AsvoApiError::ApiError { error_code, .. }
-                if AUTH_ERROR_CODES.contains(&error_code.as_str())
+            AsvoApiError::ApiError { response, .. }
+                if AUTH_ERROR_CODES.contains(&response.error_code.as_str())
         )
     }
 

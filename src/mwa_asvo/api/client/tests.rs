@@ -21,6 +21,7 @@ use serde_json::json;
 
 #[cfg(feature = "bin")]
 use crate::cli::Args;
+use crate::mwa_asvo::api::openapi::ErrorResponse;
 use crate::mwa_asvo::api::openapi::Type as FileType;
 #[cfg(feature = "bin")]
 use crate::mwa_asvo::api::openapi::{DownloadJobParams, JobsByUserRequest};
@@ -32,7 +33,7 @@ use crate::test_config::{client_config, job_type};
 /// Whether `err` is an API error carrying the given machine-readable code.
 fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
     match err {
-        AsvoApiError::ApiError { error_code, .. } => error_code.as_str() == code,
+        AsvoApiError::ApiError { response, .. } => response.error_code == code,
         _ => false,
     }
 }
@@ -168,21 +169,17 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
     match err {
         AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed {
             message,
-            error_code,
-            detail,
-            suggestion,
-            field_errors,
-            request_id,
+            response: Some(response),
         }) => {
             assert_eq!(message, "Bad API key");
-            assert_eq!(error_code.as_deref(), Some("AUTH_INVALID_KEY"));
-            assert_eq!(detail.as_deref(), Some("The key was revoked"));
+            assert_eq!(response.error_code, "AUTH_INVALID_KEY");
+            assert_eq!(response.detail.as_deref(), Some("The key was revoked"));
             assert_eq!(
-                suggestion.as_deref(),
+                response.suggestion.as_deref(),
                 Some("Make a new key in your MWA ASVO profile")
             );
-            assert!(field_errors.is_empty());
-            assert_eq!(request_id.as_deref(), Some("req-1"));
+            assert_eq!(response.field_errors, None);
+            assert_eq!(response.request_id.as_deref(), Some("req-1"));
         }
         other => panic!("expected AuthenticationFailed, got {other:?}"),
     }
@@ -206,13 +203,9 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
 
     assert_eq!(login.calls(), 1);
     match err {
-        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed {
-            message,
-            error_code,
-            ..
-        }) => {
+        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed { message, response }) => {
             assert!(message.contains("invalid api key"), "got {message}");
-            assert_eq!(error_code, None);
+            assert_eq!(response, None);
         }
         other => panic!("expected AuthenticationFailed, got {other:?}"),
     }
@@ -591,14 +584,18 @@ fn a_stop_request_ends_the_retries() {
 
 #[test]
 fn only_a_failure_that_may_pass_is_transient() {
-    let api_error = |status| AsvoApiError::ApiError {
-        status,
-        error_code: "CODE".to_string(),
-        message: "message".to_string(),
-        detail: None,
-        suggestion: None,
-        field_errors: vec![],
-        request_id: None,
+    let api_error = |status| {
+        AsvoApiError::api_error(
+            status,
+            ErrorResponse {
+                detail: None,
+                error_code: "CODE".to_string(),
+                field_errors: None,
+                message: "message".to_string(),
+                request_id: None,
+                suggestion: None,
+            },
+        )
     };
     let bad_status = |status| AsvoApiError::BadStatus {
         status,
@@ -658,15 +655,10 @@ fn a_structured_error_body_becomes_an_api_error() {
     };
 
     match err {
-        AsvoApiError::ApiError {
-            error_code,
-            message,
-            suggestion,
-            ..
-        } => {
-            assert_eq!(error_code, "JOB_INVALID_STATE");
-            assert_eq!(message, "Job is not ready");
-            assert_eq!(suggestion.as_deref(), Some("try something else"));
+        AsvoApiError::ApiError { response, .. } => {
+            assert_eq!(response.error_code, "JOB_INVALID_STATE");
+            assert_eq!(response.message, "Job is not ready");
+            assert_eq!(response.suggestion.as_deref(), Some("try something else"));
         }
         other => panic!("expected ApiError, got {other:?}"),
     }
@@ -2065,14 +2057,15 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
         .expect_err("expected the listing to fail");
 
     match &err {
-        AsvoApiError::ApiError {
-            field_errors,
-            request_id,
-            ..
-        } => {
-            let fields: Vec<&str> = field_errors.iter().map(|e| e.field.as_str()).collect();
+        AsvoApiError::ApiError { response, .. } => {
+            let fields: Vec<&str> = response
+                .field_errors
+                .iter()
+                .flatten()
+                .map(|e| e.field.as_str())
+                .collect();
             assert_eq!(fields, ["mgain", "robust"]);
-            assert_eq!(request_id.as_deref(), Some("req-1234"));
+            assert_eq!(response.request_id.as_deref(), Some("req-1234"));
         }
         other => panic!("expected ApiError, got {other:?}"),
     }

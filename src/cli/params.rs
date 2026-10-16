@@ -104,7 +104,7 @@ pub fn parse_nullable_bool(s: &str) -> Result<Nullable<bool>, String> {
 /// ([`validate::DAYS`]), as the schema's type.
 pub fn parse_days(s: &str) -> Result<NonZeroU64, String> {
     let days = parse_i64_bounds(validate::DAYS)(s)?;
-    validate::days(days).map_err(|e| e.to_string())
+    Ok(validate::days_in_range(days))
 }
 
 /// The clap value parser of `list --date-from` and `--date-to`: the
@@ -136,35 +136,28 @@ pub trait SchemaDefaults: Clone + std::fmt::Debug + Send + Sync + 'static {
     fn schema_defaults() -> Self;
 }
 
-impl SchemaDefaults for DownloadJobParams {
-    fn schema_defaults() -> Self {
-        download_defaults()
-    }
+/// Implement [`SchemaDefaults`] for schema types: each type is paired with
+/// the function that gives its defaults.
+macro_rules! impl_schema_defaults {
+    ($($ty:ty => $defaults:path),+ $(,)?) => {
+        $(
+            impl SchemaDefaults for $ty {
+                fn schema_defaults() -> Self {
+                    $defaults()
+                }
+            }
+        )+
+    };
 }
 
-impl SchemaDefaults for ConversionJobParams {
-    fn schema_defaults() -> Self {
-        conversion_defaults()
-    }
-}
-
-impl SchemaDefaults for ImagingJobFlow1Params {
-    fn schema_defaults() -> Self {
-        imaging_defaults()
-    }
-}
-
-impl SchemaDefaults for ImagingJobFlow2Params {
-    fn schema_defaults() -> Self {
-        image_from_job_defaults()
-    }
-}
-
-impl SchemaDefaults for BeamformerJobParams {
-    fn schema_defaults() -> Self {
-        beamformer_defaults()
-    }
-}
+impl_schema_defaults!(
+    DownloadJobParams => download_defaults,
+    ConversionJobParams => conversion_defaults,
+    ImagingJobFlow1Params => imaging_defaults,
+    ImagingJobFlow2Params => image_from_job_defaults,
+    VoltageJobParams => voltage_defaults,
+    BeamformerJobParams => beamformer_defaults,
+);
 
 /// Implement an accessor trait: each method returns that field of the
 /// schema type.
@@ -280,6 +273,46 @@ impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
     robust: f64,
     uvw_min: f64,
     weighting: Weighting,
+});
+
+/// Implement `apply_to` for an argument group: it sets the fields of a
+/// request body from the group's options. The group's fields have the same
+/// names as the schema fields. A `nullable` field holds a [`Nullable`] (its
+/// `.0` is the schema's `Option`), and a `clone` field is not `Copy`.
+macro_rules! impl_apply_to {
+    ($args:ident for [$($ty:ty),+ $(,)?] $fields:tt) => {
+        $(impl_apply_to!(@one $args, $ty, $fields);)+
+    };
+    (@one $args:ident, $ty:ty, {
+        copy: [$($copy:ident),* $(,)?],
+        nullable: [$($nullable:ident),* $(,)?],
+        clone: [$($clone:ident),* $(,)?] $(,)?
+    }) => {
+        impl $args<$ty> {
+            /// Set the fields of `params` that these options cover.
+            pub fn apply_to(&self, params: &mut $ty) {
+                $(params.$copy = self.$copy;)*
+                $(params.$nullable = self.$nullable.0;)*
+                $(params.$clone = self.$clone.clone();)*
+            }
+        }
+    };
+}
+
+/// The `allow_resubmit` field of a schema type (every job type has it).
+pub trait ResubmitField: SchemaDefaults {
+    fn allow_resubmit(&self) -> Option<bool>;
+}
+
+impl_fields!(ResubmitField for [
+    DownloadJobParams,
+    ConversionJobParams,
+    ImagingJobFlow1Params,
+    ImagingJobFlow2Params,
+    VoltageJobParams,
+    BeamformerJobParams,
+] {
+    allow_resubmit: Option<bool>,
 });
 
 // The argument groups below are generic over the schema type, so their
@@ -578,6 +611,101 @@ pub struct WscleanArgs<P: WscleanFields> {
     schema: PhantomData<fn() -> P>,
 }
 
+/// The `--allow-resubmit` option, which every submit command has. The
+/// default is that of the schema type `P`.
+#[derive(clap::Args, Debug, Clone)]
+pub struct ResubmitArgs<P: ResubmitField> {
+    /// Allow resubmitting a job even if an identical one has completed.
+    /// Takes true, false or null.
+    #[arg(
+        short = 'r',
+        long,
+        default_value = nullable_default(P::schema_defaults().allow_resubmit(), "allow_resubmit"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub allow_resubmit: Nullable<bool>,
+
+    #[arg(skip)]
+    schema: PhantomData<fn() -> P>,
+}
+
+impl_apply_to!(DeliveryArgs for [
+    DownloadJobParams,
+    ConversionJobParams,
+    ImagingJobFlow1Params,
+    ImagingJobFlow2Params,
+    BeamformerJobParams,
+] {
+    copy: [delivery, delivery_format],
+    nullable: [],
+    clone: [],
+});
+
+impl_apply_to!(ResubmitArgs for [
+    DownloadJobParams,
+    ConversionJobParams,
+    ImagingJobFlow1Params,
+    ImagingJobFlow2Params,
+    VoltageJobParams,
+    BeamformerJobParams,
+] {
+    copy: [],
+    nullable: [allow_resubmit],
+    clone: [],
+});
+
+impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobFlow1Params] {
+    copy: [
+        flag_edge_width,
+        apply_di_cal,
+        centre,
+        custom_centre_ra,
+        custom_centre_dec,
+        no_apply_amps,
+    ],
+    nullable: [
+        avg_freq_res,
+        avg_time_res,
+        no_digital_gains,
+        no_flag_dc,
+        no_geometric_delay,
+        no_passband_gains,
+        no_cable_delay,
+        no_rfi,
+    ],
+    clone: [],
+});
+
+impl_apply_to!(WscleanArgs for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
+    copy: [
+        apply_primary_beam,
+        auto_mask,
+        auto_threshold,
+        channels_out,
+        clean_iterations,
+        join_channels,
+        join_polarizations,
+        mgain,
+        multiscale,
+        nmiter,
+        nwlayers,
+        output_mode,
+        pixel_scale,
+        pol,
+        robust,
+        uvw_max,
+        uvw_min,
+        weighting,
+        wstack_nwlayers,
+    ],
+    nullable: [abs_threshold, clean_threshold],
+    clone: [image_size],
+});
+
 /// Arguments shared by the visibility and metadata download jobs, which use
 /// the same request body and the same endpoint, differing only in their
 /// `download_type`.
@@ -586,19 +714,8 @@ pub struct DownloadJobArgs {
     #[command(flatten)]
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(download_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
 }
 
 impl DownloadJobArgs {
@@ -616,12 +733,10 @@ impl DownloadJobArgs {
     /// value for every option (its defaults are the schema's), so each field
     /// that the options cover is set.
     fn to_params(&self, obs_id: ObsId, download_type: DownloadType) -> DownloadJobParams {
-        DownloadJobParams {
-            delivery: self.delivery_args.delivery,
-            delivery_format: self.delivery_args.delivery_format,
-            allow_resubmit: self.allow_resubmit.0,
-            ..download_params(obs_id, download_type)
-        }
+        let mut params = download_params(obs_id, download_type);
+        self.delivery_args.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
     }
 }
 
@@ -638,19 +753,8 @@ pub struct ConversionJobArgs {
     #[command(flatten)]
     pub preprocessing: PreprocessingArgs<ConversionJobParams>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(conversion_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<ConversionJobParams>,
 }
 
 impl ConversionJobArgs {
@@ -658,28 +762,12 @@ impl ConversionJobArgs {
     /// a value for every option (its defaults are the schema's), so each
     /// field that the options cover is set.
     pub fn to_params(&self, obs_id: ObsId) -> ConversionJobParams {
-        let pre = &self.preprocessing;
-        ConversionJobParams {
-            delivery: self.delivery_args.delivery,
-            delivery_format: self.delivery_args.delivery_format,
-            output: self.output,
-            avg_freq_res: pre.avg_freq_res.0,
-            avg_time_res: pre.avg_time_res.0,
-            flag_edge_width: pre.flag_edge_width,
-            apply_di_cal: pre.apply_di_cal,
-            centre: pre.centre,
-            custom_centre_ra: pre.custom_centre_ra,
-            custom_centre_dec: pre.custom_centre_dec,
-            no_apply_amps: pre.no_apply_amps,
-            no_digital_gains: pre.no_digital_gains.0,
-            no_flag_dc: pre.no_flag_dc.0,
-            no_geometric_delay: pre.no_geometric_delay.0,
-            no_passband_gains: pre.no_passband_gains.0,
-            no_cable_delay: pre.no_cable_delay.0,
-            no_rfi: pre.no_rfi.0,
-            allow_resubmit: self.allow_resubmit.0,
-            ..conversion_params(obs_id)
-        }
+        let mut params = conversion_params(obs_id);
+        self.delivery_args.apply_to(&mut params);
+        params.output = self.output;
+        self.preprocessing.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
     }
 }
 
@@ -695,19 +783,8 @@ pub struct ImagingJobArgs {
     #[command(flatten)]
     pub wsclean: WscleanArgs<ImagingJobFlow1Params>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(imaging_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<ImagingJobFlow1Params>,
 }
 
 impl ImagingJobArgs {
@@ -715,50 +792,12 @@ impl ImagingJobArgs {
     /// value for every option (its defaults are the schema's), so each field
     /// that the options cover is set.
     pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow1Params {
-        let pre = &self.preprocessing;
-        let ws = &self.wsclean;
-        ImagingJobFlow1Params {
-            delivery: self.delivery_args.delivery,
-            delivery_format: self.delivery_args.delivery_format,
-            apply_primary_beam: ws.apply_primary_beam,
-            auto_mask: ws.auto_mask,
-            auto_threshold: ws.auto_threshold,
-            abs_threshold: ws.abs_threshold.0,
-            channels_out: ws.channels_out,
-            clean_iterations: ws.clean_iterations,
-            clean_threshold: ws.clean_threshold.0,
-            image_size: ws.image_size.clone(),
-            join_channels: ws.join_channels,
-            join_polarizations: ws.join_polarizations,
-            mgain: ws.mgain,
-            multiscale: ws.multiscale,
-            nmiter: ws.nmiter,
-            nwlayers: ws.nwlayers,
-            output_mode: ws.output_mode,
-            pixel_scale: ws.pixel_scale,
-            pol: ws.pol,
-            robust: ws.robust,
-            uvw_max: ws.uvw_max,
-            uvw_min: ws.uvw_min,
-            weighting: ws.weighting,
-            wstack_nwlayers: ws.wstack_nwlayers,
-            allow_resubmit: self.allow_resubmit.0,
-            apply_di_cal: pre.apply_di_cal,
-            avg_freq_res: pre.avg_freq_res.0,
-            avg_time_res: pre.avg_time_res.0,
-            centre: pre.centre,
-            custom_centre_dec: pre.custom_centre_dec,
-            custom_centre_ra: pre.custom_centre_ra,
-            flag_edge_width: pre.flag_edge_width,
-            no_apply_amps: pre.no_apply_amps,
-            no_digital_gains: pre.no_digital_gains.0,
-            no_flag_dc: pre.no_flag_dc.0,
-            no_geometric_delay: pre.no_geometric_delay.0,
-            no_passband_gains: pre.no_passband_gains.0,
-            no_cable_delay: pre.no_cable_delay.0,
-            no_rfi: pre.no_rfi.0,
-            ..imaging_params(obs_id)
-        }
+        let mut params = imaging_params(obs_id);
+        self.delivery_args.apply_to(&mut params);
+        self.preprocessing.apply_to(&mut params);
+        self.wsclean.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
     }
 }
 
@@ -776,19 +815,8 @@ pub struct ImagingFromJobArgs {
     #[command(flatten)]
     pub wsclean: WscleanArgs<ImagingJobFlow2Params>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(image_from_job_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<ImagingJobFlow2Params>,
 }
 
 impl ImagingFromJobArgs {
@@ -796,35 +824,11 @@ impl ImagingFromJobArgs {
     /// `--source-job-id`. The CLI has a value for every option (its defaults
     /// are the schema's), so each field that the options cover is set.
     pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow2Params {
-        let ws = &self.wsclean;
-        ImagingJobFlow2Params {
-            delivery: self.delivery_args.delivery,
-            delivery_format: self.delivery_args.delivery_format,
-            apply_primary_beam: ws.apply_primary_beam,
-            auto_mask: ws.auto_mask,
-            auto_threshold: ws.auto_threshold,
-            abs_threshold: ws.abs_threshold.0,
-            channels_out: ws.channels_out,
-            clean_iterations: ws.clean_iterations,
-            clean_threshold: ws.clean_threshold.0,
-            image_size: ws.image_size.clone(),
-            join_channels: ws.join_channels,
-            join_polarizations: ws.join_polarizations,
-            mgain: ws.mgain,
-            multiscale: ws.multiscale,
-            nmiter: ws.nmiter,
-            nwlayers: ws.nwlayers,
-            output_mode: ws.output_mode,
-            pixel_scale: ws.pixel_scale,
-            pol: ws.pol,
-            robust: ws.robust,
-            uvw_max: ws.uvw_max,
-            uvw_min: ws.uvw_min,
-            weighting: ws.weighting,
-            wstack_nwlayers: ws.wstack_nwlayers,
-            allow_resubmit: self.allow_resubmit.0,
-            ..image_from_job_params(obs_id, self.source_job_id)
-        }
+        let mut params = image_from_job_params(obs_id, self.source_job_id);
+        self.delivery_args.apply_to(&mut params);
+        self.wsclean.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
     }
 }
 
@@ -853,19 +857,8 @@ pub struct VoltageJobArgs {
     #[arg(short = 't', long)]
     pub to_channel: Option<u8>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(voltage_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<VoltageJobParams>,
 }
 
 impl VoltageJobArgs {
@@ -877,9 +870,9 @@ impl VoltageJobArgs {
             delivery: self.delivery.clone(),
             from_channel: self.from_channel,
             to_channel: self.to_channel,
-            allow_resubmit: self.allow_resubmit.0,
             ..voltage_params(obs_id, self.offset, self.duration)
         };
+        self.resubmit.apply_to(&mut params);
         set_channel_range(&mut params);
         params
     }
@@ -891,29 +884,16 @@ pub struct BeamformerJobArgs {
     #[command(flatten)]
     pub delivery_args: DeliveryArgs<BeamformerJobParams>,
 
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
-    #[arg(
-        short = 'r',
-        long,
-        default_value = nullable_default(beamformer_defaults().allow_resubmit, "allow_resubmit"),
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-        action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
-    )]
-    pub allow_resubmit: Nullable<bool>,
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<BeamformerJobParams>,
 }
 
 impl BeamformerJobArgs {
     /// The request body for a beamformer job.
     pub fn to_params(&self, obs_id: ObsId) -> BeamformerJobParams {
-        BeamformerJobParams {
-            delivery: self.delivery_args.delivery,
-            delivery_format: self.delivery_args.delivery_format,
-            allow_resubmit: self.allow_resubmit.0,
-            ..beamformer_params(obs_id)
-        }
+        let mut params = beamformer_params(obs_id);
+        self.delivery_args.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
     }
 }

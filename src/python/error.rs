@@ -177,6 +177,29 @@ fn build<T: pyo3::PyTypeInfo>(
     }
 }
 
+/// The exception fields that come from the reply of the server (an
+/// `ErrorResponse`), other than the message and the error code. With no
+/// reply, they are empty.
+fn reply_fields(
+    response: Option<Box<lib::api::openapi::ErrorResponse>>,
+) -> Vec<(&'static str, Field)> {
+    let (detail, suggestion, field_errors, request_id) = match response {
+        Some(r) => (
+            r.detail,
+            r.suggestion,
+            r.field_errors.unwrap_or_default(),
+            r.request_id,
+        ),
+        None => (None, None, Vec::new(), None),
+    };
+    vec![
+        ("detail", Field::OptStr(detail)),
+        ("suggestion", Field::OptStr(suggestion)),
+        ("field_errors", Field::ErrorDicts(field_errors)),
+        ("request_id", Field::OptStr(request_id)),
+    ]
+}
+
 /// Convert a library [`lib::AsvoApiError`] to a Python `AsvoApiError`.
 ///
 /// `lib::AsvoApiError::InvalidParameter` (a job argument the schema does
@@ -187,50 +210,30 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
     let (kind, fields) = match e {
         lib::AsvoApiError::MissingAuthKey { .. } => ("MissingAuthKey", vec![]),
-        lib::AsvoApiError::AuthenticationFailed {
-            message,
-            error_code,
-            detail,
-            suggestion,
-            field_errors,
-            request_id,
-        } => (
-            "AuthenticationFailed",
-            vec![
+        lib::AsvoApiError::AuthenticationFailed { message, response } => {
+            let error_code = response.as_ref().map(|r| r.error_code.clone());
+            let mut fields = vec![
                 ("message", Field::Str(message)),
                 ("error_code", Field::OptStr(error_code)),
-                ("detail", Field::OptStr(detail)),
-                ("suggestion", Field::OptStr(suggestion)),
-                ("field_errors", Field::ErrorDicts(field_errors)),
-                ("request_id", Field::OptStr(request_id)),
-            ],
-        ),
+            ];
+            fields.extend(reply_fields(response));
+            ("AuthenticationFailed", fields)
+        }
         lib::AsvoApiError::InvalidParameter { .. } => {
             return PyValueError::new_err(message);
         }
         lib::AsvoApiError::Conversion(_) => ("Conversion", vec![]),
         lib::AsvoApiError::BadJson(_) => ("BadJson", vec![]),
         lib::AsvoApiError::Reqwest(_) => ("Reqwest", vec![]),
-        lib::AsvoApiError::ApiError {
-            status,
-            error_code,
-            message,
-            detail,
-            suggestion,
-            field_errors,
-            request_id,
-        } => (
-            "ApiError",
-            vec![
+        lib::AsvoApiError::ApiError { status, response } => {
+            let mut fields = vec![
                 ("status", Field::Int(u64::from(status))),
-                ("error_code", Field::Str(error_code)),
-                ("message", Field::Str(message)),
-                ("detail", Field::OptStr(detail)),
-                ("suggestion", Field::OptStr(suggestion)),
-                ("field_errors", Field::ErrorDicts(field_errors)),
-                ("request_id", Field::OptStr(request_id)),
-            ],
-        ),
+                ("error_code", Field::Str(response.error_code.clone())),
+                ("message", Field::Str(response.message.clone())),
+            ];
+            fields.extend(reply_fields(Some(response)));
+            ("ApiError", fields)
+        }
         lib::AsvoApiError::BadStatus { status, message } => (
             "BadStatus",
             vec![

@@ -459,7 +459,7 @@ def test_get_jobs_with_no_filter_sends_none(host: str, httpserver: HTTPServer, s
 @pytest.mark.usefixtures("mock_login")
 def test_get_jobs_refuses_a_time_without_a_time_zone(host: str) -> None:
     """A naive datetime is ambiguous, so it is refused."""
-    naive = datetime.datetime(2026, 9, 1)  # noqa: DTZ001 - naive on purpose: it must be refused
+    naive = datetime.datetime(2026, 9, 1)
     with pytest.raises(TypeError):
         gs.AsvoClient(host, TEST_API_KEY).get_jobs(date_from=naive)
 

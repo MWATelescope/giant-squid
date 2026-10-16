@@ -18,15 +18,17 @@ fn obs_id() -> ObsId {
 fn an_api_error_is_copied_verbatim() {
     let error = AsvoApiError::ApiError {
         status: 404,
-        error_code: "JOB_NOT_FOUND".to_string(),
-        message: "No such job".to_string(),
-        detail: Some("detail text".to_string()),
-        suggestion: Some("suggestion text".to_string()),
-        field_errors: vec![FieldError {
-            field: "job_id".to_string(),
-            message: "bad".to_string(),
-        }],
-        request_id: Some("abc".to_string()),
+        response: Box::new(ErrorResponse {
+            detail: Some("detail text".to_string()),
+            error_code: "JOB_NOT_FOUND".to_string(),
+            field_errors: Some(vec![FieldError {
+                field: "job_id".to_string(),
+                message: "bad".to_string(),
+            }]),
+            message: "No such job".to_string(),
+            request_id: Some("abc".to_string()),
+            suggestion: Some("suggestion text".to_string()),
+        }),
     };
 
     let resp = error.error_response();
@@ -41,15 +43,18 @@ fn an_api_error_is_copied_verbatim() {
 
 #[test]
 fn an_api_error_without_field_errors_has_no_field_errors_key() {
-    let error = AsvoApiError::ApiError {
-        status: 401,
-        error_code: "AUTH_REQUIRED".to_string(),
-        message: "Log in".to_string(),
-        detail: None,
-        suggestion: None,
-        field_errors: vec![],
-        request_id: None,
-    };
+    // The server sent an empty list: it is the same as none.
+    let error = AsvoApiError::api_error(
+        401,
+        ErrorResponse {
+            detail: None,
+            error_code: "AUTH_REQUIRED".to_string(),
+            field_errors: Some(vec![]),
+            message: "Log in".to_string(),
+            request_id: None,
+            suggestion: None,
+        },
+    );
 
     let json = serde_json::to_value(error.error_response()).unwrap();
 
@@ -78,11 +83,14 @@ fn a_bad_status_is_the_http_code_with_the_body_as_the_detail() {
 fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
     let error = AsvoApiError::AuthenticationFailed {
         message: "Bad API key".to_string(),
-        error_code: Some("AUTH_INVALID_KEY".to_string()),
-        detail: None,
-        suggestion: None,
-        field_errors: Vec::new(),
-        request_id: None,
+        response: Some(Box::new(ErrorResponse {
+            detail: None,
+            error_code: "AUTH_INVALID_KEY".to_string(),
+            field_errors: None,
+            message: "Bad API key".to_string(),
+            request_id: None,
+            suggestion: None,
+        })),
     };
 
     let resp = error.error_response();
