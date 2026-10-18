@@ -91,8 +91,10 @@ impl<T: NamedValue> TypedValueParser for SchemaEnumParser<T> {
         // The same parser that clap builds for a `FromStr` type, so the
         // kind of the error is `ValueValidation`.
         let parse = |text: &str| {
-            T::from_value_name(text)
-                .ok_or_else(|| format!("expected one of: {}", T::value_names().join(", ")))
+            T::from_value_name(text).ok_or_else(|| {
+                let names = T::value_names().join(", ");
+                format!("expected one of: {names}")
+            })
         };
         parse.parse_ref(cmd, arg, value)
     }

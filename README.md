@@ -156,7 +156,7 @@ built for:
 
 ```
 giant-squid 3.0.0
-MWA ASVO API 2.3.0
+MWA ASVO API 2.3.4
 OpenAPI 3.1.0
 ```
 
@@ -771,18 +771,30 @@ Arguments:
   [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
-  -d, --delivery <DELIVERY>          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", which requires the "mwavcs" Pawsey Group on your MWA ASVO profile [env: GIANT_SQUID_DELIVERY=] [default: scratch]
-  -o, --offset <OFFSET>              The offset in seconds from the start GPS time of the observation
-  -u, --duration <DURATION>          The duration (in seconds) to download
-  -f, --from-channel <FROM_CHANNEL>  The 'from' receiver channel number (0-255)
-  -t, --to-channel <TO_CHANNEL>      The 'to' receiver channel number (0-255)
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]  Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait                         Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run                      Don't actually submit; print information on what would've happened instead
-  -j, --json                         Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...                 The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help                         Print help
-  -V, --version                      Print version
+  -d, --delivery <DELIVERY>
+          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", which requires the "mwavcs" Pawsey Group on your MWA ASVO profile [env: GIANT_SQUID_DELIVERY=] [default: scratch]
+  -o, --offset <OFFSET>
+          The offset in seconds from the start GPS time of the observation
+  -u, --duration <DURATION>
+          The duration (in seconds) to download
+  -f, --from-channel <FROM_CHANNEL>
+          The 'from' receiver channel number (0-255)
+  -t, --to-channel <TO_CHANNEL>
+          The 'to' receiver channel number (0-255)
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
+  -w, --wait
+          Do not exit giant-squid until the specified Obs IDs are ready for download
+  -n, --dry-run
+          Don't actually submit; print information on what would've happened instead
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
+  -v, --verbosity...
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 To submit a voltage download job for the Obs ID 1065880128:
@@ -1030,8 +1042,8 @@ Example:
 
 ```bash
 $ giant-squid cancel 31 32
-13:20:41 [INFO] Cancel request for job 31: Job cancelled
-13:20:41 [INFO] Cancel request for job 32: Unable to cancel job 32
+13:20:41 [INFO] Cancel request for Job ID 31: Job cancelled
+13:20:41 [INFO] Cancel request for Job ID 32: Unable to cancel job 32
 13:20:41 [INFO] Cancel requests: 2 sent, 0 failed.
 ```
 

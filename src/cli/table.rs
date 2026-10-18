@@ -127,7 +127,7 @@ fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
 /// `completed`), and for a job with an error, its message.
 fn job_state_text(job: &AsvoJob) -> String {
     match (&job.job_state, &job.error_text) {
-        (JobState::Error, Some(text)) => format!("{}: {}", job.job_state, text),
+        (state @ JobState::Error, Some(text)) => format!("{state}: {text}"),
         (state, _) => state.to_string(),
     }
 }

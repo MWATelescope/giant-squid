@@ -12,8 +12,9 @@
 //! [`AsvoClientConfig`] or explicit download settings to pass on. A
 //! program that wants other variable names, or none, builds its own.
 //!
-//! The text of every message about a variable is here, so that the Rust
-//! program and the Python module say the same thing.
+//! The text of every message about a variable is here, so that every program
+//! that reads these variables says the same thing. (The Python module reads
+//! none; the Python command runs the Rust command.)
 
 use std::path::Path;
 use std::time::Duration;

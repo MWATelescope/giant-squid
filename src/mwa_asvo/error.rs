@@ -21,7 +21,7 @@ pub enum AsvoError {
     /// A checked job is in an error state. `error_code` is the server's
     /// code for the error, if it gave one; the message shows it as
     /// `(code N)`.
-    #[error("MWA ASVO Job ID {job_id} (Obs ID: {obs_id}) has an error{}: {error}", error_code_suffix(.error_code))]
+    #[error("MWA ASVO Job ID {job_id} (Obs ID: {obs_id}) has an error{code_suffix}: {error}", code_suffix = error_code_suffix(.error_code))]
     JobFailed {
         job_id: AsvoJobId,
         obs_id: ObsId,
@@ -31,7 +31,7 @@ pub enum AsvoError {
 
     /// A job from the API cannot be used: its ID is not a Job ID, or its
     /// `job_params` have no valid Obs ID.
-    #[error("MWA ASVO job {id} cannot be used: {problem}")]
+    #[error("MWA ASVO Job ID {id} cannot be used: {problem}")]
     InvalidJob { id: i64, problem: String },
 
     /// A checked job has been cancelled.
@@ -116,7 +116,7 @@ pub enum AsvoError {
     Interrupted,
 
     /// A file of an Acacia job has no URL to download it from.
-    #[error("Could not determine the URL for job {job_id}")]
+    #[error("Could not determine the URL for Job ID {job_id}")]
     NoUrl { job_id: AsvoJobId },
 
     /// A file of an Acacia job has no SHA-1 hash, so the download could not
@@ -127,7 +127,7 @@ pub enum AsvoError {
     /// The files of a DUG or Scratch job are not on a file system that this
     /// host can reach, so there is nothing to download here. `path` is
     /// where the MWA ASVO delivered them, if it said.
-    #[error("{}", files_not_reachable_message(*.job_id, *.delivery, .path.as_deref()))]
+    #[error("{text}", text = files_not_reachable_message(*.job_id, *.delivery, .path.as_deref()))]
     FilesNotReachable {
         job_id: AsvoJobId,
         delivery: FileType,
@@ -135,7 +135,7 @@ pub enum AsvoError {
     },
 
     /// A file of a Scratch job has no path.
-    #[error("Could not determine the path for job {job_id}")]
+    #[error("Could not determine the path for Job ID {job_id}")]
     NoPath { job_id: AsvoJobId },
 
     /// The file to download to is a symbolic link. The download would write
@@ -154,10 +154,12 @@ pub enum AsvoError {
         path: std::path::PathBuf,
     },
 
-    /// The server answered a file download with an HTTP error. `status` and
-    /// `message` are the fields of [`AsvoApiError::BadStatus`], the same
-    /// failure of an API request; a download is always for one job, so this
-    /// error also has its `job_id`.
+    /// The file server answered a file download with an HTTP error. This is
+    /// not an error of the MWA ASVO API, so it is not an [`AsvoApiError`].
+    /// `status` and `message` are the same fields as those of
+    /// [`AsvoApiError::BadStatus`] (an API reply that is not an
+    /// `ErrorResponse`); a download is always for one job, so this error also
+    /// has its `job_id`.
     #[error("HTTP error {status} downloading a file of Job ID {job_id}: {message}")]
     HttpError {
         /// The job whose file was being downloaded.
@@ -169,7 +171,7 @@ pub enum AsvoError {
     },
 
     /// A file or directory of a download could not be created.
-    #[error("Cannot create {}: {source}", .path.display())]
+    #[error("Cannot create {path}: {source}", path = .path.display())]
     CannotCreate {
         /// The file or directory.
         path: std::path::PathBuf,
@@ -178,7 +180,7 @@ pub enum AsvoError {
     },
 
     /// The file to download is not on the server (HTTP 404).
-    #[error("The file for job {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
+    #[error("The file for Job ID {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
     Http404Error { job_id: AsvoJobId },
 }
 

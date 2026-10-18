@@ -270,7 +270,7 @@ longer says "Cancelled":
 
 | 2.x | 3.0.0 |
 |---|---|
-| `Cancelled MWA ASVO job ID 31` | `Cancel request for job 31: <the MWA ASVO's message>` |
+| `Cancelled MWA ASVO job ID 31` | `Cancel request for Job ID 31: <the MWA ASVO's message>` |
 | `Cancelled 2 jobs.` | `Cancel requests: 2 sent, 0 failed.` |
 
 If a script looks for "Cancelled", read the message instead, or use `list`

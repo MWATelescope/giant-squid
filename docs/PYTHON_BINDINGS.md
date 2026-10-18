@@ -153,10 +153,8 @@ Sent by the user (October 2026), not fixed yet:
 - `obs_id` should be a typed field of `JobDetailResponse`; it is only in the
   untyped `job_params`, as a number or a string (`AsvoJob::try_from` reads
   both).
-- `staging_count` is still in the submission bodies.
-- Stale descriptions: `JobsByUserRequest` says "/job_history" (the endpoint
-  is `/v2/get_jobs`), and `JobState` lists numbers ("0=Queued ...") but is an
-  enum of strings.
+- Stale description: `JobsByUserRequest` says "/job_history" (the endpoint
+  is `/v2/get_jobs`).
 
 Not yet raised:
 
@@ -168,8 +166,6 @@ Not yet raised:
   timestamps have no time zone (`2026-09-08T05:41:54.757232`).
   `normalize_job_value` in `src/mwa_asvo/api/client/mod.rs` patches both;
   remove it when the API sends `null` and RFC 3339.
-- `UserUpdateProfileRequest` has `firstname`/`lastname`; the other types
-  have `first_name`/`last_name`.
 - What do the `error_code` values mean? They are undocumented.
 - The `obs_id` minimum of the job bodies is 888888889, but an Obs ID has 10
   digits (giant-squid's `ObsId::MIN` is 1000000000). Should the schema
@@ -183,7 +179,7 @@ Not yet raised:
 
 Answered:
 
-- `staging_count` and `RestageRequest` are for the processors.
+- `staging_count` was for the processors. Schema 2.3.4 does not have it.
 - The HTTP 200 for a refused cancel is only for a job that is already
   cancelled.
 - Cancel returns `JobCancelledResponse`.

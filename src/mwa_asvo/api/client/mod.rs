@@ -4,12 +4,12 @@
 
 //! A client for the MWA ASVO v2 API.
 //!
-//! The authentication flow here (`new`, `get_valid_tokens`, `login`,
-//! `refresh`, JWT `exp` decoding, and the on-disk token cache shared with
-//! mwa-cli) uses the request/response types generated from the MWA ASVO
-//! OpenAPI schema (see `super::openapi`) instead of hand-rolled structs.
-//! `token_store` is shared infrastructure and is used directly from
-//! `crate::mwa_asvo` rather than being duplicated here.
+//! Every request and reply is a type generated from the MWA ASVO OpenAPI
+//! schema (see `super::openapi`). The client logs in with the API key
+//! (`login`), refreshes the access token before it expires (`refresh`,
+//! `get_valid_tokens`; the JWT `exp` claim says when), and keeps the session
+//! on disk through `crate::mwa_asvo::token_store`, so that the next process
+//! does not log in again.
 //!
 //! The client reads no environment variables: the caller supplies the host,
 //! API key, timeout and token cache path in an [`AsvoClientConfig`].
@@ -200,7 +200,8 @@ fn execute_logged(
     debug!("HTTP request:  {method} {url}");
 
     if let Some(body) = request.body().and_then(|b| b.as_bytes()) {
-        trace!("HTTP request body: {}", String::from_utf8_lossy(body));
+        let body_text = String::from_utf8_lossy(body);
+        trace!("HTTP request body: {body_text}");
     }
 
     let response = client.execute(request)?;
@@ -1032,7 +1033,7 @@ impl AsvoClient {
     /// The error from the request, for example `JOB_NOT_FOUND` for a job
     /// that does not exist.
     pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobCancelledResponse, AsvoApiError> {
-        debug!("Cancelling MWA ASVO job {job_id}");
+        debug!("Cancelling MWA ASVO Job ID {job_id}");
 
         let host = &self.config.host;
         let body =

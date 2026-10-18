@@ -224,7 +224,7 @@ with it.
 | Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and `test_staging_count_is_not_an_argument_and_not_in_a_body` in `test_submit.py` |
 | A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
 | `list` without `--days` uses the API default, not `null` | `get_jobs_with_no_filter_uses_the_schema_defaults`, `list_days_defaults_to_the_schema_default`, `test_get_jobs_with_no_filter_sends_none` |
-| `wait` and `cancel` refuse an Obs ID and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, `test_wait_and_cancel_refuse_an_obsid` |
+| `wait` and `cancel` refuse an Obs ID and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, and for `wait` in Python `test_an_error_of_the_command_is_code_one_with_the_message` |
 | `cancel` does not say a job was cancelled; a refused cancel is a normal reply | `a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled` and its Python twin |
 | `list --job-types` refuses text that is not a job type | `list_refuses_a_job_type_that_does_not_exist`, `text_that_is_not_a_job_type_is_an_error` |
 | `--version` prints the program name, not the crate name | `the_version_has_the_name_of_the_program`, `test_the_version_is_the_modules` |
@@ -381,7 +381,7 @@ already accepts both.
   C. Every Obs ID is now attempted, each failure is reported as it happens,
   and the run ends with a `Submitted N of M` summary plus a list of what
   failed; the exit code still reflects the failure, but only after the whole
-  list has been tried. `submit_each_obsid` in the binary does this for all
+  list has been tried. `submit_each_obs_id` in `src/cli/run.rs` does this for all
   seven submit commands. `download` already ran every download before
   reporting, but exited 0 regardless - it now fails the run too.
 

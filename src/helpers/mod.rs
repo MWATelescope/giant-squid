@@ -128,8 +128,8 @@ pub enum ParseError {
     /// A command that takes Obs IDs only was given Job IDs
     /// ([`parse_obs_ids_only`]).
     #[error(
-        "Expected only Obs IDs, but found these Job IDs: {}",
-        ids_text(job_ids)
+        "Expected only Obs IDs, but found these Job IDs: {job_id_text}",
+        job_id_text = ids_text(job_ids)
     )]
     JobIdsGiven {
         /// The Job IDs, in the order given.
@@ -139,8 +139,8 @@ pub enum ParseError {
     /// A command that takes Job IDs only was given Obs IDs
     /// ([`parse_job_ids_only`]).
     #[error(
-        "Expected only Job IDs, but found these Obs IDs: {}. {OBS_ID_HINT}",
-        ids_text(obs_ids)
+        "Expected only Job IDs, but found these Obs IDs: {obs_id_text}. {OBS_ID_HINT}",
+        obs_id_text = ids_text(obs_ids)
     )]
     ObsIdsGiven {
         /// The Obs IDs, in the order given.
@@ -297,7 +297,8 @@ pub(crate) fn check_sha1_hash(
     file: &Path,
 ) -> Result<(), AsvoError> {
     let hash = to_hex(&hasher.finalize());
-    log::debug!("Calculated SHA-1 of {}: {hash}", file.display());
+    let file_display = file.display();
+    log::debug!("Calculated SHA-1 of {file_display}: {hash}");
     if hash.eq_ignore_ascii_case(expected_hash) {
         Ok(())
     } else {

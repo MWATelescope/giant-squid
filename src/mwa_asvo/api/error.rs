@@ -7,12 +7,12 @@
 //! This is intentionally separate from [`crate::mwa_asvo::AsvoError`], which
 //! covers the file download path (job lookup, hash checks, HTTP transfer).
 //! This enum covers talking to the API itself: authentication and the
-//! structured error responses (`ErrorResponse`, `HttpValidationError`).
+//! structured error responses (`ErrorResponse`).
 
 use thiserror::Error;
 
 use super::openapi::error::ConversionError;
-use super::openapi::ErrorResponse;
+use super::openapi::{ErrorResponse, FieldError};
 
 /// An error of a request to the MWA ASVO API, or of its arguments.
 #[derive(Error, Debug)]
@@ -20,7 +20,7 @@ pub enum AsvoApiError {
     /// No API key was given: the config's API key is empty, or the
     /// environment variable `variable` is not defined (see
     /// [`client_config_from_env`](crate::client_config_from_env)).
-    #[error("No MWA ASVO API key was given{}", missing_key_hint(.variable))]
+    #[error("No MWA ASVO API key was given{hint}", hint = missing_key_hint(.variable))]
     MissingAuthKey {
         /// The environment variable that should hold the key, when the key
         /// was read from the environment.
@@ -34,9 +34,9 @@ pub enum AsvoApiError {
     /// `message` is the server's body (or what went wrong with the tokens),
     /// and there is no `response`.
     #[error(
-        "Authentication with MWA ASVO failed{}: {message}{}",
-        error_code_suffix(response.as_deref()),
-        api_error_extra(response.as_deref())
+        "Authentication with MWA ASVO failed{code_suffix}: {message}{extra}",
+        code_suffix = error_code_suffix(response.as_deref()),
+        extra = api_error_extra(response.as_deref())
     )]
     AuthenticationFailed {
         message: String,
@@ -78,10 +78,10 @@ pub enum AsvoApiError {
     /// and the request ID, each on a line of its own. Nothing is rewritten:
     /// the text is the server's.
     #[error(
-        "MWA ASVO returned an error ({}): {}{}",
-        response.error_code,
-        response.message,
-        api_error_extra(Some(response))
+        "MWA ASVO returned an error ({code}): {message}{extra}",
+        code = response.error_code,
+        message = response.message,
+        extra = api_error_extra(Some(response))
     )]
     ApiError {
         /// The HTTP status code of the reply.
@@ -94,9 +94,10 @@ pub enum AsvoApiError {
 
     /// The server responded with a non-success status code, but the body
     /// wasn't in the structured `ErrorResponse` shape we expected. The
-    /// `status` and `message` are also fields of
-    /// [`AsvoError::HttpError`](crate::AsvoError::HttpError), the same failure
-    /// of a file download (which also has the `job_id`).
+    /// `status` and `message` are the same fields as those of
+    /// [`AsvoError::HttpError`](crate::AsvoError::HttpError), which is for a
+    /// failed file download (an error of the file server, not of the API;
+    /// it also has the `job_id`).
     #[error("The server responded with status code {status}, message:\n{message}")]
     BadStatus {
         /// The HTTP status code.
@@ -122,7 +123,8 @@ fn api_error_extra(response: Option<&ErrorResponse>) -> String {
         extra.push_str(&format!("\n  Suggestion: {suggestion}"));
     }
     for e in response.field_errors.iter().flatten() {
-        extra.push_str(&format!("\n  {}: {}", e.field, e.message));
+        let FieldError { field, message, .. } = e;
+        extra.push_str(&format!("\n  {field}: {message}"));
     }
     if let Some(id) = &response.request_id {
         extra.push_str(&format!("\n  (request ID: {id})"));
@@ -192,7 +194,10 @@ fn tidy(mut response: ErrorResponse) -> ErrorResponse {
 /// ` (CODE)`, or nothing when the server gave no code.
 fn error_code_suffix(response: Option<&ErrorResponse>) -> String {
     response
-        .map(|r| format!(" ({})", r.error_code))
+        .map(|r| {
+            let code = &r.error_code;
+            format!(" ({code})")
+        })
         .unwrap_or_default()
 }
 

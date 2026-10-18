@@ -20,6 +20,7 @@ exclude = [
     ".github/*",
     "mwa_giant_squid_cli/*",
     "tests/python/*",
+    "docs/CLEANUP.md",
     "docs/PYTHON.md",
     "docs/PYTHON_BINDINGS.md",
     "docs/history/",

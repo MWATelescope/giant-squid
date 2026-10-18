@@ -1149,6 +1149,7 @@ impl PyAsvoClient {
     }
 
     fn __repr__(&self) -> String {
-        format!("AsvoClient(host={:?})", self.host)
+        let host = &self.host;
+        format!("AsvoClient(host={host:?})")
     }
 }

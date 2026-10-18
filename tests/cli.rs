@@ -891,7 +891,7 @@ fn a_cancellation_refused_with_a_normal_reply_is_not_reported_as_cancelled() {
     assert!(
         result
             .combined()
-            .contains("Cancel request for job 12345: Unable to cancel job 12345"),
+            .contains("Cancel request for Job ID 12345: Unable to cancel job 12345"),
         "output: {}",
         result.combined()
     );

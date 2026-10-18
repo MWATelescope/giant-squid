@@ -230,10 +230,8 @@ where
         .download_dir
         .to_str()
         .ok_or_else(|| {
-            PyValueError::new_err(format!(
-                "download_dir={:?} is not valid UTF-8",
-                args.download_dir
-            ))
+            let download_dir = &args.download_dir;
+            PyValueError::new_err(format!("download_dir={download_dir:?} is not valid UTF-8"))
         })?
         .to_string();
     let retry_duration = match args.retry_duration {

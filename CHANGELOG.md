@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# 3.0.0 - 2026-10-??
+## 3.0.0 - 2026-10-??
 
 giant-squid 3.0.0 uses version 2 of the MWA ASVO API. The job options, their names, their defaults and their
 limits now come from the API's OpenAPI schema, so giant-squid, the API and its documentation use the same names.
@@ -121,7 +121,7 @@ before you upgrade scripts.**
 * The submit commands try every Obs ID, and log the error of each failed submission when it happens. If any
   failed, the command ends with `Error: M of N job submissions failed` and exit code 1. In 2.x the command stopped
   at the first failure.
-* `cancel` logs `Cancel request for job N: <message>` for each job and `Cancel requests: N sent, M failed.` at
+* `cancel` logs `Cancel request for Job ID N: <message>` for each job and `Cancel requests: N sent, M failed.` at
   the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message. A request
   that the MWA ASVO refuses with an HTTP error is a failure: `cancel` sends every request, then exits with code 1
@@ -321,7 +321,7 @@ before you upgrade scripts.**
 * A test suite that runs offline against a mock MWA ASVO server (recorded responses are replayed), so that no
   test submits or cancels a job or downloads data. See [docs/TESTING.md](docs/TESTING.md).
 * Tests that keep decisions from being undone by accident: only parameters of the API schema are sent, only
-  end-user endpoints are called, `staging_count` is never sent. See [docs/TESTING.md](docs/TESTING.md).
+  end-user endpoints are called. See [docs/TESTING.md](docs/TESTING.md).
 * `tools/run_live_tests.sh` runs the opt-in live tests against the MWA ASVO test server.
 * CI checks that the generated API types and the Python type stubs are up to date, builds and tests the Python
   package on Linux and macOS, and attaches the wheels to releases.
@@ -333,11 +333,11 @@ before you upgrade scripts.**
   exponential backoff with jitter in the download code. The waits are as before: from 0.5 s, growing by 1.5 times,
   at most 60 s, each moved by up to half of itself at random.
 
-# 2.5.1 - 2026-05-29
+## 2.5.1 - 2026-05-29
 
 * Better error handling when MWA ASVO download has expired (and other 40X http status error codes).
 
-# 2.5.0 - 2026-05-05
+## 2.5.0 - 2026-05-05
 
 ### Changed in 2.5.0
 
@@ -350,7 +350,7 @@ before you upgrade scripts.**
 
 * Fixed divide by zero error when downloading a very small file over a very fast link.
 
-# 2.4.0 - 2026-02-26
+## 2.4.0 - 2026-02-26
 
 ### Changed in 2.4.0
 

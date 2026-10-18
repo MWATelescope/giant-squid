@@ -19,7 +19,7 @@ fn main() {
 ///
 /// pyo3 does this itself for its own binaries and tests, but a link argument
 /// from a dependency's build script does not reach this crate's binaries.
-/// Linux only: other platforms do not use `lib_dir` in the same way.
+/// It does nothing when pyo3 reports no library directory.
 #[cfg(feature = "python-stubgen")]
 fn stub_gen_rpath() {
     println!("cargo:rerun-if-env-changed=PYO3_PYTHON");
@@ -106,12 +106,9 @@ mod regen_openapi {
     }
 
     pub fn run() {
-        // Only rerun this build script when the schema itself changes -
-        // without this, cargo's default is to rerun on ANY file change in
-        // the package, which would include the very openapi.rs file we
-        // write below, causing needless reruns (though not an infinite
-        // loop - cargo doesn't treat writes during a build as new changes
-        // for that same build).
+        // The schema is an input of this build script, as build.rs is (see
+        // `main`): cargo runs the script again when either changes. Without
+        // this line, a change of the schema alone would not run it.
         println!("cargo:rerun-if-changed={SCHEMA_PATH}");
 
         let content = fs::read_to_string(SCHEMA_PATH)

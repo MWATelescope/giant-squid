@@ -182,10 +182,14 @@ impl PyJobFile {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "JobFile(type={}, size={}, url={:?}, path={:?})",
-            self.0.type_, self.0.size, self.0.url, self.0.path
-        )
+        let JobFile {
+            type_,
+            size,
+            url,
+            path,
+            ..
+        } = &self.0;
+        format!("JobFile(type={type_}, size={size}, url={url:?}, path={path:?})")
     }
 }
 
@@ -211,7 +215,8 @@ impl PyJobProduct {
     }
 
     fn __repr__(&self) -> String {
-        format!("JobProduct(<{} files>)", self.0.files.len())
+        let file_count = self.0.files.len();
+        format!("JobProduct(<{file_count} files>)")
     }
 }
 
@@ -334,12 +339,12 @@ impl PyAsvoJob {
     }
 
     fn __repr__(&self) -> String {
+        let job_id = self.0.job_id();
+        let obs_id = self.0.obs_id();
+        let job_type = self.0.job_type.map(|t| t.name()).unwrap_or("None");
+        let job_state = self.0.job_state;
         format!(
-            "AsvoJob(job_id={}, obs_id={}, job_type={}, job_state={})",
-            self.0.job_id(),
-            self.0.obs_id(),
-            self.0.job_type.map(|t| t.name()).unwrap_or("None"),
-            self.0.job_state
+            "AsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
         )
     }
 }
@@ -588,6 +593,7 @@ impl PyAsvoJobVec {
     }
 
     fn __repr__(&self) -> String {
-        format!("AsvoJobVec(<{} jobs>)", self.0 .0.len())
+        let job_count = self.0 .0.len();
+        format!("AsvoJobVec(<{job_count} jobs>)")
     }
 }

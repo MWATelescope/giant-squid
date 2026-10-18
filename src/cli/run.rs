@@ -945,7 +945,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     match client.cancel_job(j) {
                         Ok(resp) => {
                             let message = &resp.message;
-                            info!("Cancel request for job {j}: {message}");
+                            info!("Cancel request for Job ID {j}: {message}");
                             print_json_line(&StatusFirst(&resp), json)?;
                         }
                         Err(e) => {

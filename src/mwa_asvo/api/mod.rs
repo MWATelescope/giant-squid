@@ -7,22 +7,20 @@
 //!
 //! # What the library uses of the API
 //!
-//! Only the endpoints an end user needs: login and refresh, the job list, the
-//! job submissions (visibilities and metadata, conversion, imaging, imaging
-//! from a job, voltage, beamformer) and the cancellation of a job. The API
-//! has other endpoints (`/v2/job_staged`, `/v2/scheduler/*` and
-//! `/v2/calibration_ready`) that are for the MWA ASVO's own processors and
-//! scheduler. The library does not call them, and does not wrap them. Their
+//! The library wraps only the endpoints that giant-squid uses: login and
+//! refresh, the job list, the seven job submissions (visibilities and
+//! metadata, conversion, imaging, imaging from a job, voltage, beamformer)
+//! and the cancellation of a job.
+//!
+//! The API has other endpoints that the library does not call and does not
+//! wrap: the account and session endpoints (`/v2/user`, `/v2/update_profile`,
+//! `/v2/new_api_key`, `/v2/login`, `/v2/logout`, `/v2/auth_status`,
+//! `/v2/get_socket_token`), `/v2/observation/metadata/{obs_id}`,
+//! `/v2/project_permissions`, `/v2/projects_per_pi`, the health checks, and
+//! the endpoints for the MWA ASVO's own processors and scheduler
+//! (`/v2/job_staged`, `/v2/scheduler/*` and `/v2/calibration_ready`). Their
 //! request and response types stay in [`openapi`], because that file is
 //! generated from the whole schema, but nothing here uses them.
-//!
-//! The job submission bodies also have a `staging_count` field (the number of
-//! times that a processor restaged the job). It is for the processors too, and
-//! the API will remove it from the submission bodies in a later release. The
-//! library never sets it, and has no option or argument for it, in Rust, in
-//! the CLI or in Python. With it unset, the generated types leave it out of
-//! the body, which is the same as `null`, the API's default. The tests in
-//! `client/tests.rs`, `cli/tests.rs` and `tests/python` keep it that way.
 
 pub(crate) mod client;
 pub(crate) mod error;

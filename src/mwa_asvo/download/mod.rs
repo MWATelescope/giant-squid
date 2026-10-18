@@ -179,7 +179,7 @@ pub(crate) fn download_by_job_id(
     opts: &DownloadOptions,
 ) -> Result<AsvoJob, AsvoError> {
     opts.check()?;
-    debug!("Attempting to download job {job_id}");
+    debug!("Attempting to download Job ID {job_id}");
     // A Job ID is unique. If the list ever has it twice, the first is used.
     let job = jobs
         .0

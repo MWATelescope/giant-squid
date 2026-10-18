@@ -130,11 +130,8 @@ pub fn load(path: &Path) -> Option<StoredTokens> {
     let contents = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            debug!(
-                "No usable cached MWA ASVO session at {}: {}",
-                path.display(),
-                e
-            );
+            let path_display = path.display();
+            debug!("No usable cached MWA ASVO session at {path_display}: {e}");
             return None;
         }
     };
@@ -142,10 +139,9 @@ pub fn load(path: &Path) -> Option<StoredTokens> {
     match serde_json::from_str::<StoredTokens>(&contents) {
         Ok(tokens) => Some(tokens),
         Err(e) => {
+            let path_display = path.display();
             debug!(
-                "Cached MWA ASVO session at {} could not be parsed, ignoring it: {}",
-                path.display(),
-                e
+                "Cached MWA ASVO session at {path_display} could not be parsed, ignoring it: {e}"
             );
             None
         }
@@ -163,11 +159,8 @@ pub fn load(path: &Path) -> Option<StoredTokens> {
 /// process even if we couldn't cache it for next time.
 pub fn save(path: &Path, tokens: &StoredTokens) {
     if let Err(e) = save_inner(path, tokens) {
-        debug!(
-            "Could not cache MWA ASVO session to {}: {}",
-            path.display(),
-            e
-        );
+        let path_display = path.display();
+        debug!("Could not cache MWA ASVO session to {path_display}: {e}");
     }
 }
 
