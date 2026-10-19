@@ -50,6 +50,9 @@ pub use mwa_asvo::env::{
     ENV_MWA_ASVO_API_KEY, ENV_MWA_ASVO_API_TIMEOUT, ENV_MWA_ASVO_HOST,
 };
 pub use mwa_asvo::error::AsvoError;
+pub use mwa_asvo::manta_ray_csv::{
+    parse_manta_ray_csv, CsvDefaults, CsvError, CsvJob, CsvJobParams, CsvRowError,
+};
 pub use mwa_asvo::token_store::{default_token_cache_path, StoredTokens};
 pub use mwa_asvo::types::{AsvoJob, AsvoJobId, AsvoJobVec};
 pub use obs_id::{ObsId, ObsIdError};

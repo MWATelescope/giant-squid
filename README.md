@@ -77,6 +77,7 @@ suit users for a few reasons:
     - [Visibility downloads](#visibility-downloads)
     - [Beamformer downloads](#beamformer-downloads)
     - [Voltage downloads](#voltage-downloads)    
+    - [Jobs from a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file)
     - [Resubmitting jobs](#resubmitting-jobs)
   - [List MWA ASVO jobs](#list-mwa-asvo-jobs)
   - [List MWA ASVO jobs in JSON](#list-mwa-asvo-jobs-in-json)
@@ -178,8 +179,9 @@ Each kind of job has its own command, and each command has a short name:
 | `submit-image-from-job` | `sifj` | [Imaging from a conversion job](#imaging-from-a-conversion-job) |
 | `submit-bf` | `sb` | [Beamformer download](#beamformer-downloads) |
 | `submit-volt` | `st` | [Voltage download](#voltage-downloads) |
+| `submit-csv` | `scsv` | [The jobs of a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file) |
 
-Every submit command takes one or more Obs IDs, or text files that hold Obs IDs. It submits one job for
+Every submit command except `submit-csv` takes one or more Obs IDs, or text files that hold Obs IDs. It submits one job for
 each Obs ID and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
 
 #### Options that every submit command has
@@ -817,6 +819,59 @@ download or DUG's filesystem, as the data is generally too large. If you are in 
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
 a job with the /scratch option, set the environment variable `GIANT_SQUID_DELIVERY=scratch` or pass `--delivery scratch`.
 
+#### Jobs from a manta-ray-client CSV file
+
+`submit-csv` submits the jobs of a CSV file that [manta-ray-client](https://github.com/MWATelescope/manta-ray-client)
+(`mwa_client -c file.csv`) reads, so you can keep your files:
+
+```
+giant-squid submit-csv jobs.csv
+giant-squid submit-csv --dry-run jobs.csv   # print the request of each line, and send nothing
+```
+
+Each line of the file is one job, a list of `key=value` cells that commas separate. A blank line and a line that
+starts with `#` are ignored. The spaces around a key or a value do not matter, and the line ends can be `\n` or
+`\r\n`.
+
+```csv
+# A conversion job, and a download of the metadata of another observation
+obs_id=1349904240, job_type=c, avg_time_res=1.0, avg_freq_res=80.0, output=uvfits, no_rfi=true
+obs_id=1349904184, job_type=d, download_type=vis_meta, delivery=acacia, delivery_format=tar
+```
+
+`obs_id` and `job_type` are on every line. `job_type` is `c` (conversion), `d` (visibility or metadata download),
+`b` (beamformer), `v` (voltage) or `i` (imaging from an Obs ID). The other keys, with the same names and values
+as in the manta-ray-client README, are:
+
+| `job_type` | Keys |
+|---|---|
+| `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `delivery`, `delivery_format`, `allow_resubmit` |
+| `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
+| `b` | `delivery`, `delivery_format`, `allow_resubmit` |
+| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `channel_range`, `delivery`, `allow_resubmit` |
+| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `clean_threshold`, `auto_threshold`, `nwlayers`, `output_mode`, `delivery`, `delivery_format`, `allow_resubmit` |
+
+How `submit-csv` works:
+
+- It reads and checks every line before it submits anything, also with `--dry-run`. A mistake on any line submits
+  nothing. The error lists each bad line by its line number. The values have the same limits as the options of the
+  other submit commands.
+- A key that a line does not give has the default of the MWA ASVO. Only `delivery` and `delivery_format` differ:
+  if `GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT` is set, it is the default of the lines that do not
+  give that key. A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
+  not give it.
+- A submission that fails does not stop the others. Each failure is reported with its line number, and the command
+  ends with a summary and a non-zero exit code. `--wait`, `--json` and `--dry-run` work as for the other submit
+  commands.
+
+It differs from manta-ray-client where that client sends a mistake to the server without a word:
+
+- A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen), and so
+  is a key that a line gives twice.
+- A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.
+- A value cannot be in quotes.
+- `job_type=p` (an image of a conversion job) is an error. Use `submit-image-from-job`.
+
 #### Resubmitting jobs
 
 By default, the MWA ASVO server will not allow you to submit a new job which is has the exact same settings/parameters as an existing job in your queue (except errored jobs). You can, however override this behaviour by specifying `--allow-resubmit` on any job submission.
@@ -1420,8 +1475,8 @@ reads no environment variables (see
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
-| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands. | The schema's default for each job type |
-| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |

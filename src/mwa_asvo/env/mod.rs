@@ -21,6 +21,9 @@ use std::time::Duration;
 
 use log::debug;
 
+use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
+use crate::mwa_asvo::api::schema_enums::SchemaEnum;
+use crate::mwa_asvo::manta_ray_csv::CsvDefaults;
 use crate::mwa_asvo::{
     default_token_cache_path, AsvoApiError, AsvoClientConfig, AsvoError, BYTES_PER_MIB,
     DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
@@ -191,6 +194,59 @@ impl DownloadSettings {
         Ok(Self {
             buffer_size,
             retry_duration,
+        })
+    }
+}
+
+/// The value of the variable `name` as a value of the schema enum `T`, as
+/// `--delivery` and the other options read it (the case, spaces, hyphens and
+/// underscores do not matter), or `None` if the variable is not set.
+///
+/// # Errors
+///
+/// [`AsvoError::InvalidEnvironment`] if it is set to something else.
+fn named_value<T: SchemaEnum>(
+    get: &impl Fn(&str) -> Option<String>,
+    name: &str,
+) -> Result<Option<T>, AsvoError> {
+    get(name)
+        .map(|value| {
+            T::from_name(&value).ok_or_else(|| AsvoError::InvalidEnvironment {
+                name: name.to_string(),
+                problem: format!(
+                    "is not valid. (It should be one of {})",
+                    T::names().join(", ")
+                ),
+                value,
+            })
+        })
+        .transpose()
+}
+
+impl CsvDefaults {
+    /// The defaults of a `manta-ray-client` CSV file that come from the
+    /// environment, as for the `submit-*` commands.
+    ///
+    /// - `GIANT_SQUID_DELIVERY` is the `delivery` of a line that has none.
+    /// - `GIANT_SQUID_DELIVERY_FORMAT` is the `delivery_format` of a line
+    ///   that has none.
+    ///
+    /// `allow_resubmit` is not read from the environment.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoError::InvalidEnvironment`] if a variable is set to a value
+    /// that the schema does not list.
+    pub fn from_env() -> Result<Self, AsvoError> {
+        Self::from(process_env)
+    }
+
+    /// As [`Self::from_env`], reading the variables with `get`.
+    fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, AsvoError> {
+        Ok(Self {
+            delivery: named_value::<Delivery>(&get, ENV_GIANT_SQUID_DELIVERY)?,
+            delivery_format: named_value::<DeliveryFormat>(&get, ENV_GIANT_SQUID_DELIVERY_FORMAT)?,
+            allow_resubmit: None,
         })
     }
 }

@@ -2332,3 +2332,61 @@ fn a_failed_wait_keeps_the_summary_of_the_failed_submissions() {
         "{text}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// submit-csv
+// ---------------------------------------------------------------------------
+
+#[test]
+fn submit_csv_takes_a_file_and_the_submit_options() {
+    match parse(&[
+        "giant-squid",
+        "submit-csv",
+        "-n",
+        "--json",
+        "-r",
+        "jobs.csv",
+    ]) {
+        Args::SubmitCsv {
+            submit,
+            allow_resubmit,
+            file,
+        } => {
+            assert!(submit.dry_run);
+            assert!(submit.json);
+            assert!(allow_resubmit);
+            assert_eq!(file, std::path::PathBuf::from("jobs.csv"));
+        }
+        other => panic!("expected SubmitCsv, got {other:?}"),
+    }
+}
+
+#[test]
+fn submit_csv_does_not_allow_resubmit_unless_it_is_asked() {
+    match parse(&["giant-squid", "scsv", "jobs.csv"]) {
+        Args::SubmitCsv {
+            submit,
+            allow_resubmit,
+            ..
+        } => {
+            assert!(!allow_resubmit);
+            assert!(!submit.wait);
+            assert!(!submit.dry_run);
+        }
+        other => panic!("expected SubmitCsv, got {other:?}"),
+    }
+}
+
+#[test]
+fn submit_csv_needs_a_file() {
+    let err = parse_err(&["giant-squid", "submit-csv"]);
+
+    assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+}
+
+#[test]
+fn submit_csv_refuses_verbosity_with_json() {
+    let err = parse_err(&["giant-squid", "submit-csv", "-v", "--json", "jobs.csv"]);
+
+    assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
+}

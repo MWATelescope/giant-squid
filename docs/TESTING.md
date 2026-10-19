@@ -121,9 +121,9 @@ covered too - `src/mwa_asvo/api/client/tests.rs` serves two pages by matching on
 ### Layer 2b - the binary, end to end
 
 `tests/cli.rs` runs the built binary as a subprocess (via
-`CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is one of the two Rust
-test files in `tests/` (the other is the live tests below), because Cargo sets
-that variable only for integration tests. It runs against a mock server.
+`CARGO_BIN_EXE_giant-squid`, so no extra dependency). It is one of the Rust
+test files in `tests/` that run the binary (the live tests below are another),
+because Cargo sets that variable only for integration tests. It runs against a mock server.
 It covers what only a real process shows: `--dry-run` making no request at all,
 exit codes, the `No Obs IDs specified.` guard and the guard against a Job ID
 given in place of an Obs ID (and the guard against an Obs ID given in place of
@@ -136,6 +136,13 @@ they can only be set before the process starts.
 nothing process-wide, so these tests run in parallel, unlike the in-process
 ones. Every variable the client reads is set or cleared explicitly, so a
 developer's own settings cannot leak into a run.
+
+`tests/submit_csv.rs` does the same for `submit-csv`. It reads the six files
+in `tests/files/manta-ray-client/` (the files that manta-ray-client users
+have), and covers a dry run of each file, the endpoint and body of each job
+type, a bad file sending no request, a failed submission not stopping the
+others, `--wait`, and the delivery variables as the defaults of a file. The
+parser has its own tests in `src/mwa_asvo/manta_ray_csv/tests.rs`.
 
 ### Layer 3 - opt-in live tests
 

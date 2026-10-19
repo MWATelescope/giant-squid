@@ -16,6 +16,7 @@ use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
+use anyhow::Context;
 use clap::Parser;
 use jiff::Timestamp;
 use log::{debug, error, info, warn};
@@ -38,7 +39,10 @@ use crate::mwa_asvo::{
     ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
 };
 use crate::obs_id::ObsId;
-use crate::{parse_job_ids_only, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, ParseError};
+use crate::{
+    parse_job_ids_only, parse_manta_ray_csv, parse_many_job_ids_or_obs_ids, parse_obs_ids_only,
+    CsvDefaults, CsvJob, ParseError,
+};
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
@@ -351,6 +355,117 @@ where
     } else {
         outcome
     }
+}
+
+/// Run `submit-csv`: read the jobs of a manta-ray-client CSV file, check all
+/// of them, and submit them in the order of the file.
+///
+/// The whole file is read and checked before the login, so a mistake on any
+/// line submits nothing, also with `--dry-run`. Then, as for the other submit
+/// commands, a failed submission is reported when it happens and does not
+/// stop the others ([`submit_each_csv_job`]), and with `--wait`, the command
+/// waits for the jobs that were submitted.
+fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> anyhow::Result<()> {
+    let mut defaults = CsvDefaults::from_env()?;
+    if allow_resubmit {
+        defaults.allow_resubmit = Some(true);
+    }
+    let text = std::fs::read_to_string(file)
+        .with_context(|| format!("Could not read the CSV file {}", file.display()))?;
+    let jobs = parse_manta_ray_csv(&text, &defaults).map_err(|e| ArgumentError(e.to_string()))?;
+    if jobs.is_empty() {
+        return Err(ArgumentError(format!("{} has no jobs.", file.display())).into());
+    }
+
+    if submit.dry_run {
+        return report_dry_run_csv(&jobs, submit.json);
+    }
+
+    let client = connect()?;
+    let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(jobs.len());
+    let outcome = submit_each_csv_job(&client, &jobs, submit.json, &mut job_ids);
+    if submit.wait {
+        wait_for_submitted(&client, &job_ids, outcome)
+    } else {
+        outcome
+    }
+}
+
+/// Submit the jobs of a CSV file, carrying on past failures, as
+/// [`submit_each_obs_id`] does for the Obs IDs of a command line. The Job IDs
+/// of the jobs that were submitted are added to `job_ids`. The error counts
+/// the failures, because each was reported when it happened: a [`JsonError`]
+/// line with `json`, a log record without. The record names the line of the
+/// file.
+fn submit_each_csv_job(
+    client: &AsvoClient,
+    jobs: &[CsvJob],
+    json: bool,
+    job_ids: &mut Vec<AsvoJobId>,
+) -> anyhow::Result<()> {
+    let mut failures: usize = 0;
+
+    for job in jobs {
+        match client.submit_csv_job(&job.params) {
+            Ok(resp) => {
+                print_json_line(&StatusFirst(&resp), json)?;
+                info!(
+                    "Line {}: submitted {} as MWA ASVO Job ID {}",
+                    job.line, job.obs_id, resp.job_id
+                );
+                job_ids.push(resp.job_id);
+            }
+            Err(e) => {
+                let e = anyhow::Error::from(e);
+                if json {
+                    print_json_line(&JsonError::new(&e).with_obs_id(job.obs_id), true)?;
+                } else {
+                    error!("Line {}: Obs ID {}: {e}", job.line, job.obs_id);
+                }
+                failures += 1;
+            }
+        }
+    }
+
+    let total = jobs.len();
+    info!("Submitted {} of {total} jobs.", total - failures);
+
+    if failures == 0 {
+        return Ok(());
+    }
+
+    Err(ReportedFailures(format!("{failures} of {total} job submissions failed")).into())
+}
+
+/// Report what `submit-csv --dry-run` would have sent: for each job, the
+/// endpoint and the request body, as [`report_dry_run_submissions`] does.
+/// With `json`, each is a [`DryRunSubmission`] line.
+fn report_dry_run_csv(jobs: &[CsvJob], json: bool) -> anyhow::Result<()> {
+    for job in jobs {
+        let endpoint = job.params.endpoint();
+        if json {
+            print_json_line(
+                &DryRunSubmission {
+                    endpoint,
+                    obs_id: job.obs_id,
+                    params: &job.params,
+                },
+                true,
+            )?;
+            continue;
+        }
+        let body = serde_json::to_string_pretty(&job.params)?;
+        info!(
+            "[dry run] Would POST {endpoint} for Obs ID {} (line {}):\n{body}",
+            job.obs_id, job.line
+        );
+    }
+
+    info!(
+        "[dry run] Would have submitted {} jobs. Nothing was sent.",
+        jobs.len()
+    );
+    Ok(())
 }
 
 /// `--wait` of a submit command: wait for `job_ids`, the jobs that were
@@ -891,6 +1006,15 @@ fn run(args: Args) -> anyhow::Result<()> {
             )?;
         }
 
+        Args::SubmitCsv {
+            submit,
+            allow_resubmit,
+            file,
+        } => {
+            init_logger(submit.verbosity, submit.json);
+            run_submit_csv(&submit, allow_resubmit, &file)?;
+        }
+
         Args::Wait {
             verbosity,
             jobs,
@@ -1080,7 +1204,8 @@ impl Args {
             | Args::SubmitImageFromJob { submit, .. }
             | Args::SubmitMeta { submit, .. }
             | Args::SubmitVolt { submit, .. }
-            | Args::SubmitBf { submit, .. } => submit.json,
+            | Args::SubmitBf { submit, .. }
+            | Args::SubmitCsv { submit, .. } => submit.json,
         }
     }
 }

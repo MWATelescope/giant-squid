@@ -206,3 +206,39 @@ fn a_bad_retry_duration_is_an_error() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// The defaults of a manta-ray-client CSV file
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_csv_file_has_no_default_delivery_when_the_variables_are_not_set() {
+    let defaults = CsvDefaults::from(vars([])).expect("no variable is valid");
+
+    assert_eq!(defaults, CsvDefaults::default());
+}
+
+#[test]
+fn the_delivery_variables_are_the_defaults_of_a_csv_file() {
+    let defaults = CsvDefaults::from(vars([
+        (ENV_GIANT_SQUID_DELIVERY, "Scratch"),
+        (ENV_GIANT_SQUID_DELIVERY_FORMAT, "FILES"),
+    ]))
+    .expect("both values are valid");
+
+    assert_eq!(defaults.delivery, Some(Delivery::Scratch));
+    assert_eq!(defaults.delivery_format, Some(DeliveryFormat::Files));
+    assert_eq!(defaults.allow_resubmit, None);
+}
+
+#[test]
+fn a_bad_delivery_variable_is_an_error_that_lists_the_values() {
+    for name in [ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT] {
+        let err = CsvDefaults::from(vars([(name, "nowhere")])).expect_err("the value is not valid");
+
+        let text = err.to_string();
+        assert!(text.contains(&format!("{name}='nowhere'")), "{text}");
+        assert!(text.contains("should be one of"), "{text}");
+        assert!(matches!(err, AsvoError::InvalidEnvironment { .. }));
+    }
+}

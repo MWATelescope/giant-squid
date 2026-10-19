@@ -161,6 +161,13 @@ before you upgrade scripts.**
   the complete files again. It is deleted when the download is complete.
 * `download` retries a network error during the transfer, with or without `--keep-tar`. Before, only a failed
   request was retried.
+* `submit-csv` (short name `scsv`) submits the jobs of a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client)
+  CSV file (`mwa_client -c file.csv`): conversion, download (visibility and metadata), beamformer, voltage and
+  imaging jobs, one per line. It reads and checks the whole file before it submits anything, and a submission that
+  fails does not stop the others. A key that the job type does not have, or that a line gives twice, is an error. A
+  line that gives no delivery or delivery format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if
+  they are set. See the [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has
+  `parse_manta_ray_csv`, `CsvDefaults` and `AsvoClient::submit_csv_job`.
 
 ### Fixed in 3.0.0
 

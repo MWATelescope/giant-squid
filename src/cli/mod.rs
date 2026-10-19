@@ -21,6 +21,7 @@ pub mod value_enums;
 mod tests;
 
 use std::num::NonZeroU64;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::builder::styling::{AnsiColor, Styles};
@@ -334,6 +335,30 @@ pub enum Args {
         /// accepted.
         #[arg(id = "OBS_ID")]
         obs_ids: Vec<String>,
+    },
+
+    /// Submit the MWA ASVO jobs in a manta-ray-client CSV file.
+    ///
+    /// Each line of the file is one job, as for `mwa_client -c`: for example
+    /// `obs_id=1349904240, job_type=d, download_type=vis`. Every line is
+    /// checked before any job is submitted, so a mistake in the file submits
+    /// nothing. A key that a line does not give has the default of the
+    /// MWA ASVO. A line that gives no delivery or delivery format uses
+    /// GIANT_SQUID_DELIVERY and GIANT_SQUID_DELIVERY_FORMAT, if they are set.
+    // Negative numbers are allowed, as for `SubmitConv`.
+    #[command(alias = "scsv", allow_negative_numbers = true)]
+    SubmitCsv {
+        #[command(flatten)]
+        submit: SubmitOptions,
+
+        /// Allow resubmitting a job even if an identical one has completed,
+        /// for the lines that do not have an allow_resubmit key.
+        #[arg(short = 'r', long)]
+        allow_resubmit: bool,
+
+        /// The manta-ray-client CSV file.
+        #[arg(id = "FILE")]
+        file: PathBuf,
     },
 
     /// Wait for MWA ASVO jobs to complete, then print them
