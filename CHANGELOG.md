@@ -169,7 +169,8 @@ before you upgrade scripts.**
   format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set. See the
   [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `AsvoClient::submit_csv_file`, which
   reads a file and returns the `JobSubmittedResponse` of each job, `AsvoClient::submit_csv_jobs`,
-  `parse_manta_ray_csv` and `CsvDefaults`.
+  `parse_manta_ray_csv` and `CsvDefaults`. The Python module has `AsvoClient.submit_csv_file`, which returns a list
+  of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed.
 
 ### Fixed in 3.0.0
 

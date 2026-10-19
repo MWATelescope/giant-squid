@@ -213,6 +213,57 @@ raises an exception, so do not use `status` to decide whether a call worked.
 with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
 is an error and raises `AsvoApiError`.
 
+### Submit the jobs of a manta-ray-client CSV file
+
+`submit_csv_file` submits the jobs of a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV
+file (the file that `mwa_client -c` reads). Each line of the file is one job. It is the same method as
+`AsvoClient::submit_csv_file` of the Rust library, and the file format is the one that
+[the README](https://github.com/MWATelescope/giant-squid#jobs-from-a-manta-ray-client-csv-file) describes.
+
+```python
+replies = client.submit_csv_file("jobs.csv")  # a str or a path
+for reply in replies:
+    print(reply.job_id, reply.message)
+```
+
+The whole file is read and checked before anything is submitted. Then the jobs are submitted in the order of the
+file, and the list has the `JobSubmittedResponse` of each. A key that a line does not give has the default of the
+MWA ASVO. The arguments `delivery`, `delivery_format` and `allow_resubmit` are the defaults of the lines that do not
+give that key (the module reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used):
+
+```python
+from mwa_giant_squid import Delivery
+
+replies = client.submit_csv_file("jobs.csv", delivery=Delivery.Scratch, allow_resubmit=True)
+```
+
+A key that a line gives twice, and a line that makes the same job as an earlier line, are logged as warnings (see
+[Logging](#logging)).
+
+If the file has a problem, the call raises an exception and submits nothing:
+
+- `OSError` (for example `FileNotFoundError`): the file cannot be read.
+- `ValueError`: a line has a problem, for example a key that the job type does not have, or a value outside the
+  limits of the MWA ASVO. The message lists every bad line with its line number.
+
+A job that fails does not stop the others. When any job fails, the call raises `CsvSubmitError` after it has tried
+every job. The jobs that did not fail were submitted: the exception has their replies, so you do not submit them
+again.
+
+```python
+from mwa_giant_squid import CsvSubmitError
+
+try:
+    replies = client.submit_csv_file("jobs.csv")
+except CsvSubmitError as e:
+    for reply in e.submitted:  # the jobs that were submitted, in the order of the file
+        print("submitted", reply.job_id)
+    for failure in e.failures:  # the jobs that were not
+        print("line", failure.line, "Obs ID", failure.obs_id, "failed:", failure.error)
+```
+
+Each `CsvJobFailure` has `line` (of the file), `obs_id` and `error`, the `AsvoApiError` of the request.
+
 ## Wait for jobs
 
 The module has no wait function. Write the loop in your own code. This lets you choose the interval and
@@ -302,6 +353,7 @@ the function raises an exception, the download stops and the call raises that ex
 | `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. |
 | `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
 | `OSError` | A file cannot be read or written. |
+| `CsvSubmitError` | `submit_csv_file` submitted the jobs of a file, and some failed. It has `submitted` (the replies of the jobs that were submitted) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 
 Both `AsvoApiError` and `AsvoError` have a `kind` attribute: the name of the Rust error variant. The

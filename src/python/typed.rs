@@ -129,3 +129,24 @@ impl pyo3_stub_gen::PyStubType for JobId {
         stub_type("builtins.int", &["builtins"])
     }
 }
+
+/// An exception object, as the value of an attribute. In Python it is the
+/// exception that it wraps.
+pub struct ExceptionObject(pub Py<PyAny>);
+
+impl<'py> IntoPyObject<'py> for ExceptionObject {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(self.0.into_bound(py))
+    }
+}
+
+#[cfg(feature = "python-stubgen")]
+impl pyo3_stub_gen::PyStubType for ExceptionObject {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        stub_type("builtins.Exception", &["builtins"])
+    }
+}

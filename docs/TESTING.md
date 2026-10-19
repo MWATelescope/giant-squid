@@ -197,6 +197,7 @@ uv run pytest
 | `test_client.py` | `AsvoClient`: login, `get_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
+| `test_csv.py` | `submit_csv_file`: the six manta-ray-client files, the replies in file order, the arguments as defaults, `ValueError` for a bad line with nothing sent, `FileNotFoundError`, `CsvSubmitError` with its replies and failures, and the warnings in `logging` |
 | `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, and Ctrl-C |
 
 Two things are particular to this suite:

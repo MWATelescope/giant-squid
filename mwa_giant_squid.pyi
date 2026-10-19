@@ -18,6 +18,8 @@ __all__ = [
     "AsvoJob",
     "AsvoJobVec",
     "Centre",
+    "CsvJobFailure",
+    "CsvSubmitError",
     "Delivery",
     "DeliveryFormat",
     "DownloadProgress",
@@ -524,6 +526,53 @@ class AsvoClient:
                 is sent.
             AsvoApiError: The request failed.
         """
+    def submit_csv_file(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        delivery: Delivery | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        allow_resubmit: builtins.bool | None = None,
+    ) -> builtins.list[JobSubmittedResponse]:
+        r"""
+        Submit the jobs of a manta-ray-client CSV file (the file that
+        `mwa_client -c` reads), one job for each line.
+
+        The whole file is read and checked before anything is submitted.
+        Then the jobs are submitted in the order of the file. A job that
+        fails does not stop the others.
+
+        A key that a line does not give has the default of the MWA ASVO,
+        except `delivery`, `delivery_format` and `allow_resubmit`, for which
+        the arguments below are the defaults. (The module reads no
+        environment variable, so `GIANT_SQUID_DELIVERY` is not used.) A key
+        that a line does give wins. A key that a line gives twice, and a line
+        that makes the same job as an earlier line, are logged as warnings.
+        See the README for the keys of each job type.
+
+        Args:
+            path: The CSV file.
+            delivery: The `delivery` of the lines that have none. `None`
+                leaves the default of the MWA ASVO.
+            delivery_format: The `delivery_format` of the lines that have
+                none. `None` leaves the default of the MWA ASVO.
+            allow_resubmit: The `allow_resubmit` of the lines that have none.
+                `None` leaves the default of the MWA ASVO.
+
+        Returns:
+            The server's reply for each job, in the order of the file. An
+            empty list if the file has no job.
+
+        Raises:
+            OSError: The file cannot be read. Nothing is submitted.
+            ValueError: A line of the file has a problem (for example an
+                unknown key, or a value outside the limits of the MWA ASVO).
+                The message lists every bad line by its line number. Nothing
+                is submitted.
+            CsvSubmitError: Some jobs failed. The other jobs were submitted:
+                the exception's `submitted` has their replies, and its
+                `failures` has a `CsvJobFailure` for each job that failed.
+        """
     def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
         r"""
         Cancel a job.
@@ -840,6 +889,43 @@ class AsvoJobVec:
         Raises:
             AsvoError: A job is missing, has an error or has been cancelled.
         """
+
+@typing.final
+class CsvJobFailure:
+    r"""
+    A job of a CSV file that was not submitted.
+    """
+    @property
+    def line(self) -> builtins.int:
+        r"""
+        The line of the file, from 1.
+        """
+    @property
+    def obs_id(self) -> builtins.int:
+        r"""
+        The Obs ID of the job.
+        """
+    @property
+    def error(self) -> builtins.Exception:
+        r"""
+        Why the job was not submitted: the `AsvoApiError` of the request.
+        """
+
+class CsvSubmitError(builtins.Exception):
+    r"""
+    `AsvoClient.submit_csv_file` submitted the jobs of a file, but some jobs failed.
+
+    The jobs that did not fail were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.
+    """
+
+    submitted: builtins.list[JobSubmittedResponse]
+    r"""
+    The replies for the jobs that were submitted, in the order of the file.
+    """
+    failures: builtins.list[CsvJobFailure]
+    r"""
+    The jobs that were not submitted, in the order of the file.
+    """
 
 class DownloadProgress:
     r"""

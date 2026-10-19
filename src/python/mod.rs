@@ -26,6 +26,7 @@
 #![cfg_attr(feature = "python-stubgen", allow(clippy::incompatible_msrv))]
 
 mod client;
+mod csv;
 mod download;
 mod error;
 mod params;
@@ -100,6 +101,8 @@ mod module {
 
     #[pymodule_export]
     use super::client::PyAsvoClient;
+    #[pymodule_export]
+    use super::csv::{CsvSubmitError, PyCsvJobFailure};
     #[pymodule_export]
     use super::error::{AsvoApiError, AsvoError};
     #[pymodule_export]
