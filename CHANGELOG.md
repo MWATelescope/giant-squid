@@ -171,6 +171,12 @@ before you upgrade scripts.**
   reads a file and returns the `JobSubmittedResponse` of each job, `AsvoClient::submit_csv_jobs`,
   `parse_manta_ray_csv` and `CsvDefaults`. The Python module has `AsvoClient.submit_csv_file`, which returns a list
   of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed.
+* `download`, `cancel` and `wait` read their IDs from standard input when they are given no ID and standard input is
+  not a terminal, or when an argument is `-`. The input is the output of the new option `list --ids` (one Job ID on
+  each line) or of `list --json` (the Job IDs are its keys), or IDs that spaces or lines separate. The commands do not
+  filter what they read: filter the list first, for example `giant-squid list --job-states completed --ids |
+  giant-squid download`. A list with no job (`{}`) is not an error, but no text at all is. See the
+  [README](README.md#use-the-output-of-list-as-the-input-of-other-commands).
 
 ### Fixed in 3.0.0
 

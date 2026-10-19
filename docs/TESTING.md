@@ -144,6 +144,15 @@ type, a bad file sending no request, a failed submission not stopping the
 others, `--wait`, and the delivery variables as the defaults of a file. The
 parser has its own tests in `src/mwa_asvo/manta_ray_csv/tests.rs`.
 
+`tests/stdin_ids.rs` runs the binary with text on its standard input, for the
+IDs that `download`, `cancel` and `wait` read from a pipe, and for `list --ids`.
+It covers each form of input (IDs on lines, the JSON of `list`), the output of
+`list --ids` as the input of `cancel`, a list with no job, and the input that
+is refused (no text, the error line of a failed `list`, the table of `list`)
+sending no request. What is read from a terminal cannot be shown by a process
+that has no terminal, so `src/cli/stdin_ids/tests.rs` covers it with a reader
+that fails the test if it is read.
+
 ### Layer 3 - opt-in live tests
 
 `tests/live.rs` (18 tests) runs the built binary against a real MWA ASVO.

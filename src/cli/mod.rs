@@ -14,6 +14,7 @@ mod json_output;
 pub mod legacy_json;
 pub mod params;
 pub mod run;
+mod stdin_ids;
 pub mod table;
 pub mod value_enums;
 
@@ -127,6 +128,14 @@ pub enum Args {
         #[arg(long, conflicts_with = "json")]
         legacy_json: bool,
 
+        /// Print only the Job ID of each job, one on each line, in the order
+        /// of the list, and no table. It is the input of `download`,
+        /// `cancel` and `wait`, which read it on standard input: for example
+        /// `giant-squid list --job-states completed --ids | giant-squid
+        /// download`. A list with no job prints nothing.
+        #[arg(long, conflicts_with_all = ["json", "legacy_json"])]
+        ids: bool,
+
         /// The verbosity of the program. The default is to print high-level
         /// information. Cannot be used with --json or --legacy-json.
         #[arg(short, long, action=ArgAction::Count, conflicts_with_all = ["json", "legacy_json"])]
@@ -217,7 +226,12 @@ pub enum Args {
         json: bool,
 
         /// The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or
-        /// Obs IDs are also accepted. If none are given, read IDs from piped or redirected standard input.
+        /// Obs IDs are also accepted. With none, and when standard input is
+        /// not a terminal, they are read from standard input: the output of
+        /// `giant-squid list --ids` or `giant-squid list --json` (every job
+        /// in it is downloaded, so filter the list first, for example with
+        /// --job-states), or IDs that spaces or lines separate. `-` reads
+        /// standard input with other IDs or in a terminal.
         #[arg(id = "JOB_ID_OR_OBS_ID")]
         job_ids_or_obs_ids: Vec<String>,
     },
@@ -387,7 +401,11 @@ pub enum Args {
         no_colour: bool,
 
         /// The Job IDs to wait for. Files containing Job IDs are also
-        /// accepted.
+        /// accepted. With none, and when standard input is not a terminal,
+        /// they are read from standard input: the output of
+        /// `giant-squid list --ids` or `giant-squid list --json` (every job
+        /// in it is waited for), or Job IDs that spaces or lines separate.
+        /// `-` reads standard input with other IDs or in a terminal.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },
@@ -412,7 +430,12 @@ pub enum Args {
         verbosity: u8,
 
         /// The Job IDs to be cancelled. Files containing Job IDs are also
-        /// accepted. If none are given, read Job IDs from piped or redirected standard input.
+        /// accepted. With none, and when standard input is not a terminal,
+        /// they are read from standard input: the output of
+        /// `giant-squid list --ids` or `giant-squid list --json`. Every job
+        /// in it is cancelled, so filter the list first, for example with
+        /// --job-states, and check it with --dry-run. `-` reads standard
+        /// input with other IDs or in a terminal.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },

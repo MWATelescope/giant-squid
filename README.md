@@ -86,6 +86,7 @@ suit users for a few reasons:
   - [Wait for MWA ASVO jobs](#wait-for-mwa-asvo-jobs)
   - [Cancel MWA ASVO jobs](#cancel-mwa-asvo-jobs)
   - [Download MWA ASVO jobs](#download-mwa-asvo-jobs)
+  - [Use the output of `list` as the input of other commands](#use-the-output-of-list-as-the-input-of-other-commands)
 - [Installation](#installation)
   - [Pre-compiled](#pre-compiled)
   - [Building from crates.io](#building-from-cratesio)
@@ -892,6 +893,7 @@ Arguments:
 Options:
   -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
+      --ids                     Print only the Job ID of each job, one on each line, in the order of the list, and no table. It is the input of `download`, `cancel` and `wait`, which read it on standard input: for example `giant-squid list --job-states completed --ids | giant-squid download`. A list with no job prints nothing
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
       --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
       --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
@@ -1044,7 +1046,7 @@ Wait for MWA ASVO jobs to complete, then print them
 Usage: giant-squid wait [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted
+  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted. With none, and when standard input is not a terminal, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is waited for), or Job IDs that spaces or lines separate. `-` reads standard input with other IDs or in a terminal
 
 Options:
   -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
@@ -1087,7 +1089,7 @@ Cancel MWA ASVO jobs
 Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. If none are given, read Job IDs from piped or redirected standard input
+  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. With none, and when standard input is not a terminal, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json`. Every job in it is cancelled, so filter the list first, for example with --job-states, and check it with --dry-run. `-` reads standard input with other IDs or in a terminal
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
@@ -1118,6 +1120,9 @@ Job ID keys from the JSON object. When no Job IDs are given on the command line,
 giant-squid list --json --job-states=completed | jq -r 'keys[]' | giant-squid cancel
 ```
 
+`cancel` can also read the output of `list --ids` or `list --json` itself, without `jq`: see
+[Use the output of `list` as the input of other commands](#use-the-output-of-list-as-the-input-of-other-commands).
+
 The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
 was cancelled:
 
@@ -1142,7 +1147,7 @@ Download an MWA ASVO job
 Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. If none are given, read IDs from piped or redirected standard input
+  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. With none, and when standard input is not a terminal, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is downloaded, so filter the list first, for example with --job-states), or IDs that spaces or lines separate. `-` reads standard input with other IDs or in a terminal
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
@@ -1185,6 +1190,9 @@ to read the Job ID keys from the JSON object. When no IDs are given on the comma
 ```bash
 giant-squid list --json --job-states=completed | jq -r 'keys[]' | giant-squid download -d /tmp
 ```
+
+`download` can also read the output of `list --ids` or `list --json` itself, without `jq`: see
+[Use the output of `list` as the input of other commands](#use-the-output-of-list-as-the-input-of-other-commands).
 
 (`giant-squid` differentiates between Job IDs and Obs IDs by the length of the
 number specified; 10-digit numbers are treated as Obs IDs.)
@@ -1311,6 +1319,51 @@ download directory:
   exception is a directory there when the job's Scratch folder is gone: that
   is the result of an earlier download, so `giant-squid` reports that the files
   are already in the download directory and does not fail.
+
+### Use the output of `list` as the input of other commands
+
+`download`, `cancel` and `wait` read their IDs from standard input when you give them no ID and standard input is
+not a terminal. The IDs that `list` prints are then their input. `-` reads standard input in a terminal, or
+together with other IDs (`giant-squid cancel 12345 -`).
+
+```bash
+# Download every completed job.
+giant-squid list --job-states completed --ids | giant-squid download --download-dir /data
+
+# Cancel the queued jobs. Look at what would be cancelled first.
+giant-squid list --job-states queued --ids | giant-squid cancel --dry-run
+giant-squid list --job-states queued --ids | giant-squid cancel
+
+# Wait for the jobs that are not ready.
+giant-squid list --job-states queued,staging,preprocessing --json | giant-squid wait
+```
+
+What the commands read:
+
+- `list --ids`: one Job ID on each line.
+- `list --json` (also `--legacy-json`, and the output of `wait --json`): the Job IDs, which are the keys. The Obs IDs in
+  it are not used, because an Obs ID can have more than one job.
+- IDs that spaces or lines separate, as in a file. A number that is a valid Obs ID is an Obs ID, and any other number is
+  a Job ID. `cancel` and `wait` refuse an Obs ID.
+
+The table that `list` prints by default cannot be read: the error says to use `--ids` or `--json`.
+
+Things to know:
+
+- **Nothing is filtered.** The commands act on every ID that they read. `download` fails for a job that is not ready,
+  and `wait` fails for a job that has an error, was cancelled, or is not in the list, as they do for an ID that you
+  type. Filter the list first, with `--job-states`, `--job-types`, `--days`
+  and the other options of `list`. `cancel` logs `Read N Job IDs from standard input.` before it sends the
+  requests, and `--dry-run` shows what it would cancel.
+- **A list with no job is not an error.** For `list --json`, the empty list is `{}`, and the command ends with exit
+  code 0 and says that there is nothing to do. But standard input with no text at all is an error, as no IDs on the
+  command line is. `list --ids` prints nothing for a list with no job, so in a script that must accept an empty list,
+  use `--json`.
+- **A failed `list` is refused.** The one line of JSON that `list --json` prints for an error is not a job list, and
+  the command prints its message. A shell does not stop a pipe when its first command fails, unless you use
+  `set -o pipefail`.
+- **The job window.** `download` and `wait` look for a job in your jobs of the past 30 days, which is the default of
+  `list`. A job that `list --date-from` shows from an earlier date is not found.
 
 ## Installation
 

@@ -14,7 +14,7 @@ use thiserror::Error;
 use crate::mwa_asvo::{AsvoError, AsvoJobId};
 use crate::obs_id::ObsId;
 
-enum ObsIdOrJobId {
+pub(crate) enum ObsIdOrJobId {
     /// This is an Obs ID.
     O(ObsId),
     /// This is a Job ID.
@@ -23,7 +23,7 @@ enum ObsIdOrJobId {
     Zero,
 }
 
-fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
+pub(crate) fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
     match s.parse::<u64>() {
         // We successfully parsed an int.
         Ok(i) => {
@@ -115,6 +115,39 @@ pub enum ParseError {
     /// error can be used.
     #[error("'{text}' in file {file} could not be parsed as an int.")]
     InsideFile { file: String, text: String },
+
+    /// A word on standard input is not a number.
+    #[error(
+        "'{text}' in standard input could not be parsed as an int. Standard input can hold IDs, \
+         or the output of 'giant-squid list --ids' or 'giant-squid list --json'."
+    )]
+    InsideStdin {
+        /// The word.
+        text: String,
+    },
+
+    /// Standard input could not be read.
+    #[error("Standard input could not be read: {source}")]
+    StdinIO {
+        /// The error from the operating system.
+        source: std::io::Error,
+    },
+
+    /// Standard input has the error line of a command that failed, not jobs.
+    #[error("Standard input has an error, not jobs: {message}")]
+    StdinError {
+        /// The message of the error.
+        message: String,
+    },
+
+    /// Standard input is JSON, but not the JSON of a job list.
+    #[error(
+        "Standard input is JSON, but it is not the output of 'giant-squid list --json': {problem}"
+    )]
+    StdinJson {
+        /// What is wrong, in words.
+        problem: String,
+    },
 
     /// A file of Job IDs and Obs IDs could not be read.
     #[error("{}: {source}", file.display())]

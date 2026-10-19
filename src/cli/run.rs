@@ -11,7 +11,6 @@
 //! [`run_cli`].
 
 use std::collections::BTreeMap;
-use std::io::{IsTerminal, Read};
 use std::num::NonZeroU64;
 use std::path::Path;
 use std::thread;
@@ -41,12 +40,13 @@ use crate::mwa_asvo::{
 };
 use crate::obs_id::ObsId;
 use crate::{
-    parse_job_ids_only, parse_manta_ray_csv, parse_many_job_ids_or_obs_ids, parse_obs_ids_only,
-    CsvDefaults, CsvJob, CsvSubmitError, ParseError,
+    parse_manta_ray_csv, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, CsvDefaults, CsvJob,
+    CsvSubmitError, ParseError,
 };
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
+use super::stdin_ids::resolve_ids;
 use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION};
 
@@ -93,21 +93,6 @@ fn connect() -> anyhow::Result<AsvoClient> {
 /// The wait before each download starts, so that the downloads start (and
 /// log) in their order: 1/2 before 2/2. It is for the display only.
 const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(100);
-
-/// Read whitespace-separated identifiers from piped or redirected stdin
-/// when the command has no identifiers of its own.
-fn read_ids_from_stdin_if_empty(strings: &[String]) -> Result<Vec<String>, ArgumentError> {
-    if !strings.is_empty() || std::io::stdin().is_terminal() {
-        return Ok(strings.to_vec());
-    }
-
-    let mut stdin = std::io::stdin();
-    let mut input = String::new();
-    stdin
-        .read_to_string(&mut input)
-        .map_err(|e| ArgumentError(format!("Could not read IDs from standard input: {e}")))?;
-    Ok(input.split_whitespace().map(str::to_owned).collect())
-}
 
 /// What one download is for: a Job ID, or an Obs ID.
 #[derive(Clone, Copy)]
@@ -550,6 +535,11 @@ fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(
 /// command line or in a file.
 const NO_DOWNLOAD_IDS_MESSAGE: &str = "No Job IDs or Obs IDs specified.";
 
+/// What a command says when the list on standard input has no job. There is
+/// nothing to do, and that is not an error: a list can be empty when no job
+/// is in the state that `list --job-states` asked for.
+const EMPTY_LIST_MESSAGE: &str = "The list on standard input has no jobs. Nothing to do.";
+
 /// The message of `submit-image` for a Job ID: this command takes Obs IDs
 /// only, and `submit-image-from-job` is the command for a conversion job.
 const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts Obs IDs; to image an existing conversion job, use submit-image-from-job instead.";
@@ -697,6 +687,49 @@ fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
 
 /// Print `jobs` as `list` and `wait` do: as the legacy JSON of giant-squid
 /// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
+/// Print the Job ID of each job, one on each line (`list --ids`). A list
+/// with no job prints nothing.
+fn print_job_ids(jobs: &AsvoJobVec) {
+    if jobs.0.is_empty() {
+        info!("You have no jobs.");
+    }
+    for job in &jobs.0 {
+        println!("{}", job.job_id());
+    }
+}
+
+/// The Job IDs of `cancel` and `wait`, from their arguments and from
+/// standard input (see [`resolve_ids`]), and whether standard input was
+/// read.
+///
+/// `None` means that the list on standard input has no job. There is
+/// nothing to do, and that is not an error.
+///
+/// # Errors
+///
+/// [`ParseError`] if an ID is not valid, if there is an Obs ID, or if there
+/// is no ID.
+fn read_job_ids(args: &[String]) -> Result<Option<(Vec<AsvoJobId>, bool)>, ParseError> {
+    let ids = resolve_ids(args)?;
+    if ids.is_empty_job_list() {
+        return Ok(None);
+    }
+    let from_stdin = ids.from_stdin;
+    let job_ids = ids.into_job_ids()?;
+    if job_ids.is_empty() {
+        return Err(ParseError::NoJobIds);
+    }
+    Ok(Some((job_ids, from_stdin)))
+}
+
+/// Say how many Job IDs a command read from standard input, as `cancel` and
+/// `wait` act on every one of them.
+fn log_read_from_stdin(from_stdin: bool, job_count: usize) {
+    if from_stdin {
+        info!("Read {job_count} Job IDs from standard input.");
+    }
+}
+
 fn print_jobs(
     jobs: AsvoJobVec,
     json: bool,
@@ -766,6 +799,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             json,
             legacy_json,
+            ids,
             job_ids_or_obs_ids,
             job_states,
             no_colour,
@@ -794,7 +828,11 @@ fn run(args: Args) -> anyhow::Result<()> {
             let client = connect()?;
             let jobs = client.get_jobs(&filter)?;
 
-            print_jobs(jobs, json, legacy_json, no_colour)?;
+            if ids {
+                print_job_ids(&jobs);
+            } else {
+                print_jobs(jobs, json, legacy_json, no_colour)?;
+            }
         }
 
         Args::Download {
@@ -809,13 +847,19 @@ fn run(args: Args) -> anyhow::Result<()> {
             json,
             ..
         } => {
-            // The IDs can come from files, so they are checked after they
-            // are read.
-            let job_ids_or_obs_ids = read_ids_from_stdin_if_empty(&job_ids_or_obs_ids)?;
-            let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
-            if job_ids.is_empty() && obs_ids.is_empty() {
+            // The IDs can come from files and from standard input, so they
+            // are checked after they are read.
+            let ids = resolve_ids(&job_ids_or_obs_ids)?;
+            if ids.is_empty_job_list() {
+                init_logger(verbosity, json);
+                info!("{EMPTY_LIST_MESSAGE}");
+                return Ok(());
+            }
+            if ids.is_empty() {
                 return Err(ArgumentError(NO_DOWNLOAD_IDS_MESSAGE.to_string()).into());
             }
+            let from_stdin = ids.from_stdin;
+            let (job_ids, obs_ids) = (ids.job_ids, ids.obs_ids);
 
             if !Path::new(&download_dir).is_dir() {
                 return Err(ArgumentError(format!(
@@ -835,6 +879,13 @@ fn run(args: Args) -> anyhow::Result<()> {
             // Init the logger- special case as we need to use LogWrapper to ensure log
             // messages don't mess up the progress bars!
             init_logger_with_progressbar_support(verbosity, json, &mpb);
+            if from_stdin {
+                info!(
+                    "Read {} Job IDs and {} Obs IDs from standard input.",
+                    job_ids.len(),
+                    obs_ids.len()
+                );
+            }
 
             let hash = !skip_hash;
             let DownloadSettings {
@@ -1066,8 +1117,13 @@ fn run(args: Args) -> anyhow::Result<()> {
             legacy_json,
             no_colour,
         } => {
-            let parsed_job_ids = parse_job_ids_only(&jobs)?;
+            let Some((parsed_job_ids, from_stdin)) = read_job_ids(&jobs)? else {
+                init_logger(verbosity, json);
+                info!("{EMPTY_LIST_MESSAGE}");
+                return Ok(());
+            };
             init_logger(verbosity, json);
+            log_read_from_stdin(from_stdin, parsed_job_ids.len());
             let client = connect()?;
             // Endlessly loop over the newly-supplied job IDs until
             // they're all ready.
@@ -1087,9 +1143,13 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             jobs,
         } => {
-            let jobs = read_ids_from_stdin_if_empty(&jobs)?;
-            let parsed_job_ids = parse_job_ids_only(&jobs)?;
+            let Some((parsed_job_ids, from_stdin)) = read_job_ids(&jobs)? else {
+                init_logger(verbosity, json);
+                info!("{EMPTY_LIST_MESSAGE}");
+                return Ok(());
+            };
             init_logger(verbosity, json);
+            log_read_from_stdin(from_stdin, parsed_job_ids.len());
 
             if dry_run {
                 for j in &parsed_job_ids {

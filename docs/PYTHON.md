@@ -44,6 +44,7 @@ giant-squid list
 giant-squid submit-vis 1065880128
 giant-squid wait 12345
 giant-squid download 12345
+giant-squid list --job-states completed --ids | giant-squid download  # IDs on standard input
 ```
 
 The command is the Rust `giant-squid` program itself, not a copy of it. The module has the program's code
@@ -53,7 +54,9 @@ program. For what each one does, see the
 [README](https://github.com/MWATelescope/giant-squid/blob/main/README.md) or run `giant-squid --help` and
 `giant-squid <command> --help`. The commands are `list` (`l`), `download` (`d`), `submit-vis` (`sv`),
 `submit-conv` (`sc`), `submit-image` (`si`), `submit-image-from-job` (`sifj`), `submit-meta` (`sm`),
-`submit-volt` (`st`), `submit-bf` (`sb`), `wait` (`w`) and `cancel` (`c`).
+`submit-volt` (`st`), `submit-bf` (`sb`), `submit-csv` (`scsv`), `wait` (`w`) and `cancel` (`c`). `download`,
+`cancel` and `wait` read their IDs from standard input when you give them none (see the
+[README](https://github.com/MWATelescope/giant-squid/blob/main/README.md#use-the-output-of-list-as-the-input-of-other-commands)).
 
 The environment variables are `MWA_ASVO_API_KEY` (required), `MWA_ASVO_HOST`, `MWA_ASVO_API_TIMEOUT`,
 `GIANT_SQUID_DELIVERY`, `GIANT_SQUID_DELIVERY_FORMAT`, `GIANT_SQUID_BUF_SIZE` and
