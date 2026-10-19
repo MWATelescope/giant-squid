@@ -32,6 +32,9 @@ giant-squid, the API and its documentation use the same names everywhere.
    **jobs older than 30 days**, change it: see
    [Listing jobs](#listing-jobs-list).
 
+8. If a script uses **`-f` or `-t` with `submit-volt`**, or **`-n` with `list`
+   or `wait`**, change it: see [Short flags](#short-flags).
+
 Your API key, environment variables and download commands need no change.
 
 ## No more `-p` / `--parameters`
@@ -388,18 +391,33 @@ when it needs to. The MWA ASVO allows
 only a few logins a minute, so a script that runs giant-squid very often
 works best with `HOME` set, so that the file can be used.
 
+## Short flags
+
+Three short flags are gone, so that a letter means the same thing in every
+command where it is used for these two options:
+
+| 2.x | 3.0.0 |
+|---|---|
+| `submit-volt -f N` | `submit-volt --from-channel N` |
+| `submit-volt -t N` | `submit-volt --to-channel N` |
+| `list -n`, `wait -n` | `list --no-colour`, `wait --no-colour` |
+
+`-f` is now only `--delivery-format`, and `-n` is now only `--dry-run`. The
+other short flags did not change. `-d`, `-o` and `-r` still mean more than
+one thing, as in 2.x, so use the long names in scripts.
+
 ## Commands at a glance
 
 | Command | Alias | Change |
 |---|---|---|
-| `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused |
+| `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused; `-n` removed |
 | `download` | `d` | None |
 | `submit-vis` | `sv` | `--json` added |
 | `submit-meta` | `sm` | `--json` added |
 | `submit-conv` | `sc` | `-p` replaced by options; **new defaults** |
 | `submit-image` | `si` | `-p` replaced by options; Obs IDs only; **new defaults** |
 | `submit-image-from-job` | `sifj` | New: images a completed conversion job |
-| `submit-volt` | `st` | `--json` added; `--offset` range checked |
+| `submit-volt` | `st` | `--json` added; `--offset` range checked; `-f` and `-t` removed |
 | `submit-bf` | `sb` | `--json` added |
-| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); Obs IDs refused |
+| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); Obs IDs refused; `-n` removed |
 | `cancel` | `c` | New log lines; Obs IDs refused; exit code 1 when a request is refused |

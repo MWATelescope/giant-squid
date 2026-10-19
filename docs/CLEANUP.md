@@ -5,7 +5,7 @@
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
 2. Check that the head is `d635a16` "Match job types by code; trim docs and imports", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 395 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
+   - 397 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
    - 194 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
@@ -82,6 +82,7 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **"Drop staging_count tests; true/false switches" (T1, O2):** the three `staging_count` tests are gone (the Rust one is kept as `the_client_calls_only_end_user_endpoints`). `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`. The schema (2.3.4) does not allow `null` for them, so `null` is refused.
 - **"Match job types by code; trim docs and imports" (O9, V1–V3):** `legacy_job_type` and `job_type_colour` match the `JOB_TYPE_CODE_*` constants; four long docs are shorter; `job.job_id()` is read once per function; the nine `#[allow(unused_imports)]` re-exports are one `use`.
 - The unused `noqa` (RUF100) had already been removed in `48ecadb`.
+- **O5 (option C):** `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` have no short flag), and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` have no short flag). `-d`, `-o` and `-r` stay as they were in 2.5.1 (each still has more than one meaning). The test `the_short_flags_mean_what_the_table_says` holds the table; `docs/V3_MIGRATION.md` has a "Short flags" section.
 
 ### Done in `e891d31` (L1–L10 part A)
 
@@ -98,18 +99,7 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 ## Waiting for a decision by Greg
 
-- 🔴 **O5: short flags differ between commands.** All of them are in 2.5.1 except `-o` for `submit-conv --output`.
-
-  | Short | Meaning in one place | Meaning in another |
-  |---|---|---|
-  | `-f` | `--delivery-format` (all `submit-*` except `submit-volt`) | `--from-channel` (`submit-volt`) |
-  | `-o` | `--output` (`submit-conv`, new in 3.0) | `--output-mode` (`submit-image`, `submit-image-from-job`); `--offset` (`submit-volt`) |
-  | `-r` | `--no-resume` (`download`) | `--allow-resubmit` (`submit-*`) |
-  | `-n` | `--no-colour` (`list`, `wait`) | `--dry-run` (`download`, `submit-*`, `cancel`) |
-  | `-d` | `--download-dir` (`download`) | `--delivery` (`submit-*`) |
-
-  Options: **A** leave them all and document them in a README table (no script breaks; recommended); **B** change only the new `-o` of `submit-conv`; **C** change the inherited ones (breaks scripts that use them; Greg must give the letters).
-- **D12** (above) is Greg's to confirm.
+- **D12** (see the list of 19 Oct) is Greg's to confirm.
 
 ## Waiting for the API developer
 

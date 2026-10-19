@@ -130,6 +130,9 @@ before you upgrade scripts.**
   `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,
   `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The last seven also take `true` and `false`, and
   the bare flag (`--no-rfi`, `-r`) is still `true`. `--help` shows each option's default.
+* Short flags: `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` lost `-f` and `-t`),
+  and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` lost `-n`). The other short flags did not
+  change. See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md#short-flags).
 * `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,
   `--output-mode`, `--pol` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
   names that the options accept (it listed `retrieving`, which is not a state).

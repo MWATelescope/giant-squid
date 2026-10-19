@@ -877,11 +877,11 @@ pub struct VoltageJobArgs {
     pub duration: u64,
 
     /// The 'from' receiver channel number (0-255).
-    #[arg(short = 'f', long)]
+    #[arg(long)]
     pub from_channel: Option<u8>,
 
     /// The 'to' receiver channel number (0-255).
-    #[arg(short = 't', long)]
+    #[arg(long)]
     pub to_channel: Option<u8>,
 
     #[command(flatten)]

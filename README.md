@@ -780,9 +780,9 @@ Options:
           The offset in seconds from the start GPS time of the observation
   -u, --duration <DURATION>
           The duration (in seconds) to download
-  -f, --from-channel <FROM_CHANNEL>
+      --from-channel <FROM_CHANNEL>
           The 'from' receiver channel number (0-255)
-  -t, --to-channel <TO_CHANNEL>
+      --to-channel <TO_CHANNEL>
           The 'to' receiver channel number (0-255)
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
@@ -808,7 +808,7 @@ giant-squid submit-volt --delivery scratch --offset 0 --duration 8 1065880128
 
 Text files containing Obs IDs may be used too.
 
-For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` (`-f`) and `--to-channel` (`-t`) to restrict the job to
+For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` and `--to-channel` to restrict the job to
 only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
 will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
 
@@ -839,7 +839,7 @@ Options:
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
       --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
       --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
-  -n, --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
+      --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30). Cannot be used with --date-from or --date-to, which select the jobs by date instead [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
@@ -994,7 +994,7 @@ Options:
   -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
   -v, --verbosity...  The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
-  -n, --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
+      --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
   -h, --help          Print help
   -V, --version       Print version
 ```

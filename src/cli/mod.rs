@@ -142,7 +142,7 @@ pub enum Args {
         job_types: Vec<JobType>,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example
-        #[arg(short, long)]
+        #[arg(long)]
         no_colour: bool,
 
         /// Only fetch jobs from the past N days (1 to 30). Cannot be used with
@@ -358,7 +358,7 @@ pub enum Args {
         verbosity: u8,
 
         /// Disables colouring of output. Useful when you have a non-black terminal background for example
-        #[arg(short, long)]
+        #[arg(long)]
         no_colour: bool,
 
         /// The Job IDs to wait for. Files containing Job IDs are also

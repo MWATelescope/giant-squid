@@ -1916,6 +1916,85 @@ fn the_amps_polarization_and_multiscale_switches_take_true_or_false() {
     }
 }
 
+/// The short flags of the commands, and what each means. `-f` is
+/// `--delivery-format` and `-n` is `--dry-run` wherever they are used, and
+/// the other letters are as they were in giant-squid 2.5.1 (`-d`, `-o` and
+/// `-r` still mean more than one thing).
+#[test]
+fn the_short_flags_mean_what_the_table_says() {
+    use clap::CommandFactory;
+    use std::collections::BTreeMap;
+
+    let mut meanings: BTreeMap<char, std::collections::BTreeSet<String>> = BTreeMap::new();
+    let cli = Args::command();
+    for command in cli.get_subcommands() {
+        for arg in command.get_arguments() {
+            if let (Some(short), Some(long)) = (arg.get_short(), arg.get_long()) {
+                if !matches!(long, "help" | "version") {
+                    meanings.entry(short).or_default().insert(long.to_string());
+                }
+            }
+        }
+    }
+    let meanings: Vec<(char, Vec<String>)> = meanings
+        .into_iter()
+        .map(|(short, longs)| (short, longs.into_iter().collect()))
+        .collect();
+
+    let expected: [(char, &[&str]); 11] = [
+        ('c', &["concurrent-downloads"]),
+        ('d', &["delivery", "download-dir"]),
+        ('f', &["delivery-format"]),
+        ('j', &["json"]),
+        ('k', &["keep-tar"]),
+        ('n', &["dry-run"]),
+        ('o', &["offset", "output", "output-mode"]),
+        ('r', &["allow-resubmit", "no-resume"]),
+        ('u', &["duration"]),
+        ('v', &["verbosity"]),
+        ('w', &["wait"]),
+    ];
+    let expected: Vec<(char, Vec<String>)> = expected
+        .iter()
+        .map(|(short, longs)| (*short, longs.iter().map(|l| l.to_string()).collect()))
+        .collect();
+    assert_eq!(meanings, expected);
+}
+
+/// The options that lost their short flag are still there with their long
+/// name, and the short flag is refused.
+#[test]
+fn the_options_without_a_short_flag_still_have_a_long_name() {
+    let (args, _) = volt_args(&[
+        "giant-squid",
+        "submit-volt",
+        "--offset",
+        "0",
+        "--duration",
+        "8",
+        "--from-channel",
+        "1",
+        "--to-channel",
+        "2",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(args.from_channel, Some(1));
+    assert_eq!(args.to_channel, Some(2));
+
+    for argv in [
+        ["giant-squid", "submit-volt", "-f", "1", TEST_OBS_ID],
+        ["giant-squid", "submit-volt", "-t", "2", TEST_OBS_ID],
+        ["giant-squid", "list", "-n", "-n", "-n"],
+        ["giant-squid", "wait", "-n", TEST_JOB_ID, "-n"],
+    ] {
+        assert!(Args::try_parse_from(argv).is_err(), "{argv:?}");
+    }
+    match parse(&["giant-squid", "list", "--no-colour"]) {
+        Args::List { no_colour, .. } => assert!(no_colour),
+        other => panic!("expected List, got {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // delivery and format, and days and dates
 // ---------------------------------------------------------------------------
