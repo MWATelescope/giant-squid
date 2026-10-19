@@ -375,3 +375,37 @@ fn the_open_directory_is_kept_if_its_path_is_swapped_for_a_link() {
     assert!(moved.join("a.dat").is_file(), "written where it was opened");
     assert!(!elsewhere.path().join("a.dat").exists());
 }
+
+/// A new file and a new directory have the permissions of `File::create` and
+/// `mkdir` (before the umask): at least the owner can read and write the file
+/// and use the directory.
+#[cfg(unix)]
+#[test]
+fn new_files_and_directories_are_usable_by_their_owner() {
+    use std::os::unix::fs::PermissionsExt;
+
+    const OWNER_READ_WRITE: u32 = 0o600;
+    const OWNER_ALL: u32 = 0o700;
+
+    let dir = TempDir::new().expect("could not create a directory");
+    drop(
+        root_of(&dir)
+            .open_file(Path::new("sub/a.dat"), WriteMode::CreateOrTruncate)
+            .expect("the file"),
+    );
+
+    let file_mode = std::fs::metadata(dir.path().join("sub").join("a.dat"))
+        .expect("the file")
+        .permissions()
+        .mode();
+    let dir_mode = std::fs::metadata(dir.path().join("sub"))
+        .expect("the directory")
+        .permissions()
+        .mode();
+    assert_eq!(
+        file_mode & OWNER_READ_WRITE,
+        OWNER_READ_WRITE,
+        "{file_mode:o}"
+    );
+    assert_eq!(dir_mode & OWNER_ALL, OWNER_ALL, "{dir_mode:o}");
+}

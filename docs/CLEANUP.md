@@ -5,12 +5,12 @@
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
 2. Check that the head is `d635a16` "Match job types by code; trim docs and imports", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 397 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
+   - 398 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
    - 194 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
    - the regenerated `mwa_giant_squid.pyi` and `openapi.rs` do not change.
-4. Read "Waiting for a decision by Greg" and "Open, not started", then ask Greg what to do first.
+4. Read "Waiting for the API developer" and "Open, not started", then ask Greg what to do first.
 
 ## Rules for this work
 
@@ -69,7 +69,7 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
   - "Job ID" in four error messages and two debug logs (D6), and in the cancel log (`Cancel request for Job ID N: <message>`);
   - positional format arguments are bound to names first (D7/D16), except the `concat!` repr in `python/types.rs` and `write!(f, "{}", self.0)` in `obs_id`;
   - D9 (client header doc), D11, D13, D14 (`build.rs` comments) and D15 (`env` doc) are fixed;
-  - D12 was read as: `AsvoError::HttpError` and `AsvoApiError::BadStatus` have the same fields, but `HttpError` is an error of the file server, not of the API (Greg has not confirmed this reading);
+  - D12: `AsvoError::HttpError` and `AsvoApiError::BadStatus` have the same fields, but `HttpError` is an error of the file server, not of the API (Greg confirmed this reading);
   - the `api/mod.rs` doc lists the end-user endpoints that are not wrapped (O8); `docs/CLEANUP.md` is excluded from the crate and the sdist.
 - **"Split the 3.0.0 changelog from its history" (D8):** the 3.0.0 section of `CHANGELOG.md` lists only changes against 2.5.1 (checked with the tag and the 2.5.1 binary). The old entries are in `docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md`, word for word. The library changes are one block with sub-points.
 - **"Move the OpenAPI generator to xtask (C15)":** `cargo xtask regen-openapi` (an alias in `.cargo/config.toml`) replaces the `regen-openapi` feature of `build.rs`. Greg chose a workspace member, but the Python sdist needs the root `Cargo.lock` to match the root manifest: `maturin sdist` copies the lock and writes an empty `[workspace]`, so `cargo --locked` failed with `xtask` in the lock. So `xtask` is a standalone crate with its own `[workspace]` and its own `xtask/Cargo.lock` (same pins as before). The root `Cargo.lock` no longer lists typify, schemars, syn or prettyplease. `check.sh` formats and lints `xtask` too. The only change in `openapi.rs` was its header. The drift check in `run-tests.yaml` runs `cargo --locked xtask regen-openapi` (Greg changed it).
@@ -82,6 +82,7 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **"Drop staging_count tests; true/false switches" (T1, O2):** the three `staging_count` tests are gone (the Rust one is kept as `the_client_calls_only_end_user_endpoints`). `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`. The schema (2.3.4) does not allow `null` for them, so `null` is refused.
 - **"Match job types by code; trim docs and imports" (O9, V1–V3):** `legacy_job_type` and `job_type_colour` match the `JOB_TYPE_CODE_*` constants; four long docs are shorter; `job.job_id()` is read once per function; the nine `#[allow(unused_imports)]` re-exports are one `use`.
 - The unused `noqa` (RUF100) had already been removed in `48ecadb`.
+- **macOS CI fix (`no_follow`):** the macOS 15 wheel job failed to compile: `rustix::fs::Mode::from_raw_mode` takes a `u16` on macOS and a `u32` on Linux, and the code passed a `u32` constant. The file and directory permissions are now rustix's own `Mode` bits (`Mode::RUSR | ...`, `Mode::RWXU | ...`), with no raw number. Lesson: do not give a platform type (a raw mode, `st_mode`, `off_t`) a fixed integer type; the sandbox is Linux only, so such an error shows only in the macOS job.
 - **O5 (option C):** `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` have no short flag), and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` have no short flag). `-d`, `-o` and `-r` stay as they were in 2.5.1 (each still has more than one meaning). The test `the_short_flags_mean_what_the_table_says` holds the table; `docs/V3_MIGRATION.md` has a "Short flags" section.
 
 ### Done in `e891d31` (L1–L10 part A)
@@ -96,10 +97,6 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **L8:** `--wait` does not wait when no job was submitted; a failed wait keeps the submission summary.
 - **L9:** a Scratch move checks its target first: new error `DestinationExists` (`DESTINATION_EXISTS`); a symbolic link gives `SymlinkInDownloadDir`.
 - **L10 (part A):** `centre` `custom` needs both `custom_centre_ra` and `custom_centre_dec`; each submit command checks its body once, before login, also with `--dry-run`.
-
-## Waiting for a decision by Greg
-
-- **D12** (see the list of 19 Oct) is Greg's to confirm.
 
 ## Waiting for the API developer
 
@@ -118,7 +115,7 @@ Logic:
 
 Not reviewed yet: `src/python/types.rs`, `params.rs`, `typed.rs` (and `error.rs` after the C13 change); `tests/cli.rs` and the Python tests in detail; `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows.
 
-Not tested in the sandbox: CI itself (the maturin wheel jobs on Linux and macOS, the Docker build, the MSRV job: Rust 1.88 is not in the sandbox, and the highest declared MSRV in the `xtask` dependencies is 1.85); the non-Unix code of `no_follow`.
+Not tested in the sandbox: CI itself (the maturin wheel jobs on Linux and macOS: the macOS build cannot be tried here, so read the code that uses a platform type with care; the Docker build, the MSRV job: Rust 1.88 is not in the sandbox, and the highest declared MSRV in the `xtask` dependencies is 1.85); the non-Unix code of `no_follow`.
 
 Notes:
 - `manta-ray-client` does not use the session cache file (Greg confirmed); the docs no longer say so.

@@ -120,10 +120,19 @@ mod imp {
 
     use super::{normal_parts, BelowError, WriteMode};
 
-    /// The permissions of a new file, before the umask: as `File::create`.
-    const NEW_FILE_MODE: u32 = 0o666;
-    /// The permissions of a new directory, before the umask: as `mkdir`.
-    const NEW_DIR_MODE: u32 = 0o777;
+    /// The permissions of a new file, before the umask: read and write for
+    /// everyone (0o666), as `File::create`. The permission bits are rustix's
+    /// own, not a number: the type of a raw mode differs between platforms
+    /// (`u32` on Linux, `u16` on macOS).
+    fn new_file_mode() -> Mode {
+        Mode::RUSR | Mode::WUSR | Mode::RGRP | Mode::WGRP | Mode::ROTH | Mode::WOTH
+    }
+
+    /// The permissions of a new directory, before the umask: all for
+    /// everyone (0o777), as `mkdir`.
+    fn new_dir_mode() -> Mode {
+        Mode::RWXU | Mode::RWXG | Mode::RWXO
+    }
 
     fn write_flags(mode: WriteMode) -> OFlags {
         OFlags::WRONLY
@@ -137,12 +146,7 @@ mod imp {
     }
 
     pub(super) fn open_for_writing(path: &Path, mode: WriteMode) -> io::Result<File> {
-        let fd = openat(
-            CWD,
-            path,
-            write_flags(mode),
-            Mode::from_raw_mode(NEW_FILE_MODE),
-        )?;
+        let fd = openat(CWD, path, write_flags(mode), new_file_mode())?;
         Ok(File::from(fd))
     }
 
@@ -236,14 +240,9 @@ mod imp {
                 });
             };
             let dir = self.descend(&parts)?;
-            openat(
-                &dir,
-                &name,
-                write_flags(mode),
-                Mode::from_raw_mode(NEW_FILE_MODE),
-            )
-            .map(File::from)
-            .map_err(|errno| step_error(dir.as_fd(), &name, path, errno))
+            openat(&dir, &name, write_flags(mode), new_file_mode())
+                .map(File::from)
+                .map_err(|errno| step_error(dir.as_fd(), &name, path, errno))
         }
 
         pub(super) fn create_dir_all(&self, relative: &Path) -> Result<(), BelowError> {
@@ -267,7 +266,7 @@ mod imp {
             Err(Errno::NOENT) => {
                 // Another process may make it between the two calls: that is
                 // fine, it is opened next.
-                match mkdirat(parent, name, Mode::from_raw_mode(NEW_DIR_MODE)) {
+                match mkdirat(parent, name, new_dir_mode()) {
                     Ok(()) | Err(Errno::EXIST) => {}
                     Err(errno) => {
                         return Err(BelowError::Io {
