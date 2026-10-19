@@ -3,19 +3,21 @@
 ## Start here
 
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
-2. Check that the head is `48ecadb` "Remove duplicated code (C items)", or a later commit by Greg.
+2. Check that the head is `d635a16` "Match job types by code; trim docs and imports", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 365 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
-   - 201 Python tests pass;
-   - clippy is clean in all three configurations;
-   - `uv run ruff check` has one finding that is not from our work (see "Open"): RUF100 at `tests/python/test_client.py:462`, from ruff 0.17.1.
-4. Read "Waiting for a decision by Greg" and "Decided, not started", then ask Greg what to do first.
+   - 395 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
+   - 194 Python tests pass;
+   - clippy is clean in all three configurations, and `check.sh` passes;
+   - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
+   - the regenerated `mwa_giant_squid.pyi` and `openapi.rs` do not change.
+4. Read "Waiting for a decision by Greg" and "Open, not started", then ask Greg what to do first.
 
 ## Rules for this work
 
 - Never push, and never open a PR or take any other action on GitHub. Greg does all of that.
 - Deliver each change as a plain diff and a base64 diff. Each diff must contain its code **and** its test edits, and `cargo test` must pass with that diff applied on its own (to the state that Greg has).
 - Ask Greg before you edit, move or delete any existing test, or a shared test helper such as `write_session_at` in `src/test_common.rs`. You may add new tests without asking. List the exact edits in the question.
+- Greg changes CI himself: send a change of `.github/` as a separate diff (for example `c15-ci.diff`), and say that it must be committed with the main diff when the main diff needs it.
 - When a decision is needed, stop and ask. Keep each step small (one diff per step). Greg commits each diff and says so; then fetch and reset to `origin/apiv2` before the next step.
 - Name each diff `<step>.diff` with a `.b64` copy and a commit message (first line at most 50 characters, detail lines at most 72), and check that it applies to a fresh clone.
 - The OpenAPI schema (the FastAPI) dictates the library. Exceptions: wait and download, which are not part of the FastAPI.
@@ -28,9 +30,13 @@
   - `ty check` must pass.
 - Rust code: `cargo fmt`, `cargo check` and `cargo clippy`.
 - Do not use magic numbers or strings. Put them in constants.
+- Mark each decision for Greg with a red dot (🔴), and do not go on until he has decided.
+- Format arguments: bind an expression to a name first, then use the inline format string (no mix of inline and positional arguments).
 - Communicate in Simplified Technical English. No fluff.
 
 ## Done (all committed and pushed)
+
+Earlier sessions (before 19 Oct 2026) are listed first, then the session of 19 Oct 2026.
 
 Before the review of 15 Oct 2026:
 - CI: a check-only `check.sh` run by a lint workflow; the lint workflow uses the MSRV; `serde_json` build dependency optional.
@@ -55,13 +61,27 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
   - the six nullable-bool `--no-*` `#[arg]` blocks in `PreprocessingArgs` stay: clap's derive cannot share an attribute block between fields;
   - `--help` of all 12 commands is byte-for-byte the same as before.
 
-- **C15:** the OpenAPI generator moved from `build.rs` (feature `regen-openapi`) to the standalone crate `xtask`: `cargo xtask regen-openapi` (an alias in `.cargo/config.toml`). Greg chose a workspace member, but the Python sdist needs the root `Cargo.lock` to match the root manifest (`maturin sdist` copies the lock and writes an empty `[workspace]`, so `cargo --locked` failed with `xtask` in the lock). So `xtask` is not a workspace member: it has its own `[workspace]` and its own `xtask/Cargo.lock` (same pins as before). The root `Cargo.lock` no longer lists typify, schemars, syn or prettyplease. `check.sh` formats and lints `xtask` too. The only change in `openapi.rs` is its header.
+### Done on 19 Oct 2026 (one diff each, in this order)
 
-- **Symbolic links** (three diffs): (1) a link already on disk on the way to a stream-untar entry is an error (`SymlinkInDownloadDir`), as in keep-tar; a Scratch move warns about links that point outside the job folder; the download directory itself may be a link (README). (2) `download/no_follow/`: `open_for_writing` with `O_NOFOLLOW` (Unix, `rustix`) for the files of keep-tar, stream-untar and the resume file. (3) `DownloadRoot`: the download directory is opened once, then each directory of a tar entry is opened with `openat` and `O_NOFOLLOW` (and made with `mkdirat`), so no link can be swapped in between a check and the use. `create_parent_dirs` is gone, and `UntarCheckpoint` holds `unpack_path`. Reads (hashing, the resume walk) still follow links. Off Unix, a check just before each use is made (not tested: no non-Unix target in the sandbox).
-
-- **O2 and T1:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`, like `--join-channels`. The schema (2.3.4) does not allow `null` for them (`bool`, not `bool | null`), so `null` is refused; the Python arguments were already `bool` with the schema defaults. The three `staging_count` tests are gone; the Rust one is kept as `the_client_calls_only_end_user_endpoints` (it also checks the endpoints).
-
-- **O9, V1–V3:** the job type names are matched by their schema codes (`JOB_TYPE_CODE_*` in `mwa_asvo/types/mod.rs`) in `legacy_job_type` and `job_type_colour`; the long docs of `normalize_job_value`, `get_jobs`, `require_tls` and the comment repeated three times in `cli/mod.rs` are shorter; `download_job` and `try_download` read `job.job_id()` once; the nine `#[allow(unused_imports)]` re-exports are one `use`.
+- **"Fix documentation items D1-D16":**
+  - README: the `--version` example (D1) and the `submit-volt --help` block (D2);
+  - `staging_count` is gone from the docs (D4); `TESTING.md` names real tests (D5);
+  - "Job ID" in four error messages and two debug logs (D6), and in the cancel log (`Cancel request for Job ID N: <message>`);
+  - positional format arguments are bound to names first (D7/D16), except the `concat!` repr in `python/types.rs` and `write!(f, "{}", self.0)` in `obs_id`;
+  - D9 (client header doc), D11, D13, D14 (`build.rs` comments) and D15 (`env` doc) are fixed;
+  - D12 was read as: `AsvoError::HttpError` and `AsvoApiError::BadStatus` have the same fields, but `HttpError` is an error of the file server, not of the API (Greg has not confirmed this reading);
+  - the `api/mod.rs` doc lists the end-user endpoints that are not wrapped (O8); `docs/CLEANUP.md` is excluded from the crate and the sdist.
+- **"Split the 3.0.0 changelog from its history" (D8):** the 3.0.0 section of `CHANGELOG.md` lists only changes against 2.5.1 (checked with the tag and the 2.5.1 binary). The old entries are in `docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md`, word for word. The library changes are one block with sub-points.
+- **"Move the OpenAPI generator to xtask (C15)":** `cargo xtask regen-openapi` (an alias in `.cargo/config.toml`) replaces the `regen-openapi` feature of `build.rs`. Greg chose a workspace member, but the Python sdist needs the root `Cargo.lock` to match the root manifest: `maturin sdist` copies the lock and writes an empty `[workspace]`, so `cargo --locked` failed with `xtask` in the lock. So `xtask` is a standalone crate with its own `[workspace]` and its own `xtask/Cargo.lock` (same pins as before). The root `Cargo.lock` no longer lists typify, schemars, syn or prettyplease. `check.sh` formats and lints `xtask` too. The only change in `openapi.rs` was its header. The drift check in `run-tests.yaml` runs `cargo --locked xtask regen-openapi` (Greg changed it).
+- **Symbolic links (three diffs):**
+  1. "Make a symlink in the download dir an error": a link that is already on disk on the way to a stream-untar entry is an error (`SymlinkInDownloadDir`), as in keep-tar. A Scratch move warns about links that point outside the job folder (the links are moved as links). The download directory itself may be a link. All are in the README.
+  2. "Open download files with O_NOFOLLOW": `download/no_follow/` has `open_for_writing` (Unix, `rustix`) for the files of keep-tar, stream-untar and the resume file.
+  3. "Walk tar entry directories with openat": `DownloadRoot` opens the download directory once, then each directory of a tar entry with `openat` and `O_NOFOLLOW` (missing ones with `mkdirat`), so no link can be swapped in between a check and the use. `UntarCheckpoint` holds `unpack_path`.
+  - Reads (hashing, the resume walk) still follow links. Off Unix, a check just before each use is made; this code has not been compiled (no non-Unix target in the sandbox).
+- **"Refuse custom centre coordinates without custom" (L10 part B):** `custom_centre_ra` and `custom_centre_dec` are refused when `centre` is not `custom`, in Rust, the CLI and Python.
+- **"Drop staging_count tests; true/false switches" (T1, O2):** the three `staging_count` tests are gone (the Rust one is kept as `the_client_calls_only_end_user_endpoints`). `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`. The schema (2.3.4) does not allow `null` for them, so `null` is refused.
+- **"Match job types by code; trim docs and imports" (O9, V1–V3):** `legacy_job_type` and `job_type_colour` match the `JOB_TYPE_CODE_*` constants; four long docs are shorter; `job.job_id()` is read once per function; the nine `#[allow(unused_imports)]` re-exports are one `use`.
+- The unused `noqa` (RUF100) had already been removed in `48ecadb`.
 
 ### Done in `e891d31` (L1–L10 part A)
 
@@ -76,47 +96,42 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **L9:** a Scratch move checks its target first: new error `DestinationExists` (`DESTINATION_EXISTS`); a symbolic link gives `SymlinkInDownloadDir`.
 - **L10 (part A):** `centre` `custom` needs both `custom_centre_ra` and `custom_centre_dec`; each submit command checks its body once, before login, also with `--dry-run`.
 
-## Decided by Greg, not started
-
-- **L10 part B:** refuse `custom_centre_ra`/`custom_centre_dec` when `centre` is not `custom`. Greg approved the edit of the two tests that this needs: `every_limit_is_enforced_on_both_ends_for_the_conversion_body` and `every_limit_is_enforced_on_both_ends_for_the_imaging_body` (they set one coordinate with the default centre). Change: base parameters with `centre: Custom` and both coordinates valid. Until this is done, the help text "Requires --centre custom" is only half true.
-- **O1/O7:** wait for the API fix.
-- **A13 (`days: null`)** and the other questions below: with the API developer.
-
 ## Waiting for a decision by Greg
 
-- **ruff 0.17.1:** `uv run` now installs ruff 0.17.1, which reports RUF100 (unused `# noqa: DTZ001`) at `tests/python/test_client.py:462`. This is an existing test. Remove the `noqa`, or pin ruff?
-- **`manta-ray-client`** does not use the session cache file (Greg confirmed); the docs no longer say so.
+- 🔴 **O5: short flags differ between commands.** All of them are in 2.5.1 except `-o` for `submit-conv --output`.
+
+  | Short | Meaning in one place | Meaning in another |
+  |---|---|---|
+  | `-f` | `--delivery-format` (all `submit-*` except `submit-volt`) | `--from-channel` (`submit-volt`) |
+  | `-o` | `--output` (`submit-conv`, new in 3.0) | `--output-mode` (`submit-image`, `submit-image-from-job`); `--offset` (`submit-volt`) |
+  | `-r` | `--no-resume` (`download`) | `--allow-resubmit` (`submit-*`) |
+  | `-n` | `--no-colour` (`list`, `wait`) | `--dry-run` (`download`, `submit-*`, `cancel`) |
+  | `-d` | `--download-dir` (`download`) | `--delivery` (`submit-*`) |
+
+  Options: **A** leave them all and document them in a README table (no script breaks; recommended); **B** change only the new `-o` of `submit-conv`; **C** change the inherited ones (breaks scripts that use them; Greg must give the letters).
+- **D12** (above) is Greg's to confirm.
+
+## Waiting for the API developer
+
+- **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
+- **A13 (`days: null`)** and the questions below.
+
+### A13 — `days: null` (waits for the API developer)
+
+- The schema type is `integer | null`, default 30. A request has three states: key absent, `null`, or 1–30.
+- Ask the API developer what `null` means. Proposed design if it is "no day limit": Rust `enum Days { ApiDefault, NoLimit, Last(NonZeroU64) }` in `JobsFilter`; Python `days=None` stays the API default and a module constant sends `null`; CLI `--days all` sends `null`.
 
 ## Open, not started
 
 Logic:
 - Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 
-OpenAPI, library and CLI:
-- **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
-- **O5:** short flags differ between commands (`-f`, `-o`).
-- **O8:** the `api/mod.rs` doc lists only the processor endpoints as not wrapped; end-user endpoints (`observation/metadata`, `project_permissions`, `user`, and others) are not wrapped either.
-
-Documentation:
-- **D1:** README line 155 shows `MWA ASVO API 2.3.0`; `--version` prints 2.3.4.
-- **D2:** README `submit-volt --help` block differs from the real help.
-- **D4:** `staging_count` is not in schema 2.3.4, but the `api/mod.rs` doc, `PYTHON_BINDINGS.md`, `TESTING.md` and `CHANGELOG.md` still describe it.
-- **D5:** `TESTING.md` names `submit_each_obsid` (now `submit_each_obs_id`, in the library) and `test_wait_and_cancel_refuse_an_obsid` (not found).
-- **D6:** "job" instead of "Job ID" in `AsvoError::NoUrl`, `NoPath`, `Http404Error`, `InvalidJob`, the cancel log and the `submit-image-from-job` message.
-- **D7/D16:** positional `{}` arguments left in `client/mod.rs:195`, `helpers`, `mwa_asvo/error.rs`, `table.rs`, `value_enums`, `api/error.rs`, `token_store` and `python/download.rs`.
-- **D8:** the CHANGELOG 3.0.0 section mixes in-development history with changes against 2.5.1; heading levels differ.
-- **D9:** `client/mod.rs` lines 7–12 tell history, not the design.
-- **D11–D15:** `api/error.rs` names `HttpValidationError` (not in the schema); the `ApiError` doc reason for copying fields is not correct; `PYTHON_BINDINGS.md` "For the API developer" is partly stale (`JobState` numbers, `staging_count`); two `build.rs` comments are not correct; the `env` doc says the Python module reads the environment (it does not).
-- `docs/CLEANUP.md` (this file) ships in the crate and the sdist; exclude it before the release.
-
-Tests: T1 and T5 are decided (see above).
-
 Not reviewed yet: `src/python/types.rs`, `params.rs`, `typed.rs` (and `error.rs` after the C13 change); `tests/cli.rs` and the Python tests in detail; `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows.
 
-### A13 — `days: null` (waits for the API developer)
+Not tested in the sandbox: CI itself (the maturin wheel jobs on Linux and macOS, the Docker build, the MSRV job: Rust 1.88 is not in the sandbox, and the highest declared MSRV in the `xtask` dependencies is 1.85); the non-Unix code of `no_follow`.
 
-- The schema type is `integer | null`, default 30. A request has three states: key absent, `null`, or 1–30.
-- Ask the API developer what `null` means. Proposed design if it is "no day limit": Rust `enum Days { ApiDefault, NoLimit, Last(NonZeroU64) }` in `JobsFilter`; Python `days=None` stays the API default and a module constant sends `null`; CLI `--days all` sends `null`.
+Notes:
+- `manta-ray-client` does not use the session cache file (Greg confirmed); the docs no longer say so.
 
 ### Items to leave as they are (Greg agreed)
 
@@ -139,17 +154,17 @@ Not reviewed yet: `src/python/types.rs`, `params.rs`, `typed.rs` (and `error.rs`
 
 ## How to check (sandbox)
 
-- **Rust:** `apt-get install rustc-1.89 cargo-1.89 rust-1.89-clippy rustfmt-1.89 python3-dev`, then `export PATH=/usr/lib/rust-1.89/bin:$PATH CARGO_HOME=/home/claude/.cargo CARGO_INCREMENTAL=0`.
+- **Rust:** `apt-get install rustc-1.89 cargo-1.89 rust-1.89-clippy rustfmt-1.89 python3-dev`, then `export PATH=/usr/lib/rust-1.89/bin:$PATH CARGO_HOME=/home/claude/.cargo CARGO_INCREMENTAL=0`. Only 1.89 is in the package list. Put this `PATH` in place before `uv sync` or `uv run`, so that maturin finds Rust (it cannot download it).
 - **Disk:** the sandbox disk is small. Keep one clone and its `target`, and use `CARGO_INCREMENTAL=0`.
 - **Long builds:** run them with `setsid nohup … < /dev/null &` and poll in separate commands of at most about 250 s (a command that runs for 300 s is stopped and can take its background job with it). Do not edit the code while a background check runs, and do not use `pkill -f` with a word that is also in your own command.
 - **`--help` must not change by accident:** build the old head in a second worktree (`git worktree add /tmp/base HEAD`, `CARGO_TARGET_DIR=/tmp/base-target cargo build --bin giant-squid`) and compare `--help` of every command with the new binary.
 - **Full check:**
-  - `cargo fmt --check`;
+  - `./check.sh` (formats and lints the library and `xtask`, builds the library only, and runs `cargo doc`);
   - `cargo test --locked`;
-  - clippy `-D warnings` with `--all-targets`, with `--no-default-features --features python --lib`, and with `--no-default-features --lib`;
   - `uv run pytest`;
   - `PYO3_PYTHON=$PWD/.venv/bin/python tools/generate_stubs.sh`, then check that `mwa_giant_squid.pyi` did not change (or include the regenerated file in the diff);
-  - `uv run ruff check`, `uv run ruff format --check` and `uv run ty check` (`uv run` may install a newer ruff than the one in an earlier session; see the RUF100 finding above);
-  - `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`.
+  - `uv run ruff check`, `uv run ruff format --check` and `uv run ty check`;
+  - `cargo --locked xtask regen-openapi`, then `git diff --stat src/mwa_asvo/api/openapi.rs`: only a header change is allowed, and only in a diff that changes the generator.
+- **A change of a manifest, a lock file or the package contents:** also build the sdist (`uvx --from "maturin>=1.9.4,<2.0" maturin sdist -o /tmp/sdist`), unpack it, and run `cargo check --locked --no-default-features --lib` in it; and run `cargo package --locked --allow-dirty --no-verify` and look at the file list.
 - **README `--help` blocks:** they must match the real `--help` output (with `NO_COLOR=1` and `GIANT_SQUID_DELIVERY*` unset). Regenerate them when a help text changes.
 - **Before a commit that touches the API client:** Greg runs `tools/run_live_tests.sh` against test-asvo.
