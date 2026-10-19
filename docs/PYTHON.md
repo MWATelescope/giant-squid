@@ -118,33 +118,31 @@ To use a different MWA ASVO server (for example, to test a new feature), give it
 
 ## List jobs
 
-`get_jobs` asks the server for your jobs. The server does the filtering. Every filter that is `None`
-does not filter, except `days` and `sort_by`: with `days=None` you get the jobs from the MWA ASVO's default
-window (the schema's default for `days`, which is also the most `days` can be), not your
-full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both: `days` with a date
-raises `ValueError`, and with a date and no `days` the request has `"days": null`. A job older than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find
-it either.
-
-```python
-from mwa_giant_squid import JobState
-
-jobs = client.get_jobs(days=7, job_state=JobState.Completed)  # days: 1 to 30
-for job in jobs:
-    print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
-```
-
-`list_jobs` works as `giant-squid list` does. It accepts lists of Job IDs, Obs IDs, job types and job
-states. The server does what it can, and the module filters the rest:
+`get_jobs` gets your jobs, as `giant-squid list` does. It accepts lists of Job IDs, Obs IDs, job types and job
+states. The server does what it can (one state, one type, the days or the dates, the sort order), and the module
+filters the rest. Every filter that is `None` does not filter, except `days` and `sort_by`: with `days=None` you
+get the jobs from the MWA ASVO's default window (the schema's default for `days`, which is also the most `days`
+can be), not your full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both:
+`days` with a date raises `ValueError`, and with a date and no `days` the request has `"days": null`. A job older
+than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find it either.
 
 ```python
 from mwa_giant_squid import JobState, JobType
 
-jobs = client.list_jobs(
+# The jobs of the past 7 days (days: 1 to 30) that are completed.
+jobs = client.get_jobs(days=7, job_states=[JobState.Completed])
+for job in jobs:
+    print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
+
+# Several Obs IDs, job types and job states.
+jobs = client.get_jobs(
     obs_ids=[1065880128, 1065880248],
     job_types=[JobType.Visibility],
     job_states=[JobState.Completed, JobState.Error],
 )
 ```
+
+`job_ids` and `obs_ids` cannot be given together: that raises `ValueError`.
 
 The result is an `AsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
 filters a list that you already have, without a request.
@@ -256,7 +254,7 @@ threads run during the download.
 | `buffer_size` | How many bytes to hold in memory before they are written. Default: the library's `DEFAULT_DOWNLOAD_BUFFER_SIZE`. |
 | `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: the library's `DEFAULT_DOWNLOAD_RETRY_DURATION`. |
 | `download_number`, `download_count` | The place of this download in a series. They set the `[1/2]` text in labels. |
-| `jobs` | A job list from `get_jobs` or `list_jobs` to find the job in. By default the call gets the job list first. To download several jobs, get the list once and pass it to each call. |
+| `jobs` | A job list from `get_jobs` to find the job in. By default the call gets the job list first. To download several jobs, get the list once and pass it to each call. |
 
 ### Resume and Ctrl-C
 

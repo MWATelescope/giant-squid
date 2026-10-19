@@ -414,9 +414,9 @@ def test_get_jobs_sends_every_filter_to_the_server(
     serve_jobs([])
 
     gs.AsvoClient(host, TEST_API_KEY).get_jobs(
-        FILTER_DAYS,
-        job_state=gs.JobState.Completed,
-        job_type=gs.JobType.Imaging,
+        days=FILTER_DAYS,
+        job_states=[gs.JobState.Completed],
+        job_types=[gs.JobType.Imaging],
         sort_by=FILTER_SORT,
     )
 
@@ -528,14 +528,14 @@ OTHER_OBS_ID = 1090008640
 
 
 @pytest.mark.usefixtures("mock_login")
-def test_list_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: Callable[..., None]) -> None:
+def test_get_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: Callable[..., None]) -> None:
     """The lists are applied to the result."""
     serve_jobs(three_jobs())
     client = gs.AsvoClient(host, TEST_API_KEY)
 
-    completed_or_queued = client.list_jobs(job_states=[gs.JobState.Completed, gs.JobState.Queued])
-    cancelled = client.list_jobs(job_states=[gs.JobState.Cancelled])
-    other_obs = client.list_jobs(obs_ids=[OTHER_OBS_ID])
+    completed_or_queued = client.get_jobs(job_states=[gs.JobState.Completed, gs.JobState.Queued])
+    cancelled = client.get_jobs(job_states=[gs.JobState.Cancelled])
+    other_obs = client.get_jobs(obs_ids=[OTHER_OBS_ID])
 
     assert [job.job_id for job in completed_or_queued] == [1, 2]
     assert [job.job_id for job in cancelled] == [3]
@@ -543,13 +543,13 @@ def test_list_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: C
 
 
 @pytest.mark.usefixtures("mock_login")
-def test_list_jobs_sends_a_single_state_and_type_to_the_server(
+def test_get_jobs_sends_a_single_state_and_type_to_the_server(
     host: str, httpserver: HTTPServer, serve_jobs: Callable[..., None]
 ) -> None:
     """One supported state and one type are server filters, so less comes back."""
     serve_jobs(three_jobs())
 
-    jobs = gs.AsvoClient(host, TEST_API_KEY).list_jobs(
+    jobs = gs.AsvoClient(host, TEST_API_KEY).get_jobs(
         job_states=[gs.JobState.Queued], job_types=[gs.JobType.Imaging], days=FILTER_DAYS
     )
 
@@ -565,14 +565,12 @@ def test_list_jobs_sends_a_single_state_and_type_to_the_server(
 def test_days_outside_one_to_thirty_raise_value_error_before_any_request(
     host: str, httpserver: HTTPServer, days: int
 ) -> None:
-    """`get_jobs` and `list_jobs` take the schema's 1 to 30 for ``days``, and the message gives the limits."""
+    """`get_jobs` takes the schema's 1 to 30 for ``days``, and the message gives the limits."""
     client = gs.AsvoClient(host, TEST_API_KEY)
     requests_before = len(httpserver.log)
 
     with pytest.raises(ValueError, match="days.*between 1 and 30"):
-        client.get_jobs(days)
-    with pytest.raises(ValueError, match="days.*between 1 and 30"):
-        client.list_jobs(days=days)
+        client.get_jobs(days=days)
 
     assert len(httpserver.log) == requests_before
 
@@ -584,18 +582,18 @@ def test_the_ends_of_the_days_range_are_sent(
 ) -> None:
     """``days`` of 1 and of 30 are accepted and sent as they are."""
     serve_jobs([])
-    gs.AsvoClient(host, TEST_API_KEY).get_jobs(days)
+    gs.AsvoClient(host, TEST_API_KEY).get_jobs(days=days)
 
     assert get_jobs_body(httpserver)["days"] == days
 
 
 @pytest.mark.usefixtures("mock_login")
-def test_list_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
+def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
     """Job IDs and obsids together raise ValueError before any listing."""
     client = gs.AsvoClient(host, TEST_API_KEY)
     requests_before = len(httpserver.log)
 
     with pytest.raises(ValueError, match="can't specify both"):
-        client.list_jobs(job_ids=[1], obs_ids=[TEST_OBS_ID])
+        client.get_jobs(job_ids=[1], obs_ids=[TEST_OBS_ID])
 
     assert len(httpserver.log) == requests_before

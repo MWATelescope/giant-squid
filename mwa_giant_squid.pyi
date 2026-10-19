@@ -113,42 +113,6 @@ class AsvoClient:
     ) -> AsvoClient: ...
     def get_jobs(
         self,
-        days: builtins.int | None = None,
-        *,
-        job_state: JobState | None = None,
-        job_type: JobType | None = None,
-        date_from: datetime.datetime | None = None,
-        date_to: datetime.datetime | None = None,
-        sort_by: builtins.str | None = None,
-    ) -> AsvoJobVec:
-        r"""
-        Get your jobs. The server filters them; every filter that is `None`
-        does not filter.
-
-        Args:
-            days: Only the jobs from the past `days` days, from 1 to 30.
-                Cannot be given with `date_from` or `date_to`: the jobs are
-                selected by `days` or by the dates. `None` is the default of
-                the MWA ASVO API (30 days), unless a date is given, and then
-                `days` is sent as `null`.
-            job_state: Only the jobs in this state. The server takes one
-                state; to filter by several, use `AsvoJobVec.filter`.
-            job_type: Only the jobs of this type.
-            date_from: Only the jobs created at or after this time. It must
-                have a time zone.
-            date_to: Only the jobs created at or before this time. It must
-                have a time zone.
-            sort_by: The column to sort the jobs by, for example "id".
-                `None` uses the server's default order.
-
-        Raises:
-            ValueError: `days` is not from 1 to 30, or is given with
-                `date_from` or `date_to`.
-            TypeError: `date_from` or `date_to` has no time zone.
-            AsvoApiError: The request failed.
-        """
-    def list_jobs(
-        self,
         job_ids: typing.Sequence[builtins.int] | None = None,
         obs_ids: typing.Sequence[builtins.int] | None = None,
         job_types: typing.Sequence[JobType] | None = None,
@@ -160,9 +124,11 @@ class AsvoClient:
         sort_by: builtins.str | None = None,
     ) -> AsvoJobVec:
         r"""
-        List jobs as `giant-squid list` does: the server filters what it
+        Get your jobs, as `giant-squid list` does: the server filters what it
         can, and the lists (several Job IDs, Obs IDs, types or states) are
-        applied to the result. Every filter that is `None` does not filter.
+        applied to the result. Every filter that is `None` does not filter,
+        except `days` and `sort_by`: `days=None` is the default window of the
+        MWA ASVO API, not your full history.
 
         Args:
             job_ids: Only these jobs. Cannot be combined with `obs_ids`.
@@ -179,6 +145,7 @@ class AsvoClient:
             date_to: Only the jobs created at or before this time. It must
                 have a time zone.
             sort_by: The column to sort the jobs by, for example "id".
+                `None` uses the server's default order.
 
         Raises:
             ValueError: Both `job_ids` and `obs_ids` are given, an Obs ID is
@@ -625,7 +592,7 @@ class AsvoClient:
             download_number: The number of this download, in a series,
                 for the progress and log label (`[1/2]`).
             download_count: How many downloads there are in the series.
-            jobs: A job list from `get_jobs` or `list_jobs` to find the job
+            jobs: A job list from `get_jobs` to find the job
                 in. `None` gets the job list first. To download several jobs,
                 get the job list once and pass it to each call.
 

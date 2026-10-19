@@ -1,6 +1,6 @@
 """Tests of two rules of the MWA ASVO that the module refuses before it sends a request.
 
-* The jobs of ``get_jobs`` and ``list_jobs`` are selected by ``days`` or by ``date_from`` and ``date_to``, not by both.
+* The jobs of ``get_jobs`` are selected by ``days`` or by ``date_from`` and ``date_to``, not by both.
   With a date and no ``days``, the request has ``"days": null``.
 * Acacia delivers a tar only: ``delivery_format`` must be ``Tar`` when ``delivery`` is ``Acacia`` (the default).
 """
@@ -144,7 +144,7 @@ def test_days_with_a_date_is_refused_before_any_request(
     date_from: datetime.datetime | None,
     date_to: datetime.datetime | None,
 ) -> None:
-    """``get_jobs`` and ``list_jobs`` refuse ``days`` with a date, and send nothing.
+    """``get_jobs`` refuses ``days`` with a date, and sends nothing.
 
     Args:
         httpserver: The mock server.
@@ -155,9 +155,7 @@ def test_days_with_a_date_is_refused_before_any_request(
     expect_get_jobs(httpserver)
 
     with pytest.raises(ValueError, match="days: can't be used with date_from or date_to"):
-        client.get_jobs(DAYS, date_from=date_from, date_to=date_to)
-    with pytest.raises(ValueError, match="days: can't be used with date_from or date_to"):
-        client.list_jobs(days=DAYS, date_from=date_from, date_to=date_to)
+        client.get_jobs(days=DAYS, date_from=date_from, date_to=date_to)
     assert requests_to(httpserver, GET_JOBS_PATH) == []
 
 
@@ -175,8 +173,8 @@ def test_a_date_sends_null_days_and_days_alone_sends_no_date(httpserver: HTTPSer
 
     client.get_jobs(date_from=DATE_FROM, date_to=DATE_TO)
     client.get_jobs(date_to=DATE_TO)
-    client.list_jobs(date_from=DATE_FROM)
-    client.get_jobs(DAYS)
+    client.get_jobs(date_from=DATE_FROM)
+    client.get_jobs(days=DAYS)
     client.get_jobs()
 
     dated, one_date, listed, by_days, neither = requests_to(httpserver, GET_JOBS_PATH)
