@@ -1363,6 +1363,8 @@ Things to know:
   type. Filter the list first, with `--job-states`, `--job-types`, `--days`
   and the other options of `list`. `cancel` logs `Read N Job IDs from standard input.` before it sends the
   requests, and `--dry-run` shows what it would cancel.
+- **A repeated ID is used once.** An ID that you give more than once (in the arguments, in a file, or on standard
+  input) is used once, at its first place.
 - **An empty list is not an error.** `list --ids` prints nothing for a list with no job, and `list --json` prints
   `{}`. In both cases the next command ends with exit code 0 and says that there is nothing to do, so a script (cron,
   for example) does not fail when no job is in the state that it asks for. A command that has no ID and no input at

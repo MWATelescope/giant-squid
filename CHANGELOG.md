@@ -190,6 +190,8 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
+* `download`, `cancel` and `wait` use an ID that is given more than once a single time, at its first place. Before,
+  `cancel 5 5` sent two requests.
 * `download` starts several downloads at once in the order of the IDs, so the numbers in the log (`[1/20]`, `[2/20]`,
   ...) are in order. Before, each thread took a block of the list, and the log said `[1/20]`, `[11/20]`, `[6/20]`.
 * `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID).

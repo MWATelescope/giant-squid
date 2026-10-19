@@ -12,7 +12,7 @@ use thiserror::Error;
 
 /// A newtype representing an MWA observation ID ("Obs ID"). Using this type
 /// instead of a [u64] ensures that things work correctly at compile time.
-#[derive(Serialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct ObsId(u64);
 
 impl ObsId {

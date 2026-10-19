@@ -157,6 +157,27 @@ fn a_zero_is_not_a_job_id() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn an_id_that_is_given_more_than_once_is_used_once_at_its_first_place() {
+    let obs = OBS_ID.to_string();
+    let ids = resolve_ids_from(
+        &args(&["9", "5", "9", &obs, &obs]),
+        &mut MustNotBeRead,
+        false,
+    )
+    .expect("valid");
+
+    assert_eq!(ids.job_ids, [job_id(9), job_id(5)]);
+    assert_eq!(ids.obs_ids, [obs_id(OBS_ID)]);
+}
+
+#[test]
+fn an_id_on_standard_input_that_an_argument_repeats_is_used_once() {
+    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("7\n5\n7\n"), false).expect("valid");
+
+    assert_eq!(ids.job_ids, [job_id(5), job_id(7)]);
+}
+
+#[test]
 fn arguments_alone_do_not_read_standard_input() {
     for is_piped in [true, false] {
         let ids = resolve_ids_from(

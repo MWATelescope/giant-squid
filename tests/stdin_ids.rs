@@ -277,6 +277,20 @@ fn the_output_of_list_ids_is_the_input_of_cancel() {
 }
 
 #[test]
+fn cancel_cancels_a_job_that_is_given_more_than_once_a_single_time() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    let mut cmd = env.command();
+    cmd.args(["cancel", "--dry-run", "--json", "5", "5", "-"]);
+    let result = run_with_stdin(cmd, "6\n5\n6\n");
+
+    assert!(result.success, "{}", result.combined());
+    assert_eq!(job_ids(&result), [json!(5), json!(6)]);
+    assert_eq!(requests.calls(), 0);
+}
+
+#[test]
 fn cancel_refuses_an_obs_id_on_standard_input() {
     let env = CliEnv::with_session();
     let requests = catch_all(&env);

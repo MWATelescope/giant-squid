@@ -19,8 +19,12 @@
 //! input at all (a terminal, or `/dev/null`) and no ID has been used wrongly,
 //! and it fails.
 //!
-//! The commands do not filter the IDs that they read.
+//! The commands do not filter the IDs that they read, but an ID that is given
+//! more than once (in the arguments, in a file, or on standard input) is used
+//! once, at its first place.
 
+use std::collections::HashSet;
+use std::hash::Hash;
 use std::io::Read;
 
 use super::json_output::{KEY_MESSAGE, KEY_STATUS};
@@ -180,6 +184,13 @@ impl ResolvedIds {
     }
 }
 
+/// `ids` without a value that an earlier one repeats: each value stays at its
+/// first place.
+fn without_repeats<T: Copy + Eq + Hash>(ids: Vec<T>) -> Vec<T> {
+    let mut seen = HashSet::with_capacity(ids.len());
+    ids.into_iter().filter(|id| seen.insert(*id)).collect()
+}
+
 /// The IDs of a command: those of its arguments (IDs and files of IDs), and
 /// those on standard input when the command is given no argument and
 /// standard input is a pipe or a file, or when an argument is `-`.
@@ -242,8 +253,8 @@ fn resolve_ids_from(
     let (mut job_ids, mut obs_ids) = parse_many_job_ids_or_obs_ids(&others)?;
     if !read_stdin {
         return Ok(ResolvedIds {
-            job_ids,
-            obs_ids,
+            job_ids: without_repeats(job_ids),
+            obs_ids: without_repeats(obs_ids),
             ..ResolvedIds::default()
         });
     }
@@ -256,8 +267,8 @@ fn resolve_ids_from(
     job_ids.extend(from_text.job_ids);
     obs_ids.extend(from_text.obs_ids);
     Ok(ResolvedIds {
-        job_ids,
-        obs_ids,
+        job_ids: without_repeats(job_ids),
+        obs_ids: without_repeats(obs_ids),
         from_stdin: true,
     })
 }
