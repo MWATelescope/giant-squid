@@ -1,0 +1,2 @@
+obs_id=1323577520,job_type=v,offset=0,duration=16,delivery=scratch
+obs_id=1323507256,job_type=v,offset=0,duration=16,channel_range=true,from_channel=185,to_channel=185,delivery=scratch

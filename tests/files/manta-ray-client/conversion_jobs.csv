@@ -1,0 +1,2 @@
+obs_id=1349904240,job_type=c,avg_time_res=1.0,avg_freq_res=80.0,flag_edge_width=80.0,centre=phase,delivery=acacia,output=uvfits,apply_di_cal=false,no_geometric_delay=false,no_rfi=true,no_passband_gains=false,no_cable_delay=false,no_digital_gains=false,no_flag_dc=false
+obs_id=1349904184,job_type=c,avg_time_res=1.0,avg_freq_res=80.0,flag_edge_width=80.0,centre=custom,phase_centre_ra=123,phase_centre_dec=-12,delivery=acacia,output=uvfits,apply_di_cal=false,no_geometric_delay=false,no_rfi=true,no_passband_gains=false,no_cable_delay=false,no_digital_gains=false,no_flag_dc=false
