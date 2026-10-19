@@ -200,7 +200,8 @@ before you upgrade scripts.**
   `AsvoError::SymlinkInDownloadDir` (the entries before it are already written). A `--keep-tar` download whose tar file
   is a symbolic link (even one that points nowhere) fails in the same way, and nothing is fetched. The download
   directory itself may be a symbolic link. On Unix, the refusal is part of the call that opens the file
-  (`O_NOFOLLOW`), so a link that another process puts in the place after the check is refused too. Before, the
+  (`O_NOFOLLOW`) and of the calls that walk down the directories of a tar entry (`openat`), so a link that another
+  process puts in the place after the check is refused too. Before, the
   download wrote wherever the link pointed. A Scratch job
   folder with a link that points outside the folder is moved as before (the link is moved as a link), with a warning
   for each such link.

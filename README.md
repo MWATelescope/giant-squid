@@ -1228,8 +1228,8 @@ download directory:
   `SymlinkInDownloadDir`. For `--keep-tar`, nothing is fetched. For stream
   untar, the entries before it are already written. Remove the link, or use
   another download directory. On Unix, a link that another process puts in
-  the place of a file after `giant-squid` has checked it is refused as well:
-  the refusal is part of the call that opens the file.
+  the place of a file or a directory after `giant-squid` has checked it is
+  refused as well: the refusal is part of the calls that open them.
 - When `giant-squid` moves the files of a Scratch job into the download
   directory, it moves the links in the job folder as links. It shows a warning
   for each link that points outside the job folder, because the place that it

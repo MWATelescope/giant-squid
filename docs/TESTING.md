@@ -237,6 +237,7 @@ with it.
 | Nothing is written through a symbolic link that is already in the download directory | `an_entry_whose_file_is_a_symlink_is_an_error`, `an_entry_below_a_symlinked_directory_is_an_error`, `an_entry_whose_file_is_a_dangling_symlink_is_an_error`, `a_directory_entry_that_is_a_symlink_is_an_error`, `a_keep_tar_download_refuses_a_symlink`, `a_symlinked_download_directory_is_allowed`, `entry_target_names_the_link_on_the_way` (Unix only) |
 | A link in a Scratch job folder that points outside the folder is found, so that the move can warn about it | `links_pointing_outside_a_job_folder_are_found`, `a_job_folder_without_links_has_none_pointing_outside` (Unix only for the first) |
 | A file is never opened through a symbolic link at its path, even one that is put there after a check | `create_file_refuses_a_symlink_and_changes_nothing` and the tests of `no_follow` (`a_link_to_a_file_is_refused_and_the_file_is_not_changed`, `a_dangling_link_is_refused_and_its_target_is_not_created`, `a_link_to_a_directory_is_refused`, and others; Unix only) |
+| A directory on the way to a tar entry is never followed if it is a link, even one that is put there after a check; the download directory is followed once | the `DownloadRoot` tests of `no_follow`: `a_link_on_the_way_is_refused_and_nothing_is_made_through_it`, `a_link_deeper_down_or_at_the_end_is_refused`, `a_dangling_link_on_the_way_is_refused`, `the_download_directory_may_be_a_link`, `the_open_directory_is_kept_if_its_path_is_swapped_for_a_link` (Unix only) |
 
 ## Test environment isolation
 

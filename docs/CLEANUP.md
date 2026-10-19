@@ -57,6 +57,8 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - **C15:** the OpenAPI generator moved from `build.rs` (feature `regen-openapi`) to the standalone crate `xtask`: `cargo xtask regen-openapi` (an alias in `.cargo/config.toml`). Greg chose a workspace member, but the Python sdist needs the root `Cargo.lock` to match the root manifest (`maturin sdist` copies the lock and writes an empty `[workspace]`, so `cargo --locked` failed with `xtask` in the lock). So `xtask` is not a workspace member: it has its own `[workspace]` and its own `xtask/Cargo.lock` (same pins as before). The root `Cargo.lock` no longer lists typify, schemars, syn or prettyplease. `check.sh` formats and lints `xtask` too. The only change in `openapi.rs` is its header.
 
+- **Symbolic links** (three diffs): (1) a link already on disk on the way to a stream-untar entry is an error (`SymlinkInDownloadDir`), as in keep-tar; a Scratch move warns about links that point outside the job folder; the download directory itself may be a link (README). (2) `download/no_follow/`: `open_for_writing` with `O_NOFOLLOW` (Unix, `rustix`) for the files of keep-tar, stream-untar and the resume file. (3) `DownloadRoot`: the download directory is opened once, then each directory of a tar entry is opened with `openat` and `O_NOFOLLOW` (and made with `mkdirat`), so no link can be swapped in between a check and the use. `create_parent_dirs` is gone, and `UntarCheckpoint` holds `unpack_path`. Reads (hashing, the resume walk) still follow links. Off Unix, a check just before each use is made (not tested: no non-Unix target in the sandbox).
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -73,10 +75,6 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 ## Decided by Greg, not started
 
 - **L10 part B:** refuse `custom_centre_ra`/`custom_centre_dec` when `centre` is not `custom`. Greg approved the edit of the two tests that this needs: `every_limit_is_enforced_on_both_ends_for_the_conversion_body` and `every_limit_is_enforced_on_both_ends_for_the_imaging_body` (they set one coordinate with the default centre). Change: base parameters with `centre: Custom` and both coordinates valid. Until this is done, the help text "Requires --centre custom" is only half true.
-- **Symbolic links:** close the check-then-create race with both `O_NOFOLLOW` (the last path part, Unix; std has no constant, so it needs `libc` or `rustix`) and `openat` (every path part, mainly in stream-untar, which creates parent directories). Greg has not yet answered the other three suggestions, so confirm them first:
-  1. one rule for keep-tar and stream-untar: a link in the download directory is an error in both (today stream-untar only warns and skips);
-  2. links inside a Scratch job folder are copied as links: keep this, and warn for a link that points outside the job folder;
-  3. the download directory itself may be a symbolic link; write this rule in the README.
 - **O2:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` work like the other nullable fields (a value `true|false|null`, with the schema default shown in `--help`) and follow the API. C1/C2 are done, so this can start. The same three fields need the same in Python if they are not already typed there.
 - **T1:** remove the three `staging_count` tests (Rust client, CLI, Python). **T5:** keep the clap and version tests.
 - **O1/O7:** wait for the API fix.

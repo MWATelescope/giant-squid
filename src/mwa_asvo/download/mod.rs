@@ -36,7 +36,7 @@ use sha1::{Digest, Sha1};
 use tar::Archive;
 
 mod no_follow;
-use no_follow::{open_for_writing, refused_a_symlink, WriteMode};
+use no_follow::{open_for_writing, refused_a_symlink, BelowError, DownloadRoot, WriteMode};
 
 /// The number of bytes in one MiB.
 pub const BYTES_PER_MIB: usize = 1024 * 1024;
@@ -649,19 +649,24 @@ fn tar_entry_target(
     }
 }
 
-/// Create the directories above `path`, the file or directory of a tar
-/// entry, as `tar -x` does: an archive does not have to list them before
-/// the entry. [`entry_target`] has checked that none of them is a symbolic
-/// link.
-fn create_parent_dirs(path: &Path) -> Result<(), AsvoError> {
-    match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => {
-            fs::create_dir_all(parent).map_err(|source| AsvoError::CannotCreate {
-                path: parent.to_path_buf(),
-                source,
-            })
-        }
-        _ => Ok(()),
+/// Open the download directory, for making the files and directories of a tar
+/// archive below it (see [`DownloadRoot`]). The directory must exist.
+fn open_download_root(unpack_path: &Path) -> Result<DownloadRoot, AsvoError> {
+    DownloadRoot::open(unpack_path).map_err(|source| {
+        let path_display = unpack_path.display();
+        AsvoError::IO(io::Error::new(
+            source.kind(),
+            format!("cannot open the download directory {path_display}: {source}"),
+        ))
+    })
+}
+
+/// The error of a file or directory below the download directory that could
+/// not be made: a symbolic link on the way, or another failure.
+fn below_error(error: BelowError) -> AsvoError {
+    match error {
+        BelowError::Symlink(path) => AsvoError::SymlinkInDownloadDir { path },
+        BelowError::Io { path, source } => AsvoError::CannotCreate { path, source },
     }
 }
 
@@ -674,6 +679,8 @@ fn create_parent_dirs(path: &Path) -> Result<(), AsvoError> {
 /// fetches only the rest of the archive.
 #[derive(Clone)]
 struct UntarCheckpoint {
+    /// The download directory that the member's file is below.
+    unpack_path: PathBuf,
     /// The archive offset of the member's first data byte.
     data_pos: u64,
     /// The SHA1 of the archive bytes before `data_pos`.
@@ -908,6 +915,7 @@ fn untar_stream_with_sidecar(
     sidecar: Option<&SidecarWriter>,
 ) -> Result<Sha1, AsvoError> {
     let buffer_size = opts.buffer_size;
+    let root = open_download_root(unpack_path)?;
     // Stamps after the resume point belong to an attempt that failed later
     // in the archive: this attempt stamps those files again.
     let done = Rc::clone(&resume.done);
@@ -962,6 +970,7 @@ fn untar_stream_with_sidecar(
             let size = entry.size();
             let done_count = done.borrow().stamps.len();
             let new_checkpoint = checkpoint.insert(UntarCheckpoint {
+                unpack_path: unpack_path.to_path_buf(),
                 data_pos: base + entry.raw_file_position(),
                 hasher: hasher.borrow().clone(),
                 out_path: target.file_path(),
@@ -977,8 +986,9 @@ fn untar_stream_with_sidecar(
                 EntryTarget::File(out_full) => {
                     let out_display = out_full.display();
                     debug!("{log_prefix} Writing file {out_display}");
-                    create_parent_dirs(&out_full)?;
-                    let mut out_file = create_file(&out_full)?;
+                    let mut out_file = root
+                        .open_file(&entry_path, WriteMode::CreateOrTruncate)
+                        .map_err(below_error)?;
                     copy_with_progress(
                         BufReader::with_capacity(buffer_size, entry),
                         &mut out_file,
@@ -990,12 +1000,7 @@ fn untar_stream_with_sidecar(
                 }
                 EntryTarget::Dir(out_full) if !out_full.exists() => {
                     debug!("{log_prefix} Creating directory {out_full:?}");
-                    std::fs::create_dir_all(&out_full).map_err(|source| {
-                        AsvoError::CannotCreate {
-                            path: out_full.clone(),
-                            source,
-                        }
-                    })?;
+                    root.create_dir_all(&entry_path).map_err(below_error)?;
                 }
                 EntryTarget::Dir(out_full) => {
                     let out_display = out_full.display();
@@ -1056,8 +1061,17 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
                 hash_file_prefix(path, on_disk, &mut hasher)?;
             }
             // A resume file can name a member whose file was not created yet.
-            create_parent_dirs(path)?;
-            let file = File::options().create(true).append(true).open(path)?;
+            // The path was made from `unpack_path`, so it is below it.
+            let unpack_path = &cp.unpack_path;
+            let relative = path.strip_prefix(unpack_path).map_err(|_| {
+                AsvoError::IO(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{path:?} is not below the download directory"),
+                ))
+            })?;
+            let file = open_download_root(unpack_path)?
+                .open_file(relative, WriteMode::CreateOrAppend)
+                .map_err(below_error)?;
             (on_disk, Some(file))
         }
     };
@@ -1225,6 +1239,7 @@ fn find_files_on_disk(
             let data_pos = entry.raw_file_position();
 
             checkpoint = Some(UntarCheckpoint {
+                unpack_path: unpack_path.to_path_buf(),
                 data_pos,
                 hasher: hasher.borrow().clone(),
                 out_path: target.file_path(),
@@ -1668,6 +1683,7 @@ fn parse_sidecar(
 
     let done_count = sidecar.files.len();
     Ok(UntarCheckpoint {
+        unpack_path: unpack_path.to_path_buf(),
         data_pos: sidecar.data_pos,
         hasher,
         out_path,
