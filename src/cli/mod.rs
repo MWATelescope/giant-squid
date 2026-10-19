@@ -254,8 +254,7 @@ pub enum Args {
     },
 
     /// Submit MWA ASVO imaging jobs
-    // Declination and robustness are legitimately negative, and without
-    // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
+    // Negative numbers are allowed, as for `SubmitConv`.
     #[command(alias = "si", allow_negative_numbers = true)]
     SubmitImage {
         #[command(flatten)]
@@ -274,8 +273,7 @@ pub enum Args {
     /// Submit MWA ASVO imaging jobs from an existing conversion job.
     /// Unlike submit-image, this skips the conversion step and images
     /// directly from the output of a previous conversion job.
-    // Declination and robustness are legitimately negative, and without
-    // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
+    // Negative numbers are allowed, as for `SubmitConv`.
     #[command(alias = "sifj", allow_negative_numbers = true)]
     SubmitImageFromJob {
         #[command(flatten)]

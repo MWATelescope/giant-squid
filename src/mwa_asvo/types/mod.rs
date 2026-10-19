@@ -11,18 +11,28 @@ use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobFile, JobState, JobTyp
 use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
 use crate::{obs_id::ObsId, AsvoError};
 
+/// The `JobType` codes of the OpenAPI schema. The schema's `JobType` is only
+/// an integer; the names are in the description of the `job_type` fields
+/// ("0=conversion, 1=visibility, ..."). A test checks these codes and
+/// [`JOB_TYPE_NAMES`] against the schema.
+pub(crate) const JOB_TYPE_CODE_CONVERSION: i64 = 0;
+pub(crate) const JOB_TYPE_CODE_VISIBILITY: i64 = 1;
+pub(crate) const JOB_TYPE_CODE_METADATA: i64 = 2;
+pub(crate) const JOB_TYPE_CODE_VOLTAGE: i64 = 3;
+pub(crate) const JOB_TYPE_CODE_CANCEL: i64 = 4;
+pub(crate) const JOB_TYPE_CODE_BEAMFORMER: i64 = 5;
+pub(crate) const JOB_TYPE_CODE_IMAGING: i64 = 6;
+
 /// The job types of the OpenAPI schema: each `JobType` code, with the name
-/// that the schema gives it. The schema's `JobType` is only an integer; the
-/// names are in the description of the `job_type` fields ("0=conversion,
-/// 1=visibility, ..."). A test checks this table against the schema.
+/// that the schema gives it.
 const JOB_TYPE_NAMES: [(i64, &str); 7] = [
-    (0, "conversion"),
-    (1, "visibility"),
-    (2, "metadata"),
-    (3, "voltage"),
-    (4, "cancel"),
-    (5, "beamformer"),
-    (6, "imaging"),
+    (JOB_TYPE_CODE_CONVERSION, "conversion"),
+    (JOB_TYPE_CODE_VISIBILITY, "visibility"),
+    (JOB_TYPE_CODE_METADATA, "metadata"),
+    (JOB_TYPE_CODE_VOLTAGE, "voltage"),
+    (JOB_TYPE_CODE_CANCEL, "cancel"),
+    (JOB_TYPE_CODE_BEAMFORMER, "beamformer"),
+    (JOB_TYPE_CODE_IMAGING, "imaging"),
 ];
 
 impl JobType {

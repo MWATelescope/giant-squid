@@ -61,6 +61,8 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - **O2 and T1:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`, like `--join-channels`. The schema (2.3.4) does not allow `null` for them (`bool`, not `bool | null`), so `null` is refused; the Python arguments were already `bool` with the schema defaults. The three `staging_count` tests are gone; the Rust one is kept as `the_client_calls_only_end_user_endpoints` (it also checks the endpoints).
 
+- **O9, V1–V3:** the job type names are matched by their schema codes (`JOB_TYPE_CODE_*` in `mwa_asvo/types/mod.rs`) in `legacy_job_type` and `job_type_colour`; the long docs of `normalize_job_value`, `get_jobs`, `require_tls` and the comment repeated three times in `cli/mod.rs` are shorter; `download_job` and `try_download` read `job.job_id()` once; the nine `#[allow(unused_imports)]` re-exports are one `use`.
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -94,7 +96,6 @@ OpenAPI, library and CLI:
 - **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
 - **O5:** short flags differ between commands (`-f`, `-o`).
 - **O8:** the `api/mod.rs` doc lists only the processor endpoints as not wrapped; end-user endpoints (`observation/metadata`, `project_permissions`, `user`, and others) are not wrapped either.
-- **O9:** `legacy_json::legacy_job_type` and `table::job_type_colour` match job-type names as string literals; use `JOB_TYPE_NAMES` or the codes.
 
 Documentation:
 - **D1:** README line 155 shows `MWA ASVO API 2.3.0`; `--version` prints 2.3.4.
@@ -107,9 +108,6 @@ Documentation:
 - **D9:** `client/mod.rs` lines 7–12 tell history, not the design.
 - **D11–D15:** `api/error.rs` names `HttpValidationError` (not in the schema); the `ApiError` doc reason for copying fields is not correct; `PYTHON_BINDINGS.md` "For the API developer" is partly stale (`JobState` numbers, `staging_count`); two `build.rs` comments are not correct; the `env` doc says the Python module reads the environment (it does not).
 - `docs/CLEANUP.md` (this file) ships in the crate and the sdist; exclude it before the release.
-
-Duplication and verbosity:
-- **V1–V3:** long docs (`normalize_job_value`, `get_jobs`, `require_tls`, a comment repeated 3 times in `cli/mod.rs`); repeated `job.job_id()` calls; 10 `#[allow(unused_imports)]` re-export lines.
 
 Tests: T1 and T5 are decided (see above).
 

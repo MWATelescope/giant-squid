@@ -9,6 +9,7 @@
 use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 
+use crate::mwa_asvo::types::{JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VOLTAGE};
 use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobFile, JobState, JobType};
 
 /// The format for the "Completed" column.
@@ -115,10 +116,10 @@ fn coloured(cell: Cell, colour: Option<Color>) -> Cell {
 
 /// The colour of a job type cell. A job with no type has no colour.
 fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
-    job_type.map(|job_type| match job_type.name() {
-        "metadata" => Color::DarkYellow,
-        "voltage" => Color::DarkMagenta,
-        "cancel" => Color::DarkRed,
+    job_type.map(|job_type| match i64::from(job_type) {
+        JOB_TYPE_CODE_METADATA => Color::DarkYellow,
+        JOB_TYPE_CODE_VOLTAGE => Color::DarkMagenta,
+        JOB_TYPE_CODE_CANCEL => Color::DarkRed,
         _ => Color::DarkBlue,
     })
 }

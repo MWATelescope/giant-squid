@@ -226,20 +226,20 @@ fn download_job(
     job: &AsvoJob,
     opts: &DownloadOptions,
 ) -> Result<(), AsvoError> {
+    let job_id = job.job_id();
     if job.job_state != JobState::Completed {
         return Err(AsvoError::NotReady {
-            job_id: job.job_id(),
+            job_id,
             job_state: job.job_state,
         });
     }
 
     let files = match &job.product {
-        None => return Err(AsvoError::NoFiles(job.job_id())),
-        Some(p) if p.files.is_empty() => return Err(AsvoError::NoFiles(job.job_id())),
+        None => return Err(AsvoError::NoFiles(job_id)),
+        Some(p) if p.files.is_empty() => return Err(AsvoError::NoFiles(job_id)),
         Some(p) => &p.files,
     };
 
-    let job_id = job.job_id();
     let obs_id = job.obs_id();
     let number = opts.download_number;
     let count = opts.download_count;
@@ -249,17 +249,13 @@ fn download_job(
         match f.type_ {
             FileType::Acacia => {
                 let start_time = Instant::now();
-                let no_url = || AsvoError::NoUrl {
-                    job_id: job.job_id(),
-                };
+                let no_url = || AsvoError::NoUrl { job_id };
                 let url = f.url.as_deref().ok_or_else(no_url)?;
                 // Every downloaded file is checked against the MWA ASVO hash
                 // when it is resumed, so a file without one is refused before
                 // any request.
                 if f.sha1.is_none() {
-                    return Err(AsvoError::NoHash {
-                        job_id: job.job_id(),
-                    });
+                    return Err(AsvoError::NoHash { job_id });
                 }
 
                 debug!("{log_prefix} Downloading from url {url}");
@@ -290,7 +286,7 @@ fn download_job(
                                 http_client,
                                 url,
                                 f,
-                                job.job_id(),
+                                job_id,
                                 &log_prefix,
                                 opts,
                             )?,
@@ -312,7 +308,7 @@ fn download_job(
                         opts,
                         &mut retry_state,
                     )
-                    .map_err(|e| retry_class(e, job.job_id()))
+                    .map_err(|e| retry_class(e, job_id))
                 };
 
                 let fetched = retry_unless_stopped(Backoff::new(opts.retry_duration), op, opts)?;
@@ -331,15 +327,13 @@ fn download_job(
             }
             FileType::Dug => {
                 return Err(AsvoError::FilesNotReachable {
-                    job_id: job.job_id(),
+                    job_id,
                     delivery: f.type_,
                     path: f.path.clone(),
                 });
             }
             FileType::Scratch => {
-                let no_path = || AsvoError::NoPath {
-                    job_id: job.job_id(),
-                };
+                let no_path = || AsvoError::NoPath { job_id };
                 let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);
                 let folder_name = path_obj.file_name().ok_or_else(no_path)?;
@@ -347,13 +341,13 @@ fn download_job(
                 let target_display = target.display();
 
                 // The target is checked first, so that nothing is replaced.
-                match move_target(path_obj, &target, job.job_id())? {
+                match move_target(path_obj, &target, job_id)? {
                     MoveTarget::AlreadyThere => {
                         info!("{log_prefix} The files are already in the download directory: {target_display}.");
                     }
                     MoveTarget::Free if !path_obj.exists() => {
                         return Err(AsvoError::FilesNotReachable {
-                            job_id: job.job_id(),
+                            job_id,
                             delivery: f.type_,
                             path: f.path.clone(),
                         });
@@ -439,9 +433,11 @@ fn try_download(
     opts: &DownloadOptions,
     retry_state: &mut RetryState,
 ) -> Result<u64, AsvoError> {
-    let mwa_asvo_hash = file_info.sha1.as_deref().ok_or(AsvoError::NoHash {
-        job_id: job.job_id(),
-    })?;
+    let job_id = job.job_id();
+    let mwa_asvo_hash = file_info
+        .sha1
+        .as_deref()
+        .ok_or(AsvoError::NoHash { job_id })?;
 
     let job_type = job.job_type.map(|t| t.name()).unwrap_or_default();
     let size_text = bytesize::ByteSize(file_info.size_bytes()).display().iec();
@@ -452,7 +448,7 @@ fn try_download(
             http_client,
             url,
             file_info,
-            job.job_id(),
+            job_id,
             out_path,
             log_prefix,
             opts,
@@ -466,7 +462,7 @@ fn try_download(
         opts.no_resume && !retry_state.wrote_tar,
         file_info,
         mwa_asvo_hash,
-        job.job_id(),
+        job_id,
         log_prefix,
     )? {
         OutputTarget::AlreadyDone { reason } => {
@@ -480,7 +476,7 @@ fn try_download(
 
     report_started(
         opts,
-        job.job_id(),
+        job_id,
         log_prefix,
         file_info.size_bytes(),
         resume_from,
@@ -493,7 +489,7 @@ fn try_download(
     };
     info!("{log_prefix} {action} tar archive {out_path:?}");
 
-    let http_response = send_checked(http_client, url, range_from(resume_from), job.job_id())?;
+    let http_response = send_checked(http_client, url, range_from(resume_from), job_id)?;
 
     // A server that ignores the range answers 200 with the whole file.
     // Appending that to a partial file would silently corrupt it, so
@@ -503,7 +499,7 @@ fn try_download(
         resume_from = 0;
         report_started(
             opts,
-            job.job_id(),
+            job_id,
             log_prefix,
             file_info.size_bytes(),
             resume_from,
@@ -538,14 +534,9 @@ fn try_download(
             // The stream's hash only covers the bytes fetched this time, so
             // it describes the tail rather than the file. Read the assembled
             // file back instead - slower, but only on a resumed download.
-            check_file_sha1_hash(out_path, mwa_asvo_hash, job.job_id())?;
+            check_file_sha1_hash(out_path, mwa_asvo_hash, job_id)?;
         } else {
-            check_sha1_hash(
-                stream_hasher.into_inner(),
-                mwa_asvo_hash,
-                job.job_id(),
-                out_path,
-            )?;
+            check_sha1_hash(stream_hasher.into_inner(), mwa_asvo_hash, job_id, out_path)?;
         }
         info!("{log_prefix} File matches the MWA ASVO provided hash.");
     }

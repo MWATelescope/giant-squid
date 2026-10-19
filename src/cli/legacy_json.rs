@@ -21,6 +21,10 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::mwa_asvo::api::openapi::Type as FileType;
+use crate::mwa_asvo::types::{
+    JOB_TYPE_CODE_BEAMFORMER, JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_CONVERSION,
+    JOB_TYPE_CODE_IMAGING, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VISIBILITY, JOB_TYPE_CODE_VOLTAGE,
+};
 use crate::mwa_asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
 use crate::obs_id::ObsId;
 
@@ -87,14 +91,14 @@ impl<'a> LegacyState<'a> {
 /// A job type, as the old format wrote it (for example
 /// `DownloadVisibilities`). A job with no type was `Unknown`.
 fn legacy_job_type(job_type: Option<JobType>) -> &'static str {
-    match job_type.map(|t| t.name()) {
-        Some("conversion") => "Conversion",
-        Some("visibility") => "DownloadVisibilities",
-        Some("metadata") => "DownloadMetadata",
-        Some("voltage") => "DownloadVoltage",
-        Some("cancel") => "CancelJob",
-        Some("beamformer") => "DownloadBeamformer",
-        Some("imaging") => "Imaging",
+    match job_type.map(i64::from) {
+        Some(JOB_TYPE_CODE_CONVERSION) => "Conversion",
+        Some(JOB_TYPE_CODE_VISIBILITY) => "DownloadVisibilities",
+        Some(JOB_TYPE_CODE_METADATA) => "DownloadMetadata",
+        Some(JOB_TYPE_CODE_VOLTAGE) => "DownloadVoltage",
+        Some(JOB_TYPE_CODE_CANCEL) => "CancelJob",
+        Some(JOB_TYPE_CODE_BEAMFORMER) => "DownloadBeamformer",
+        Some(JOB_TYPE_CODE_IMAGING) => "Imaging",
         _ => "Unknown",
     }
 }

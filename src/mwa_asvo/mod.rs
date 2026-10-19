@@ -20,30 +20,24 @@ pub(crate) mod types;
 // "bin" feature) or the Python module (the "python" feature) uses, so a
 // build without that feature does not use them.
 #[allow(unused_imports)]
-pub(crate) use api::client::{
-    AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
-    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+pub(crate) use self::{
+    api::client::{
+        AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
+        ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
+        ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+    },
+    api::openapi::{Delivery, JobFile, JobProduct, JobState, JobType},
+    api::AsvoApiError,
+    download::{
+        DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+        DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
+    },
+    env::{
+        client_config_from_env, DownloadSettings, ENV_GIANT_SQUID_DELIVERY,
+        ENV_GIANT_SQUID_DELIVERY_FORMAT,
+    },
+    error::AsvoError,
+    error_response::new_error_response,
+    token_store::default_token_cache_path,
+    types::{AsvoJob, AsvoJobId, AsvoJobVec},
 };
-#[allow(unused_imports)]
-pub(crate) use api::openapi::{Delivery, JobFile, JobProduct, JobState, JobType};
-#[allow(unused_imports)]
-pub(crate) use api::AsvoApiError;
-#[allow(unused_imports)]
-pub(crate) use download::{
-    DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
-};
-#[allow(unused_imports)]
-pub(crate) use env::{
-    client_config_from_env, DownloadSettings, ENV_GIANT_SQUID_DELIVERY,
-    ENV_GIANT_SQUID_DELIVERY_FORMAT,
-};
-#[allow(unused_imports)]
-pub(crate) use error::AsvoError;
-#[allow(unused_imports)]
-pub(crate) use error_response::new_error_response;
-#[allow(unused_imports)]
-pub(crate) use token_store::default_token_cache_path;
-#[allow(unused_imports)]
-pub(crate) use types::{AsvoJob, AsvoJobId, AsvoJobVec};

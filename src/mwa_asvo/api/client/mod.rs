@@ -249,13 +249,8 @@ fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
     })
 }
 
-/// Whether HTTP requests must use TLS.
-///
-/// True for the default host and any `https://` host, so real deployments
-/// are always HTTPS-only. An explicitly configured `http://` host - a local
-/// mock server in the test suite, or a plain-HTTP dev instance - is allowed
-/// to use plain HTTP, since forcing TLS there would simply make the
-/// configured host unusable.
+/// Whether HTTP requests must use TLS: always, except for an explicit
+/// `http://` host (a local mock server, or a plain-HTTP dev instance).
 fn require_tls(host: &str) -> bool {
     !host.starts_with(PLAIN_HTTP_SCHEME)
 }
@@ -727,24 +722,11 @@ impl AsvoClient {
     }
 
     /// Fetch the caller's MWA ASVO jobs, all pages of them, as `giant-squid
-    /// list` does.
-    ///
-    /// `filter` selects the jobs ([`JobsFilter`]); [`JobsFilter::default()`]
-    /// gets the jobs that the API returns by default. The filters that the
-    /// MWA ASVO API has (`JobsByUserRequest`: `days`, the dates, the sort
-    /// order, one state and one type) are sent to the server. The server takes
-    /// one state and one type at most, so a list of several states or types
-    /// (and the lists of Job IDs and Obs IDs) is applied to the jobs that
-    /// come back ([`AsvoJobVec::filter`]); a list of exactly one state or one
-    /// type is sent to the server as well, so that less comes back.
-    ///
-    /// The jobs are selected by `days` or by `date_from` and `date_to`, not
-    /// by both ([`JobsFilter::validate`]). `filter.days` must be from 1 to 30
-    /// ([`validate::DAYS`], the schema's limits). With neither `days` nor a
-    /// date, the request has the schema's default for `days` (30 in the
-    /// current schema): the library does not ask for "all" jobs. With a date,
-    /// the request has `"days": null`, so that the dates alone select the
-    /// jobs.
+    /// list` does. `filter` selects the jobs, and how, as [`JobsFilter`]
+    /// says; [`JobsFilter::default()`] gets the jobs that the API returns by
+    /// default. Where the filter does not say otherwise, `days` is the
+    /// schema's default (30 in the current schema): the library does not ask
+    /// for "all" jobs. With a date, the request has `"days": null`.
     ///
     /// A job without a usable obs_id in its untyped `job_params` is skipped
     /// with a warning, rather than failing the whole listing (see
@@ -1044,36 +1026,21 @@ impl AsvoClient {
     }
 }
 
-/// Patches two confirmed real-server quirks into a raw job JSON object
-/// (listed for the API developer in docs/PYTHON_BINDINGS.md; remove this
-/// when the API sends `null` for a missing time and RFC 3339 times)
-/// before we try to deserialize it as `JobDetailResponse`, since we can't
-/// fix the generated type directly (it gets overwritten on regeneration).
-/// Both are worth raising with the API dev so they become unnecessary:
+/// Patches the quirks of the real server into a raw job JSON object before it
+/// is read as a `JobDetailResponse`. The generated type cannot be fixed
+/// (regeneration overwrites it), and the API developer has been told of the
+/// first two (docs/PYTHON_BINDINGS.md): remove them when the API sends `null`
+/// and RFC 3339 times.
 ///
-/// 1. `completed`/`started`/`modified` are sometimes omitted entirely
-///    (confirmed: `modified` was absent, not null, in a real response)
-///    rather than sent as JSON `null`. Those three fields lack a
-///    `#[serde(default)]` in the generated type (unlike `error_text`/
-///    `product`, which do), so a genuinely missing key is a hard
-///    deserialize error, not a `None`. Fixed by inserting `null` for any
-///    of the three that are missing.
-/// 2. Timestamps (`created`, and the three above when present) come back
-///    without a timezone designator (confirmed: `"created":
-///    "2026-09-08T05:41:54.757232"`, no `Z`/offset) - a naive timestamp,
-///    not RFC3339. `jiff::Timestamp`'s deserializer (like chrono's before
-///    it) needs an offset, so it refuses a naive one. Fixed by appending
-///    `Z` to any of these four fields' string values that don't already
-///    have a timezone marker (assuming UTC, which matches the schema's own
-///    `date-time` typing, generated as `Timestamp`).
-///
-/// And one defensive fix, not seen from the real server:
-///
-/// 3. Since schema v1.11 `product` is a typed `JobProduct`, which requires
-///    `files`. A `product` without `files` (for example `{}`) would make
-///    this job, and so the whole listing, fail to parse. It means "no
-///    files", so it is replaced with `null`, and the download path reports
-///    `NoFiles` for that one job.
+/// 1. `completed`, `started` and `modified` are sometimes absent, not `null`.
+///    The generated type has no `#[serde(default)]` for them, so an absent key
+///    is an error. Each missing one is set to `null`.
+/// 2. Times (those three and `created`) have no time zone, for example
+///    `2026-09-08T05:41:54.757232`, and `jiff::Timestamp` needs one. `Z` is
+///    appended (the times are UTC, as the schema's `date-time` says).
+/// 3. Defensive, not seen from the real server: a `product` without `files`
+///    (for example `{}`) would fail the whole listing, so it is replaced with
+///    `null`, and the download reports `NoFiles` for that one job.
 fn normalize_job_value(job_value: &mut serde_json::Map<String, serde_json::Value>) {
     for key in ["completed", "started", "modified"] {
         job_value.entry(key).or_insert(serde_json::Value::Null);

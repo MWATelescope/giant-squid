@@ -456,3 +456,29 @@ fn the_json_output_keys_are_the_openapi_names() {
     assert_eq!(file_keys, ["sha1", "size", "type", "url"]);
     assert_eq!(entry["product"]["files"][0]["type"], "acacia");
 }
+
+/// Each named code of a job type is the code of the type with that name, and
+/// the named codes are all the codes (so a match on them is complete).
+#[test]
+fn the_job_type_codes_have_the_names_of_the_schema() {
+    use crate::mwa_asvo::types::{
+        JOB_TYPE_CODE_BEAMFORMER, JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_CONVERSION,
+        JOB_TYPE_CODE_IMAGING, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VISIBILITY,
+        JOB_TYPE_CODE_VOLTAGE,
+    };
+
+    let codes = [
+        (JOB_TYPE_CODE_CONVERSION, "conversion"),
+        (JOB_TYPE_CODE_VISIBILITY, "visibility"),
+        (JOB_TYPE_CODE_METADATA, "metadata"),
+        (JOB_TYPE_CODE_VOLTAGE, "voltage"),
+        (JOB_TYPE_CODE_CANCEL, "cancel"),
+        (JOB_TYPE_CODE_BEAMFORMER, "beamformer"),
+        (JOB_TYPE_CODE_IMAGING, "imaging"),
+    ];
+    for (code, name) in codes {
+        let job_type = JobType::try_from(code).expect("a named code is a JobType");
+        assert_eq!(job_type.name(), name, "code {code}");
+    }
+    assert_eq!(codes.len(), JobType::names().len());
+}
