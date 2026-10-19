@@ -841,15 +841,15 @@ obs_id=1349904184, job_type=d, download_type=vis_meta, delivery=acacia, delivery
 
 `obs_id` and `job_type` are on every line. `job_type` is `c` (conversion), `d` (visibility or metadata download),
 `b` (beamformer), `v` (voltage) or `i` (imaging from an Obs ID). The other keys, with the same names and values
-as in the manta-ray-client README, are:
+as in the manta-ray-client README (and the other fields of the request body of the MWA ASVO API), are:
 
 | `job_type` | Keys |
 |---|---|
-| `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `delivery`, `delivery_format`, `allow_resubmit` |
+| `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `no_apply_amps`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
-| `b` | `delivery`, `delivery_format`, `allow_resubmit` |
+| `b` | `mode`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `channel_range`, `delivery`, `allow_resubmit` |
-| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `clean_threshold`, `auto_threshold`, `nwlayers`, `output_mode`, `delivery`, `delivery_format`, `allow_resubmit` |
+| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `clean_threshold`, `abs_threshold`, `auto_threshold`, `nwlayers`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
 
@@ -866,8 +866,9 @@ How `submit-csv` works:
 
 It differs from manta-ray-client where that client sends a mistake to the server without a word:
 
-- A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen), and so
-  is a key that a line gives twice.
+- A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen).
+- A key that a line gives twice, and a line that makes the same job as an earlier line, are warnings. As in
+  manta-ray-client, the last value of a key is used.
 - A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.
 - A value cannot be in quotes.
 - `job_type=p` (an image of a conversion job) is an error. Use `submit-image-from-job`.
@@ -1086,7 +1087,7 @@ Cancel MWA ASVO jobs
 Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted
+  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. If none are given, read Job IDs from piped or redirected standard input
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
@@ -1109,6 +1110,13 @@ With `-j`, `--json`, `cancel` prints the MWA ASVO's reply to each request as one
 output (`{"job_id":31,"message":"Job cancelled","status":"success"}`), as the submit commands do. A request
 that the MWA ASVO refuses with an error prints an error line with the `job_id`: see
 [JSON output and errors](#json-output-and-errors).
+
+You can pipe Job IDs from `list --json` into `cancel`. For example, to cancel completed jobs, use `jq` to read the
+Job ID keys from the JSON object. When no Job IDs are given on the command line, `cancel` reads them from stdin:
+
+```bash
+giant-squid list --json --job-states=completed | jq -r 'keys[]' | giant-squid cancel
+```
 
 The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
 was cancelled:
@@ -1134,7 +1142,7 @@ Download an MWA ASVO job
 Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted
+  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. If none are given, read IDs from piped or redirected standard input
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
@@ -1169,6 +1177,13 @@ To download Obs ID 1065880128 to your current directory '.' (assuming you have o
 
 ```bash
 giant-squid download 1065880128
+```
+
+You can pipe Job IDs from `list --json` into `download`. For example, to download completed jobs to `/tmp`, use `jq`
+to read the Job ID keys from the JSON object. When no IDs are given on the command line, `download` reads them from stdin:
+
+```bash
+giant-squid list --json --job-states=completed | jq -r 'keys[]' | giant-squid download -d /tmp
 ```
 
 (`giant-squid` differentiates between Job IDs and Obs IDs by the length of the
@@ -1462,6 +1477,33 @@ MWA_ASVO_API_KEY=<your key> cargo run --no-default-features --example list_jobs
 The full API is on [docs.rs](https://docs.rs/mwa_giant_squid).
 
 ---
+
+### Submitting the jobs of a manta-ray-client CSV file
+
+`AsvoClient::submit_csv_file` reads a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV file
+(see [Jobs from a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file)), checks every line, and submits
+the jobs in the order of the file. It returns the `JobSubmittedResponse` of each job. Nothing is submitted if the file
+cannot be read or has a bad line. A job that fails does not stop the others: the error,
+`CsvSubmitError::Failed`, has the replies of the jobs that were submitted and the jobs that were not.
+
+```rust
+use std::path::Path;
+
+use mwa_giant_squid::{AsvoClient, CsvDefaults, CsvSubmitError};
+
+fn submit(client: &AsvoClient) -> Result<(), CsvSubmitError> {
+    // `CsvDefaults::from_env()` gives the defaults of the `giant-squid` command (the library itself reads no
+    // environment variable). `CsvDefaults::default()` leaves the defaults of the MWA ASVO.
+    let replies = client.submit_csv_file(Path::new("jobs.csv"), &CsvDefaults::default())?;
+    for reply in replies {
+        println!("Submitted Job ID {}", reply.job_id);
+    }
+    Ok(())
+}
+```
+
+`parse_manta_ray_csv` reads the text of a file without a client, and `AsvoClient::submit_csv_jobs` submits the jobs
+that it returns, with a function that is called for each job when its request is done.
 
 ## Environment Variables
 

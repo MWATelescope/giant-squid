@@ -217,7 +217,7 @@ pub enum Args {
         json: bool,
 
         /// The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or
-        /// Obs IDs are also accepted.
+        /// Obs IDs are also accepted. If none are given, read IDs from piped or redirected standard input.
         #[arg(id = "JOB_ID_OR_OBS_ID")]
         job_ids_or_obs_ids: Vec<String>,
     },
@@ -412,7 +412,7 @@ pub enum Args {
         verbosity: u8,
 
         /// The Job IDs to be cancelled. Files containing Job IDs are also
-        /// accepted.
+        /// accepted. If none are given, read Job IDs from piped or redirected standard input.
         #[arg(id = "JOB_ID")]
         jobs: Vec<String>,
     },

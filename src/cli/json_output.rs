@@ -84,6 +84,12 @@ impl JsonError {
         )
     }
 
+    /// The error line of an error of an API request, which is borrowed: the
+    /// `ErrorResponse` of the library for it.
+    pub(super) fn api_error(error: &AsvoApiError) -> Self {
+        Self::from_response(error.error_response(), None, None)
+    }
+
     /// The error line of a command-line usage error found by clap. The
     /// message is clap's text, without styles.
     pub(super) fn usage(error: &clap::Error) -> Self {

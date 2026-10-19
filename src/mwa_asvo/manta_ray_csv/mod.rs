@@ -21,9 +21,12 @@
 //! send a mistake to the server without a word:
 //!
 //! - A key that the job type does not have is an error, not a value that
-//!   the server ignores. A typo cannot change a job unseen.
-//! - A key that a line gives twice is an error. (`manta-ray-client` uses
-//!   the last.)
+//!   the server ignores. A typo cannot change a job unseen. The keys of a
+//!   job type are the ones in the README of `manta-ray-client` and the other
+//!   fields of the request body of the MWA ASVO OpenAPI schema.
+//! - A key that a line gives twice, and a line that makes the same job as an
+//!   earlier line, are logged as warnings. As in `manta-ray-client`, the last
+//!   value of a key is used.
 //! - A cell with a key and no value (`delivery=`) is ignored, as it is in
 //!   `manta-ray-client`: the key has its default.
 //! - A value cannot be in quotes, and the spaces around a key or a value
@@ -35,9 +38,11 @@
 //! exceptions are `delivery`, `delivery_format` and `allow_resubmit`,
 //! which [`CsvDefaults`] can set for every line that does not give them.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
+use log::warn;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -51,11 +56,11 @@ use crate::mwa_asvo::api::job_params::{
     voltage_params,
 };
 use crate::mwa_asvo::api::openapi::{
-    BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadType, ImagingJobFlow1Params, JobSubmittedResponse, Output, OutputMode,
-    VoltageJobParams, Weighting,
+    BeamformerJobParams, BeamformerJobParamsMode, Centre, ConversionJobParams, Delivery,
+    DeliveryFormat, DownloadJobParams, DownloadType, ImagingJobFlow1Params, JobSubmittedResponse,
+    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
 };
-use crate::mwa_asvo::api::schema_enums::SchemaEnum;
+use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
 use crate::mwa_asvo::api::validate::{
     self, validate_beamformer_params, validate_conversion_params, validate_download_params,
     validate_imaging_params, validate_voltage_params,
@@ -220,13 +225,42 @@ impl std::fmt::Display for CsvError {
 /// submits nothing. The jobs are in the order of the lines. A file with no
 /// job gives an empty list.
 ///
+/// A key that a line gives twice (the last value is used), and a line that
+/// makes the same job as an earlier line, are logged as warnings.
+///
 /// # Errors
 ///
 /// [`CsvError`] with every line that has a problem.
 pub fn parse_manta_ray_csv(text: &str, defaults: &CsvDefaults) -> Result<Vec<CsvJob>, CsvError> {
+    let (jobs, warnings) = parse_with_warnings(text, defaults)?;
+    for warning in &warnings {
+        warn!("{warning}");
+    }
+    Ok(jobs)
+}
+
+/// What is not wrong with a line, but is probably not what the writer of
+/// the file wants.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("line {line}: {message}")]
+struct CsvRowWarning {
+    /// The line of the file, from 1.
+    line: usize,
+    /// What is odd, in words.
+    message: String,
+}
+
+/// As [`parse_manta_ray_csv`], but the warnings are returned, not logged.
+fn parse_with_warnings(
+    text: &str,
+    defaults: &CsvDefaults,
+) -> Result<(Vec<CsvJob>, Vec<CsvRowWarning>), CsvError> {
     let text = text.strip_prefix(BYTE_ORDER_MARK).unwrap_or(text);
-    let mut jobs = Vec::new();
+    let mut jobs: Vec<CsvJob> = Vec::new();
     let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+    // The line of the first job with each request body.
+    let mut first_line_of_body: HashMap<String, usize> = HashMap::new();
 
     for (index, line_text) in text.lines().enumerate() {
         let line = index + 1;
@@ -235,17 +269,35 @@ pub fn parse_manta_ray_csv(text: &str, defaults: &CsvDefaults) -> Result<Vec<Csv
             continue;
         }
         match parse_line(trimmed, defaults) {
-            Ok((obs_id, params)) => jobs.push(CsvJob {
-                line,
-                obs_id,
-                params,
-            }),
+            Ok((obs_id, params, line_warnings)) => {
+                warnings.extend(
+                    line_warnings
+                        .into_iter()
+                        .map(|message| CsvRowWarning { line, message }),
+                );
+                // The body is JSON that the schema types make, so equal
+                // bodies are equal texts.
+                let body = serde_json::to_string(&params).unwrap_or_default();
+                if let Some(first) = first_line_of_body.get(&body) {
+                    warnings.push(CsvRowWarning {
+                        line,
+                        message: format!("this line makes the same job as line {first}"),
+                    });
+                } else {
+                    first_line_of_body.insert(body, line);
+                }
+                jobs.push(CsvJob {
+                    line,
+                    obs_id,
+                    params,
+                });
+            }
             Err(message) => errors.push(CsvRowError { line, message }),
         }
     }
 
     if errors.is_empty() {
-        Ok(jobs)
+        Ok((jobs, warnings))
     } else {
         Err(CsvError { errors })
     }
@@ -257,12 +309,15 @@ struct Row {
     cells: BTreeMap<String, String>,
     /// Every key that the job type has: the keys that the code asked for.
     known: Vec<&'static str>,
+    /// What is odd in the line (a key that it gives twice).
+    warnings: Vec<String>,
 }
 
 impl Row {
     /// Split a line into its cells.
     fn parse(line: &str) -> Result<Self, String> {
         let mut cells = BTreeMap::new();
+        let mut warnings = Vec::new();
         for cell in line.split(CELL_SEPARATOR).map(str::trim) {
             if cell.is_empty() {
                 continue;
@@ -280,12 +335,15 @@ impl Row {
                 continue;
             }
             if cells.insert(key.to_string(), value.to_string()).is_some() {
-                return Err(format!("the key `{key}` is given twice"));
+                warnings.push(format!(
+                    "the key `{key}` is given twice; the last value is used"
+                ));
             }
         }
         Ok(Self {
             cells,
             known: Vec::new(),
+            warnings,
         })
     }
 
@@ -366,8 +424,12 @@ fn required<T>(value: Option<T>, key: &str) -> Result<T, String> {
 }
 
 /// Read the job of one line.
-fn parse_line(line: &str, defaults: &CsvDefaults) -> Result<(ObsId, CsvJobParams), String> {
+fn parse_line(
+    line: &str,
+    defaults: &CsvDefaults,
+) -> Result<(ObsId, CsvJobParams, Vec<String>), String> {
     let mut row = Row::parse(line)?;
+    let warnings = std::mem::take(&mut row.warnings);
     let job_type = required(row.text(KEY_JOB_TYPE), KEY_JOB_TYPE)?.to_lowercase();
     let obs_id = required(row.integer::<u64>(KEY_OBS_ID)?, KEY_OBS_ID)?;
     let obs_id = ObsId::validate(obs_id).map_err(|e| format!("{KEY_OBS_ID}: {e}"))?;
@@ -400,7 +462,7 @@ fn parse_line(line: &str, defaults: &CsvDefaults) -> Result<(ObsId, CsvJobParams
     };
 
     params.validate().map_err(|e| e.to_string())?;
-    Ok((obs_id, params))
+    Ok((obs_id, params, warnings))
 }
 
 /// Set `delivery` and `delivery_format` of `params` (a schema type with
@@ -444,6 +506,9 @@ macro_rules! apply_preprocessing {
         if let Some(v) = $row.boolean("apply_di_cal")? {
             $params.apply_di_cal = v;
         }
+        if let Some(v) = $row.boolean("no_apply_amps")? {
+            $params.no_apply_amps = v;
+        }
         if let Some(v) = $row.named::<Centre>("centre")? {
             $params.centre = v;
         }
@@ -457,7 +522,7 @@ macro_rules! apply_preprocessing {
 }
 
 /// The flags of the Birli preprocessor, which `manta-ray-client` documents
-/// for conversion jobs.
+/// for conversion jobs. An imaging job has them too.
 macro_rules! apply_birli_flags {
     ($row:expr, $params:expr) => {
         if let Some(v) = $row.boolean("no_rfi")? {
@@ -506,6 +571,7 @@ fn parse_imaging(
     let mut params = imaging_params(obs_id);
     apply_delivery!(row, defaults, params);
     apply_preprocessing!(row, params);
+    apply_birli_flags!(row, params);
     if let Some(v) = row.integer::<i64>("image_size")? {
         params.image_size = validate::image_size(v).map_err(|e| e.to_string())?;
     }
@@ -557,6 +623,18 @@ fn parse_imaging(
     if let Some(v) = row.integer::<i64>("nwlayers")? {
         params.nwlayers = Some(v);
     }
+    if let Some(v) = row.integer::<i64>("wstack_nwlayers")? {
+        params.wstack_nwlayers = Some(v);
+    }
+    if let Some(v) = row.float("abs_threshold")? {
+        params.abs_threshold = Some(v);
+    }
+    if let Some(v) = row.boolean("join_channels")? {
+        params.join_channels = v;
+    }
+    if let Some(v) = row.named::<Polarization>("pol")? {
+        params.pol = v;
+    }
     if let Some(v) = row.named::<OutputMode>("output_mode")? {
         params.output_mode = v;
     }
@@ -597,9 +675,29 @@ fn parse_beamformer(
 ) -> Result<BeamformerJobParams, String> {
     let mut params = beamformer_params(obs_id);
     apply_delivery!(row, defaults, params);
+    if let Some(mode) = row.text("mode") {
+        params.mode = Some(parse_beamformer_mode(&mode)?);
+    }
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("beamformer")?;
     Ok(params)
+}
+
+/// The `mode` of a beamformer job: the case, spaces, hyphens and underscores
+/// do not matter, as for the other named values.
+fn parse_beamformer_mode(text: &str) -> Result<BeamformerJobParamsMode, String> {
+    let modes = [
+        BeamformerJobParamsMode::MwaxBeamformer,
+        BeamformerJobParamsMode::MwaxCorrBf,
+    ];
+    let wanted = sanitize_identifier(text);
+    modes
+        .into_iter()
+        .find(|mode| sanitize_identifier(&mode.to_string()) == wanted)
+        .ok_or_else(|| {
+            let names: Vec<String> = modes.iter().map(ToString::to_string).collect();
+            format!("mode: `{text}` is not one of {}", names.join(", "))
+        })
 }
 
 fn parse_voltage(
@@ -639,7 +737,132 @@ fn parse_voltage(
     Ok(params)
 }
 
+/// A job of a file that was not submitted.
+#[derive(Debug)]
+pub struct CsvJobFailure {
+    /// The line of the file, from 1.
+    pub line: usize,
+    /// The Obs ID of the job.
+    pub obs_id: ObsId,
+    /// Why the job was not submitted.
+    pub error: AsvoApiError,
+}
+
+impl std::fmt::Display for CsvJobFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "line {}: Obs ID {}: {}",
+            self.line, self.obs_id, self.error
+        )
+    }
+}
+
+/// Why [`AsvoClient::submit_csv_file`] or [`AsvoClient::submit_csv_jobs`]
+/// did not submit every job of a file.
+#[derive(Debug, Error)]
+pub enum CsvSubmitError {
+    /// The file could not be read. Nothing was submitted.
+    #[error("Could not read the CSV file {}: {source}", path.display())]
+    Read {
+        /// The file.
+        path: PathBuf,
+        /// Why it could not be read.
+        #[source]
+        source: std::io::Error,
+    },
+    /// A line of the file has a problem. Nothing was submitted.
+    #[error("{0}")]
+    Invalid(#[from] CsvError),
+    /// The server refused some jobs, or a request failed. The other jobs
+    /// were submitted: [`AsvoClient::submit_csv_jobs`] carries on past a
+    /// failure.
+    #[error("{}", failed_message(.submitted, .failures))]
+    Failed {
+        /// The replies for the jobs that were submitted, in the order of the
+        /// file.
+        submitted: Vec<JobSubmittedResponse>,
+        /// The jobs that were not, in the order of the file.
+        failures: Vec<CsvJobFailure>,
+    },
+}
+
+/// The message of [`CsvSubmitError::Failed`]: the counts, and each failure.
+fn failed_message(submitted: &[JobSubmittedResponse], failures: &[CsvJobFailure]) -> String {
+    let total = submitted.len() + failures.len();
+    let mut message = format!("{} of {total} job submissions failed", failures.len());
+    for failure in failures {
+        message.push_str(&format!("\n  {failure}"));
+    }
+    message
+}
+
 impl AsvoClient {
+    /// Read a `manta-ray-client` CSV file (see [`parse_manta_ray_csv`]),
+    /// check all of it, and submit its jobs, in the order of the file.
+    ///
+    /// Nothing is submitted if the file cannot be read or has a problem on
+    /// any line. A job that fails (the server refuses it, or a request
+    /// fails) does not stop the others.
+    ///
+    /// Returns the reply for each job, in the order of the file. A file with
+    /// no job gives an empty list.
+    ///
+    /// # Errors
+    ///
+    /// [`CsvSubmitError::Read`] or [`CsvSubmitError::Invalid`], with nothing
+    /// submitted; [`CsvSubmitError::Failed`] if any job failed, with the
+    /// replies for the jobs that were submitted.
+    pub fn submit_csv_file(
+        &self,
+        path: &Path,
+        defaults: &CsvDefaults,
+    ) -> Result<Vec<JobSubmittedResponse>, CsvSubmitError> {
+        let text = std::fs::read_to_string(path).map_err(|source| CsvSubmitError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        let jobs = parse_manta_ray_csv(&text, defaults)?;
+        self.submit_csv_jobs(&jobs, |_, _| {})
+    }
+
+    /// Submit the jobs that [`parse_manta_ray_csv`] read, in order, and carry
+    /// on past a job that fails. `on_result` is called for each job when its
+    /// request is done, so that a caller can report it at once.
+    ///
+    /// # Errors
+    ///
+    /// [`CsvSubmitError::Failed`] if any job failed, with the replies for the
+    /// jobs that were submitted. No other error is returned.
+    pub fn submit_csv_jobs(
+        &self,
+        jobs: &[CsvJob],
+        mut on_result: impl FnMut(&CsvJob, &Result<JobSubmittedResponse, AsvoApiError>),
+    ) -> Result<Vec<JobSubmittedResponse>, CsvSubmitError> {
+        let mut submitted = Vec::with_capacity(jobs.len());
+        let mut failures = Vec::new();
+        for job in jobs {
+            let result = self.submit_csv_job(&job.params);
+            on_result(job, &result);
+            match result {
+                Ok(response) => submitted.push(response),
+                Err(error) => failures.push(CsvJobFailure {
+                    line: job.line,
+                    obs_id: job.obs_id,
+                    error,
+                }),
+            }
+        }
+        if failures.is_empty() {
+            Ok(submitted)
+        } else {
+            Err(CsvSubmitError::Failed {
+                submitted,
+                failures,
+            })
+        }
+    }
+
     /// Submit the job of a line of a `manta-ray-client` CSV file (see
     /// [`parse_manta_ray_csv`]), with the submit method of its job type.
     ///

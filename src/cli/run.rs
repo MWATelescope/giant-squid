@@ -11,6 +11,7 @@
 //! [`run_cli`].
 
 use std::collections::BTreeMap;
+use std::io::{IsTerminal, Read};
 use std::num::NonZeroU64;
 use std::path::Path;
 use std::thread;
@@ -41,7 +42,7 @@ use crate::mwa_asvo::{
 use crate::obs_id::ObsId;
 use crate::{
     parse_job_ids_only, parse_manta_ray_csv, parse_many_job_ids_or_obs_ids, parse_obs_ids_only,
-    CsvDefaults, CsvJob, ParseError,
+    CsvDefaults, CsvJob, CsvSubmitError, ParseError,
 };
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
@@ -92,6 +93,21 @@ fn connect() -> anyhow::Result<AsvoClient> {
 /// The wait before each download starts, so that the downloads start (and
 /// log) in their order: 1/2 before 2/2. It is for the display only.
 const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(100);
+
+/// Read whitespace-separated identifiers from piped or redirected stdin
+/// when the command has no identifiers of its own.
+fn read_ids_from_stdin_if_empty(strings: &[String]) -> Result<Vec<String>, ArgumentError> {
+    if !strings.is_empty() || std::io::stdin().is_terminal() {
+        return Ok(strings.to_vec());
+    }
+
+    let mut stdin = std::io::stdin();
+    let mut input = String::new();
+    stdin
+        .read_to_string(&mut input)
+        .map_err(|e| ArgumentError(format!("Could not read IDs from standard input: {e}")))?;
+    Ok(input.split_whitespace().map(str::to_owned).collect())
+}
 
 /// What one download is for: a Job ID, or an Obs ID.
 #[derive(Clone, Copy)]
@@ -391,50 +407,77 @@ fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> 
     }
 }
 
-/// Submit the jobs of a CSV file, carrying on past failures, as
+/// Submit the jobs of a CSV file with the library's
+/// [`AsvoClient::submit_csv_jobs`], which carries on past failures, as
 /// [`submit_each_obs_id`] does for the Obs IDs of a command line. The Job IDs
 /// of the jobs that were submitted are added to `job_ids`. The error counts
-/// the failures, because each was reported when it happened: a [`JsonError`]
-/// line with `json`, a log record without. The record names the line of the
-/// file.
+/// the failures, because each was reported when it happened
+/// ([`report_csv_result`]).
 fn submit_each_csv_job(
     client: &AsvoClient,
     jobs: &[CsvJob],
     json: bool,
     job_ids: &mut Vec<AsvoJobId>,
 ) -> anyhow::Result<()> {
-    let mut failures: usize = 0;
-
-    for job in jobs {
-        match client.submit_csv_job(&job.params) {
-            Ok(resp) => {
-                print_json_line(&StatusFirst(&resp), json)?;
-                info!(
-                    "Line {}: submitted {} as MWA ASVO Job ID {}",
-                    job.line, job.obs_id, resp.job_id
-                );
-                job_ids.push(resp.job_id);
-            }
-            Err(e) => {
-                let e = anyhow::Error::from(e);
-                if json {
-                    print_json_line(&JsonError::new(&e).with_obs_id(job.obs_id), true)?;
-                } else {
-                    error!("Line {}: Obs ID {}: {e}", job.line, job.obs_id);
-                }
-                failures += 1;
-            }
+    // The callback cannot return an error: the first error of the output is
+    // kept, and returned after the last job.
+    let mut output_error: Option<anyhow::Error> = None;
+    let result = client.submit_csv_jobs(jobs, |job, result| {
+        if let Err(e) = report_csv_result(job, result, json) {
+            output_error.get_or_insert(e);
         }
-    }
+    });
 
     let total = jobs.len();
-    info!("Submitted {} of {total} jobs.", total - failures);
+    let outcome = match result {
+        Ok(responses) => {
+            job_ids.extend(responses.iter().map(|r| r.job_id));
+            Ok(())
+        }
+        Err(CsvSubmitError::Failed {
+            submitted,
+            failures,
+        }) => {
+            job_ids.extend(submitted.iter().map(|r| r.job_id));
+            Err(ReportedFailures(format!(
+                "{} of {total} job submissions failed",
+                failures.len()
+            ))
+            .into())
+        }
+        // `submit_csv_jobs` returns no other error.
+        Err(other) => return Err(other.into()),
+    };
+    info!("Submitted {} of {total} jobs.", job_ids.len());
 
-    if failures == 0 {
-        return Ok(());
+    match output_error {
+        Some(e) => Err(e),
+        None => outcome,
     }
+}
 
-    Err(ReportedFailures(format!("{failures} of {total} job submissions failed")).into())
+/// Report the result of one job of a CSV file: with `json`, the reply or a
+/// [`JsonError`] line with the Obs ID; without, a log record that names the
+/// line of the file.
+fn report_csv_result(
+    job: &CsvJob,
+    result: &Result<JobSubmittedResponse, AsvoApiError>,
+    json: bool,
+) -> anyhow::Result<()> {
+    match result {
+        Ok(resp) => {
+            print_json_line(&StatusFirst(resp), json)?;
+            info!(
+                "Line {}: submitted {} as MWA ASVO Job ID {}",
+                job.line, job.obs_id, resp.job_id
+            );
+        }
+        Err(e) if json => {
+            print_json_line(&JsonError::api_error(e).with_obs_id(job.obs_id), true)?;
+        }
+        Err(e) => error!("Line {}: Obs ID {}: {e}", job.line, job.obs_id),
+    }
+    Ok(())
 }
 
 /// Report what `submit-csv --dry-run` would have sent: for each job, the
@@ -768,6 +811,7 @@ fn run(args: Args) -> anyhow::Result<()> {
         } => {
             // The IDs can come from files, so they are checked after they
             // are read.
+            let job_ids_or_obs_ids = read_ids_from_stdin_if_empty(&job_ids_or_obs_ids)?;
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
             if job_ids.is_empty() && obs_ids.is_empty() {
                 return Err(ArgumentError(NO_DOWNLOAD_IDS_MESSAGE.to_string()).into());
@@ -1043,6 +1087,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             jobs,
         } => {
+            let jobs = read_ids_from_stdin_if_empty(&jobs)?;
             let parsed_job_ids = parse_job_ids_only(&jobs)?;
             init_logger(verbosity, json);
 

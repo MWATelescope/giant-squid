@@ -465,3 +465,71 @@ fn wait_waits_for_the_jobs_that_were_submitted() {
     assert_eq!(submit.calls(), 1);
     assert!(jobs.calls() >= 1, "the command should have listed the jobs");
 }
+
+// ---------------------------------------------------------------------------
+// Warnings, and the other keys of the schema
+// ---------------------------------------------------------------------------
+
+/// A key given twice and a repeated job are warnings, not errors: every job
+/// is still read. With `--json` no log is printed, so the warnings are not.
+#[test]
+fn with_json_the_warnings_are_not_printed_and_every_job_is_read() {
+    let env = CliEnv::with_session();
+    let file = CsvFile::new(
+        "obs_id=1349904240, job_type=d, download_type=vis, download_type=vis_meta\n\
+         obs_id=1349904240, job_type=d, download_type=vis_meta\n",
+    );
+
+    let mut cmd = env.command();
+    cmd.args(["submit-csv", "-n", "--json", &file.path]);
+    let result = run(cmd);
+
+    assert!(result.success, "{}", result.combined());
+    assert_eq!(result.stderr, "");
+    assert_eq!(result.stdout_json_lines().len(), 2);
+}
+
+#[test]
+fn a_warning_is_shown_without_json() {
+    let env = CliEnv::with_session();
+    let file = CsvFile::new(
+        "obs_id=1349904240, job_type=d, download_type=vis, download_type=vis_meta\n\
+         obs_id=1349904240, job_type=d, download_type=vis_meta\n",
+    );
+
+    let mut cmd = env.command();
+    cmd.args(["submit-csv", "-n", &file.path]);
+    let result = run(cmd);
+
+    assert!(result.success, "{}", result.combined());
+    let output = result.combined();
+    for expected in [
+        "[WARN]",
+        "line 1: the key `download_type` is given twice; the last value is used",
+        "line 2: this line makes the same job as line 1",
+        "Would have submitted 2 jobs.",
+    ] {
+        assert!(output.contains(expected), "missing {expected}: {output}");
+    }
+}
+
+#[test]
+fn the_other_fields_of_the_schema_are_accepted_as_keys() {
+    let env = CliEnv::with_session();
+    let file = CsvFile::new(
+        "obs_id=1349904240, job_type=i, pol=xx_yy, join_channels=true, abs_threshold=0.5, wstack_nwlayers=64, no_rfi=true\n\
+         obs_id=1349904240, job_type=c, no_apply_amps=true\n\
+         obs_id=1457858440, job_type=b, mode=MWAX_CORR_BF\n",
+    );
+
+    let mut cmd = env.command();
+    cmd.args(["submit-csv", "-n", "--json", &file.path]);
+    let result = run(cmd);
+
+    assert!(result.success, "{}", result.combined());
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines[0]["params"]["pol"], "XXYY");
+    assert_eq!(lines[0]["params"]["wstack_nwlayers"], 64);
+    assert_eq!(lines[1]["params"]["no_apply_amps"], true);
+    assert_eq!(lines[2]["params"]["mode"], "MWAX_CORR_BF");
+}

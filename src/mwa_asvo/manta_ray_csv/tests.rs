@@ -6,7 +6,7 @@
 
 use serde_json::{json, Value};
 
-use super::{parse_manta_ray_csv, CsvDefaults, CsvJob, CsvJobParams};
+use super::{parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams};
 use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
 
 const BEAMFORMER_FILE: &str =
@@ -373,13 +373,17 @@ fn a_key_of_another_job_type_is_an_error() {
 }
 
 #[test]
-fn a_key_given_twice_is_an_error() {
-    let problems =
-        problems("obs_id=1349904240,job_type=d,download_type=vis,download_type=vis_meta\n");
+fn a_key_given_twice_is_a_warning_and_the_last_value_is_used() {
+    let text = "obs_id=1349904240,job_type=d,download_type=vis,download_type=vis_meta\n";
 
-    assert!(
-        problems[0].contains("the key `download_type` is given twice"),
-        "{problems:?}"
+    let (jobs, warnings) =
+        parse_with_warnings(text, &CsvDefaults::default()).expect("the text should be valid");
+
+    assert_eq!(jobs[0].params.description(), "metadata download");
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(
+        warnings[0].to_string(),
+        "line 1: the key `download_type` is given twice; the last value is used"
     );
 }
 
@@ -506,4 +510,280 @@ fn a_voltage_channel_range_must_agree_with_the_channels() {
         with_channels[0].contains("channel_range=false does not agree"),
         "{with_channels:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Warnings
+// ---------------------------------------------------------------------------
+
+/// The warnings of `text`, as the messages that name the lines.
+fn warnings(text: &str) -> Vec<String> {
+    parse_with_warnings(text, &CsvDefaults::default())
+        .expect("the text should be valid")
+        .1
+        .iter()
+        .map(ToString::to_string)
+        .collect()
+}
+
+#[test]
+fn a_line_that_makes_the_same_job_as_an_earlier_line_is_a_warning() {
+    let text = "obs_id=1349904240,job_type=d,download_type=vis\n\
+                obs_id=1349904184,job_type=d,download_type=vis\n\
+                # a comment\n\
+                download_type=vis, job_type=d, obs_id=1349904240, delivery=acacia\n";
+
+    assert_eq!(
+        warnings(text),
+        ["line 4: this line makes the same job as line 1"]
+    );
+}
+
+#[test]
+fn jobs_that_differ_make_no_warning() {
+    let text = "obs_id=1349904240,job_type=d,download_type=vis\n\
+                obs_id=1349904240,job_type=d,download_type=vis_meta\n\
+                obs_id=1349904240,job_type=c\n";
+
+    assert!(warnings(text).is_empty());
+}
+
+#[test]
+fn the_six_files_make_no_warning() {
+    for text in [
+        BEAMFORMER_FILE,
+        CONVERSION_FILE,
+        IMAGING_FILE,
+        META_FILE,
+        VISIBILITY_FILE,
+        VOLTAGE_FILE,
+    ] {
+        assert!(warnings(text).is_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The other keys of the schema
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_other_fields_of_the_schema_are_keys_of_an_imaging_job() {
+    let text = "obs_id=1349904240, job_type=i, pol=xx_yy, join_channels=true, abs_threshold=0.5, \
+                wstack_nwlayers=64, no_apply_amps=true, no_rfi=true, no_flag_dc=false\n";
+
+    let jobs = parse(text);
+
+    assert_has(
+        &body(&jobs[0]),
+        json!({
+            "pol": "XXYY",
+            "join_channels": true,
+            "abs_threshold": 0.5,
+            "wstack_nwlayers": 64,
+            "no_apply_amps": true,
+            "no_rfi": true,
+            "no_flag_dc": false,
+        }),
+    );
+}
+
+#[test]
+fn no_apply_amps_is_a_key_of_a_conversion_job() {
+    let jobs = parse("obs_id=1349904240,job_type=c,no_apply_amps=true\n");
+
+    assert_has(&body(&jobs[0]), json!({"no_apply_amps": true}));
+}
+
+#[test]
+fn the_mode_of_a_beamformer_job_is_a_key() {
+    let jobs = parse(
+        "obs_id=1457858440,job_type=b,mode=mwax_corr_bf\n\
+         obs_id=1459045600,job_type=b,mode=MWAX-BEAMFORMER\n",
+    );
+
+    assert_has(&body(&jobs[0]), json!({"mode": "MWAX_CORR_BF"}));
+    assert_has(&body(&jobs[1]), json!({"mode": "MWAX_BEAMFORMER"}));
+}
+
+#[test]
+fn a_bad_beamformer_mode_names_the_modes() {
+    let problems = problems("obs_id=1457858440,job_type=b,mode=fast\n");
+
+    assert!(
+        problems[0].contains("mode: `fast` is not one of MWAX_BEAMFORMER, MWAX_CORR_BF"),
+        "{problems:?}"
+    );
+}
+
+#[test]
+fn a_key_that_no_job_type_has_is_still_an_error() {
+    let problems = problems("obs_id=1349904240,job_type=i,source_job_id=5\n");
+
+    assert!(
+        problems[0].contains("unknown key `source_job_id` for a imaging job"),
+        "{problems:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Submitting a file
+// ---------------------------------------------------------------------------
+
+mod submitting {
+    use std::path::Path;
+
+    use httpmock::prelude::*;
+    use tempfile::TempDir;
+
+    use super::super::{CsvDefaults, CsvSubmitError};
+    use crate::mwa_asvo::AsvoClient;
+    use crate::test_common::*;
+    use crate::test_config::client_config;
+
+    /// A CSV file in a temporary directory.
+    fn csv_file(dir: &TempDir, text: &str) -> std::path::PathBuf {
+        let path = dir.path().join("jobs.csv");
+        std::fs::write(&path, text).expect("could not write the CSV file");
+        path
+    }
+
+    /// Serve `POST endpoint` for `obs_id` with a successful reply.
+    fn mock_submit<'a>(
+        env: &'a TestEnv,
+        endpoint: &str,
+        obs_id: u64,
+        job_id: u64,
+    ) -> httpmock::Mock<'a> {
+        env.server.mock(|when, then| {
+            when.method(POST)
+                .path(endpoint)
+                .json_body_includes(serde_json::json!({ "obs_id": obs_id }).to_string());
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(job_submitted_response(job_id));
+        })
+    }
+
+    #[test]
+    fn a_file_gives_the_reply_of_each_job_in_order() {
+        let env = TestEnv::with_session();
+        let first = mock_submit(&env, "/api/v2/download_vis_job", 1349904240, 11);
+        let second = mock_submit(&env, "/api/v2/conversion_job", 1349904184, 12);
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(
+            &dir,
+            "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=c\n",
+        );
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let replies = client
+            .submit_csv_file(&file, &CsvDefaults::default())
+            .expect("both jobs should be submitted");
+
+        let job_ids: Vec<u64> = replies.iter().map(|r| r.job_id.get()).collect();
+        assert_eq!(job_ids, [11, 12]);
+        assert_eq!(first.calls(), 1);
+        assert_eq!(second.calls(), 1);
+    }
+
+    #[test]
+    fn a_job_that_fails_does_not_stop_the_others_and_the_error_has_the_replies() {
+        let env = TestEnv::with_session();
+        env.server.mock(|when, then| {
+            when.method(POST)
+                .path("/api/v2/download_vis_job")
+                .json_body_includes(serde_json::json!({ "obs_id": 1349904240_u64 }).to_string());
+            then.status(400)
+                .header("content-type", "application/json")
+                .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
+        });
+        let ok = mock_submit(&env, "/api/v2/download_vis_job", 1349904184, 22);
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(
+            &dir,
+            "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=d,download_type=vis\n",
+        );
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let err = client
+            .submit_csv_file(&file, &CsvDefaults::default())
+            .expect_err("the first job fails");
+
+        assert_eq!(ok.calls(), 1);
+        let CsvSubmitError::Failed {
+            submitted,
+            failures,
+        } = &err
+        else {
+            panic!("expected Failed, got {err:?}");
+        };
+        assert_eq!(submitted.len(), 1);
+        assert_eq!(submitted[0].job_id.get(), 22);
+        assert_eq!(failures.len(), 1);
+        assert_eq!(
+            (failures[0].line, failures[0].obs_id.get()),
+            (1, 1349904240)
+        );
+        let message = err.to_string();
+        assert!(
+            message.starts_with("1 of 2 job submissions failed\n  line 1: Obs ID 1349904240: "),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_bad_line_submits_nothing() {
+        let env = TestEnv::with_session();
+        let any = env.server.mock(|when, then| {
+            when.any_request();
+            then.status(500);
+        });
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(
+            &dir,
+            "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=x\n",
+        );
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let err = client
+            .submit_csv_file(&file, &CsvDefaults::default())
+            .expect_err("line 2 is bad");
+
+        assert!(
+            matches!(&err, CsvSubmitError::Invalid(e) if e.errors.len() == 1 && e.errors[0].line == 2),
+            "{err:?}"
+        );
+        assert_eq!(any.calls(), 0);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_an_error_that_names_it() {
+        let env = TestEnv::with_session();
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let err = client
+            .submit_csv_file(Path::new("/no/such/dir/jobs.csv"), &CsvDefaults::default())
+            .expect_err("the file is missing");
+
+        assert!(matches!(err, CsvSubmitError::Read { .. }));
+        assert!(
+            err.to_string()
+                .starts_with("Could not read the CSV file /no/such/dir/jobs.csv: "),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_file_with_no_job_gives_no_reply() {
+        let env = TestEnv::with_session();
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(&dir, "# nothing\n");
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let replies = client
+            .submit_csv_file(&file, &CsvDefaults::default())
+            .expect("an empty file is not an error");
+
+        assert!(replies.is_empty());
+    }
 }
