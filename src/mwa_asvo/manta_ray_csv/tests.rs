@@ -363,6 +363,17 @@ fn a_key_that_the_job_type_does_not_have_is_an_error_that_lists_the_keys() {
 }
 
 #[test]
+fn every_unknown_key_of_a_line_is_listed() {
+    let problems = problems("obs_id=1349904240,job_type=d,download_type=vis,foo=1,bar=2\n");
+
+    assert_eq!(problems.len(), 1);
+    assert!(
+        problems[0].contains("unknown keys `bar`, `foo` for a download job"),
+        "{problems:?}"
+    );
+}
+
+#[test]
 fn a_key_of_another_job_type_is_an_error() {
     let problems = problems("obs_id=1349904240,job_type=d,download_type=vis,output=ms\n");
 
@@ -415,6 +426,24 @@ fn an_imaging_job_from_a_conversion_job_points_to_its_command() {
         problems[0].contains("submit-image-from-job"),
         "{problems:?}"
     );
+}
+
+#[test]
+fn a_whole_number_out_of_range_names_the_range() {
+    for (text, expected) in [
+        (
+            "obs_id=1360706032,job_type=v,offset=0,duration=8,from_channel=300\n",
+            "from_channel: expected a whole number from 0 to 255, got `300`",
+        ),
+        (
+            "obs_id=-5,job_type=c\n",
+            "obs_id: expected a whole number from 0 to 18446744073709551615, got `-5`",
+        ),
+    ] {
+        let problems = problems(text);
+
+        assert!(problems[0].contains(expected), "{problems:?}");
+    }
 }
 
 #[test]

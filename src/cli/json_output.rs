@@ -34,6 +34,11 @@ pub(super) struct ArgumentError(pub String);
 #[error("{0}")]
 pub(super) struct ReportedFailures(pub String);
 
+/// The key of the status in a line of `--json` (the schema's name).
+pub(super) const KEY_STATUS: &str = "status";
+/// The key of the message in a line of `--json` (the schema's name).
+pub(super) const KEY_MESSAGE: &str = "message";
+
 /// One error line of `--json`: `"status": "failed"` (the schema's
 /// [`Status::Failed`], the value that the MWA ASVO's own failed replies have),
 /// the `ErrorResponse`, then
@@ -142,8 +147,8 @@ impl<T: serde::Serialize> serde::Serialize for StatusFirst<'_, T> {
             ));
         };
         let mut line = serializer.serialize_map(Some(keys.len()))?;
-        if let Some(status) = keys.remove("status") {
-            line.serialize_entry("status", &status)?;
+        if let Some(status) = keys.remove(KEY_STATUS) {
+            line.serialize_entry(KEY_STATUS, &status)?;
         }
         for (key, value) in &keys {
             line.serialize_entry(key, value)?;

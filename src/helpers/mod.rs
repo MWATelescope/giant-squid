@@ -109,6 +109,11 @@ pub fn parse_many_job_ids_or_obs_ids(
     Ok((job_ids, obs_ids))
 }
 
+/// The mark of the start of a UTF-8 text file, which some programs write
+/// (Notepad and PowerShell, for example). A text that was read from a file or
+/// from standard input starts with it, and it is not part of the text.
+pub const BYTE_ORDER_MARK: char = '\u{feff}';
+
 #[derive(Error, Debug)]
 pub enum ParseError {
     /// When a whitespace-delimited string inside a file isn't an integer, this

@@ -46,6 +46,7 @@ use log::warn;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::helpers::BYTE_ORDER_MARK;
 use crate::mwa_asvo::api::client::{
     AsvoClient, ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
     ENDPOINT_IMAGING_JOB, ENDPOINT_VOLTAGE_JOB,
@@ -100,8 +101,6 @@ const COMMENT_CHAR: char = '#';
 const CELL_SEPARATOR: char = ',';
 /// The character that separates the key and the value of a cell.
 const KEY_VALUE_SEPARATOR: char = '=';
-/// The mark of the start of a UTF-8 text file, which some programs write.
-const BYTE_ORDER_MARK: char = '\u{feff}';
 
 /// What the lines of a file do not give, for the values that the
 /// environment or a command line can set for a whole file.
@@ -276,15 +275,18 @@ fn parse_with_warnings(
                         .map(|message| CsvRowWarning { line, message }),
                 );
                 // The body is JSON that the schema types make, so equal
-                // bodies are equal texts.
-                let body = serde_json::to_string(&params).unwrap_or_default();
-                if let Some(first) = first_line_of_body.get(&body) {
-                    warnings.push(CsvRowWarning {
-                        line,
-                        message: format!("this line makes the same job as line {first}"),
-                    });
-                } else {
-                    first_line_of_body.insert(body, line);
+                // bodies are equal texts. A body that cannot be made into
+                // text (it cannot happen) is not compared: it must not be
+                // reported as equal to another one.
+                if let Ok(body) = serde_json::to_string(&params) {
+                    if let Some(first) = first_line_of_body.get(&body) {
+                        warnings.push(CsvRowWarning {
+                            line,
+                            message: format!("this line makes the same job as line {first}"),
+                        });
+                    } else {
+                        first_line_of_body.insert(body, line);
+                    }
                 }
                 jobs.push(CsvJob {
                     line,
@@ -353,29 +355,34 @@ impl Row {
         self.cells.remove(key)
     }
 
-    /// The cell `key` as a number of type `T` that `expected` names.
-    fn number<T: FromStr>(
-        &mut self,
-        key: &'static str,
-        expected: &str,
-    ) -> Result<Option<T>, String> {
+    /// The cell `key` as a number with a fraction.
+    fn float(&mut self, key: &'static str) -> Result<Option<f64>, String> {
         self.text(key)
             .map(|value| {
                 value
-                    .parse::<T>()
-                    .map_err(|_| format!("{key}: expected {expected}, got `{value}`"))
+                    .parse::<f64>()
+                    .map_err(|_| format!("{key}: expected a number, got `{value}`"))
             })
             .transpose()
     }
 
-    /// The cell `key` as a number with a fraction.
-    fn float(&mut self, key: &'static str) -> Result<Option<f64>, String> {
-        self.number(key, "a number")
-    }
-
-    /// The cell `key` as a whole number.
-    fn integer<T: FromStr>(&mut self, key: &'static str) -> Result<Option<T>, String> {
-        self.number(key, "a whole number")
+    /// The cell `key` as a whole number of type `T`. A value that is a whole
+    /// number but not one of `T` is reported with the range of `T`.
+    fn integer<T: WholeNumber>(&mut self, key: &'static str) -> Result<Option<T>, String> {
+        self.text(key)
+            .map(|value| {
+                value.parse::<T>().map_err(|_| {
+                    if value.parse::<i128>().is_ok() {
+                        format!(
+                            "{key}: expected a whole number from {}, got `{value}`",
+                            T::range()
+                        )
+                    } else {
+                        format!("{key}: expected a whole number, got `{value}`")
+                    }
+                })
+            })
+            .transpose()
     }
 
     /// The cell `key` as `true` or `false`, in any case.
@@ -402,21 +409,46 @@ impl Row {
             .transpose()
     }
 
-    /// An error for a key that the job type does not have, if the line has
-    /// one. Call it when the job type has asked for all of its keys.
+    /// An error for the keys that the job type does not have, if the line has
+    /// any. Call it when the job type has asked for all of its keys.
     fn finish(self, job: &str) -> Result<(), String> {
-        let Some(key) = self.cells.keys().next() else {
+        if self.cells.is_empty() {
             return Ok(());
-        };
+        }
+        let unknown: Vec<String> = self.cells.keys().map(|key| format!("`{key}`")).collect();
+        let noun = if unknown.len() == 1 { "key" } else { "keys" };
         let mut known = self.known;
         known.sort_unstable();
         known.dedup();
         Err(format!(
-            "unknown key `{key}` for a {job} job (the keys of this job are {})",
+            "unknown {noun} {} for a {job} job (the keys of this job are {})",
+            unknown.join(", "),
             known.join(", ")
         ))
     }
 }
+
+/// A whole number type of a request body, for the message about a value
+/// that is out of its range.
+trait WholeNumber: FromStr {
+    /// The range of the type, in words: for example `0 to 255`.
+    fn range() -> String;
+}
+
+/// Implement [`WholeNumber`] for the integer types in the list.
+macro_rules! impl_whole_number {
+    ($($type:ty),+) => {
+        $(
+            impl WholeNumber for $type {
+                fn range() -> String {
+                    format!("{} to {}", <$type>::MIN, <$type>::MAX)
+                }
+            }
+        )+
+    };
+}
+
+impl_whole_number!(u8, u64, i64);
 
 /// A value that the job type requires.
 fn required<T>(value: Option<T>, key: &str) -> Result<T, String> {

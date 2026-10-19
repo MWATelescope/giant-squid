@@ -23,9 +23,12 @@
 
 use std::io::Read;
 
+use super::json_output::{KEY_MESSAGE, KEY_STATUS};
 use crate::helpers::{
     parse_job_id_or_obs_id, parse_many_job_ids_or_obs_ids, ObsIdOrJobId, ParseError,
+    BYTE_ORDER_MARK,
 };
+use crate::mwa_asvo::api::openapi::Status;
 use crate::mwa_asvo::AsvoJobId;
 use crate::obs_id::ObsId;
 
@@ -45,13 +48,6 @@ pub(super) struct TextIds {
     /// The Obs IDs, in the order of the text.
     pub obs_ids: Vec<ObsId>,
 }
-
-/// The key of the status of the one line of JSON that a failed command
-/// prints, and its value.
-const JSON_STATUS_KEY: &str = "status";
-const JSON_STATUS_FAILED: &str = "failed";
-/// The key of the message of that line.
-const JSON_MESSAGE_KEY: &str = "message";
 
 /// Read the IDs that a command gets on standard input (or from a file that
 /// has the same form).
@@ -75,6 +71,8 @@ const JSON_MESSAGE_KEY: &str = "message";
 /// a job list, or if it is the error line of a command that failed (the
 /// message of the error is in the [`ParseError`]).
 pub(super) fn parse_ids_from_text(text: &str) -> Result<TextIds, ParseError> {
+    // Some programs write the mark of a UTF-8 file at its start.
+    let text = text.strip_prefix(BYTE_ORDER_MARK).unwrap_or(text);
     if text.trim_start().starts_with('{') {
         return parse_job_list_json(text);
     }
@@ -107,13 +105,11 @@ fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
     };
 
     // A command that failed prints one line of JSON with the error.
-    if entries
-        .get(JSON_STATUS_KEY)
-        .and_then(serde_json::Value::as_str)
-        == Some(JSON_STATUS_FAILED)
+    if entries.get(KEY_STATUS).and_then(serde_json::Value::as_str)
+        == Some(Status::Failed.to_string().as_str())
     {
         let message = entries
-            .get(JSON_MESSAGE_KEY)
+            .get(KEY_MESSAGE)
             .and_then(serde_json::Value::as_str)
             .unwrap_or("no message");
         return Err(ParseError::StdinError {

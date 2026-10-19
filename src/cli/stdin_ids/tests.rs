@@ -42,6 +42,15 @@ fn args(texts: &[&str]) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn a_byte_order_mark_at_the_start_is_not_part_of_the_text() {
+    let ids = parse_ids_from_text("\u{feff}101\n102\n").expect("valid");
+    assert_eq!(ids.job_ids, [job_id(101), job_id(102)]);
+
+    let ids = parse_ids_from_text("\u{feff}{\"7\": {}}").expect("valid");
+    assert_eq!(ids.job_ids, [job_id(7)]);
+}
+
+#[test]
 fn ids_on_lines_are_job_ids_and_obs_ids() {
     let ids = parse_ids_from_text(&format!("101\n102\r\n  {OBS_ID}  \n\n")).expect("valid");
 
