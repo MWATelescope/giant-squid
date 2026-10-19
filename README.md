@@ -1237,7 +1237,10 @@ download directory:
   directory, it moves the links in the job folder as links. It shows a warning
   for each link that points outside the job folder, because the place that it
   points to may not be there for you. A link at the place where the job folder
-  would be moved to is an error, as is anything else that is there.
+  would be moved to is an error, as is anything else that is there. The one
+  exception is a directory there when the job's Scratch folder is gone: that
+  is the result of an earlier download, so `giant-squid` reports that the files
+  are already in the download directory and does not fail.
 
 ## Installation
 

@@ -5,7 +5,7 @@
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
 2. Check that the head is `d635a16` "Match job types by code; trim docs and imports", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 398 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
+   - 401 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
    - 194 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
@@ -82,6 +82,7 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **"Drop staging_count tests; true/false switches" (T1, O2):** the three `staging_count` tests are gone (the Rust one is kept as `the_client_calls_only_end_user_endpoints`). `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`. The schema (2.3.4) does not allow `null` for them, so `null` is refused.
 - **"Match job types by code; trim docs and imports" (O9, V1–V3):** `legacy_job_type` and `job_type_colour` match the `JOB_TYPE_CODE_*` constants; four long docs are shorter; `job.job_id()` is read once per function; the nine `#[allow(unused_imports)]` re-exports are one `use`.
 - The unused `noqa` (RUF100) had already been removed in `48ecadb`.
+- **Last logic items:** a second download of a Scratch job whose files an earlier download moved is not an error (`MoveTarget::AlreadyMoved`: a directory at the target, nothing at the Scratch path; a file at the target is still `DestinationExists`); a lowercase `z` is a valid time zone mark (`TIME_ZONE_MARKS`), so it no longer gets a second `Z` that failed the listing.
 - **macOS CI fix (`no_follow`):** the macOS 15 wheel job failed to compile: `rustix::fs::Mode::from_raw_mode` takes a `u16` on macOS and a `u32` on Linux, and the code passed a `u32` constant. The file and directory permissions are now rustix's own `Mode` bits (`Mode::RUSR | ...`, `Mode::RWXU | ...`), with no raw number. Lesson: do not give a platform type (a raw mode, `st_mode`, `off_t`) a fixed integer type; the sandbox is Linux only, so such an error shows only in the macOS job.
 - **O5 (option C):** `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` have no short flag), and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` have no short flag). `-d`, `-o` and `-r` stay as they were in 2.5.1 (each still has more than one meaning). The test `the_short_flags_mean_what_the_table_says` holds the table; `docs/V3_MIGRATION.md` has a "Short flags" section.
 
@@ -109,9 +110,6 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - Ask the API developer what `null` means. Proposed design if it is "no day limit": Rust `enum Days { ApiDefault, NoLimit, Last(NonZeroU64) }` in `JobsFilter`; Python `days=None` stays the API default and a module constant sends `null`; CLI `--days all` sends `null`.
 
 ## Open, not started
-
-Logic:
-- Lower: Scratch re-download after a move gives `FilesNotReachable` (now `DestinationExists` if the target is there); a lower-case `z` in a timestamp gets `Z` appended and fails the listing.
 
 Not reviewed yet: `src/python/types.rs`, `params.rs`, `typed.rs` (and `error.rs` after the C13 change); `tests/cli.rs` and the Python tests in detail; `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows.
 

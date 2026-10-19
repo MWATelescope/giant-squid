@@ -345,6 +345,12 @@ fn download_job(
                     MoveTarget::AlreadyThere => {
                         info!("{log_prefix} The files are already in the download directory: {target_display}.");
                     }
+                    MoveTarget::AlreadyMoved => {
+                        info!(
+                            "{log_prefix} The files were moved to the download directory by an earlier \
+                             download: {target_display}."
+                        );
+                    }
                     MoveTarget::Free if !path_obj.exists() => {
                         return Err(AsvoError::FilesNotReachable {
                             job_id,
@@ -1961,10 +1967,15 @@ enum MoveTarget {
     Free,
     /// The files themselves: the download directory is where they are.
     AlreadyThere,
+    /// A directory, and nothing at the Scratch path any more: an earlier
+    /// download moved the job's files here.
+    AlreadyMoved,
 }
 
 /// Check `to`, where the Scratch files at `from` would be moved, before the
-/// move. Nothing that is there is replaced.
+/// move. Nothing that is there is replaced. A directory at `to` while there is
+/// nothing at `from` is taken as the result of an earlier download of the same
+/// job (the name is the Job ID), so a second run is not an error.
 ///
 /// # Errors
 ///
@@ -1979,11 +1990,17 @@ fn move_target(from: &Path, to: &Path, job_id: AsvoJobId) -> Result<MoveTarget, 
             path: to.to_path_buf(),
         }),
         Ok(_) if same_path(from, to) => Ok(MoveTarget::AlreadyThere),
+        Ok(metadata) if metadata.is_dir() && !path_exists(from) => Ok(MoveTarget::AlreadyMoved),
         Ok(_) => Err(AsvoError::DestinationExists {
             job_id,
             path: to.to_path_buf(),
         }),
     }
+}
+
+/// Whether anything is at `path`, also a symbolic link that points nowhere.
+fn path_exists(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok()
 }
 
 /// Whether `a` and `b` are the same file or directory.

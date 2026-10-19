@@ -2254,3 +2254,27 @@ fn a_list_of_one_entry_is_the_servers_filter() {
         None
     );
 }
+
+/// A time with a zone is left as it is, whatever the zone is written like (a
+/// lowercase `z` is as valid as `Z` in RFC 3339), and a time with none gets
+/// `Z`. A lowercase `z` once got a second `Z`, which failed the whole listing.
+#[test]
+fn a_time_with_any_zone_is_left_alone_and_a_time_without_one_gets_z() {
+    let env = TestEnv::with_session();
+    let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
+    detail["created"] = json!("2026-09-08T05:41:54z");
+    detail["started"] = json!("2026-09-08T05:50:00+08:00");
+    detail["modified"] = json!("2026-09-08T05:55:00");
+    env.mock_get_jobs(vec![detail]);
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("the listing should succeed");
+    let job = &jobs.0[0];
+
+    let utc = |time: &str| time.parse::<jiff::Timestamp>().expect("a valid time");
+    assert_eq!(job.created, utc("2026-09-08T05:41:54Z"));
+    assert_eq!(job.started, Some(utc("2026-09-07T21:50:00Z")));
+    assert_eq!(job.modified, Some(utc("2026-09-08T05:55:00Z")));
+}

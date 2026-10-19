@@ -3097,3 +3097,68 @@ fn create_file_makes_a_file_and_reports_other_failures() {
         .expect_err("the directory is missing");
     assert!(matches!(err, AsvoError::CannotCreate { .. }), "{err:?}");
 }
+
+/// A second download of a Scratch job whose files an earlier download moved
+/// into the download directory is not an error: nothing is at the Scratch path
+/// any more, and the folder of the job is in the download directory.
+#[test]
+fn a_second_download_of_a_moved_scratch_job_succeeds() {
+    let scratch = TempDir::new().expect("could not create a scratch directory");
+    let job_dir = scratch.path().join("12345");
+    std::fs::create_dir(&job_dir).expect("could not create the job directory");
+    std::fs::write(job_dir.join("a.fits"), "data").expect("could not write a file");
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "scratch",
+        "path": job_dir.display().to_string(),
+        "size": 4
+    }))]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let opts_dir = dir.path().display().to_string();
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&opts_dir))
+        .expect("the first download should move the files");
+    assert!(!job_dir.exists());
+
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&opts_dir))
+        .expect("the second download should find the files already moved");
+
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("12345").join("a.fits")).unwrap(),
+        "data"
+    );
+}
+
+/// With nothing at the Scratch path, the target is checked: a directory is
+/// the result of an earlier download, a file is in the way, and nothing there
+/// is a job whose files cannot be reached.
+#[test]
+fn the_target_of_a_scratch_move_with_no_source_is_checked() {
+    use crate::mwa_asvo::download::{move_target, MoveTarget};
+
+    let dir = TempDir::new().expect("could not create a directory");
+    let from = dir.path().join("scratch").join("12345");
+    let job_id = crate::test_config::TEST_ASVO_JOB_ID;
+
+    let moved = dir.path().join("moved");
+    std::fs::create_dir(&moved).expect("could not create a directory");
+    assert_eq!(
+        move_target(&from, &moved, job_id).unwrap(),
+        MoveTarget::AlreadyMoved
+    );
+
+    let file = dir.path().join("file");
+    std::fs::write(&file, "x").expect("could not write a file");
+    assert!(matches!(
+        move_target(&from, &file, job_id),
+        Err(AsvoError::DestinationExists { .. })
+    ));
+
+    assert_eq!(
+        move_target(&from, &dir.path().join("missing"), job_id).unwrap(),
+        MoveTarget::Free
+    );
+}

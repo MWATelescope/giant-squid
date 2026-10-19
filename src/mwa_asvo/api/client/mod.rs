@@ -1062,13 +1062,17 @@ fn normalize_job_value(job_value: &mut serde_json::Map<String, serde_json::Value
     }
 }
 
+/// The characters that name a time zone in an RFC 3339 time: `Z` or `z` for
+/// UTC, and the sign of an offset.
+const TIME_ZONE_MARKS: [char; 4] = ['Z', 'z', '+', '-'];
+
 /// Does `s` look like an ISO8601 timestamp with no timezone designator?
 /// Deliberately simple: skip the `YYYY-MM-DD` date portion (which has its
 /// own `-` characters that would otherwise look like a negative UTC
 /// offset), then check whether what's left names a zone at all.
 fn looks_like_naive_timestamp(s: &str) -> bool {
     match s.get(10..) {
-        Some(rest) => !rest.is_empty() && !rest.contains(['Z', '+', '-']),
+        Some(rest) => !rest.is_empty() && !rest.contains(TIME_ZONE_MARKS),
         None => false,
     }
 }

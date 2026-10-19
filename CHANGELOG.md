@@ -17,7 +17,8 @@ before you upgrade scripts.**
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
   `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
   anything: if something is already at the target, the download fails (`AsvoError::DestinationExists`,
-  `DESTINATION_EXISTS`; `SymlinkInDownloadDir` for a symbolic link) and nothing changes. If the download directory
+  `DESTINATION_EXISTS`; `SymlinkInDownloadDir` for a symbolic link) and nothing changes. A directory at the target,
+  when the Scratch folder is gone, is the result of an earlier download, and a second download succeeds. If the download directory
   is where the files already are, nothing is moved.
 * `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
   (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
