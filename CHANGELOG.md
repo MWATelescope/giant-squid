@@ -212,6 +212,12 @@ before you upgrade scripts.**
 * A stream-untar download unpacks only files and directories. A symbolic link, a hard link or a special file in the
   archive is skipped with a warning (the SHA-1 check still covers it). In 2.x, such an entry was unpacked, so a link
   could point outside the download directory.
+* The logs show no credential, also at trace level (`-vv`). The login and refresh requests and replies, which hold the
+  API key and the tokens, are not logged. The other request and reply bodies are logged with the URLs in them
+  redacted, and so is the URL of a file of a job (a signed Acacia URL): giant-squid shows the host, the path, the
+  names of the query parameters and the first four characters of a long value. An error of a file download does not
+  show the signed URL either. The library no longer asks `reqwest` for a log of every byte on the wire, which had the
+  cookies, the API key and the signed URLs in it.
 
 ### Removed in 3.0.0
 

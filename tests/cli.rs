@@ -1399,3 +1399,128 @@ fn json_lines_have_the_status_first() {
         result.stdout
     );
 }
+
+// ---------------------------------------------------------------------------
+// Trace logs (-vv) must not hold a credential
+// ---------------------------------------------------------------------------
+
+/// A signature that no log may contain.
+const SIGNATURE: &str = "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f";
+
+/// The text of a string field of a JSON value.
+fn text(value: &serde_json::Value, key: &str) -> String {
+    value[key]
+        .as_str()
+        .unwrap_or_else(|| panic!("no string field {key}"))
+        .to_string()
+}
+
+/// A login sends the API key, and the reply holds the tokens. `-vv` logs the
+/// request and the reply, but not their bodies.
+#[test]
+fn a_login_logged_at_trace_level_shows_no_api_key_and_no_token() {
+    let env = CliEnv::without_session();
+    let reply = login_response();
+    let login = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/api_login");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(reply.clone());
+    });
+    env.mock_get_jobs(vec![]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "-vv"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(login.calls(), 1, "the binary should log in once");
+    let output = result.combined();
+    assert!(output.contains("/api/v2/api_login"), "output: {output}");
+    assert!(
+        output.contains("HTTP request body: <not logged"),
+        "output: {output}"
+    );
+    for secret in [
+        TEST_API_KEY.to_string(),
+        text(&reply, "access_token"),
+        text(&reply, "refresh_token"),
+    ] {
+        assert!(
+            !output.contains(&secret),
+            "the log shows {secret}: {output}"
+        );
+    }
+}
+
+/// A refresh sends the refresh token, and the reply holds new tokens. `-vv`
+/// logs neither.
+#[test]
+fn a_refresh_logged_at_trace_level_shows_no_token() {
+    let old_refresh_token = jwt_expiring_in(86400);
+    let env = CliEnv::with_tokens(jwt_expiring_in(-3600), old_refresh_token.clone());
+    let reply = token_response();
+    let refresh = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/refresh");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(reply.clone());
+    });
+    env.mock_get_jobs(vec![]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "-vv"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    assert_eq!(refresh.calls(), 1, "the binary should refresh once");
+    let output = result.combined();
+    assert!(output.contains("/api/v2/refresh"), "output: {output}");
+    assert!(
+        output.contains("HTTP response body: <not logged"),
+        "output: {output}"
+    );
+    for secret in [
+        old_refresh_token,
+        text(&reply, "access_token"),
+        text(&reply, "refresh_token"),
+    ] {
+        assert!(
+            !output.contains(&secret),
+            "the log shows {secret}: {output}"
+        );
+    }
+}
+
+/// The job list has the signed URL of each file. `-vv` logs the list with
+/// the URL redacted, and a person can still see which file it is.
+#[test]
+fn a_job_list_logged_at_trace_level_shows_no_signed_url() {
+    let env = CliEnv::with_session();
+    let mut job = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1);
+    job["product"] = serde_json::json!({
+        "files": [{
+            "type": "acacia",
+            "url": format!("https://projects.example.org/bucket/file.tar?Signature={SIGNATURE}"),
+            "size": 3,
+            "sha1": "0000000000000000000000000000000000000000",
+        }]
+    });
+    env.mock_get_jobs(vec![job]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "-vv"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let output = result.combined();
+    assert!(output.contains("HTTP response body:"), "output: {output}");
+    assert!(
+        output.contains("/bucket/file.tar?Signature=aB3d..."),
+        "output: {output}"
+    );
+    assert!(
+        !output.contains(SIGNATURE),
+        "the log shows the signature: {output}"
+    );
+}

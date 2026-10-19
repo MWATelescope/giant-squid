@@ -12,6 +12,7 @@ pub(crate) mod download;
 pub(crate) mod env;
 pub(crate) mod error;
 pub mod error_response;
+pub(crate) mod redact;
 pub(crate) mod retry;
 pub(crate) mod token_store;
 pub(crate) mod types;

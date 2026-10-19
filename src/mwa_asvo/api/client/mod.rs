@@ -26,6 +26,7 @@ use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
+use crate::mwa_asvo::redact::{redact_body, redact_parsed_url};
 use crate::mwa_asvo::retry::{sleep_unless_stopped, Backoff};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
 use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions};
@@ -182,34 +183,61 @@ struct HttpResponse {
     body: String,
 }
 
+/// How [`execute_logged`] logs the bodies of a request and its response.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BodyLogging {
+    /// Log both bodies at trace level, with the URLs in them redacted (a
+    /// signed URL of a file of a job is a credential).
+    UrlsRedacted,
+    /// Log no body, because a body holds a credential: the login request
+    /// has the API key, and the login and refresh responses have the access
+    /// and refresh tokens.
+    Hidden,
+}
+
+/// The text that a trace log has in place of a body that is not logged.
+const BODY_HIDDEN: &str = "<not logged: it holds credentials>";
+
 /// Execute `builder` on `client`, logging one concise line for the request
 /// and one for the response at debug level (i.e. `-v`): the HTTP method,
-/// URL, and (for the response) the status. The full response body is logged
-/// at trace level (`-vv`) only. Reading the body is centralised here so
-/// every caller gets consistent logging in one place.
-///
-/// NOTE: login/refresh response bodies contain access and refresh tokens,
-/// so they will appear in `-vv` (trace) logs.
+/// URL, and (for the response) the status. The bodies are logged at trace
+/// level (`-vv`) only, as `body_logging` says: a body with a credential in
+/// it is never logged. Reading the body is centralised here so every caller
+/// gets consistent logging in one place.
 fn execute_logged(
     client: &Client,
     builder: reqwest::blocking::RequestBuilder,
+    body_logging: BodyLogging,
 ) -> reqwest::Result<HttpResponse> {
     let request = builder.build()?;
     let method = request.method().clone();
     let url = request.url().clone();
-    debug!("HTTP request:  {method} {url}");
+    debug!("HTTP request:  {method} {}", redact_parsed_url(&url));
 
     if let Some(body) = request.body().and_then(|b| b.as_bytes()) {
-        let body_text = String::from_utf8_lossy(body);
-        trace!("HTTP request body: {body_text}");
+        match body_logging {
+            BodyLogging::UrlsRedacted => {
+                trace!(
+                    "HTTP request body: {}",
+                    redact_body(&String::from_utf8_lossy(body))
+                );
+            }
+            BodyLogging::Hidden => trace!("HTTP request body: {BODY_HIDDEN}"),
+        }
     }
 
     let response = client.execute(request)?;
     let status = response.status();
-    debug!("HTTP response: {method} {url} -> {status}");
+    debug!(
+        "HTTP response: {method} {} -> {status}",
+        redact_parsed_url(&url)
+    );
 
     let body = response.text()?;
-    trace!("HTTP response body: {body}");
+    match body_logging {
+        BodyLogging::UrlsRedacted => trace!("HTTP response body: {}", redact_body(&body)),
+        BodyLogging::Hidden => trace!("HTTP response body: {BODY_HIDDEN}"),
+    }
 
     Ok(HttpResponse { status, body })
 }
@@ -338,8 +366,10 @@ impl AsvoClient {
             })?,
         );
 
+        // Not `connection_verbose`: it logs every byte on the wire at trace
+        // level, with the cookies, the API key and the signed URLs in them.
+        // `execute_logged` is the log of the requests.
         Ok(ClientBuilder::new()
-            .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
             .default_headers(headers)
@@ -352,7 +382,6 @@ impl AsvoClient {
     /// not go to the host of a file (Acacia).
     fn build_plain_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
         Ok(ClientBuilder::new()
-            .connection_verbose(true)
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
             .timeout(config.api_timeout)
@@ -510,6 +539,7 @@ impl AsvoClient {
                     login,
                     password: config.api_key.clone(),
                 }),
+            BodyLogging::Hidden,
         )?;
 
         if !response.status.is_success() {
@@ -545,6 +575,7 @@ impl AsvoClient {
                     reqwest::header::COOKIE,
                     format!("mwa_refresh_token={refresh_token}"),
                 ),
+            BodyLogging::Hidden,
         )?;
 
         if !response.status.is_success() {
@@ -666,7 +697,7 @@ impl AsvoClient {
         // across the (blocking) send, so `reauthenticate` is free to take
         // the lock on the retry path, and other threads are not blocked.
         let (client, generation) = self.current_session();
-        let response = execute_logged(&client, build(&client))?;
+        let response = execute_logged(&client, build(&client), BodyLogging::UrlsRedacted)?;
         if response.status.is_success() {
             return Ok(response.body);
         }
@@ -680,7 +711,7 @@ impl AsvoClient {
         // and retry the request against the freshly-swapped client.
         self.reauthenticate(generation)?;
         let (client, _) = self.current_session();
-        let response = execute_logged(&client, build(&client))?;
+        let response = execute_logged(&client, build(&client), BodyLogging::UrlsRedacted)?;
         if response.status.is_success() {
             return Ok(response.body);
         }

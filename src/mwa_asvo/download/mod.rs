@@ -14,6 +14,7 @@ use crate::helpers::{check_sha1_hash, hash_reader};
 use crate::obs_id::ObsId;
 
 use super::api::openapi::Type as FileType;
+use super::redact::{redact_url, redact_urls_in_text};
 use super::retry::{sleep_unless_stopped, Backoff};
 use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
@@ -258,7 +259,7 @@ fn download_job(
                     return Err(AsvoError::NoHash { job_id });
                 }
 
-                debug!("{log_prefix} Downloading from url {url}");
+                debug!("{log_prefix} Downloading from url {}", redact_url(url));
                 // The file is named after the last part of the URL's path.
                 let file_name = reqwest::Url::parse(url)
                     .ok()
@@ -1837,14 +1838,16 @@ fn send_checked(
     if let Some(h) = headers {
         req = req.headers(h);
     }
-    let response = req.send()?;
+    // The URL of a file is signed, and a request error shows the URL that
+    // failed, so the error is made without it.
+    let response = req.send().map_err(reqwest::Error::without_url)?;
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().unwrap_or_default();
         return Err(AsvoError::HttpError {
             job_id,
             status: status.as_u16(),
-            message: body,
+            message: redact_urls_in_text(&body),
         });
     }
     Ok(response)

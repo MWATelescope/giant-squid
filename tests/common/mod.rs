@@ -48,6 +48,30 @@ impl CliEnv {
         Self { server, home }
     }
 
+    /// Start a mock server and a temporary `HOME` with no cached session,
+    /// so the binary has to log in.
+    pub fn without_session() -> Self {
+        let server = MockServer::start();
+        let home = TempDir::new().expect("could not create a temporary HOME");
+        Self { server, home }
+    }
+
+    /// Start a mock server and a temporary `HOME` holding a cached session
+    /// with these tokens (for a session whose access token has expired, so
+    /// that the binary has to refresh it).
+    pub fn with_tokens(access_token: String, refresh_token: String) -> Self {
+        let server = MockServer::start();
+        let home = TempDir::new().expect("could not create a temporary HOME");
+        write_session_at(
+            home.path(),
+            &server.base_url(),
+            TEST_API_KEY,
+            access_token,
+            refresh_token,
+        );
+        Self { server, home }
+    }
+
     /// The built `giant-squid` binary, pointed at the mock server.
     ///
     /// Every variable the client reads is set or cleared explicitly, so a

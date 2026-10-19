@@ -3162,3 +3162,72 @@ fn the_target_of_a_scratch_move_with_no_source_is_checked() {
         MoveTarget::Free
     );
 }
+
+// ---------------------------------------------------------------------------
+// The URL of a file is signed: it must not reach an error message
+// ---------------------------------------------------------------------------
+
+/// A signature that no error message may contain.
+const SIGNATURE: &str = "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5bC7dE9f";
+
+/// A request that cannot connect shows the URL that failed, unless the
+/// library removes it. The URL of a file is signed, so it must not.
+#[test]
+fn a_connection_error_does_not_show_the_signed_url() {
+    let env = TestEnv::with_session();
+    // A port that nothing listens on: bind one, then close it.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("could not bind a port")
+        .local_addr()
+        .expect("the listener has an address")
+        .port();
+    env.mock_get_jobs(vec![ready_job_serving(
+        &format!("http://127.0.0.1:{port}{DOWNLOAD_PATH}?Signature={SIGNATURE}"),
+        10,
+        "0000000000000000000000000000000000000000",
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("a refused connection should fail the download");
+
+    let message = format!("{err} {err:?}");
+    assert!(!message.contains(SIGNATURE), "message: {message}");
+}
+
+/// The body of a failed file request is shown in the error. When it repeats
+/// the signed URL, the URL is redacted.
+#[test]
+fn an_error_body_that_repeats_the_signed_url_is_redacted() {
+    let env = TestEnv::with_session();
+    let signed = format!("{}?Signature={SIGNATURE}", env.server.url(DOWNLOAD_PATH));
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(403).body(format!("Denied for {signed} today"));
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &signed,
+        10,
+        "0000000000000000000000000000000000000000",
+    )]);
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("a 403 should fail the download");
+
+    let message = format!("{err} {err:?}");
+    assert!(!message.contains(SIGNATURE), "message: {message}");
+    assert!(message.contains("Denied for"), "message: {message}");
+}
