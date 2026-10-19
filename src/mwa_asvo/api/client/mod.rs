@@ -854,8 +854,11 @@ impl AsvoClient {
     /// that grows (see the retry policy of the downloads). It gives up with
     /// the last error when the failures have gone on for `retry_duration`,
     /// and at once for any other error. A zero `retry_duration` never
-    /// retries. Use it where a long task polls the job list, such as a wait
-    /// for jobs, and one failure should not end the task.
+    /// retries. It is for a long task that polls the job list, which is the
+    /// `wait` command: one failure should not end the task. It is not public,
+    /// so [`Self::get_jobs`] is the one public way to get the job list. A
+    /// caller of the library that wants retries makes its own loop around
+    /// [`Self::get_jobs`], with [`AsvoApiError::is_transient`].
     ///
     /// `should_stop` is asked during each wait. When it returns `true`,
     /// the call ends with [`AsvoError::Interrupted`]. `None` never stops.
@@ -864,7 +867,10 @@ impl AsvoClient {
     ///
     /// [`AsvoError::AsvoApi`] with the error from the request, as for
     /// [`Self::get_jobs`], and [`AsvoError::Interrupted`].
-    pub fn get_jobs_retrying(
+    // Only the CLI (the "bin" feature) calls it, so a build without that
+    // feature does not use it.
+    #[cfg_attr(not(feature = "bin"), allow(dead_code))]
+    pub(crate) fn get_jobs_retrying(
         &self,
         filter: &JobsFilter,
         retry_duration: Duration,
