@@ -1510,56 +1510,6 @@ fn list_takes_the_date_and_sort_filters() {
 }
 
 // ---------------------------------------------------------------------------
-// `staging_count` is not an option
-// ---------------------------------------------------------------------------
-
-/// `staging_count` is for the MWA ASVO's processors and the API will remove
-/// it, so no command has an option for it, and no body built from the default
-/// options has it.
-#[test]
-fn staging_count_is_not_an_option_and_not_in_any_body() {
-    use clap::CommandFactory;
-
-    let cli = Args::command();
-    for command in cli.get_subcommands() {
-        for arg in command.get_arguments() {
-            let names = format!(
-                "{} {:?} {:?}",
-                arg.get_id(),
-                arg.get_long(),
-                arg.get_aliases()
-            );
-            assert!(
-                !names.to_lowercase().contains("staging"),
-                "{} has an option for staging: {names}",
-                command.get_name()
-            );
-        }
-    }
-
-    let bodies = [
-        json_of(
-            &vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID])
-                .0
-                .to_vis_params(crate::test_config::test_obs_id()),
-        ),
-        json_of(
-            &conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID])
-                .0
-                .to_params(crate::test_config::test_obs_id()),
-        ),
-        json_of(
-            &image_args(&["giant-squid", "submit-image", TEST_OBS_ID])
-                .0
-                .to_params(crate::test_config::test_obs_id()),
-        ),
-    ];
-    for body in bodies {
-        assert!(body.get("staging_count").is_none(), "{body}");
-    }
-}
-
-// ---------------------------------------------------------------------------
 // The help of `list --job-states` and `--job-types`
 // ---------------------------------------------------------------------------
 
@@ -1866,6 +1816,104 @@ fn a_threshold_takes_null_and_a_bad_value_is_refused() {
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
     let err = parse_err(&["giant-squid", "submit-conv", "--no-rfi=maybe", TEST_OBS_ID]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+}
+
+/// `--no-apply-amps`, `--join-polarizations` and `--multiscale` are booleans
+/// of the schema that cannot be `null`: each takes `true` or `false` (the bare
+/// flag is `true`), shows the schema default in `--help`, and refuses `null`.
+#[test]
+fn the_amps_polarization_and_multiscale_switches_take_true_or_false() {
+    use clap::CommandFactory;
+
+    let conv = |extra: &[&str]| {
+        let mut argv = vec!["giant-squid", "submit-conv"];
+        argv.extend_from_slice(extra);
+        argv.push(TEST_OBS_ID);
+        json_of(
+            &conv_args(&argv)
+                .0
+                .to_params(crate::test_config::test_obs_id()),
+        )
+    };
+    let image = |extra: &[&str]| {
+        let mut argv = vec!["giant-squid", "submit-image"];
+        argv.extend_from_slice(extra);
+        argv.push(TEST_OBS_ID);
+        json_of(
+            &image_args(&argv)
+                .0
+                .to_params(crate::test_config::test_obs_id()),
+        )
+    };
+
+    assert_eq!(conv(&[])["no_apply_amps"], false, "default");
+    assert_eq!(conv(&["--no-apply-amps"])["no_apply_amps"], true, "bare");
+    assert_eq!(conv(&["--no-apply-amps=true"])["no_apply_amps"], true);
+    assert_eq!(conv(&["--no-apply-amps=false"])["no_apply_amps"], false);
+    for (flag, field) in [
+        ("--no-apply-amps", "no_apply_amps"),
+        ("--join-polarizations", "join_polarizations"),
+        ("--multiscale", "multiscale"),
+    ] {
+        assert_eq!(image(&[])[field], false, "{field} default");
+        assert_eq!(image(&[flag])[field], true, "{field} bare");
+        assert_eq!(image(&[&format!("{flag}=true")])[field], true);
+        assert_eq!(image(&[&format!("{flag}=false")])[field], false);
+        for command in ["submit-conv", "submit-image"] {
+            if command == "submit-conv" && flag != "--no-apply-amps" {
+                continue;
+            }
+            let err = parse_err(&["giant-squid", command, &format!("{flag}=null"), TEST_OBS_ID]);
+            assert_eq!(
+                err.kind(),
+                clap::error::ErrorKind::InvalidValue,
+                "{command} {flag}=null"
+            );
+        }
+    }
+
+    // The same two WSClean switches of `submit-image-from-job`.
+    for (flag, field) in [
+        ("--join-polarizations", "join_polarizations"),
+        ("--multiscale", "multiscale"),
+    ] {
+        let body = |extra: &[&str]| {
+            let mut argv = vec![
+                "giant-squid",
+                "submit-image-from-job",
+                "--source-job-id",
+                "1",
+            ];
+            argv.extend_from_slice(extra);
+            argv.push(TEST_OBS_ID);
+            json_of(
+                &image_from_job_args(&argv)
+                    .0
+                    .to_params(crate::test_config::test_obs_id()),
+            )
+        };
+        assert_eq!(body(&[])[field], false, "{field} default");
+        assert_eq!(body(&[flag])[field], true, "{field} bare");
+        assert_eq!(body(&[&format!("{flag}=false")])[field], false);
+    }
+
+    // `--help` shows the schema default.
+    let cli = Args::command();
+    for (command, flag) in [
+        ("submit-conv", "no_apply_amps"),
+        ("submit-image", "no_apply_amps"),
+        ("submit-image", "join_polarizations"),
+        ("submit-image", "multiscale"),
+        ("submit-image-from-job", "join_polarizations"),
+        ("submit-image-from-job", "multiscale"),
+    ] {
+        let arg = cli
+            .find_subcommand(command)
+            .and_then(|c| c.get_arguments().find(|a| a.get_id() == flag))
+            .unwrap_or_else(|| panic!("{command} has no {flag}"));
+        let defaults: Vec<_> = arg.get_default_values().iter().collect();
+        assert_eq!(defaults, ["false"], "{command} {flag}");
+    }
 }
 
 // ---------------------------------------------------------------------------

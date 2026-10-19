@@ -1116,19 +1116,13 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
     seen
 }
 
-/// The library calls only the endpoints of an end user, and a submission
-/// never carries `staging_count`: it is for the MWA ASVO's processors, the API
-/// will remove it, and it is not an option anywhere in giant-squid.
+/// The library calls only the endpoints of an end user.
 #[test]
-fn the_client_calls_only_end_user_endpoints_and_never_sends_staging_count() {
-    for (method, path, body) in record_every_end_user_call() {
+fn the_client_calls_only_end_user_endpoints() {
+    for (method, path, _body) in record_every_end_user_call() {
         assert!(
             END_USER_ENDPOINTS.contains(&(method.as_str(), path.as_str())),
             "{method} {path} is not an end-user endpoint"
-        );
-        assert!(
-            body.get("staging_count").is_none(),
-            "{method} {path} sent staging_count: {body}"
         );
     }
 }

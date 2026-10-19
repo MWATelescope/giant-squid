@@ -306,8 +306,8 @@ Options:
           Custom phase centre right ascension (degrees). Requires --centre custom
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
           Custom phase centre declination (degrees). Requires --centre custom
-      --no-apply-amps
-          Whether to skip applying amplitude calibration solutions
+      --no-apply-amps[=<NO_APPLY_AMPS>]
+          Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
       --no-digital-gains[=<NO_DIGITAL_GAINS>]
           Whether to skip applying digital gains. Takes true, false or null [default: false]
       --no-flag-dc[=<NO_FLAG_DC>]
@@ -376,7 +376,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
-| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag | off |
+| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag, or `true` or `false` | false |
 | `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
 | `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
 | `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
@@ -417,8 +417,8 @@ Options:
           Custom phase centre right ascension (degrees). Requires --centre custom
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
           Custom phase centre declination (degrees). Requires --centre custom
-      --no-apply-amps
-          Whether to skip applying amplitude calibration solutions
+      --no-apply-amps[=<NO_APPLY_AMPS>]
+          Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
       --no-digital-gains[=<NO_DIGITAL_GAINS>]
           Whether to skip applying digital gains. Takes true, false or null [default: false]
       --no-flag-dc[=<NO_FLAG_DC>]
@@ -449,12 +449,12 @@ Options:
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
           Join output channel groups for cleaning [default: true] [possible values: true, false]
-      --join-polarizations
-          Join polarisations for cleaning
+      --join-polarizations[=<JOIN_POLARIZATIONS>]
+          Join polarisations for cleaning [default: false] [possible values: true, false]
       --mgain <MGAIN>
           WSClean -mgain value [default: 0.8]
-      --multiscale
-          Enable WSClean multiscale cleaning
+      --multiscale[=<MULTISCALE>]
+          Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
       --nwlayers <NWLAYERS>
@@ -520,9 +520,9 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
 | `--image-size` | width and height in pixels of output image | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | 3072 |
 | `--join-channels` | Join output channel groups for cleaning | `true` or `false`, given as `--join-channels=false` | true |
-| `--join-polarizations` | Join polarisations for cleaning | flag | off |
+| `--join-polarizations` | Join polarisations for cleaning | flag, or `true` or `false` | false |
 | `--mgain` | WSClean -mgain value | 0.1 to 1 | 0.8 |
-| `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag | off |
+| `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag, or `true` or `false` | false |
 | `--nmiter` | WSClean -nmiter value (max major cleaning iterations) | 1 to 500 | 10 |
 | `--nwlayers` | Number of w-layers to use | 32 to 512 | none |
 | `-o`, `--output-mode` | The output mode / product to request | one of `fits`, `all_fits`, `all_files` | fits |
@@ -534,7 +534,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--uvw-min` | Minimum uv distance to image, in wavelengths | up to 100 | 75 |
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
-| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag | off |
+| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag, or `true` or `false` | false |
 | `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
 | `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
 | `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
@@ -588,12 +588,12 @@ Options:
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
           Join output channel groups for cleaning [default: true] [possible values: true, false]
-      --join-polarizations
-          Join polarisations for cleaning
+      --join-polarizations[=<JOIN_POLARIZATIONS>]
+          Join polarisations for cleaning [default: false] [possible values: true, false]
       --mgain <MGAIN>
           WSClean -mgain value [default: 0.8]
-      --multiscale
-          Enable WSClean multiscale cleaning
+      --multiscale[=<MULTISCALE>]
+          Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
       --nwlayers <NWLAYERS>

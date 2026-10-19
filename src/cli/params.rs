@@ -211,6 +211,7 @@ pub trait PreprocessingFields: SchemaDefaults {
     fn avg_time_res(&self) -> Option<f64>;
     fn flag_edge_width(&self) -> f64;
     fn apply_di_cal(&self) -> bool;
+    fn no_apply_amps(&self) -> bool;
     fn centre(&self) -> Centre;
     fn no_digital_gains(&self) -> Option<bool>;
     fn no_flag_dc(&self) -> Option<bool>;
@@ -225,6 +226,7 @@ impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params
     avg_time_res: Option<f64>,
     flag_edge_width: f64,
     apply_di_cal: bool,
+    no_apply_amps: bool,
     centre: Centre,
     no_digital_gains: Option<bool>,
     no_flag_dc: Option<bool>,
@@ -245,7 +247,9 @@ pub trait WscleanFields: SchemaDefaults {
     fn clean_threshold(&self) -> Option<f64>;
     fn image_size(&self) -> ImageSizes;
     fn join_channels(&self) -> bool;
+    fn join_polarizations(&self) -> bool;
     fn mgain(&self) -> f64;
+    fn multiscale(&self) -> bool;
     fn nmiter(&self) -> NonZeroU64;
     fn output_mode(&self) -> OutputMode;
     fn pixel_scale(&self) -> f64;
@@ -265,7 +269,9 @@ impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
     clean_threshold: Option<f64>,
     image_size: ImageSizes,
     join_channels: bool,
+    join_polarizations: bool,
     mgain: f64,
+    multiscale: bool,
     nmiter: NonZeroU64,
     output_mode: OutputMode,
     pixel_scale: f64,
@@ -419,7 +425,14 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     pub custom_centre_dec: Option<f64>,
 
     /// Whether to skip applying amplitude calibration solutions.
-    #[arg(long)]
+    #[arg(
+        long,
+        default_value = P::schema_defaults().no_apply_amps().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
     pub no_apply_amps: bool,
 
     /// Whether to skip applying digital gains. Takes true, false or null.
@@ -553,7 +566,14 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub join_channels: bool,
 
     /// Join polarisations for cleaning.
-    #[arg(long)]
+    #[arg(
+        long,
+        default_value = P::schema_defaults().join_polarizations().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
     pub join_polarizations: bool,
 
     /// WSClean -mgain value.
@@ -561,7 +581,14 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub mgain: f64,
 
     /// Enable WSClean multiscale cleaning.
-    #[arg(long)]
+    #[arg(
+        long,
+        default_value = P::schema_defaults().multiscale().to_string(),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+    )]
     pub multiscale: bool,
 
     /// WSClean -nmiter value (max major cleaning iterations).

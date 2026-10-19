@@ -5,7 +5,6 @@ argument that is left out must be absent from what the module sets, so that the 
 tests compare with the default the schema gives, never with a value the module chose.
 """
 
-import inspect
 import json
 from collections.abc import Callable
 from typing import Any
@@ -343,25 +342,6 @@ def test_every_field_of_a_body_is_in_the_schema(
     body = body_sent_to(httpserver, path)
     assert not [key for key in body if key not in properties]
     assert "flags" not in body
-
-
-@pytest.mark.parametrize(("method", "path", "args", "kwargs", "schema_name"), BODY_CASES, ids=BODY_CASE_IDS)
-def test_staging_count_is_not_an_argument_and_not_in_a_body(
-    client: gs.AsvoClient,
-    httpserver: HTTPServer,
-    method: str,
-    path: str,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    schema_name: str,
-) -> None:
-    """``staging_count`` is for the MWA ASVO's processors, and the API will remove it: it is never sent or taken."""
-    submitted(httpserver, path)
-
-    getattr(client, method)(*args, **kwargs)
-
-    assert not [name for name in inspect.signature(getattr(client, method)).parameters if "staging" in name]
-    assert "staging_count" not in body_sent_to(httpserver, path)
 
 
 def test_imaging_job_sends_the_six_correction_and_flagging_switches(

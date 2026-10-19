@@ -59,6 +59,8 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - **Symbolic links** (three diffs): (1) a link already on disk on the way to a stream-untar entry is an error (`SymlinkInDownloadDir`), as in keep-tar; a Scratch move warns about links that point outside the job folder; the download directory itself may be a link (README). (2) `download/no_follow/`: `open_for_writing` with `O_NOFOLLOW` (Unix, `rustix`) for the files of keep-tar, stream-untar and the resume file. (3) `DownloadRoot`: the download directory is opened once, then each directory of a tar entry is opened with `openat` and `O_NOFOLLOW` (and made with `mkdirat`), so no link can be swapped in between a check and the use. `create_parent_dirs` is gone, and `UntarCheckpoint` holds `unpack_path`. Reads (hashing, the resume walk) still follow links. Off Unix, a check just before each use is made (not tested: no non-Unix target in the sandbox).
 
+- **O2 and T1:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` take `true` or `false` (the bare flag is `true`) and show the schema default in `--help`, like `--join-channels`. The schema (2.3.4) does not allow `null` for them (`bool`, not `bool | null`), so `null` is refused; the Python arguments were already `bool` with the schema defaults. The three `staging_count` tests are gone; the Rust one is kept as `the_client_calls_only_end_user_endpoints` (it also checks the endpoints).
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -75,8 +77,6 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 ## Decided by Greg, not started
 
 - **L10 part B:** refuse `custom_centre_ra`/`custom_centre_dec` when `centre` is not `custom`. Greg approved the edit of the two tests that this needs: `every_limit_is_enforced_on_both_ends_for_the_conversion_body` and `every_limit_is_enforced_on_both_ends_for_the_imaging_body` (they set one coordinate with the default centre). Change: base parameters with `centre: Custom` and both coordinates valid. Until this is done, the help text "Requires --centre custom" is only half true.
-- **O2:** `--no-apply-amps`, `--join-polarizations` and `--multiscale` work like the other nullable fields (a value `true|false|null`, with the schema default shown in `--help`) and follow the API. C1/C2 are done, so this can start. The same three fields need the same in Python if they are not already typed there.
-- **T1:** remove the three `staging_count` tests (Rust client, CLI, Python). **T5:** keep the clap and version tests.
 - **O1/O7:** wait for the API fix.
 - **A13 (`days: null`)** and the other questions below: with the API developer.
 

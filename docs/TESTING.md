@@ -189,7 +189,7 @@ uv run pytest
 | `test_module.py` | The import, `__version__`, `reset_logging` |
 | `test_client.py` | `AsvoClient`: login, `get_jobs` and `list_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
-| `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema, and `staging_count` is never taken or sent |
+| `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
 | `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, and Ctrl-C |
 
 Two things are particular to this suite:
@@ -221,7 +221,7 @@ with it.
 | --- | --- |
 | Limits, names and defaults come from the OpenAPI schema | `src/mwa_asvo/api/validate/tests.rs` compares each limit with `openapi-schema.json`; the CLI and Python defaults are read from the generated types |
 | Only parameters that the API defines are sent (no `flags`) | `every_field_of_every_request_body_is_in_the_schema` (Rust) and `test_every_field_of_a_body_is_in_the_schema` (Python) |
-| Only end-user endpoints are called; `staging_count` is never sent or exposed | `the_client_calls_only_end_user_endpoints_and_never_sends_staging_count`, `staging_count_is_not_an_option_and_not_in_any_body`, and `test_staging_count_is_not_an_argument_and_not_in_a_body` in `test_submit.py` |
+| Only end-user endpoints are called | `the_client_calls_only_end_user_endpoints` |
 | A schema enum value that is added or removed breaks the build | The `schema_enum!` macro in `src/cli/value_enums/mod.rs` |
 | `list` without `--days` uses the API default, not `null` | `get_jobs_with_no_filter_uses_the_schema_defaults`, `list_days_defaults_to_the_schema_default`, `test_get_jobs_with_no_filter_sends_none` |
 | `wait` and `cancel` refuse an Obs ID and send nothing | `waiting_for_an_obsid_is_rejected_and_nothing_is_sent`, `cancelling_an_obsid_is_rejected_and_nothing_is_sent`, and for `wait` in Python `test_an_error_of_the_command_is_code_one_with_the_message` |
