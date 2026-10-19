@@ -35,6 +35,9 @@ use sha1::digest::common::hazmat::{SerializableState, SerializedState};
 use sha1::{Digest, Sha1};
 use tar::Archive;
 
+mod no_follow;
+use no_follow::{open_for_writing, refused_a_symlink, WriteMode};
+
 /// The number of bytes in one MiB.
 pub const BYTES_PER_MIB: usize = 1024 * 1024;
 
@@ -1556,7 +1559,10 @@ impl<'a> SidecarWriter<'a> {
         let mut tmp_name = self.path.clone().into_os_string();
         tmp_name.push(".tmp");
         let tmp_path = PathBuf::from(tmp_name);
-        std::fs::write(&tmp_path, serde_json::to_vec(sidecar)?)?;
+        // A link at the temporary path is refused, not written through.
+        let mut tmp_file = open_for_writing(&tmp_path, WriteMode::CreateOrTruncate)?;
+        tmp_file.write_all(&serde_json::to_vec(sidecar)?)?;
+        drop(tmp_file);
         std::fs::rename(&tmp_path, &self.path)
     }
 
@@ -2113,10 +2119,22 @@ fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
 
 /// Create a file. A failure is only returned, with the path: the caller
 /// reports it.
+///
+/// A symbolic link at `path` is refused when the file is opened, so that it
+/// cannot be put there between a check and the open
+/// ([`AsvoError::SymlinkInDownloadDir`]).
 fn create_file(path: &Path) -> Result<File, AsvoError> {
-    File::create(path).map_err(|source| AsvoError::CannotCreate {
-        path: path.to_path_buf(),
-        source,
+    open_for_writing(path, WriteMode::CreateOrTruncate).map_err(|source| {
+        if refused_a_symlink(&source, path) {
+            AsvoError::SymlinkInDownloadDir {
+                path: path.to_path_buf(),
+            }
+        } else {
+            AsvoError::CannotCreate {
+                path: path.to_path_buf(),
+                source,
+            }
+        }
     })
 }
 
@@ -2198,7 +2216,15 @@ fn prepare_output_file(
 
     // A partial file, and resuming is allowed: append to what's there.
     Ok(OutputTarget::Download {
-        file: File::options().append(true).open(out_path)?,
+        file: open_for_writing(out_path, WriteMode::Append).map_err(|source| {
+            if refused_a_symlink(&source, out_path) {
+                AsvoError::SymlinkInDownloadDir {
+                    path: out_path.clone(),
+                }
+            } else {
+                AsvoError::IO(source)
+            }
+        })?,
         offset: file_size_bytes,
     })
 }

@@ -3052,3 +3052,48 @@ fn a_job_folder_without_links_has_none_pointing_outside() {
     assert!(links_pointing_outside(dir.path()).is_empty());
     assert!(links_pointing_outside(&dir.path().join("missing")).is_empty());
 }
+
+/// `create_file` refuses a symbolic link at the path itself, with the link
+/// in the error, and writes nothing where the link points. This is the
+/// guarantee that holds when a link is put in the place after a check.
+#[cfg(unix)]
+#[test]
+fn create_file_refuses_a_symlink_and_changes_nothing() {
+    use crate::mwa_asvo::download::create_file;
+
+    let dir = TempDir::new().expect("could not create a directory");
+    let elsewhere = TempDir::new().expect("could not create a second directory");
+    let existing = elsewhere.path().join("victim.dat");
+    std::fs::write(&existing, b"untouched").expect("could not write the target");
+    let missing = elsewhere.path().join("missing.dat");
+    let to_existing = dir.path().join("to_existing");
+    let to_missing = dir.path().join("to_missing");
+    std::os::unix::fs::symlink(&existing, &to_existing).expect("could not make a link");
+    std::os::unix::fs::symlink(&missing, &to_missing).expect("could not make a link");
+
+    for link in [&to_existing, &to_missing] {
+        let err = create_file(link).expect_err("the link should be refused");
+        assert!(
+            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if path == link),
+            "{err:?}"
+        );
+    }
+    assert_eq!(std::fs::read(&existing).expect("the target"), b"untouched");
+    assert!(!missing.exists());
+}
+
+/// `create_file` makes a new file, and a failure that is not a link is
+/// `CannotCreate`.
+#[test]
+fn create_file_makes_a_file_and_reports_other_failures() {
+    use crate::mwa_asvo::download::create_file;
+
+    let dir = TempDir::new().expect("could not create a directory");
+    let path = dir.path().join("new.dat");
+    drop(create_file(&path).expect("the file"));
+    assert!(path.is_file());
+
+    let err = create_file(&dir.path().join("no_such_dir").join("a.dat"))
+        .expect_err("the directory is missing");
+    assert!(matches!(err, AsvoError::CannotCreate { .. }), "{err:?}");
+}

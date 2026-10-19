@@ -116,6 +116,11 @@ indicatif = { version = "0.18", optional = true}
 indicatif-log-bridge = {version = "0.2", optional = true}
 simplelog = { version = "0.12", optional = true }
 
+# Unix only: opens the files of a download with O_NOFOLLOW (src/mwa_asvo/download/no_follow/mod.rs). It is also a
+# dependency of tempfile, so the lock file does not get a new package.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["fs", "std"] }
+
 # Dependencies only for the Python module ("python" feature).
 pyo3 = { version = "0.29", features = ["abi3-py310", "jiff-02"], optional = true }
 pyo3-log = { version = "0.13", optional = true }

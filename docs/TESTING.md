@@ -236,6 +236,7 @@ with it.
 | A tar entry with `..`, an absolute path or no name is not written | `an_entry_with_a_parent_dir_path_is_skipped`, `an_entry_with_an_absolute_path_is_skipped`, `an_entry_with_no_name_is_skipped`, `a_rerun_carries_on_from_a_skipped_entry` |
 | Nothing is written through a symbolic link that is already in the download directory | `an_entry_whose_file_is_a_symlink_is_an_error`, `an_entry_below_a_symlinked_directory_is_an_error`, `an_entry_whose_file_is_a_dangling_symlink_is_an_error`, `a_directory_entry_that_is_a_symlink_is_an_error`, `a_keep_tar_download_refuses_a_symlink`, `a_symlinked_download_directory_is_allowed`, `entry_target_names_the_link_on_the_way` (Unix only) |
 | A link in a Scratch job folder that points outside the folder is found, so that the move can warn about it | `links_pointing_outside_a_job_folder_are_found`, `a_job_folder_without_links_has_none_pointing_outside` (Unix only for the first) |
+| A file is never opened through a symbolic link at its path, even one that is put there after a check | `create_file_refuses_a_symlink_and_changes_nothing` and the tests of `no_follow` (`a_link_to_a_file_is_refused_and_the_file_is_not_changed`, `a_dangling_link_is_refused_and_its_target_is_not_created`, `a_link_to_a_directory_is_refused`, and others; Unix only) |
 
 ## Test environment isolation
 
