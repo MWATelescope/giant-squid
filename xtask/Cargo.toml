@@ -1,0 +1,20 @@
+# Maintainer tasks for giant-squid, run as `cargo xtask <task>` (an alias in .cargo/config.toml). This crate is not
+# published. It is not a member of a workspace and has its own Cargo.lock, so that the library's Cargo.lock (which the
+# crates.io package and the Python sdist carry) does not list the crates that only the generator needs.
+[package]
+name = "xtask"
+version = "0.0.0"
+edition = "2021"
+license = "MPL-2.0"
+publish = false
+
+# An empty workspace of its own: without it, cargo looks for the workspace in the parent directory.
+[workspace]
+
+[dependencies]
+# Generates src/mwa_asvo/api/openapi.rs from src/mwa_asvo/api/openapi-schema.json.
+prettyplease = "0.3"
+schemars = "0.8"
+serde_json = "1.0"
+syn = "3.0"
+typify = "0.8"

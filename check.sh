@@ -15,9 +15,13 @@ export RUSTDOCFLAGS="-D warnings"
 
 echo "Cargo fmt..."
 cargo fmt --check
+cargo fmt --manifest-path xtask/Cargo.toml --check
 
 echo "Cargo clippy (default features, all targets)..."
 cargo clippy --locked --all-targets -- -D warnings
+
+echo "Cargo clippy (xtask)..."
+cargo clippy --locked --manifest-path xtask/Cargo.toml --target-dir target/xtask -- -D warnings
 
 echo "Cargo clippy (library only)..."
 cargo clippy --locked --no-default-features --lib -- -D warnings

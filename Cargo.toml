@@ -17,7 +17,9 @@ homepage = "https://github.com/MWATelescope/giant-squid"
 # Files that only the Python package (mwa-giant-squid, built by maturin) uses. The Rust sources of the
 # `python` and `python-stubgen` features (src/python, src/bin/stub_gen.rs) stay: the manifest needs them.
 exclude = [
+    ".cargo/*",
     ".github/*",
+    "xtask/*",
     "mwa_giant_squid_cli/*",
     "tests/python/*",
     "docs/CLEANUP.md",
@@ -41,13 +43,6 @@ resolver = "3"
 [features]
 default = ["bin"]
 bin = ["anyhow", "clap", "simplelog", "indicatif", "indicatif-log-bridge", "comfy-table"]
-# Regenerates src/mwa_asvo/api/openapi.rs from src/mwa_asvo/api/openapi-schema.json
-# via build.rs (see the `regen_openapi` module there). Off by default so a
-# normal build doesn't need typify and friends; enable when the schema has
-# changed and you're ready to regenerate + review + commit the result:
-#   cargo build --features regen-openapi
-#   git diff src/mwa_asvo/api/openapi.rs
-regen-openapi = ["dep:typify", "dep:schemars", "dep:serde_json", "dep:syn", "dep:prettyplease"]
 # The Python module (`import mwa_giant_squid`). Built by maturin, which reads
 # its settings from pyproject.toml: `maturin develop` or `maturin build`.
 #
@@ -144,13 +139,6 @@ httpmock = { version = "0.8", features = ["record"] }
 # Only for the `python-stubgen` feature: finds the libpython directory for
 # the rpath of the `stub_gen` binary. The same version as pyo3.
 pyo3-build-config = { version = "0.29", features = ["resolve-config"], optional = true }
-# Only needed to regenerate src/mwa_asvo/api/openapi.rs - see the
-# regen-openapi feature above.
-prettyplease = { version = "0.3", optional = true }
-schemars = { version = "0.8", optional = true }
-serde_json = { version = "1.0", optional = true }
-syn = { version = "3.0", optional = true }
-typify = { version = "0.8", optional = true }
 
 #[lints.clippy]
 #unwrap_used      = "warn"

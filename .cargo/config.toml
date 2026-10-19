@@ -1,0 +1,5 @@
+[alias]
+# Maintainer tasks (see xtask/src/main.rs): `cargo xtask regen-openapi`. xtask is a crate of its own (it is not a
+# member of a workspace, and has its own Cargo.lock), so the Cargo.lock of the library, the crates.io package and the
+# Python sdist do not list typify and the other crates that only the generator needs.
+xtask = "run --manifest-path xtask/Cargo.toml --target-dir target/xtask --"

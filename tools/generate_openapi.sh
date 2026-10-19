@@ -16,20 +16,20 @@ fi
 # Downloads the MWA ASVO v2 OpenAPI schema and converts it into the format
 # typify expects, writing the result to src/mwa_asvo/api/openapi-schema.json.
 # The file also keeps the document's `openapi` version and the MWA ASVO API
-# version (`info.version`), which build.rs writes into openapi.rs as
+# version (`info.version`), which the generator writes into openapi.rs as
 # OPENAPI_VERSION and MWA_ASVO_API_VERSION, and giant-squid --version prints.
 #
 # This is a separate, manual, network-touching step, deliberately kept out
 # of the normal build. Turning that schema into Rust code
-# (src/mwa_asvo/api/openapi.rs) happens in build.rs, gated behind the
-# `regen-openapi` feature so a normal build doesn't need typify at all.
-# This script also does the regeneration. To regenerate from the schema that is
-# already committed, without downloading, run:
+# (src/mwa_asvo/api/openapi.rs) is done by the `regen-openapi` task of the
+# `xtask` crate (xtask/src/main.rs), so a normal build doesn't need typify at
+# all. This script also does the regeneration. To regenerate from the schema
+# that is already committed, without downloading, run:
 #
-#     cargo build --features regen-openapi
+#     cargo xtask regen-openapi
 #     git diff src/mwa_asvo/api/openapi.rs
 #
-# Commit openapi.rs as build.rs writes it. Do not run `cargo fmt` or
+# Commit openapi.rs as the task writes it. Do not run `cargo fmt` or
 # `cargo clippy --fix` on it: the openapi-drift-check CI job regenerates the
 # file and fails on any difference, and rustfmt lays the file out differently.
 #
@@ -145,9 +145,9 @@ with open(out_path, "w") as f:
 PYEOF
 
 echo "Wrote ${OUTPUT_FILE}."
-cargo build --features regen-openapi
+cargo xtask regen-openapi
 
-# The regenerated file is committed as build.rs wrote it (prettyplease). It is
+# The regenerated file is committed as the task wrote it (prettyplease). It is
 # not formatted with `cargo fmt` or changed with `cargo clippy --fix`, because
 # the openapi-drift-check CI job compares it with a fresh regeneration.
 cargo check

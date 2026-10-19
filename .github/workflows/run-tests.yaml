@@ -59,16 +59,16 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    # build.rs writes src/mwa_asvo/api/openapi.rs with prettyplease, and that output is what is committed. Do not run
-    # `cargo fmt` or `cargo clippy --fix` here: rustfmt lays the file out differently (about 1500 lines), so the
-    # check would always fail, and it would not be checking the schema any more. Cargo.lock pins typify and
-    # prettyplease, so the output does not change from one run to the next.
+    # `cargo xtask regen-openapi` writes src/mwa_asvo/api/openapi.rs with prettyplease, and that output is what is
+    # committed. Do not run `cargo fmt` or `cargo clippy --fix` here: rustfmt lays the file out differently (about
+    # 1500 lines), so the check would always fail, and it would not be checking the schema any more. xtask/Cargo.lock
+    # pins typify and prettyplease, so the output does not change from one run to the next.
     - name: Regenerate src/mwa_asvo/api/openapi.rs
-      run: cargo build --locked --features regen-openapi
+      run: cargo --locked xtask regen-openapi
 
     - name: Fail if regeneration produced a diff
       run: |
         if ! git diff --exit-code -- src/mwa_asvo/api/openapi.rs; then
-          echo "::error::src/mwa_asvo/api/openapi.rs is out of date relative to openapi-schema.json. Run 'cargo build --features regen-openapi' locally and commit the result (without running cargo fmt on it)."
+          echo "::error::src/mwa_asvo/api/openapi.rs is out of date relative to openapi-schema.json. Run 'cargo xtask regen-openapi' locally and commit the result (without running cargo fmt on it)."
           exit 1
         fi

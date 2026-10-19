@@ -55,6 +55,8 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
   - the six nullable-bool `--no-*` `#[arg]` blocks in `PreprocessingArgs` stay: clap's derive cannot share an attribute block between fields;
   - `--help` of all 12 commands is byte-for-byte the same as before.
 
+- **C15:** the OpenAPI generator moved from `build.rs` (feature `regen-openapi`) to the standalone crate `xtask`: `cargo xtask regen-openapi` (an alias in `.cargo/config.toml`). Greg chose a workspace member, but the Python sdist needs the root `Cargo.lock` to match the root manifest (`maturin sdist` copies the lock and writes an empty `[workspace]`, so `cargo --locked` failed with `xtask` in the lock). So `xtask` is not a workspace member: it has its own `[workspace]` and its own `xtask/Cargo.lock` (same pins as before). The root `Cargo.lock` no longer lists typify, schemars, syn or prettyplease. `check.sh` formats and lints `xtask` too. The only change in `openapi.rs` is its header.
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -82,7 +84,6 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 ## Waiting for a decision by Greg
 
-- **C15:** `build.rs` writes `src/mwa_asvo/api/openapi.rs` when built with `--features regen-openapi`. Proposal: a small `xtask` workspace member runs the generator (`cargo xtask regen-openapi`, an alias in `.cargo/config.toml`); the feature and its five optional dependencies (typify, schemars, syn, prettyplease, serde_json) leave the main crate; `build.rs` keeps only the `python-stubgen` rpath code. This also changes the drift check in `run-tests.yaml`, `tools/generate_openapi.sh` (line 148), `docs/PYTHON_BINDINGS.md`, a comment in `Cargo.toml` and the header of `openapi.rs`, and the root `Cargo.toml` becomes a workspace (set `default-members`). Risk: CI (drift check, MSRV job, maturin and sdist builds) cannot be tested in the sandbox; the generated `openapi.rs` must stay byte-identical (this can be tested). Recommendation: a separate diff, so that it is easy to revert. Greg has not decided.
 - **ruff 0.17.1:** `uv run` now installs ruff 0.17.1, which reports RUF100 (unused `# noqa: DTZ001`) at `tests/python/test_client.py:462`. This is an existing test. Remove the `noqa`, or pin ruff?
 - **`manta-ray-client`** does not use the session cache file (Greg confirmed); the docs no longer say so.
 
