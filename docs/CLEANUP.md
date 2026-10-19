@@ -3,10 +3,10 @@
 ## Start here
 
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
-2. Check that the head is `d635a16` "Match job types by code; trim docs and imports", or a later commit by Greg.
+2. Check that the head is `2cde8b3` "Updated deps", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 401 Rust unit tests and 53 CLI tests pass; 1 unit test and 18 live tests are ignored;
-   - 194 Python tests pass;
+   - 497 Rust unit tests, 56 CLI tests, 7 `download_job_dir` tests, 23 `stdin_ids` tests and 16 `submit_csv` tests pass; 1 unit test and 18 live tests are ignored;
+   - 214 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
    - the regenerated `mwa_giant_squid.pyi` and `openapi.rs` do not change.
@@ -86,6 +86,19 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - **macOS CI fix (`no_follow`):** the macOS 15 wheel job failed to compile: `rustix::fs::Mode::from_raw_mode` takes a `u16` on macOS and a `u32` on Linux, and the code passed a `u32` constant. The file and directory permissions are now rustix's own `Mode` bits (`Mode::RUSR | ...`, `Mode::RWXU | ...`), with no raw number. Lesson: do not give a platform type (a raw mode, `st_mode`, `off_t`) a fixed integer type; the sandbox is Linux only, so such an error shows only in the macOS job.
 - **O5 (option C):** `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` have no short flag), and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` have no short flag). `-d`, `-o` and `-r` stay as they were in 2.5.1 (each still has more than one meaning). The test `the_short_flags_mean_what_the_table_says` holds the table; `docs/V3_MIGRATION.md` has a "Short flags" section.
 
+### Done on 19–20 Oct 2026, after `d635a16` (one diff each, in this order)
+
+- `b67f232` **No credentials in trace logs:** the login and refresh bodies are not logged; URLs in other logged bodies, in the download log and in download errors are redacted; reqwest `connection_verbose` is removed.
+- `95e4387`, `319895d` **One `get_jobs`:** the Python `list_jobs` is merged into `get_jobs` (signature: `job_ids`, `obs_ids`, `job_types`, `job_states`, then keyword-only `days` and dates); `get_jobs_retrying` is crate-private, so `get_jobs` is the only public way to get the job list.
+- `20a15d2`, `d3b40ea`, `c5e4159` **manta-ray-client CSV import:**
+  - `giant-squid submit-csv` reads the CSV job files of `mwa_client`, checks every line, then submits the jobs; a failing line does not stop the others;
+  - library: `parse_manta_ray_csv`, `CsvDefaults`, `AsvoClient::submit_csv_file` and `submit_csv_jobs` (module `src/mwa_asvo/manta_ray_csv/`); the other fields of the request bodies are accepted as CSV keys; a repeated key and a repeated job give a warning; `GIANT_SQUID_DELIVERY*` give the delivery defaults;
+  - Python: `AsvoClient.submit_csv_file` returns the replies; failed jobs raise `CsvSubmitError` with the replies of the jobs that were submitted;
+  - the six test files are in `tests/files/manta-ray-client/` (`58e73c9`).
+- `980bf66`, `6bd7c36` **IDs from standard input:** `download`, `cancel` and `wait` read their IDs from standard input when given none (or `-`): the output of `list --ids` or `list --json`, or plain IDs; the new `list --ids` prints only the Job IDs. A pipe or a file with no ID is "Nothing to do" (exit 0); no input at all (a terminal, `/dev/null`) and no ID still fails. The commands do not filter the IDs. Tests: `tests/stdin_ids.rs`, `src/cli/stdin_ids/tests.rs`.
+- `377e9a9` **A directory for each job:** `download` puts each job in `<download-dir>/<job_id>`; `--no-job-subdir` restores the 2.x layout. Rust has `DownloadOptions::job_subdirectory` and Python has the argument `job_subdirectory`. Downloads start in list order, so the `[n/N]` log numbers are in order. Tests: `tests/download_job_dir.rs`.
+- `2cde8b3` **Updated dependencies** (`Cargo.lock` only).
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -111,7 +124,11 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 ## Open, not started
 
-Not reviewed yet: `src/python/types.rs`, `params.rs`, `typed.rs` (and `error.rs` after the C13 change); `tests/cli.rs` and the Python tests in detail; `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows.
+Not reviewed yet:
+- the code of the 19 Oct 2026 features: `submit-csv` (`src/mwa_asvo/manta_ray_csv/`, `src/cli/run.rs`), the standard input IDs (`src/cli/stdin_ids/`) and the per-job download directory (their tests exist; the code has had no review pass);
+- `src/python/types.rs`, `params.rs`, `typed.rs` and `error.rs` (after the C13 change);
+- `tests/cli.rs` and the Python tests in detail;
+- `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows (also: check that the pdoc problems of 6 Oct 2026 — no types, member order, `RecursionError` — are fixed).
 
 Not tested in the sandbox: CI itself (the maturin wheel jobs on Linux and macOS: the macOS build cannot be tried here, so read the code that uses a platform type with care; the Docker build, the MSRV job: Rust 1.88 is not in the sandbox, and the highest declared MSRV in the `xtask` dependencies is 1.85); the non-Unix code of `no_follow`.
 

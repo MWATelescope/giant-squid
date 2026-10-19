@@ -196,7 +196,7 @@ docs for details.
 
 ### Layer 4 - the Python module and the `giant-squid` launcher (pytest)
 
-`tests/python/` has the pytest suite (150 tests) for the `mwa_giant_squid`
+`tests/python/` has the pytest suite (214 tests) for the `mwa_giant_squid`
 module (`src/python/`) and for the `giant-squid` command, which is the Rust
 program run inside the module (`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
 goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
