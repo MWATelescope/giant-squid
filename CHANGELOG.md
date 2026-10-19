@@ -196,9 +196,12 @@ before you upgrade scripts.**
   and unpacks the other entries. In 2.x, such an entry was written where its path pointed, so a bad archive could
   create or overwrite a file anywhere that the user can write. The SHA-1 check still covers the whole archive.
 * `download` does not write through a symbolic link that is already in the download directory. A stream-untar entry
-  whose file, or a directory on the way to it, is a symbolic link is skipped with a warning. A `--keep-tar` download
-  whose tar file is a symbolic link (even one that points nowhere) fails with `AsvoError::SymlinkInDownloadDir`, and
-  nothing is fetched. Before, the download wrote wherever the link pointed.
+  whose file, or a directory on the way to it, is a symbolic link fails the download with
+  `AsvoError::SymlinkInDownloadDir` (the entries before it are already written). A `--keep-tar` download whose tar file
+  is a symbolic link (even one that points nowhere) fails in the same way, and nothing is fetched. The download
+  directory itself may be a symbolic link. Before, the download wrote wherever the link pointed. A Scratch job
+  folder with a link that points outside the folder is moved as before (the link is moved as a link), with a warning
+  for each such link.
 * A stream-untar download unpacks only files and directories. A symbolic link, a hard link or a special file in the
   archive is skipped with a warning (the SHA-1 check still covers it). In 2.x, such an entry was unpacked, so a link
   could point outside the download directory.

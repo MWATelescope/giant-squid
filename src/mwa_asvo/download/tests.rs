@@ -1899,8 +1899,10 @@ mod unsafe_paths {
     use tempfile::TempDir;
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
-    use crate::mwa_asvo::download::{untar_stream, ResumePoint, EARLIER_FILES_WINDOW};
-    use crate::mwa_asvo::AsvoClient;
+    use crate::mwa_asvo::download::{
+        entry_target, untar_stream, EntryTarget, ResumePoint, EARLIER_FILES_WINDOW,
+    };
+    use crate::mwa_asvo::{AsvoClient, AsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1941,6 +1943,21 @@ mod unsafe_paths {
         )
         .expect("the archive should be unpacked");
         assert_eq!(hasher.finalize()[..], Sha1::digest(archive)[..]);
+    }
+
+    /// Unpack `archive` into `unpack_dir`, and give the result of the unpack.
+    fn try_unpack(archive: &[u8], unpack_dir: &std::path::Path) -> Result<(), AsvoError> {
+        let dir_path = unpack_dir.display().to_string();
+        let mut checkpoint = None;
+        untar_stream(
+            archive,
+            ResumePoint::from_start(),
+            unpack_dir,
+            LOG_PREFIX,
+            &options(&dir_path),
+            &mut checkpoint,
+        )
+        .map(|_| ())
     }
 
     #[test]
@@ -2005,48 +2022,127 @@ mod unsafe_paths {
     }
 
     /// An entry whose file is already a symbolic link (here to a file
-    /// outside the download directory) is not written through the link.
+    /// outside the download directory) is an error: nothing is written
+    /// through the link.
     #[cfg(unix)]
     #[test]
-    fn an_entry_whose_file_is_a_symlink_is_skipped() {
+    fn an_entry_whose_file_is_a_symlink_is_an_error() {
         let dir = TempDir::new().expect("could not create a download directory");
         let elsewhere = TempDir::new().expect("could not create a second directory");
         let target = elsewhere.path().join("victim.dat");
         std::fs::write(&target, b"untouched").expect("could not write the target");
-        std::os::unix::fs::symlink(&target, dir.path().join("link.dat"))
-            .expect("could not make the link");
+        let link = dir.path().join("link.dat");
+        std::os::unix::fs::symlink(&target, &link).expect("could not make the link");
         let archive = archive_with(&[("link.dat", b"outside"), ("good.dat", b"inside")]);
 
-        unpack(&archive, dir.path());
+        let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
-        assert_eq!(std::fs::read(&target).expect("the target"), b"untouched");
-        assert_eq!(
-            std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
-            b"inside"
+        assert!(
+            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if *path == link),
+            "{err:?}"
         );
+        assert_eq!(std::fs::read(&target).expect("the target"), b"untouched");
     }
 
-    /// An entry below a directory that is a symbolic link is not written
-    /// through the link.
+    /// An entry below a directory that is a symbolic link is an error:
+    /// nothing is written through the link.
     #[cfg(unix)]
     #[test]
-    fn an_entry_below_a_symlinked_directory_is_skipped() {
+    fn an_entry_below_a_symlinked_directory_is_an_error() {
         let dir = TempDir::new().expect("could not create a download directory");
         let elsewhere = TempDir::new().expect("could not create a second directory");
-        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("sub"))
-            .expect("could not make the link");
+        let link = dir.path().join("sub");
+        std::os::unix::fs::symlink(elsewhere.path(), &link).expect("could not make the link");
         let archive = archive_with(&[("sub/escaped.dat", b"outside"), ("good.dat", b"inside")]);
 
-        unpack(&archive, dir.path());
+        let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
+        assert!(
+            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if *path == link),
+            "{err:?}"
+        );
         assert!(
             !elsewhere.path().join("escaped.dat").exists(),
             "nothing may be written through the link"
         );
+    }
+
+    /// A link that points nowhere is refused as well.
+    #[cfg(unix)]
+    #[test]
+    fn an_entry_whose_file_is_a_dangling_symlink_is_an_error() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        let missing = elsewhere.path().join("missing.dat");
+        std::os::unix::fs::symlink(&missing, dir.path().join("link.dat"))
+            .expect("could not make the link");
+        let archive = archive_with(&[("link.dat", b"outside")]);
+
+        let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
+
+        assert!(
+            matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+            "{err:?}"
+        );
+        assert!(!missing.exists(), "nothing may be written through the link");
+    }
+
+    /// A directory entry that is already a link is refused too.
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_entry_that_is_a_symlink_is_an_error() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("sub"))
+            .expect("could not make the link");
+        let archive = archive_with(&[("sub/", b""), ("sub/a.dat", b"outside")]);
+
+        let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
+
+        assert!(
+            matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+            "{err:?}"
+        );
+        assert!(!elsewhere.path().join("a.dat").exists());
+    }
+
+    /// The download directory itself may be a symbolic link: only what is
+    /// below it is checked.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_download_directory_is_allowed() {
+        let dir = TempDir::new().expect("could not create a directory");
+        let real = dir.path().join("real");
+        std::fs::create_dir(&real).expect("could not create the real directory");
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).expect("could not make the link");
+        let archive = archive_with(&[("sub/a.dat", b"inside")]);
+
+        try_unpack(&archive, &link).expect("the archive should be unpacked");
+
         assert_eq!(
-            std::fs::read(dir.path().join("good.dat")).expect("good.dat"),
+            std::fs::read(real.join("sub").join("a.dat")).expect("a.dat"),
             b"inside"
         );
+    }
+
+    /// `entry_target` names the link that is on the way.
+    #[cfg(unix)]
+    #[test]
+    fn entry_target_names_the_link_on_the_way() {
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        let link = dir.path().join("sub");
+        std::os::unix::fs::symlink(elsewhere.path(), &link).expect("could not make the link");
+
+        assert!(matches!(
+            entry_target(dir.path(), std::path::Path::new("sub/deeper/a.dat")),
+            EntryTarget::ThroughLink(path) if path == link
+        ));
+        assert!(matches!(
+            entry_target(dir.path(), std::path::Path::new("other/a.dat")),
+            EntryTarget::File(_)
+        ));
     }
 
     #[test]
@@ -2896,4 +2992,63 @@ fn the_target_of_a_scratch_move_is_checked_first() {
             Err(AsvoError::SymlinkInDownloadDir { .. })
         ));
     }
+}
+
+/// The links of a Scratch job folder that point outside it are found: a
+/// relative or an absolute target, at any depth, also when the target is
+/// not there. Links that stay inside are not.
+#[cfg(unix)]
+#[test]
+fn links_pointing_outside_a_job_folder_are_found() {
+    use crate::mwa_asvo::download::links_pointing_outside;
+    use std::os::unix::fs::symlink;
+
+    let dir = TempDir::new().expect("could not create a directory");
+    let root = dir.path().join("12345");
+    let deeper = root.join("sub");
+    std::fs::create_dir_all(&deeper).expect("could not create the job folder");
+    std::fs::write(root.join("a.fits"), "a").expect("could not write a file");
+    let elsewhere = dir.path().join("elsewhere.fits");
+    std::fs::write(&elsewhere, "e").expect("could not write a file");
+
+    symlink("a.fits", root.join("inside_relative")).expect("link");
+    symlink("../a.fits", deeper.join("inside_up")).expect("link");
+    symlink(root.join("a.fits"), root.join("inside_absolute")).expect("link");
+    symlink("../elsewhere.fits", root.join("outside_relative")).expect("link");
+    symlink("../../elsewhere.fits", deeper.join("outside_deeper")).expect("link");
+    symlink(&elsewhere, root.join("outside_absolute")).expect("link");
+    symlink("../missing.fits", root.join("outside_dangling")).expect("link");
+
+    let mut names: Vec<String> = links_pointing_outside(&root)
+        .into_iter()
+        .map(|(link, _)| {
+            link.file_name()
+                .expect("a link has a name")
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+
+    assert_eq!(
+        names,
+        [
+            "outside_absolute",
+            "outside_dangling",
+            "outside_deeper",
+            "outside_relative"
+        ]
+    );
+}
+
+/// A folder with no links, and a folder that is not there, give no links.
+#[test]
+fn a_job_folder_without_links_has_none_pointing_outside() {
+    use crate::mwa_asvo::download::links_pointing_outside;
+
+    let dir = TempDir::new().expect("could not create a directory");
+    std::fs::write(dir.path().join("a.fits"), "a").expect("could not write a file");
+
+    assert!(links_pointing_outside(dir.path()).is_empty());
+    assert!(links_pointing_outside(&dir.path().join("missing")).is_empty());
 }

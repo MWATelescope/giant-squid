@@ -360,6 +360,7 @@ fn download_job(
                             "{log_prefix} Files for Job are reachable from the current host. \
                              Moving {path} to {target_display}."
                         );
+                        warn_about_links_pointing_outside(path_obj, &log_prefix);
                         move_path(path_obj, &target)?;
                     }
                 }
@@ -557,10 +558,14 @@ enum EntryTarget {
     File(PathBuf),
     /// A directory, at this path.
     Dir(PathBuf),
-    /// Not unpacked: the entry's path is absolute, has a `..` part, names no
-    /// file, or goes through a symbolic link, so it might not be written
-    /// inside the download directory.
+    /// Not unpacked: the entry's path is absolute, has a `..` part or names
+    /// no file, so it might not be written inside the download directory.
     Skip,
+    /// The entry's file, or a directory on the way to it, is a symbolic link
+    /// that is already on disk (at this path). Writing through it would write
+    /// wherever it points, so the download fails
+    /// ([`AsvoError::SymlinkInDownloadDir`]).
+    ThroughLink(PathBuf),
     /// Not unpacked: the entry is not a file or a directory (for example a
     /// symbolic link, a hard link or a device). giant-squid unpacks only
     /// files and directories.
@@ -572,27 +577,31 @@ impl EntryTarget {
     fn file_path(&self) -> Option<PathBuf> {
         match self {
             Self::File(path) => Some(path.clone()),
-            Self::Dir(_) | Self::Skip | Self::NotAFile => None,
+            Self::Dir(_) | Self::Skip | Self::ThroughLink(_) | Self::NotAFile => None,
         }
     }
 }
 
-/// Whether a path below `unpack_path` goes through a symbolic link that is
-/// already on disk: `entry_path` itself, or a directory on the way to it.
+/// The first symbolic link that is already on disk on the way to a path below
+/// `unpack_path`: `entry_path` itself, or a directory on the way to it.
 /// Writing through such a link would write wherever the link points, which
-/// can be outside the download directory, so the entry is not written.
-fn goes_through_a_symlink(unpack_path: &Path, entry_path: &Path) -> bool {
+/// can be outside the download directory. `unpack_path` itself may be a
+/// link: only what is below it is checked.
+fn symlink_on_the_way(unpack_path: &Path, entry_path: &Path) -> Option<PathBuf> {
     let mut path = unpack_path.to_path_buf();
-    entry_path.components().any(|component| {
+    entry_path.components().find_map(|component| {
         path.push(component);
-        std::fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_symlink())
+        std::fs::symlink_metadata(&path)
+            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+            .then(|| path.clone())
     })
 }
 
 /// Decide where the tar entry at `entry_path` is unpacked in `unpack_path`.
 /// An entry whose path ends in `/` is a directory. An entry whose path is
-/// absolute, has a `..` part, names no file, or goes through a symbolic link
-/// that is already on disk is not unpacked.
+/// absolute, has a `..` part or names no file is not unpacked
+/// ([`EntryTarget::Skip`]), and one that goes through a symbolic link that is
+/// already on disk is [`EntryTarget::ThroughLink`].
 fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
     let is_dir = entry_path.as_os_str().as_encoded_bytes().ends_with(b"/");
     let mut has_name = false;
@@ -605,8 +614,8 @@ fn entry_target(unpack_path: &Path, entry_path: &Path) -> EntryTarget {
             }
         }
     }
-    if goes_through_a_symlink(unpack_path, entry_path) {
-        EntryTarget::Skip
+    if let Some(link) = symlink_on_the_way(unpack_path, entry_path) {
+        EntryTarget::ThroughLink(link)
     } else if is_dir {
         EntryTarget::Dir(unpack_path.join(entry_path))
     } else if has_name {
@@ -993,8 +1002,10 @@ fn untar_stream_with_sidecar(
                     // The tar parser passes over the entry's data, which the
                     // hash still covers.
                     warn!("{log_prefix} Skipping tar entry {entry_path:?}: it would not be written inside the \
-                         download directory (its path is absolute, has '..', names no file, \
-                         or goes through a symbolic link).");
+                         download directory (its path is absolute, has '..' or names no file).");
+                }
+                EntryTarget::ThroughLink(path) => {
+                    return Err(AsvoError::SymlinkInDownloadDir { path });
                 }
                 EntryTarget::NotAFile => {
                     // As for `Skip`, the hash still covers the entry.
@@ -1968,6 +1979,77 @@ fn same_path(a: &Path, b: &Path) -> bool {
         (Ok(a), Ok(b)) => a == b,
         _ => false,
     }
+}
+
+/// Log a warning for each symbolic link in the Scratch job folder `root` that
+/// points outside the folder. The move keeps a link as it is, so after it the
+/// link points to the same place, which may not be there for the user.
+fn warn_about_links_pointing_outside(root: &Path, log_prefix: &str) {
+    for (link, target) in links_pointing_outside(root) {
+        let link_display = link.display();
+        let target_display = target.display();
+        warn!(
+            "{log_prefix} The link {link_display} points to {target_display}, outside the job folder. \
+             It is moved as a link."
+        );
+    }
+}
+
+/// The symbolic links in the folder `root`, and below it, that point outside
+/// it, with the place that each points to as the link has it. A link is not
+/// followed. A folder that cannot be read is left out: this only warns.
+fn links_pointing_outside(root: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let Ok(root) = fs::canonicalize(root) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    collect_links_pointing_outside(&root, &root, &mut found);
+    found
+}
+
+/// The recursive part of [`links_pointing_outside`]: the links in `dir`, for
+/// the folder `root`.
+fn collect_links_pointing_outside(root: &Path, dir: &Path, found: &mut Vec<(PathBuf, PathBuf)>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            let Ok(target) = fs::read_link(&path) else {
+                continue;
+            };
+            // A relative target is relative to the folder of the link. If
+            // the place is not there, the lexical form tells where it would
+            // be.
+            let joined = dir.join(&target);
+            let resolved = fs::canonicalize(&joined).unwrap_or_else(|_| lexically_normal(&joined));
+            if !resolved.starts_with(root) {
+                found.push((path, target));
+            }
+        } else if file_type.is_dir() {
+            collect_links_pointing_outside(root, &path, found);
+        }
+    }
+}
+
+/// `path` without its `.` parts, and with each `..` part taking away the part
+/// before it. It does not look at the file system.
+fn lexically_normal(path: &Path) -> PathBuf {
+    let mut normal = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normal.pop();
+            }
+            other => normal.push(other),
+        }
+    }
+    normal
 }
 
 /// Move the file or directory `from` to `to`. A rename does it when both are

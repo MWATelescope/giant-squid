@@ -1211,10 +1211,28 @@ Use `--no-resume` to download again from the start. A complete `--keep-tar`
 file that matches the SHA-1 is still not downloaded again.
 
 When it stream untars, `giant-squid` does not write a tar entry whose path is
-absolute, contains `..`, has no name, or goes through a symbolic link that is
-already in the download directory. It shows a warning for each entry that it
-does not write. A `--keep-tar` download refuses to write to a tar file that is
-a symbolic link, and fetches nothing.
+absolute, contains `..` or has no name. It shows a warning for each entry that
+it does not write. It also skips, with a warning, a link, a hard link or a
+special file in the archive: it unpacks only files and directories.
+
+#### Symbolic links in the download directory
+
+`giant-squid` never writes through a symbolic link that is already in the
+download directory:
+
+- The download directory itself (`-d`, `--download-dir`) may be a symbolic
+  link. Only what is below it is checked.
+- If the tar file (`--keep-tar`), or a file or directory of an archive that
+  `giant-squid` unpacks, is a symbolic link, or has one on the way to it
+  (even one that points nowhere), the download fails with
+  `SymlinkInDownloadDir`. For `--keep-tar`, nothing is fetched. For stream
+  untar, the entries before it are already written. Remove the link, or use
+  another download directory.
+- When `giant-squid` moves the files of a Scratch job into the download
+  directory, it moves the links in the job folder as links. It shows a warning
+  for each link that points outside the job folder, because the place that it
+  points to may not be there for you. A link at the place where the job folder
+  would be moved to is an error, as is anything else that is there.
 
 ## Installation
 
