@@ -535,10 +535,10 @@ fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(
 /// command line or in a file.
 const NO_DOWNLOAD_IDS_MESSAGE: &str = "No Job IDs or Obs IDs specified.";
 
-/// What a command says when the list on standard input has no job. There is
-/// nothing to do, and that is not an error: a list can be empty when no job
-/// is in the state that `list --job-states` asked for.
-const EMPTY_LIST_MESSAGE: &str = "The list on standard input has no jobs. Nothing to do.";
+/// What a command says when standard input (a pipe or a file) has no ID.
+/// There is nothing to do, and that is not an error: the output of `list` is
+/// empty when no job is in the state that `list --job-states` asked for.
+const EMPTY_LIST_MESSAGE: &str = "Standard input has no IDs. Nothing to do.";
 
 /// The message of `submit-image` for a Job ID: this command takes Obs IDs
 /// only, and `submit-image-from-job` is the command for a conversion job.
@@ -711,7 +711,7 @@ fn print_job_ids(jobs: &AsvoJobVec) {
 /// is no ID.
 fn read_job_ids(args: &[String]) -> Result<Option<(Vec<AsvoJobId>, bool)>, ParseError> {
     let ids = resolve_ids(args)?;
-    if ids.is_empty_job_list() {
+    if ids.is_empty_input() {
         return Ok(None);
     }
     let from_stdin = ids.from_stdin;
@@ -850,7 +850,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             // The IDs can come from files and from standard input, so they
             // are checked after they are read.
             let ids = resolve_ids(&job_ids_or_obs_ids)?;
-            if ids.is_empty_job_list() {
+            if ids.is_empty_input() {
                 init_logger(verbosity, json);
                 info!("{EMPTY_LIST_MESSAGE}");
                 return Ok(());

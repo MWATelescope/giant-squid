@@ -5,17 +5,23 @@
 //! IDs on standard input: the input of `download`, `cancel` and `wait`.
 //!
 //! A command that takes IDs reads them from standard input when it is given
-//! no ID and standard input is not a terminal, or when one of its arguments
-//! is `-`. This way the output of `giant-squid list --ids` (or `--json`) is
-//! the input of the next command:
+//! no ID and standard input is a pipe or a file (see
+//! [`stdin_is_pipe_or_file`]), or when one of its arguments is `-`. This way
+//! the output of `giant-squid list --ids` (or `--json`) is the input of the
+//! next command:
 //!
 //! ```text
 //! giant-squid list --job-states completed --ids | giant-squid download
 //! ```
 //!
+//! A pipe or a file that has no ID in it is nothing to do, and not an error:
+//! `list --ids` prints nothing for a list with no job. A command that has no
+//! input at all (a terminal, or `/dev/null`) and no ID has been used wrongly,
+//! and it fails.
+//!
 //! The commands do not filter the IDs that they read.
 
-use std::io::{IsTerminal, Read};
+use std::io::Read;
 
 use crate::helpers::{
     parse_job_id_or_obs_id, parse_many_job_ids_or_obs_ids, ObsIdOrJobId, ParseError,
@@ -38,9 +44,6 @@ pub(super) struct TextIds {
     pub job_ids: Vec<AsvoJobId>,
     /// The Obs IDs, in the order of the text.
     pub obs_ids: Vec<ObsId>,
-    /// The text is the JSON of a job list that has no job (`{}`). It is not
-    /// a mistake, unlike an empty text.
-    pub empty_job_list: bool,
 }
 
 /// The key of the status of the one line of JSON that a failed command
@@ -63,8 +66,8 @@ const JSON_MESSAGE_KEY: &str = "message";
 ///   them). As in a file, a number that is a valid Obs ID is an Obs ID, and
 ///   any other number is a Job ID.
 ///
-/// Text with no ID in it (`list --ids` for a list with no job prints no text)
-/// gives no ID, and [`TextIds::empty_job_list`] is false.
+/// Text with no ID in it (`list --ids` for a list with no job prints no text,
+/// and `list --json` prints `{}`) gives no ID.
 ///
 /// # Errors
 ///
@@ -135,7 +138,6 @@ fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
     job_ids.sort_unstable();
     job_ids.dedup();
     Ok(TextIds {
-        empty_job_list: job_ids.is_empty(),
         job_ids,
         obs_ids: Vec::new(),
     })
@@ -150,9 +152,6 @@ pub(super) struct ResolvedIds {
     pub obs_ids: Vec<ObsId>,
     /// Standard input was read.
     pub from_stdin: bool,
-    /// Standard input is the JSON of a job list with no job (`{}`). It is
-    /// not a mistake, unlike no IDs at all.
-    pub empty_job_list: bool,
 }
 
 impl ResolvedIds {
@@ -161,10 +160,12 @@ impl ResolvedIds {
         self.job_ids.is_empty() && self.obs_ids.is_empty()
     }
 
-    /// There is no ID, because the list on standard input has no job. The
-    /// command has nothing to do, and that is not an error.
-    pub(super) fn is_empty_job_list(&self) -> bool {
-        self.is_empty() && self.empty_job_list
+    /// There is no ID, and standard input was read: the pipe or file had no
+    /// ID in it (`list --ids` printed nothing, or `list --json` printed
+    /// `{}`). The command has nothing to do, and that is not an error. With
+    /// no ID and no input to read, the command has been used wrongly.
+    pub(super) fn is_empty_input(&self) -> bool {
+        self.from_stdin && self.is_empty()
     }
 
     /// The Job IDs, for a command that takes no Obs ID.
@@ -185,27 +186,61 @@ impl ResolvedIds {
 
 /// The IDs of a command: those of its arguments (IDs and files of IDs), and
 /// those on standard input when the command is given no argument and
-/// standard input is not a terminal, or when an argument is `-`.
+/// standard input is a pipe or a file, or when an argument is `-`.
 ///
 /// # Errors
 ///
 /// [`ParseError`] if an argument or the text on standard input is not valid.
 pub(super) fn resolve_ids(args: &[String]) -> Result<ResolvedIds, ParseError> {
     let stdin = std::io::stdin();
-    let is_terminal = stdin.is_terminal();
-    resolve_ids_from(args, &mut stdin.lock(), is_terminal)
+    let piped = stdin_is_pipe_or_file(&stdin);
+    resolve_ids_from(args, &mut stdin.lock(), piped)
 }
 
-/// As [`resolve_ids`], with the standard input and what it is given.
+/// Whether standard input is something that holds IDs: a pipe, a file
+/// (`< ids.txt`) or a socket.
+///
+/// A terminal does not: a read would wait for the person to type. A
+/// character device such as `/dev/null` does not either. It is what a
+/// program gets when it has no input (cron, a service, a script with no
+/// pipe), and a command that is given no ID in that case has been used
+/// wrongly, so it must fail, not read nothing and succeed.
+#[cfg(unix)]
+fn stdin_is_pipe_or_file(stdin: &std::io::Stdin) -> bool {
+    use std::os::fd::AsFd;
+    use std::os::unix::fs::FileTypeExt;
+
+    let Ok(fd) = stdin.as_fd().try_clone_to_owned() else {
+        return false;
+    };
+    let Ok(metadata) = std::fs::File::from(fd).metadata() else {
+        return false;
+    };
+    let kind = metadata.file_type();
+    kind.is_fifo() || kind.is_file() || kind.is_socket()
+}
+
+/// As the version for Unix, but only a terminal is told from a pipe or a
+/// file: Windows has no `/dev/null` to tell too.
+#[cfg(not(unix))]
+fn stdin_is_pipe_or_file(stdin: &std::io::Stdin) -> bool {
+    use std::io::IsTerminal;
+
+    !stdin.is_terminal()
+}
+
+/// As [`resolve_ids`], with the standard input, and whether it is a pipe or
+/// a file ([`stdin_is_pipe_or_file`]).
 fn resolve_ids_from(
     args: &[String],
     stdin: &mut impl Read,
-    stdin_is_terminal: bool,
+    stdin_is_piped: bool,
 ) -> Result<ResolvedIds, ParseError> {
     let marked = args.iter().any(|a| a == STDIN_ARG);
-    // With no argument, a terminal is not read: it would wait for the
-    // person to type, and a command with no ID is a mistake.
-    let read_stdin = marked || (args.is_empty() && !stdin_is_terminal);
+    // With no argument, an input that is not a pipe or a file is not read: a
+    // terminal would wait for the person to type, and `/dev/null` holds
+    // nothing. A command with no ID and no input is a mistake.
+    let read_stdin = marked || (args.is_empty() && stdin_is_piped);
 
     let others: Vec<String> = args.iter().filter(|a| *a != STDIN_ARG).cloned().collect();
     let (mut job_ids, mut obs_ids) = parse_many_job_ids_or_obs_ids(&others)?;
@@ -228,6 +263,5 @@ fn resolve_ids_from(
         job_ids,
         obs_ids,
         from_stdin: true,
-        empty_job_list: from_text.empty_job_list,
     })
 }

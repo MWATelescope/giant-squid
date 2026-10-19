@@ -352,14 +352,64 @@ fn an_empty_job_list_with_json_prints_nothing() {
 }
 
 #[test]
-fn standard_input_with_no_text_is_a_mistake() {
-    for (command, message) in COMMANDS {
+fn an_empty_pipe_is_nothing_to_do_and_not_an_error() {
+    for (command, _) in COMMANDS {
         let env = CliEnv::with_session();
         let requests = catch_all(&env);
 
         let mut cmd = env.command();
         cmd.arg(command);
         let result = run_with_stdin(cmd, "");
+
+        assert!(result.success, "{command}: {}", result.combined());
+        assert_eq!(requests.calls(), 0, "{command}");
+        assert!(
+            result.stderr.contains("Nothing to do."),
+            "{command}: {}",
+            result.stderr
+        );
+    }
+}
+
+/// The output of `list --ids` for a list with no job is no text at all. The
+/// next command must end with exit code 0, so that a script (cron, for
+/// example) does not fail when no job is in the state that it asks for.
+#[test]
+fn the_empty_output_of_list_ids_is_nothing_to_do_for_every_command() {
+    let env = CliEnv::with_session();
+    let get_jobs = env.mock_get_jobs(vec![]);
+    let mut list = env.command();
+    list.args(["list", "--job-states", "completed", "--ids"]);
+    let listed = run(list);
+    assert!(listed.success, "{}", listed.combined());
+    assert_eq!(listed.stdout, "");
+
+    for (command, _) in COMMANDS {
+        let mut cmd = env.command();
+        cmd.arg(command);
+        let result = run_with_stdin(cmd, &listed.stdout);
+
+        assert!(result.success, "{command}: {}", result.combined());
+        assert!(
+            result.stderr.contains("Nothing to do."),
+            "{command}: {}",
+            result.stderr
+        );
+    }
+    assert_eq!(get_jobs.calls(), 1, "only `list` asks for the jobs");
+}
+
+/// A command that has no ID and no input has been used wrongly. A terminal
+/// and `/dev/null` (what cron and a service give) are no input.
+#[test]
+fn a_command_with_no_id_and_no_input_is_a_mistake() {
+    for (command, message) in COMMANDS {
+        let env = CliEnv::with_session();
+        let requests = catch_all(&env);
+
+        let mut cmd = env.command();
+        cmd.arg(command).stdin(Stdio::null());
+        let result = run(cmd);
 
         assert!(!result.success, "{command}");
         assert!(
@@ -369,6 +419,52 @@ fn standard_input_with_no_text_is_a_mistake() {
         );
         assert_eq!(requests.calls(), 0, "{command}");
     }
+}
+
+#[test]
+fn a_file_on_standard_input_is_read_like_a_pipe() {
+    let env = CliEnv::with_session();
+    let dir = tempfile::TempDir::new().expect("a download directory");
+    let ids = dir.path().join("ids.txt");
+    std::fs::write(&ids, "12\n5\n").expect("could not write the IDs");
+    let empty = dir.path().join("empty.txt");
+    std::fs::write(&empty, "").expect("could not write the empty file");
+
+    let mut with_ids = download_dry_run(&env, &dir, &[]);
+    with_ids.stdin(std::fs::File::open(&ids).expect("the IDs file"));
+    let mut with_nothing = download_dry_run(&env, &dir, &[]);
+    with_nothing.stdin(std::fs::File::open(&empty).expect("the empty file"));
+    let with_ids = run(with_ids);
+    let with_nothing = run(with_nothing);
+
+    assert!(with_ids.success, "{}", with_ids.combined());
+    assert_eq!(job_ids(&with_ids), [json!(12), json!(5)]);
+    assert!(with_nothing.success, "{}", with_nothing.combined());
+    assert_eq!(with_nothing.stdout, "");
+}
+
+/// Text on standard input is IDs, and nothing else: a word that is not a
+/// number is not the name of a file to read.
+#[test]
+fn a_file_name_on_standard_input_is_refused() {
+    let env = CliEnv::with_session();
+    let dir = tempfile::TempDir::new().expect("a download directory");
+    let ids = dir.path().join("ids.txt");
+    std::fs::write(&ids, "12\n").expect("could not write the IDs");
+
+    let result = run_with_stdin(
+        download_dry_run(&env, &dir, &[]),
+        &format!("{}\n", ids.display()),
+    );
+
+    assert_eq!(result.code, Some(1), "{}", result.combined());
+    assert!(
+        result
+            .stdout
+            .contains("in standard input could not be parsed as an int"),
+        "{}",
+        result.combined()
+    );
 }
 
 #[test]

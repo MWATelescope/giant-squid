@@ -227,7 +227,7 @@ pub enum Args {
 
         /// The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or
         /// Obs IDs are also accepted. With none, and when standard input is
-        /// not a terminal, they are read from standard input: the output of
+        /// a pipe or a file, they are read from standard input: the output of
         /// `giant-squid list --ids` or `giant-squid list --json` (every job
         /// in it is downloaded, so filter the list first, for example with
         /// --job-states), or IDs that spaces or lines separate. `-` reads
@@ -401,7 +401,7 @@ pub enum Args {
         no_colour: bool,
 
         /// The Job IDs to wait for. Files containing Job IDs are also
-        /// accepted. With none, and when standard input is not a terminal,
+        /// accepted. With none, and when standard input is a pipe or a file,
         /// they are read from standard input: the output of
         /// `giant-squid list --ids` or `giant-squid list --json` (every job
         /// in it is waited for), or Job IDs that spaces or lines separate.
@@ -430,7 +430,7 @@ pub enum Args {
         verbosity: u8,
 
         /// The Job IDs to be cancelled. Files containing Job IDs are also
-        /// accepted. With none, and when standard input is not a terminal,
+        /// accepted. With none, and when standard input is a pipe or a file,
         /// they are read from standard input: the output of
         /// `giant-squid list --ids` or `giant-squid list --json`. Every job
         /// in it is cancelled, so filter the list first, for example with

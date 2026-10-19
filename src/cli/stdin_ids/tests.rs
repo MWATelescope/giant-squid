@@ -47,16 +47,14 @@ fn ids_on_lines_are_job_ids_and_obs_ids() {
 
     assert_eq!(ids.job_ids, [job_id(101), job_id(102)]);
     assert_eq!(ids.obs_ids, [obs_id(OBS_ID)]);
-    assert!(!ids.empty_job_list);
 }
 
 #[test]
-fn text_with_no_id_gives_no_id_and_is_not_an_empty_list() {
+fn text_with_no_id_gives_no_id() {
     for text in ["", "  \n\n \t"] {
         let ids = parse_ids_from_text(text).expect("valid");
 
         assert!(ids.job_ids.is_empty() && ids.obs_ids.is_empty(), "{text:?}");
-        assert!(!ids.empty_job_list, "{text:?}");
     }
 }
 
@@ -69,7 +67,6 @@ fn the_json_of_list_has_the_job_ids_as_keys_in_numeric_order() {
 
     assert_eq!(ids.job_ids, [job_id(9), job_id(10), job_id(100)]);
     assert!(ids.obs_ids.is_empty(), "the Obs IDs of a list are not used");
-    assert!(!ids.empty_job_list);
 }
 
 #[test]
@@ -82,11 +79,10 @@ fn the_legacy_json_of_list_is_read_too() {
 }
 
 #[test]
-fn the_json_of_a_list_with_no_job_is_an_empty_list() {
+fn the_json_of_a_list_with_no_job_gives_no_id() {
     let ids = parse_ids_from_text("{}\n").expect("valid");
 
     assert!(ids.job_ids.is_empty() && ids.obs_ids.is_empty());
-    assert!(ids.empty_job_list);
 }
 
 #[test]
@@ -153,11 +149,11 @@ fn a_zero_is_not_a_job_id() {
 
 #[test]
 fn arguments_alone_do_not_read_standard_input() {
-    for is_terminal in [true, false] {
+    for is_piped in [true, false] {
         let ids = resolve_ids_from(
             &args(&["12", &OBS_ID.to_string()]),
             &mut MustNotBeRead,
-            is_terminal,
+            is_piped,
         )
         .expect("valid");
 
@@ -168,24 +164,25 @@ fn arguments_alone_do_not_read_standard_input() {
 }
 
 #[test]
-fn with_no_argument_standard_input_that_is_not_a_terminal_is_read() {
-    let ids = resolve_ids_from(&[], &mut stdin("7\n8\n"), false).expect("valid");
+fn with_no_argument_a_pipe_or_a_file_is_read() {
+    let ids = resolve_ids_from(&[], &mut stdin("7\n8\n"), true).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(7), job_id(8)]);
     assert!(ids.from_stdin);
 }
 
 #[test]
-fn with_no_argument_a_terminal_is_not_read() {
-    let ids = resolve_ids_from(&[], &mut MustNotBeRead, true).expect("valid");
+fn with_no_argument_a_terminal_or_dev_null_is_not_read() {
+    let ids = resolve_ids_from(&[], &mut MustNotBeRead, false).expect("valid");
 
     assert_eq!(ids, ResolvedIds::default());
     assert!(ids.is_empty());
+    assert!(!ids.is_empty_input(), "no input and no ID is a mistake");
 }
 
 #[test]
 fn a_dash_reads_standard_input_also_in_a_terminal() {
-    let ids = resolve_ids_from(&args(&["-"]), &mut stdin("7\n"), true).expect("valid");
+    let ids = resolve_ids_from(&args(&["-"]), &mut stdin("7\n"), false).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(7)]);
     assert!(ids.from_stdin);
@@ -194,26 +191,29 @@ fn a_dash_reads_standard_input_also_in_a_terminal() {
 #[test]
 fn a_dash_adds_standard_input_to_the_other_arguments() {
     let ids =
-        resolve_ids_from(&args(&["5", "-", "6", "-"]), &mut stdin("7\n"), false).expect("valid");
+        resolve_ids_from(&args(&["5", "-", "6", "-"]), &mut stdin("7\n"), true).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(5), job_id(6), job_id(7)]);
 }
 
 #[test]
-fn an_empty_job_list_is_nothing_to_do_but_no_text_is_a_mistake() {
-    let empty_list = resolve_ids_from(&[], &mut stdin("{}"), false).expect("valid");
-    let no_text = resolve_ids_from(&[], &mut stdin(""), false).expect("valid");
+fn a_pipe_with_no_id_is_nothing_to_do() {
+    // `list --json` prints `{}`, and `list --ids` prints nothing, for a list
+    // with no job.
+    for text in ["{}", "", "\n"] {
+        let ids = resolve_ids_from(&[], &mut stdin(text), true).expect("valid");
 
-    assert!(empty_list.is_empty_job_list());
-    assert!(no_text.is_empty() && !no_text.is_empty_job_list());
+        assert!(ids.is_empty_input(), "{text:?}");
+        assert!(ids.from_stdin, "{text:?}");
+    }
 }
 
 #[test]
-fn an_empty_job_list_with_other_ids_is_not_empty() {
-    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("{}"), false).expect("valid");
+fn an_empty_pipe_with_other_ids_is_not_empty() {
+    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("{}"), true).expect("valid");
 
     assert!(!ids.is_empty());
-    assert!(!ids.is_empty_job_list());
+    assert!(!ids.is_empty_input());
 }
 
 #[test]
@@ -227,14 +227,14 @@ fn a_bad_argument_is_an_error_before_standard_input_is_read() {
 fn standard_input_that_is_not_text_is_an_error() {
     let mut bytes: &[u8] = &[0xff, 0xfe, 0xfd];
 
-    let err = resolve_ids_from(&[], &mut bytes, false).expect_err("not UTF-8");
+    let err = resolve_ids_from(&[], &mut bytes, true).expect_err("not UTF-8");
 
     assert!(matches!(err, ParseError::StdinIO { .. }), "{err:?}");
 }
 
 #[test]
 fn job_ids_only_refuses_an_obs_id() {
-    let ids = resolve_ids_from(&[], &mut stdin(&format!("5\n{OBS_ID}\n")), false).expect("valid");
+    let ids = resolve_ids_from(&[], &mut stdin(&format!("5\n{OBS_ID}\n")), true).expect("valid");
 
     let err = ids.into_job_ids().expect_err("an Obs ID");
 

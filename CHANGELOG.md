@@ -175,7 +175,8 @@ before you upgrade scripts.**
   not a terminal, or when an argument is `-`. The input is the output of the new option `list --ids` (one Job ID on
   each line) or of `list --json` (the Job IDs are its keys), or IDs that spaces or lines separate. The commands do not
   filter what they read: filter the list first, for example `giant-squid list --job-states completed --ids |
-  giant-squid download`. A list with no job (`{}`) is not an error, but no text at all is. See the
+  giant-squid download`. An empty list (`list --ids` prints nothing, and `list --json` prints `{}`) is not an error:
+  the command ends with exit code 0. With no ID and no input at all (a terminal or `/dev/null`) it fails. See the
   [README](README.md#use-the-output-of-list-as-the-input-of-other-commands).
 
 ### Fixed in 3.0.0
