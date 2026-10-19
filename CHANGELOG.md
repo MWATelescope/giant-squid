@@ -22,47 +22,39 @@ before you upgrade scripts.**
 * `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
   (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
   reported success.
-* A failed login or token refresh whose reply is an MWA ASVO `ErrorResponse` is still
-  `AsvoApiError::AuthenticationFailed`, now with the server's fields (`error_code`, `detail`, `suggestion`,
-  `field_errors`, `request_id`; also in Python), so the message shows the detail and the suggestion.
-* `--clean-iterations` (and `clean_iterations` in the library and in Python) has only the schema's maximum. The
-  minimum of 0 that giant-squid added is gone: the schema has none, so the API decides.
-* `submit-conv` and `submit-image` share their preprocessing options, and both imaging commands share their WSClean
-  options; each command keeps the schema defaults of its own job type. So `submit-conv --apply-di-cal` also takes
-  `=true` or `=false` (as `submit-image` does), the aliases `--phase-centre-ra`/`--phase-centre-dec`,
-  `--custom-ra`/`--custom-dec` and `--phase-center` work on both commands, and the `submit-image --help` lists the
-  preprocessing options together.
+* An error that the MWA ASVO sends is shown as it sent it: its error code, message, `detail`, `suggestion`, field
+  errors and request ID (also for a failed login). A failed job reports the MWA ASVO's `error_code` as well as its
+  error text.
 * The job table of `list` and `wait` is drawn with `comfy-table` (was `prettytable-rs`, whose `term` dependency is
   unmaintained). The layout and the colours are the same.
-* Library: `ObsId::MIN` and `ObsId::MAX`, the range of a valid Obs ID.
 * A value of `MWA_ASVO_API_TIMEOUT` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number is an error
-  (`AsvoError::InvalidEnvironment`, `INVALID_ENVIRONMENT`), as it already was for `GIANT_SQUID_BUF_SIZE`. Before,
-  giant-squid warned and used the default. Library: `client_config_from_env` returns `AsvoError` (a missing API key is
-  `AsvoError::AsvoApi` with `AsvoApiError::MissingAuthKey`).
+  (`INVALID_ENVIRONMENT` in `--json`), as it already was for `GIANT_SQUID_BUF_SIZE`. In 2.5.1, giant-squid warned
+  about `MWA_ASVO_API_TIMEOUT` and used the default.
 * Every option that takes a named value (`--delivery`, `--centre`, `--pol`, `--job-states`, `--job-types` and so on)
   parses it in the same way: the case, spaces, hyphens and underscores do not matter (for example `--delivery ACACIA`,
   `--job-states WAIT-CAL`). The help (`[possible values: ...]`) and the message for a bad value list the values in the
-  schema's order. `--job-states` and `--job-types` show their values as the other options do. Library:
-  `SchemaEnum::names` and `SchemaEnum::from_name`; `JobType::names` returns `Vec<String>`, as `JobState::names` does.
-* Library: each public item has one path. The client, jobs, errors, downloads, environment helpers, Obs IDs and the
-  ID parsers are at the crate root (for example `mwa_giant_squid::AsvoClient`, `mwa_giant_squid::ObsIdError`). The
-  OpenAPI schema's types, the job arguments and their checks are in `mwa_giant_squid::mwa_asvo::api` (`openapi`,
-  `job_params`, `validate`, `schema_enums`), and the `--json` error codes in `mwa_giant_squid::mwa_asvo::error_response`.
-  The other paths (for example `mwa_giant_squid::mwa_asvo::AsvoClient`, `mwa_giant_squid::JobState`,
-  `mwa_giant_squid::obs_id::ObsId`) are gone.
-* Library: in the request bodies, `image_size` is `ImageSizes`, `nmiter` is `NonZeroU64` and `source_job_id` is
-  `NonZeroU64`, as the schema has them. `validate::image_size`, `validate::nmiter` and `validate::source_job_id` make
-  these from a plain number. The Python arguments are still plain integers, with the same `ValueError`s.
-* Library: `AsvoApiError::BadStatus` has the `status` (the HTTP status code, a `u16`; was `code`, a
-  `reqwest::StatusCode`) and the `message` of `AsvoError::HttpError`. In Python, the attribute is `status` (was
-  `code`).
-* Library: a failed download is reported once, by the caller, and the error has what the log line had. The download
-  no longer also logs it. `AsvoError::HttpError` has the `job_id` of the download (Python: `job_id`; `--json`
-  errors have it too). A file or directory that cannot be created is the new `AsvoError::CannotCreate { path, source }`
-  (Python: kind `CannotCreate`, attribute `file`; JSON code `IO_ERROR`), not `AsvoError::IO`. It is not retried.
-* The summary of failed downloads is "N of M downloads failed", as for submissions and cancel requests.
-* `AsvoError::HashMismatch` names the downloaded file by its path in the download directory, not by its download URL,
-  which is a signed URL.
+  schema's order.
+* Library (breaking): the public API is reorganised, and it reads no environment variable and prints nothing. The
+  `giant-squid` command's variables are read by `client_config_from_env` and `DownloadSettings::from_env`.
+  * The module `asvo` is `mwa_asvo`, and most items are also at the crate root (for example
+    `mwa_giant_squid::AsvoClient`). `Obsid` and `ObsidError` are `ObsId` and `ObsIdError`; `AsvoJobID` is `AsvoJobId`
+    (a `NonZeroU64`). `ObsId::MIN` and `ObsId::MAX` give the range of a valid Obs ID.
+  * `AsvoClient::new` takes an `AsvoClientConfig`. `download_jobid` and `download_obsid` are `download_job` and
+    `download_obs`, and return the `AsvoJob` that was downloaded (they returned `()`); `download_job_from` and
+    `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. The `submit_*`
+    methods are `submit_download_vis_job`, `submit_download_meta_job`, `submit_conversion_job`,
+    `submit_imaging_job`, `submit_voltage_job` and `submit_beamformer_job`; `submit_image_from_job` is new. Their
+    request bodies are made at the schema's defaults by `mwa_asvo::api::job_params`.
+  * The types of the OpenAPI schema replace the library's own: `AsvoJobState` is `JobState` (its `Error` member has
+    no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (a code, with `name()`, `names()` and
+    `parse_name()`), `AsvoFilesArray` and `AsvoJobProduct` are `JobFile` and `JobProduct`, and `Delivery` is the
+    schema's. `AsvoJob` wraps `JobDetailResponse` (through `Deref`); `obs_id()` and `job_id()` are methods.
+  * Errors: a request to the MWA ASVO API fails with `AsvoApiError`, which holds the API's `ErrorResponse`
+    (`AsvoError::AsvoApi`); `AsvoError::Reqwest` is gone. `AsvoError::HttpError` has the `job_id` of the download.
+    A file or directory that cannot be created is `AsvoError::CannotCreate`, not `AsvoError::IO`. A failed download is
+    reported once, by the caller; the download no longer also logs it. `AsvoError::HashMismatch` names the file by its
+    path in the download directory, not by its URL, which is a signed URL. `error_response` on `AsvoApiError`,
+    `AsvoError` and `ParseError` gives an error as the API's `ErrorResponse`.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
   "Obsid"). JSON keys and argument names do not change (`job_id`, `obs_id`).
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
@@ -86,20 +78,13 @@ before you upgrade scripts.**
   names of `--states` and `--types`, which still work. `--days` takes 1 to 30, and without it `list` uses the
   MWA ASVO API's default (30 days, shown in `--help`) instead of fetching your full history. `wait` and
   `download` find jobs the same way.
+  `--days` cannot be used with `--date-from` or `--date-to`.
 * `list --json` and `wait --json` use the API's key names (for example `id`, `obs_id`, `product.files`) and
   have more keys. `--legacy-json` prints the old format, and is deprecated: it will be removed in a later release.
 * The job states are the MWA ASVO API's: `completed` (was `ready`), `waitcal`, `error` and the others, in lower case,
   as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
   lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
   `error_text` (before, it was `{"Error": "<message>"}`). `--legacy-json` still prints the 2.x values.
-* Python: the API reference is generated with pdoc and published to GitHub Pages,
-  <https://mwatelescope.github.io/giant-squid/> (`tools/generate_python_docs.sh`).
-* Library: the module `asvo` is renamed `mwa_asvo`, and its submodule `apiv2` is renamed `api` (for example
-  `mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams`). The items re-exported at the crate root (for
-  example `mwa_giant_squid::AsvoClient`) did not change. The Python module did not change.
-* Library: `AsvoJobState` is replaced by the OpenAPI schema's `JobState` (`JobState::Completed` and so on). Its
-  `Error` member has no message: use `AsvoJob::error_text`. In Python, `AsvoJobState` is replaced by `JobState`, with
-  the same members.
 * `download` and `cancel` have `-j`, `--json`, as the other commands do. `download --json` prints one line of JSON
   for each download (`job_id`, `obs_id`, `status`, `message`); `cancel --json` prints the MWA ASVO's reply to each
   request.
@@ -109,11 +94,6 @@ before you upgrade scripts.**
   the MWA ASVO is printed as it was sent; other errors have a giant-squid code (for example `HTTP_503`,
   `NETWORK_ERROR`, `INVALID_ARGUMENT`). A bad command line with `--json` is one such line too. `-v` cannot be used
   with `--json` or `--legacy-json`. `--dry-run --json` prints each request as JSON.
-* Library: `AsvoApiError::error_response`, `AsvoError::error_response` and `ParseError::error_response` give an error
-  as the API's `ErrorResponse`; the codes of errors that are not the API's are the `error_response::ERROR_CODE_*`
-  constants.
-* Library: `AsvoClient::download_job` and `download_obs` return the `AsvoJob` that was downloaded (were `()`); in
-  Python they return an `AsvoJob` (were `None`).
 * The help and clap's messages are in colour on a terminal (as cargo's are), not only bold. `NO_COLOR` turns the
   colours off.
 * All log lines now go to standard error. Standard output has only the output of the command (the job table,
@@ -121,6 +101,7 @@ before you upgrade scripts.**
 * The submit commands try every Obs ID, and log the error of each failed submission when it happens. If any
   failed, the command ends with `Error: M of N job submissions failed` and exit code 1. In 2.x the command stopped
   at the first failure.
+* `download` ends with `Error: M of N downloads failed` and exit code 1 if any download failed (it exited 0).
 * `cancel` logs `Cancel request for Job ID N: <message>` for each job and `Cancel requests: N sent, M failed.` at
   the end, instead of `Cancelled N jobs.`. The MWA ASVO answers the cancellation of a job that is already
   cancelled with a normal reply, so a reply does not prove that a job was cancelled: read the message. A request
@@ -137,72 +118,21 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The Job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
-* Library: `mwa_asvo::api::job_params` has, for each job type, a function that makes the request body at the
-  schema's defaults (`download_params`, `conversion_params`, `imaging_params`, `image_from_job_params`,
-  `voltage_params`, `beamformer_params`). The caller sets the fields it wants, and the fields are the schema's types.
-  The CLI and the Python module both make their request bodies this way. A field that the schema
-  allows to be `null` is an `Option`, and `None` is sent as `null` (it is not "the API's default"); the default is
-  the `Some` value. `submit_voltage_job` derives `channel_range` from `from_channel` and `to_channel`
-  (`job_params::set_channel_range`).
-* Library: `AsvoClient::get_jobs` and `list_jobs` are one method, `get_jobs`, and `JobQuery` is part of `JobsFilter`.
-  `JobsFilter` has the lists `job_ids`, `obs_ids`, `job_types` and `job_states` as well as `days`, the dates and
-  `sort_by`; `JobsFilter::validate` checks it (Job IDs with Obs IDs, `days`, `days` with a date). `get_jobs` sends a
-  list of exactly one state or one type to the server, and applies every list to the jobs that come back. The
-  single `job_state` and `job_type` of `JobsFilter` are gone: use a list of one. In Python, `get_jobs` and
-  `list_jobs` are unchanged.
-* `--json`: an error line has `"status": "failed"` (the value of a failed reply of the MWA ASVO), and `status` is the
-  first key of every line that reports a result:
-  the reply of the MWA ASVO to a submission or a cancellation (`success` or `failed`, as it sent it), a download
-  (`success`) and an error (`failed`). Before, `status` was the last key of a reply, and an error had none.
-* The jobs of `list` and `get_jobs` are selected by `days` or by the dates (`date_from`, `date_to`), not by both: a
-  filter with `days` and a date is refused before any request (`JobsFilter::validate`, `InvalidParameter`; `ValueError`
-  in Python), and `list --days` conflicts with `--date-from` and `--date-to`. With a date and no `days`, the request
-  has `"days": null` (it had the default `days`, 30, with the dates).
 * Acacia delivers a tar only: `delivery_format` `files` with `delivery` `acacia` is refused before any request by
   every submit method (`validate::check_delivery_format`; `InvalidParameter` for `delivery_format`, `ValueError` in
   Python), and is a usage error in every `submit-*` command (`--delivery-format files` with the default or a given
   `--delivery acacia`, also from `GIANT_SQUID_DELIVERY_FORMAT`). The other deliveries take either format.
 * `giant-squid --version` also prints the version of the MWA ASVO API and of the OpenAPI specification that the
-  library was generated from (`MWA ASVO API 2.3.0`, `OpenAPI 3.1.0`). The library has them as
-  `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`. `tools/generate_openapi.sh` takes them from
-  the server's document into `openapi-schema.json` (`info.version` and `openapi`), and `build.rs` writes them into
-  `openapi.rs`.
+  library was generated from (for example `MWA ASVO API 2.3.4`, `OpenAPI 3.1.0`). The library has them as
+  `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`.
 * CLI: an option for a field that the MWA ASVO allows to be `null` takes the word `null` (`--avg-freq-res null`,
   `--no-rfi=null`, `--allow-resubmit=null`): `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`,
   `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,
   `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The last seven also take `true` and `false`, and
   the bare flag (`--no-rfi`, `-r`) is still `true`. `--help` shows each option's default.
-* Python: each optional argument of the submit methods has the schema's default as its default value (for example
-  `avg_freq_res=40.0`, `delivery=Delivery.Acacia`), shown in the type stub and in `help()`, and `None` is sent as `null` for the
-  arguments that the schema allows to be `null`. `None` was "use the default".
-* Library: every type generated from the OpenAPI schema derives `PartialEq`, and `JobType` also `Copy`, `Eq` and
-  `Hash` (set in `build.rs`, so they survive regeneration). `AsvoJob`, `AsvoJobVec` and `AsvoJobMap` derive
-  `PartialEq` again.
-* Library: `AsvoApiError::MissingAuthKey` has a field `variable`, and its message no longer names `MWA_ASVO_API_KEY`
-  unless the key was read from the environment (`No MWA ASVO API key was given: set the MWA_ASVO_API_KEY environment
-  variable.`). `AsvoError::Reqwest` is removed: a request error of a download is `AsvoError::AsvoApi` with
-  `AsvoApiError::Reqwest`, as for every other request (in Python, `AsvoApiError` of kind `Reqwest`).
-* Library: `JobsFilter::days` is `Option<NonZeroU64>`, the schema's type (was `Option<i64>`); a value above 30 is
-  still refused before any request. `i64::from(ObsId)` gives an Obs ID as the schema's `obs_id`.
-* Library: `AsvoClient::cancel_job` returns the OpenAPI schema's `JobCancelledResponse` (was `JobSubmittedResponse`). In
-  Python it is the new class `JobCancelledResponse`, and the `status` of both reply classes is the new enum `Status`
-  (`Status.Success` or `Status.Failed`; `str()` is the API value), not a `str`.
-* Library: `AsvoJobId` is a `NonZeroU64`, as the schema's `job_id` is (it was a `u64`). The commands refuse a Job ID
-  of 0 (`0 is not a job ID or an obsid`), and Python raises `ValueError` for it.
-* Library: `AsvoJob` wraps the OpenAPI schema's `JobDetailResponse` (through `Deref`, so `job.job_state` and the other
-  fields work as before), with its Obs ID and Job ID checked: `AsvoJob::obs_id()` and `AsvoJob::job_id()` are methods
-  now, and `AsvoJob::try_from(JobDetailResponse)` makes one (`AsvoError::InvalidJob` for a job that cannot be used).
-* Library: `AsvoFilesArray`, `AsvoJobProduct` and `Delivery` are replaced by the OpenAPI schema's `JobFile`,
-  `JobProduct` and `Type` (the delivery of a file). `JobFile::size_bytes` gives the size as a `u64`. `Delivery` is
-  now the schema's `Delivery`, the delivery of a submission. In Python, `AsvoFilesArray` and `AsvoJobProduct` are
-  replaced by `JobFile` and `JobProduct`, and `JobFile.type` is a `Type`.
-* Library: `AsvoJobType` is replaced by the OpenAPI schema's `JobType` (a code), with `name()`, `names()` and
-  `parse_name()`. `AsvoJob::job_type` is `Option<JobType>`. In Python, `AsvoJobType` is replaced by `JobType`, whose
-  members are the codes (`JobType.Visibility == 1`).
 * `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,
   `--output-mode`, `--pol` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
   names that the options accept (it listed `retrieving`, which is not a state).
-* A failed job reports the MWA ASVO's `error_code` as well as its error text.
 * `list` command now shows completed date time.
 * `-v` now shows all API requests and responses. `-vv` shows the full payload of requests and responses.
 * The environment variable `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how long a failing download is retried.
@@ -211,31 +141,14 @@ before you upgrade scripts.**
 
 ### Added in 3.0.0
 
-* Library: `AsvoClient::download_job_from` and `download_obs_from` find the job in a job list that the caller already
-  has, so several downloads need one job list request. In Python, `download_job` and `download_obs` take it as
-  `jobs=`.
 * `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
-* `submit-image` takes six more options, as the MWA ASVO API (schema 1.13.0) does: `--no-digital-gains`, `--no-flag-dc`,
-  `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi`, the same as `submit-conv` has. In
-  Python they are the arguments of `submit_imaging_job`.
-* giant-squid is now a Rust library with a public API that reads no environment variables and prints nothing
-  (see "Using giant-squid as a Rust library" in the README). The library uses `jiff` for times, not `chrono`.
-* The environment variables of the `giant-squid` command are read in the library, in one place, for both commands:
-  the Rust functions `client_config_from_env` and `DownloadSettings::from_env`. The Python module does not read the
-  environment. A
-  `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number of seconds is now a warning (the command ignored it
-  silently), and a negative `GIANT_SQUID_BUF_SIZE` is refused.
-* The names of the job states and job types (`queued`, `visibility` and so on) are listed once, in the library, and
-  the help of `list --job-states` and `--job-types` is built from that list.
-* The checks of the IDs and times that the command makes (`parse_obs_ids_only`, `parse_job_ids_only` and
-  `parse_utc_time`) are in the library, once. The message for a Job ID given to a command that takes Obs IDs
-  now says `job IDs`, not `exceptions`. `--image-size` shows the same message as the library
-  (`Invalid image_size: ...`).
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs the `giant-squid` command, which is the Rust program run inside the module, so it is the same
-  program as the Rust one (the same commands, options, help, messages and exit codes). See
-  [docs/PYTHON.md](docs/PYTHON.md). The wheels are attached to each GitHub release.
-
+  program as the Rust one (the same commands, options, help, messages and exit codes). Each optional argument of the
+  submit methods has the schema's default as its default value (for example `avg_freq_res=40.0`), and `None` is sent
+  as `null` for the arguments that the schema allows to be `null`. The API reference is generated with pdoc and
+  published to GitHub Pages, <https://mwatelescope.github.io/giant-squid/>. See [docs/PYTHON.md](docs/PYTHON.md). The
+  wheels are attached to each GitHub release.
 * `download` without `--keep-tar` (stream untar) now resumes. A retry after a failed attempt (for example, a
   dropped connection) continues from where the attempt stopped. A new run of the same command continues from the
   files that are already in the download directory: complete files are not downloaded again, and a partly
@@ -247,8 +160,7 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
-* `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID), and runs the
-  downloads in a thread pool of its own, so `run_cli` can run more than once in a process.
+* `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID).
 * `download` of a reachable Scratch job moves the files across file systems too (by copy, then removal). Before, a
   move from another file system failed.
 * `download` of Job IDs and Obs IDs together numbers the downloads from 1 to the total (`[3/4]`). Before, the Obs ID
@@ -270,23 +182,11 @@ before you upgrade scripts.**
   the files of an earlier run (see the stream-untar resume entry above). If the check fails, the whole archive is
   downloaded again. With `--keep-tar`, a complete tar file that is already on disk is checked, as in 2.x. The help
   of `--skip-hash` now says when the check is not skipped.
-* Negative numbers are accepted in the `--flag value` form, for example `--custom-dec -26.7`, `--robust -1.5`
-  or `submit-volt --offset -1`. Before, clap read the value as an unknown flag (`unknown argument '-2'`), and
-  only the `--flag=value` form worked. This applies to `submit-conv`, `submit-image`, `submit-image-from-job`
-  and `submit-volt`.
+* Negative numbers are accepted in the `--flag value` form, for example `submit-volt --offset -1`. Before, clap read
+  the value as an unknown flag (`unexpected argument '-1'`), and only the `--flag=value` form worked.
 * `--version` prints `giant-squid 3.0.0`. Before, it printed the name of the crate (`mwa_giant_squid`).
 * `download` fails when its files of IDs hold no Job ID or Obs ID, and when `-d`/`--download-dir` is not a
   directory. Before, the first did nothing and exited 0, and the second was accepted.
-* A stream-untar download creates the directories of a tar entry that the archive does not list before it, as
-  `tar -x` does. A directory entry is a directory also when its path does not end in `/`.
-* "Completed download of ..." is not logged for a file that was already on disk. For a resumed download, or after
-  a retry, the log gives the bytes that the last attempt fetched, and the throughput is of those bytes.
-* `submit-* --wait` does not wait when no job was submitted. When the wait fails after some submissions failed, the
-  error has the summary of the failed submissions too.
-* `submit-conv` and `submit-image` (and `submit_conversion_job`, `submit_imaging_job` in the library and in Python)
-  refuse `centre` `custom` without both `custom_centre_ra` and `custom_centre_dec`, before any request
-  (`InvalidParameter`; `ValueError` in Python). Each submit command checks its request body once, before it logs
-  in, also with `--dry-run`.
 
 ### Security in 3.0.0
 
@@ -306,10 +206,10 @@ before you upgrade scripts.**
 ### Removed in 3.0.0
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).
-* The `expired` job state, and the library error `AsvoError::JobExpired`. The MWA ASVO API has no expired state.
+* The `expired` job state, and the library error `AsvoError::Expired`. The MWA ASVO API has no expired state.
 * The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
   `job_type` `None`.
-* Library: `ObsId::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
+* Library: `Obsid::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
 * Library: the `built_info` module (build-time information from the `built` crate), which nothing used.
 * Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `AsvoJobVec::json` still prints the jobs as an object keyed by
   Job ID.
@@ -332,6 +232,8 @@ before you upgrade scripts.**
 * The unmaintained `backoff` crate (RUSTSEC-2025-0012, and `instant`, RUSTSEC-2024-0384) is replaced by a small
   exponential backoff with jitter in the download code. The waits are as before: from 0.5 s, growing by 1.5 times,
   at most 60 s, each moved by up to half of itself at random.
+
+The entries of the development of 3.0.0, as they were written, are in [docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md](docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md).
 
 ## 2.5.1 - 2026-05-29
 
