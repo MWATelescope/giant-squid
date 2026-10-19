@@ -144,6 +144,12 @@ type, a bad file sending no request, a failed submission not stopping the
 others, `--wait`, and the delivery variables as the defaults of a file. The
 parser has its own tests in `src/mwa_asvo/manta_ray_csv/tests.rs`.
 
+`tests/download_job_dir.rs` runs `download` against small tar files that the
+mock serves: a directory for each job (two jobs of one observation do not
+meet), `--no-job-subdir`, an Obs ID, the dry run, and the numbers `[n/N]` in
+the log (in order for one download at a time, and the first four of the list
+first for four at a time).
+
 `tests/stdin_ids.rs` runs the binary with text on its standard input, for the
 IDs that `download`, `cancel` and `wait` read from a pipe, and for `list --ids`.
 It covers each form of input (IDs on lines, the JSON of `list`, a file as
@@ -209,7 +215,7 @@ uv run pytest
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
 | `test_csv.py` | `submit_csv_file`: the six manta-ray-client files, the replies in file order, the arguments as defaults, `ValueError` for a bad line with nothing sent, `FileNotFoundError`, `CsvSubmitError` with its replies and failures, and the warnings in `logging` |
-| `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, and Ctrl-C |
+| `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, Ctrl-C, and `job_subdirectory` |
 
 Two things are particular to this suite:
 

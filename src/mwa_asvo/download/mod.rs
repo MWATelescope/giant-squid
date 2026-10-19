@@ -97,6 +97,17 @@ pub struct DownloadOptions<'a> {
     /// The directory to download to, and to move the files of a reachable
     /// Scratch job into. It must exist.
     pub download_dir: &'a str,
+    /// Download the files of a job delivered by Acacia into a directory of
+    /// its own, `download_dir/<job_id>`, which is made if it is not there,
+    /// and not into `download_dir` itself. The files of two jobs of the same
+    /// observation do not then meet in one directory, and a resumed download
+    /// looks for the files of its own job only. A symbolic link at the path
+    /// of the directory is refused ([`AsvoError::SymlinkInDownloadDir`]).
+    ///
+    /// A Scratch job is not affected: its files are moved into
+    /// `download_dir` in a folder that the MWA ASVO has named for the job
+    /// (for example `/scratch/mwaops/asvo/12345`).
+    pub job_subdirectory: bool,
     /// Called with each [`DownloadProgress`] event. `None` reports no
     /// progress. The library has no user interface of its own.
     pub progress: Option<&'a dyn Fn(DownloadProgress)>,
@@ -269,6 +280,22 @@ fn download_job(
                     })
                     .filter(|name| !name.is_empty())
                     .ok_or_else(no_url)?;
+
+                // With `job_subdirectory`, the rest of the download is made
+                // as if `download_dir` were the directory of the job.
+                let job_dir;
+                let job_opts;
+                let opts = if opts.job_subdirectory {
+                    job_dir = make_job_directory(Path::new(opts.download_dir), job_id)?;
+                    job_opts = DownloadOptions {
+                        download_dir: &job_dir,
+                        job_subdirectory: false,
+                        ..*opts
+                    };
+                    &job_opts
+                } else {
+                    opts
+                };
                 let out_path = Path::new(opts.download_dir).join(file_name);
 
                 // Shared by the attempts at this file, so that a retry
@@ -645,6 +672,17 @@ fn tar_entry_target(
     } else {
         EntryTarget::NotAFile
     }
+}
+
+/// Make the directory for the files of the job `job_id` in `download_dir`
+/// (`download_dir/<job_id>`), if it is not there, and give its path. A
+/// symbolic link at its path is refused, as one inside a download is.
+fn make_job_directory(download_dir: &Path, job_id: AsvoJobId) -> Result<String, AsvoError> {
+    let relative = PathBuf::from(job_id.to_string());
+    open_download_root(download_dir)?
+        .create_dir_all(&relative)
+        .map_err(below_error)?;
+    Ok(download_dir.join(relative).to_string_lossy().into_owned())
 }
 
 /// Open the download directory, for making the files and directories of a tar

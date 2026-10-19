@@ -600,6 +600,7 @@ class AsvoClient:
         download_dir: builtins.str | os.PathLike | pathlib.Path,
         *,
         keep_tar: builtins.bool = False,
+        job_subdirectory: builtins.bool = False,
         no_resume: builtins.bool = False,
         hash: builtins.bool = True,
         progress: collections.abc.Callable[[DownloadProgress], builtins.object] | None = None,
@@ -623,6 +624,13 @@ class AsvoClient:
             download_dir: The directory for the files. It must exist.
             keep_tar: Keep the tar file as it is. `False` unpacks it into
                 `download_dir` while it downloads.
+            job_subdirectory: Put the files in a directory of their own,
+                `download_dir/<job_id>`, which is made if it is not there,
+                and not in `download_dir` itself. (The `giant-squid` command
+                does this unless you use `--no-job-subdir`.) The files of two
+                jobs of the same observation do not meet in one directory.
+                It has no effect on a Scratch job, which is moved into
+                `download_dir` in a folder of its own.
             no_resume: Download the whole file again, even if part of it is
                 on disk.
             hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
@@ -662,6 +670,7 @@ class AsvoClient:
         download_dir: builtins.str | os.PathLike | pathlib.Path,
         *,
         keep_tar: builtins.bool = False,
+        job_subdirectory: builtins.bool = False,
         no_resume: builtins.bool = False,
         hash: builtins.bool = True,
         progress: collections.abc.Callable[[DownloadProgress], builtins.object] | None = None,

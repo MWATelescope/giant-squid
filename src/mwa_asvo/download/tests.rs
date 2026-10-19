@@ -81,6 +81,7 @@ fn options(dir: &str) -> DownloadOptions<'_> {
         no_resume: false,
         hash: true,
         download_dir: dir,
+        job_subdirectory: false,
         progress: None,
         download_number: 1,
         download_count: 1,
@@ -3230,4 +3231,340 @@ fn an_error_body_that_repeats_the_signed_url_is_redacted() {
     let message = format!("{err} {err:?}");
     assert!(!message.contains(SIGNATURE), "message: {message}");
     assert!(message.contains("Denied for"), "message: {message}");
+}
+
+// ---------------------------------------------------------------------------
+// A directory for each job (`job_subdirectory`)
+// ---------------------------------------------------------------------------
+
+/// The name of the directory that a job of `TEST_JOB_ID` is downloaded into.
+fn job_directory_name() -> String {
+    TEST_JOB_ID.to_string()
+}
+
+/// A completed job `job_id` of the test observation, with one Acacia file.
+fn ready_job_with_id(job_id: i64, url: &str, size: u64, sha1: &str) -> Value {
+    let mut detail = ready_job_serving(url, size, sha1);
+    detail["id"] = json!(job_id);
+    detail
+}
+
+#[test]
+fn with_a_job_subdirectory_the_tar_is_unpacked_into_a_directory_named_for_the_job() {
+    let env = TestEnv::with_session();
+    let contents = "METAFITS CONTENTS";
+    let tar = tar_containing("1065880128.metafits", contents);
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(&tar);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        tar.len() as u64,
+        &sha1_hex(tar.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the download should succeed");
+
+    let job_dir = dir.path().join(job_directory_name());
+    let unpacked = std::fs::read_to_string(job_dir.join("1065880128.metafits"))
+        .expect("the archive contents should be in the directory of the job");
+    assert_eq!(unpacked, contents);
+    assert!(
+        !dir.path().join("1065880128.metafits").exists(),
+        "nothing may be unpacked into the download directory itself"
+    );
+    let names: Vec<_> = std::fs::read_dir(dir.path())
+        .expect("the download directory can be read")
+        .map(|e| e.expect("an entry").file_name())
+        .collect();
+    assert_eq!(names, [std::ffi::OsString::from(job_directory_name())]);
+}
+
+#[test]
+fn with_a_job_subdirectory_a_kept_tar_is_in_the_directory_of_the_job() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid integration test payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        keep_tar: true,
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the download should succeed");
+
+    let written = std::fs::read(dir.path().join(job_directory_name()).join(DOWNLOAD_FILE))
+        .expect("the tar should be in the directory of the job");
+    assert_eq!(written, payload.as_bytes());
+    assert!(!dir.path().join(DOWNLOAD_FILE).exists());
+}
+
+#[test]
+fn an_obs_id_download_uses_the_directory_of_the_job_that_it_finds() {
+    let env = TestEnv::with_session();
+    let payload = "giant-squid integration test payload";
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(payload);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        payload.len() as u64,
+        &sha1_hex(payload.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        keep_tar: true,
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_obs(obs_id, &opts)
+        .expect("the download should succeed");
+
+    assert!(dir
+        .path()
+        .join(job_directory_name())
+        .join(DOWNLOAD_FILE)
+        .is_file());
+}
+
+/// Two jobs of one observation make files of the same name. In one directory
+/// the second download would meet the files of the first.
+#[test]
+fn the_files_of_two_jobs_of_one_observation_do_not_meet() {
+    let env = TestEnv::with_session();
+    let first_tar = tar_containing("1065880128.metafits", "FIRST JOB: A LONGER CONTENTS");
+    let second_tar = tar_containing("1065880128.metafits", "SECOND JOB");
+    let first_path = "/downloads/1065880128_12345_meta.tar";
+    let second_path = "/downloads/1065880128_12346_meta.tar";
+    env.server.mock(|when, then| {
+        when.method(GET).path(first_path);
+        then.status(200).body(&first_tar);
+    });
+    env.server.mock(|when, then| {
+        when.method(GET).path(second_path);
+        then.status(200).body(&second_tar);
+    });
+    env.mock_get_jobs(vec![
+        ready_job_with_id(
+            12345,
+            &env.server.url(first_path),
+            first_tar.len() as u64,
+            &sha1_hex(first_tar.as_bytes()),
+        ),
+        ready_job_with_id(
+            12346,
+            &env.server.url(second_path),
+            second_tar.len() as u64,
+            &sha1_hex(second_tar.as_bytes()),
+        ),
+    ]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    for job_id in [12345, 12346] {
+        let job_id = crate::AsvoJobId::new(job_id).expect("a Job ID");
+        client
+            .download_job(job_id, &opts)
+            .expect("the download should succeed");
+    }
+
+    let read = |job: &str| {
+        std::fs::read_to_string(dir.path().join(job).join("1065880128.metafits"))
+            .expect("each job has its own file")
+    };
+    assert_eq!(read("12345"), "FIRST JOB: A LONGER CONTENTS");
+    assert_eq!(read("12346"), "SECOND JOB");
+}
+
+#[test]
+fn without_a_job_subdirectory_no_directory_is_made_for_the_job() {
+    let env = TestEnv::with_session();
+    let tar = tar_containing("1065880128.metafits", "METAFITS CONTENTS");
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(&tar);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        tar.len() as u64,
+        &sha1_hex(tar.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
+        .expect("the download should succeed");
+
+    assert!(dir.path().join("1065880128.metafits").is_file());
+    assert!(!dir.path().join(job_directory_name()).exists());
+}
+
+#[test]
+fn a_job_subdirectory_that_is_already_there_is_used_and_its_files_are_kept() {
+    let env = TestEnv::with_session();
+    let tar = tar_containing("1065880128.metafits", "METAFITS CONTENTS");
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(&tar);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        tar.len() as u64,
+        &sha1_hex(tar.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let job_dir = dir.path().join(job_directory_name());
+    std::fs::create_dir(&job_dir).expect("could not make the job directory");
+    std::fs::write(job_dir.join("notes.txt"), "mine").expect("could not write a file");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the download should succeed");
+
+    assert_eq!(
+        std::fs::read_to_string(job_dir.join("notes.txt")).unwrap(),
+        "mine"
+    );
+    assert!(job_dir.join("1065880128.metafits").is_file());
+}
+
+#[test]
+fn a_job_subdirectory_that_is_a_symlink_is_refused() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        7,
+        &sha1_hex(b"payload"),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let elsewhere = TempDir::new().expect("could not create a second directory");
+    std::os::unix::fs::symlink(elsewhere.path(), dir.path().join(job_directory_name()))
+        .expect("could not make the link");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        keep_tar: true,
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("the link should be refused");
+
+    assert!(
+        matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+        "{err:?}"
+    );
+    assert_eq!(file.calls(), 0, "nothing should be fetched");
+    assert_eq!(
+        std::fs::read_dir(elsewhere.path()).unwrap().count(),
+        0,
+        "nothing may be written where the link points"
+    );
+}
+
+#[test]
+fn a_job_subdirectory_needs_the_download_directory_to_exist() {
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        7,
+        &sha1_hex(b"payload"),
+    )]);
+    let dir = TempDir::new().expect("could not create a temporary directory");
+    let missing = dir.path().join("no_such_directory");
+    let missing_path = missing.display().to_string();
+    let opts = DownloadOptions {
+        job_subdirectory: true,
+        ..options(&missing_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect_err("the download directory is missing");
+
+    assert!(
+        err.to_string()
+            .contains("cannot open the download directory"),
+        "{err}"
+    );
+    assert!(!missing.exists(), "the download directory is not made");
+}
+
+/// A Scratch job is moved into the download directory in the folder that the
+/// MWA ASVO named for the job, so it is not put in a second directory.
+#[test]
+fn a_scratch_job_is_not_put_in_a_job_subdirectory() {
+    let scratch = TempDir::new().expect("could not create a scratch directory");
+    let job_dir = scratch.path().join("12345");
+    std::fs::create_dir(&job_dir).expect("could not create the job directory");
+    std::fs::write(job_dir.join("a.fits"), "data").expect("could not write a file");
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "scratch",
+        "path": job_dir.display().to_string(),
+        "size": 4
+    }))]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        job_subdirectory: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the move should succeed");
+
+    assert!(dir.path().join("12345").join("a.fits").is_file());
+    assert!(!dir.path().join("12345").join("12345").exists());
 }

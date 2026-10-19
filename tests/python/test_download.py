@@ -474,3 +474,59 @@ def test_the_progress_events_have_readable_reprs() -> None:
     """repr() shows the variant and its fields."""
     assert repr(gs.DownloadProgress.Advanced(bytes=5)) == "DownloadProgress.Advanced(bytes=5)"
     assert repr(gs.DownloadProgress.Finished()) == "DownloadProgress.Finished()"
+
+
+def test_a_job_subdirectory_puts_the_files_in_a_directory_named_for_the_job(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """With job_subdirectory, the files go in download_dir/<job_id>, which is made."""
+    client.download_job(JOB_ID, tmp_path, job_subdirectory=True)
+
+    assert (tmp_path / str(JOB_ID) / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
+    assert [entry.name for entry in tmp_path.iterdir()] == [str(JOB_ID)]
+
+
+def test_a_job_subdirectory_holds_a_kept_tar_too(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """The tar that keep_tar keeps is in the directory of the job."""
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, job_subdirectory=True)
+
+    assert (tmp_path / str(JOB_ID) / FILE_NAME).read_bytes() == served_tar
+    assert not (tmp_path / FILE_NAME).exists()
+
+
+def test_without_a_job_subdirectory_the_files_stay_in_the_download_directory(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """The default is the layout of the other versions: no directory for the job."""
+    client.download_job(JOB_ID, tmp_path)
+
+    assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
+    assert not (tmp_path / str(JOB_ID)).exists()
+
+
+def test_download_obs_uses_the_directory_of_the_job_that_it_finds(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """An Obs ID is downloaded into the directory of its one ready job."""
+    client.download_obs(int(TEST_OBS_ID), tmp_path, job_subdirectory=True)
+
+    assert (tmp_path / str(JOB_ID) / MEMBER_NAME).is_file()
+
+
+def test_a_job_subdirectory_that_is_a_symlink_is_refused(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """A link where the directory of the job should be is not followed."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    download_dir = tmp_path / "downloads"
+    download_dir.mkdir()
+    (download_dir / str(JOB_ID)).symlink_to(elsewhere)
+
+    with pytest.raises(gs.AsvoError) as info:
+        client.download_job(JOB_ID, download_dir, job_subdirectory=True)
+
+    assert info.value.kind == "SymlinkInDownloadDir"
+    assert list(elsewhere.iterdir()) == []

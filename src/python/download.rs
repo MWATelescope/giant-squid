@@ -57,6 +57,7 @@ const CALLBACK_INTERVAL: Duration = Duration::from_millis(100);
 /// library [`DownloadOptions`].
 pub(super) struct PyDownloadArgs {
     pub download_dir: PathBuf,
+    pub job_subdirectory: bool,
     pub keep_tar: bool,
     pub no_resume: bool,
     pub hash: bool,
@@ -250,6 +251,7 @@ where
             no_resume: args.no_resume,
             hash: args.hash,
             download_dir: &download_dir,
+            job_subdirectory: args.job_subdirectory,
             progress: Some(&progress),
             download_number: args.download_number,
             download_count: args.download_count,

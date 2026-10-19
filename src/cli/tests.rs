@@ -2390,3 +2390,134 @@ fn submit_csv_refuses_verbosity_with_json() {
 
     assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
 }
+
+// ---------------------------------------------------------------------------
+// download: the order of the downloads, and the directory of each job
+// ---------------------------------------------------------------------------
+
+/// A pool of `threads` threads, as the download command makes it.
+fn pool_of(threads: usize) -> rayon::ThreadPool {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("could not make the pool")
+}
+
+#[test]
+fn run_in_order_gives_the_results_in_the_order_of_the_items() {
+    use super::run::run_in_order;
+
+    let items: Vec<usize> = (0..20).collect();
+
+    let results = run_in_order(
+        &pool_of(4),
+        &items,
+        std::time::Duration::ZERO,
+        |index, item| {
+            // The later items finish first.
+            std::thread::sleep(std::time::Duration::from_millis(((20 - index) % 5) as u64));
+            (index, item * 10)
+        },
+    );
+
+    let expected: Vec<(usize, usize)> = (0..20).map(|i| (i, i * 10)).collect();
+    assert_eq!(results, expected);
+}
+
+#[test]
+fn run_in_order_runs_each_item_once() {
+    use super::run::run_in_order;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let runs = AtomicUsize::new(0);
+    let items = vec![(); 50];
+
+    let results = run_in_order(&pool_of(4), &items, std::time::Duration::ZERO, |_, ()| {
+        runs.fetch_add(1, Ordering::SeqCst);
+    });
+
+    assert_eq!(runs.load(Ordering::SeqCst), 50);
+    assert_eq!(results.len(), 50);
+}
+
+/// The first items that start are the first items of the list. With
+/// `par_iter`, four threads started at the items 0, 5, 10 and 15 of 20.
+#[test]
+fn run_in_order_starts_the_first_items_of_the_list_first() {
+    use super::run::run_in_order;
+    use std::sync::Mutex;
+
+    let started = Mutex::new(Vec::new());
+    let items = vec![(); 20];
+
+    run_in_order(
+        &pool_of(4),
+        &items,
+        std::time::Duration::ZERO,
+        |index, ()| {
+            started.lock().expect("the lock").push(index);
+            // Long enough that the first four items are all running before the
+            // fifth is taken.
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        },
+    );
+
+    let started = started.into_inner().expect("the lock");
+    let mut first_four = started[..4].to_vec();
+    first_four.sort_unstable();
+    assert_eq!(first_four, [0, 1, 2, 3], "started: {started:?}");
+}
+
+#[test]
+fn run_in_order_with_one_thread_starts_the_items_in_their_order() {
+    use super::run::run_in_order;
+    use std::sync::Mutex;
+
+    let started = Mutex::new(Vec::new());
+    let items = vec![(); 12];
+
+    run_in_order(
+        &pool_of(1),
+        &items,
+        std::time::Duration::ZERO,
+        |index, ()| {
+            started.lock().expect("the lock").push(index);
+        },
+    );
+
+    assert_eq!(
+        started.into_inner().expect("the lock"),
+        (0..12).collect::<Vec<usize>>()
+    );
+}
+
+#[test]
+fn run_in_order_never_runs_more_items_at_once_than_the_pool_has_threads() {
+    use super::run::run_in_order;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let running = AtomicUsize::new(0);
+    let most = AtomicUsize::new(0);
+    let items = vec![(); 16];
+
+    run_in_order(&pool_of(3), &items, std::time::Duration::ZERO, |_, ()| {
+        let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+        most.fetch_max(now, Ordering::SeqCst);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        running.fetch_sub(1, Ordering::SeqCst);
+    });
+
+    assert!(most.load(Ordering::SeqCst) <= 3, "at most 3 at once");
+}
+
+#[test]
+fn download_puts_each_job_in_a_directory_unless_it_is_told_not_to() {
+    match parse(&["giant-squid", "download", "12345"]) {
+        Args::Download { no_job_subdir, .. } => assert!(!no_job_subdir),
+        other => panic!("expected Download, got {other:?}"),
+    }
+    match parse(&["giant-squid", "download", "--no-job-subdir", "12345"]) {
+        Args::Download { no_job_subdir, .. } => assert!(no_job_subdir),
+        other => panic!("expected Download, got {other:?}"),
+    }
+}

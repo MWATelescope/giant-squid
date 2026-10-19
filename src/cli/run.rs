@@ -13,6 +13,7 @@
 use std::collections::BTreeMap;
 use std::num::NonZeroU64;
 use std::path::Path;
+use std::sync::{Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
@@ -21,8 +22,6 @@ use clap::Parser;
 use jiff::Timestamp;
 use log::{debug, error, info, warn};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
-
-use rayon::prelude::*;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
@@ -90,9 +89,10 @@ fn connect() -> anyhow::Result<AsvoClient> {
     Ok(AsvoClient::new(client_config_from_env()?)?)
 }
 
-/// The wait before each download starts, so that the downloads start (and
-/// log) in their order: 1/2 before 2/2. It is for the display only.
-const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(100);
+/// The time between the starts of two downloads, so that the downloads start
+/// (and log) in their order: 1/20 before 2/20. It is for the display only.
+/// A download that starts when another ends waits for it too.
+const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(50);
 
 /// What one download is for: a Job ID, or an Obs ID.
 #[derive(Clone, Copy)]
@@ -134,7 +134,6 @@ impl DownloadTarget {
         jobs: &AsvoJobVec,
         opts: &DownloadOptions,
     ) -> anyhow::Result<AsvoJob> {
-        thread::sleep(DOWNLOAD_START_DELAY);
         Ok(match self {
             Self::Job(job_id) => client.download_job_from(jobs, job_id, opts)?,
             Self::Obs(obs_id) => client.download_obs_from(jobs, obs_id, opts)?,
@@ -155,13 +154,14 @@ pub(super) struct DownloadReport {
 }
 
 impl DownloadReport {
-    /// The report of the download of `job`.
-    fn new(job: &AsvoJob, download_dir: &str) -> Self {
+    /// The report of the download of `job`, to `download_dir` (with
+    /// `job_subdir`, in the directory for the job below it).
+    fn new(job: &AsvoJob, download_dir: &str, job_subdir: bool) -> Self {
         Self {
             status: Status::Success,
             job_id: job.job_id(),
             obs_id: job.obs_id(),
-            message: downloaded_message(job, download_dir),
+            message: downloaded_message(job, download_dir, job_subdir),
         }
     }
 }
@@ -173,9 +173,10 @@ fn print_download_line(
     target: DownloadTarget,
     result: &anyhow::Result<AsvoJob>,
     download_dir: &str,
+    job_subdir: bool,
 ) -> Result<(), anyhow::Error> {
     match result {
-        Ok(job) => print_json_line(&DownloadReport::new(job, download_dir), true),
+        Ok(job) => print_json_line(&DownloadReport::new(job, download_dir, job_subdir), true),
         Err(e) => {
             let line = match target {
                 DownloadTarget::Job(job_id) => JsonError::new(e).with_job_id(job_id),
@@ -197,6 +198,8 @@ struct DryRunDownload {
     keep_tar: bool,
     no_resume: bool,
     skip_hash: bool,
+    /// Each job goes into a directory of its own, named for the Job ID.
+    job_subdir: bool,
 }
 
 /// What `submit-* --dry-run --json` prints for each Obs ID: the endpoint and
@@ -219,19 +222,78 @@ struct DryRunCancel {
 /// What a successful download did, for its JSON report: the size and the
 /// directory of an Acacia download, or the Scratch path that was moved to
 /// the download directory.
-fn downloaded_message(job: &AsvoJob, download_dir: &str) -> String {
+fn downloaded_message(job: &AsvoJob, download_dir: &str, job_subdir: bool) -> String {
     match job_files(job).first() {
         // A Scratch job that this host can reach is moved to the download
         // directory. (One that it cannot reach, or a DUG job, is an error.)
+        // It is not put in a directory for the job: it is a folder of the
+        // job already.
         Some(file) if file.type_ == FileType::Scratch => {
             let path = file.path.as_deref().unwrap_or_default();
             format!("Moved {path} to {download_dir}")
         }
         _ => {
             let size = job_size_text(job);
-            format!("Downloaded {size} to {download_dir}")
+            let dir = if job_subdir {
+                Path::new(download_dir)
+                    .join(job.job_id().to_string())
+                    .display()
+                    .to_string()
+            } else {
+                download_dir.to_string()
+            };
+            format!("Downloaded {size} to {dir}")
         }
     }
+}
+
+/// Run `work` for each of `items` on the threads of `pool`, and give the
+/// results in the order of the items.
+///
+/// The items start in their order: a thread that is free takes the next item
+/// that has not started, and the starts are `start_delay` apart (for the
+/// display: the first log line of an item comes before the start of the
+/// next). `par_iter` would give each thread a block of the items, and the
+/// second thread would start at the middle of the list: the log of the
+/// downloads would say 1/20, 11/20, 6/20 and so on. `work` is given the
+/// index of the item, from 0.
+pub(super) fn run_in_order<T, R>(
+    pool: &rayon::ThreadPool,
+    items: &[T],
+    start_delay: Duration,
+    work: impl Fn(usize, &T) -> R + Sync,
+) -> Vec<R>
+where
+    T: Sync,
+    R: Send,
+{
+    // The index of the next item to start. It is held for the wait, so that
+    // another thread cannot start the next item before this one has.
+    let next = Mutex::new(0_usize);
+    let done: Mutex<Vec<(usize, R)>> = Mutex::new(Vec::with_capacity(items.len()));
+    pool.scope(|scope| {
+        for _ in 0..pool.current_num_threads() {
+            scope.spawn(|_| loop {
+                let index = {
+                    let mut next = next.lock().unwrap_or_else(PoisonError::into_inner);
+                    if *next >= items.len() {
+                        return;
+                    }
+                    let index = *next;
+                    *next += 1;
+                    thread::sleep(start_delay);
+                    index
+                };
+                let result = work(index, &items[index]);
+                done.lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push((index, result));
+            });
+        }
+    });
+    let mut done = done.into_inner().unwrap_or_else(PoisonError::into_inner);
+    done.sort_by_key(|(index, _)| *index);
+    done.into_iter().map(|(_, result)| result).collect()
 }
 
 /// Submit one job per Obs ID, carrying on past failures.
@@ -844,9 +906,11 @@ fn run(args: Args) -> anyhow::Result<()> {
             verbosity,
             job_ids_or_obs_ids,
             download_dir,
+            no_job_subdir,
             json,
             ..
         } => {
+            let job_subdir = !no_job_subdir;
             // The IDs can come from files and from standard input, so they
             // are checked after they are read.
             let ids = resolve_ids(&job_ids_or_obs_ids)?;
@@ -911,6 +975,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                                 keep_tar,
                                 no_resume,
                                 skip_hash,
+                                job_subdir,
                             },
                             true,
                         )?;
@@ -930,30 +995,26 @@ fn run(args: Args) -> anyhow::Result<()> {
                     .build()?;
 
                 let targets = DownloadTarget::all(&job_ids, &obs_ids);
-                let results: Vec<anyhow::Result<AsvoJob>> = pool.install(|| {
-                    targets
-                        .par_iter()
-                        .enumerate()
-                        .map(|(c, target)| {
-                            let pb = create_progress_bar(&mpb);
-                            let progress = |event| update_progress_bar(&pb, event);
-                            let opts = DownloadOptions {
-                                keep_tar,
-                                no_resume,
-                                hash,
-                                download_dir: &download_dir,
-                                progress: Some(&progress),
-                                download_number: c + 1,
-                                download_count: t,
-                                buffer_size,
-                                retry_duration,
-                                // Ctrl-C ends the CLI process.
-                                should_stop: None,
-                            };
-                            target.download(&client, &jobs, &opts)
-                        })
-                        .collect()
-                });
+                let results: Vec<anyhow::Result<AsvoJob>> =
+                    run_in_order(&pool, &targets, DOWNLOAD_START_DELAY, |index, target| {
+                        let pb = create_progress_bar(&mpb);
+                        let progress = |event| update_progress_bar(&pb, event);
+                        let opts = DownloadOptions {
+                            keep_tar,
+                            no_resume,
+                            hash,
+                            download_dir: &download_dir,
+                            job_subdirectory: job_subdir,
+                            progress: Some(&progress),
+                            download_number: index + 1,
+                            download_count: t,
+                            buffer_size,
+                            retry_duration,
+                            // Ctrl-C ends the CLI process.
+                            should_stop: None,
+                        };
+                        target.download(&client, &jobs, &opts)
+                    });
 
                 // Every download runs to completion before anything is
                 // reported, so one failure doesn't hide the rest. Report
@@ -970,7 +1031,7 @@ fn run(args: Args) -> anyhow::Result<()> {
 
                 if json {
                     for (target, result) in targets.iter().zip(&results) {
-                        print_download_line(*target, result, &download_dir)?;
+                        print_download_line(*target, result, &download_dir, job_subdir)?;
                     }
                 }
 

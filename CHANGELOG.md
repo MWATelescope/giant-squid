@@ -14,6 +14,15 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* `download` puts the files of each job into a directory of its own below the download directory (`-d`,
+  `--download-dir`), named for the Job ID: `-d /data` gives `/data/12345`. The files of two jobs of the same
+  observation no longer meet in one directory. Use `--no-job-subdir` for the layout of 2.x, with the files in the
+  download directory itself. A download resumes from the directory of its job, so a partial download that an earlier
+  version left in the download directory is not found there: use `--no-job-subdir` to carry on with it. A Scratch job
+  is not affected (it is moved into the download directory in its own folder, which the MWA ASVO has named for the
+  job). The library has the option `DownloadOptions::job_subdirectory`, and the Python module has the argument
+  `job_subdirectory` of `download_job` and `download_obs`. Both are off unless you set them. See the
+  [README](README.md#a-directory-for-each-job).
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
   `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
   anything: if something is already at the target, the download fails (`AsvoError::DestinationExists`,
@@ -181,6 +190,8 @@ before you upgrade scripts.**
 
 ### Fixed in 3.0.0
 
+* `download` starts several downloads at once in the order of the IDs, so the numbers in the log (`[1/20]`, `[2/20]`,
+  ...) are in order. Before, each thread took a block of the list, and the log said `[1/20]`, `[11/20]`, `[6/20]`.
 * `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID).
 * `download` of a reachable Scratch job moves the files across file systems too (by copy, then removal). Before, a
   move from another file system failed.

@@ -1015,6 +1015,13 @@ impl PyAsvoClient {
     ///     download_dir: The directory for the files. It must exist.
     ///     keep_tar: Keep the tar file as it is. `False` unpacks it into
     ///         `download_dir` while it downloads.
+    ///     job_subdirectory: Put the files in a directory of their own,
+    ///         `download_dir/<job_id>`, which is made if it is not there,
+    ///         and not in `download_dir` itself. (The `giant-squid` command
+    ///         does this unless you use `--no-job-subdir`.) The files of two
+    ///         jobs of the same observation do not meet in one directory.
+    ///         It has no effect on a Scratch job, which is moved into
+    ///         `download_dir` in a folder of its own.
     ///     no_resume: Download the whole file again, even if part of it is
     ///         on disk.
     ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
@@ -1052,6 +1059,7 @@ impl PyAsvoClient {
         download_dir,
         *,
         keep_tar=false,
+        job_subdirectory=false,
         no_resume=false,
         hash=true,
         progress=None,
@@ -1068,6 +1076,7 @@ impl PyAsvoClient {
         job_id: JobId,
         download_dir: PathBuf,
         keep_tar: bool,
+        job_subdirectory: bool,
         no_resume: bool,
         hash: bool,
         progress: Option<ProgressCallback>,
@@ -1079,6 +1088,7 @@ impl PyAsvoClient {
     ) -> PyResult<PyAsvoJob> {
         let args = PyDownloadArgs {
             download_dir,
+            job_subdirectory,
             keep_tar,
             no_resume,
             hash,
@@ -1121,6 +1131,7 @@ impl PyAsvoClient {
         download_dir,
         *,
         keep_tar=false,
+        job_subdirectory=false,
         no_resume=false,
         hash=true,
         progress=None,
@@ -1137,6 +1148,7 @@ impl PyAsvoClient {
         obs_id: u64,
         download_dir: PathBuf,
         keep_tar: bool,
+        job_subdirectory: bool,
         no_resume: bool,
         hash: bool,
         progress: Option<ProgressCallback>,
@@ -1149,6 +1161,7 @@ impl PyAsvoClient {
         let obs_id = job_obs_id(obs_id)?;
         let args = PyDownloadArgs {
             download_dir,
+            job_subdirectory,
             keep_tar,
             no_resume,
             hash,

@@ -1141,7 +1141,9 @@ Arguments:
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
-          Which dir should downloads be written to [default: .]
+          Which dir should downloads be written to. Each job goes into a directory of its own below it, named for the Job ID (for example `-d /data` gives `/data/12345`), unless you use --no-job-subdir [default: .]
+      --no-job-subdir
+          Download the files of every job into the download directory itself, as giant-squid did before 3.0.0, and not into a directory for each job. The files of two jobs of the same observation then share a directory. This has no effect on a Scratch job, which is moved into the download directory in its own folder
   -k, --keep-tar
           Acacia delivery jobs only: Don't untar the contents of your download [alias: --keep-zip]
   -r, --no-resume
@@ -1184,7 +1186,7 @@ in the order of the Job IDs and then the Obs IDs, failures too:
 
 ```bash
 $ giant-squid download --json 12345 1090008640
-{"job_id":12345,"obs_id":1065880128,"status":"success","message":"Downloaded 1.23 GiB to ."}
+{"job_id":12345,"obs_id":1065880128,"status":"success","message":"Downloaded 1.23 GiB to ./12345"}
 {"error_code":"JOB_NOT_READY","message":"No job for Obs ID 1090008640 is ready for download.","obs_id":1090008640}
 ```
 
@@ -1199,6 +1201,31 @@ To download Obs ID 1065880128 to your `/tmp` directory:
 ```bash
 giant-squid download --download-dir /tmp 1065880128
 ```
+
+#### A directory for each job
+
+`download` puts the files of each job into a directory of its own below the download directory, named for the
+Job ID. The command above writes the files of the one job for Obs ID 1065880128 to `/tmp/12345`, if that is its Job
+ID, and `giant-squid download --download-dir /data 12345 12346` writes to `/data/12345` and `/data/12346`. The
+directory is made if it is not there. This way the files of two jobs of the same observation (for example, two
+conversion jobs with different options) do not meet in one directory, where the second download would find the
+files of the first.
+
+To download into the download directory itself, as giant-squid before 3.0.0 did, use `--no-job-subdir`:
+
+```bash
+giant-squid download --no-job-subdir --download-dir /tmp 12345
+```
+
+- A Scratch job is not put in a second directory. When this host can reach it, `download` moves it into the
+  download directory in the folder that the MWA ASVO made for it (`/scratch/mwaops/asvo/12345` is moved to
+  `<download directory>/12345`).
+- A download resumes from the files that are in the directory of its job. A download that an earlier version of
+  giant-squid, or `--no-job-subdir`, left in the download directory itself is not found in `<download directory>/12345`:
+  to carry on with it, use `--no-job-subdir` again.
+- A symbolic link where the directory of the job should be is refused, as a link inside a download is.
+- When you download several jobs at once (`-c`, `--concurrent-downloads`), they start in the order that you gave,
+  and the log numbers them in that order (`[1/20]`, `[2/20]`, ...).
 
 By default, `giant-squid` will perform stream untaring. Disable this with `--keep-tar`.
 
@@ -1250,7 +1277,8 @@ retries (default 900 s).
 
 If you stop `giant-squid`, or the retries stop, run the same `download` command
 again with the same `--download-dir`. The new run continues from the files that
-are already on disk:
+are already on disk, in the directory of the job (see
+[A directory for each job](#a-directory-for-each-job)):
 
 - With `--keep-tar`, `giant-squid` continues a partial tar file from its end.
   If the tar file is complete and matches the MWA ASVO SHA-1, `giant-squid`
@@ -1258,7 +1286,7 @@ are already on disk:
 - Without `--keep-tar` (stream untar), `giant-squid` does not download again
   the files of the archive that are already complete, and continues a file
   that is partly written. While it downloads, it keeps a resume file,
-  `.<tar file name>.giant-squid-resume.json`, in the download directory. With
+  `.<tar file name>.giant-squid-resume.json`, next to the files. With
   this file, a new run does not have to read the complete files again to
   calculate the SHA-1. `giant-squid` deletes the resume file when the download
   is complete. If you change a complete file after a failed run, `giant-squid`

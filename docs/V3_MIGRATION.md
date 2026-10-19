@@ -34,8 +34,10 @@ giant-squid, the API and its documentation use the same names everywhere.
 
 8. If a script uses **`-f` or `-t` with `submit-volt`**, or **`-n` with `list`
    or `wait`**, change it: see [Short flags](#short-flags).
+9. If a script expects the files of **`download`** in the download directory
+   itself, change it: see [Downloading](#downloading-download).
 
-Your API key, environment variables and download commands need no change.
+Your API key and environment variables need no change.
 
 ## No more `-p` / `--parameters`
 
@@ -343,10 +345,18 @@ scripts.
 
 ## Downloading (`download`)
 
-No change: `download` takes the same Job IDs, Obs IDs and options as in 2.x
+`download` takes the same Job IDs, Obs IDs and options as in 2.x
 (`--download-dir`, `--keep-tar`, `--no-resume`, `--concurrent-downloads`,
 `--skip-hash`, `--dry-run`). New: `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how
 long a failing download is retried (default 900 s).
+
+Changed: each job is downloaded into a directory of its own below
+`--download-dir`, named for the Job ID. `giant-squid download -d /data 12345`
+writes to `/data/12345`, and not to `/data`, so the files of two jobs of the
+same observation do not meet. To get the layout of 2.x, add `--no-job-subdir`.
+A script that reads the files must look in `<download directory>/<job_id>`. A
+partial download that 2.x left in the download directory is not found there:
+use `--no-job-subdir` to carry on with it. A Scratch job is not affected.
 
 New: `-j`, `--json` prints the result of each download as one line of JSON
 (`job_id`, `obs_id`, `status`, `message`), and `cancel --json` prints the MWA

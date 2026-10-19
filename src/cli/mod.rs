@@ -183,9 +183,19 @@ pub enum Args {
     /// Download an MWA ASVO job
     #[command(alias = "d")]
     Download {
-        /// Which dir should downloads be written to.
+        /// Which dir should downloads be written to. Each job goes into a
+        /// directory of its own below it, named for the Job ID (for example
+        /// `-d /data` gives `/data/12345`), unless you use --no-job-subdir.
         #[arg(short, long, default_value = ".")]
         download_dir: String,
+
+        /// Download the files of every job into the download directory
+        /// itself, as giant-squid did before 3.0.0, and not into a directory
+        /// for each job. The files of two jobs of the same observation then
+        /// share a directory. This has no effect on a Scratch job, which is
+        /// moved into the download directory in its own folder.
+        #[arg(long)]
+        no_job_subdir: bool,
 
         /// Acacia delivery jobs only: Don't untar the contents of your download.
         #[arg(short, long, visible_alias("keep-zip"))]
