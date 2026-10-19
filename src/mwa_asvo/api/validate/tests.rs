@@ -243,10 +243,34 @@ fn assert_limits_enforced<T: Serialize + DeserializeOwned>(
     }
 }
 
+/// A valid phase centre for the limit tests: the coordinates of a custom
+/// centre are only allowed with `centre` `custom`, so the limits of the
+/// coordinates can only be tried from a body that has it.
+const CUSTOM_CENTRE_TEST_RA: f64 = 10.0;
+const CUSTOM_CENTRE_TEST_DEC: f64 = -26.0;
+
+fn conversion_with_custom_centre() -> ConversionJobParams {
+    ConversionJobParams {
+        centre: Centre::Custom,
+        custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
+        custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
+        ..conversion_defaults()
+    }
+}
+
+fn imaging_with_custom_centre() -> ImagingJobFlow1Params {
+    ImagingJobFlow1Params {
+        centre: Centre::Custom,
+        custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
+        custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
+        ..flow1_defaults()
+    }
+}
+
 #[test]
 fn every_limit_is_enforced_on_both_ends_for_the_conversion_body() {
     assert_limits_enforced(
-        &conversion_defaults(),
+        &conversion_with_custom_centre(),
         &CONVERSION_LIMITS,
         validate_conversion_params,
     );
@@ -265,10 +289,18 @@ fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
 fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
     for (field, bounds) in SHARED_LIMITS.iter().chain(CONVERSION_LIMITS.iter()) {
         if let Some(max) = bounds.max {
-            let params = with_field(&flow1_defaults(), field, field_value(field, max));
+            let params = with_field(
+                &imaging_with_custom_centre(),
+                field,
+                field_value(field, max),
+            );
             validate_imaging_params(&params)
                 .unwrap_or_else(|e| panic!("{field}={max} should be the largest valid value: {e}"));
-            let params = with_field(&flow1_defaults(), field, field_value(field, max + 1.0));
+            let params = with_field(
+                &imaging_with_custom_centre(),
+                field,
+                field_value(field, max + 1.0),
+            );
             assert_eq!(
                 invalid_name(validate_imaging_params(&params)),
                 *field,
@@ -277,11 +309,19 @@ fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
         }
         // A zero nmiter cannot be built: the type refuses it.
         if let Some(min) = bounds.min.filter(|_| *field != "nmiter") {
-            let params = with_field(&flow1_defaults(), field, field_value(field, min));
+            let params = with_field(
+                &imaging_with_custom_centre(),
+                field,
+                field_value(field, min),
+            );
             validate_imaging_params(&params).unwrap_or_else(|e| {
                 panic!("{field}={min} should be the smallest valid value: {e}")
             });
-            let params = with_field(&flow1_defaults(), field, field_value(field, min - 1.0));
+            let params = with_field(
+                &imaging_with_custom_centre(),
+                field,
+                field_value(field, min - 1.0),
+            );
             assert_eq!(
                 invalid_name(validate_imaging_params(&params)),
                 *field,
@@ -651,4 +691,53 @@ fn the_custom_centre_coordinates_go_with_a_custom_centre() {
             other => panic!("{centre} {ra:?} {dec:?}: expected {name}, got {other:?}"),
         }
     }
+}
+
+/// The coordinates of a custom phase centre are refused with any other
+/// centre, and the message names the one that is given.
+#[test]
+fn the_custom_centre_coordinates_are_refused_without_a_custom_centre() {
+    use crate::mwa_asvo::api::openapi::Centre;
+
+    for centre in [Centre::Phase, Centre::Pointing] {
+        for (ra, dec, name) in [
+            (Some(10.0), None, "custom_centre_ra"),
+            (None, Some(-26.0), "custom_centre_dec"),
+            (Some(10.0), Some(-26.0), "custom_centre_ra"),
+        ] {
+            match check_centre(centre, ra, dec) {
+                Err(AsvoApiError::InvalidParameter { name: got, message }) => {
+                    assert_eq!(got, name, "{centre} {ra:?} {dec:?}");
+                    assert!(message.contains("custom"), "{message}");
+                }
+                other => panic!("{centre} {ra:?} {dec:?}: expected {name}, got {other:?}"),
+            }
+        }
+        assert!(check_centre(centre, None, None).is_ok());
+    }
+}
+
+/// The bodies of conversion and imaging refuse them too, before any request.
+#[test]
+fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refused() {
+    let conversion = ConversionJobParams {
+        custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
+        ..conversion_defaults()
+    };
+    assert_eq!(
+        invalid_name(validate_conversion_params(&conversion)),
+        "custom_centre_ra"
+    );
+    let imaging = ImagingJobFlow1Params {
+        custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
+        ..flow1_defaults()
+    };
+    assert_eq!(
+        invalid_name(validate_imaging_params(&imaging)),
+        "custom_centre_dec"
+    );
+    validate_conversion_params(&conversion_with_custom_centre())
+        .expect("a custom centre with both coordinates is valid");
+    validate_imaging_params(&imaging_with_custom_centre())
+        .expect("a custom centre with both coordinates is valid");
 }

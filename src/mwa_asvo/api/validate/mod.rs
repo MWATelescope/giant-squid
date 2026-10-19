@@ -254,29 +254,34 @@ pub fn check_delivery_format(
 }
 
 /// Check the phase centre of a request body: `custom_centre_ra` and
-/// `custom_centre_dec` are both given when `centre` is `custom`.
+/// `custom_centre_dec` are both given when `centre` is `custom`, and neither
+/// is given with any other `centre`.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`] for the first of `custom_centre_ra` and
-/// `custom_centre_dec` that is missing when `centre` is `custom`.
+/// `custom_centre_dec` that is missing when `centre` is `custom`, or the first
+/// that is given when it is not.
 pub fn check_centre(
     centre: Centre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
 ) -> Result<(), AsvoApiError> {
     let custom = Centre::Custom;
-    if centre != custom {
-        return Ok(());
-    }
     for (name, value) in [
         ("custom_centre_ra", custom_centre_ra),
         ("custom_centre_dec", custom_centre_dec),
     ] {
-        if value.is_none() {
+        if centre == custom && value.is_none() {
             return Err(AsvoApiError::InvalidParameter {
                 name,
                 message: format!("is required when centre is {custom}"),
+            });
+        }
+        if centre != custom && value.is_some() {
+            return Err(AsvoApiError::InvalidParameter {
+                name,
+                message: format!("is only allowed when centre is {custom} (centre is {centre})"),
             });
         }
     }

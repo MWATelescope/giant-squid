@@ -339,7 +339,8 @@ impl PyAsvoClient {
     ///     flag_edge_width: The width of the frequency edge flagging (kHz).
     ///     apply_di_cal: Apply the DI calibration solution.
     ///     centre: The phase centre mode. `Centre.Custom` needs
-    ///         `custom_centre_ra` and `custom_centre_dec`.
+    ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
+    ///         allowed with it.
     ///     custom_centre_ra: The custom phase centre's right ascension
     ///         (degrees).
     ///     custom_centre_dec: The custom phase centre's declination
@@ -363,7 +364,8 @@ impl PyAsvoClient {
     ///         1280), `delivery` is `Delivery.Acacia` and `delivery_format`
     ///         is `DeliveryFormat.Files` (Acacia delivers a tar only), or
     ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
-    ///         and `custom_centre_dec`. The message names the argument and
+    ///         and `custom_centre_dec`, or either of them is given with
+    ///         another `centre`. The message names the argument and
     ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
@@ -482,7 +484,8 @@ impl PyAsvoClient {
     ///     clean_threshold: The WSClean cleaning threshold (Jy). This
     ///         field is deprecated in the API: use `abs_threshold`.
     ///     centre: Where to centre the image. `Centre.Custom` needs
-    ///         `custom_centre_ra` and `custom_centre_dec`.
+    ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
+    ///         allowed with it.
     ///     custom_centre_dec: The custom phase centre's declination
     ///         (degrees).
     ///     custom_centre_ra: The custom phase centre's right ascension
@@ -525,7 +528,8 @@ impl PyAsvoClient {
     ///         `delivery` is `Delivery.Acacia` and `delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only), or
     ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
-    ///         and `custom_centre_dec`. The message names the argument and
+    ///         and `custom_centre_dec`, or either of them is given with
+    ///         another `centre`. The message names the argument and
     ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \

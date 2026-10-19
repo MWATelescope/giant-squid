@@ -357,6 +357,9 @@ To use a custom phase centre:
 giant-squid submit-conv 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
 ```
 
+The two coordinates go together with `--centre custom`: `giant-squid` refuses one of them without the other, and
+refuses either of them with another `--centre`. The same holds for `submit-image`.
+
 Conversion jobs can be delivered to Acacia, Scratch or DUG.
 
 ##### Options for conversion jobs
