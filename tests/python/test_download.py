@@ -540,3 +540,27 @@ def test_a_job_subdirectory_that_is_a_symlink_is_refused(
 
     assert info.value.kind == "SymlinkInDownloadDir"
     assert list(elsewhere.iterdir()) == []
+
+
+def test_a_download_directory_that_is_missing_is_a_file_not_found_error(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """A file system error is an OSError, as Python's open raises it, and not an AsvoError."""
+    with pytest.raises(FileNotFoundError, match="download directory") as info:
+        client.download_job(JOB_ID, tmp_path / "missing", job_subdirectory=True)
+
+    assert not isinstance(info.value, gs.AsvoError)
+
+
+def test_a_job_directory_that_cannot_be_made_is_an_os_error_with_its_path(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """A file where the directory of the job should be is an OSError, and it names the path."""
+    (tmp_path / str(JOB_ID)).write_text("not a directory")
+
+    with pytest.raises(OSError) as info:
+        client.download_job(JOB_ID, tmp_path, job_subdirectory=True)
+
+    assert not isinstance(info.value, gs.AsvoError)
+    assert info.value.filename is not None
+    assert str(JOB_ID) in str(info.value.filename)

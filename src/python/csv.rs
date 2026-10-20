@@ -13,12 +13,10 @@
 //! `CsvSubmitError`, which has the replies of the jobs that were submitted
 //! and a `CsvJobFailure` for each job that was not.
 
-use std::path::Path;
-
-use pyo3::exceptions::{PyException, PyOSError, PyValueError};
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
-use super::error::api_error;
+use super::error::{api_error, os_error};
 use super::typed::ExceptionObject;
 use super::types::PyJobSubmittedResponse;
 // The library's error has the name of the Python exception.
@@ -136,37 +134,11 @@ impl PyCsvJobFailure {
     }
 }
 
-/// The `OSError` for a file that cannot be read, made as Python's `open`
-/// makes it: `OSError(errno, strerror, filename)`, which Python turns into
-/// the subclass for the error (`FileNotFoundError`, `PermissionError` and so
-/// on). An error with no error number (for example, text that is not UTF-8)
-/// is the error that pyo3 makes, with the file name set.
-fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> PyErr {
-    let filename = path.to_string_lossy().into_owned();
-    let Some(errno) = source.raw_os_error() else {
-        let err = PyErr::from(source);
-        // Setting an attribute on a new exception instance does not fail in
-        // practice; if it ever does, raise that error instead.
-        return match err.value(py).setattr("filename", filename) {
-            Ok(()) => err,
-            Err(e) => e,
-        };
-    };
-    let make = || -> PyResult<PyErr> {
-        let strerror = py.import("os")?.call_method1("strerror", (errno,))?;
-        let exception = py
-            .get_type::<PyOSError>()
-            .call1((errno, strerror, filename))?;
-        Ok(PyErr::from_value(exception))
-    };
-    make().unwrap_or_else(|e| e)
-}
-
 /// Convert a library [`LibCsvSubmitError`] to a Python exception.
 ///
 /// - A file that cannot be read is an `OSError` (a `FileNotFoundError`, a
 ///   `PermissionError` and so on, as Python raises for `open`), with the file
-///   name set (see [`os_error`]).
+///   name set (see [`os_error`](super::error::os_error)).
 /// - A file with a problem on a line, or with no job, is a `ValueError`, as for
 ///   the other arguments that the schema does not allow. Nothing was sent.
 /// - Jobs that failed are a [`CsvSubmitError`], with `submitted` and

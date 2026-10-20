@@ -706,7 +706,7 @@ class AsvoError(builtins.Exception):
     r"""
     A download or job check failed. `kind` is the Rust `AsvoError` variant.
 
-    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this.
+    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
     """
 
     kind: builtins.str
@@ -743,7 +743,7 @@ class AsvoError(builtins.Exception):
     """
     file: builtins.str
     r"""
-    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there. CannotCreate: the file or directory that could not be created.
+    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there.
     """
     calculated_hash: builtins.str
     r"""

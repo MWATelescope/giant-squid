@@ -355,9 +355,9 @@ the function raises an exception, the download stops and the call raises that ex
 | Exception | When |
 |---|---|
 | `AsvoApiError` | An API call failed. This includes a login that failed and an API call inside a download. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
-| `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. |
+| `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. (A file that cannot be read or written is an `OSError`, not this.) |
 | `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
-| `OSError` | A file cannot be read or written. |
+| `OSError` | A file or directory cannot be read, written or made: the CSV file of `submit_csv_file`, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
 | `CsvSubmitError` | `submit_csv_file` submitted the jobs of a file, and some failed. It has `submitted` (the replies of the jobs that were submitted) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 

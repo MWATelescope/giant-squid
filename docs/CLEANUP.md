@@ -109,12 +109,13 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - "Read stdin IDs only when an argument is `-`": no guessing from the kind of input. No ID and no `-` fails with "To read them from standard input, give `-`." (`READ_STDIN_HINT`).
 - Step C review (Python bindings, Dockerfile, workflows, tools): findings C1–C14. The pdoc problems of 6 Oct 2026 are fixed (types, same output on each run, no `RecursionError`, members in source order). Done in this diff: C1 (`params.rs` doc), C3 (`error.rs` closure), C11 (`.dockerignore`), C12 (`git` removed from the Dockerfile builder; untested, the Docker CI job shows it), C14 (`run_live_tests.sh`). The base images are not pinned by digest: `dhi.io` needs a login, which the sandbox does not have.
 
+- C2: a file or directory error of a download (`AsvoError::IO` and `CannotCreate`) is a Python `OSError` (`FileNotFoundError`, `PermissionError` and so on) with the error number, and the `filename` for `CannotCreate`. `os_error` moved from `csv.rs` to `error.rs`. The kinds `IO` and `CannotCreate` are no longer raised as `AsvoError`.
+
 ### Step C: still to do (Greg decided on 20 Oct 2026; one diff each, in this order)
 
-1. C2: `AsvoError` kinds `IO` and `CannotCreate` become a Python `OSError` with errno and filename, as for the CSV file.
-2. C4–C9, with the `.github/` files: the release workflow runs the tests, checks that the tag matches the versions, and builds with `--locked`; third-party actions are pinned by commit; the Docker job skips fork PRs; `cargo-llvm-cov` is installed in a faster way.
-3. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
-4. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
+1. C4–C9, with the `.github/` files: the release workflow runs the tests, checks that the tag matches the versions, and builds with `--locked`; third-party actions are pinned by commit; the Docker job skips fork PRs; `cargo-llvm-cov` is installed in a faster way.
+2. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
+3. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
 
 ### Done in `e891d31` (L1–L10 part A)
 

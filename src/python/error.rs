@@ -9,7 +9,9 @@
 //! attribute for each of that variant's fields. The exception's message is
 //! the Rust error's message.
 
-use pyo3::exceptions::{PyException, PyValueError};
+use std::path::Path;
+
+use pyo3::exceptions::{PyException, PyOSError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -36,7 +38,7 @@ create_exception!(
     mwa_giant_squid,
     AsvoError,
     PyException,
-    "A download or job check failed. `kind` is the Rust `AsvoError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this."
+    "A download or job check failed. `kind` is the Rust `AsvoError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
 );
 
 /// The attributes of the two exceptions, for the stubs. `build` sets them
@@ -99,7 +101,7 @@ mod stub_attributes {
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
                 attr!("delivery", PyType, "FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch)."),
                 attr!("path", Option<String>, "FilesNotReachable: the path of the files, if the MWA ASVO gave one."),
-                attr!("file", String, "HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there. CannotCreate: the file or directory that could not be created."),
+                attr!("file", String, "HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
                 attr!("status", u16, "HttpError: the HTTP status code."),
@@ -245,6 +247,32 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     build::<AsvoApiError>(py, message, kind, fields)
 }
 
+/// The `OSError` for a file that cannot be read, made as Python's `open`
+/// makes it: `OSError(errno, strerror, filename)`, which Python turns into
+/// the subclass for the error (`FileNotFoundError`, `PermissionError` and so
+/// on). An error with no error number (for example, text that is not UTF-8)
+/// is the error that pyo3 makes, with the file name set.
+pub(crate) fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> PyErr {
+    let filename = path.to_string_lossy().into_owned();
+    let Some(errno) = source.raw_os_error() else {
+        let err = PyErr::from(source);
+        // Setting an attribute on a new exception instance does not fail in
+        // practice; if it ever does, raise that error instead.
+        return match err.value(py).setattr("filename", filename) {
+            Ok(()) => err,
+            Err(e) => e,
+        };
+    };
+    let make = || -> PyResult<PyErr> {
+        let strerror = py.import("os")?.call_method1("strerror", (errno,))?;
+        let exception = py
+            .get_type::<PyOSError>()
+            .call1((errno, strerror, filename))?;
+        Ok(PyErr::from_value(exception))
+    };
+    make().unwrap_or_else(|e| e)
+}
+
 /// Convert a library [`lib::AsvoError`] to a Python exception.
 ///
 /// `lib::AsvoError::AsvoApi` wraps an API error (for example, the job list
@@ -253,6 +281,10 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
 /// `lib::AsvoError::InvalidOption` (a download option that cannot be used,
 /// found before any request) becomes a `ValueError`, like an argument that
 /// the API does not allow.
+/// `lib::AsvoError::IO` and `lib::AsvoError::CannotCreate` (a file or a
+/// directory that cannot be read, written or made) become an `OSError`, as
+/// Python's `open` raises it: a `FileNotFoundError`, a `PermissionError` and
+/// so on. `CannotCreate` has the path as the `filename`.
 pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
     let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(id.get()));
@@ -260,6 +292,8 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let (kind, fields) = match e {
         lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
         lib::AsvoError::InvalidOption { .. } => return PyValueError::new_err(message),
+        lib::AsvoError::IO(source) => return PyErr::from(source),
+        lib::AsvoError::CannotCreate { path, source } => return os_error(py, &path, source),
         lib::AsvoError::NoAsvoJob(id) => ("NoAsvoJob", vec![job_id(id)]),
         lib::AsvoError::JobFailed {
             job_id: id,
@@ -329,7 +363,6 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 ("problem", Field::Str(problem)),
             ],
         ),
-        lib::AsvoError::IO(_) => ("IO", vec![]),
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
         lib::AsvoError::NoUrl { job_id: id } => ("NoUrl", vec![job_id(id)]),
         lib::AsvoError::NoPath { job_id: id } => ("NoPath", vec![job_id(id)]),
@@ -365,10 +398,6 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
                 ("status", Field::Int(u64::from(status))),
                 ("message", Field::Str(message)),
             ],
-        ),
-        lib::AsvoError::CannotCreate { path, .. } => (
-            "CannotCreate",
-            vec![("file", Field::Str(path.display().to_string()))],
         ),
         lib::AsvoError::Http404Error { job_id: id } => ("Http404Error", vec![job_id(id)]),
     };
