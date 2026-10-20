@@ -119,10 +119,11 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
   - `coverage.yml` installs `cargo-llvm-cov` as a prebuilt binary and runs with `--locked`.
   - Checked in the sandbox: all the workflows parse and `actionlint` reports nothing; the version-check script gives the right result for a good and a bad tag. Not run: the workflows themselves.
 
+- C13: `tools/test_msrv.sh` runs what CI runs at the MSRV (`check.sh` and `cargo test --locked`), in `target/msrv`, with no `cargo update`, no `cargo clean` and no `--all-features`. Tried in the sandbox with a fake `rustup` and Rust 1.89, not with a real 1.88.0 toolchain.
+
 ### Step C: still to do (Greg decided on 20 Oct 2026; one diff each, in this order)
 
-1. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
-2. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
+1. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
 
 ### Done in `e891d31` (L1–L10 part A)
 

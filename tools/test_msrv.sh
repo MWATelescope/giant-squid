@@ -1,41 +1,40 @@
 #!/usr/bin/env bash
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# Fail the script on any error
-set -e
-
+# Run at the MSRV (`rust-version` in Cargo.toml) what CI runs at the MSRV:
 #
-# This is a helper script so that when giant-squid is ready to be
-# released, this can check to ensure that it works in the
-# minimum Rust version (MSRV) as specified in Cargo.toml
+#   - check.sh (the lint job: format, clippy and docs), and
+#   - `cargo test --locked` (the "msrv" job of run-tests.yaml).
 #
-# It assumes:
-# 1. You run this from inside the "tools" directory
-# 2. You have rustup installed
+# Run it before a change that could need a newer Rust than the MSRV (a new
+# dependency, a new standard library function, a new language feature).
 #
+# It changes no file and no dependency: Cargo.lock is used as it is
+# (`--locked`), and nothing is cleaned or updated. It builds in `target/msrv`,
+# so the build of your normal Rust is not thrown away. To use another
+# directory, set CARGO_TARGET_DIR. It needs rustup, which installs the MSRV
+# toolchain if it is not there.
+set -euo pipefail
 
-# Switch to the root giant-squid dir
-pushd ..
+cd "$(dirname "$0")/.."
 
-# update rust
-echo "Updating rust..."
-rustup update
+if ! command -v rustup > /dev/null; then
+    echo "Error: rustup is needed to install the MSRV toolchain." >&2
+    exit 1
+fi
 
-# Ensure MSRV version of rust is installed
-MIN_RUST=$(grep -m1 "rust-version" Cargo.toml | sed 's|.*\"\(.*\)\"|\1|')
-echo "Installing MSRV ${MIN_RUST}..."
-rustup install ${MIN_RUST}
+MIN_RUST="$(grep -m1 'rust-version' Cargo.toml | sed 's|.*"\(.*\)"|\1|')"
+echo "MSRV: ${MIN_RUST}"
+rustup toolchain install "${MIN_RUST}" --profile minimal --component rustfmt --component clippy
 
-# Clear everything
-cargo clean
-rm -rf target
+# Every cargo command below, and in check.sh, uses the MSRV toolchain.
+export RUSTUP_TOOLCHAIN="${MIN_RUST}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target/msrv}"
 
-# Update dependencies
-echo "Updating cargo dependencies..."
-RUSTUP_TOOLCHAIN=${MIN_RUST} cargo update --verbose
+echo "Checking format, clippy and docs..."
+./check.sh
 
-# Build and run rust tests
-echo "Building and running tests..."
-RUSTUP_TOOLCHAIN=${MIN_RUST} cargo test --release --all-features
-
-# Switch back to this dir
-popd
+echo "Running the tests..."
+cargo test --locked
