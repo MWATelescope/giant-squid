@@ -3568,3 +3568,212 @@ fn a_scratch_job_is_not_put_in_a_job_subdirectory() {
     assert!(dir.path().join("12345").join("a.fits").is_file());
     assert!(!dir.path().join("12345").join("12345").exists());
 }
+
+// ---------------------------------------------------------------------------
+// Download links that have expired
+// ---------------------------------------------------------------------------
+
+/// `Expires` of a signed URL that ended long ago (2001-09-09T01:46:40Z).
+const EXPIRES_LONG_AGO: &str = "1000000000";
+/// A little later, for the newer of two expired jobs (2004-11-09T11:33:20Z).
+const EXPIRES_LONG_AGO_LATER: &str = "1100000000";
+/// `Expires` of a signed URL that has not ended (2100-01-01T00:00:00Z).
+const EXPIRES_FAR_AWAY: &str = "4102444800";
+
+/// A completed job whose one Acacia file is at `url`.
+fn completed_job_at(job_id: i64, url: &str) -> Value {
+    let mut detail = job_detail(job_id, TEST_OBS_ID, "completed", 1);
+    detail["product"] = json!({
+        "files": [{ "type": "acacia", "url": url, "size": 7, "sha1": sha1_hex(b"payload") }]
+    });
+    detail
+}
+
+#[test]
+fn a_job_whose_links_have_expired_is_refused_before_any_request() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    let url = format!(
+        "{}?Expires={EXPIRES_LONG_AGO}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    env.mock_get_jobs(vec![completed_job_at(TEST_JOB_ID as i64, &url)]);
+    let dir = TempDir::new().expect("could not create a download directory");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(
+            crate::test_config::TEST_ASVO_JOB_ID,
+            &options(&dir.path().display().to_string()),
+        )
+        .expect_err("the expired job should be refused");
+
+    assert!(
+        matches!(
+            &err,
+            AsvoError::JobExpired { job_id, expired }
+                if *job_id == crate::test_config::TEST_ASVO_JOB_ID
+                    && *expired == Some("2001-09-09T01:46:40Z".parse().expect("a time"))
+        ),
+        "{err:?}"
+    );
+    let message = err.to_string();
+    assert!(
+        message.contains("expired on 2001-09-09T01:46:40Z"),
+        "{message}"
+    );
+    assert!(message.contains("Resubmit the job"), "{message}");
+    assert!(!message.contains("allow-resubmit"), "{message}");
+    assert_eq!(file.calls(), 0);
+}
+
+#[test]
+fn a_job_whose_links_have_not_expired_is_downloaded() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    let url = format!(
+        "{}?Expires={EXPIRES_FAR_AWAY}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    env.mock_get_jobs(vec![completed_job_at(TEST_JOB_ID as i64, &url)]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        keep_tar: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    client
+        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .expect("the download should succeed");
+
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(DOWNLOAD_FILE)).expect("the file"),
+        "payload"
+    );
+}
+
+#[test]
+fn an_obs_id_is_downloaded_from_its_job_whose_links_work() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    let expired = format!(
+        "{}?Expires={EXPIRES_LONG_AGO}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    let fresh = format!(
+        "{}?Expires={EXPIRES_FAR_AWAY}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    env.mock_get_jobs(vec![
+        completed_job_at(7, &expired),
+        completed_job_at(8, &fresh),
+    ]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let dir_path = dir.path().display().to_string();
+    let opts = DownloadOptions {
+        keep_tar: true,
+        ..options(&dir_path)
+    };
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
+    let job = client
+        .download_obs(obs_id, &opts)
+        .expect("the job with working links should be downloaded");
+
+    assert_eq!(job.job_id().get(), 8);
+}
+
+#[test]
+fn an_obs_id_whose_jobs_have_all_expired_names_the_newest() {
+    let env = TestEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body("payload");
+    });
+    let older = format!(
+        "{}?Expires={EXPIRES_LONG_AGO}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    let newer = format!(
+        "{}?Expires={EXPIRES_LONG_AGO_LATER}",
+        env.server.url(DOWNLOAD_PATH)
+    );
+    env.mock_get_jobs(vec![
+        completed_job_at(8, &newer),
+        completed_job_at(7, &older),
+    ]);
+    let dir = TempDir::new().expect("could not create a download directory");
+
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
+    let err = client
+        .download_obs(obs_id, &options(&dir.path().display().to_string()))
+        .expect_err("every job has expired");
+
+    assert!(
+        matches!(&err, AsvoError::JobExpired { job_id, .. } if job_id.get() == 8),
+        "{err:?}"
+    );
+    assert_eq!(file.calls(), 0);
+}
+
+/// What the file server (S3) sends for a signed URL that has expired.
+const ACCESS_DENIED_BODY: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>AccessDenied</Code><Message></Message><RequestId>tx0000074cf9edd82510496-006ad6978a-417866515-default</RequestId><HostId>417866515-default-default</HostId></Error>";
+
+#[test]
+fn an_access_denied_answer_is_an_expired_link() {
+    for (query, expired) in [
+        // No `Expires` to read: the time is not known.
+        ("", None),
+        // The clock says the URL works, but the server says it does not.
+        (
+            "?Expires=4102444800",
+            Some(
+                "2100-01-01T00:00:00Z"
+                    .parse::<jiff::Timestamp>()
+                    .expect("a time"),
+            ),
+        ),
+    ] {
+        let env = TestEnv::with_session();
+        env.server.mock(|when, then| {
+            when.method(GET).path(DOWNLOAD_PATH);
+            then.status(403).body(ACCESS_DENIED_BODY);
+        });
+        let url = format!("{}{query}", env.server.url(DOWNLOAD_PATH));
+        env.mock_get_jobs(vec![completed_job_at(TEST_JOB_ID as i64, &url)]);
+        let dir = TempDir::new().expect("could not create a download directory");
+
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let err = client
+            .download_job(
+                crate::test_config::TEST_ASVO_JOB_ID,
+                &options(&dir.path().display().to_string()),
+            )
+            .expect_err("the 403 should fail the download");
+
+        assert!(
+            matches!(
+                &err,
+                AsvoError::JobExpired { job_id, expired: found }
+                    if *job_id == crate::test_config::TEST_ASVO_JOB_ID && *found == expired
+            ),
+            "{query}: {err:?}"
+        );
+        assert!(err.to_string().contains("Resubmit the job"), "{err}");
+        // The URL is signed: neither the error nor its text shows it.
+        assert!(!err.to_string().contains("Signature"), "{err}");
+    }
+}

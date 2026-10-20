@@ -482,3 +482,139 @@ fn the_job_type_codes_have_the_names_of_the_schema() {
     }
     assert_eq!(codes.len(), JobType::names().len());
 }
+
+// ---------------------------------------------------------------------------
+// Download links that have expired
+// ---------------------------------------------------------------------------
+
+/// A signed URL of the MWA ASVO, as the file server gives it: `Expires` is
+/// when the signature stops working (seconds since the Unix epoch).
+const SIGNED_URL: &str = "https://projects.pawsey.org.au/mwa-asvo/1475788520_1112133_image.tar?AWSAccessKeyId=a5e466f891734d45a67676504a309c35&Signature=vWSo92d14rykcu404LjnWNP4j8Q%3D&Expires=1792380172";
+/// `Expires` of [`SIGNED_URL`].
+const SIGNED_URL_EXPIRES: &str = "2026-10-19T03:22:52Z";
+
+fn time(text: &str) -> jiff::Timestamp {
+    text.parse().expect("a valid time")
+}
+
+/// A completed job with the given files: each is a delivery type and a URL.
+fn completed_job_with(files: &[(FileType, Option<&str>)]) -> AsvoJob {
+    let mut job = job(JOB_ID_A, JobState::Completed);
+    job.detail_mut().product = Some(JobProduct {
+        files: files
+            .iter()
+            .map(|(type_, url)| JobFile {
+                type_: *type_,
+                url: url.map(str::to_string),
+                path: None,
+                size: 1,
+                sha1: Some("0".repeat(40)),
+                format: None,
+            })
+            .collect(),
+    });
+    job
+}
+
+#[test]
+fn the_expiry_of_a_signed_url_is_its_expires_value() {
+    assert_eq!(
+        signed_url_expiry(SIGNED_URL),
+        Some(time(SIGNED_URL_EXPIRES))
+    );
+    // The other query keys, and their order, do not matter.
+    assert_eq!(
+        signed_url_expiry("https://example.org/f.tar?Expires=1792380172&Signature=x"),
+        Some(time(SIGNED_URL_EXPIRES))
+    );
+}
+
+#[test]
+fn a_url_with_no_usable_expires_has_no_expiry() {
+    for url in [
+        "https://example.org/f.tar",
+        "https://example.org/f.tar?Signature=x",
+        "https://example.org/f.tar?Expires=",
+        "https://example.org/f.tar?Expires=soon",
+        "https://example.org/f.tar?Expires=-1x",
+        "https://example.org/f.tar?expires=1792380172",
+        "not a url",
+    ] {
+        assert_eq!(signed_url_expiry(url), None, "{url}");
+    }
+}
+
+#[test]
+fn the_expiry_of_a_job_is_the_earliest_of_its_acacia_urls() {
+    let later = "https://example.org/b.tar?Expires=1792380172";
+    let earlier = "https://example.org/a.tar?Expires=1792300000";
+    let job = completed_job_with(&[
+        (FileType::Acacia, Some(later)),
+        (FileType::Acacia, Some(earlier)),
+        // Only the files of an Acacia job have a signed URL.
+        (
+            FileType::Scratch,
+            Some("https://example.org/c.tar?Expires=1"),
+        ),
+    ]);
+
+    assert_eq!(job.expires(), Some(time("2026-10-18T05:06:40Z")));
+}
+
+#[test]
+fn a_job_with_no_acacia_url_has_no_expiry() {
+    let no_url = completed_job_with(&[(FileType::Acacia, None)]);
+    let scratch = completed_job_with(&[(FileType::Scratch, None)]);
+    let no_product = job(JOB_ID_A, JobState::Completed);
+
+    for job in [no_url, scratch, no_product] {
+        assert_eq!(job.expires(), None);
+        assert!(!job.is_expired_at(time("2100-01-01T00:00:00Z")));
+        assert_eq!(
+            job.display_state_at(time("2100-01-01T00:00:00Z")),
+            "completed (ready)"
+        );
+    }
+}
+
+#[test]
+fn a_job_is_expired_from_the_time_in_expires() {
+    let job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+
+    assert!(!job.is_expired_at(time("2026-10-19T03:22:51Z")));
+    assert!(job.is_expired_at(time(SIGNED_URL_EXPIRES)));
+    assert!(job.is_expired_at(time("2026-10-20T00:00:00Z")));
+    // A URL that expired a day ago is expired. It does not wait for a week
+    // after `Expires`: `Expires` is the end of the week that the URL lasts.
+    assert!(job.is_expired_at(time("2026-10-19T03:22:53Z")));
+}
+
+#[test]
+fn only_a_completed_job_is_expired() {
+    for state in [JobState::Queued, JobState::Error, JobState::Cancelled] {
+        let mut job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+        job.detail_mut().job_state = state;
+
+        assert!(!job.is_expired_at(time("2100-01-01T00:00:00Z")), "{state}");
+        assert_eq!(
+            job.display_state_at(time("2100-01-01T00:00:00Z")),
+            state.to_string()
+        );
+    }
+}
+
+#[test]
+fn the_display_state_of_a_completed_job_says_ready_or_expired() {
+    let job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+
+    assert_eq!(
+        job.display_state_at(time("2026-10-12T00:00:00Z")),
+        "completed (ready)"
+    );
+    assert_eq!(
+        job.display_state_at(time("2026-10-20T00:00:00Z")),
+        "completed (expired)"
+    );
+    // The state of the job is still the API's.
+    assert_eq!(job.job_state, JobState::Completed);
+}

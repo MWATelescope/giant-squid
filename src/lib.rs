@@ -55,5 +55,5 @@ pub use mwa_asvo::manta_ray_csv::{
     CsvJobFailure, CsvJobParams, CsvJobsFailed, CsvRowError, CsvSubmitError,
 };
 pub use mwa_asvo::token_store::{default_token_cache_path, StoredTokens};
-pub use mwa_asvo::types::{AsvoJob, AsvoJobId, AsvoJobVec};
+pub use mwa_asvo::types::{AsvoJob, AsvoJobId, AsvoJobVec, SIGNED_URL_LIFETIME_DAYS};
 pub use obs_id::{ObsId, ObsIdError};

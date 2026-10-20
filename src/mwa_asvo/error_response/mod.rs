@@ -69,6 +69,10 @@ pub const ERROR_CODE_INVALID_JOB: &str = "INVALID_JOB";
 /// The job has no files.
 pub const ERROR_CODE_NO_FILES: &str = "NO_FILES";
 
+/// The download links of a job have expired: the job has to be resubmitted
+/// ([`AsvoError::JobExpired`]).
+pub const ERROR_CODE_JOB_EXPIRED: &str = "JOB_EXPIRED";
+
 /// The job has no URL to download its files from.
 pub const ERROR_CODE_NO_URL: &str = "NO_URL";
 
@@ -202,6 +206,7 @@ impl AsvoError {
             }
             AsvoError::TooManyObsIds(_) => ERROR_CODE_AMBIGUOUS_OBS_ID,
             AsvoError::NoFiles(_) => ERROR_CODE_NO_FILES,
+            AsvoError::JobExpired { .. } => ERROR_CODE_JOB_EXPIRED,
             AsvoError::HashMismatch { .. } => ERROR_CODE_HASH_MISMATCH,
             AsvoError::InvalidJobState { .. }
             | AsvoError::InvalidJobType { .. }
@@ -227,6 +232,7 @@ impl AsvoError {
             | AsvoError::NoFiles(job_id)
             | AsvoError::JobFailed { job_id, .. }
             | AsvoError::NotReady { job_id, .. }
+            | AsvoError::JobExpired { job_id, .. }
             | AsvoError::HashMismatch { job_id, .. }
             | AsvoError::NoUrl { job_id }
             | AsvoError::NoPath { job_id }

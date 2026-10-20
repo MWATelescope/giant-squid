@@ -230,7 +230,7 @@ states, and the table and the JSON show them as the API does:
 |---|---|
 | `ready` (`Ready` in the JSON) | `completed` |
 | `waitcal` (`WaitCal` in the JSON) | `waitcal` |
-| `expired` | removed: the MWA ASVO has no such state |
+| `expired` | removed: the MWA ASVO has no such state. A completed job whose download links have expired shows as `completed (expired)` in the table (see the README, "Expired download links") |
 | `error` (`{"Error": "<message>"}` in the JSON) | `error`; the message is in `error_text` |
 
 The other states have the same names, in lower case in the JSON (for

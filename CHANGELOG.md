@@ -14,6 +14,15 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* The download links of a job work for 7 days, and the job stays `completed` in the API. `giant-squid` reads the end
+  of that time from the `Expires` of the signed URL. `list` and `wait` show a completed job as `completed (ready)`
+  or `completed (expired)` (the JSON and `--job-states` keep the API's `completed`). `download` of a job whose links
+  have expired fails at once, with no request, with the new error `AsvoError::JobExpired` (`JOB_EXPIRED` in
+  `--json`; kind `JobExpired` in Python): resubmit the job. The same error is given for the file server's
+  `AccessDenied` answer (HTTP 403), which was an `HttpError` 403 before. `download` of an Obs ID skips a completed
+  job whose links have expired when another one works. The library has `AsvoJob::expires`, `is_expired` and
+  `display_state` (Python: `AsvoJob.expires`, `is_expired`, `display_state`). See the
+  [README](README.md#expired-download-links).
 * `download` puts the files of each job into a directory of its own below the download directory (`-d`,
   `--download-dir`), named for the Job ID: `-d /data` gives `/data/12345`. The files of two jobs of the same
   observation no longer meet in one directory. Use `--no-job-subdir` for the layout of 2.x, with the files in the
@@ -253,7 +262,7 @@ before you upgrade scripts.**
 ### Removed in 3.0.0
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).
-* The `expired` job state, and the library error `AsvoError::Expired`. The MWA ASVO API has no expired state.
+* The `expired` job state, and the library error `AsvoError::Expired`. The MWA ASVO API has no expired state. (A job whose download links have expired is found from the links: see "Changed in 3.0.0".)
 * The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
   `job_type` `None`.
 * Library: `Obsid::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.

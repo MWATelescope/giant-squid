@@ -8,6 +8,7 @@
 
 use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
+use jiff::Timestamp;
 
 use crate::mwa_asvo::types::{JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VOLTAGE};
 use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobFile, JobState, JobType};
@@ -77,6 +78,9 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
             .map(|title| Cell::new(title).add_attribute(Attribute::Bold)),
     );
 
+    // One time for the whole table, so that every row is judged at the same
+    // moment.
+    let now = Timestamp::now();
     for j in jobs.0 {
         // No size for a job with no product.
         let size = j.product.as_ref().map(|_| job_size_text(&j));
@@ -94,8 +98,8 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
                 job_type_colour(j.job_type),
             ),
             coloured(
-                Cell::new(job_state_text(&j)),
-                Some(job_state_colour(j.job_state)),
+                Cell::new(job_state_text(&j, now)),
+                Some(job_state_colour(&j, now)),
             ),
             Cell::new(size.unwrap_or_default()),
             Cell::new(delivery.unwrap_or_default()),
@@ -125,17 +129,20 @@ fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
 }
 
 /// The text of a job state cell: the schema's value (for example
-/// `completed`), and for a job with an error, its message.
-fn job_state_text(job: &AsvoJob) -> String {
+/// `queued`), for a completed job `completed (ready)` or `completed
+/// (expired)` ([`AsvoJob::display_state_at`]), and for a job with an error,
+/// its message.
+fn job_state_text(job: &AsvoJob, now: Timestamp) -> String {
     match (&job.job_state, &job.error_text) {
         (state @ JobState::Error, Some(text)) => format!("{state}: {text}"),
-        (state, _) => state.to_string(),
+        _ => job.display_state_at(now),
     }
 }
 
-/// The colour of a job state cell.
-fn job_state_colour(job_state: JobState) -> Color {
-    match job_state {
+/// The colour of a job state cell. A completed job whose download links have
+/// expired is not green: it cannot be downloaded.
+fn job_state_colour(job: &AsvoJob, now: Timestamp) -> Color {
+    match job.job_state {
         JobState::Queued => Color::White,
         JobState::Waitcal
         | JobState::Staging
@@ -145,6 +152,7 @@ fn job_state_colour(job_state: JobState) -> Color {
         | JobState::Preprocessing
         | JobState::Imaging
         | JobState::Delivering => Color::DarkMagenta,
+        JobState::Completed if job.is_expired_at(now) => Color::DarkYellow,
         JobState::Completed => Color::DarkGreen,
         JobState::Error | JobState::Cancelled => Color::DarkRed,
     }

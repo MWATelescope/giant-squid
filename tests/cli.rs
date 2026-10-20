@@ -583,6 +583,84 @@ fn verbosity_with_legacy_json_is_a_usage_error() {
     }
 }
 
+/// A completed job with one Acacia file at `url`.
+fn completed_job_at(id: i64, url: &str) -> serde_json::Value {
+    let mut detail = job_detail(id, TEST_OBS_ID, "completed", 1);
+    detail["product"] = serde_json::json!({
+        "files": [{ "type": "acacia", "url": url, "size": 1, "sha1": "0".repeat(40) }]
+    });
+    detail
+}
+
+/// The table says whether the download links of a completed job work
+/// (`Expires` of its URLs is not past), and the JSON keeps the state of the
+/// API.
+#[test]
+fn list_shows_whether_the_download_links_of_a_completed_job_work() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![
+        completed_job_at(101, "https://example.org/a.tar?Expires=4102444800"),
+        completed_job_at(102, "https://example.org/b.tar?Expires=1000000000"),
+        job_detail(103, TEST_OBS_ID, "queued", 1),
+    ]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--no-colour"]);
+    let table = run(cmd);
+    let mut cmd = env.command();
+    cmd.args(["list", "--json"]);
+    let json = run(cmd);
+
+    assert!(table.success, "output: {}", table.combined());
+    for expected in ["completed (ready)", "completed (expired)", "queued"] {
+        assert!(
+            table.stdout.contains(expected),
+            "{expected}: {}",
+            table.stdout
+        );
+    }
+    assert!(json.success, "output: {}", json.combined());
+    let jobs = json.stdout_json();
+    for id in ["101", "102"] {
+        assert_eq!(jobs[id]["job_state"], "completed", "{id}");
+    }
+    assert!(!json.stdout.contains("(expired)"), "{}", json.stdout);
+}
+
+/// A download of a job whose links have expired fails with its own error
+/// code, the Job ID and no request for the file.
+#[test]
+fn download_of_a_job_whose_links_have_expired_is_a_job_expired_error() {
+    let env = CliEnv::with_session();
+    let file = env.server.mock(|when, then| {
+        when.method(GET).path("/downloads/b.tar");
+        then.status(200).body("payload");
+    });
+    let url = format!("{}?Expires=1000000000", env.server.url("/downloads/b.tar"));
+    env.mock_get_jobs(vec![completed_job_at(102, &url)]);
+    let dir = tempfile::TempDir::new().expect("a download directory");
+
+    let mut cmd = env.command();
+    cmd.args(["download", "--json", "-d"])
+        .arg(dir.path())
+        .arg("102");
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    let line = result.stdout_json();
+    assert_eq!(line["status"], "failed");
+    assert_eq!(line["error_code"], "JOB_EXPIRED");
+    assert_eq!(line["job_id"], 102);
+    assert!(
+        line["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Resubmit the job"),
+        "{line}"
+    );
+    assert_eq!(file.calls(), 0);
+}
+
 #[test]
 fn list_prints_the_jobs_as_a_table() {
     let env = CliEnv::with_session();

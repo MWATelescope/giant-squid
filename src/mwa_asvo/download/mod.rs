@@ -16,6 +16,7 @@ use crate::obs_id::ObsId;
 use super::api::openapi::Type as FileType;
 use super::redact::{redact_url, redact_urls_in_text};
 use super::retry::{sleep_unless_stopped, Backoff};
+use super::types::signed_url_expiry;
 use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
 
 use std::cell::{Cell, RefCell};
@@ -28,6 +29,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use jiff::Timestamp;
 use log::{debug, info, warn};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, RANGE};
@@ -160,6 +162,10 @@ impl DownloadOptions<'_> {
     }
 }
 
+/// The error code that the file server (S3) sends in the body of a 403 for a
+/// signed URL that has expired.
+const ACCESS_DENIED_CODE: &str = "<Code>AccessDenied</Code>";
+
 /// The size of a tar block. Every tar header is one block, and the data of
 /// each member is padded with zeros to a whole number of blocks.
 const TAR_BLOCK_SIZE: u64 = 512;
@@ -226,8 +232,24 @@ pub(crate) fn download_by_obs_id(
     let ready: Vec<&AsvoJob> = of_obs_id
         .filter(|j| j.job_state == JobState::Completed)
         .collect();
-    match ready.as_slice() {
-        [] => Err(AsvoError::NoJobReadyForObsId(obs_id)),
+    // A completed job whose download links have expired cannot be
+    // downloaded, so it does not count when another completed job of the
+    // Obs ID can.
+    let now = Timestamp::now();
+    let usable: Vec<&AsvoJob> = ready
+        .iter()
+        .copied()
+        .filter(|j| !j.is_expired_at(now))
+        .collect();
+    match usable.as_slice() {
+        [] => match ready.iter().max_by_key(|j| j.expires()) {
+            // Every completed job has expired: say so for the newest.
+            Some(newest) => Err(AsvoError::JobExpired {
+                job_id: newest.job_id(),
+                expired: newest.expires(),
+            }),
+            None => Err(AsvoError::NoJobReadyForObsId(obs_id)),
+        },
         [job] => {
             download_job(http_client, job, opts)?;
             Ok((*job).clone())
@@ -247,6 +269,15 @@ fn download_job(
         return Err(AsvoError::NotReady {
             job_id,
             job_state: job.job_state,
+        });
+    }
+
+    // The MWA ASVO signs the URLs for a time, and a request after it fails
+    // with HTTP 403. The `Expires` of the URL says so before any request.
+    if job.is_expired_at(Timestamp::now()) {
+        return Err(AsvoError::JobExpired {
+            job_id,
+            expired: job.expires(),
         });
     }
 
@@ -421,6 +452,7 @@ fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Retry<AsvoError> {
         | AsvoError::CannotCreate { .. }
         | AsvoError::Interrupted
         | AsvoError::SymlinkInDownloadDir { .. }
+        | AsvoError::JobExpired { .. }
         | AsvoError::NoHash { .. } => Retry::Permanent(e),
         AsvoError::HttpError { status: 404, .. } => {
             Retry::Permanent(AsvoError::Http404Error { job_id })
@@ -1886,6 +1918,14 @@ fn send_checked(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().unwrap_or_default();
+        // The file server answers a URL that has expired (or whose
+        // signature is not valid) with 403 and an `AccessDenied` error.
+        if status == reqwest::StatusCode::FORBIDDEN && body.contains(ACCESS_DENIED_CODE) {
+            return Err(AsvoError::JobExpired {
+                job_id,
+                expired: signed_url_expiry(url),
+            });
+        }
         return Err(AsvoError::HttpError {
             job_id,
             status: status.as_u16(),

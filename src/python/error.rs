@@ -94,8 +94,9 @@ mod stub_attributes {
             struct_id: std::any::TypeId::of::<AsvoError>,
             attrs: &[
                 attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
-                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error."),
+                attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error."),
                 attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
+                attr!("expired", Option<jiff::Timestamp>, "JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known."),
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
@@ -136,6 +137,8 @@ enum Field {
     Delivery(PyType),
     /// A list of `{"field": ..., "message": ...}` dicts.
     ErrorDicts(Vec<lib::api::openapi::FieldError>),
+    /// A time (a `datetime`), or `None`.
+    Time(Option<jiff::Timestamp>),
 }
 
 /// Make an exception of type `T` with the message of `message`, and set
@@ -157,6 +160,7 @@ fn build<T: pyo3::PyTypeInfo>(
             Field::OptInt(n) => value.setattr(name, n),
             Field::State(s) => value.setattr(name, s),
             Field::Delivery(d) => value.setattr(name, d),
+            Field::Time(t) => value.setattr(name, t),
             Field::ErrorDicts(errors) => {
                 let list = errors
                     .into_iter()
@@ -331,6 +335,13 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             ],
         ),
         lib::AsvoError::NoFiles(id) => ("NoFiles", vec![job_id(id)]),
+        lib::AsvoError::JobExpired {
+            job_id: id,
+            expired,
+        } => (
+            "JobExpired",
+            vec![job_id(id), ("expired", Field::Time(expired))],
+        ),
         lib::AsvoError::HashMismatch {
             job_id: id,
             file,

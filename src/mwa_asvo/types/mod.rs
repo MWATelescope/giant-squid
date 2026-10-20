@@ -4,10 +4,13 @@
 
 //! ASVO data types.
 
+use jiff::Timestamp;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobFile, JobState, JobType};
+use crate::mwa_asvo::api::openapi::{
+    JobDetailResponse, JobFile, JobState, JobType, Type as FileType,
+};
 use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
 use crate::{obs_id::ObsId, AsvoError};
 
@@ -22,6 +25,28 @@ pub(crate) const JOB_TYPE_CODE_VOLTAGE: i64 = 3;
 pub(crate) const JOB_TYPE_CODE_CANCEL: i64 = 4;
 pub(crate) const JOB_TYPE_CODE_BEAMFORMER: i64 = 5;
 pub(crate) const JOB_TYPE_CODE_IMAGING: i64 = 6;
+
+/// The query key of the time at which a signed download URL stops working:
+/// seconds since the Unix epoch (an S3 presigned URL has `Expires=<seconds>`).
+const URL_EXPIRES_KEY: &str = "Expires";
+
+/// How long a signed download URL works, in days, from the time the MWA ASVO
+/// signs it. The URL has the end of that time in its `Expires`.
+pub const SIGNED_URL_LIFETIME_DAYS: u32 = 7;
+
+/// What [`AsvoJob::display_state_at`] adds to `completed` for a job whose
+/// download links work, and for a job whose links have expired.
+const DISPLAY_READY: &str = "ready";
+const DISPLAY_EXPIRED: &str = "expired";
+
+/// The time at which the signed download URL `url` stops working: its
+/// `Expires` query value. `None` if `url` is not a URL, or has no usable
+/// `Expires`.
+pub(crate) fn signed_url_expiry(url: &str) -> Option<Timestamp> {
+    let url = reqwest::Url::parse(url).ok()?;
+    let (_, value) = url.query_pairs().find(|(key, _)| key == URL_EXPIRES_KEY)?;
+    Timestamp::from_second(value.parse::<i64>().ok()?).ok()
+}
 
 /// The job types of the OpenAPI schema: each `JobType` code, with the name
 /// that the schema gives it.
@@ -154,6 +179,60 @@ impl AsvoJob {
     #[cfg(test)]
     pub(crate) fn detail_mut(&mut self) -> &mut JobDetailResponse {
         &mut self.detail
+    }
+}
+
+impl AsvoJob {
+    /// When the download links of the job stop working: the earliest
+    /// `Expires` of the signed URLs of its Acacia files. The MWA ASVO signs
+    /// them for [`SIGNED_URL_LIFETIME_DAYS`] days. `None` if the job has no
+    /// Acacia file with a URL that has a usable `Expires` (a Scratch or DUG
+    /// job, or a job with no product yet).
+    pub fn expires(&self) -> Option<Timestamp> {
+        self.detail
+            .product
+            .as_ref()?
+            .files
+            .iter()
+            .filter(|file| file.type_ == FileType::Acacia)
+            .filter_map(|file| file.url.as_deref().and_then(signed_url_expiry))
+            .min()
+    }
+
+    /// Whether the job is completed and its download links have expired at
+    /// `now`: a download of it would be refused. The API does not say so (it
+    /// has no such state), so this is worked out from the URLs. A job with no
+    /// readable expiry is not expired.
+    pub fn is_expired_at(&self, now: Timestamp) -> bool {
+        self.detail.job_state == JobState::Completed && self.expires().is_some_and(|e| e <= now)
+    }
+
+    /// [`Self::is_expired_at`] for the current time.
+    pub fn is_expired(&self) -> bool {
+        self.is_expired_at(Timestamp::now())
+    }
+
+    /// The job state as `giant-squid list` and `wait` show it, at `now`: the
+    /// API's state (for example `queued`), except that a completed job is
+    /// `completed (ready)` if its download links work and `completed
+    /// (expired)` if they have expired. This is for display only: the job's
+    /// `job_state` is the API's.
+    pub fn display_state_at(&self, now: Timestamp) -> String {
+        let state = self.detail.job_state;
+        if state != JobState::Completed {
+            return state.to_string();
+        }
+        let links = if self.is_expired_at(now) {
+            DISPLAY_EXPIRED
+        } else {
+            DISPLAY_READY
+        };
+        format!("{state} ({links})")
+    }
+
+    /// [`Self::display_state_at`] for the current time.
+    pub fn display_state(&self) -> String {
+        self.display_state_at(Timestamp::now())
     }
 }
 

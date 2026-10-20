@@ -5,6 +5,7 @@ or unpacked, and the SHA-1 is checked. Nothing is fetched from Acacia. The Ctrl-
 process from a timer thread while a slow download runs on the main thread.
 """
 
+import datetime
 import hashlib
 import io
 import logging
@@ -564,3 +565,54 @@ def test_a_job_directory_that_cannot_be_made_is_an_os_error_with_its_path(
     assert not isinstance(info.value, gs.AsvoError)
     assert info.value.filename is not None
     assert str(JOB_ID) in str(info.value.filename)
+
+
+# The `Expires` of a signed URL that ended long ago (2001-09-09T01:46:40Z), and of one that has not ended (2100).
+EXPIRES_LONG_AGO = 1_000_000_000
+EXPIRES_FAR_AWAY = 4_102_444_800
+
+
+def job_with_url(httpserver: HTTPServer, job_id: int, expires: int) -> dict[str, Any]:
+    """A completed job whose Acacia URL has an `Expires`.
+
+    Args:
+        httpserver: The pytest-httpserver server.
+        job_id: The Job ID.
+        expires: The `Expires` of the URL, in seconds since the Unix epoch.
+
+    Returns:
+        The job, as the server sends it.
+    """
+    url = f"{httpserver.url_for(FILE_PATH)}?Expires={expires}"
+    product = {"files": [{"type": "acacia", "url": url, "size": 7, "sha1": "0" * 40}]}
+    return job_detail(job_id, "completed", product=product)
+
+
+def test_a_job_says_when_its_download_links_expire(
+    client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None]
+) -> None:
+    """`expires`, `is_expired` and `display_state` follow the `Expires` of the URL, and `job_state` stays the API's."""
+    serve_jobs([job_with_url(httpserver, 101, EXPIRES_FAR_AWAY), job_with_url(httpserver, 102, EXPIRES_LONG_AGO)])
+
+    ready, expired = sorted(client.get_jobs(), key=lambda job: job.job_id)
+
+    assert (ready.is_expired, ready.display_state) == (False, "completed (ready)")
+    assert (expired.is_expired, expired.display_state) == (True, "completed (expired)")
+    assert expired.expires == datetime.datetime(2001, 9, 9, 1, 46, 40, tzinfo=datetime.timezone.utc)
+    assert ready.job_state == expired.job_state == gs.JobState.Completed
+
+
+def test_a_download_of_a_job_whose_links_expired_raises_job_expired(
+    client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None], tmp_path: pathlib.Path
+) -> None:
+    """The error has the Job ID and the time, and no request is made for the file."""
+    serve_jobs([job_with_url(httpserver, JOB_ID, EXPIRES_LONG_AGO)])
+
+    with pytest.raises(gs.AsvoError) as info:
+        client.download_job(JOB_ID, tmp_path)
+
+    assert info.value.kind == "JobExpired"
+    assert info.value.job_id == JOB_ID
+    assert info.value.expired == datetime.datetime(2001, 9, 9, 1, 46, 40, tzinfo=datetime.timezone.utc)
+    assert "Resubmit the job" in str(info.value)
+    assert not any(request.path == FILE_PATH for request, _ in httpserver.log)

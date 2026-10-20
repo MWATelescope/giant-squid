@@ -326,6 +326,31 @@ impl PyAsvoJob {
         self.0.last_name.clone()
     }
 
+    /// When the download links of the job stop working (UTC): the earliest
+    /// `Expires` of the signed URLs of its Acacia files, or `None` if the job
+    /// has no such URL. The MWA ASVO signs the URLs for 7 days.
+    #[getter]
+    fn expires(&self) -> Option<Timestamp> {
+        self.0.expires()
+    }
+
+    /// Whether the job is completed and its download links have expired. The
+    /// MWA ASVO has no such state, so this is worked out from `expires`.
+    /// `job_state` is still the MWA ASVO's. A download of an expired job
+    /// raises `AsvoError` of kind `JobExpired`: resubmit the job.
+    #[getter]
+    fn is_expired(&self) -> bool {
+        self.0.is_expired()
+    }
+
+    /// The job state as `giant-squid list` shows it: the MWA ASVO's state
+    /// (for example `queued`), except that a completed job is
+    /// `completed (ready)` or `completed (expired)`.
+    #[getter]
+    fn display_state(&self) -> String {
+        self.0.display_state()
+    }
+
     /// The job's parameters as the server gives them, as a `dict`.
     #[getter]
     fn job_params<'py>(&self, py: Python<'py>) -> PyResult<JsonDict<'py>> {

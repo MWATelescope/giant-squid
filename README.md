@@ -957,7 +957,8 @@ and `--job-types` use the API's name for each code:
 
 `job_state` is the MWA ASVO API's value, one of `preparing`, `queued`, `waitcal`, `staging`, `staged`,
 `downloading`, `preprocessing`, `imaging`, `delivering`, `completed`, `error` or `cancelled`. A job is
-ready for download when it is `completed`. For a job in the `error` state, the message is in
+ready for download when it is `completed` and its download links have not expired (see
+[Expired download links](#expired-download-links)). For a job in the `error` state, the message is in
 `error_text` and the server's code is in `error_code`.
 
 Example reading this in Python:
@@ -1066,8 +1067,8 @@ $ giant-squid wait 31 32
 13:41:02 [INFO] Waiting for 2 jobs to be ready...
 13:41:04 [INFO] Job ID 31 (Obs ID: 1065880128): is queued
 13:41:04 [INFO] Job ID 32 (Obs ID: 1065880248): is preprocessing
-13:46:06 [INFO] Job ID 31 (Obs ID: 1065880128): is completed
-13:52:08 [INFO] Job ID 32 (Obs ID: 1065880248): is completed
+13:46:06 [INFO] Job ID 31 (Obs ID: 1065880128): is completed (ready)
+13:52:08 [INFO] Job ID 32 (Obs ID: 1065880248): is completed (ready)
 13:52:08 [INFO] All 2 MWA ASVO jobs are ready for download.
 ```
 
@@ -1194,6 +1195,26 @@ $ giant-squid download --json 12345 1090008640
 
 A failed download is an error line, as described in [JSON output and errors](#json-output-and-errors), with the
 `job_id` or `obs_id` that was asked for. The exit code is not zero when a download failed.
+
+#### Expired download links
+
+The MWA ASVO signs the download links of a job, and they work for 7 days. After that, the file server refuses
+them (HTTP 403, `AccessDenied`) and the job has to be resubmitted to get new links. The MWA ASVO API has no state
+for this: a job stays `completed`. `giant-squid` reads the end of the time from the link itself (the `Expires` of
+its URL), so it knows without a request:
+
+- `list` and `wait` show a completed job as `completed (ready)` when its links work and `completed (expired)`
+  when they have expired. This is only how the state is shown. The JSON keeps the API's `job_state`
+  (`completed`), and `--job-states completed` still matches both.
+- `download` of a job whose links have expired fails at once, with no request for the file:
+  `The download links of Job ID 1112133 expired on 2026-10-19T03:22:52Z (they last 7 days). Resubmit the job to
+  get new ones.` In `--json` the error code is `JOB_EXPIRED`. The same error is given when the file server answers
+  a download with `AccessDenied`, for example if the link has no readable `Expires`.
+- `download` of an Obs ID uses its completed job whose links work. If every completed job of the Obs ID has
+  expired, it reports the one that expired last.
+- In the library, `AsvoJob::expires`, `is_expired` and `display_state` give the same facts, and the error is
+  `AsvoError::JobExpired`. In Python they are `AsvoJob.expires`, `AsvoJob.is_expired` and
+  `AsvoJob.display_state`, and `AsvoError` of kind `JobExpired`.
 
 To choose the directory to download to, give `download` the `-d`, `--download-dir` option. Without it, the
 download goes to the current directory `.`.

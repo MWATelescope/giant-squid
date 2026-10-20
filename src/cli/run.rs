@@ -857,7 +857,7 @@ fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
         {
             let job_id = job.job_id();
             let obs_id = job.obs_id();
-            let state = job.job_state;
+            let state = job.display_state();
             let log_prefix = format!("Job ID {job_id} (Obs ID: {obs_id}):");
             match last_state.insert(job.job_id(), job.job_state) {
                 Some(last_state) if last_state != job.job_state => {

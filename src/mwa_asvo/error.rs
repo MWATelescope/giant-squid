@@ -179,6 +179,18 @@ pub enum AsvoError {
         source: std::io::Error,
     },
 
+    /// The signed download links of a job have expired. The MWA ASVO signs
+    /// them for 7 days; the job has to be resubmitted to get new ones. Found
+    /// from the `Expires` of the URLs before any request, or from the file
+    /// server's `AccessDenied` answer (HTTP 403) during a download.
+    #[error("{}", job_expired_message(*.job_id, .expired))]
+    JobExpired {
+        /// The job whose links expired.
+        job_id: AsvoJobId,
+        /// When they expired, if known (the `Expires` of the URL).
+        expired: Option<jiff::Timestamp>,
+    },
+
     /// The file to download is not on the server (HTTP 404).
     #[error("The file for Job ID {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
     Http404Error { job_id: AsvoJobId },
@@ -216,4 +228,14 @@ impl From<reqwest::Error> for AsvoError {
     fn from(e: reqwest::Error) -> Self {
         AsvoError::AsvoApi(AsvoApiError::Reqwest(e))
     }
+}
+
+/// The message of [`AsvoError::JobExpired`].
+fn job_expired_message(job_id: AsvoJobId, expired: &Option<jiff::Timestamp>) -> String {
+    let days = super::types::SIGNED_URL_LIFETIME_DAYS;
+    let when = match expired {
+        Some(time) => format!("expired on {time}"),
+        None => "have expired".to_string(),
+    };
+    format!("The download links of Job ID {job_id} {when} (they last {days} days). Resubmit the job to get new ones.")
 }

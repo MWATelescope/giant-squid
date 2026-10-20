@@ -715,11 +715,15 @@ class AsvoError(builtins.Exception):
     """
     job_id: builtins.int
     r"""
-    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
+    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
     """
     obs_id: builtins.int
     r"""
     JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds.
+    """
+    expired: datetime.datetime | None
+    r"""
+    JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known.
     """
     error: builtins.str
     r"""
@@ -858,6 +862,28 @@ class AsvoJob:
     def last_name(self) -> builtins.str:
         r"""
         The last name of the user who submitted the job.
+        """
+    @property
+    def expires(self) -> datetime.datetime | None:
+        r"""
+        When the download links of the job stop working (UTC): the earliest
+        `Expires` of the signed URLs of its Acacia files, or `None` if the job
+        has no such URL. The MWA ASVO signs the URLs for 7 days.
+        """
+    @property
+    def is_expired(self) -> builtins.bool:
+        r"""
+        Whether the job is completed and its download links have expired. The
+        MWA ASVO has no such state, so this is worked out from `expires`.
+        `job_state` is still the MWA ASVO's. A download of an expired job
+        raises `AsvoError` of kind `JobExpired`: resubmit the job.
+        """
+    @property
+    def display_state(self) -> builtins.str:
+        r"""
+        The job state as `giant-squid list` shows it: the MWA ASVO's state
+        (for example `queued`), except that a completed job is
+        `completed (ready)` or `completed (expired)`.
         """
     @property
     def job_params(self) -> builtins.dict[builtins.str, typing.Any]:

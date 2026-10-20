@@ -121,6 +121,10 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - C13: `tools/test_msrv.sh` runs what CI runs at the MSRV (`check.sh` and `cargo test --locked`), in `target/msrv`, with no `cargo update`, no `cargo clean` and no `--all-features`. Tried in the sandbox with a fake `rustup` and Rust 1.89, not with a real 1.88.0 toolchain.
 
+### Expired download links (20 Oct 2026, one diff)
+
+Greg asked for this after a download failed with HTTP 403 `AccessDenied` (the signed URL had expired). Decisions: `Expires` in the URL is the end of the 7 days (not "7 days after `Expires`"), so a job is expired when `Expires` is not after now; Option A (the job state stays the API's, nothing is added to the schema's `JobState`); the table and `wait` show `completed (ready)` or `completed (expired)`; `download` fails with `AsvoError::JobExpired` (`JOB_EXPIRED`, Python kind `JobExpired`) before any request, and a 403 `AccessDenied` from the file server is the same error; the message does not mention `--allow-resubmit`, because the MWA ASVO takes a resubmission without it. A job is expired when any Acacia URL has expired; a URL with no readable `Expires` is not expired. `download` of an Obs ID skips expired completed jobs when another works. Open: `wait` still ends "All N MWA ASVO jobs are ready for download" for a completed job whose links have expired (it only shows `completed (expired)` in its log).
+
 ### Windows: not supported for now (Greg decided on 20 Oct 2026)
 
 Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, so nothing was added: no Windows job, no Windows wheels (`docs/PYTHON.md` says so), and no change in the code. What was found, for a later attempt:
