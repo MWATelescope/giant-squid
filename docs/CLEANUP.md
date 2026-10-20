@@ -121,9 +121,16 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - C13: `tools/test_msrv.sh` runs what CI runs at the MSRV (`check.sh` and `cargo test --locked`), in `target/msrv`, with no `cargo update`, no `cargo clean` and no `--all-features`. Tried in the sandbox with a fake `rustup` and Rust 1.89, not with a real 1.88.0 toolchain.
 
-### Step C: still to do (Greg decided on 20 Oct 2026; one diff each, in this order)
+### Windows: not supported for now (Greg decided on 20 Oct 2026)
 
-1. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
+Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, so nothing was added: no Windows job, no Windows wheels (`docs/PYTHON.md` says so), and no change in the code. What was found, for a later attempt:
+
+- The sandbox cannot compile for a Windows target (Debian's rust-src has no Windows std support, and `static.rust-lang.org` is not reachable). A substitute that worked: copy the repository, replace `not(unix)` with `all()`, `cfg(unix)` with `cfg(any())`, and `std::os::unix` and `std::os::fd` with names that do not exist, then run `cargo check --all-targets`, `cargo clippy --all-targets` and `cargo test` there (use the same `CARGO_TARGET_DIR` to save disk). This showed that the non-Unix branches compile and pass their tests on Linux. It cannot show real Windows behaviour.
+- Only these items stop a Windows test build: the test `a_job_subdirectory_that_is_a_symlink_is_refused` in `src/mwa_asvo/download/tests.rs` calls `std::os::unix::fs::symlink` without `#[cfg(unix)]`; and in `mod unsafe_paths` of the same file, the imports `entry_target` and `EntryTarget` and the helper `try_unpack` are used only by Unix tests (an unused-import and a dead-code warning).
+- `aws-lc-sys` 0.46 needs NASM on Windows, or `AWS_LC_SYS_PREBUILT_NASM=1` to use its bundled objects.
+- The session cache reads `HOME` only (`ENV_HOME`), so on Windows (`USERPROFILE`) no session would be cached. The token file is written without a restricted mode off Unix.
+- A Windows CI job would also need `git config --global core.autocrlf false` before the checkout, `fail-fast: false`, and, for the Python tests, a `skipif` on the Ctrl-C tests (`os.kill(os.getpid(), SIGINT)` ends the process on Windows).
+- The non-Unix branches (`no_follow`, `copy_symlink`, the token store) are never built in CI. Open question for Greg: declare the crate Unix-only (a `compile_error!` and delete those branches), or keep them.
 
 ### Done in `e891d31` (L1–L10 part A)
 
