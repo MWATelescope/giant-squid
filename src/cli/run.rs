@@ -38,7 +38,7 @@ use crate::mwa_asvo::{
 };
 use crate::obs_id::ObsId;
 use crate::{
-    parse_many_job_ids_or_obs_ids, parse_obs_ids_only, read_manta_ray_csv, CsvDefaults,
+    parse_many_job_ids_or_obs_ids, parse_obs_ids_only, read_manta_ray_csv, CsvDefaults, CsvError,
     CsvFileError, CsvJob, CsvJobsFailed, ParseError,
 };
 
@@ -432,12 +432,15 @@ fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> 
     if allow_resubmit {
         defaults.allow_resubmit = Some(true);
     }
-    let jobs = read_manta_ray_csv(file, &defaults).map_err(|e| match e {
-        CsvFileError::Read { .. } => anyhow::Error::from(e),
-        CsvFileError::Invalid(_) | CsvFileError::NoJobs { .. } => {
-            ArgumentError(e.to_string()).into()
+    let jobs = match read_manta_ray_csv(file, &defaults) {
+        Ok(jobs) => jobs,
+        // With `--json`, each bad line is an error line of its own.
+        Err(CsvFileError::Invalid(error)) if submit.json => {
+            return report_invalid_csv_json(&error);
         }
-    })?;
+        Err(e @ CsvFileError::Read { .. }) => return Err(e.into()),
+        Err(e) => return Err(ArgumentError(e.to_string()).into()),
+    };
 
     if submit.dry_run {
         return report_dry_run_csv(&jobs, submit.json);
@@ -451,6 +454,20 @@ fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> 
     } else {
         outcome
     }
+}
+
+/// Report the bad lines of a CSV file with `--json`: one [`JsonError`] line
+/// for each, with its line of the file, and no summary, as the other failures
+/// that were reported one by one. Nothing was submitted. The error that is
+/// returned makes the exit code 1.
+fn report_invalid_csv_json(error: &CsvError) -> anyhow::Result<()> {
+    for row in &error.errors {
+        print_json_line(
+            &JsonError::invalid_argument(&row.message).with_line(row.line),
+            true,
+        )?;
+    }
+    Err(ReportedFailures(error.to_string()).into())
 }
 
 /// Submit the jobs of a CSV file with the library's

@@ -856,7 +856,8 @@ as in the manta-ray-client README (and the other fields of the request body of t
 How `submit-csv` works:
 
 - It reads and checks every line before it submits anything, also with `--dry-run`. A mistake on any line submits
-  nothing. The error lists each bad line by its line number. The values have the same limits as the options of the
+  nothing. The error lists each bad line by its line number (with `--json`, each bad line is an error line of its
+  own, with its number in the key `line`). The values have the same limits as the options of the
   other submit commands.
 - A key that a line does not give has the default of the MWA ASVO. Only `delivery` and `delivery_format` differ:
   if `GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT` is set, it is the default of the lines that do not

@@ -97,6 +97,16 @@ impl JsonError {
         Self::from_response(error.error_response(), None, None)
     }
 
+    /// The error line of an argument that cannot be used
+    /// ([`ERROR_CODE_INVALID_ARGUMENT`]), with `message` as its text.
+    pub(super) fn invalid_argument(message: impl ToString) -> Self {
+        Self::from_response(
+            new_error_response(ERROR_CODE_INVALID_ARGUMENT, message),
+            None,
+            None,
+        )
+    }
+
     /// The error line of a command-line usage error found by clap. The
     /// message is clap's text, without styles.
     pub(super) fn usage(error: &clap::Error) -> Self {

@@ -259,12 +259,49 @@ fn a_bad_file_with_json_prints_one_error_line() {
     assert_eq!(requests.calls(), 0);
     let line = result.stdout_json();
     assert_eq!(line["status"], "failed");
+    assert_eq!(line["line"], 1);
     assert!(
         line["message"]
             .as_str()
             .unwrap_or_default()
-            .contains("line 1"),
+            .contains("job_type"),
         "{line}"
+    );
+}
+
+#[test]
+fn a_bad_file_with_json_prints_an_error_line_for_each_bad_line() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+    let file = CsvFile::new(
+        "# a comment\n\
+         obs_id=1349904240, job_type=x\n\
+         obs_id=1349904184, job_type=d, download_type=vis\n\
+         obs_id=abc, job_type=c\n",
+    );
+
+    let mut cmd = env.command();
+    cmd.args(["submit-csv", "--json", &file.path]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "{}", result.combined());
+    assert_eq!(result.stderr, "");
+    assert_eq!(requests.calls(), 0);
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 2, "{}", result.stdout);
+    for line in &lines {
+        assert_eq!(line["status"], "failed");
+        assert_eq!(line["error_code"], "INVALID_ARGUMENT");
+    }
+    assert_eq!(lines[0]["line"], 2);
+    assert_eq!(lines[1]["line"], 4);
+    assert!(
+        lines[1]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("obs_id: "),
+        "{}",
+        lines[1]
     );
 }
 
