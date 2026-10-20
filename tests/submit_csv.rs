@@ -378,6 +378,49 @@ fn with_json_a_failed_submission_is_an_error_line_with_its_obs_id() {
     assert_eq!(lines[0]["obs_id"], 1349904240_u64);
 }
 
+#[test]
+fn with_json_only_the_error_line_of_a_job_has_the_line_of_the_file() {
+    let env = CliEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(json!({"obs_id": 1349904240_u64}).to_string());
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
+    });
+    env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/download_vis_job")
+            .json_body_includes(json!({"obs_id": 1349904184_u64}).to_string());
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_submitted_response(21));
+    });
+    let file = CsvFile::new(
+        "# a comment\n\
+         obs_id=1349904184, job_type=d, download_type=vis\n\
+         obs_id=1349904240, job_type=d, download_type=vis\n",
+    );
+
+    let mut cmd = env.command();
+    cmd.args(["submit-csv", "--json", &file.path]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1));
+    let lines = result.stdout_json_lines();
+    assert_eq!(lines.len(), 2, "{}", result.stdout);
+    // A submitted job: the reply, as the other submit commands print it.
+    assert_eq!(lines[0]["status"], "success");
+    assert_eq!(lines[0]["job_id"], 21);
+    assert!(lines[0].get("line").is_none(), "{}", lines[0]);
+    assert!(lines[0].get("obs_id").is_none(), "{}", lines[0]);
+    // A job that failed: the error line, with its Obs ID and its line.
+    assert_eq!(lines[1]["status"], "failed");
+    assert_eq!(lines[1]["obs_id"], 1349904240_u64);
+    assert_eq!(lines[1]["line"], 3);
+}
+
 // ---------------------------------------------------------------------------
 // Defaults: the environment and --allow-resubmit
 // ---------------------------------------------------------------------------

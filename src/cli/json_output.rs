@@ -42,8 +42,8 @@ pub(super) const KEY_MESSAGE: &str = "message";
 /// One error line of `--json`: `"status": "failed"` (the schema's
 /// [`Status::Failed`], the value that the MWA ASVO's own failed replies have),
 /// the `ErrorResponse`, then
-/// the Job ID and the Obs ID that the error is about (a key that is not known
-/// is left out).
+/// the Job ID and the Obs ID that the error is about, and the line of the CSV
+/// file for `submit-csv` (a key that is not known is left out).
 #[derive(serde::Serialize)]
 pub(super) struct JsonError {
     status: Status,
@@ -53,6 +53,8 @@ pub(super) struct JsonError {
     job_id: Option<AsvoJobId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     obs_id: Option<ObsId>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<usize>,
 }
 
 impl JsonError {
@@ -115,6 +117,7 @@ impl JsonError {
             error,
             job_id,
             obs_id,
+            line: None,
         }
     }
 
@@ -127,6 +130,13 @@ impl JsonError {
     /// The line for the Obs ID `obs_id`, which was asked for.
     pub(super) fn with_obs_id(mut self, obs_id: ObsId) -> Self {
         self.obs_id = Some(obs_id);
+        self
+    }
+
+    /// The line for the line `line` of a CSV file (from 1), which was asked
+    /// for.
+    pub(super) fn with_line(mut self, line: usize) -> Self {
+        self.line = Some(line);
         self
     }
 }

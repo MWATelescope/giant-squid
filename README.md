@@ -209,7 +209,8 @@ Log messages go to standard error, so standard output has only the output of the
 With `-j`, `--json`, every command prints only JSON, on standard output. It prints no log messages and no
 progress bars, and nothing on standard error. Each error is one line of JSON with `"status": "failed"`, then the MWA ASVO's error
 response: `error_code` and `message`, and `detail`, `suggestion`, `field_errors` and `request_id` when they are
-known. An error about one Obs ID or job also has its `obs_id` or `job_id`. A script finds an error line by its
+known. An error about one Obs ID or job also has its `obs_id` or `job_id`, and an error about one line of a CSV file
+(`submit-csv`) has its `line`, counted from 1. A script finds an error line by its
 `error_code` key. The line of a result has `status` as its first key, and it is `success` or `failed`: the reply of
 the MWA ASVO to a submission or a cancellation (as the MWA ASVO sent it; a refused cancellation of a job that is
 already cancelled is a reply with `failed`), a download (`success`) or an error (`failed`). A listing, and a dry run, are not results of that kind and have no `status`. The exit code is 1 if anything failed, and 2 for a bad command line.
@@ -861,8 +862,8 @@ How `submit-csv` works:
   if `GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT` is set, it is the default of the lines that do not
   give that key. A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
   not give it.
-- A submission that fails does not stop the others. Each failure is reported with its line number, and the command
-  ends with a summary and a non-zero exit code. `--wait`, `--json` and `--dry-run` work as for the other submit
+- A submission that fails does not stop the others. Each failure is reported with its line number (with `--json`,
+  in the key `line` of its error line), and the command ends with a summary and a non-zero exit code. `--wait`, `--json` and `--dry-run` work as for the other submit
   commands.
 
 It differs from manta-ray-client where that client sends a mistake to the server without a word:

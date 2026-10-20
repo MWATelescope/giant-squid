@@ -500,9 +500,10 @@ fn submit_each_csv_job(
     }
 }
 
-/// Report the result of one job of a CSV file: with `json`, the reply or a
-/// [`JsonError`] line with the Obs ID; without, a log record that names the
-/// line of the file.
+/// Report the result of one job of a CSV file: with `json`, the reply as the
+/// other submit commands print it, or a [`JsonError`] line with the Obs ID and
+/// the line of the file; without, a log record that names the line of the
+/// file.
 fn report_csv_result(
     job: &CsvJob,
     result: &Result<JobSubmittedResponse, AsvoApiError>,
@@ -517,7 +518,12 @@ fn report_csv_result(
             );
         }
         Err(e) if json => {
-            print_json_line(&JsonError::api_error(e).with_obs_id(job.obs_id), true)?;
+            print_json_line(
+                &JsonError::api_error(e)
+                    .with_obs_id(job.obs_id)
+                    .with_line(job.line),
+                true,
+            )?;
         }
         Err(e) => error!("Line {}: Obs ID {}: {e}", job.line, job.obs_id),
     }
