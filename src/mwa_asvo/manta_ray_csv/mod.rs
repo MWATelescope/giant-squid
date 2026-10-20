@@ -790,12 +790,60 @@ impl std::fmt::Display for CsvJobFailure {
     }
 }
 
-/// Why [`AsvoClient::submit_csv_file`] or [`AsvoClient::submit_csv_jobs`]
-/// did not submit every job of a file.
+/// Why a CSV file could not be turned into jobs by [`read_manta_ray_csv`].
+/// Nothing was submitted.
+#[derive(Debug, Error)]
+pub enum CsvFileError {
+    /// The file could not be read.
+    #[error("{}", read_message(.path, .source))]
+    Read {
+        /// The file.
+        path: PathBuf,
+        /// Why it could not be read.
+        #[source]
+        source: std::io::Error,
+    },
+    /// A line of the file has a problem.
+    #[error("{0}")]
+    Invalid(#[from] CsvError),
+    /// The file has no job: it is empty, or has only blank lines and
+    /// comments.
+    #[error("{}", no_jobs_message(.path))]
+    NoJobs {
+        /// The file.
+        path: PathBuf,
+    },
+}
+
+/// The message of a CSV file that could not be read.
+fn read_message(path: &Path, source: &std::io::Error) -> String {
+    format!("Could not read the CSV file {}: {source}", path.display())
+}
+
+/// The message of a CSV file that has no job.
+fn no_jobs_message(path: &Path) -> String {
+    format!("{} has no jobs.", path.display())
+}
+
+/// The jobs of a file that [`AsvoClient::submit_csv_jobs`] did not submit,
+/// and the replies for the jobs that it did. It carries on past a failure, so
+/// the other jobs were submitted.
+#[derive(Debug, Error)]
+#[error("{}", failed_message(.submitted, .failures))]
+pub struct CsvJobsFailed {
+    /// The replies for the jobs that were submitted, in the order of the
+    /// file.
+    pub submitted: Vec<JobSubmittedResponse>,
+    /// The jobs that were not (the server refused them, or a request
+    /// failed), in the order of the file. There is at least one.
+    pub failures: Vec<CsvJobFailure>,
+}
+
+/// Why [`AsvoClient::submit_csv_file`] did not submit every job of a file.
 #[derive(Debug, Error)]
 pub enum CsvSubmitError {
     /// The file could not be read. Nothing was submitted.
-    #[error("Could not read the CSV file {}: {source}", path.display())]
+    #[error("{}", read_message(.path, .source))]
     Read {
         /// The file.
         path: PathBuf,
@@ -806,6 +854,12 @@ pub enum CsvSubmitError {
     /// A line of the file has a problem. Nothing was submitted.
     #[error("{0}")]
     Invalid(#[from] CsvError),
+    /// The file has no job. Nothing was submitted.
+    #[error("{}", no_jobs_message(.path))]
+    NoJobs {
+        /// The file.
+        path: PathBuf,
+    },
     /// The server refused some jobs, or a request failed. The other jobs
     /// were submitted: [`AsvoClient::submit_csv_jobs`] carries on past a
     /// failure.
@@ -819,7 +873,26 @@ pub enum CsvSubmitError {
     },
 }
 
-/// The message of [`CsvSubmitError::Failed`]: the counts, and each failure.
+impl From<CsvFileError> for CsvSubmitError {
+    fn from(error: CsvFileError) -> Self {
+        match error {
+            CsvFileError::Read { path, source } => Self::Read { path, source },
+            CsvFileError::Invalid(error) => Self::Invalid(error),
+            CsvFileError::NoJobs { path } => Self::NoJobs { path },
+        }
+    }
+}
+
+impl From<CsvJobsFailed> for CsvSubmitError {
+    fn from(error: CsvJobsFailed) -> Self {
+        Self::Failed {
+            submitted: error.submitted,
+            failures: error.failures,
+        }
+    }
+}
+
+/// The message of failed jobs: the counts, and each failure.
 fn failed_message(submitted: &[JobSubmittedResponse], failures: &[CsvJobFailure]) -> String {
     let total = submitted.len() + failures.len();
     let mut message = format!("{} of {total} job submissions failed", failures.len());
@@ -829,33 +902,55 @@ fn failed_message(submitted: &[JobSubmittedResponse], failures: &[CsvJobFailure]
     message
 }
 
+/// Read the jobs of a `manta-ray-client` CSV file: read the file and parse
+/// it with [`parse_manta_ray_csv`], which checks every line.
+///
+/// # Errors
+///
+/// [`CsvFileError::Read`] if the file cannot be read; [`CsvFileError::Invalid`]
+/// with every line that has a problem; [`CsvFileError::NoJobs`] if the file
+/// has no job (a command that was asked to submit a file with nothing in it
+/// has been used wrongly).
+pub fn read_manta_ray_csv(
+    path: &Path,
+    defaults: &CsvDefaults,
+) -> Result<Vec<CsvJob>, CsvFileError> {
+    let text = std::fs::read_to_string(path).map_err(|source| CsvFileError::Read {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let jobs = parse_manta_ray_csv(&text, defaults)?;
+    if jobs.is_empty() {
+        return Err(CsvFileError::NoJobs {
+            path: path.to_path_buf(),
+        });
+    }
+    Ok(jobs)
+}
+
 impl AsvoClient {
-    /// Read a `manta-ray-client` CSV file (see [`parse_manta_ray_csv`]),
-    /// check all of it, and submit its jobs, in the order of the file.
+    /// Read a `manta-ray-client` CSV file ([`read_manta_ray_csv`]), check all
+    /// of it, and submit its jobs, in the order of the file.
     ///
-    /// Nothing is submitted if the file cannot be read or has a problem on
-    /// any line. A job that fails (the server refuses it, or a request
-    /// fails) does not stop the others.
+    /// Nothing is submitted if the file cannot be read, has no job, or has a
+    /// problem on any line. A job that fails (the server refuses it, or a
+    /// request fails) does not stop the others.
     ///
-    /// Returns the reply for each job, in the order of the file. A file with
-    /// no job gives an empty list.
+    /// Returns the reply for each job, in the order of the file.
     ///
     /// # Errors
     ///
-    /// [`CsvSubmitError::Read`] or [`CsvSubmitError::Invalid`], with nothing
-    /// submitted; [`CsvSubmitError::Failed`] if any job failed, with the
-    /// replies for the jobs that were submitted.
+    /// [`CsvSubmitError::Read`], [`CsvSubmitError::NoJobs`] or
+    /// [`CsvSubmitError::Invalid`], with nothing submitted;
+    /// [`CsvSubmitError::Failed`] if any job failed, with the replies for the
+    /// jobs that were submitted.
     pub fn submit_csv_file(
         &self,
         path: &Path,
         defaults: &CsvDefaults,
     ) -> Result<Vec<JobSubmittedResponse>, CsvSubmitError> {
-        let text = std::fs::read_to_string(path).map_err(|source| CsvSubmitError::Read {
-            path: path.to_path_buf(),
-            source,
-        })?;
-        let jobs = parse_manta_ray_csv(&text, defaults)?;
-        self.submit_csv_jobs(&jobs, |_, _| {})
+        let jobs = read_manta_ray_csv(path, defaults)?;
+        Ok(self.submit_csv_jobs(&jobs, |_, _| {})?)
     }
 
     /// Submit the jobs that [`parse_manta_ray_csv`] read, in order, and carry
@@ -864,13 +959,13 @@ impl AsvoClient {
     ///
     /// # Errors
     ///
-    /// [`CsvSubmitError::Failed`] if any job failed, with the replies for the
-    /// jobs that were submitted. No other error is returned.
+    /// [`CsvJobsFailed`] if any job failed, with the replies for the jobs
+    /// that were submitted.
     pub fn submit_csv_jobs(
         &self,
         jobs: &[CsvJob],
         mut on_result: impl FnMut(&CsvJob, &Result<JobSubmittedResponse, AsvoApiError>),
-    ) -> Result<Vec<JobSubmittedResponse>, CsvSubmitError> {
+    ) -> Result<Vec<JobSubmittedResponse>, CsvJobsFailed> {
         let mut submitted = Vec::with_capacity(jobs.len());
         let mut failures = Vec::new();
         for job in jobs {
@@ -888,7 +983,7 @@ impl AsvoClient {
         if failures.is_empty() {
             Ok(submitted)
         } else {
-            Err(CsvSubmitError::Failed {
+            Err(CsvJobsFailed {
                 submitted,
                 failures,
             })

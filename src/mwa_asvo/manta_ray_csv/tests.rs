@@ -803,16 +803,94 @@ mod submitting {
     }
 
     #[test]
-    fn a_file_with_no_job_gives_no_reply() {
+    fn a_file_with_no_job_is_an_error_and_nothing_is_sent() {
         let env = TestEnv::with_session();
+        let any = env.server.mock(|when, then| {
+            when.any_request();
+            then.status(500);
+        });
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(&dir, "# nothing\n");
         let client = AsvoClient::new(client_config(&env)).expect("client should be created");
 
-        let replies = client
+        let err = client
             .submit_csv_file(&file, &CsvDefaults::default())
-            .expect("an empty file is not an error");
+            .expect_err("a file with no job is refused");
 
-        assert!(replies.is_empty());
+        assert!(matches!(err, CsvSubmitError::NoJobs { .. }), "{err:?}");
+        assert_eq!(any.calls(), 0);
+    }
+}
+
+mod reading_files {
+    use std::path::{Path, PathBuf};
+
+    use tempfile::TempDir;
+
+    use super::super::{read_manta_ray_csv, CsvDefaults, CsvFileError};
+
+    /// A CSV file in a temporary directory.
+    fn csv_file(dir: &TempDir, text: &str) -> PathBuf {
+        let path = dir.path().join("jobs.csv");
+        std::fs::write(&path, text).expect("could not write the CSV file");
+        path
+    }
+
+    #[test]
+    fn the_jobs_of_a_file_are_read_in_order() {
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(
+            &dir,
+            "obs_id=1349904240,job_type=d,download_type=vis\n# a comment\nobs_id=1349904184,job_type=c\n",
+        );
+
+        let jobs = read_manta_ray_csv(&file, &CsvDefaults::default()).expect("a valid file");
+
+        let lines: Vec<usize> = jobs.iter().map(|job| job.line).collect();
+        assert_eq!(lines, [1, 3]);
+    }
+
+    #[test]
+    fn a_file_with_no_job_is_refused_and_named() {
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        for text in ["", "# only a comment\n\n"] {
+            let file = csv_file(&dir, text);
+
+            let err = read_manta_ray_csv(&file, &CsvDefaults::default())
+                .expect_err("a file with no job is refused");
+
+            assert!(matches!(err, CsvFileError::NoJobs { .. }), "{err:?}");
+            assert_eq!(err.to_string(), format!("{} has no jobs.", file.display()));
+        }
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_named() {
+        let err = read_manta_ray_csv(Path::new("/no/such/dir/jobs.csv"), &CsvDefaults::default())
+            .expect_err("the file is missing");
+
+        assert!(matches!(err, CsvFileError::Read { .. }), "{err:?}");
+        assert!(
+            err.to_string()
+                .starts_with("Could not read the CSV file /no/such/dir/jobs.csv: "),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn every_bad_line_of_a_file_is_reported() {
+        let dir = TempDir::new().expect("could not create a temporary directory");
+        let file = csv_file(
+            &dir,
+            "obs_id=1349904240,job_type=c\nobs_id=abc,job_type=c\nobs_id=1349904184,job_type=x\n",
+        );
+
+        let err = read_manta_ray_csv(&file, &CsvDefaults::default()).expect_err("two bad lines");
+
+        let CsvFileError::Invalid(error) = err else {
+            panic!("expected Invalid, got {err:?}");
+        };
+        let lines: Vec<usize> = error.errors.iter().map(|e| e.line).collect();
+        assert_eq!(lines, [2, 3]);
     }
 }

@@ -167,15 +167,17 @@ fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> PyErr {
 /// - A file that cannot be read is an `OSError` (a `FileNotFoundError`, a
 ///   `PermissionError` and so on, as Python raises for `open`), with the file
 ///   name set (see [`os_error`]).
-/// - A file with a problem on a line is a `ValueError`, as for the other
-///   arguments that the schema does not allow. Nothing was sent.
+/// - A file with a problem on a line, or with no job, is a `ValueError`, as for
+///   the other arguments that the schema does not allow. Nothing was sent.
 /// - Jobs that failed are a [`CsvSubmitError`], with `submitted` and
 ///   `failures`.
 pub(crate) fn csv_submit_error(py: Python<'_>, e: LibCsvSubmitError) -> PyErr {
     let message = e.to_string();
     match e {
         LibCsvSubmitError::Read { path, source } => os_error(py, &path, source),
-        LibCsvSubmitError::Invalid(_) => PyValueError::new_err(message),
+        LibCsvSubmitError::Invalid(_) | LibCsvSubmitError::NoJobs { .. } => {
+            PyValueError::new_err(message)
+        }
         LibCsvSubmitError::Failed {
             submitted,
             failures,

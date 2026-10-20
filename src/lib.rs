@@ -51,8 +51,8 @@ pub use mwa_asvo::env::{
 };
 pub use mwa_asvo::error::AsvoError;
 pub use mwa_asvo::manta_ray_csv::{
-    parse_manta_ray_csv, CsvDefaults, CsvError, CsvJob, CsvJobFailure, CsvJobParams, CsvRowError,
-    CsvSubmitError,
+    parse_manta_ray_csv, read_manta_ray_csv, CsvDefaults, CsvError, CsvFileError, CsvJob,
+    CsvJobFailure, CsvJobParams, CsvJobsFailed, CsvRowError, CsvSubmitError,
 };
 pub use mwa_asvo::token_store::{default_token_cache_path, StoredTokens};
 pub use mwa_asvo::types::{AsvoJob, AsvoJobId, AsvoJobVec};

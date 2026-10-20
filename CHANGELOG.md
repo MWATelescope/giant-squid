@@ -178,8 +178,8 @@ before you upgrade scripts.**
   format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set. See the
   [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `AsvoClient::submit_csv_file`, which
   reads a file and returns the `JobSubmittedResponse` of each job, `AsvoClient::submit_csv_jobs`,
-  `parse_manta_ray_csv` and `CsvDefaults`. The Python module has `AsvoClient.submit_csv_file`, which returns a list
-  of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed.
+  `read_manta_ray_csv`, `parse_manta_ray_csv` and `CsvDefaults`. A file with no job is an error (`CsvFileError::NoJobs`). The Python module has `AsvoClient.submit_csv_file`, which returns a list
+  of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed. A file with no job raises `ValueError`.
 * `download`, `cancel` and `wait` read their IDs from standard input when they are given no ID and standard input is
   not a terminal, or when an argument is `-`. The input is the output of the new option `list --ids` (one Job ID on
   each line) or of `list --json` (the Job IDs are its keys), or IDs that spaces or lines separate. The commands do not

@@ -939,15 +939,14 @@ impl PyAsvoClient {
     ///         `None` leaves the default of the MWA ASVO.
     ///
     /// Returns:
-    ///     The server's reply for each job, in the order of the file. An
-    ///     empty list if the file has no job.
+    ///     The server's reply for each job, in the order of the file.
     ///
     /// Raises:
     ///     OSError: The file cannot be read. Nothing is submitted.
-    ///     ValueError: A line of the file has a problem (for example an
-    ///         unknown key, or a value outside the limits of the MWA ASVO).
-    ///         The message lists every bad line by its line number. Nothing
-    ///         is submitted.
+    ///     ValueError: The file has no job, or a line of the file has a
+    ///         problem (for example an unknown key, or a value outside the
+    ///         limits of the MWA ASVO). The message lists every bad line by
+    ///         its line number. Nothing is submitted.
     ///     CsvSubmitError: Some jobs failed. The other jobs were submitted:
     ///         the exception's `submitted` has their replies, and its
     ///         `failures` has a `CsvJobFailure` for each job that failed.

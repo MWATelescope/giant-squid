@@ -246,8 +246,9 @@ A key that a line gives twice, and a line that makes the same job as an earlier 
 If the file has a problem, the call raises an exception and submits nothing:
 
 - `OSError` (for example `FileNotFoundError`): the file cannot be read.
-- `ValueError`: a line has a problem, for example a key that the job type does not have, or a value outside the
-  limits of the MWA ASVO. The message lists every bad line with its line number.
+- `ValueError`: the file has no job (it is empty, or has only blank lines and comments), or a line has a problem,
+  for example a key that the job type does not have, or a value outside the limits of the MWA ASVO. The message
+  lists every bad line with its line number.
 
 A job that fails does not stop the others. When any job fails, the call raises `CsvSubmitError` after it has tried
 every job. The jobs that did not fail were submitted: the exception has their replies, so you do not submit them

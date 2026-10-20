@@ -1547,7 +1547,7 @@ The full API is on [docs.rs](https://docs.rs/mwa_giant_squid).
 `AsvoClient::submit_csv_file` reads a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV file
 (see [Jobs from a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file)), checks every line, and submits
 the jobs in the order of the file. It returns the `JobSubmittedResponse` of each job. Nothing is submitted if the file
-cannot be read or has a bad line. A job that fails does not stop the others: the error,
+cannot be read, has no job, or has a bad line. A job that fails does not stop the others: the error,
 `CsvSubmitError::Failed`, has the replies of the jobs that were submitted and the jobs that were not.
 
 ```rust
@@ -1566,8 +1566,10 @@ fn submit(client: &AsvoClient) -> Result<(), CsvSubmitError> {
 }
 ```
 
-`parse_manta_ray_csv` reads the text of a file without a client, and `AsvoClient::submit_csv_jobs` submits the jobs
-that it returns, with a function that is called for each job when its request is done.
+`read_manta_ray_csv` reads the jobs of a file without a client (it refuses a file with no job, as `submit_csv_file`
+does), and `parse_manta_ray_csv` reads the text of a file. `AsvoClient::submit_csv_jobs` submits the jobs that they
+return, with a function that is called for each job when its request is done. Its error, `CsvJobsFailed`, has the
+replies of the jobs that were submitted and the jobs that were not.
 
 ## Environment Variables
 

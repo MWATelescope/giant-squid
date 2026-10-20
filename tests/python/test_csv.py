@@ -161,13 +161,14 @@ def test_the_path_can_be_a_string(
     assert len(client.submit_csv_file(str(path))) == 1
 
 
-def test_a_file_with_no_job_gives_an_empty_list(
+def test_a_file_with_no_job_is_a_value_error(
     client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
-    """Comments and blank lines are not jobs, and an empty list is not an error."""
+    """Comments and blank lines are not jobs: a file with only those is refused, and nothing is sent."""
     serve_submissions(httpserver)
 
-    assert client.submit_csv_file(write_csv("# nothing\n\n")) == []
+    with pytest.raises(ValueError, match="has no jobs"):
+        client.submit_csv_file(write_csv("# nothing\n\n"))
     assert requests_to_submit_paths(httpserver) == []
 
 

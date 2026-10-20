@@ -17,7 +17,6 @@ use std::sync::{Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::Context;
 use clap::Parser;
 use jiff::Timestamp;
 use log::{debug, error, info, warn};
@@ -39,8 +38,8 @@ use crate::mwa_asvo::{
 };
 use crate::obs_id::ObsId;
 use crate::{
-    parse_manta_ray_csv, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, CsvDefaults, CsvJob,
-    CsvSubmitError, ParseError,
+    parse_many_job_ids_or_obs_ids, parse_obs_ids_only, read_manta_ray_csv, CsvDefaults,
+    CsvFileError, CsvJob, CsvJobsFailed, ParseError,
 };
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
@@ -433,12 +432,12 @@ fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> 
     if allow_resubmit {
         defaults.allow_resubmit = Some(true);
     }
-    let text = std::fs::read_to_string(file)
-        .with_context(|| format!("Could not read the CSV file {}", file.display()))?;
-    let jobs = parse_manta_ray_csv(&text, &defaults).map_err(|e| ArgumentError(e.to_string()))?;
-    if jobs.is_empty() {
-        return Err(ArgumentError(format!("{} has no jobs.", file.display())).into());
-    }
+    let jobs = read_manta_ray_csv(file, &defaults).map_err(|e| match e {
+        CsvFileError::Read { .. } => anyhow::Error::from(e),
+        CsvFileError::Invalid(_) | CsvFileError::NoJobs { .. } => {
+            ArgumentError(e.to_string()).into()
+        }
+    })?;
 
     if submit.dry_run {
         return report_dry_run_csv(&jobs, submit.json);
@@ -481,7 +480,7 @@ fn submit_each_csv_job(
             job_ids.extend(responses.iter().map(|r| r.job_id));
             Ok(())
         }
-        Err(CsvSubmitError::Failed {
+        Err(CsvJobsFailed {
             submitted,
             failures,
         }) => {
@@ -492,8 +491,6 @@ fn submit_each_csv_job(
             ))
             .into())
         }
-        // `submit_csv_jobs` returns no other error.
-        Err(other) => return Err(other.into()),
     };
     info!("Submitted {} of {total} jobs.", job_ids.len());
 
