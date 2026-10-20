@@ -17,6 +17,7 @@
 - Never push, and never open a PR or take any other action on GitHub. Greg does all of that.
 - Deliver each change as a plain diff and a base64 diff. Each diff must contain its code **and** its test edits, and `cargo test` must pass with that diff applied on its own (to the state that Greg has).
 - Ask Greg before you edit, move or delete any existing test, or a shared test helper such as `write_session_at` in `src/test_common.rs`. You may add new tests without asking. List the exact edits in the question.
+- Actions that GitHub does not own are pinned by commit, with the tag in a comment. To update one, find the commit of the tag with `git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>*'` (an annotated tag has a second line, `<tag>^{}`: use that commit), and change the comment.
 - CI: change `.github/` in the diff that needs it (Greg asked for this on 20 Oct 2026), and say in the answer what the sandbox could not run (CI itself, macOS, Windows).
 - When a decision is needed, stop and ask. Keep each step small (one diff per step). Greg commits each diff and says so; then fetch and reset to `origin/apiv2` before the next step.
 - Name each diff `<step>.diff` with a `.b64` copy and a commit message (first line at most 50 characters, detail lines at most 72), and check that it applies to a fresh clone.
@@ -111,11 +112,17 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 - C2: a file or directory error of a download (`AsvoError::IO` and `CannotCreate`) is a Python `OSError` (`FileNotFoundError`, `PermissionError` and so on) with the error number, and the `filename` for `CannotCreate`. `os_error` moved from `csv.rs` to `error.rs`. The kinds `IO` and `CannotCreate` are no longer raised as `AsvoError`.
 
+- C4–C9 (the `.github/` files):
+  - `releases.yaml` has a `check-version` job (the tag must be `v` plus the version in `Cargo.toml`; every build job needs it) and a `test` job (`cargo test --locked`; `create-release`, and so the crates.io publish, waits for it). The builds and the publish use `--locked` (`build.sh`, maturin, `katyo/publish-crates` with `args: --locked`). The step that was named "Run tests" but only built is gone.
+  - Every action that GitHub does not own is pinned by commit, with its tag in a comment (`dtolnay/rust-toolchain`, `astral-sh/setup-uv`, `PyO3/maturin-action`, `docker/*`, `katyo/publish-crates`, `codecov/codecov-action`, `taiki-e/install-action`). `dtolnay/rust-toolchain` has `toolchain: stable` as an input, because its `@stable` branch is not used any more. The `actions/*` actions stay at their major tag.
+  - `docker.yml` skips pull requests from forks (they get no secrets) and cancels a run that a newer push replaces (never a tag run).
+  - `coverage.yml` installs `cargo-llvm-cov` as a prebuilt binary and runs with `--locked`.
+  - Checked in the sandbox: all the workflows parse and `actionlint` reports nothing; the version-check script gives the right result for a good and a bad tag. Not run: the workflows themselves.
+
 ### Step C: still to do (Greg decided on 20 Oct 2026; one diff each, in this order)
 
-1. C4–C9, with the `.github/` files: the release workflow runs the tests, checks that the tag matches the versions, and builds with `--locked`; third-party actions are pinned by commit; the Docker job skips fork PRs; `cargo-llvm-cov` is installed in a faster way.
-2. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
-3. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
+1. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
+2. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
 
 ### Done in `e891d31` (L1–L10 part A)
 

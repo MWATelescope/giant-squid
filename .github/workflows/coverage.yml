@@ -23,12 +23,16 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust, stable minimal toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:          
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
           components: llvm-tools
       
+      # A prebuilt binary: `cargo install cargo-llvm-cov` compiled it from source on every run.
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Generate test lcov coverage into coverage/ dir
         env:
@@ -37,11 +41,11 @@ jobs:
         run: |
           mkdir -p coverage
           cargo llvm-cov clean --workspace
-          cargo llvm-cov --all --lcov --output-path coverage/coverage.lcov --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
+          cargo llvm-cov --locked --all --lcov --output-path coverage/coverage.lcov --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
           # this uses the result of the previous run to generate a text summary
           cargo llvm-cov report --ignore-filename-regex "${COVERAGE_IGNORE_REGEX}"
 
       - name: Upload reports to codecov.io
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

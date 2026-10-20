@@ -22,7 +22,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         export RUSTFLAGS="-C target-cpu=${target}"
 
         # Build the executable
-        cargo build --release
+        cargo build --release --locked
 
         # Create new release asset tarballs
         mv target/release/giant-squid .
@@ -31,7 +31,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     done
 
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    cargo build --release
+    cargo build --release --locked
 
     mv target/release/giant-squid .
     
