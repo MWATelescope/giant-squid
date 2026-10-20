@@ -308,9 +308,16 @@ impl AsvoJobVec {
     /// every job is completed or still in progress (queued, processing and
     /// so on). Returns an error for the first job (in the order of
     /// `job_ids`) that is not in the list ([`AsvoError::NoAsvoJob`]), has an
-    /// error ([`AsvoError::JobFailed`]) or has been cancelled
-    /// ([`AsvoError::JobCancelled`]).
+    /// error ([`AsvoError::JobFailed`]), has been cancelled
+    /// ([`AsvoError::JobCancelled`]) or is completed but has download links
+    /// that have expired ([`AsvoError::JobExpired`]: waiting longer does not
+    /// help, the job has to be resubmitted).
     pub fn all_ready(&self, job_ids: &[AsvoJobId]) -> Result<bool, AsvoError> {
+        self.all_ready_at(job_ids, Timestamp::now())
+    }
+
+    /// [`Self::all_ready`] at the time `now`.
+    pub fn all_ready_at(&self, job_ids: &[AsvoJobId], now: Timestamp) -> Result<bool, AsvoError> {
         let mut all_ready = true;
         for job_id in job_ids {
             let job = self
@@ -319,6 +326,12 @@ impl AsvoJobVec {
                 .find(|j| j.job_id == *job_id)
                 .ok_or(AsvoError::NoAsvoJob(*job_id))?;
             match &job.job_state {
+                JobState::Completed if job.is_expired_at(now) => {
+                    return Err(AsvoError::JobExpired {
+                        job_id: *job_id,
+                        expired: job.expires(),
+                    });
+                }
                 JobState::Completed => (),
                 JobState::Error => {
                     return Err(AsvoError::JobFailed {

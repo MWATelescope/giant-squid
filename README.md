@@ -1212,6 +1212,8 @@ its URL), so it knows without a request:
   a download with `AccessDenied`, for example if the link has no readable `Expires`.
 - `download` of an Obs ID uses its completed job whose links work. If every completed job of the Obs ID has
   expired, it reports the one that expired last.
+- `wait` fails for a completed job whose links have expired, with the same error, as it does for a cancelled job:
+  waiting does not help.
 - In the library, `AsvoJob::expires`, `is_expired` and `display_state` give the same facts, and the error is
   `AsvoError::JobExpired`. In Python they are `AsvoJob.expires`, `AsvoJob.is_expired` and
   `AsvoJob.display_state`, and `AsvoError` of kind `JobExpired`.

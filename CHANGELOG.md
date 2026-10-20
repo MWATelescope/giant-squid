@@ -20,7 +20,8 @@ before you upgrade scripts.**
   have expired fails at once, with no request, with the new error `AsvoError::JobExpired` (`JOB_EXPIRED` in
   `--json`; kind `JobExpired` in Python): resubmit the job. The same error is given for the file server's
   `AccessDenied` answer (HTTP 403), which was an `HttpError` 403 before. `download` of an Obs ID skips a completed
-  job whose links have expired when another one works. The library has `AsvoJob::expires`, `is_expired` and
+  job whose links have expired when another one works, and `wait` (and `AsvoJobVec::all_ready`) fails for a completed
+  job whose links have expired, as it does for a cancelled job. The library has `AsvoJob::expires`, `is_expired` and
   `display_state` (Python: `AsvoJob.expires`, `is_expired`, `display_state`). See the
   [README](README.md#expired-download-links).
 * `download` puts the files of each job into a directory of its own below the download directory (`-d`,

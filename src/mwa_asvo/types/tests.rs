@@ -618,3 +618,26 @@ fn the_display_state_of_a_completed_job_says_ready_or_expired() {
     // The state of the job is still the API's.
     assert_eq!(job.job_state, JobState::Completed);
 }
+
+#[test]
+fn all_ready_reports_a_completed_job_whose_download_links_have_expired() {
+    let jobs = AsvoJobVec(vec![completed_job_with(&[(
+        FileType::Acacia,
+        Some(SIGNED_URL),
+    )])]);
+
+    assert!(jobs
+        .all_ready_at(&[JOB_ID_A], time("2026-10-12T00:00:00Z"))
+        .expect("the links still work"));
+    let err = jobs
+        .all_ready_at(&[JOB_ID_A], time("2026-10-20T00:00:00Z"))
+        .expect_err("the links have expired");
+    assert!(
+        matches!(
+            &err,
+            AsvoError::JobExpired { job_id, expired }
+                if *job_id == JOB_ID_A && *expired == Some(time(SIGNED_URL_EXPIRES))
+        ),
+        "{err:?}"
+    );
+}

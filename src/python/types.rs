@@ -611,7 +611,9 @@ impl PyAsvoJobVec {
     /// in a loop.
     ///
     /// Raises:
-    ///     AsvoError: A job is missing, has an error or has been cancelled.
+    ///     AsvoError: A job is missing, has an error, has been cancelled, or
+    ///         is completed but its download links have expired (kind
+    ///         `JobExpired`).
     fn all_ready(&self, py: Python<'_>, job_ids: Vec<JobId>) -> PyResult<bool> {
         let job_ids: Vec<AsvoJobId> = job_ids.into_iter().map(|id| id.0).collect();
         self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))

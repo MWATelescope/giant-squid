@@ -616,3 +616,18 @@ def test_a_download_of_a_job_whose_links_expired_raises_job_expired(
     assert info.value.expired == datetime.datetime(2001, 9, 9, 1, 46, 40, tzinfo=datetime.timezone.utc)
     assert "Resubmit the job" in str(info.value)
     assert not any(request.path == FILE_PATH for request, _ in httpserver.log)
+
+
+def test_all_ready_raises_job_expired_for_a_job_whose_links_expired(
+    client: gs.AsvoClient, httpserver: HTTPServer, serve_jobs: Callable[..., None]
+) -> None:
+    """Waiting does not help an expired job, so `all_ready` fails as it does for a cancelled one."""
+    serve_jobs([job_with_url(httpserver, 101, EXPIRES_FAR_AWAY), job_with_url(httpserver, 102, EXPIRES_LONG_AGO)])
+    jobs = client.get_jobs()
+
+    assert jobs.all_ready([101]) is True
+    with pytest.raises(gs.AsvoError) as info:
+        jobs.all_ready([101, 102])
+
+    assert info.value.kind == "JobExpired"
+    assert info.value.job_id == 102

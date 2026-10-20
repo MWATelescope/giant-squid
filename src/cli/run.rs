@@ -836,7 +836,8 @@ fn print_jobs(
 
 /// Poll the job list until all of `job_ids` are ready, logging each job's
 /// state when it changes. Fails as soon as a job is missing, has an error,
-/// or has been cancelled (see `AsvoJobVec::all_ready`).
+/// has been cancelled or has expired download links (see
+/// `AsvoJobVec::all_ready`).
 fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
     let job_count = job_ids.len();
     info!("Waiting for {job_count} jobs to be ready...");

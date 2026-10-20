@@ -758,6 +758,28 @@ fn wait_shows_the_error_code_of_a_failed_job() {
     );
 }
 
+/// A job that is completed but whose download links have expired is not
+/// ready: waiting does not help, so `wait` fails as it does for a cancelled
+/// job.
+#[test]
+fn wait_for_a_job_whose_download_links_have_expired_fails() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![completed_job_at(
+        12345,
+        "https://example.org/b.tar?Expires=1000000000",
+    )]);
+
+    let mut cmd = env.command();
+    cmd.args(["wait", "--json", "12345"]);
+    let result = run(cmd);
+
+    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    let line = result.stdout_json();
+    assert_eq!(line["status"], "failed");
+    assert_eq!(line["error_code"], "JOB_EXPIRED");
+    assert_eq!(line["job_id"], 12345);
+}
+
 #[test]
 fn list_filters_by_state() {
     let env = CliEnv::with_session();

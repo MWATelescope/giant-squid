@@ -922,7 +922,9 @@ class AsvoJobVec:
         in a loop.
 
         Raises:
-            AsvoError: A job is missing, has an error or has been cancelled.
+            AsvoError: A job is missing, has an error, has been cancelled, or
+                is completed but its download links have expired (kind
+                `JobExpired`).
         """
 
 @typing.final

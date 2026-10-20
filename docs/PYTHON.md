@@ -158,7 +158,7 @@ Notes:
   MWA ASVO does not document the codes. `AsvoJobVec.all_ready` raises `AsvoError` of kind `JobFailed` for a
   failed job; its message includes the code, for example `has an error (code 7): the conversion failed`, and
   the exception has the attribute `error_code`.
-- The download links of a completed job work for 7 days, and the job stays `Completed` in the API. `AsvoJob.expires` is when its links stop working (the `Expires` of its Acacia URLs, or `None`), `AsvoJob.is_expired` is whether they have, and `AsvoJob.display_state` is the state as `giant-squid list` shows it (`completed (ready)` or `completed (expired)` for a completed job). A download of an expired job raises `AsvoError` of kind `JobExpired`, with `job_id` and `expired`: resubmit the job.
+- The download links of a completed job work for 7 days, and the job stays `Completed` in the API. `AsvoJob.expires` is when its links stop working (the `Expires` of its Acacia URLs, or `None`), `AsvoJob.is_expired` is whether they have, and `AsvoJob.display_state` is the state as `giant-squid list` shows it (`completed (ready)` or `completed (expired)` for a completed job). A download of an expired job, and `AsvoJobVec.all_ready` for one, raise `AsvoError` of kind `JobExpired`, with `job_id` and `expired`: resubmit the job.
 - Times (`created`, `started`, `completed`, `modified`) are `datetime.datetime` objects with a time zone.
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
 - The files of a ready job are in `job.product.files` (a `JobProduct`). Each `JobFile` has `type` (a
@@ -286,7 +286,7 @@ while not client.get_jobs().all_ready(job_ids):
 ```
 
 `all_ready` returns `False` while a job is in progress. It raises `AsvoError` if a job is missing, has
-an error or was cancelled.
+an error, was cancelled, or is completed but its download links have expired (kind `JobExpired`).
 
 ## Download
 
