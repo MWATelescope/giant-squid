@@ -135,7 +135,7 @@ fn download_reads_the_ids_of_list_ids_from_standard_input() {
     let env = CliEnv::with_session();
     let dir = tempfile::TempDir::new().expect("a download directory");
 
-    let result = run_with_stdin(download_dry_run(&env, &dir, &[]), "12\n5\n");
+    let result = run_with_stdin(download_dry_run(&env, &dir, &["-"]), "12\n5\n");
 
     assert!(result.success, "{}", result.combined());
     assert_eq!(job_ids(&result), [json!(12), json!(5)]);
@@ -152,7 +152,7 @@ fn download_reads_the_job_ids_of_list_json_in_numeric_order() {
     })
     .to_string();
 
-    let result = run_with_stdin(download_dry_run(&env, &dir, &[]), &list);
+    let result = run_with_stdin(download_dry_run(&env, &dir, &["-"]), &list);
 
     assert!(result.success, "{}", result.combined());
     // The Job IDs are used, not the Obs IDs: an Obs ID can have several jobs.
@@ -165,7 +165,7 @@ fn download_reads_job_ids_and_obs_ids_on_standard_input() {
     let dir = tempfile::TempDir::new().expect("a download directory");
 
     let result = run_with_stdin(
-        download_dry_run(&env, &dir, &[]),
+        download_dry_run(&env, &dir, &["-"]),
         &format!("12\n{TEST_OBS_ID}\n"),
     );
 
@@ -203,7 +203,9 @@ fn download_says_how_many_ids_it_read() {
     let env = CliEnv::with_session();
     let dir = tempfile::TempDir::new().expect("a download directory");
     let mut cmd = env.command();
-    cmd.args(["download", "--dry-run", "-d"]).arg(dir.path());
+    cmd.args(["download", "--dry-run", "-d"])
+        .arg(dir.path())
+        .arg("-");
 
     let result = run_with_stdin(cmd, &format!("12\n5\n{TEST_OBS_ID}\n"));
 
@@ -238,7 +240,7 @@ fn cancel_reads_the_ids_of_list_ids_and_cancels_each_job() {
     });
 
     let mut cmd = env.command();
-    cmd.args(["cancel"]);
+    cmd.args(["cancel", "-"]);
     let result = run_with_stdin(cmd, "12\n5\n");
 
     assert!(result.success, "{}", result.combined());
@@ -267,7 +269,7 @@ fn the_output_of_list_ids_is_the_input_of_cancel() {
     assert!(listed.success, "{}", listed.combined());
 
     let mut cancel = env.command();
-    cancel.args(["cancel", "--dry-run", "--json"]);
+    cancel.args(["cancel", "--dry-run", "--json", "-"]);
     let result = run_with_stdin(cancel, &listed.stdout);
 
     assert!(result.success, "{}", result.combined());
@@ -296,7 +298,7 @@ fn cancel_refuses_an_obs_id_on_standard_input() {
     let requests = catch_all(&env);
 
     let mut cmd = env.command();
-    cmd.args(["cancel"]);
+    cmd.args(["cancel", "-"]);
     let result = run_with_stdin(cmd, &format!("12\n{TEST_OBS_ID}\n"));
 
     assert!(!result.success);
@@ -315,7 +317,7 @@ fn wait_reads_the_job_ids_of_list_json() {
     let list = json!({ JOB_ID.to_string(): {"id": JOB_ID} }).to_string();
 
     let mut cmd = env.command();
-    cmd.args(["wait", "--json"]);
+    cmd.args(["wait", "--json", "-"]);
     let result = run_with_stdin(cmd, &list);
 
     assert!(result.success, "{}", result.combined());
@@ -340,7 +342,7 @@ fn an_empty_job_list_is_nothing_to_do_and_not_an_error() {
         let requests = catch_all(&env);
 
         let mut cmd = env.command();
-        cmd.arg(command);
+        cmd.args([command, "-"]);
         let result = run_with_stdin(cmd, "{}\n");
 
         assert!(result.success, "{command}: {}", result.combined());
@@ -358,7 +360,7 @@ fn an_empty_job_list_with_json_prints_nothing() {
     let env = CliEnv::with_session();
 
     let mut cmd = env.command();
-    cmd.args(["cancel", "--json"]);
+    cmd.args(["cancel", "--json", "-"]);
     let result = run_with_stdin(cmd, "{}");
 
     assert!(result.success, "{}", result.combined());
@@ -372,7 +374,7 @@ fn an_empty_pipe_is_nothing_to_do_and_not_an_error() {
         let requests = catch_all(&env);
 
         let mut cmd = env.command();
-        cmd.arg(command);
+        cmd.args([command, "-"]);
         let result = run_with_stdin(cmd, "");
 
         assert!(result.success, "{command}: {}", result.combined());
@@ -400,7 +402,7 @@ fn the_empty_output_of_list_ids_is_nothing_to_do_for_every_command() {
 
     for (command, _) in COMMANDS {
         let mut cmd = env.command();
-        cmd.arg(command);
+        cmd.args([command, "-"]);
         let result = run_with_stdin(cmd, &listed.stdout);
 
         assert!(result.success, "{command}: {}", result.combined());
@@ -435,6 +437,37 @@ fn a_command_with_no_id_and_no_input_is_a_mistake() {
     }
 }
 
+/// Standard input is read because of a `-`, and never guessed from the kind
+/// of input: a program that runs `giant-squid` can leave a pipe open on its
+/// input, and a command that read it unasked could wait for ever, or cancel
+/// jobs from input that was not meant for it.
+#[test]
+fn standard_input_is_not_read_without_a_dash() {
+    for (command, message) in COMMANDS {
+        let env = CliEnv::with_session();
+        let requests = catch_all(&env);
+
+        let mut cmd = env.command();
+        cmd.arg(command);
+        let result = run_with_stdin(cmd, "12\n5\n");
+
+        assert!(!result.success, "{command}");
+        assert!(
+            result.combined().contains(message),
+            "{command}: {}",
+            result.combined()
+        );
+        assert!(
+            result
+                .combined()
+                .contains("To read them from standard input, give `-`."),
+            "{command}: {}",
+            result.combined()
+        );
+        assert_eq!(requests.calls(), 0, "{command}");
+    }
+}
+
 #[test]
 fn a_file_on_standard_input_is_read_like_a_pipe() {
     let env = CliEnv::with_session();
@@ -444,9 +477,9 @@ fn a_file_on_standard_input_is_read_like_a_pipe() {
     let empty = dir.path().join("empty.txt");
     std::fs::write(&empty, "").expect("could not write the empty file");
 
-    let mut with_ids = download_dry_run(&env, &dir, &[]);
+    let mut with_ids = download_dry_run(&env, &dir, &["-"]);
     with_ids.stdin(std::fs::File::open(&ids).expect("the IDs file"));
-    let mut with_nothing = download_dry_run(&env, &dir, &[]);
+    let mut with_nothing = download_dry_run(&env, &dir, &["-"]);
     with_nothing.stdin(std::fs::File::open(&empty).expect("the empty file"));
     let with_ids = run(with_ids);
     let with_nothing = run(with_nothing);
@@ -467,7 +500,7 @@ fn a_file_name_on_standard_input_is_refused() {
     std::fs::write(&ids, "12\n").expect("could not write the IDs");
 
     let result = run_with_stdin(
-        download_dry_run(&env, &dir, &[]),
+        download_dry_run(&env, &dir, &["-"]),
         &format!("{}\n", ids.display()),
     );
 
@@ -490,7 +523,7 @@ fn the_error_line_of_a_failed_list_is_refused_with_its_message() {
             json!({"status": "failed", "error_code": "AUTH", "message": "Bad key"}).to_string();
 
         let mut cmd = env.command();
-        cmd.arg(command);
+        cmd.args([command, "-"]);
         let result = run_with_stdin(cmd, &error);
 
         assert!(!result.success, "{command}");
@@ -513,7 +546,7 @@ fn the_table_of_list_is_refused_and_the_message_names_the_options_to_use() {
         let table = "+--------+------------+\n| Job ID | Obs ID     |\n| 101    | 1065880128 |\n";
 
         let mut cmd = env.command();
-        cmd.arg(command);
+        cmd.args([command, "-"]);
         let result = run_with_stdin(cmd, table);
 
         assert!(!result.success, "{command}");
@@ -531,7 +564,7 @@ fn with_json_a_refused_input_is_one_error_line() {
     let env = CliEnv::with_session();
 
     let mut cmd = env.command();
-    cmd.args(["download", "--json"]);
+    cmd.args(["download", "--json", "-"]);
     let result = run_with_stdin(cmd, "not an id\n");
 
     assert_eq!(result.code, Some(1), "{}", result.combined());

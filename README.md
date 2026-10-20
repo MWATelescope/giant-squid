@@ -895,7 +895,7 @@ Arguments:
 Options:
   -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
       --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
-      --ids                     Print only the Job ID of each job, one on each line, in the order of the list, and no table. It is the input of `download`, `cancel` and `wait`, which read it on standard input: for example `giant-squid list --job-states completed --ids | giant-squid download`. A list with no job prints nothing
+      --ids                     Print only the Job ID of each job, one on each line, in the order of the list, and no table. It is the input of `download`, `cancel` and `wait`, which read it on standard input when given `-`: for example `giant-squid list --job-states completed --ids | giant-squid download -`. A list with no job prints nothing
   -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
       --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
       --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
@@ -1048,7 +1048,7 @@ Wait for MWA ASVO jobs to complete, then print them
 Usage: giant-squid wait [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted. With none, and when standard input is a pipe or a file, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is waited for), or Job IDs that spaces or lines separate. `-` reads standard input with other IDs or in a terminal
+  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is waited for), or Job IDs that spaces or lines separate. It can be used with other IDs
 
 Options:
   -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
@@ -1091,7 +1091,7 @@ Cancel MWA ASVO jobs
 Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
 
 Arguments:
-  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. With none, and when standard input is a pipe or a file, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json`. Every job in it is cancelled, so filter the list first, for example with --job-states, and check it with --dry-run. `-` reads standard input with other IDs or in a terminal
+  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json`. Every job in it is cancelled, so filter the list first, for example with --job-states, and check it with --dry-run. It can be used with other IDs
 
 Options:
   -n, --dry-run       Don't actually cancel; print information on what would've happened instead
@@ -1139,7 +1139,7 @@ Download an MWA ASVO job
 Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
 
 Arguments:
-  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. With none, and when standard input is a pipe or a file, they are read from standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is downloaded, so filter the list first, for example with --job-states), or IDs that spaces or lines separate. `-` reads standard input with other IDs or in a terminal
+  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is downloaded, so filter the list first, for example with --job-states), or IDs that spaces or lines separate. It can be used with other IDs
 
 Options:
   -d, --download-dir <DOWNLOAD_DIR>
@@ -1334,20 +1334,19 @@ download directory:
 
 ### Use the output of `list` as the input of other commands
 
-`download`, `cancel` and `wait` read their IDs from standard input when you give them no ID and standard input is a
-pipe or a file (not a terminal, and not `/dev/null`). The IDs that `list` prints are then their input. `-` reads
-standard input in a terminal, or together with other IDs (`giant-squid cancel 12345 -`).
+`download`, `cancel` and `wait` read their IDs from standard input when one of their arguments is `-`, and only then.
+The IDs that `list` prints are then their input. `-` can be used with other IDs (`giant-squid cancel 12345 -`).
 
 ```bash
 # Download every completed job.
-giant-squid list --job-states completed --ids | giant-squid download --download-dir /data
+giant-squid list --job-states completed --ids | giant-squid download --download-dir /data -
 
 # Cancel the queued jobs. Look at what would be cancelled first.
-giant-squid list --job-states queued --ids | giant-squid cancel --dry-run
-giant-squid list --job-states queued --ids | giant-squid cancel
+giant-squid list --job-states queued --ids | giant-squid cancel --dry-run -
+giant-squid list --job-states queued --ids | giant-squid cancel -
 
 # Wait for the jobs that are not ready.
-giant-squid list --job-states queued,staging,preprocessing --json | giant-squid wait
+giant-squid list --job-states queued,staging,preprocessing --json | giant-squid wait -
 ```
 
 What the commands read:
@@ -1371,8 +1370,11 @@ Things to know:
   input) is used once, at its first place.
 - **An empty list is not an error.** `list --ids` prints nothing for a list with no job, and `list --json` prints
   `{}`. In both cases the next command ends with exit code 0 and says that there is nothing to do, so a script (cron,
-  for example) does not fail when no job is in the state that it asks for. A command that has no ID and no input at
-  all (standard input is a terminal or `/dev/null`) has been used wrongly, and it fails, as before.
+  for example) does not fail when no job is in the state that it asks for.
+- **Only a `-` reads standard input.** A command that is given no ID and no `-` fails, also when a pipe is open on its
+  input (the error says to give `-`). `giant-squid` does not guess: a program that runs it (cron, CI, `ssh`, a
+  wrapper) can leave a pipe open on its input, and a command that read it unasked could wait for ever, or cancel jobs
+  from input that was not meant for it.
 - **A failed `list`.** The one line of JSON that `list --json` prints for an error is not a job list: the next command
   refuses it and prints its message. But `list --ids` prints nothing for an error, as it does for an empty list, so
   the next command does nothing and ends with exit code 0. A shell does not stop a pipe when its first command fails,

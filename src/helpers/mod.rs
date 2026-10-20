@@ -109,6 +109,10 @@ pub fn parse_many_job_ids_or_obs_ids(
     Ok((job_ids, obs_ids))
 }
 
+/// What a command says, after the message that it was given no ID, about the
+/// way to give the IDs that another command prints: `-` reads standard input.
+pub const READ_STDIN_HINT: &str = "To read them from standard input, give `-`.";
+
 /// The mark of the start of a UTF-8 text file, which some programs write
 /// (Notepad and PowerShell, for example). A text that was read from a file or
 /// from standard input starts with it, and it is not part of the text.
@@ -194,7 +198,7 @@ pub enum ParseError {
     NoObsIds,
 
     /// No Job ID was given ([`parse_job_ids_only`]).
-    #[error("No Job IDs specified.")]
+    #[error("No Job IDs specified. {}", READ_STDIN_HINT)]
     NoJobIds,
 
     /// Text is neither an RFC 3339 time nor a date ([`parse_utc_time`]).

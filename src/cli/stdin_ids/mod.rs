@@ -4,20 +4,21 @@
 
 //! IDs on standard input: the input of `download`, `cancel` and `wait`.
 //!
-//! A command that takes IDs reads them from standard input when it is given
-//! no ID and standard input is a pipe or a file (see
-//! [`stdin_is_pipe_or_file`]), or when one of its arguments is `-`. This way
-//! the output of `giant-squid list --ids` (or `--json`) is the input of the
-//! next command:
+//! A command that takes IDs reads them from standard input when one of its
+//! arguments is `-`, and only then. This way the output of
+//! `giant-squid list --ids` (or `--json`) is the input of the next command:
 //!
 //! ```text
-//! giant-squid list --job-states completed --ids | giant-squid download
+//! giant-squid list --job-states completed --ids | giant-squid download -
 //! ```
 //!
-//! A pipe or a file that has no ID in it is nothing to do, and not an error:
-//! `list --ids` prints nothing for a list with no job. A command that has no
-//! input at all (a terminal, or `/dev/null`) and no ID has been used wrongly,
-//! and it fails.
+//! Standard input is not guessed at. A command that reads it without being
+//! asked could wait for ever, or act on IDs that it was not meant to have,
+//! when a program that runs it leaves a pipe open on its input. A command
+//! that is given no ID and no `-` has been used wrongly, and it fails.
+//!
+//! Input that has no ID in it is nothing to do, and not an error:
+//! `list --ids` prints nothing for a list with no job.
 //!
 //! The commands do not filter the IDs that they read, but an ID that is given
 //! more than once (in the arguments, in a file, or on standard input) is used
@@ -160,10 +161,10 @@ impl ResolvedIds {
         self.job_ids.is_empty() && self.obs_ids.is_empty()
     }
 
-    /// There is no ID, and standard input was read: the pipe or file had no
-    /// ID in it (`list --ids` printed nothing, or `list --json` printed
+    /// There is no ID, and standard input was read (a `-` asked for it): it had
+    /// no ID in it (`list --ids` printed nothing, or `list --json` printed
     /// `{}`). The command has nothing to do, and that is not an error. With
-    /// no ID and no input to read, the command has been used wrongly.
+    /// no ID and no `-`, the command has been used wrongly.
     pub(super) fn is_empty_input(&self) -> bool {
         self.from_stdin && self.is_empty()
     }
@@ -192,62 +193,19 @@ fn without_repeats<T: Copy + Eq + Hash>(ids: Vec<T>) -> Vec<T> {
 }
 
 /// The IDs of a command: those of its arguments (IDs and files of IDs), and
-/// those on standard input when the command is given no argument and
-/// standard input is a pipe or a file, or when an argument is `-`.
+/// those on standard input when an argument is `-`.
 ///
 /// # Errors
 ///
 /// [`ParseError`] if an argument or the text on standard input is not valid.
 pub(super) fn resolve_ids(args: &[String]) -> Result<ResolvedIds, ParseError> {
     let stdin = std::io::stdin();
-    let piped = stdin_is_pipe_or_file(&stdin);
-    resolve_ids_from(args, &mut stdin.lock(), piped)
+    resolve_ids_from(args, &mut stdin.lock())
 }
 
-/// Whether standard input is something that holds IDs: a pipe, a file
-/// (`< ids.txt`) or a socket.
-///
-/// A terminal does not: a read would wait for the person to type. A
-/// character device such as `/dev/null` does not either. It is what a
-/// program gets when it has no input (cron, a service, a script with no
-/// pipe), and a command that is given no ID in that case has been used
-/// wrongly, so it must fail, not read nothing and succeed.
-#[cfg(unix)]
-fn stdin_is_pipe_or_file(stdin: &std::io::Stdin) -> bool {
-    use std::os::fd::AsFd;
-    use std::os::unix::fs::FileTypeExt;
-
-    let Ok(fd) = stdin.as_fd().try_clone_to_owned() else {
-        return false;
-    };
-    let Ok(metadata) = std::fs::File::from(fd).metadata() else {
-        return false;
-    };
-    let kind = metadata.file_type();
-    kind.is_fifo() || kind.is_file() || kind.is_socket()
-}
-
-/// As the version for Unix, but only a terminal is told from a pipe or a
-/// file: Windows has no `/dev/null` to tell too.
-#[cfg(not(unix))]
-fn stdin_is_pipe_or_file(stdin: &std::io::Stdin) -> bool {
-    use std::io::IsTerminal;
-
-    !stdin.is_terminal()
-}
-
-/// As [`resolve_ids`], with the standard input, and whether it is a pipe or
-/// a file ([`stdin_is_pipe_or_file`]).
-fn resolve_ids_from(
-    args: &[String],
-    stdin: &mut impl Read,
-    stdin_is_piped: bool,
-) -> Result<ResolvedIds, ParseError> {
-    let marked = args.iter().any(|a| a == STDIN_ARG);
-    // With no argument, an input that is not a pipe or a file is not read: a
-    // terminal would wait for the person to type, and `/dev/null` holds
-    // nothing. A command with no ID and no input is a mistake.
-    let read_stdin = marked || (args.is_empty() && stdin_is_piped);
+/// As [`resolve_ids`], with the standard input.
+fn resolve_ids_from(args: &[String], stdin: &mut impl Read) -> Result<ResolvedIds, ParseError> {
+    let read_stdin = args.iter().any(|a| a == STDIN_ARG);
 
     let others: Vec<String> = args.iter().filter(|a| *a != STDIN_ARG).cloned().collect();
     let (mut job_ids, mut obs_ids) = parse_many_job_ids_or_obs_ids(&others)?;

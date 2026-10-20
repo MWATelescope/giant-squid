@@ -151,15 +151,15 @@ the log (in order for one download at a time, and the first four of the list
 first for four at a time).
 
 `tests/stdin_ids.rs` runs the binary with text on its standard input, for the
-IDs that `download`, `cancel` and `wait` read from a pipe, and for `list --ids`.
-It covers each form of input (IDs on lines, the JSON of `list`, a file as
-standard input), the output of `list --ids` as the input of `cancel`, the empty
-output of `list --ids` as the input of every command (exit code 0), no input at
-all (`/dev/null`, a failure), and the input that is refused (the error line of
-a failed `list`, the table of `list`, a file name) sending no request. A
-terminal cannot be shown by a process that has no terminal, so
-`src/cli/stdin_ids/tests.rs` covers it with a reader that fails the test if it
-is read.
+IDs that `download`, `cancel` and `wait` read when an argument is `-`, and for
+`list --ids`. It covers each form of input (IDs on lines, the JSON of `list`, a
+file as standard input), the output of `list --ids` as the input of `cancel`,
+the empty output of `list --ids` as the input of every command (exit code 0),
+no ID and no `-` (a failure, also when text is piped in), and the input that is
+refused (the error line of a failed `list`, the table of `list`, a file name)
+sending no request. A terminal cannot be shown by a process that has no
+terminal, so `src/cli/stdin_ids/tests.rs` covers the choice of what to read with
+a reader that fails the test if it is read.
 
 ### Layer 3 - opt-in live tests
 

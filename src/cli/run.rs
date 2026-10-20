@@ -47,6 +47,7 @@ use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::stdin_ids::resolve_ids;
 use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION};
+use crate::helpers::READ_STDIN_HINT;
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
     let pb = multi_progress_bar.add(ProgressBar::new(0));
@@ -614,10 +615,12 @@ fn report_obs_id_error(e: &anyhow::Error, obs_id: ObsId, json: bool) -> Result<(
 }
 
 /// The message of `download` when no Job ID or Obs ID is given, on the
-/// command line or in a file.
-const NO_DOWNLOAD_IDS_MESSAGE: &str = "No Job IDs or Obs IDs specified.";
+/// command line or in a file, and no `-` asks for standard input.
+fn no_download_ids_message() -> String {
+    format!("No Job IDs or Obs IDs specified. {READ_STDIN_HINT}")
+}
 
-/// What a command says when standard input (a pipe or a file) has no ID.
+/// What a command says when standard input (read because of a `-`) has no ID.
 /// There is nothing to do, and that is not an error: the output of `list` is
 /// empty when no job is in the state that `list --job-states` asked for.
 const EMPTY_LIST_MESSAGE: &str = "Standard input has no IDs. Nothing to do.";
@@ -940,7 +943,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 return Ok(());
             }
             if ids.is_empty() {
-                return Err(ArgumentError(NO_DOWNLOAD_IDS_MESSAGE.to_string()).into());
+                return Err(ArgumentError(no_download_ids_message()).into());
             }
             let from_stdin = ids.from_stdin;
             let (job_ids, obs_ids) = (ids.job_ids, ids.obs_ids);

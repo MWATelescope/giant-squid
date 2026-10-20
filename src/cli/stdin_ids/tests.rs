@@ -159,12 +159,8 @@ fn a_zero_is_not_a_job_id() {
 #[test]
 fn an_id_that_is_given_more_than_once_is_used_once_at_its_first_place() {
     let obs = OBS_ID.to_string();
-    let ids = resolve_ids_from(
-        &args(&["9", "5", "9", &obs, &obs]),
-        &mut MustNotBeRead,
-        false,
-    )
-    .expect("valid");
+    let ids =
+        resolve_ids_from(&args(&["9", "5", "9", &obs, &obs]), &mut MustNotBeRead).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(9), job_id(5)]);
     assert_eq!(ids.obs_ids, [obs_id(OBS_ID)]);
@@ -172,38 +168,24 @@ fn an_id_that_is_given_more_than_once_is_used_once_at_its_first_place() {
 
 #[test]
 fn an_id_on_standard_input_that_an_argument_repeats_is_used_once() {
-    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("7\n5\n7\n"), false).expect("valid");
+    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("7\n5\n7\n")).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(5), job_id(7)]);
 }
 
 #[test]
 fn arguments_alone_do_not_read_standard_input() {
-    for is_piped in [true, false] {
-        let ids = resolve_ids_from(
-            &args(&["12", &OBS_ID.to_string()]),
-            &mut MustNotBeRead,
-            is_piped,
-        )
-        .expect("valid");
+    let ids =
+        resolve_ids_from(&args(&["12", &OBS_ID.to_string()]), &mut MustNotBeRead).expect("valid");
 
-        assert_eq!(ids.job_ids, [job_id(12)]);
-        assert_eq!(ids.obs_ids, [obs_id(OBS_ID)]);
-        assert!(!ids.from_stdin);
-    }
+    assert_eq!(ids.job_ids, [job_id(12)]);
+    assert_eq!(ids.obs_ids, [obs_id(OBS_ID)]);
+    assert!(!ids.from_stdin);
 }
 
 #[test]
-fn with_no_argument_a_pipe_or_a_file_is_read() {
-    let ids = resolve_ids_from(&[], &mut stdin("7\n8\n"), true).expect("valid");
-
-    assert_eq!(ids.job_ids, [job_id(7), job_id(8)]);
-    assert!(ids.from_stdin);
-}
-
-#[test]
-fn with_no_argument_a_terminal_or_dev_null_is_not_read() {
-    let ids = resolve_ids_from(&[], &mut MustNotBeRead, false).expect("valid");
+fn with_no_argument_standard_input_is_not_read() {
+    let ids = resolve_ids_from(&[], &mut MustNotBeRead).expect("valid");
 
     assert_eq!(ids, ResolvedIds::default());
     assert!(ids.is_empty());
@@ -212,7 +194,7 @@ fn with_no_argument_a_terminal_or_dev_null_is_not_read() {
 
 #[test]
 fn a_dash_reads_standard_input_also_in_a_terminal() {
-    let ids = resolve_ids_from(&args(&["-"]), &mut stdin("7\n"), false).expect("valid");
+    let ids = resolve_ids_from(&args(&["-"]), &mut stdin("7\n")).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(7)]);
     assert!(ids.from_stdin);
@@ -220,8 +202,7 @@ fn a_dash_reads_standard_input_also_in_a_terminal() {
 
 #[test]
 fn a_dash_adds_standard_input_to_the_other_arguments() {
-    let ids =
-        resolve_ids_from(&args(&["5", "-", "6", "-"]), &mut stdin("7\n"), true).expect("valid");
+    let ids = resolve_ids_from(&args(&["5", "-", "6", "-"]), &mut stdin("7\n")).expect("valid");
 
     assert_eq!(ids.job_ids, [job_id(5), job_id(6), job_id(7)]);
 }
@@ -231,7 +212,7 @@ fn a_pipe_with_no_id_is_nothing_to_do() {
     // `list --json` prints `{}`, and `list --ids` prints nothing, for a list
     // with no job.
     for text in ["{}", "", "\n"] {
-        let ids = resolve_ids_from(&[], &mut stdin(text), true).expect("valid");
+        let ids = resolve_ids_from(&args(&["-"]), &mut stdin(text)).expect("valid");
 
         assert!(ids.is_empty_input(), "{text:?}");
         assert!(ids.from_stdin, "{text:?}");
@@ -240,7 +221,7 @@ fn a_pipe_with_no_id_is_nothing_to_do() {
 
 #[test]
 fn an_empty_pipe_with_other_ids_is_not_empty() {
-    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("{}"), true).expect("valid");
+    let ids = resolve_ids_from(&args(&["5", "-"]), &mut stdin("{}")).expect("valid");
 
     assert!(!ids.is_empty());
     assert!(!ids.is_empty_input());
@@ -248,7 +229,7 @@ fn an_empty_pipe_with_other_ids_is_not_empty() {
 
 #[test]
 fn a_bad_argument_is_an_error_before_standard_input_is_read() {
-    let result = resolve_ids_from(&args(&["no_such_file.txt", "-"]), &mut MustNotBeRead, false);
+    let result = resolve_ids_from(&args(&["no_such_file.txt", "-"]), &mut MustNotBeRead);
 
     assert!(matches!(result, Err(ParseError::IO { .. })), "{result:?}");
 }
@@ -257,14 +238,15 @@ fn a_bad_argument_is_an_error_before_standard_input_is_read() {
 fn standard_input_that_is_not_text_is_an_error() {
     let mut bytes: &[u8] = &[0xff, 0xfe, 0xfd];
 
-    let err = resolve_ids_from(&[], &mut bytes, true).expect_err("not UTF-8");
+    let err = resolve_ids_from(&args(&["-"]), &mut bytes).expect_err("not UTF-8");
 
     assert!(matches!(err, ParseError::StdinIO { .. }), "{err:?}");
 }
 
 #[test]
 fn job_ids_only_refuses_an_obs_id() {
-    let ids = resolve_ids_from(&[], &mut stdin(&format!("5\n{OBS_ID}\n")), true).expect("valid");
+    let ids =
+        resolve_ids_from(&args(&["-"]), &mut stdin(&format!("5\n{OBS_ID}\n"))).expect("valid");
 
     let err = ids.into_job_ids().expect_err("an Obs ID");
 

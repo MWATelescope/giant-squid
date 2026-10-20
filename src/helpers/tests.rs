@@ -192,7 +192,10 @@ fn job_ids_only_refuses_nothing_at_all() {
     let err = parse_job_ids_only(&[]).expect_err("no job ID");
 
     assert!(matches!(err, ParseError::NoJobIds));
-    assert_eq!(err.to_string(), "No Job IDs specified.");
+    assert_eq!(
+        err.to_string(),
+        "No Job IDs specified. To read them from standard input, give `-`."
+    );
 }
 
 #[test]
