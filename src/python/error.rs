@@ -331,9 +331,9 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         ),
         lib::AsvoError::IO(_) => ("IO", vec![]),
         lib::AsvoError::Interrupted => ("Interrupted", vec![]),
-        lib::AsvoError::NoUrl { job_id } => ("NoUrl", vec![("job_id", Field::Int(job_id.get()))]),
-        lib::AsvoError::NoPath { job_id } => ("NoPath", vec![("job_id", Field::Int(job_id.get()))]),
-        lib::AsvoError::NoHash { job_id } => ("NoHash", vec![("job_id", Field::Int(job_id.get()))]),
+        lib::AsvoError::NoUrl { job_id: id } => ("NoUrl", vec![job_id(id)]),
+        lib::AsvoError::NoPath { job_id: id } => ("NoPath", vec![job_id(id)]),
+        lib::AsvoError::NoHash { job_id: id } => ("NoHash", vec![job_id(id)]),
         lib::AsvoError::FilesNotReachable {
             job_id: id,
             delivery,
@@ -370,9 +370,7 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             "CannotCreate",
             vec![("file", Field::Str(path.display().to_string()))],
         ),
-        lib::AsvoError::Http404Error { job_id } => {
-            ("Http404Error", vec![("job_id", Field::Int(job_id.get()))])
-        }
+        lib::AsvoError::Http404Error { job_id: id } => ("Http404Error", vec![job_id(id)]),
     };
     build::<AsvoError>(py, message, kind, fields)
 }

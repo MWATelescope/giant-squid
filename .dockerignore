@@ -1,0 +1,11 @@
+# Not needed to build the image, and large: `COPY . .` would send them to the
+# builder. (`target` can be several GB.)
+.git
+.github
+.venv
+.vscode
+.pytest_cache
+.ruff_cache
+**/__pycache__
+target
+xtask/target

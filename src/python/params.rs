@@ -2,17 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The Obs ID of the submit methods.
+//! The Obs ID argument of the submit methods.
 //!
-//! The submit methods start from the library's request body of each job
-//! type ([`crate::mwa_asvo::api::job_params`]) and set every field from
-//! their arguments, as the CLI does. The default of each Python argument is
-//! the schema's default, made by the same library function, so it is the
-//! same in Rust, the CLI and Python. An argument that the schema allows to
-//! be `null` accepts `None`, which is sent as `null`. The Python argument
-//! names are the OpenAPI field names. An argument that the schema does not
-//! allow raises `ValueError` (see `super::error::api_error`), and nothing
-//! is sent.
+//! A submit method takes the Obs ID as a Python `int` and checks it here. Its
+//! other arguments have the types and the defaults of the OpenAPI schema
+//! (the defaults come from the library's `job_params`), and a value that the
+//! schema does not allow raises `ValueError` (see `super::error::api_error`)
+//! before anything is sent.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

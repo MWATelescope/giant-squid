@@ -3,10 +3,10 @@
 ## Start here
 
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
-2. Check that the head is `2cde8b3` "Updated deps", or a later commit by Greg.
+2. Check that the head is `3d9752d` "Read stdin IDs only when an argument is `-`", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 497 Rust unit tests, 56 CLI tests, 7 `download_job_dir` tests, 23 `stdin_ids` tests and 16 `submit_csv` tests pass; 1 unit test and 18 live tests are ignored;
-   - 214 Python tests pass;
+   - 505 Rust unit tests, 56 CLI tests, 7 `download_job_dir` tests, 25 `stdin_ids` tests and 18 `submit_csv` tests pass; 1 unit test and 18 live tests are ignored;
+   - 215 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
    - the regenerated `mwa_giant_squid.pyi` and `openapi.rs` do not change.
@@ -17,7 +17,7 @@
 - Never push, and never open a PR or take any other action on GitHub. Greg does all of that.
 - Deliver each change as a plain diff and a base64 diff. Each diff must contain its code **and** its test edits, and `cargo test` must pass with that diff applied on its own (to the state that Greg has).
 - Ask Greg before you edit, move or delete any existing test, or a shared test helper such as `write_session_at` in `src/test_common.rs`. You may add new tests without asking. List the exact edits in the question.
-- Greg changes CI himself: send a change of `.github/` as a separate diff (for example `c15-ci.diff`), and say that it must be committed with the main diff when the main diff needs it.
+- CI: change `.github/` in the diff that needs it (Greg asked for this on 20 Oct 2026), and say in the answer what the sandbox could not run (CI itself, macOS, Windows).
 - When a decision is needed, stop and ask. Keep each step small (one diff per step). Greg commits each diff and says so; then fetch and reset to `origin/apiv2` before the next step.
 - Name each diff `<step>.diff` with a `.b64` copy and a commit message (first line at most 50 characters, detail lines at most 72), and check that it applies to a fresh clone.
 - The OpenAPI schema (the FastAPI) dictates the library. Exceptions: wait and download, which are not part of the FastAPI.
@@ -99,6 +99,23 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 - `377e9a9` **A directory for each job:** `download` puts each job in `<download-dir>/<job_id>`; `--no-job-subdir` restores the 2.x layout. Rust has `DownloadOptions::job_subdirectory` and Python has the argument `job_subdirectory`. Downloads start in list order, so the `[n/N]` log numbers are in order. Tests: `tests/download_job_dir.rs`.
 - `2cde8b3` **Updated dependencies** (`Cargo.lock` only).
 
+### Done on 20 Oct 2026, the B diffs and the step C review (one diff each, in this order)
+
+- "Better CSV errors; strip a BOM from stdin": an integer out of range names its range; a CSV line lists every unknown key; the stdin parser strips a UTF-8 BOM; the BOM and the `status`/`message` JSON keys are shared constants.
+- "Use a repeated ID once in download/cancel/wait": `resolve_ids` removes a repeated ID and keeps the first place (`ObsId` has `Hash`).
+- "Move the CSV file rules into the library": `read_manta_ray_csv` and `CsvFileError` (`Read`, `Invalid`, `NoJobs`); a file with no job is an error in the library and `ValueError` in Python; `submit_csv_jobs` returns `CsvJobsFailed`.
+- "Add the file line to submit-csv --json errors" and "Print an error line for each bad CSV line": with `--json`, an error line of a failed job has `line` and `obs_id`, and a bad file gives one `INVALID_ARGUMENT` line for each bad line, each with its `line`. A submitted job prints the plain API reply.
+- "Python downloads go in a job directory by default": the Python `job_subdirectory` is `True` by default. `DownloadOptions` has no default, so its field is documented.
+- "Read stdin IDs only when an argument is `-`": no guessing from the kind of input. No ID and no `-` fails with "To read them from standard input, give `-`." (`READ_STDIN_HINT`).
+- Step C review (Python bindings, Dockerfile, workflows, tools): findings C1–C14. The pdoc problems of 6 Oct 2026 are fixed (types, same output on each run, no `RecursionError`, members in source order). Done in this diff: C1 (`params.rs` doc), C3 (`error.rs` closure), C11 (`.dockerignore`), C12 (`git` removed from the Dockerfile builder; untested, the Docker CI job shows it), C14 (`run_live_tests.sh`). The base images are not pinned by digest: `dhi.io` needs a login, which the sandbox does not have.
+
+### Step C: still to do (Greg decided on 20 Oct 2026; one diff each, in this order)
+
+1. C2: `AsvoError` kinds `IO` and `CannotCreate` become a Python `OSError` with errno and filename, as for the CSV file.
+2. C4–C9, with the `.github/` files: the release workflow runs the tests, checks that the tag matches the versions, and builds with `--locked`; third-party actions are pinned by commit; the Docker job skips fork PRs; `cargo-llvm-cov` is installed in a faster way.
+3. C13: `tools/test_msrv.sh` does what the CI MSRV job does (`--locked`, no `cargo update`).
+4. C10: a Windows CI job. Try it, then fix what it finds. The sandbox cannot run Windows, so check the compile with a Windows target if the sandbox can, and say what is not tested.
+
 ### Done in `e891d31` (L1–L10 part A)
 
 - **L1:** downloads use a client that sends no access token (the files are on Acacia).
@@ -124,11 +141,10 @@ From the review of 15 Oct 2026 (the IDs are from that review; its "L" items are 
 
 ## Open, not started
 
-Not reviewed yet:
-- the code of the 19 Oct 2026 features: `submit-csv` (`src/mwa_asvo/manta_ray_csv/`, `src/cli/run.rs`), the standard input IDs (`src/cli/stdin_ids/`) and the per-job download directory (their tests exist; the code has had no review pass);
-- `src/python/types.rs`, `params.rs`, `typed.rs` and `error.rs` (after the C13 change);
-- `tests/cli.rs` and the Python tests in detail;
-- `tools/*.sh`, `scrub_recording.py`, the Dockerfile, the release and docs workflows (also: check that the pdoc problems of 6 Oct 2026 — no types, member order, `RecursionError` — are fixed).
+Not reviewed yet (20 Oct 2026):
+- `src/python/client.rs`, except the constructor, the `get_jobs` header and the conversion and imaging signatures;
+- the body of `tests/cli.rs`, and the Python tests in detail;
+- `tools/coverage.sh`, `tools/scrub_recording.py`, the body of `tools/generate_openapi.sh`, `tools/stubtest_allowlist.txt`, and `mwa_giant_squid_cli`.
 
 Not tested in the sandbox: CI itself (the maturin wheel jobs on Linux and macOS: the macOS build cannot be tried here, so read the code that uses a platform type with care; the Docker build, the MSRV job: Rust 1.88 is not in the sandbox, and the highest declared MSRV in the `xtask` dependencies is 1.85); the non-Unix code of `no_follow`.
 
