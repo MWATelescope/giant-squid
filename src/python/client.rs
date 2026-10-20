@@ -1016,11 +1016,12 @@ impl PyAsvoClient {
     ///         `download_dir` while it downloads.
     ///     job_subdirectory: Put the files in a directory of their own,
     ///         `download_dir/<job_id>`, which is made if it is not there,
-    ///         and not in `download_dir` itself. (The `giant-squid` command
-    ///         does this unless you use `--no-job-subdir`.) The files of two
-    ///         jobs of the same observation do not meet in one directory.
-    ///         It has no effect on a Scratch job, which is moved into
-    ///         `download_dir` in a folder of its own.
+    ///         and not in `download_dir` itself, as the `giant-squid`
+    ///         command does. The files of two jobs of the same observation
+    ///         do not meet in one directory. `False` puts the files in
+    ///         `download_dir` itself, as giant-squid 2.x did. It has no
+    ///         effect on a Scratch job, which is moved into `download_dir`
+    ///         in a folder of its own.
     ///     no_resume: Download the whole file again, even if part of it is
     ///         on disk.
     ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
@@ -1058,7 +1059,7 @@ impl PyAsvoClient {
         download_dir,
         *,
         keep_tar=false,
-        job_subdirectory=false,
+        job_subdirectory=true,
         no_resume=false,
         hash=true,
         progress=None,
@@ -1130,7 +1131,7 @@ impl PyAsvoClient {
         download_dir,
         *,
         keep_tar=false,
-        job_subdirectory=false,
+        job_subdirectory=true,
         no_resume=false,
         hash=true,
         progress=None,

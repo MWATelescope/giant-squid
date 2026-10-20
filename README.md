@@ -1226,6 +1226,8 @@ giant-squid download --no-job-subdir --download-dir /tmp 12345
   giant-squid, or `--no-job-subdir`, left in the download directory itself is not found in `<download directory>/12345`:
   to carry on with it, use `--no-job-subdir` again.
 - A symbolic link where the directory of the job should be is refused, as a link inside a download is.
+- The Python module does the same by default (`job_subdirectory=True`; `False` is the layout of 2.x). A Rust program
+  sets `DownloadOptions::job_subdirectory` itself.
 - When you download several jobs at once (`-c`, `--concurrent-downloads`), they start in the order that you gave,
   and the log numbers them in that order (`[1/20]`, `[2/20]`, ...).
 
@@ -1514,6 +1516,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         no_resume: false,
         hash: true,
         download_dir: ".",
+        // The files of the job go in `./<job_id>`, as for the `giant-squid` command.
+        job_subdirectory: true,
         progress: Some(&progress),
         download_number: 1,
         download_count: 1,

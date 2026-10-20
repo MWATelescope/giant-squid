@@ -20,9 +20,9 @@ before you upgrade scripts.**
   download directory itself. A download resumes from the directory of its job, so a partial download that an earlier
   version left in the download directory is not found there: use `--no-job-subdir` to carry on with it. A Scratch job
   is not affected (it is moved into the download directory in its own folder, which the MWA ASVO has named for the
-  job). The library has the option `DownloadOptions::job_subdirectory`, and the Python module has the argument
-  `job_subdirectory` of `download_job` and `download_obs`. Both are off unless you set them. See the
-  [README](README.md#a-directory-for-each-job).
+  job). The library has the option `DownloadOptions::job_subdirectory` (it has no default: set it), and the Python module
+  has the argument `job_subdirectory` of `download_job` and `download_obs`, which is `True` by default, as for the
+  command. See the [README](README.md#a-directory-for-each-job).
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
   `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
   anything: if something is already at the target, the download fails (`AsvoError::DestinationExists`,

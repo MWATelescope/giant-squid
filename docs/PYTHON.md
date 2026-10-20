@@ -303,7 +303,7 @@ threads run during the download.
 | Argument | Meaning |
 |---|---|
 | `keep_tar` | Keep the tar file. By default the module unpacks it while it downloads. |
-| `job_subdirectory` | Put the files in a directory of their own, `download_dir/<job_id>`, which is made if it is not there. Default: `False`, so the files go in `download_dir` itself. (The `giant-squid` command does this by default. Use it if you download several jobs of one observation to one directory.) It has no effect on a Scratch job, which is moved into `download_dir` in a folder of its own. |
+| `job_subdirectory` | Put the files in a directory of their own, `download_dir/<job_id>`, which is made if it is not there. Default: `True`, as for the `giant-squid` command. `False` puts the files in `download_dir` itself, as giant-squid 2.x did (use it for a partial download that an earlier version left there). It has no effect on a Scratch job, which is moved into `download_dir` in a folder of its own. |
 | `no_resume` | Download the whole file again, even if part of it is on disk. |
 | `hash` | Check the SHA-1 hash of the file. A resumed download, and a complete file that is already on disk, are always checked. Default: `True`. |
 | `progress` | A function that receives `DownloadProgress` events. |

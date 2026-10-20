@@ -211,7 +211,7 @@ def test_download_job_id_keeps_the_tar_and_checks_the_hash(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """With keep_tar, the tar file is saved as it is."""
-    client.download_job(JOB_ID, tmp_path, keep_tar=True)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, job_subdirectory=False)
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
@@ -220,7 +220,7 @@ def test_download_job_id_unpacks_the_tar_by_default(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """Without keep_tar, the tar is unpacked into the directory while it downloads."""
-    client.download_job(JOB_ID, tmp_path)
+    client.download_job(JOB_ID, tmp_path, job_subdirectory=False)
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / FILE_NAME).exists()
@@ -244,9 +244,9 @@ def test_a_download_from_a_job_list_gets_no_job_list(
     jobs = client.get_jobs()
     listings = sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH)
 
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, jobs=jobs)
+    client.download_job(JOB_ID, tmp_path, keep_tar=True, jobs=jobs, job_subdirectory=False)
     (tmp_path / FILE_NAME).unlink()
-    client.download_obs(TEST_OBS_ID, tmp_path, keep_tar=True, jobs=jobs)
+    client.download_obs(TEST_OBS_ID, tmp_path, keep_tar=True, jobs=jobs, job_subdirectory=False)
 
     assert sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH) == listings
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
@@ -254,7 +254,7 @@ def test_a_download_from_a_job_list_gets_no_job_list(
 
 def test_download_obs_id_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:
     """download_obs downloads the one ready job of the obsid."""
-    client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True)
+    client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True, job_subdirectory=False)
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
@@ -331,7 +331,7 @@ def test_ctrl_c_stops_a_download(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress)
+            client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress, job_subdirectory=False)
     finally:
         timer.cancel()
 
@@ -499,11 +499,21 @@ def test_a_job_subdirectory_holds_a_kept_tar_too(
 def test_without_a_job_subdirectory_the_files_stay_in_the_download_directory(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
-    """The default is the layout of the other versions: no directory for the job."""
-    client.download_job(JOB_ID, tmp_path)
+    """With job_subdirectory off, the layout is that of 2.x: no directory for the job."""
+    client.download_job(JOB_ID, tmp_path, job_subdirectory=False)
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / str(JOB_ID)).exists()
+
+
+def test_the_files_go_in_a_directory_for_the_job_by_default(
+    client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """Without job_subdirectory, the files go in download_dir/<job_id>, as for the giant-squid command."""
+    client.download_job(JOB_ID, tmp_path)
+
+    assert (tmp_path / str(JOB_ID) / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
+    assert [entry.name for entry in tmp_path.iterdir()] == [str(JOB_ID)]
 
 
 def test_download_obs_uses_the_directory_of_the_job_that_it_finds(

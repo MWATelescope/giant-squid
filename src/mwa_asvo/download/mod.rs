@@ -107,6 +107,10 @@ pub struct DownloadOptions<'a> {
     /// A Scratch job is not affected: its files are moved into
     /// `download_dir` in a folder that the MWA ASVO has named for the job
     /// (for example `/scratch/mwaops/asvo/12345`).
+    ///
+    /// The options have no default: set it. `true` is the layout of the
+    /// `giant-squid` command and of the Python module's default; `false` is
+    /// the layout of giant-squid 2.x, with the files in `download_dir`.
     pub job_subdirectory: bool,
     /// Called with each [`DownloadProgress`] event. `None` reports no
     /// progress. The library has no user interface of its own.
