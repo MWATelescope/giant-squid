@@ -113,7 +113,8 @@ rewrite_refs(schemas)
 
 # The endpoints, each with its HTTP methods, so that a test can check the
 # paths that the client calls (ENDPOINT_* in src/mwa_asvo/api/client/mod.rs).
-# typify reads only "definitions" and ignores this key.
+# typify reads only "definitions" and ignores this key. ("operations", below,
+# adds the schemas of each operation's request and replies.)
 HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options"}
 paths = {
     path: sorted(method for method in operations if method in HTTP_METHODS)
@@ -122,10 +123,60 @@ paths = {
 if not paths:
     sys.exit("Error: no paths found in the downloaded OpenAPI document.")
 
+
+def schema_names(node):
+    """Names of every schema that a schema node refers to, in document order.
+
+    A node that refers to one schema gives one name. A union (`anyOf` or
+    `oneOf`) gives one name for each member, so a list of more than one name
+    means "one of these". An inline schema with no reference (a plain
+    integer, say) gives no name.
+    """
+    names = []
+
+    def walk(item):
+        if isinstance(item, dict):
+            ref = item.get("$ref")
+            if isinstance(ref, str):
+                name = ref.rsplit("/", 1)[-1]
+                if name not in names:
+                    names.append(name)
+            for value in item.values():
+                walk(value)
+        elif isinstance(item, list):
+            for value in item:
+                walk(value)
+
+    walk(node)
+    return names
+
+
+def json_schema(content):
+    """The schema of the `application/json` entry of a `content` map."""
+    return (content or {}).get("application/json", {}).get("schema", {})
+
+
+# What each operation takes and returns: `request` is the schemas of the
+# JSON body, and `responses` maps each HTTP status to the schemas of the
+# JSON reply. More than one name means the body (or reply) is one of them.
+# Giant-squid reads this to know which schema an endpoint uses. The key is
+# "METHOD /path", sorted, like `paths`.
+operations = {}
+for path, item in sorted(doc.get("paths", {}).items()):
+    for method in sorted(m for m in item if m in HTTP_METHODS):
+        operation = item[method]
+        operations[f"{method.upper()} {path}"] = {
+            "request": schema_names(json_schema(operation.get("requestBody", {}).get("content"))),
+            "responses": {
+                str(status): schema_names(json_schema(response.get("content")))
+                for status, response in sorted(operation.get("responses", {}).items())
+            },
+        }
+
 # The version of the OpenAPI specification that the document is written in
 # (`openapi`), and the version of the MWA ASVO API (`info.version`). build.rs
 # writes both into openapi.rs, and giant-squid --version prints them. typify
-# ignores these keys, as it does "paths".
+# ignores these keys, as it does "paths" and "operations".
 openapi_version = doc.get("openapi")
 info = doc.get("info", {})
 api_version = info.get("version")
@@ -138,6 +189,7 @@ out = {
     "info": {"title": info.get("title", ""), "version": api_version},
     "definitions": schemas,
     "paths": paths,
+    "operations": operations,
 }
 
 with open(out_path, "w") as f:
