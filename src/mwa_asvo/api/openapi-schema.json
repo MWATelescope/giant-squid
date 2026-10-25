@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.3.4"
+    "version": "2.5.0"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -101,7 +101,68 @@
       ],
       "title": "AuthStatusResponse"
     },
-    "BeamformerJobParams": {
+    "CalibrationReadyCallback": {
+      "properties": {
+        "cal_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cal Id"
+        },
+        "asvo_job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Asvo Job Id"
+        },
+        "target_obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Target Obs Id"
+        },
+        "finished_datetime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Finished Datetime"
+        },
+        "success": {
+          "type": "boolean",
+          "title": "Success"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Message",
+          "description": "e.g. 'completed'"
+        }
+      },
+      "type": "object",
+      "required": [
+        "asvo_job_id",
+        "target_obs_id",
+        "success"
+      ],
+      "title": "CalibrationReadyCallback",
+      "description": "Calibration service callback"
+    },
+    "CancelJobParams": {
       "properties": {
         "obs_id": {
           "type": "integer",
@@ -109,22 +170,11 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch",
-            "dug"
-          ],
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
         },
         "delivery_format": {
-          "type": "string",
-          "enum": [
-            "tar",
-            "files"
-          ],
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "tar"
         },
         "allow_resubmit": {
@@ -139,74 +189,13 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
-        },
-        "mode": {
-          "anyOf": [
-            {
-              "type": "string",
-              "enum": [
-                "MWAX_BEAMFORMER",
-                "MWAX_CORR_BF"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Mode",
-          "default": "MWAX_BEAMFORMER"
         }
       },
       "type": "object",
       "required": [
         "obs_id"
       ],
-      "title": "BeamformerJobParams",
-      "description": "Parameters for beamformer job submission"
-    },
-    "CalibrationReadyCallback": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "target_obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Target Obs Id"
-        },
-        "asvo_job_id": {
-          "type": "integer",
-          "minimum": 1.0,
-          "title": "Asvo Job Id"
-        },
-        "success": {
-          "type": "boolean",
-          "title": "Success"
-        },
-        "status": {
-          "type": "string",
-          "title": "Status",
-          "description": "e.g. 'completed'"
-        },
-        "calibration_file": {
-          "type": "string",
-          "title": "Calibration File",
-          "description": "Name of the calibration file (.e.g. mock_cal_1234567890.fits)"
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id",
-        "target_obs_id",
-        "asvo_job_id",
-        "success",
-        "status",
-        "calibration_file"
-      ],
-      "title": "CalibrationReadyCallback",
-      "description": "Calibration service callback"
+      "title": "CancelJobParams"
     },
     "CancelledJobsRequest": {
       "properties": {
@@ -264,21 +253,11 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch"
-          ],
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
         },
         "delivery_format": {
-          "type": "string",
-          "enum": [
-            "tar",
-            "files"
-          ],
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "tar"
         },
         "allow_resubmit": {
@@ -295,12 +274,7 @@
           "default": false
         },
         "output": {
-          "type": "string",
-          "enum": [
-            "ms",
-            "uvfits"
-          ],
-          "title": "Output",
+          "$ref": "#/definitions/OutputFormat",
           "default": "ms"
         },
         "avg_time_res": {
@@ -338,13 +312,7 @@
           "default": 80.0
         },
         "centre": {
-          "type": "string",
-          "enum": [
-            "phase",
-            "pointing",
-            "custom"
-          ],
-          "title": "Centre",
+          "$ref": "#/definitions/PhaseCentre",
           "default": "phase"
         },
         "custom_centre_ra": {
@@ -463,6 +431,23 @@
       "title": "ConversionJobParams",
       "description": "Parameters for conversion job submission"
     },
+    "DeliveryDestination": {
+      "type": "string",
+      "enum": [
+        "acacia",
+        "scratch",
+        "dug"
+      ],
+      "title": "DeliveryDestination"
+    },
+    "DeliveryFormat": {
+      "type": "string",
+      "enum": [
+        "tar",
+        "files"
+      ],
+      "title": "DeliveryFormat"
+    },
     "DownloadJobParams": {
       "properties": {
         "obs_id": {
@@ -471,22 +456,11 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch",
-            "dug"
-          ],
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
         },
         "delivery_format": {
-          "type": "string",
-          "enum": [
-            "tar",
-            "files"
-          ],
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "tar"
         },
         "allow_resubmit": {
@@ -518,7 +492,8 @@
       "type": "string",
       "enum": [
         "vis",
-        "meta"
+        "meta",
+        "beam"
       ],
       "title": "DownloadType"
     },
@@ -686,6 +661,15 @@
         }
       ]
     },
+    "ImageOutputMode": {
+      "type": "string",
+      "enum": [
+        "fits",
+        "all_fits",
+        "all_files"
+      ],
+      "title": "ImageOutputMode"
+    },
     "ImageSizes": {
       "type": "integer",
       "enum": [
@@ -698,6 +682,15 @@
       ],
       "title": "ImageSizes"
     },
+    "ImageWeighting": {
+      "type": "string",
+      "enum": [
+        "briggs",
+        "uniform",
+        "natural"
+      ],
+      "title": "ImageWeighting"
+    },
     "ImagingJobFlow1Params": {
       "properties": {
         "obs_id": {
@@ -706,21 +699,11 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch"
-          ],
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
         },
         "delivery_format": {
-          "type": "string",
-          "enum": [
-            "tar",
-            "files"
-          ],
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "tar"
         },
         "allow_resubmit": {
@@ -771,13 +754,7 @@
           "default": 80.0
         },
         "centre": {
-          "type": "string",
-          "enum": [
-            "phase",
-            "pointing",
-            "custom"
-          ],
-          "title": "Centre",
+          "$ref": "#/definitions/PhaseCentre",
           "default": "phase"
         },
         "custom_centre_ra": {
@@ -900,13 +877,7 @@
           "default": 20
         },
         "weighting": {
-          "type": "string",
-          "enum": [
-            "briggs",
-            "uniform",
-            "natural"
-          ],
-          "title": "Weighting",
+          "$ref": "#/definitions/ImageWeighting",
           "default": "briggs"
         },
         "robust": {
@@ -1055,13 +1026,7 @@
           "default": "XXYY"
         },
         "output_mode": {
-          "type": "string",
-          "enum": [
-            "fits",
-            "all_fits",
-            "all_files"
-          ],
-          "title": "Output Mode",
+          "$ref": "#/definitions/ImageOutputMode",
           "default": "fits"
         }
       },
@@ -1075,26 +1040,23 @@
     "ImagingJobFlow2Params": {
       "properties": {
         "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 888888889.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch"
-          ],
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
         },
         "delivery_format": {
-          "type": "string",
-          "enum": [
-            "tar",
-            "files"
-          ],
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "tar"
         },
         "allow_resubmit": {
@@ -1127,13 +1089,7 @@
           "default": 20
         },
         "weighting": {
-          "type": "string",
-          "enum": [
-            "briggs",
-            "uniform",
-            "natural"
-          ],
-          "title": "Weighting",
+          "$ref": "#/definitions/ImageWeighting",
           "default": "briggs"
         },
         "robust": {
@@ -1280,19 +1236,12 @@
           "default": "XXYY"
         },
         "output_mode": {
-          "type": "string",
-          "enum": [
-            "fits",
-            "all_fits",
-            "all_files"
-          ],
-          "title": "Output Mode",
+          "$ref": "#/definitions/ImageOutputMode",
           "default": "fits"
         }
       },
       "type": "object",
       "required": [
-        "obs_id",
         "source_job_id"
       ],
       "title": "ImagingJobFlow2Params",
@@ -1328,10 +1277,16 @@
     },
     "JobDetailResponse": {
       "properties": {
-        "id": {
+        "job_id": {
           "type": "integer",
-          "title": "Id",
+          "minimum": 1.0,
+          "title": "Job Id",
           "description": "Unique job identifier"
+        },
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
         },
         "user_id": {
           "type": "integer",
@@ -1351,7 +1306,7 @@
         },
         "job_state": {
           "$ref": "#/definitions/JobState",
-          "description": "Current job state: 0=Queued, 1=WaitCal 2=Staging, 3=Staged, 4=Downloading, 5=Preprocessing, 6=Delivering, 9=Completed, 10=Error, 11=Cancelled"
+          "description": "Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'"
         },
         "job_params": {
           "additionalProperties": true,
@@ -1452,7 +1407,8 @@
       },
       "type": "object",
       "required": [
-        "id",
+        "job_id",
+        "obs_id",
         "user_id",
         "job_state",
         "job_params",
@@ -1533,6 +1489,106 @@
       ],
       "title": "JobFile"
     },
+    "JobListRequest": {
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "maximum": 500.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Limit",
+          "description": "maximum number of records to return",
+          "default": 100
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Offset",
+          "description": "the offset (used to paginate the query results)",
+          "default": 0
+        },
+        "job_state": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JobState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'"
+        },
+        "job_type": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JobType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "User Id",
+          "description": "optional user_id to filter by"
+        },
+        "search_term": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Search Term",
+          "description": "optional term to filter the jobs by"
+        },
+        "sort_by": {
+          "$ref": "#/definitions/SortBy",
+          "description": "The column to sort the jobs by (id | created | completed)",
+          "default": "id"
+        }
+      },
+      "type": "object",
+      "title": "JobListRequest"
+    },
+    "JobListResponse": {
+      "properties": {
+        "jobs": {
+          "items": {
+            "$ref": "#/definitions/JobDetailResponse"
+          },
+          "type": "array",
+          "title": "Jobs",
+          "description": "List of jobs for current page"
+        },
+        "pagination": {
+          "$ref": "#/definitions/PaginationMetadata",
+          "description": "Pagination information (total count, offset, has_more)"
+        },
+        "counts_by_state": {
+          "$ref": "#/definitions/JobStateCounts",
+          "description": "Aggregate counts of jobs by state (for overview/filtering)"
+        }
+      },
+      "type": "object",
+      "required": [
+        "jobs",
+        "pagination",
+        "counts_by_state"
+      ],
+      "title": "JobListResponse",
+      "description": "Paginated job list response"
+    },
     "JobPriorityUpdate": {
       "properties": {
         "job_id": {
@@ -1589,6 +1645,79 @@
       "title": "JobState",
       "description": "Enum representing the possible states of a job\nInherits from str to make it JSON serializable and directly usable in SQL queries"
     },
+    "JobStateCounts": {
+      "properties": {
+        "queued": {
+          "type": "integer",
+          "title": "Queued",
+          "description": "Number of jobs in queued state (waiting to start)",
+          "default": 0
+        },
+        "wait_cal": {
+          "type": "integer",
+          "title": "Wait Cal",
+          "description": "Number of jobs waiting for calibration data",
+          "default": 0
+        },
+        "staging": {
+          "type": "integer",
+          "title": "Staging",
+          "description": "Number of jobs staging data from archive",
+          "default": 0
+        },
+        "staged": {
+          "type": "integer",
+          "title": "Staged",
+          "description": "Number of jobs with data staged and ready to process",
+          "default": 0
+        },
+        "downloading": {
+          "type": "integer",
+          "title": "Downloading",
+          "description": "Number of jobs downloading data",
+          "default": 0
+        },
+        "preparing": {
+          "type": "integer",
+          "title": "Preparing",
+          "description": "Number of jobs in preparing state",
+          "default": 0
+        },
+        "preprocessing": {
+          "type": "integer",
+          "title": "Preprocessing",
+          "description": "Number of jobs currently being processed",
+          "default": 0
+        },
+        "delivering": {
+          "type": "integer",
+          "title": "Delivering",
+          "description": "Number of jobs delivering results",
+          "default": 0
+        },
+        "completed": {
+          "type": "integer",
+          "title": "Completed",
+          "description": "Number of successfully completed jobs",
+          "default": 0
+        },
+        "error": {
+          "type": "integer",
+          "title": "Error",
+          "description": "Number of jobs that failed with errors",
+          "default": 0
+        },
+        "cancelled": {
+          "type": "integer",
+          "title": "Cancelled",
+          "description": "Number of jobs cancelled by user",
+          "default": 0
+        }
+      },
+      "type": "object",
+      "title": "JobStateCounts",
+      "description": "Aggregate counts of job by state\nUsed in JobListResponse to provide overview statistics"
+    },
     "JobStateUpdateResponse": {
       "properties": {
         "job_id": {
@@ -1642,15 +1771,15 @@
       "title": "JobSubmittedResponse"
     },
     "JobType": {
-      "type": "integer",
+      "type": "string",
       "enum": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
+        "conversion",
+        "visibility",
+        "metadata",
+        "voltage",
+        "cancel",
+        "beamformer",
+        "imaging"
       ],
       "title": "JobType",
       "description": "Enum representing job types with their integer values"
@@ -1696,7 +1825,7 @@
               "type": "null"
             }
           ],
-          "description": "the current state of the job"
+          "description": "Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'"
         },
         "job_type": {
           "anyOf": [
@@ -1736,15 +1865,14 @@
           "description": "The end date of the time window"
         },
         "sort_by": {
-          "type": "string",
-          "title": "Sort By",
-          "description": "The column to sort the jobs by",
+          "$ref": "#/definitions/SortBy",
+          "description": "The column to sort the jobs by (id | created | completed)",
           "default": "id"
         }
       },
       "type": "object",
       "title": "JobsByUserRequest",
-      "description": "Parameters for /job_history endpoint"
+      "description": "Parameters for /list endpoint"
     },
     "JobsByUserResponse": {
       "properties": {
@@ -1768,7 +1896,7 @@
         "total_count"
       ],
       "title": "JobsByUserResponse",
-      "description": "Parameters for /job_history endpoint"
+      "description": "Parameters for /list endpoint"
     },
     "JobsToCancelRequest": {
       "properties": {
@@ -1810,92 +1938,1021 @@
       ],
       "title": "MarkAsErrorRequest"
     },
+    "ObservationExportRequest": {
+      "properties": {
+        "obs_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array",
+          "minItems": 1,
+          "title": "Obs Ids",
+          "description": "List of observation IDs to export"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_ids"
+      ],
+      "title": "ObservationExportRequest",
+      "description": "Request model for observation XML export"
+    },
+    "ObservationListRequest": {
+      "properties": {
+        "obs_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array",
+          "minItems": 1,
+          "title": "Obs Ids",
+          "description": "List of observation ids"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_ids"
+      ],
+      "title": "ObservationListRequest",
+      "description": "Request model for operations requiring observation ID list"
+    },
     "ObservationMetadata": {
       "properties": {
         "obs_id": {
           "type": "integer",
           "minimum": 888888889.0,
-          "title": "Obs Id"
+          "title": "Obs ID",
+          "description": "observation id"
         },
-        "data_quality": {
+        "starttime": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "GPS Start",
+          "description": "starttime"
+        },
+        "stoptime": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "GPS Stop",
+          "description": "stoptime"
+        },
+        "duration": {
+          "type": "integer",
+          "title": "Duration (s)",
+          "description": "duration"
+        },
+        "starttime_mjd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "MJD Start",
+          "description": "starttime_mjd"
+        },
+        "stoptime_mjd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "MJD Stop",
+          "description": "stoptime_mjd"
+        },
+        "starttime_utc": {
           "type": "string",
-          "title": "Data Quality",
-          "description": "dataqualityname"
+          "title": "UTC Start",
+          "description": "starttime_utc"
+        },
+        "stoptime_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "UTC Stop",
+          "description": "stoptime_utc"
+        },
+        "starttime_mro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "MRO Start",
+          "description": "starttime_mro"
+        },
+        "stoptime_mro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "MRO Stop",
+          "description": "stoptime_mro"
+        },
+        "obsname": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Obs Name",
+          "description": "obsname"
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Creator",
+          "description": "creator"
+        },
+        "modtime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mod Time",
+          "description": "modtime"
         },
         "mode": {
           "type": "string",
           "title": "Mode",
-          "description": "the observation mode. e.g MWAX_CORRELATOR"
+          "description": "Correlator Mode"
         },
-        "project_id": {
+        "projectid": {
           "type": "string",
-          "title": "Project Id",
-          "description": "the id of the project this observation is a part of"
+          "title": "Project",
+          "description": "projectid"
         },
-        "ra_pointing": {
-          "type": "number",
-          "title": "Ra Pointing",
-          "description": "right ascension pointing"
+        "projectshortname": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Project Name",
+          "description": "projectshortname"
         },
-        "dec_pointing": {
-          "type": "number",
-          "title": "Dec Pointing",
-          "description": "declination pointing"
+        "projectdescription": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Project Desc",
+          "description": "projectdescription"
         },
-        "int_time": {
-          "type": "number",
-          "title": "Int Time",
-          "description": "integration time"
+        "dataquality": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quality ID",
+          "description": "dataquality"
         },
-        "freq_res": {
-          "type": "number",
-          "title": "Freq Res",
-          "description": "the frequency resolution of the observation"
+        "dataqualityname": {
+          "type": "string",
+          "title": "Quality",
+          "description": "dataqualityname"
         },
-        "channel_count": {
-          "type": "integer",
-          "title": "Channel Count",
-          "description": "number of channels"
-        },
-        "duration": {
-          "type": "number",
-          "title": "Duration",
-          "description": "duration of the capture"
-        },
-        "gpubox_files_archived": {
-          "type": "integer",
-          "title": "Gpubox Files Archived",
-          "description": "number of files found in archive"
+        "dataqualitycomment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quality Comment",
+          "description": "dataqualitycomment"
         },
         "deleted_flag": {
           "type": "boolean",
           "title": "Deleted Flag",
-          "description": "whether this obs has been flagged for deletion"
+          "description": "deleted_flag"
         },
-        "scheduled_start_utc": {
-          "type": "string",
-          "title": "Scheduled Start Utc",
-          "description": "starttime_utc"
+        "deletedtime_mro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deleted Time MRO",
+          "description": "deletedtime_mro"
         },
-        "oversampled_flag": {
-          "type": "boolean",
-          "title": "Oversampled Flag",
-          "description": "oversampled_flag"
+        "vcs_recombined_flag": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Recombined Flag",
+          "description": "vcs_recombined_flag"
         },
-        "public_release_date_utc": {
-          "type": "string",
-          "title": "Public Release Date Utc",
-          "description": "date used to check whether this obs is within the embargo period or not"
+        "int_time": {
+          "type": "number",
+          "title": "Corr int (s)",
+          "description": "int_time"
+        },
+        "freq_res": {
+          "type": "number",
+          "title": "Corr freq (kHz)",
+          "description": "freq_res"
+        },
+        "ra": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ra",
+          "description": "ra"
+        },
+        "dec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dec",
+          "description": "dec"
+        },
+        "ra_pointing": {
+          "type": "number",
+          "title": "Ra",
+          "description": "ra_pointing"
+        },
+        "dec_pointing": {
+          "type": "number",
+          "title": "Dec",
+          "description": "dec_pointing"
+        },
+        "ra_phase_center": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ra (ph)",
+          "description": "ra_phase_center"
+        },
+        "dec_phase_center": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dec (ph)",
+          "description": "dec_phase_center"
+        },
+        "azimuth_pointing": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Az",
+          "description": "azimuth_pointing"
+        },
+        "elevation_pointing": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "El",
+          "description": "elevation_pointing"
+        },
+        "azimuth": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Az",
+          "description": "azimuth"
+        },
+        "elevation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "El",
+          "description": "elevation"
+        },
+        "gal_lat": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Galactic Latitude",
+          "description": "gal_lat"
+        },
+        "gal_long": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Galactic Longitude",
+          "description": "gal_long"
+        },
+        "sky_temp": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sky Temp (K)",
+          "description": "sky_temp"
+        },
+        "calibration": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Calibration",
+          "description": "calibration"
+        },
+        "calibrators": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Calibrators",
+          "description": "calibrators"
+        },
+        "gridpoint_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gridpoint Name",
+          "description": "gridpoint_name"
+        },
+        "gridpoint_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gridpoint Number",
+          "description": "gridpoint_number"
+        },
+        "local_sidereal_time_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "LST (deg)",
+          "description": "local_sidereal_time_deg"
+        },
+        "sun_elevation": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sun Elevation",
+          "description": "sun_elevation"
+        },
+        "sun_pointing_distance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sun Pointing Distance",
+          "description": "sun_pointing_distance"
+        },
+        "jupiter_pointing_distance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Jupiter Pointing Distance",
+          "description": "jupiter_pointing_distance"
+        },
+        "moon_pointing_distance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Moon Pointing Distance",
+          "description": "moon_pointing_distance"
+        },
+        "channel_numbers_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channel Numbers CSV",
+          "description": "channel_numbers_csv"
+        },
+        "channel_center_frequencies_mhz_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channel Center Frequencies CSV",
+          "description": "channel_center_frequencies_mhz_csv"
+        },
+        "first_channel_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Channel Number",
+          "description": "first_channel_number"
+        },
+        "center_channel_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Center Channel Number",
+          "description": "center_channel_number"
+        },
+        "last_channel_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Channel Number",
+          "description": "last_channel_number"
+        },
+        "first_channel_lowest_frequency_mhz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Channel Lowest Freq (mHz)",
+          "description": "first_channel_lowest_frequency_mhz"
+        },
+        "center_frequency_mhz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Center Freq (mHz)",
+          "description": "center_frequency_mhz"
+        },
+        "last_channel_highest_frequency_mhz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Channel Highest Freq (mHz)",
+          "description": "last_channel_highest_frequency_mhz"
+        },
+        "channels_are_contiguous": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Contiguous?",
+          "description": "channels_are_contiguous"
+        },
+        "channel_count": {
+          "type": "integer",
+          "title": "Channel Count",
+          "description": "channel_count"
+        },
+        "channel_width_mhz": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Channel Width (mHz)",
+          "description": "channel_width_mhz"
+        },
+        "mwa_array_configuration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "MWA Configuration",
+          "description": "mwa_array_configuration"
+        },
+        "groupid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Group ID",
+          "description": "groupid"
+        },
+        "collection_id": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Collection ID",
+          "description": "collection_id"
+        },
+        "collection_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Collection Name",
+          "description": "collection_name"
+        },
+        "collection_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Collection URL",
+          "description": "collection_url"
+        },
+        "iono_qa": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Iono QA",
+          "description": "iono_qa"
+        },
+        "tiles_with_bad_states": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad States",
+          "description": "tiles_with_bad_states"
+        },
+        "tiles_with_bad_pointings": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad Pointings",
+          "description": "tiles_with_bad_pointings"
+        },
+        "tiles_with_bad_freqs": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad Frequencies",
+          "description": "tiles_with_bad_freqs"
+        },
+        "tiles_with_bad_gains": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad Gains",
+          "description": "tiles_with_bad_gains"
+        },
+        "tiles_with_bad_beamshape": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad Beamshape",
+          "description": "tiles_with_bad_beamshape"
+        },
+        "tiles_flagged": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Flagged",
+          "description": "tiles_flagged"
+        },
+        "bad_tiles": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Bad",
+          "description": "bad_tiles"
+        },
+        "good_tiles": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Tiles - Good",
+          "description": "good_tiles"
+        },
+        "total_tiles": {
+          "type": "integer",
+          "title": "Tiles - Total",
+          "description": "total_tiles"
+        },
+        "vcs_files_raw_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Files Raw (total)",
+          "description": "vcs_files_raw_total"
+        },
+        "vcs_files_raw_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Files Raw (archived)",
+          "description": "vcs_files_raw_archived"
+        },
+        "vcs_files_ics_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Files ICS (archived)",
+          "description": "vcs_files_ics_archived"
+        },
+        "vcs_files_tar_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Files Tar (archived)",
+          "description": "vcs_files_tar_archived"
+        },
+        "vcs_files_sub_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VCS Files Sub (archived)",
+          "description": "vcs_files_sub_archived"
+        },
+        "filterbank_files_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Filterbank Files Archived",
+          "description": "filterbank_files_archived"
+        },
+        "vdif_files_archived": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "VDIF Files Archived",
+          "description": "vdif_files_archived"
+        },
+        "gpubox_files_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "GPU Box Files (total)",
+          "description": "gpubox_files_total"
+        },
+        "gpubox_files_archived": {
+          "type": "integer",
+          "title": "GPU Box Files (archived)",
+          "description": "gpubox_files_archived"
+        },
+        "flag_files_exist": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Flag Files Exist",
+          "description": "flag_files_exist"
+        },
+        "total_archived_data_files": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Archived Data Files",
+          "description": "total_archived_data_files"
         },
         "total_archived_data_bytes": {
           "type": "integer",
           "title": "Total Archived Data Bytes",
-          "description": "Number of bytes archived based on the total number of files"
+          "description": "total_archived_data_bytes"
         },
-        "total_tiles": {
-          "type": "integer",
-          "title": "Total Tiles",
-          "description": "Total number of tiles"
+        "total_archived_files": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Archived Files",
+          "description": "total_archived_files"
+        },
+        "total_archived_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Archived Bytes",
+          "description": "total_archived_bytes"
+        },
+        "files_deleted": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Files Deleted?",
+          "description": "files_deleted"
+        },
+        "files_deleted_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Files Deleted Bytes",
+          "description": "files_deleted_bytes"
+        },
+        "data_files_summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Data Files",
+          "description": "data_files_summary"
         },
         "archived_files_at_pawsey_banksia": {
           "anyOf": [
@@ -1906,8 +2963,20 @@
               "type": "null"
             }
           ],
-          "title": "Archived Files At Pawsey Banksia",
-          "description": "Number of files this observation has at banksia"
+          "title": "Archived Files at Pawsey Banksia",
+          "description": "archived_files_at_pawsey_banksia"
+        },
+        "archived_bytes_at_pawsey_banksia": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Archived Bytes at Pawsey Banksia",
+          "description": "archived_bytes_at_pawsey_banksia"
         },
         "archived_files_at_pawsey_acacia_mwa": {
           "anyOf": [
@@ -1918,10 +2987,10 @@
               "type": "null"
             }
           ],
-          "title": "Archived Files At Pawsey Acacia Mwa",
-          "description": "Number of files this observation has at mwa_acacia"
+          "title": "Archived Files at Pawsey Acacia MWA",
+          "description": "archived_files_at_pawsey_acacia_mwa"
         },
-        "coherent_beams": {
+        "archived_bytes_at_pawsey_acacia_mwa": {
           "anyOf": [
             {
               "type": "integer"
@@ -1930,8 +2999,246 @@
               "type": "null"
             }
           ],
-          "title": "Coherent Beams",
-          "description": "No. of coherent beams for the beamformer obs"
+          "title": "Archived Bytes at Pawsey Acacia MWA",
+          "description": "archived_bytes_at_pawsey_acacia_mwa"
+        },
+        "downloads": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Downloads",
+          "description": "downloads"
+        },
+        "first_download_datetime_mro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Download",
+          "description": "first_download_datetime_mro"
+        },
+        "last_download_datetime_mro": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Last Download",
+          "description": "last_download_datetime_mro"
+        },
+        "days_since_last_download": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Days Since Last Download",
+          "description": "days_since_last_download"
+        },
+        "days_from_obs_to_first_download": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Days From Obs to First Download",
+          "description": "days_from_obs_to_first_download"
+        },
+        "downloaded_bytes": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Downloaded Bytes",
+          "description": "downloaded_bytes"
+        },
+        "delaymode_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delay Mode",
+          "description": "delaymode_name"
+        },
+        "delaymode_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Delay Mode Description",
+          "description": "delaymode_description"
+        },
+        "cable_delays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cable Delays",
+          "description": "cable_delays"
+        },
+        "cable_delays_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cable Delays Description",
+          "description": "cable_delays_description"
+        },
+        "geometric_delays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Geometric Delays",
+          "description": "geometric_delays"
+        },
+        "geometric_delays_description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Geometric Delays Description",
+          "description": "geometric_delays_description"
+        },
+        "calibration_delays": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Calibration Delays",
+          "description": "calibration_delays"
+        },
+        "oversampled_flag": {
+          "type": "boolean",
+          "title": "Oversampled",
+          "description": "oversampled_flag"
+        },
+        "deripple_flag": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deripple Flag",
+          "description": "deripple_flag"
+        },
+        "deripple_params": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deripple Params",
+          "description": "deripple_params"
+        },
+        "deletion_pending_flag": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deletion Pending Flag",
+          "description": "deletion_pending_flag"
+        },
+        "deletion_pending_request_ids_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Deletion Pending Request IDs CSV",
+          "description": "deletion_pending_request_ids_csv"
+        },
+        "trigger_ids_csv": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Trigger id",
+          "description": "trigger_ids_csv"
+        },
+        "embargo_period_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Embargo Period Months",
+          "description": "embargo_period_months"
+        },
+        "public_release_date_utc": {
+          "type": "string",
+          "title": "Public Release Date UTC",
+          "description": "public_release_date_utc"
         },
         "incoherent_beams": {
           "anyOf": [
@@ -1943,9 +3250,9 @@
             }
           ],
           "title": "Incoherent Beams",
-          "description": "No. of incoherent beams for the beamformer obs"
+          "description": "incoherent_beams"
         },
-        "vidf_files_archived": {
+        "coherent_beams": {
           "anyOf": [
             {
               "type": "integer"
@@ -1954,20 +3261,60 @@
               "type": "null"
             }
           ],
-          "title": "Vidf Files Archived"
+          "title": "Coherent Beams",
+          "description": "coherent_beams"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "duration",
+        "starttime_utc",
+        "mode",
+        "projectid",
+        "dataqualityname",
+        "deleted_flag",
+        "int_time",
+        "freq_res",
+        "ra_pointing",
+        "dec_pointing",
+        "channel_count",
+        "total_tiles",
+        "gpubox_files_archived",
+        "total_archived_data_bytes",
+        "oversampled_flag",
+        "public_release_date_utc"
+      ],
+      "title": "ObservationMetadata",
+      "description": "Observation Metadata extracted from TAP service VO table"
+    },
+    "ObservationProjectsResponse": {
+      "properties": {
+        "projects": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Projects"
+        }
+      },
+      "type": "object",
+      "required": [
+        "projects"
+      ],
+      "title": "ObservationProjectsResponse"
+    },
+    "ObservationSearchResponse": {
+      "properties": {
+        "results": {
+          "items": {
+            "$ref": "#/definitions/ObservationMetadata"
+          },
+          "type": "array",
+          "title": "Results",
+          "description": "Observation results (representing the rows in a TAP table)"
         },
-        "filterbank_files_archived": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Filterbank Files Archived"
-        },
-        "channel_numbers_csv": {
+        "query": {
           "anyOf": [
             {
               "type": "string"
@@ -1976,75 +3323,95 @@
               "type": "null"
             }
           ],
-          "title": "Channel Numbers Csv"
-        },
-        "vcs_files_raw_archived": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vcs Files Raw Archived"
-        },
-        "vcs_files_ics_archived": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vcs Files Ics Archived"
-        },
-        "vcs_files_tar_archived": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vcs Files Tar Archived"
-        },
-        "vcs_files_sub_archived": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Vcs Files Sub Archived"
+          "title": "Query",
+          "description": "TAP SQL query executed (for debugging)"
         }
       },
       "type": "object",
       "required": [
-        "obs_id",
-        "data_quality",
-        "mode",
-        "project_id",
-        "ra_pointing",
-        "dec_pointing",
-        "int_time",
-        "freq_res",
-        "channel_count",
-        "duration",
-        "gpubox_files_archived",
-        "deleted_flag",
-        "scheduled_start_utc",
-        "oversampled_flag",
-        "public_release_date_utc",
-        "total_archived_data_bytes",
-        "total_tiles"
+        "results"
       ],
-      "title": "ObservationMetadata",
-      "description": "Observation Metadata extracted from TAP service VO table"
+      "title": "ObservationSearchResponse",
+      "description": "Response model for observation search"
+    },
+    "ObservationSizeResponse": {
+      "properties": {
+        "total_bytes": {
+          "type": "integer",
+          "title": "Total Bytes"
+        },
+        "total_gb": {
+          "type": "integer",
+          "title": "Total Gb"
+        },
+        "observation_count": {
+          "type": "integer",
+          "title": "Observation Count"
+        }
+      },
+      "type": "object",
+      "required": [
+        "total_bytes",
+        "total_gb",
+        "observation_count"
+      ],
+      "title": "ObservationSizeResponse"
+    },
+    "OutputFormat": {
+      "type": "string",
+      "enum": [
+        "ms",
+        "uvfits"
+      ],
+      "title": "OutputFormat"
+    },
+    "PaginationMetadata": {
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "title": "Total Count",
+          "description": "Total number of jobs matching filter criteria"
+        },
+        "filtered_count": {
+          "type": "integer",
+          "title": "Filtered Count",
+          "description": "Number of jobs after applying filters (same as total count if no filters)"
+        },
+        "page_size": {
+          "type": "integer",
+          "title": "Page Size",
+          "description": "Number of jobs per page (max 1000)"
+        },
+        "offset": {
+          "type": "integer",
+          "title": "Offset",
+          "description": "Starting position in result set (0-indexed)"
+        },
+        "has_more": {
+          "type": "boolean",
+          "title": "Has More",
+          "description": "True if more results exist beyond current page"
+        }
+      },
+      "type": "object",
+      "required": [
+        "total_count",
+        "filtered_count",
+        "page_size",
+        "offset",
+        "has_more"
+      ],
+      "title": "PaginationMetadata",
+      "description": "Pagination metadata for job lists\nUsed in JobListResponse to help clients navigate through large result sets"
+    },
+    "PhaseCentre": {
+      "type": "string",
+      "enum": [
+        "phase",
+        "pointing",
+        "custom"
+      ],
+      "title": "PhaseCentre"
     },
     "PiProjectDetails": {
       "properties": {
@@ -2122,10 +3489,15 @@
     },
     "QueuedJob": {
       "properties": {
-        "id": {
+        "job_id": {
           "type": "integer",
           "minimum": 1.0,
-          "title": "Id"
+          "title": "Job Id"
+        },
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
         },
         "user_id": {
           "type": "integer",
@@ -2135,13 +3507,12 @@
         "user_pawsey_group": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/definitions/UserPawseyGroup"
             },
             {
               "type": "null"
             }
           ],
-          "title": "User Pawsey Group",
           "description": "The pawsey group the user belongs to (if any)"
         },
         "user_dug_group": {
@@ -2208,7 +3579,8 @@
       },
       "type": "object",
       "required": [
-        "id",
+        "job_id",
+        "obs_id",
         "user_id",
         "job_params",
         "created"
@@ -2283,6 +3655,33 @@
       ],
       "title": "RestageRequest",
       "description": "Request from processor to restage a job"
+    },
+    "SearchObservationModes": {
+      "type": "string",
+      "enum": [
+        "ANY_CORRELATOR",
+        "ANY_VCS",
+        "NO_CAPTURE",
+        "MODE_CHANGE",
+        "HW_LFILES",
+        "MWAX_BUFFER",
+        "VOLTAGE_START",
+        "VOLTAGE_BUFFER",
+        "MWAX_CORRELATOR",
+        "MWAX_VCS",
+        "MWAX_BEAMFORMER",
+        "MWAX_CORR_BF"
+      ],
+      "title": "SearchObservationModes"
+    },
+    "SortBy": {
+      "type": "string",
+      "enum": [
+        "id",
+        "created",
+        "completed"
+      ],
+      "title": "SortBy"
     },
     "StagingCallback": {
       "properties": {
@@ -2443,6 +3842,17 @@
       "example": {
         "message": "Logged out successfully"
       }
+    },
+    "UserPawseyGroup": {
+      "type": "string",
+      "enum": [
+        "mwaops",
+        "mwaasvo",
+        "mwavcs",
+        "mwaeor",
+        "mwasci"
+      ],
+      "title": "UserPawseyGroup"
     },
     "UserProfile": {
       "properties": {
@@ -2723,15 +4133,11 @@
           "title": "Obs Id"
         },
         "delivery": {
-          "type": "string",
-          "const": "scratch",
-          "title": "Delivery",
+          "$ref": "#/definitions/DeliveryDestination",
           "default": "scratch"
         },
         "delivery_format": {
-          "type": "string",
-          "const": "files",
-          "title": "Delivery Format",
+          "$ref": "#/definitions/DeliveryFormat",
           "default": "files"
         },
         "allow_resubmit": {
@@ -2757,18 +4163,6 @@
           "type": "integer",
           "minimum": 0.0,
           "title": "Duration"
-        },
-        "channel_range": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Channel Range",
-          "default": false
         },
         "from_channel": {
           "anyOf": [
@@ -2829,68 +4223,68 @@
     "/health": [
       "get"
     ],
-    "/v2/api_login": [
+    "/v2/admin/jobs": [
       "post"
     ],
-    "/v2/auth_status": [
+    "/v2/auth/api_login": [
+      "post"
+    ],
+    "/v2/auth/login": [
+      "post"
+    ],
+    "/v2/auth/logout": [
+      "post"
+    ],
+    "/v2/auth/refresh": [
+      "post"
+    ],
+    "/v2/auth/socket_token": [
       "get"
     ],
-    "/v2/beamformer_job": [
-      "post"
-    ],
-    "/v2/calibration_ready": [
-      "post"
-    ],
-    "/v2/conversion_job": [
-      "post"
-    ],
-    "/v2/download_vis_job": [
-      "post"
-    ],
-    "/v2/get_jobs": [
-      "post"
-    ],
-    "/v2/get_socket_token": [
-      "post"
+    "/v2/auth/status": [
+      "get"
     ],
     "/v2/health": [
       "get"
     ],
-    "/v2/image_from_job": [
+    "/v2/jobs/calibration_ready": [
       "post"
     ],
-    "/v2/imaging_job": [
+    "/v2/jobs/create": [
       "post"
     ],
-    "/v2/job_staged": [
+    "/v2/jobs/image": [
+      "post"
+    ],
+    "/v2/jobs/job_staged": [
+      "post"
+    ],
+    "/v2/jobs/list": [
       "post"
     ],
     "/v2/jobs/{job_id}": [
       "delete",
       "get"
     ],
-    "/v2/login": [
+    "/v2/observations/export": [
       "post"
     ],
-    "/v2/logout": [
+    "/v2/observations/projects": [
       "post"
     ],
-    "/v2/new_api_key": [
+    "/v2/observations/search": [
       "get"
     ],
-    "/v2/observation/metadata/{obs_id}": [
+    "/v2/observations/search/{obs_id}": [
       "get"
     ],
-    "/v2/project_permissions": [
-      "get"
-    ],
-    "/v2/projects_per_pi": [
-      "get"
-    ],
-    "/v2/refresh": [
+    "/v2/observations/size": [
       "post"
     ],
-    "/v2/scheduler/cancel_job/{job_id}": [
+    "/v2/projects/permissions": [
+      "get"
+    ],
+    "/v2/projects/pi": [
       "get"
     ],
     "/v2/scheduler/cancel_jobs": [
@@ -2899,7 +4293,8 @@
     "/v2/scheduler/error_job": [
       "post"
     ],
-    "/v2/scheduler/get_job/{job_id}": [
+    "/v2/scheduler/job/{job_id}": [
+      "delete",
       "get"
     ],
     "/v2/scheduler/jobs_to_cancel": [
@@ -2923,13 +4318,13 @@
     "/v2/scheduler/user_job_count/{user_id}": [
       "get"
     ],
-    "/v2/update_profile": [
-      "post"
-    ],
     "/v2/user": [
       "get"
     ],
-    "/v2/voltage_job": [
+    "/v2/user/new_api_key": [
+      "get"
+    ],
+    "/v2/user/update_profile": [
       "post"
     ]
   }

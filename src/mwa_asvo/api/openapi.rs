@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.3.4";
+pub const MWA_ASVO_API_VERSION: &str = "2.5.0";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -62,94 +62,39 @@ impl AuthStatusResponse {
         Default::default()
     }
 }
-///Parameters for beamformer job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct BeamformerJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::beamformer_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::beamformer_job_params_delivery")]
-    pub delivery: Delivery,
-    #[serde(default = "defaults::beamformer_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::beamformer_job_params_mode")]
-    pub mode: ::std::option::Option<BeamformerJobParamsMode>,
-    pub obs_id: i64,
-}
-impl BeamformerJobParams {
-    pub fn builder() -> builder::BeamformerJobParams {
-        Default::default()
-    }
-}
-///`BeamformerJobParamsMode`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum BeamformerJobParamsMode {
-    #[serde(rename = "MWAX_BEAMFORMER")]
-    MwaxBeamformer,
-    #[serde(rename = "MWAX_CORR_BF")]
-    MwaxCorrBf,
-}
-impl ::std::fmt::Display for BeamformerJobParamsMode {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::MwaxBeamformer => f.write_str("MWAX_BEAMFORMER"),
-            Self::MwaxCorrBf => f.write_str("MWAX_CORR_BF"),
-        }
-    }
-}
-impl ::std::str::FromStr for BeamformerJobParamsMode {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "MWAX_BEAMFORMER" => Ok(Self::MwaxBeamformer),
-            "MWAX_CORR_BF" => Ok(Self::MwaxCorrBf),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for BeamformerJobParamsMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for BeamformerJobParamsMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 ///Calibration service callback
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct CalibrationReadyCallback {
     pub asvo_job_id: ::std::num::NonZeroU64,
-    ///Name of the calibration file (.e.g. mock_cal_1234567890.fits)
-    pub calibration_file: ::std::string::String,
-    pub obs_id: i64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub cal_id: ::std::option::Option<u64>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub finished_datetime: ::std::option::Option<::std::string::String>,
     ///e.g. 'completed'
-    pub status: ::std::string::String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub message: ::std::option::Option<::std::string::String>,
     pub success: bool,
     pub target_obs_id: i64,
 }
 impl CalibrationReadyCallback {
     pub fn builder() -> builder::CalibrationReadyCallback {
+        Default::default()
+    }
+}
+///`CancelJobParams`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct CancelJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::cancel_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::cancel_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::cancel_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    pub obs_id: i64,
+}
+impl CancelJobParams {
+    pub fn builder() -> builder::CancelJobParams {
         Default::default()
     }
 }
@@ -178,70 +123,6 @@ impl CancelledJobsResponse {
         Default::default()
     }
 }
-///`Centre`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum Centre {
-    #[serde(rename = "phase")]
-    Phase,
-    #[serde(rename = "pointing")]
-    Pointing,
-    #[serde(rename = "custom")]
-    Custom,
-}
-impl ::std::fmt::Display for Centre {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Phase => f.write_str("phase"),
-            Self::Pointing => f.write_str("pointing"),
-            Self::Custom => f.write_str("custom"),
-        }
-    }
-}
-impl ::std::str::FromStr for Centre {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "phase" => Ok(Self::Phase),
-            "pointing" => Ok(Self::Pointing),
-            "custom" => Ok(Self::Custom),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for Centre {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for Centre {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::default::Default for Centre {
-    fn default() -> Self {
-        Centre::Phase
-    }
-}
 ///Parameters for conversion job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ConversionJobParams {
@@ -255,13 +136,13 @@ pub struct ConversionJobParams {
     #[serde(default = "defaults::conversion_job_params_avg_time_res")]
     pub avg_time_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::conversion_job_params_centre")]
-    pub centre: Centre,
+    pub centre: PhaseCentre,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_dec: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
     #[serde(default = "defaults::conversion_job_params_delivery")]
-    pub delivery: Delivery,
+    pub delivery: DeliveryDestination,
     #[serde(default = "defaults::conversion_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::conversion_job_params_flag_edge_width")]
@@ -282,14 +163,14 @@ pub struct ConversionJobParams {
     pub no_rfi: ::std::option::Option<bool>,
     pub obs_id: i64,
     #[serde(default = "defaults::conversion_job_params_output")]
-    pub output: Output,
+    pub output: OutputFormat,
 }
 impl ConversionJobParams {
     pub fn builder() -> builder::ConversionJobParams {
         Default::default()
     }
 }
-///`Delivery`
+///`DeliveryDestination`
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -302,7 +183,7 @@ impl ConversionJobParams {
     PartialEq,
     PartialOrd
 )]
-pub enum Delivery {
+pub enum DeliveryDestination {
     #[serde(rename = "acacia")]
     Acacia,
     #[serde(rename = "scratch")]
@@ -310,7 +191,7 @@ pub enum Delivery {
     #[serde(rename = "dug")]
     Dug,
 }
-impl ::std::fmt::Display for Delivery {
+impl ::std::fmt::Display for DeliveryDestination {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Acacia => f.write_str("acacia"),
@@ -319,7 +200,7 @@ impl ::std::fmt::Display for Delivery {
         }
     }
 }
-impl ::std::str::FromStr for Delivery {
+impl ::std::str::FromStr for DeliveryDestination {
     type Err = self::error::ConversionError;
     fn from_str(
         value: &str,
@@ -332,7 +213,7 @@ impl ::std::str::FromStr for Delivery {
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for Delivery {
+impl ::std::convert::TryFrom<&str> for DeliveryDestination {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &str,
@@ -340,17 +221,12 @@ impl ::std::convert::TryFrom<&str> for Delivery {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for Delivery {
+impl ::std::convert::TryFrom<::std::string::String> for DeliveryDestination {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
-    }
-}
-impl ::std::default::Default for Delivery {
-    fn default() -> Self {
-        Delivery::Acacia
     }
 }
 ///`DeliveryFormat`
@@ -408,11 +284,6 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
         value.parse()
     }
 }
-impl ::std::default::Default for DeliveryFormat {
-    fn default() -> Self {
-        DeliveryFormat::Tar
-    }
-}
 ///Parameters for download job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct DownloadJobParams {
@@ -420,7 +291,7 @@ pub struct DownloadJobParams {
     #[serde(default = "defaults::download_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
     #[serde(default = "defaults::download_job_params_delivery")]
-    pub delivery: Delivery,
+    pub delivery: DeliveryDestination,
     #[serde(default = "defaults::download_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::download_job_params_download_type")]
@@ -450,12 +321,15 @@ pub enum DownloadType {
     Vis,
     #[serde(rename = "meta")]
     Meta,
+    #[serde(rename = "beam")]
+    Beam,
 }
 impl ::std::fmt::Display for DownloadType {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Vis => f.write_str("vis"),
             Self::Meta => f.write_str("meta"),
+            Self::Beam => f.write_str("beam"),
         }
     }
 }
@@ -467,6 +341,7 @@ impl ::std::str::FromStr for DownloadType {
         match value {
             "vis" => Ok(Self::Vis),
             "meta" => Ok(Self::Meta),
+            "beam" => Ok(Self::Beam),
             _ => Err("invalid value".into()),
         }
     }
@@ -538,6 +413,65 @@ impl HealthResponse {
         Default::default()
     }
 }
+///`ImageOutputMode`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ImageOutputMode {
+    #[serde(rename = "fits")]
+    Fits,
+    #[serde(rename = "all_fits")]
+    AllFits,
+    #[serde(rename = "all_files")]
+    AllFiles,
+}
+impl ::std::fmt::Display for ImageOutputMode {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Fits => f.write_str("fits"),
+            Self::AllFits => f.write_str("all_fits"),
+            Self::AllFiles => f.write_str("all_files"),
+        }
+    }
+}
+impl ::std::str::FromStr for ImageOutputMode {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "fits" => Ok(Self::Fits),
+            "all_fits" => Ok(Self::AllFits),
+            "all_files" => Ok(Self::AllFiles),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageOutputMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ImageOutputMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///`ImageSizes`
 #[derive(::serde::Serialize, Clone, Debug, PartialEq)]
 #[serde(transparent)]
@@ -575,6 +509,65 @@ impl<'de> ::serde::Deserialize<'de> for ImageSizes {
             .map_err(|e| { <D::Error as ::serde::de::Error>::custom(e.to_string()) })
     }
 }
+///`ImageWeighting`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ImageWeighting {
+    #[serde(rename = "briggs")]
+    Briggs,
+    #[serde(rename = "uniform")]
+    Uniform,
+    #[serde(rename = "natural")]
+    Natural,
+}
+impl ::std::fmt::Display for ImageWeighting {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Briggs => f.write_str("briggs"),
+            Self::Uniform => f.write_str("uniform"),
+            Self::Natural => f.write_str("natural"),
+        }
+    }
+}
+impl ::std::str::FromStr for ImageWeighting {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "briggs" => Ok(Self::Briggs),
+            "uniform" => Ok(Self::Uniform),
+            "natural" => Ok(Self::Natural),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageWeighting {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ImageWeighting {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///Parameters for image job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ImagingJobFlow1Params {
@@ -596,7 +589,7 @@ pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_avg_time_res")]
     pub avg_time_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_centre")]
-    pub centre: Centre,
+    pub centre: PhaseCentre,
     #[serde(default = "defaults::default_u64::<i64, 4>")]
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
@@ -609,7 +602,7 @@ pub struct ImagingJobFlow1Params {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow1_params_delivery")]
-    pub delivery: Delivery,
+    pub delivery: DeliveryDestination,
     #[serde(default = "defaults::imaging_job_flow1_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::imaging_job_flow1_params_flag_edge_width")]
@@ -645,7 +638,7 @@ pub struct ImagingJobFlow1Params {
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
     #[serde(default = "defaults::imaging_job_flow1_params_output_mode")]
-    pub output_mode: OutputMode,
+    pub output_mode: ImageOutputMode,
     #[serde(default = "defaults::imaging_job_flow1_params_pixel_scale")]
     pub pixel_scale: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_pol")]
@@ -657,7 +650,7 @@ pub struct ImagingJobFlow1Params {
     #[serde(default = "defaults::imaging_job_flow1_params_uvw_min")]
     pub uvw_min: f64,
     #[serde(default = "defaults::imaging_job_flow1_params_weighting")]
-    pub weighting: Weighting,
+    pub weighting: ImageWeighting,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
@@ -687,7 +680,7 @@ pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_clean_threshold")]
     pub clean_threshold: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow2_params_delivery")]
-    pub delivery: Delivery,
+    pub delivery: DeliveryDestination,
     #[serde(default = "defaults::imaging_job_flow2_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::imaging_job_flow2_params_image_size")]
@@ -704,9 +697,10 @@ pub struct ImagingJobFlow2Params {
     pub nmiter: ::std::num::NonZeroU64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
-    pub obs_id: i64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub obs_id: ::std::option::Option<i64>,
     #[serde(default = "defaults::imaging_job_flow2_params_output_mode")]
-    pub output_mode: OutputMode,
+    pub output_mode: ImageOutputMode,
     #[serde(default = "defaults::imaging_job_flow2_params_pixel_scale")]
     pub pixel_scale: f64,
     #[serde(default = "defaults::imaging_job_flow2_params_pol")]
@@ -719,7 +713,7 @@ pub struct ImagingJobFlow2Params {
     #[serde(default = "defaults::imaging_job_flow2_params_uvw_min")]
     pub uvw_min: f64,
     #[serde(default = "defaults::imaging_job_flow2_params_weighting")]
-    pub weighting: Weighting,
+    pub weighting: ImageWeighting,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
@@ -758,10 +752,10 @@ pub struct JobDetailResponse {
     ///First name of user who submitted the job
     pub first_name: ::std::string::String,
     ///Unique job identifier
-    pub id: i64,
+    pub job_id: ::std::num::NonZeroU64,
     ///Job parameters as JSON object (obs_id, delivery, processing options)
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-    ///Current job state: 0=Queued, 1=WaitCal 2=Staging, 3=Staged, 4=Downloading, 5=Preprocessing, 6=Delivering, 9=Completed, 10=Error, 11=Cancelled
+    ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
     pub job_state: JobState,
     ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -771,6 +765,7 @@ pub struct JobDetailResponse {
     ///Timestamp of when the job was last modified
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub modified: ::std::option::Option<::jiff::Timestamp>,
+    pub obs_id: i64,
     ///Job output/results when completed (file listings, download links)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub product: ::std::option::Option<JobProduct>,
@@ -805,6 +800,64 @@ pub struct JobFile {
 }
 impl JobFile {
     pub fn builder() -> builder::JobFile {
+        Default::default()
+    }
+}
+///`JobListRequest`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct JobListRequest {
+    ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub job_state: ::std::option::Option<JobState>,
+    ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub job_type: ::std::option::Option<JobType>,
+    ///maximum number of records to return
+    #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 100>")]
+    pub limit: ::std::num::NonZeroU64,
+    ///the offset (used to paginate the query results)
+    #[serde(default)]
+    pub offset: u64,
+    ///optional term to filter the jobs by
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub search_term: ::std::option::Option<::std::string::String>,
+    ///The column to sort the jobs by (id | created | completed)
+    #[serde(default = "defaults::job_list_request_sort_by")]
+    pub sort_by: SortBy,
+    ///optional user_id to filter by
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub user_id: ::std::option::Option<i64>,
+}
+impl ::std::default::Default for JobListRequest {
+    fn default() -> Self {
+        Self {
+            job_state: Default::default(),
+            job_type: Default::default(),
+            limit: defaults::default_nzu64::<::std::num::NonZeroU64, 100>(),
+            offset: Default::default(),
+            search_term: Default::default(),
+            sort_by: defaults::job_list_request_sort_by(),
+            user_id: Default::default(),
+        }
+    }
+}
+impl JobListRequest {
+    pub fn builder() -> builder::JobListRequest {
+        Default::default()
+    }
+}
+///Paginated job list response
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct JobListResponse {
+    ///Aggregate counts of jobs by state (for overview/filtering)
+    pub counts_by_state: JobStateCounts,
+    ///List of jobs for current page
+    pub jobs: ::std::vec::Vec<JobDetailResponse>,
+    ///Pagination information (total count, offset, has_more)
+    pub pagination: PaginationMetadata,
+}
+impl JobListResponse {
+    pub fn builder() -> builder::JobListResponse {
         Default::default()
     }
 }
@@ -925,6 +978,49 @@ impl ::std::convert::TryFrom<::std::string::String> for JobState {
         value.parse()
     }
 }
+/**Aggregate counts of job by state
+Used in JobListResponse to provide overview statistics*/
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default, PartialEq)]
+pub struct JobStateCounts {
+    ///Number of jobs cancelled by user
+    #[serde(default)]
+    pub cancelled: i64,
+    ///Number of successfully completed jobs
+    #[serde(default)]
+    pub completed: i64,
+    ///Number of jobs delivering results
+    #[serde(default)]
+    pub delivering: i64,
+    ///Number of jobs downloading data
+    #[serde(default)]
+    pub downloading: i64,
+    ///Number of jobs that failed with errors
+    #[serde(default)]
+    pub error: i64,
+    ///Number of jobs in preparing state
+    #[serde(default)]
+    pub preparing: i64,
+    ///Number of jobs currently being processed
+    #[serde(default)]
+    pub preprocessing: i64,
+    ///Number of jobs in queued state (waiting to start)
+    #[serde(default)]
+    pub queued: i64,
+    ///Number of jobs with data staged and ready to process
+    #[serde(default)]
+    pub staged: i64,
+    ///Number of jobs staging data from archive
+    #[serde(default)]
+    pub staging: i64,
+    ///Number of jobs waiting for calibration data
+    #[serde(default)]
+    pub wait_cal: i64,
+}
+impl JobStateCounts {
+    pub fn builder() -> builder::JobStateCounts {
+        Default::default()
+    }
+}
 ///Response model for an update job state request
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobStateUpdateResponse {
@@ -951,42 +1047,81 @@ impl JobSubmittedResponse {
     }
 }
 ///Enum representing job types with their integer values
-#[derive(::serde::Serialize, Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[serde(transparent)]
-pub struct JobType(i64);
-impl ::std::ops::Deref for JobType {
-    type Target = i64;
-    fn deref(&self) -> &i64 {
-        &self.0
-    }
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum JobType {
+    #[serde(rename = "conversion")]
+    Conversion,
+    #[serde(rename = "visibility")]
+    Visibility,
+    #[serde(rename = "metadata")]
+    Metadata,
+    #[serde(rename = "voltage")]
+    Voltage,
+    #[serde(rename = "cancel")]
+    Cancel,
+    #[serde(rename = "beamformer")]
+    Beamformer,
+    #[serde(rename = "imaging")]
+    Imaging,
 }
-impl ::std::convert::From<JobType> for i64 {
-    fn from(value: JobType) -> Self {
-        value.0
-    }
-}
-impl ::std::convert::TryFrom<i64> for JobType {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: i64,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        if ![0_i64, 1_i64, 2_i64, 3_i64, 4_i64, 5_i64, 6_i64].contains(&value) {
-            Err("invalid value".into())
-        } else {
-            Ok(Self(value))
+impl ::std::fmt::Display for JobType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Conversion => f.write_str("conversion"),
+            Self::Visibility => f.write_str("visibility"),
+            Self::Metadata => f.write_str("metadata"),
+            Self::Voltage => f.write_str("voltage"),
+            Self::Cancel => f.write_str("cancel"),
+            Self::Beamformer => f.write_str("beamformer"),
+            Self::Imaging => f.write_str("imaging"),
         }
     }
 }
-impl<'de> ::serde::Deserialize<'de> for JobType {
-    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-    where
-        D: ::serde::Deserializer<'de>,
-    {
-        Self::try_from(<i64>::deserialize(deserializer)?)
-            .map_err(|e| { <D::Error as ::serde::de::Error>::custom(e.to_string()) })
+impl ::std::str::FromStr for JobType {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "conversion" => Ok(Self::Conversion),
+            "visibility" => Ok(Self::Visibility),
+            "metadata" => Ok(Self::Metadata),
+            "voltage" => Ok(Self::Voltage),
+            "cancel" => Ok(Self::Cancel),
+            "beamformer" => Ok(Self::Beamformer),
+            "imaging" => Ok(Self::Imaging),
+            _ => Err("invalid value".into()),
+        }
     }
 }
-///Parameters for /job_history endpoint
+impl ::std::convert::TryFrom<&str> for JobType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for JobType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///Parameters for /list endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobsByUserRequest {
     ///The start date of the time window
@@ -998,7 +1133,7 @@ pub struct JobsByUserRequest {
     ///return the past x number of days when querying db
     #[serde(default = "defaults::jobs_by_user_request_days")]
     pub days: ::std::option::Option<::std::num::NonZeroU64>,
-    ///the current state of the job
+    ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_state: ::std::option::Option<JobState>,
     ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
@@ -1010,9 +1145,9 @@ pub struct JobsByUserRequest {
     ///the offset (used to paginate the query results)
     #[serde(default)]
     pub offset: u64,
-    ///The column to sort the jobs by
+    ///The column to sort the jobs by (id | created | completed)
     #[serde(default = "defaults::jobs_by_user_request_sort_by")]
-    pub sort_by: ::std::string::String,
+    pub sort_by: SortBy,
 }
 impl ::std::default::Default for JobsByUserRequest {
     fn default() -> Self {
@@ -1033,7 +1168,7 @@ impl JobsByUserRequest {
         Default::default()
     }
 }
-///Parameters for /job_history endpoint
+///Parameters for /list endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct JobsByUserResponse {
     ///List of jobs pertaining to a specific user
@@ -1127,75 +1262,408 @@ impl MarkAsErrorRequest {
         Default::default()
     }
 }
+///Request model for observation XML export
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ObservationExportRequest {
+    ///List of observation IDs to export
+    pub obs_ids: ::std::vec::Vec<i64>,
+}
+impl ObservationExportRequest {
+    pub fn builder() -> builder::ObservationExportRequest {
+        Default::default()
+    }
+}
+///Request model for operations requiring observation ID list
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ObservationListRequest {
+    ///List of observation ids
+    pub obs_ids: ::std::vec::Vec<i64>,
+}
+impl ObservationListRequest {
+    pub fn builder() -> builder::ObservationListRequest {
+        Default::default()
+    }
+}
 ///Observation Metadata extracted from TAP service VO table
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ObservationMetadata {
-    ///Number of files this observation has at mwa_acacia
+    ///archived_bytes_at_pawsey_acacia_mwa
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub archived_bytes_at_pawsey_acacia_mwa: ::std::option::Option<i64>,
+    ///archived_bytes_at_pawsey_banksia
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub archived_bytes_at_pawsey_banksia: ::std::option::Option<i64>,
+    ///archived_files_at_pawsey_acacia_mwa
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub archived_files_at_pawsey_acacia_mwa: ::std::option::Option<i64>,
-    ///Number of files this observation has at banksia
+    ///archived_files_at_pawsey_banksia
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub archived_files_at_pawsey_banksia: ::std::option::Option<i64>,
-    ///number of channels
+    ///azimuth
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub azimuth: ::std::option::Option<f64>,
+    ///azimuth_pointing
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub azimuth_pointing: ::std::option::Option<f64>,
+    ///bad_tiles
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub bad_tiles: ::std::option::Option<i64>,
+    ///cable_delays
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub cable_delays: ::std::option::Option<i64>,
+    ///cable_delays_description
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub cable_delays_description: ::std::option::Option<::std::string::String>,
+    ///calibration
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub calibration: ::std::option::Option<bool>,
+    ///calibration_delays
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub calibration_delays: ::std::option::Option<bool>,
+    ///calibrators
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub calibrators: ::std::option::Option<::std::string::String>,
+    ///center_channel_number
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub center_channel_number: ::std::option::Option<i64>,
+    ///center_frequency_mhz
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub center_frequency_mhz: ::std::option::Option<f64>,
+    ///channel_center_frequencies_mhz_csv
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub channel_center_frequencies_mhz_csv: ::std::option::Option<::std::string::String>,
+    ///channel_count
     pub channel_count: i64,
+    ///channel_numbers_csv
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub channel_numbers_csv: ::std::option::Option<::std::string::String>,
-    ///No. of coherent beams for the beamformer obs
+    ///channel_width_mhz
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub channel_width_mhz: ::std::option::Option<f64>,
+    ///channels_are_contiguous
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub channels_are_contiguous: ::std::option::Option<bool>,
+    ///coherent_beams
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub coherent_beams: ::std::option::Option<i64>,
+    ///collection_id
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub collection_id: ::std::option::Option<f64>,
+    ///collection_name
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub collection_name: ::std::option::Option<::std::string::String>,
+    ///collection_url
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub collection_url: ::std::option::Option<::std::string::String>,
+    ///creator
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub creator: ::std::option::Option<::std::string::String>,
+    ///data_files_summary
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub data_files_summary: ::std::option::Option<::std::string::String>,
+    ///dataquality
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub dataquality: ::std::option::Option<i64>,
+    ///dataqualitycomment
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub dataqualitycomment: ::std::option::Option<::std::string::String>,
     ///dataqualityname
-    pub data_quality: ::std::string::String,
-    ///declination pointing
+    pub dataqualityname: ::std::string::String,
+    ///days_from_obs_to_first_download
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub days_from_obs_to_first_download: ::std::option::Option<f64>,
+    ///days_since_last_download
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub days_since_last_download: ::std::option::Option<f64>,
+    ///dec
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub dec: ::std::option::Option<f64>,
+    ///dec_phase_center
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub dec_phase_center: ::std::option::Option<f64>,
+    ///dec_pointing
     pub dec_pointing: f64,
-    ///whether this obs has been flagged for deletion
+    ///delaymode_description
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub delaymode_description: ::std::option::Option<::std::string::String>,
+    ///delaymode_name
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub delaymode_name: ::std::option::Option<::std::string::String>,
+    ///deleted_flag
     pub deleted_flag: bool,
-    ///duration of the capture
-    pub duration: f64,
+    ///deletedtime_mro
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub deletedtime_mro: ::std::option::Option<::std::string::String>,
+    ///deletion_pending_flag
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub deletion_pending_flag: ::std::option::Option<bool>,
+    ///deletion_pending_request_ids_csv
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub deletion_pending_request_ids_csv: ::std::option::Option<::std::string::String>,
+    ///deripple_flag
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub deripple_flag: ::std::option::Option<bool>,
+    ///deripple_params
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub deripple_params: ::std::option::Option<::std::string::String>,
+    ///downloaded_bytes
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub downloaded_bytes: ::std::option::Option<f64>,
+    ///downloads
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub downloads: ::std::option::Option<i64>,
+    ///duration
+    pub duration: i64,
+    ///elevation
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elevation: ::std::option::Option<f64>,
+    ///elevation_pointing
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub elevation_pointing: ::std::option::Option<f64>,
+    ///embargo_period_months
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub embargo_period_months: ::std::option::Option<i64>,
+    ///files_deleted
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub files_deleted: ::std::option::Option<i64>,
+    ///files_deleted_bytes
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub files_deleted_bytes: ::std::option::Option<i64>,
+    ///filterbank_files_archived
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub filterbank_files_archived: ::std::option::Option<i64>,
-    ///the frequency resolution of the observation
+    ///first_channel_lowest_frequency_mhz
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub first_channel_lowest_frequency_mhz: ::std::option::Option<f64>,
+    ///first_channel_number
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub first_channel_number: ::std::option::Option<i64>,
+    ///first_download_datetime_mro
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub first_download_datetime_mro: ::std::option::Option<::std::string::String>,
+    ///flag_files_exist
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub flag_files_exist: ::std::option::Option<bool>,
+    ///freq_res
     pub freq_res: f64,
-    ///number of files found in archive
+    ///gal_lat
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub gal_lat: ::std::option::Option<f64>,
+    ///gal_long
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub gal_long: ::std::option::Option<f64>,
+    ///geometric_delays
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub geometric_delays: ::std::option::Option<i64>,
+    ///geometric_delays_description
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub geometric_delays_description: ::std::option::Option<::std::string::String>,
+    ///good_tiles
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub good_tiles: ::std::option::Option<i64>,
+    ///gpubox_files_archived
     pub gpubox_files_archived: i64,
-    ///No. of incoherent beams for the beamformer obs
+    ///gpubox_files_total
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub gpubox_files_total: ::std::option::Option<i64>,
+    ///gridpoint_name
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub gridpoint_name: ::std::option::Option<::std::string::String>,
+    ///gridpoint_number
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub gridpoint_number: ::std::option::Option<i64>,
+    ///groupid
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub groupid: ::std::option::Option<i64>,
+    ///incoherent_beams
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub incoherent_beams: ::std::option::Option<i64>,
-    ///integration time
+    ///int_time
     pub int_time: f64,
-    ///the observation mode. e.g MWAX_CORRELATOR
+    ///iono_qa
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub iono_qa: ::std::option::Option<f64>,
+    ///jupiter_pointing_distance
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub jupiter_pointing_distance: ::std::option::Option<f64>,
+    ///last_channel_highest_frequency_mhz
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub last_channel_highest_frequency_mhz: ::std::option::Option<f64>,
+    ///last_channel_number
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub last_channel_number: ::std::option::Option<i64>,
+    ///last_download_datetime_mro
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub last_download_datetime_mro: ::std::option::Option<::std::string::String>,
+    ///local_sidereal_time_deg
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub local_sidereal_time_deg: ::std::option::Option<f64>,
+    ///Correlator Mode
     pub mode: ::std::string::String,
+    ///modtime
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub modtime: ::std::option::Option<::std::string::String>,
+    ///moon_pointing_distance
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub moon_pointing_distance: ::std::option::Option<f64>,
+    ///mwa_array_configuration
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub mwa_array_configuration: ::std::option::Option<::std::string::String>,
+    ///observation id
     pub obs_id: i64,
+    ///obsname
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub obsname: ::std::option::Option<::std::string::String>,
     ///oversampled_flag
     pub oversampled_flag: bool,
-    ///the id of the project this observation is a part of
-    pub project_id: ::std::string::String,
-    ///date used to check whether this obs is within the embargo period or not
+    ///projectdescription
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub projectdescription: ::std::option::Option<::std::string::String>,
+    ///projectid
+    pub projectid: ::std::string::String,
+    ///projectshortname
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub projectshortname: ::std::option::Option<::std::string::String>,
+    ///public_release_date_utc
     pub public_release_date_utc: ::std::string::String,
-    ///right ascension pointing
+    ///ra
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub ra: ::std::option::Option<f64>,
+    ///ra_phase_center
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub ra_phase_center: ::std::option::Option<f64>,
+    ///ra_pointing
     pub ra_pointing: f64,
+    ///sky_temp
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub sky_temp: ::std::option::Option<f64>,
+    ///starttime
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub starttime: ::std::option::Option<i64>,
+    ///starttime_mjd
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub starttime_mjd: ::std::option::Option<f64>,
+    ///starttime_mro
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub starttime_mro: ::std::option::Option<::std::string::String>,
     ///starttime_utc
-    pub scheduled_start_utc: ::std::string::String,
-    ///Number of bytes archived based on the total number of files
+    pub starttime_utc: ::std::string::String,
+    ///stoptime
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub stoptime: ::std::option::Option<i64>,
+    ///stoptime_mjd
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub stoptime_mjd: ::std::option::Option<f64>,
+    ///stoptime_mro
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub stoptime_mro: ::std::option::Option<::std::string::String>,
+    ///stoptime_utc
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub stoptime_utc: ::std::option::Option<::std::string::String>,
+    ///sun_elevation
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub sun_elevation: ::std::option::Option<f64>,
+    ///sun_pointing_distance
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub sun_pointing_distance: ::std::option::Option<f64>,
+    ///tiles_flagged
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_flagged: ::std::option::Option<i64>,
+    ///tiles_with_bad_beamshape
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_with_bad_beamshape: ::std::option::Option<i64>,
+    ///tiles_with_bad_freqs
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_with_bad_freqs: ::std::option::Option<i64>,
+    ///tiles_with_bad_gains
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_with_bad_gains: ::std::option::Option<i64>,
+    ///tiles_with_bad_pointings
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_with_bad_pointings: ::std::option::Option<i64>,
+    ///tiles_with_bad_states
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub tiles_with_bad_states: ::std::option::Option<i64>,
+    ///total_archived_bytes
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub total_archived_bytes: ::std::option::Option<i64>,
+    ///total_archived_data_bytes
     pub total_archived_data_bytes: i64,
-    ///Total number of tiles
+    ///total_archived_data_files
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub total_archived_data_files: ::std::option::Option<i64>,
+    ///total_archived_files
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub total_archived_files: ::std::option::Option<i64>,
+    ///total_tiles
     pub total_tiles: i64,
+    ///trigger_ids_csv
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub trigger_ids_csv: ::std::option::Option<::std::string::String>,
+    ///vcs_files_ics_archived
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub vcs_files_ics_archived: ::std::option::Option<i64>,
+    ///vcs_files_raw_archived
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub vcs_files_raw_archived: ::std::option::Option<i64>,
+    ///vcs_files_raw_total
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub vcs_files_raw_total: ::std::option::Option<i64>,
+    ///vcs_files_sub_archived
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub vcs_files_sub_archived: ::std::option::Option<i64>,
+    ///vcs_files_tar_archived
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub vcs_files_tar_archived: ::std::option::Option<i64>,
+    ///vcs_recombined_flag
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub vidf_files_archived: ::std::option::Option<i64>,
+    pub vcs_recombined_flag: ::std::option::Option<bool>,
+    ///vdif_files_archived
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub vdif_files_archived: ::std::option::Option<i64>,
 }
 impl ObservationMetadata {
     pub fn builder() -> builder::ObservationMetadata {
         Default::default()
     }
 }
-///`Output`
+///`ObservationProjectsResponse`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ObservationProjectsResponse {
+    pub projects: ::std::vec::Vec<::std::string::String>,
+}
+impl ObservationProjectsResponse {
+    pub fn builder() -> builder::ObservationProjectsResponse {
+        Default::default()
+    }
+}
+///Response model for observation search
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ObservationSearchResponse {
+    ///TAP SQL query executed (for debugging)
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub query: ::std::option::Option<::std::string::String>,
+    ///Observation results (representing the rows in a TAP table)
+    pub results: ::std::vec::Vec<ObservationMetadata>,
+}
+impl ObservationSearchResponse {
+    pub fn builder() -> builder::ObservationSearchResponse {
+        Default::default()
+    }
+}
+///`ObservationSizeResponse`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ObservationSizeResponse {
+    pub observation_count: i64,
+    pub total_bytes: i64,
+    pub total_gb: i64,
+}
+impl ObservationSizeResponse {
+    pub fn builder() -> builder::ObservationSizeResponse {
+        Default::default()
+    }
+}
+///`OutputFormat`
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -1208,13 +1676,13 @@ impl ObservationMetadata {
     PartialEq,
     PartialOrd
 )]
-pub enum Output {
+pub enum OutputFormat {
     #[serde(rename = "ms")]
     Ms,
     #[serde(rename = "uvfits")]
     Uvfits,
 }
-impl ::std::fmt::Display for Output {
+impl ::std::fmt::Display for OutputFormat {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Ms => f.write_str("ms"),
@@ -1222,7 +1690,7 @@ impl ::std::fmt::Display for Output {
         }
     }
 }
-impl ::std::str::FromStr for Output {
+impl ::std::str::FromStr for OutputFormat {
     type Err = self::error::ConversionError;
     fn from_str(
         value: &str,
@@ -1234,7 +1702,7 @@ impl ::std::str::FromStr for Output {
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for Output {
+impl ::std::convert::TryFrom<&str> for OutputFormat {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &str,
@@ -1242,7 +1710,7 @@ impl ::std::convert::TryFrom<&str> for Output {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for Output {
+impl ::std::convert::TryFrom<::std::string::String> for OutputFormat {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -1250,73 +1718,24 @@ impl ::std::convert::TryFrom<::std::string::String> for Output {
         value.parse()
     }
 }
-impl ::std::default::Default for Output {
-    fn default() -> Self {
-        Output::Ms
-    }
+/**Pagination metadata for job lists
+Used in JobListResponse to help clients navigate through large result sets*/
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct PaginationMetadata {
+    ///Number of jobs after applying filters (same as total count if no filters)
+    pub filtered_count: i64,
+    ///True if more results exist beyond current page
+    pub has_more: bool,
+    ///Starting position in result set (0-indexed)
+    pub offset: i64,
+    ///Number of jobs per page (max 1000)
+    pub page_size: i64,
+    ///Total number of jobs matching filter criteria
+    pub total_count: i64,
 }
-///`OutputMode`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum OutputMode {
-    #[serde(rename = "fits")]
-    Fits,
-    #[serde(rename = "all_fits")]
-    AllFits,
-    #[serde(rename = "all_files")]
-    AllFiles,
-}
-impl ::std::fmt::Display for OutputMode {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Fits => f.write_str("fits"),
-            Self::AllFits => f.write_str("all_fits"),
-            Self::AllFiles => f.write_str("all_files"),
-        }
-    }
-}
-impl ::std::str::FromStr for OutputMode {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "fits" => Ok(Self::Fits),
-            "all_fits" => Ok(Self::AllFits),
-            "all_files" => Ok(Self::AllFiles),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for OutputMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for OutputMode {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::default::Default for OutputMode {
-    fn default() -> Self {
-        OutputMode::Fits
+impl PaginationMetadata {
+    pub fn builder() -> builder::PaginationMetadata {
+        Default::default()
     }
 }
 ///User password
@@ -1374,6 +1793,65 @@ impl<'de> ::serde::Deserialize<'de> for Password {
             .map_err(|e: self::error::ConversionError| {
                 <D::Error as ::serde::de::Error>::custom(e.to_string())
             })
+    }
+}
+///`PhaseCentre`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum PhaseCentre {
+    #[serde(rename = "phase")]
+    Phase,
+    #[serde(rename = "pointing")]
+    Pointing,
+    #[serde(rename = "custom")]
+    Custom,
+}
+impl ::std::fmt::Display for PhaseCentre {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Phase => f.write_str("phase"),
+            Self::Pointing => f.write_str("pointing"),
+            Self::Custom => f.write_str("custom"),
+        }
+    }
+}
+impl ::std::str::FromStr for PhaseCentre {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "phase" => Ok(Self::Phase),
+            "pointing" => Ok(Self::Pointing),
+            "custom" => Ok(Self::Custom),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for PhaseCentre {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PhaseCentre {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///`PiProjectDetails`
@@ -1475,12 +1953,13 @@ impl ProjectPermissionsResponse {
 pub struct QueuedJob {
     ///Timestamp when job was created
     pub created: ::jiff::Timestamp,
-    pub id: ::std::num::NonZeroU64,
+    pub job_id: ::std::num::NonZeroU64,
     ///Job parameters as JSON object (obs_id, delivery, processing options)
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<JobType>,
+    pub obs_id: i64,
     ///Calculated priority score (0.0-1.0) based on submission time, user job count, job type, and resource usage
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub priority_score: ::std::option::Option<f64>,
@@ -1493,7 +1972,7 @@ pub struct QueuedJob {
     pub user_id: ::std::num::NonZeroU64,
     ///The pawsey group the user belongs to (if any)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub user_pawsey_group: ::std::option::Option<::std::string::String>,
+    pub user_pawsey_group: ::std::option::Option<UserPawseyGroup>,
 }
 impl QueuedJob {
     pub fn builder() -> builder::QueuedJob {
@@ -1534,6 +2013,160 @@ pub struct RestageRequest {
 impl RestageRequest {
     pub fn builder() -> builder::RestageRequest {
         Default::default()
+    }
+}
+///`SearchObservationModes`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum SearchObservationModes {
+    #[serde(rename = "ANY_CORRELATOR")]
+    AnyCorrelator,
+    #[serde(rename = "ANY_VCS")]
+    AnyVcs,
+    #[serde(rename = "NO_CAPTURE")]
+    NoCapture,
+    #[serde(rename = "MODE_CHANGE")]
+    ModeChange,
+    #[serde(rename = "HW_LFILES")]
+    HwLfiles,
+    #[serde(rename = "MWAX_BUFFER")]
+    MwaxBuffer,
+    #[serde(rename = "VOLTAGE_START")]
+    VoltageStart,
+    #[serde(rename = "VOLTAGE_BUFFER")]
+    VoltageBuffer,
+    #[serde(rename = "MWAX_CORRELATOR")]
+    MwaxCorrelator,
+    #[serde(rename = "MWAX_VCS")]
+    MwaxVcs,
+    #[serde(rename = "MWAX_BEAMFORMER")]
+    MwaxBeamformer,
+    #[serde(rename = "MWAX_CORR_BF")]
+    MwaxCorrBf,
+}
+impl ::std::fmt::Display for SearchObservationModes {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::AnyCorrelator => f.write_str("ANY_CORRELATOR"),
+            Self::AnyVcs => f.write_str("ANY_VCS"),
+            Self::NoCapture => f.write_str("NO_CAPTURE"),
+            Self::ModeChange => f.write_str("MODE_CHANGE"),
+            Self::HwLfiles => f.write_str("HW_LFILES"),
+            Self::MwaxBuffer => f.write_str("MWAX_BUFFER"),
+            Self::VoltageStart => f.write_str("VOLTAGE_START"),
+            Self::VoltageBuffer => f.write_str("VOLTAGE_BUFFER"),
+            Self::MwaxCorrelator => f.write_str("MWAX_CORRELATOR"),
+            Self::MwaxVcs => f.write_str("MWAX_VCS"),
+            Self::MwaxBeamformer => f.write_str("MWAX_BEAMFORMER"),
+            Self::MwaxCorrBf => f.write_str("MWAX_CORR_BF"),
+        }
+    }
+}
+impl ::std::str::FromStr for SearchObservationModes {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "ANY_CORRELATOR" => Ok(Self::AnyCorrelator),
+            "ANY_VCS" => Ok(Self::AnyVcs),
+            "NO_CAPTURE" => Ok(Self::NoCapture),
+            "MODE_CHANGE" => Ok(Self::ModeChange),
+            "HW_LFILES" => Ok(Self::HwLfiles),
+            "MWAX_BUFFER" => Ok(Self::MwaxBuffer),
+            "VOLTAGE_START" => Ok(Self::VoltageStart),
+            "VOLTAGE_BUFFER" => Ok(Self::VoltageBuffer),
+            "MWAX_CORRELATOR" => Ok(Self::MwaxCorrelator),
+            "MWAX_VCS" => Ok(Self::MwaxVcs),
+            "MWAX_BEAMFORMER" => Ok(Self::MwaxBeamformer),
+            "MWAX_CORR_BF" => Ok(Self::MwaxCorrBf),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SearchObservationModes {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SearchObservationModes {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+///`SortBy`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum SortBy {
+    #[serde(rename = "id")]
+    Id,
+    #[serde(rename = "created")]
+    Created,
+    #[serde(rename = "completed")]
+    Completed,
+}
+impl ::std::fmt::Display for SortBy {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Id => f.write_str("id"),
+            Self::Created => f.write_str("created"),
+            Self::Completed => f.write_str("completed"),
+        }
+    }
+}
+impl ::std::str::FromStr for SortBy {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "id" => Ok(Self::Id),
+            "created" => Ok(Self::Created),
+            "completed" => Ok(Self::Completed),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SortBy {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SortBy {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///Staging callback payload
@@ -1732,6 +2365,73 @@ impl UserLogoutResponse {
         Default::default()
     }
 }
+///`UserPawseyGroup`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum UserPawseyGroup {
+    #[serde(rename = "mwaops")]
+    Mwaops,
+    #[serde(rename = "mwaasvo")]
+    Mwaasvo,
+    #[serde(rename = "mwavcs")]
+    Mwavcs,
+    #[serde(rename = "mwaeor")]
+    Mwaeor,
+    #[serde(rename = "mwasci")]
+    Mwasci,
+}
+impl ::std::fmt::Display for UserPawseyGroup {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Mwaops => f.write_str("mwaops"),
+            Self::Mwaasvo => f.write_str("mwaasvo"),
+            Self::Mwavcs => f.write_str("mwavcs"),
+            Self::Mwaeor => f.write_str("mwaeor"),
+            Self::Mwasci => f.write_str("mwasci"),
+        }
+    }
+}
+impl ::std::str::FromStr for UserPawseyGroup {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "mwaops" => Ok(Self::Mwaops),
+            "mwaasvo" => Ok(Self::Mwaasvo),
+            "mwavcs" => Ok(Self::Mwavcs),
+            "mwaeor" => Ok(Self::Mwaeor),
+            "mwasci" => Ok(Self::Mwasci),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for UserPawseyGroup {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for UserPawseyGroup {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 ///`UserProfile`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct UserProfile {
@@ -1891,12 +2591,10 @@ pub struct VoltageJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::voltage_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::voltage_job_params_channel_range")]
-    pub channel_range: ::std::option::Option<bool>,
     #[serde(default = "defaults::voltage_job_params_delivery")]
-    pub delivery: ::std::string::String,
+    pub delivery: DeliveryDestination,
     #[serde(default = "defaults::voltage_job_params_delivery_format")]
-    pub delivery_format: ::std::string::String,
+    pub delivery_format: DeliveryFormat,
     pub duration: u64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub from_channel: ::std::option::Option<u8>,
@@ -1919,70 +2617,6 @@ pub struct WebSocketTokenResponse {
 impl WebSocketTokenResponse {
     pub fn builder() -> builder::WebSocketTokenResponse {
         Default::default()
-    }
-}
-///`Weighting`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum Weighting {
-    #[serde(rename = "briggs")]
-    Briggs,
-    #[serde(rename = "uniform")]
-    Uniform,
-    #[serde(rename = "natural")]
-    Natural,
-}
-impl ::std::fmt::Display for Weighting {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Briggs => f.write_str("briggs"),
-            Self::Uniform => f.write_str("uniform"),
-            Self::Natural => f.write_str("natural"),
-        }
-    }
-}
-impl ::std::str::FromStr for Weighting {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "briggs" => Ok(Self::Briggs),
-            "uniform" => Ok(Self::Uniform),
-            "natural" => Ok(Self::Natural),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for Weighting {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for Weighting {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::default::Default for Weighting {
-    fn default() -> Self {
-        Weighting::Briggs
     }
 }
 /// Types for composing complex structures.
@@ -2238,134 +2872,20 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct BeamformerJobParams {
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
-        mode: ::std::result::Result<
-            ::std::option::Option<super::BeamformerJobParamsMode>,
-            ::std::string::String,
-        >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-    }
-    impl ::std::default::Default for BeamformerJobParams {
-        fn default() -> Self {
-            Self {
-                allow_resubmit: Ok(
-                    super::defaults::beamformer_job_params_allow_resubmit(),
-                ),
-                delivery: Ok(super::defaults::beamformer_job_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::beamformer_job_params_delivery_format(),
-                ),
-                mode: Ok(super::defaults::beamformer_job_params_mode()),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-            }
-        }
-    }
-    impl BeamformerJobParams {
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::Delivery>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
-                });
-            self
-        }
-        pub fn mode<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<
-                ::std::option::Option<super::BeamformerJobParamsMode>,
-            >,
-            T::Error: ::std::fmt::Display,
-        {
-            self.mode = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for mode: {e}"));
-            self
-        }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<BeamformerJobParams> for super::BeamformerJobParams {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: BeamformerJobParams,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                allow_resubmit: value.allow_resubmit?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
-                mode: value.mode?,
-                obs_id: value.obs_id?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::BeamformerJobParams> for BeamformerJobParams {
-        fn from(value: super::BeamformerJobParams) -> Self {
-            Self {
-                allow_resubmit: Ok(value.allow_resubmit),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
-                mode: Ok(value.mode),
-                obs_id: Ok(value.obs_id),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
     pub struct CalibrationReadyCallback {
         asvo_job_id: ::std::result::Result<
             ::std::num::NonZeroU64,
             ::std::string::String,
         >,
-        calibration_file: ::std::result::Result<
-            ::std::string::String,
+        cal_id: ::std::result::Result<::std::option::Option<u64>, ::std::string::String>,
+        finished_datetime: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
             ::std::string::String,
         >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-        status: ::std::result::Result<::std::string::String, ::std::string::String>,
+        message: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         success: ::std::result::Result<bool, ::std::string::String>,
         target_obs_id: ::std::result::Result<i64, ::std::string::String>,
     }
@@ -2373,11 +2893,9 @@ pub mod builder {
         fn default() -> Self {
             Self {
                 asvo_job_id: Err("no value supplied for asvo_job_id".to_string()),
-                calibration_file: Err(
-                    "no value supplied for calibration_file".to_string(),
-                ),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-                status: Err("no value supplied for status".to_string()),
+                cal_id: Ok(Default::default()),
+                finished_datetime: Ok(Default::default()),
+                message: Ok(Default::default()),
                 success: Err("no value supplied for success".to_string()),
                 target_obs_id: Err("no value supplied for target_obs_id".to_string()),
             }
@@ -2396,36 +2914,38 @@ pub mod builder {
                 });
             self
         }
-        pub fn calibration_file<T>(mut self, value: T) -> Self
+        pub fn cal_id<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<::std::option::Option<u64>>,
             T::Error: ::std::fmt::Display,
         {
-            self.calibration_file = value
+            self.cal_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for cal_id: {e}"));
+            self
+        }
+        pub fn finished_datetime<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.finished_datetime = value
                 .try_into()
                 .map_err(|e| {
-                    format!("error converting supplied value for calibration_file: {e}")
+                    format!("error converting supplied value for finished_datetime: {e}")
                 });
             self
         }
-        pub fn obs_id<T>(mut self, value: T) -> Self
+        pub fn message<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<i64>,
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
             T::Error: ::std::fmt::Display,
         {
-            self.obs_id = value
+            self.message = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-        pub fn status<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::string::String>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.status = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for status: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for message: {e}")
+                });
             self
         }
         pub fn success<T>(mut self, value: T) -> Self
@@ -2461,9 +2981,9 @@ pub mod builder {
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
                 asvo_job_id: value.asvo_job_id?,
-                calibration_file: value.calibration_file?,
-                obs_id: value.obs_id?,
-                status: value.status?,
+                cal_id: value.cal_id?,
+                finished_datetime: value.finished_datetime?,
+                message: value.message?,
                 success: value.success?,
                 target_obs_id: value.target_obs_id?,
             })
@@ -2474,11 +2994,110 @@ pub mod builder {
         fn from(value: super::CalibrationReadyCallback) -> Self {
             Self {
                 asvo_job_id: Ok(value.asvo_job_id),
-                calibration_file: Ok(value.calibration_file),
-                obs_id: Ok(value.obs_id),
-                status: Ok(value.status),
+                cal_id: Ok(value.cal_id),
+                finished_datetime: Ok(value.finished_datetime),
+                message: Ok(value.message),
                 success: Ok(value.success),
                 target_obs_id: Ok(value.target_obs_id),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct CancelJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for CancelJobParams {
+        fn default() -> Self {
+            Self {
+                allow_resubmit: Ok(super::defaults::cancel_job_params_allow_resubmit()),
+                delivery: Ok(super::defaults::cancel_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::cancel_job_params_delivery_format(),
+                ),
+                obs_id: Err("no value supplied for obs_id".to_string()),
+            }
+        }
+    }
+    impl CancelJobParams {
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<CancelJobParams> for super::CancelJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: CancelJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                allow_resubmit: value.allow_resubmit?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                obs_id: value.obs_id?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::CancelJobParams> for CancelJobParams {
+        fn from(value: super::CancelJobParams) -> Self {
+            Self {
+                allow_resubmit: Ok(value.allow_resubmit),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                obs_id: Ok(value.obs_id),
             }
         }
     }
@@ -2599,7 +3218,7 @@ pub mod builder {
             ::std::option::Option<f64>,
             ::std::string::String,
         >,
-        centre: ::std::result::Result<super::Centre, ::std::string::String>,
+        centre: ::std::result::Result<super::PhaseCentre, ::std::string::String>,
         custom_centre_dec: ::std::result::Result<
             ::std::option::Option<f64>,
             ::std::string::String,
@@ -2608,7 +3227,10 @@ pub mod builder {
             ::std::option::Option<f64>,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
         delivery_format: ::std::result::Result<
             super::DeliveryFormat,
             ::std::string::String,
@@ -2640,7 +3262,7 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output: ::std::result::Result<super::Output, ::std::string::String>,
+        output: ::std::result::Result<super::OutputFormat, ::std::string::String>,
     }
     impl ::std::default::Default for ConversionJobParams {
         fn default() -> Self {
@@ -2732,7 +3354,7 @@ pub mod builder {
         }
         pub fn centre<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Centre>,
+            T: ::std::convert::TryInto<super::PhaseCentre>,
             T::Error: ::std::fmt::Display,
         {
             self.centre = value
@@ -2766,7 +3388,7 @@ pub mod builder {
         }
         pub fn delivery<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Delivery>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery = value
@@ -2896,7 +3518,7 @@ pub mod builder {
         }
         pub fn output<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Output>,
+            T: ::std::convert::TryInto<super::OutputFormat>,
             T::Error: ::std::fmt::Display,
         {
             self.output = value
@@ -2964,7 +3586,10 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
         delivery_format: ::std::result::Result<
             super::DeliveryFormat,
             ::std::string::String,
@@ -3002,7 +3627,7 @@ pub mod builder {
         }
         pub fn delivery<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Delivery>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery = value
@@ -3372,7 +3997,7 @@ pub mod builder {
             ::std::option::Option<f64>,
             ::std::string::String,
         >,
-        centre: ::std::result::Result<super::Centre, ::std::string::String>,
+        centre: ::std::result::Result<super::PhaseCentre, ::std::string::String>,
         channels_out: ::std::result::Result<i64, ::std::string::String>,
         clean_iterations: ::std::result::Result<i64, ::std::string::String>,
         clean_threshold: ::std::result::Result<
@@ -3387,7 +4012,10 @@ pub mod builder {
             ::std::option::Option<f64>,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
         delivery_format: ::std::result::Result<
             super::DeliveryFormat,
             ::std::string::String,
@@ -3429,7 +4057,10 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output_mode: ::std::result::Result<super::OutputMode, ::std::string::String>,
+        output_mode: ::std::result::Result<
+            super::ImageOutputMode,
+            ::std::string::String,
+        >,
         pixel_scale: ::std::result::Result<f64, ::std::string::String>,
         pol: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
@@ -3438,7 +4069,7 @@ pub mod builder {
             ::std::string::String,
         >,
         uvw_min: ::std::result::Result<f64, ::std::string::String>,
-        weighting: ::std::result::Result<super::Weighting, ::std::string::String>,
+        weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
         wstack_nwlayers: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
@@ -3617,7 +4248,7 @@ pub mod builder {
         }
         pub fn centre<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Centre>,
+            T: ::std::convert::TryInto<super::PhaseCentre>,
             T::Error: ::std::fmt::Display,
         {
             self.centre = value
@@ -3687,7 +4318,7 @@ pub mod builder {
         }
         pub fn delivery<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Delivery>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery = value
@@ -3899,7 +4530,7 @@ pub mod builder {
         }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::OutputMode>,
+            T: ::std::convert::TryInto<super::ImageOutputMode>,
             T::Error: ::std::fmt::Display,
         {
             self.output_mode = value
@@ -3967,7 +4598,7 @@ pub mod builder {
         }
         pub fn weighting<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Weighting>,
+            T: ::std::convert::TryInto<super::ImageWeighting>,
             T::Error: ::std::fmt::Display,
         {
             self.weighting = value
@@ -4105,7 +4736,10 @@ pub mod builder {
             ::std::option::Option<f64>,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<super::Delivery, ::std::string::String>,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
         delivery_format: ::std::result::Result<
             super::DeliveryFormat,
             ::std::string::String,
@@ -4120,8 +4754,11 @@ pub mod builder {
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output_mode: ::std::result::Result<super::OutputMode, ::std::string::String>,
+        obs_id: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        output_mode: ::std::result::Result<
+            super::ImageOutputMode,
+            ::std::string::String,
+        >,
         pixel_scale: ::std::result::Result<f64, ::std::string::String>,
         pol: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
@@ -4134,7 +4771,7 @@ pub mod builder {
             ::std::string::String,
         >,
         uvw_min: ::std::result::Result<f64, ::std::string::String>,
-        weighting: ::std::result::Result<super::Weighting, ::std::string::String>,
+        weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
         wstack_nwlayers: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
@@ -4172,7 +4809,7 @@ pub mod builder {
                     super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
                 ),
                 nwlayers: Ok(Default::default()),
-                obs_id: Err("no value supplied for obs_id".to_string()),
+                obs_id: Ok(Default::default()),
                 output_mode: Ok(super::defaults::imaging_job_flow2_params_output_mode()),
                 pixel_scale: Ok(super::defaults::imaging_job_flow2_params_pixel_scale()),
                 pol: Ok(super::defaults::imaging_job_flow2_params_pol()),
@@ -4286,7 +4923,7 @@ pub mod builder {
         }
         pub fn delivery<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Delivery>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery = value
@@ -4392,7 +5029,7 @@ pub mod builder {
         }
         pub fn obs_id<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<i64>,
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
             T::Error: ::std::fmt::Display,
         {
             self.obs_id = value
@@ -4402,7 +5039,7 @@ pub mod builder {
         }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::OutputMode>,
+            T: ::std::convert::TryInto<super::ImageOutputMode>,
             T::Error: ::std::fmt::Display,
         {
             self.output_mode = value
@@ -4482,7 +5119,7 @@ pub mod builder {
         }
         pub fn weighting<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Weighting>,
+            T: ::std::convert::TryInto<super::ImageWeighting>,
             T::Error: ::std::fmt::Display,
         {
             self.weighting = value
@@ -4661,7 +5298,7 @@ pub mod builder {
             ::std::string::String,
         >,
         first_name: ::std::result::Result<::std::string::String, ::std::string::String>,
-        id: ::std::result::Result<i64, ::std::string::String>,
+        job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         job_params: ::std::result::Result<
             ::serde_json::Map<::std::string::String, ::serde_json::Value>,
             ::std::string::String,
@@ -4676,6 +5313,7 @@ pub mod builder {
             ::std::option::Option<::jiff::Timestamp>,
             ::std::string::String,
         >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
         product: ::std::result::Result<
             ::std::option::Option<super::JobProduct>,
             ::std::string::String,
@@ -4694,12 +5332,13 @@ pub mod builder {
                 error_code: Ok(Default::default()),
                 error_text: Ok(Default::default()),
                 first_name: Err("no value supplied for first_name".to_string()),
-                id: Err("no value supplied for id".to_string()),
+                job_id: Err("no value supplied for job_id".to_string()),
                 job_params: Err("no value supplied for job_params".to_string()),
                 job_state: Err("no value supplied for job_state".to_string()),
                 job_type: Ok(Default::default()),
                 last_name: Err("no value supplied for last_name".to_string()),
                 modified: Ok(Default::default()),
+                obs_id: Err("no value supplied for obs_id".to_string()),
                 product: Ok(Default::default()),
                 started: Ok(Default::default()),
                 user_id: Err("no value supplied for user_id".to_string()),
@@ -4767,14 +5406,14 @@ pub mod builder {
                 });
             self
         }
-        pub fn id<T>(mut self, value: T) -> Self
+        pub fn job_id<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<i64>,
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
             T::Error: ::std::fmt::Display,
         {
-            self.id = value
+            self.job_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for id: {e}"));
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
             self
         }
         pub fn job_params<T>(mut self, value: T) -> Self
@@ -4839,6 +5478,16 @@ pub mod builder {
                 });
             self
         }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
         pub fn product<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<super::JobProduct>>,
@@ -4887,12 +5536,13 @@ pub mod builder {
                 error_code: value.error_code?,
                 error_text: value.error_text?,
                 first_name: value.first_name?,
-                id: value.id?,
+                job_id: value.job_id?,
                 job_params: value.job_params?,
                 job_state: value.job_state?,
                 job_type: value.job_type?,
                 last_name: value.last_name?,
                 modified: value.modified?,
+                obs_id: value.obs_id?,
                 product: value.product?,
                 started: value.started?,
                 user_id: value.user_id?,
@@ -4907,12 +5557,13 @@ pub mod builder {
                 error_code: Ok(value.error_code),
                 error_text: Ok(value.error_text),
                 first_name: Ok(value.first_name),
-                id: Ok(value.id),
+                job_id: Ok(value.job_id),
                 job_params: Ok(value.job_params),
                 job_state: Ok(value.job_state),
                 job_type: Ok(value.job_type),
                 last_name: Ok(value.last_name),
                 modified: Ok(value.modified),
+                obs_id: Ok(value.obs_id),
                 product: Ok(value.product),
                 started: Ok(value.started),
                 user_id: Ok(value.user_id),
@@ -5042,6 +5693,237 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct JobListRequest {
+        job_state: ::std::result::Result<
+            ::std::option::Option<super::JobState>,
+            ::std::string::String,
+        >,
+        job_type: ::std::result::Result<
+            ::std::option::Option<super::JobType>,
+            ::std::string::String,
+        >,
+        limit: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        offset: ::std::result::Result<u64, ::std::string::String>,
+        search_term: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        sort_by: ::std::result::Result<super::SortBy, ::std::string::String>,
+        user_id: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for JobListRequest {
+        fn default() -> Self {
+            Self {
+                job_state: Ok(Default::default()),
+                job_type: Ok(Default::default()),
+                limit: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 100>(),
+                ),
+                offset: Ok(Default::default()),
+                search_term: Ok(Default::default()),
+                sort_by: Ok(super::defaults::job_list_request_sort_by()),
+                user_id: Ok(Default::default()),
+            }
+        }
+    }
+    impl JobListRequest {
+        pub fn job_state<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<super::JobState>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_state = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for job_state: {e}")
+                });
+            self
+        }
+        pub fn job_type<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<super::JobType>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.job_type = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for job_type: {e}")
+                });
+            self
+        }
+        pub fn limit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.limit = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for limit: {e}"));
+            self
+        }
+        pub fn offset<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<u64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.offset = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for offset: {e}"));
+            self
+        }
+        pub fn search_term<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.search_term = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for search_term: {e}")
+                });
+            self
+        }
+        pub fn sort_by<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::SortBy>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.sort_by = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for sort_by: {e}")
+                });
+            self
+        }
+        pub fn user_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.user_id = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for user_id: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobListRequest> for super::JobListRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobListRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                job_state: value.job_state?,
+                job_type: value.job_type?,
+                limit: value.limit?,
+                offset: value.offset?,
+                search_term: value.search_term?,
+                sort_by: value.sort_by?,
+                user_id: value.user_id?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobListRequest> for JobListRequest {
+        fn from(value: super::JobListRequest) -> Self {
+            Self {
+                job_state: Ok(value.job_state),
+                job_type: Ok(value.job_type),
+                limit: Ok(value.limit),
+                offset: Ok(value.offset),
+                search_term: Ok(value.search_term),
+                sort_by: Ok(value.sort_by),
+                user_id: Ok(value.user_id),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct JobListResponse {
+        counts_by_state: ::std::result::Result<
+            super::JobStateCounts,
+            ::std::string::String,
+        >,
+        jobs: ::std::result::Result<
+            ::std::vec::Vec<super::JobDetailResponse>,
+            ::std::string::String,
+        >,
+        pagination: ::std::result::Result<
+            super::PaginationMetadata,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for JobListResponse {
+        fn default() -> Self {
+            Self {
+                counts_by_state: Err(
+                    "no value supplied for counts_by_state".to_string(),
+                ),
+                jobs: Err("no value supplied for jobs".to_string()),
+                pagination: Err("no value supplied for pagination".to_string()),
+            }
+        }
+    }
+    impl JobListResponse {
+        pub fn counts_by_state<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::JobStateCounts>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.counts_by_state = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for counts_by_state: {e}")
+                });
+            self
+        }
+        pub fn jobs<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<super::JobDetailResponse>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.jobs = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for jobs: {e}"));
+            self
+        }
+        pub fn pagination<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::PaginationMetadata>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.pagination = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for pagination: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobListResponse> for super::JobListResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobListResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                counts_by_state: value.counts_by_state?,
+                jobs: value.jobs?,
+                pagination: value.pagination?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobListResponse> for JobListResponse {
+        fn from(value: super::JobListResponse) -> Self {
+            Self {
+                counts_by_state: Ok(value.counts_by_state),
+                jobs: Ok(value.jobs),
+                pagination: Ok(value.pagination),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct JobPriorityUpdate {
         job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         priority_score: ::std::result::Result<f64, ::std::string::String>,
@@ -5134,6 +6016,202 @@ pub mod builder {
     impl ::std::convert::From<super::JobProduct> for JobProduct {
         fn from(value: super::JobProduct) -> Self {
             Self { files: Ok(value.files) }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct JobStateCounts {
+        cancelled: ::std::result::Result<i64, ::std::string::String>,
+        completed: ::std::result::Result<i64, ::std::string::String>,
+        delivering: ::std::result::Result<i64, ::std::string::String>,
+        downloading: ::std::result::Result<i64, ::std::string::String>,
+        error: ::std::result::Result<i64, ::std::string::String>,
+        preparing: ::std::result::Result<i64, ::std::string::String>,
+        preprocessing: ::std::result::Result<i64, ::std::string::String>,
+        queued: ::std::result::Result<i64, ::std::string::String>,
+        staged: ::std::result::Result<i64, ::std::string::String>,
+        staging: ::std::result::Result<i64, ::std::string::String>,
+        wait_cal: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for JobStateCounts {
+        fn default() -> Self {
+            Self {
+                cancelled: Ok(Default::default()),
+                completed: Ok(Default::default()),
+                delivering: Ok(Default::default()),
+                downloading: Ok(Default::default()),
+                error: Ok(Default::default()),
+                preparing: Ok(Default::default()),
+                preprocessing: Ok(Default::default()),
+                queued: Ok(Default::default()),
+                staged: Ok(Default::default()),
+                staging: Ok(Default::default()),
+                wait_cal: Ok(Default::default()),
+            }
+        }
+    }
+    impl JobStateCounts {
+        pub fn cancelled<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.cancelled = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for cancelled: {e}")
+                });
+            self
+        }
+        pub fn completed<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.completed = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for completed: {e}")
+                });
+            self
+        }
+        pub fn delivering<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivering = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivering: {e}")
+                });
+            self
+        }
+        pub fn downloading<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.downloading = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for downloading: {e}")
+                });
+            self
+        }
+        pub fn error<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.error = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for error: {e}"));
+            self
+        }
+        pub fn preparing<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.preparing = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for preparing: {e}")
+                });
+            self
+        }
+        pub fn preprocessing<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.preprocessing = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for preprocessing: {e}")
+                });
+            self
+        }
+        pub fn queued<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.queued = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for queued: {e}"));
+            self
+        }
+        pub fn staged<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.staged = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for staged: {e}"));
+            self
+        }
+        pub fn staging<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.staging = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for staging: {e}")
+                });
+            self
+        }
+        pub fn wait_cal<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.wait_cal = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for wait_cal: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobStateCounts> for super::JobStateCounts {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobStateCounts,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                cancelled: value.cancelled?,
+                completed: value.completed?,
+                delivering: value.delivering?,
+                downloading: value.downloading?,
+                error: value.error?,
+                preparing: value.preparing?,
+                preprocessing: value.preprocessing?,
+                queued: value.queued?,
+                staged: value.staged?,
+                staging: value.staging?,
+                wait_cal: value.wait_cal?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobStateCounts> for JobStateCounts {
+        fn from(value: super::JobStateCounts) -> Self {
+            Self {
+                cancelled: Ok(value.cancelled),
+                completed: Ok(value.completed),
+                delivering: Ok(value.delivering),
+                downloading: Ok(value.downloading),
+                error: Ok(value.error),
+                preparing: Ok(value.preparing),
+                preprocessing: Ok(value.preprocessing),
+                queued: Ok(value.queued),
+                staged: Ok(value.staged),
+                staging: Ok(value.staging),
+                wait_cal: Ok(value.wait_cal),
+            }
         }
     }
     #[derive(Clone, Debug)]
@@ -5301,7 +6379,7 @@ pub mod builder {
         >,
         limit: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         offset: ::std::result::Result<u64, ::std::string::String>,
-        sort_by: ::std::result::Result<::std::string::String, ::std::string::String>,
+        sort_by: ::std::result::Result<super::SortBy, ::std::string::String>,
     }
     impl ::std::default::Default for JobsByUserRequest {
         fn default() -> Self {
@@ -5400,7 +6478,7 @@ pub mod builder {
         }
         pub fn sort_by<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::SortBy>,
             T::Error: ::std::fmt::Display,
         {
             self.sort_by = value
@@ -5612,7 +6690,94 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct ObservationExportRequest {
+        obs_ids: ::std::result::Result<::std::vec::Vec<i64>, ::std::string::String>,
+    }
+    impl ::std::default::Default for ObservationExportRequest {
+        fn default() -> Self {
+            Self {
+                obs_ids: Err("no value supplied for obs_ids".to_string()),
+            }
+        }
+    }
+    impl ObservationExportRequest {
+        pub fn obs_ids<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_ids = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for obs_ids: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ObservationExportRequest>
+    for super::ObservationExportRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ObservationExportRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self { obs_ids: value.obs_ids? })
+        }
+    }
+    impl ::std::convert::From<super::ObservationExportRequest>
+    for ObservationExportRequest {
+        fn from(value: super::ObservationExportRequest) -> Self {
+            Self { obs_ids: Ok(value.obs_ids) }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ObservationListRequest {
+        obs_ids: ::std::result::Result<::std::vec::Vec<i64>, ::std::string::String>,
+    }
+    impl ::std::default::Default for ObservationListRequest {
+        fn default() -> Self {
+            Self {
+                obs_ids: Err("no value supplied for obs_ids".to_string()),
+            }
+        }
+    }
+    impl ObservationListRequest {
+        pub fn obs_ids<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_ids = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for obs_ids: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ObservationListRequest>
+    for super::ObservationListRequest {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ObservationListRequest,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self { obs_ids: value.obs_ids? })
+        }
+    }
+    impl ::std::convert::From<super::ObservationListRequest> for ObservationListRequest {
+        fn from(value: super::ObservationListRequest) -> Self {
+            Self { obs_ids: Ok(value.obs_ids) }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct ObservationMetadata {
+        archived_bytes_at_pawsey_acacia_mwa: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        archived_bytes_at_pawsey_banksia: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         archived_files_at_pawsey_acacia_mwa: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
@@ -5621,53 +6786,391 @@ pub mod builder {
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
+        azimuth: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        azimuth_pointing: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        bad_tiles: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        cable_delays: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        cable_delays_description: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        calibration: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        calibration_delays: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        calibrators: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        center_channel_number: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        center_frequency_mhz: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        channel_center_frequencies_mhz_csv: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         channel_count: ::std::result::Result<i64, ::std::string::String>,
         channel_numbers_csv: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        channel_width_mhz: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        channels_are_contiguous: ::std::result::Result<
+            ::std::option::Option<bool>,
             ::std::string::String,
         >,
         coherent_beams: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
-        data_quality: ::std::result::Result<
+        collection_id: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        collection_name: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        collection_url: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        creator: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        data_files_summary: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        dataquality: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        dataqualitycomment: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        dataqualityname: ::std::result::Result<
             ::std::string::String,
             ::std::string::String,
         >,
+        days_from_obs_to_first_download: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        days_since_last_download: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        dec: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        dec_phase_center: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         dec_pointing: ::std::result::Result<f64, ::std::string::String>,
+        delaymode_description: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        delaymode_name: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         deleted_flag: ::std::result::Result<bool, ::std::string::String>,
-        duration: ::std::result::Result<f64, ::std::string::String>,
+        deletedtime_mro: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        deletion_pending_flag: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        deletion_pending_request_ids_csv: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        deripple_flag: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        deripple_params: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        downloaded_bytes: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        downloads: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        duration: ::std::result::Result<i64, ::std::string::String>,
+        elevation: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        elevation_pointing: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        embargo_period_months: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        files_deleted: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        files_deleted_bytes: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         filterbank_files_archived: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
+        first_channel_lowest_frequency_mhz: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        first_channel_number: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        first_download_datetime_mro: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        flag_files_exist: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
         freq_res: ::std::result::Result<f64, ::std::string::String>,
+        gal_lat: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        gal_long: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        geometric_delays: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        geometric_delays_description: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        good_tiles: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         gpubox_files_archived: ::std::result::Result<i64, ::std::string::String>,
+        gpubox_files_total: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        gridpoint_name: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        gridpoint_number: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        groupid: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         incoherent_beams: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
         int_time: ::std::result::Result<f64, ::std::string::String>,
+        iono_qa: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        jupiter_pointing_distance: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        last_channel_highest_frequency_mhz: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        last_channel_number: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        last_download_datetime_mro: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        local_sidereal_time_deg: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         mode: ::std::result::Result<::std::string::String, ::std::string::String>,
+        modtime: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        moon_pointing_distance: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        mwa_array_configuration: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
+        obsname: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         oversampled_flag: ::std::result::Result<bool, ::std::string::String>,
-        project_id: ::std::result::Result<::std::string::String, ::std::string::String>,
+        projectdescription: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        projectid: ::std::result::Result<::std::string::String, ::std::string::String>,
+        projectshortname: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         public_release_date_utc: ::std::result::Result<
             ::std::string::String,
             ::std::string::String,
         >,
+        ra: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        ra_phase_center: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         ra_pointing: ::std::result::Result<f64, ::std::string::String>,
-        scheduled_start_utc: ::std::result::Result<
+        sky_temp: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        starttime: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        starttime_mjd: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        starttime_mro: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        starttime_utc: ::std::result::Result<
             ::std::string::String,
             ::std::string::String,
         >,
+        stoptime: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        stoptime_mjd: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        stoptime_mro: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        stoptime_utc: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        sun_elevation: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        sun_pointing_distance: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        tiles_flagged: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        tiles_with_bad_beamshape: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        tiles_with_bad_freqs: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        tiles_with_bad_gains: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        tiles_with_bad_pointings: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        tiles_with_bad_states: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        total_archived_bytes: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         total_archived_data_bytes: ::std::result::Result<i64, ::std::string::String>,
+        total_archived_data_files: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        total_archived_files: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
         total_tiles: ::std::result::Result<i64, ::std::string::String>,
+        trigger_ids_csv: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
         vcs_files_ics_archived: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
         vcs_files_raw_archived: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        vcs_files_raw_total: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
@@ -5679,7 +7182,11 @@ pub mod builder {
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
-        vidf_files_archived: ::std::result::Result<
+        vcs_recombined_flag: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        vdif_files_archived: ::std::result::Result<
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
@@ -5687,48 +7194,165 @@ pub mod builder {
     impl ::std::default::Default for ObservationMetadata {
         fn default() -> Self {
             Self {
+                archived_bytes_at_pawsey_acacia_mwa: Ok(Default::default()),
+                archived_bytes_at_pawsey_banksia: Ok(Default::default()),
                 archived_files_at_pawsey_acacia_mwa: Ok(Default::default()),
                 archived_files_at_pawsey_banksia: Ok(Default::default()),
+                azimuth: Ok(Default::default()),
+                azimuth_pointing: Ok(Default::default()),
+                bad_tiles: Ok(Default::default()),
+                cable_delays: Ok(Default::default()),
+                cable_delays_description: Ok(Default::default()),
+                calibration: Ok(Default::default()),
+                calibration_delays: Ok(Default::default()),
+                calibrators: Ok(Default::default()),
+                center_channel_number: Ok(Default::default()),
+                center_frequency_mhz: Ok(Default::default()),
+                channel_center_frequencies_mhz_csv: Ok(Default::default()),
                 channel_count: Err("no value supplied for channel_count".to_string()),
                 channel_numbers_csv: Ok(Default::default()),
+                channel_width_mhz: Ok(Default::default()),
+                channels_are_contiguous: Ok(Default::default()),
                 coherent_beams: Ok(Default::default()),
-                data_quality: Err("no value supplied for data_quality".to_string()),
+                collection_id: Ok(Default::default()),
+                collection_name: Ok(Default::default()),
+                collection_url: Ok(Default::default()),
+                creator: Ok(Default::default()),
+                data_files_summary: Ok(Default::default()),
+                dataquality: Ok(Default::default()),
+                dataqualitycomment: Ok(Default::default()),
+                dataqualityname: Err(
+                    "no value supplied for dataqualityname".to_string(),
+                ),
+                days_from_obs_to_first_download: Ok(Default::default()),
+                days_since_last_download: Ok(Default::default()),
+                dec: Ok(Default::default()),
+                dec_phase_center: Ok(Default::default()),
                 dec_pointing: Err("no value supplied for dec_pointing".to_string()),
+                delaymode_description: Ok(Default::default()),
+                delaymode_name: Ok(Default::default()),
                 deleted_flag: Err("no value supplied for deleted_flag".to_string()),
+                deletedtime_mro: Ok(Default::default()),
+                deletion_pending_flag: Ok(Default::default()),
+                deletion_pending_request_ids_csv: Ok(Default::default()),
+                deripple_flag: Ok(Default::default()),
+                deripple_params: Ok(Default::default()),
+                downloaded_bytes: Ok(Default::default()),
+                downloads: Ok(Default::default()),
                 duration: Err("no value supplied for duration".to_string()),
+                elevation: Ok(Default::default()),
+                elevation_pointing: Ok(Default::default()),
+                embargo_period_months: Ok(Default::default()),
+                files_deleted: Ok(Default::default()),
+                files_deleted_bytes: Ok(Default::default()),
                 filterbank_files_archived: Ok(Default::default()),
+                first_channel_lowest_frequency_mhz: Ok(Default::default()),
+                first_channel_number: Ok(Default::default()),
+                first_download_datetime_mro: Ok(Default::default()),
+                flag_files_exist: Ok(Default::default()),
                 freq_res: Err("no value supplied for freq_res".to_string()),
+                gal_lat: Ok(Default::default()),
+                gal_long: Ok(Default::default()),
+                geometric_delays: Ok(Default::default()),
+                geometric_delays_description: Ok(Default::default()),
+                good_tiles: Ok(Default::default()),
                 gpubox_files_archived: Err(
                     "no value supplied for gpubox_files_archived".to_string(),
                 ),
+                gpubox_files_total: Ok(Default::default()),
+                gridpoint_name: Ok(Default::default()),
+                gridpoint_number: Ok(Default::default()),
+                groupid: Ok(Default::default()),
                 incoherent_beams: Ok(Default::default()),
                 int_time: Err("no value supplied for int_time".to_string()),
+                iono_qa: Ok(Default::default()),
+                jupiter_pointing_distance: Ok(Default::default()),
+                last_channel_highest_frequency_mhz: Ok(Default::default()),
+                last_channel_number: Ok(Default::default()),
+                last_download_datetime_mro: Ok(Default::default()),
+                local_sidereal_time_deg: Ok(Default::default()),
                 mode: Err("no value supplied for mode".to_string()),
+                modtime: Ok(Default::default()),
+                moon_pointing_distance: Ok(Default::default()),
+                mwa_array_configuration: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
+                obsname: Ok(Default::default()),
                 oversampled_flag: Err(
                     "no value supplied for oversampled_flag".to_string(),
                 ),
-                project_id: Err("no value supplied for project_id".to_string()),
+                projectdescription: Ok(Default::default()),
+                projectid: Err("no value supplied for projectid".to_string()),
+                projectshortname: Ok(Default::default()),
                 public_release_date_utc: Err(
                     "no value supplied for public_release_date_utc".to_string(),
                 ),
+                ra: Ok(Default::default()),
+                ra_phase_center: Ok(Default::default()),
                 ra_pointing: Err("no value supplied for ra_pointing".to_string()),
-                scheduled_start_utc: Err(
-                    "no value supplied for scheduled_start_utc".to_string(),
-                ),
+                sky_temp: Ok(Default::default()),
+                starttime: Ok(Default::default()),
+                starttime_mjd: Ok(Default::default()),
+                starttime_mro: Ok(Default::default()),
+                starttime_utc: Err("no value supplied for starttime_utc".to_string()),
+                stoptime: Ok(Default::default()),
+                stoptime_mjd: Ok(Default::default()),
+                stoptime_mro: Ok(Default::default()),
+                stoptime_utc: Ok(Default::default()),
+                sun_elevation: Ok(Default::default()),
+                sun_pointing_distance: Ok(Default::default()),
+                tiles_flagged: Ok(Default::default()),
+                tiles_with_bad_beamshape: Ok(Default::default()),
+                tiles_with_bad_freqs: Ok(Default::default()),
+                tiles_with_bad_gains: Ok(Default::default()),
+                tiles_with_bad_pointings: Ok(Default::default()),
+                tiles_with_bad_states: Ok(Default::default()),
+                total_archived_bytes: Ok(Default::default()),
                 total_archived_data_bytes: Err(
                     "no value supplied for total_archived_data_bytes".to_string(),
                 ),
+                total_archived_data_files: Ok(Default::default()),
+                total_archived_files: Ok(Default::default()),
                 total_tiles: Err("no value supplied for total_tiles".to_string()),
+                trigger_ids_csv: Ok(Default::default()),
                 vcs_files_ics_archived: Ok(Default::default()),
                 vcs_files_raw_archived: Ok(Default::default()),
+                vcs_files_raw_total: Ok(Default::default()),
                 vcs_files_sub_archived: Ok(Default::default()),
                 vcs_files_tar_archived: Ok(Default::default()),
-                vidf_files_archived: Ok(Default::default()),
+                vcs_recombined_flag: Ok(Default::default()),
+                vdif_files_archived: Ok(Default::default()),
             }
         }
     }
     impl ObservationMetadata {
+        pub fn archived_bytes_at_pawsey_acacia_mwa<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.archived_bytes_at_pawsey_acacia_mwa = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for archived_bytes_at_pawsey_acacia_mwa: {e}"
+                    )
+                });
+            self
+        }
+        pub fn archived_bytes_at_pawsey_banksia<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.archived_bytes_at_pawsey_banksia = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for archived_bytes_at_pawsey_banksia: {e}"
+                    )
+                });
+            self
+        }
         pub fn archived_files_at_pawsey_acacia_mwa<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<i64>>,
@@ -5753,6 +7377,148 @@ pub mod builder {
                 .map_err(|e| {
                     format!(
                         "error converting supplied value for archived_files_at_pawsey_banksia: {e}"
+                    )
+                });
+            self
+        }
+        pub fn azimuth<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.azimuth = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for azimuth: {e}")
+                });
+            self
+        }
+        pub fn azimuth_pointing<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.azimuth_pointing = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for azimuth_pointing: {e}")
+                });
+            self
+        }
+        pub fn bad_tiles<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.bad_tiles = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for bad_tiles: {e}")
+                });
+            self
+        }
+        pub fn cable_delays<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.cable_delays = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for cable_delays: {e}")
+                });
+            self
+        }
+        pub fn cable_delays_description<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.cable_delays_description = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for cable_delays_description: {e}"
+                    )
+                });
+            self
+        }
+        pub fn calibration<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.calibration = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for calibration: {e}")
+                });
+            self
+        }
+        pub fn calibration_delays<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.calibration_delays = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for calibration_delays: {e}"
+                    )
+                });
+            self
+        }
+        pub fn calibrators<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.calibrators = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for calibrators: {e}")
+                });
+            self
+        }
+        pub fn center_channel_number<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.center_channel_number = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for center_channel_number: {e}"
+                    )
+                });
+            self
+        }
+        pub fn center_frequency_mhz<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.center_frequency_mhz = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for center_frequency_mhz: {e}"
+                    )
+                });
+            self
+        }
+        pub fn channel_center_frequencies_mhz_csv<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.channel_center_frequencies_mhz_csv = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for channel_center_frequencies_mhz_csv: {e}"
                     )
                 });
             self
@@ -5783,6 +7549,32 @@ pub mod builder {
                 });
             self
         }
+        pub fn channel_width_mhz<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.channel_width_mhz = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for channel_width_mhz: {e}")
+                });
+            self
+        }
+        pub fn channels_are_contiguous<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.channels_are_contiguous = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for channels_are_contiguous: {e}"
+                    )
+                });
+            self
+        }
         pub fn coherent_beams<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<i64>>,
@@ -5795,15 +7587,153 @@ pub mod builder {
                 });
             self
         }
-        pub fn data_quality<T>(mut self, value: T) -> Self
+        pub fn collection_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.collection_id = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for collection_id: {e}")
+                });
+            self
+        }
+        pub fn collection_name<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.collection_name = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for collection_name: {e}")
+                });
+            self
+        }
+        pub fn collection_url<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.collection_url = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for collection_url: {e}")
+                });
+            self
+        }
+        pub fn creator<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.creator = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for creator: {e}")
+                });
+            self
+        }
+        pub fn data_files_summary<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.data_files_summary = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for data_files_summary: {e}"
+                    )
+                });
+            self
+        }
+        pub fn dataquality<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.dataquality = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for dataquality: {e}")
+                });
+            self
+        }
+        pub fn dataqualitycomment<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.dataqualitycomment = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for dataqualitycomment: {e}"
+                    )
+                });
+            self
+        }
+        pub fn dataqualityname<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::string::String>,
             T::Error: ::std::fmt::Display,
         {
-            self.data_quality = value
+            self.dataqualityname = value
                 .try_into()
                 .map_err(|e| {
-                    format!("error converting supplied value for data_quality: {e}")
+                    format!("error converting supplied value for dataqualityname: {e}")
+                });
+            self
+        }
+        pub fn days_from_obs_to_first_download<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.days_from_obs_to_first_download = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for days_from_obs_to_first_download: {e}"
+                    )
+                });
+            self
+        }
+        pub fn days_since_last_download<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.days_since_last_download = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for days_since_last_download: {e}"
+                    )
+                });
+            self
+        }
+        pub fn dec<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.dec = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for dec: {e}"));
+            self
+        }
+        pub fn dec_phase_center<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.dec_phase_center = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for dec_phase_center: {e}")
                 });
             self
         }
@@ -5819,6 +7749,32 @@ pub mod builder {
                 });
             self
         }
+        pub fn delaymode_description<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delaymode_description = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for delaymode_description: {e}"
+                    )
+                });
+            self
+        }
+        pub fn delaymode_name<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delaymode_name = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delaymode_name: {e}")
+                });
+            self
+        }
         pub fn deleted_flag<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<bool>,
@@ -5831,15 +7787,169 @@ pub mod builder {
                 });
             self
         }
+        pub fn deletedtime_mro<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.deletedtime_mro = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for deletedtime_mro: {e}")
+                });
+            self
+        }
+        pub fn deletion_pending_flag<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.deletion_pending_flag = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for deletion_pending_flag: {e}"
+                    )
+                });
+            self
+        }
+        pub fn deletion_pending_request_ids_csv<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.deletion_pending_request_ids_csv = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for deletion_pending_request_ids_csv: {e}"
+                    )
+                });
+            self
+        }
+        pub fn deripple_flag<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.deripple_flag = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for deripple_flag: {e}")
+                });
+            self
+        }
+        pub fn deripple_params<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.deripple_params = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for deripple_params: {e}")
+                });
+            self
+        }
+        pub fn downloaded_bytes<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.downloaded_bytes = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for downloaded_bytes: {e}")
+                });
+            self
+        }
+        pub fn downloads<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.downloads = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for downloads: {e}")
+                });
+            self
+        }
         pub fn duration<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<i64>,
             T::Error: ::std::fmt::Display,
         {
             self.duration = value
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for duration: {e}")
+                });
+            self
+        }
+        pub fn elevation<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.elevation = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for elevation: {e}")
+                });
+            self
+        }
+        pub fn elevation_pointing<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.elevation_pointing = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for elevation_pointing: {e}"
+                    )
+                });
+            self
+        }
+        pub fn embargo_period_months<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.embargo_period_months = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for embargo_period_months: {e}"
+                    )
+                });
+            self
+        }
+        pub fn files_deleted<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.files_deleted = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for files_deleted: {e}")
+                });
+            self
+        }
+        pub fn files_deleted_bytes<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.files_deleted_bytes = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for files_deleted_bytes: {e}"
+                    )
                 });
             self
         }
@@ -5857,6 +7967,60 @@ pub mod builder {
                 });
             self
         }
+        pub fn first_channel_lowest_frequency_mhz<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.first_channel_lowest_frequency_mhz = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for first_channel_lowest_frequency_mhz: {e}"
+                    )
+                });
+            self
+        }
+        pub fn first_channel_number<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.first_channel_number = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for first_channel_number: {e}"
+                    )
+                });
+            self
+        }
+        pub fn first_download_datetime_mro<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.first_download_datetime_mro = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for first_download_datetime_mro: {e}"
+                    )
+                });
+            self
+        }
+        pub fn flag_files_exist<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.flag_files_exist = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for flag_files_exist: {e}")
+                });
+            self
+        }
         pub fn freq_res<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<f64>,
@@ -5866,6 +8030,68 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for freq_res: {e}")
+                });
+            self
+        }
+        pub fn gal_lat<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.gal_lat = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for gal_lat: {e}")
+                });
+            self
+        }
+        pub fn gal_long<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.gal_long = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for gal_long: {e}")
+                });
+            self
+        }
+        pub fn geometric_delays<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.geometric_delays = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for geometric_delays: {e}")
+                });
+            self
+        }
+        pub fn geometric_delays_description<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.geometric_delays_description = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for geometric_delays_description: {e}"
+                    )
+                });
+            self
+        }
+        pub fn good_tiles<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.good_tiles = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for good_tiles: {e}")
                 });
             self
         }
@@ -5880,6 +8106,56 @@ pub mod builder {
                     format!(
                         "error converting supplied value for gpubox_files_archived: {e}"
                     )
+                });
+            self
+        }
+        pub fn gpubox_files_total<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.gpubox_files_total = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for gpubox_files_total: {e}"
+                    )
+                });
+            self
+        }
+        pub fn gridpoint_name<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.gridpoint_name = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for gridpoint_name: {e}")
+                });
+            self
+        }
+        pub fn gridpoint_number<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.gridpoint_number = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for gridpoint_number: {e}")
+                });
+            self
+        }
+        pub fn groupid<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.groupid = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for groupid: {e}")
                 });
             self
         }
@@ -5907,6 +8183,88 @@ pub mod builder {
                 });
             self
         }
+        pub fn iono_qa<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.iono_qa = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for iono_qa: {e}")
+                });
+            self
+        }
+        pub fn jupiter_pointing_distance<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.jupiter_pointing_distance = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for jupiter_pointing_distance: {e}"
+                    )
+                });
+            self
+        }
+        pub fn last_channel_highest_frequency_mhz<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.last_channel_highest_frequency_mhz = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for last_channel_highest_frequency_mhz: {e}"
+                    )
+                });
+            self
+        }
+        pub fn last_channel_number<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.last_channel_number = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for last_channel_number: {e}"
+                    )
+                });
+            self
+        }
+        pub fn last_download_datetime_mro<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.last_download_datetime_mro = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for last_download_datetime_mro: {e}"
+                    )
+                });
+            self
+        }
+        pub fn local_sidereal_time_deg<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.local_sidereal_time_deg = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for local_sidereal_time_deg: {e}"
+                    )
+                });
+            self
+        }
         pub fn mode<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::string::String>,
@@ -5917,6 +8275,46 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for mode: {e}"));
             self
         }
+        pub fn modtime<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.modtime = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for modtime: {e}")
+                });
+            self
+        }
+        pub fn moon_pointing_distance<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.moon_pointing_distance = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for moon_pointing_distance: {e}"
+                    )
+                });
+            self
+        }
+        pub fn mwa_array_configuration<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.mwa_array_configuration = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for mwa_array_configuration: {e}"
+                    )
+                });
+            self
+        }
         pub fn obs_id<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<i64>,
@@ -5925,6 +8323,18 @@ pub mod builder {
             self.obs_id = value
                 .try_into()
                 .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+        pub fn obsname<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obsname = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for obsname: {e}")
+                });
             self
         }
         pub fn oversampled_flag<T>(mut self, value: T) -> Self
@@ -5939,15 +8349,41 @@ pub mod builder {
                 });
             self
         }
-        pub fn project_id<T>(mut self, value: T) -> Self
+        pub fn projectdescription<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.projectdescription = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for projectdescription: {e}"
+                    )
+                });
+            self
+        }
+        pub fn projectid<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::string::String>,
             T::Error: ::std::fmt::Display,
         {
-            self.project_id = value
+            self.projectid = value
                 .try_into()
                 .map_err(|e| {
-                    format!("error converting supplied value for project_id: {e}")
+                    format!("error converting supplied value for projectid: {e}")
+                });
+            self
+        }
+        pub fn projectshortname<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.projectshortname = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for projectshortname: {e}")
                 });
             self
         }
@@ -5965,6 +8401,28 @@ pub mod builder {
                 });
             self
         }
+        pub fn ra<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.ra = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for ra: {e}"));
+            self
+        }
+        pub fn ra_phase_center<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.ra_phase_center = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for ra_phase_center: {e}")
+                });
+            self
+        }
         pub fn ra_pointing<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<f64>,
@@ -5977,16 +8435,232 @@ pub mod builder {
                 });
             self
         }
-        pub fn scheduled_start_utc<T>(mut self, value: T) -> Self
+        pub fn sky_temp<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.sky_temp = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for sky_temp: {e}")
+                });
+            self
+        }
+        pub fn starttime<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.starttime = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for starttime: {e}")
+                });
+            self
+        }
+        pub fn starttime_mjd<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.starttime_mjd = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for starttime_mjd: {e}")
+                });
+            self
+        }
+        pub fn starttime_mro<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.starttime_mro = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for starttime_mro: {e}")
+                });
+            self
+        }
+        pub fn starttime_utc<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::string::String>,
             T::Error: ::std::fmt::Display,
         {
-            self.scheduled_start_utc = value
+            self.starttime_utc = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for starttime_utc: {e}")
+                });
+            self
+        }
+        pub fn stoptime<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.stoptime = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for stoptime: {e}")
+                });
+            self
+        }
+        pub fn stoptime_mjd<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.stoptime_mjd = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for stoptime_mjd: {e}")
+                });
+            self
+        }
+        pub fn stoptime_mro<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.stoptime_mro = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for stoptime_mro: {e}")
+                });
+            self
+        }
+        pub fn stoptime_utc<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.stoptime_utc = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for stoptime_utc: {e}")
+                });
+            self
+        }
+        pub fn sun_elevation<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.sun_elevation = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for sun_elevation: {e}")
+                });
+            self
+        }
+        pub fn sun_pointing_distance<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.sun_pointing_distance = value
                 .try_into()
                 .map_err(|e| {
                     format!(
-                        "error converting supplied value for scheduled_start_utc: {e}"
+                        "error converting supplied value for sun_pointing_distance: {e}"
+                    )
+                });
+            self
+        }
+        pub fn tiles_flagged<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_flagged = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for tiles_flagged: {e}")
+                });
+            self
+        }
+        pub fn tiles_with_bad_beamshape<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_with_bad_beamshape = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for tiles_with_bad_beamshape: {e}"
+                    )
+                });
+            self
+        }
+        pub fn tiles_with_bad_freqs<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_with_bad_freqs = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for tiles_with_bad_freqs: {e}"
+                    )
+                });
+            self
+        }
+        pub fn tiles_with_bad_gains<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_with_bad_gains = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for tiles_with_bad_gains: {e}"
+                    )
+                });
+            self
+        }
+        pub fn tiles_with_bad_pointings<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_with_bad_pointings = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for tiles_with_bad_pointings: {e}"
+                    )
+                });
+            self
+        }
+        pub fn tiles_with_bad_states<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.tiles_with_bad_states = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for tiles_with_bad_states: {e}"
+                    )
+                });
+            self
+        }
+        pub fn total_archived_bytes<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_archived_bytes = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for total_archived_bytes: {e}"
                     )
                 });
             self
@@ -6005,6 +8679,34 @@ pub mod builder {
                 });
             self
         }
+        pub fn total_archived_data_files<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_archived_data_files = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for total_archived_data_files: {e}"
+                    )
+                });
+            self
+        }
+        pub fn total_archived_files<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_archived_files = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for total_archived_files: {e}"
+                    )
+                });
+            self
+        }
         pub fn total_tiles<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<i64>,
@@ -6014,6 +8716,18 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for total_tiles: {e}")
+                });
+            self
+        }
+        pub fn trigger_ids_csv<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.trigger_ids_csv = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for trigger_ids_csv: {e}")
                 });
             self
         }
@@ -6041,6 +8755,20 @@ pub mod builder {
                 .map_err(|e| {
                     format!(
                         "error converting supplied value for vcs_files_raw_archived: {e}"
+                    )
+                });
+            self
+        }
+        pub fn vcs_files_raw_total<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.vcs_files_raw_total = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for vcs_files_raw_total: {e}"
                     )
                 });
             self
@@ -6073,16 +8801,30 @@ pub mod builder {
                 });
             self
         }
-        pub fn vidf_files_archived<T>(mut self, value: T) -> Self
+        pub fn vcs_recombined_flag<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.vcs_recombined_flag = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for vcs_recombined_flag: {e}"
+                    )
+                });
+            self
+        }
+        pub fn vdif_files_archived<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<i64>>,
             T::Error: ::std::fmt::Display,
         {
-            self.vidf_files_archived = value
+            self.vdif_files_archived = value
                 .try_into()
                 .map_err(|e| {
                     format!(
-                        "error converting supplied value for vidf_files_archived: {e}"
+                        "error converting supplied value for vdif_files_archived: {e}"
                     )
                 });
             self
@@ -6094,74 +8836,563 @@ pub mod builder {
             value: ObservationMetadata,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
+                archived_bytes_at_pawsey_acacia_mwa: value
+                    .archived_bytes_at_pawsey_acacia_mwa?,
+                archived_bytes_at_pawsey_banksia: value
+                    .archived_bytes_at_pawsey_banksia?,
                 archived_files_at_pawsey_acacia_mwa: value
                     .archived_files_at_pawsey_acacia_mwa?,
                 archived_files_at_pawsey_banksia: value
                     .archived_files_at_pawsey_banksia?,
+                azimuth: value.azimuth?,
+                azimuth_pointing: value.azimuth_pointing?,
+                bad_tiles: value.bad_tiles?,
+                cable_delays: value.cable_delays?,
+                cable_delays_description: value.cable_delays_description?,
+                calibration: value.calibration?,
+                calibration_delays: value.calibration_delays?,
+                calibrators: value.calibrators?,
+                center_channel_number: value.center_channel_number?,
+                center_frequency_mhz: value.center_frequency_mhz?,
+                channel_center_frequencies_mhz_csv: value
+                    .channel_center_frequencies_mhz_csv?,
                 channel_count: value.channel_count?,
                 channel_numbers_csv: value.channel_numbers_csv?,
+                channel_width_mhz: value.channel_width_mhz?,
+                channels_are_contiguous: value.channels_are_contiguous?,
                 coherent_beams: value.coherent_beams?,
-                data_quality: value.data_quality?,
+                collection_id: value.collection_id?,
+                collection_name: value.collection_name?,
+                collection_url: value.collection_url?,
+                creator: value.creator?,
+                data_files_summary: value.data_files_summary?,
+                dataquality: value.dataquality?,
+                dataqualitycomment: value.dataqualitycomment?,
+                dataqualityname: value.dataqualityname?,
+                days_from_obs_to_first_download: value.days_from_obs_to_first_download?,
+                days_since_last_download: value.days_since_last_download?,
+                dec: value.dec?,
+                dec_phase_center: value.dec_phase_center?,
                 dec_pointing: value.dec_pointing?,
+                delaymode_description: value.delaymode_description?,
+                delaymode_name: value.delaymode_name?,
                 deleted_flag: value.deleted_flag?,
+                deletedtime_mro: value.deletedtime_mro?,
+                deletion_pending_flag: value.deletion_pending_flag?,
+                deletion_pending_request_ids_csv: value
+                    .deletion_pending_request_ids_csv?,
+                deripple_flag: value.deripple_flag?,
+                deripple_params: value.deripple_params?,
+                downloaded_bytes: value.downloaded_bytes?,
+                downloads: value.downloads?,
                 duration: value.duration?,
+                elevation: value.elevation?,
+                elevation_pointing: value.elevation_pointing?,
+                embargo_period_months: value.embargo_period_months?,
+                files_deleted: value.files_deleted?,
+                files_deleted_bytes: value.files_deleted_bytes?,
                 filterbank_files_archived: value.filterbank_files_archived?,
+                first_channel_lowest_frequency_mhz: value
+                    .first_channel_lowest_frequency_mhz?,
+                first_channel_number: value.first_channel_number?,
+                first_download_datetime_mro: value.first_download_datetime_mro?,
+                flag_files_exist: value.flag_files_exist?,
                 freq_res: value.freq_res?,
+                gal_lat: value.gal_lat?,
+                gal_long: value.gal_long?,
+                geometric_delays: value.geometric_delays?,
+                geometric_delays_description: value.geometric_delays_description?,
+                good_tiles: value.good_tiles?,
                 gpubox_files_archived: value.gpubox_files_archived?,
+                gpubox_files_total: value.gpubox_files_total?,
+                gridpoint_name: value.gridpoint_name?,
+                gridpoint_number: value.gridpoint_number?,
+                groupid: value.groupid?,
                 incoherent_beams: value.incoherent_beams?,
                 int_time: value.int_time?,
+                iono_qa: value.iono_qa?,
+                jupiter_pointing_distance: value.jupiter_pointing_distance?,
+                last_channel_highest_frequency_mhz: value
+                    .last_channel_highest_frequency_mhz?,
+                last_channel_number: value.last_channel_number?,
+                last_download_datetime_mro: value.last_download_datetime_mro?,
+                local_sidereal_time_deg: value.local_sidereal_time_deg?,
                 mode: value.mode?,
+                modtime: value.modtime?,
+                moon_pointing_distance: value.moon_pointing_distance?,
+                mwa_array_configuration: value.mwa_array_configuration?,
                 obs_id: value.obs_id?,
+                obsname: value.obsname?,
                 oversampled_flag: value.oversampled_flag?,
-                project_id: value.project_id?,
+                projectdescription: value.projectdescription?,
+                projectid: value.projectid?,
+                projectshortname: value.projectshortname?,
                 public_release_date_utc: value.public_release_date_utc?,
+                ra: value.ra?,
+                ra_phase_center: value.ra_phase_center?,
                 ra_pointing: value.ra_pointing?,
-                scheduled_start_utc: value.scheduled_start_utc?,
+                sky_temp: value.sky_temp?,
+                starttime: value.starttime?,
+                starttime_mjd: value.starttime_mjd?,
+                starttime_mro: value.starttime_mro?,
+                starttime_utc: value.starttime_utc?,
+                stoptime: value.stoptime?,
+                stoptime_mjd: value.stoptime_mjd?,
+                stoptime_mro: value.stoptime_mro?,
+                stoptime_utc: value.stoptime_utc?,
+                sun_elevation: value.sun_elevation?,
+                sun_pointing_distance: value.sun_pointing_distance?,
+                tiles_flagged: value.tiles_flagged?,
+                tiles_with_bad_beamshape: value.tiles_with_bad_beamshape?,
+                tiles_with_bad_freqs: value.tiles_with_bad_freqs?,
+                tiles_with_bad_gains: value.tiles_with_bad_gains?,
+                tiles_with_bad_pointings: value.tiles_with_bad_pointings?,
+                tiles_with_bad_states: value.tiles_with_bad_states?,
+                total_archived_bytes: value.total_archived_bytes?,
                 total_archived_data_bytes: value.total_archived_data_bytes?,
+                total_archived_data_files: value.total_archived_data_files?,
+                total_archived_files: value.total_archived_files?,
                 total_tiles: value.total_tiles?,
+                trigger_ids_csv: value.trigger_ids_csv?,
                 vcs_files_ics_archived: value.vcs_files_ics_archived?,
                 vcs_files_raw_archived: value.vcs_files_raw_archived?,
+                vcs_files_raw_total: value.vcs_files_raw_total?,
                 vcs_files_sub_archived: value.vcs_files_sub_archived?,
                 vcs_files_tar_archived: value.vcs_files_tar_archived?,
-                vidf_files_archived: value.vidf_files_archived?,
+                vcs_recombined_flag: value.vcs_recombined_flag?,
+                vdif_files_archived: value.vdif_files_archived?,
             })
         }
     }
     impl ::std::convert::From<super::ObservationMetadata> for ObservationMetadata {
         fn from(value: super::ObservationMetadata) -> Self {
             Self {
+                archived_bytes_at_pawsey_acacia_mwa: Ok(
+                    value.archived_bytes_at_pawsey_acacia_mwa,
+                ),
+                archived_bytes_at_pawsey_banksia: Ok(
+                    value.archived_bytes_at_pawsey_banksia,
+                ),
                 archived_files_at_pawsey_acacia_mwa: Ok(
                     value.archived_files_at_pawsey_acacia_mwa,
                 ),
                 archived_files_at_pawsey_banksia: Ok(
                     value.archived_files_at_pawsey_banksia,
                 ),
+                azimuth: Ok(value.azimuth),
+                azimuth_pointing: Ok(value.azimuth_pointing),
+                bad_tiles: Ok(value.bad_tiles),
+                cable_delays: Ok(value.cable_delays),
+                cable_delays_description: Ok(value.cable_delays_description),
+                calibration: Ok(value.calibration),
+                calibration_delays: Ok(value.calibration_delays),
+                calibrators: Ok(value.calibrators),
+                center_channel_number: Ok(value.center_channel_number),
+                center_frequency_mhz: Ok(value.center_frequency_mhz),
+                channel_center_frequencies_mhz_csv: Ok(
+                    value.channel_center_frequencies_mhz_csv,
+                ),
                 channel_count: Ok(value.channel_count),
                 channel_numbers_csv: Ok(value.channel_numbers_csv),
+                channel_width_mhz: Ok(value.channel_width_mhz),
+                channels_are_contiguous: Ok(value.channels_are_contiguous),
                 coherent_beams: Ok(value.coherent_beams),
-                data_quality: Ok(value.data_quality),
+                collection_id: Ok(value.collection_id),
+                collection_name: Ok(value.collection_name),
+                collection_url: Ok(value.collection_url),
+                creator: Ok(value.creator),
+                data_files_summary: Ok(value.data_files_summary),
+                dataquality: Ok(value.dataquality),
+                dataqualitycomment: Ok(value.dataqualitycomment),
+                dataqualityname: Ok(value.dataqualityname),
+                days_from_obs_to_first_download: Ok(
+                    value.days_from_obs_to_first_download,
+                ),
+                days_since_last_download: Ok(value.days_since_last_download),
+                dec: Ok(value.dec),
+                dec_phase_center: Ok(value.dec_phase_center),
                 dec_pointing: Ok(value.dec_pointing),
+                delaymode_description: Ok(value.delaymode_description),
+                delaymode_name: Ok(value.delaymode_name),
                 deleted_flag: Ok(value.deleted_flag),
+                deletedtime_mro: Ok(value.deletedtime_mro),
+                deletion_pending_flag: Ok(value.deletion_pending_flag),
+                deletion_pending_request_ids_csv: Ok(
+                    value.deletion_pending_request_ids_csv,
+                ),
+                deripple_flag: Ok(value.deripple_flag),
+                deripple_params: Ok(value.deripple_params),
+                downloaded_bytes: Ok(value.downloaded_bytes),
+                downloads: Ok(value.downloads),
                 duration: Ok(value.duration),
+                elevation: Ok(value.elevation),
+                elevation_pointing: Ok(value.elevation_pointing),
+                embargo_period_months: Ok(value.embargo_period_months),
+                files_deleted: Ok(value.files_deleted),
+                files_deleted_bytes: Ok(value.files_deleted_bytes),
                 filterbank_files_archived: Ok(value.filterbank_files_archived),
+                first_channel_lowest_frequency_mhz: Ok(
+                    value.first_channel_lowest_frequency_mhz,
+                ),
+                first_channel_number: Ok(value.first_channel_number),
+                first_download_datetime_mro: Ok(value.first_download_datetime_mro),
+                flag_files_exist: Ok(value.flag_files_exist),
                 freq_res: Ok(value.freq_res),
+                gal_lat: Ok(value.gal_lat),
+                gal_long: Ok(value.gal_long),
+                geometric_delays: Ok(value.geometric_delays),
+                geometric_delays_description: Ok(value.geometric_delays_description),
+                good_tiles: Ok(value.good_tiles),
                 gpubox_files_archived: Ok(value.gpubox_files_archived),
+                gpubox_files_total: Ok(value.gpubox_files_total),
+                gridpoint_name: Ok(value.gridpoint_name),
+                gridpoint_number: Ok(value.gridpoint_number),
+                groupid: Ok(value.groupid),
                 incoherent_beams: Ok(value.incoherent_beams),
                 int_time: Ok(value.int_time),
+                iono_qa: Ok(value.iono_qa),
+                jupiter_pointing_distance: Ok(value.jupiter_pointing_distance),
+                last_channel_highest_frequency_mhz: Ok(
+                    value.last_channel_highest_frequency_mhz,
+                ),
+                last_channel_number: Ok(value.last_channel_number),
+                last_download_datetime_mro: Ok(value.last_download_datetime_mro),
+                local_sidereal_time_deg: Ok(value.local_sidereal_time_deg),
                 mode: Ok(value.mode),
+                modtime: Ok(value.modtime),
+                moon_pointing_distance: Ok(value.moon_pointing_distance),
+                mwa_array_configuration: Ok(value.mwa_array_configuration),
                 obs_id: Ok(value.obs_id),
+                obsname: Ok(value.obsname),
                 oversampled_flag: Ok(value.oversampled_flag),
-                project_id: Ok(value.project_id),
+                projectdescription: Ok(value.projectdescription),
+                projectid: Ok(value.projectid),
+                projectshortname: Ok(value.projectshortname),
                 public_release_date_utc: Ok(value.public_release_date_utc),
+                ra: Ok(value.ra),
+                ra_phase_center: Ok(value.ra_phase_center),
                 ra_pointing: Ok(value.ra_pointing),
-                scheduled_start_utc: Ok(value.scheduled_start_utc),
+                sky_temp: Ok(value.sky_temp),
+                starttime: Ok(value.starttime),
+                starttime_mjd: Ok(value.starttime_mjd),
+                starttime_mro: Ok(value.starttime_mro),
+                starttime_utc: Ok(value.starttime_utc),
+                stoptime: Ok(value.stoptime),
+                stoptime_mjd: Ok(value.stoptime_mjd),
+                stoptime_mro: Ok(value.stoptime_mro),
+                stoptime_utc: Ok(value.stoptime_utc),
+                sun_elevation: Ok(value.sun_elevation),
+                sun_pointing_distance: Ok(value.sun_pointing_distance),
+                tiles_flagged: Ok(value.tiles_flagged),
+                tiles_with_bad_beamshape: Ok(value.tiles_with_bad_beamshape),
+                tiles_with_bad_freqs: Ok(value.tiles_with_bad_freqs),
+                tiles_with_bad_gains: Ok(value.tiles_with_bad_gains),
+                tiles_with_bad_pointings: Ok(value.tiles_with_bad_pointings),
+                tiles_with_bad_states: Ok(value.tiles_with_bad_states),
+                total_archived_bytes: Ok(value.total_archived_bytes),
                 total_archived_data_bytes: Ok(value.total_archived_data_bytes),
+                total_archived_data_files: Ok(value.total_archived_data_files),
+                total_archived_files: Ok(value.total_archived_files),
                 total_tiles: Ok(value.total_tiles),
+                trigger_ids_csv: Ok(value.trigger_ids_csv),
                 vcs_files_ics_archived: Ok(value.vcs_files_ics_archived),
                 vcs_files_raw_archived: Ok(value.vcs_files_raw_archived),
+                vcs_files_raw_total: Ok(value.vcs_files_raw_total),
                 vcs_files_sub_archived: Ok(value.vcs_files_sub_archived),
                 vcs_files_tar_archived: Ok(value.vcs_files_tar_archived),
-                vidf_files_archived: Ok(value.vidf_files_archived),
+                vcs_recombined_flag: Ok(value.vcs_recombined_flag),
+                vdif_files_archived: Ok(value.vdif_files_archived),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ObservationProjectsResponse {
+        projects: ::std::result::Result<
+            ::std::vec::Vec<::std::string::String>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for ObservationProjectsResponse {
+        fn default() -> Self {
+            Self {
+                projects: Err("no value supplied for projects".to_string()),
+            }
+        }
+    }
+    impl ObservationProjectsResponse {
+        pub fn projects<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.projects = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for projects: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ObservationProjectsResponse>
+    for super::ObservationProjectsResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ObservationProjectsResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self { projects: value.projects? })
+        }
+    }
+    impl ::std::convert::From<super::ObservationProjectsResponse>
+    for ObservationProjectsResponse {
+        fn from(value: super::ObservationProjectsResponse) -> Self {
+            Self {
+                projects: Ok(value.projects),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ObservationSearchResponse {
+        query: ::std::result::Result<
+            ::std::option::Option<::std::string::String>,
+            ::std::string::String,
+        >,
+        results: ::std::result::Result<
+            ::std::vec::Vec<super::ObservationMetadata>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for ObservationSearchResponse {
+        fn default() -> Self {
+            Self {
+                query: Ok(Default::default()),
+                results: Err("no value supplied for results".to_string()),
+            }
+        }
+    }
+    impl ObservationSearchResponse {
+        pub fn query<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.query = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for query: {e}"));
+            self
+        }
+        pub fn results<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::vec::Vec<super::ObservationMetadata>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.results = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for results: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ObservationSearchResponse>
+    for super::ObservationSearchResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ObservationSearchResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                query: value.query?,
+                results: value.results?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::ObservationSearchResponse>
+    for ObservationSearchResponse {
+        fn from(value: super::ObservationSearchResponse) -> Self {
+            Self {
+                query: Ok(value.query),
+                results: Ok(value.results),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ObservationSizeResponse {
+        observation_count: ::std::result::Result<i64, ::std::string::String>,
+        total_bytes: ::std::result::Result<i64, ::std::string::String>,
+        total_gb: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for ObservationSizeResponse {
+        fn default() -> Self {
+            Self {
+                observation_count: Err(
+                    "no value supplied for observation_count".to_string(),
+                ),
+                total_bytes: Err("no value supplied for total_bytes".to_string()),
+                total_gb: Err("no value supplied for total_gb".to_string()),
+            }
+        }
+    }
+    impl ObservationSizeResponse {
+        pub fn observation_count<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.observation_count = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for observation_count: {e}")
+                });
+            self
+        }
+        pub fn total_bytes<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_bytes = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for total_bytes: {e}")
+                });
+            self
+        }
+        pub fn total_gb<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_gb = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for total_gb: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ObservationSizeResponse>
+    for super::ObservationSizeResponse {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ObservationSizeResponse,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                observation_count: value.observation_count?,
+                total_bytes: value.total_bytes?,
+                total_gb: value.total_gb?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::ObservationSizeResponse>
+    for ObservationSizeResponse {
+        fn from(value: super::ObservationSizeResponse) -> Self {
+            Self {
+                observation_count: Ok(value.observation_count),
+                total_bytes: Ok(value.total_bytes),
+                total_gb: Ok(value.total_gb),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct PaginationMetadata {
+        filtered_count: ::std::result::Result<i64, ::std::string::String>,
+        has_more: ::std::result::Result<bool, ::std::string::String>,
+        offset: ::std::result::Result<i64, ::std::string::String>,
+        page_size: ::std::result::Result<i64, ::std::string::String>,
+        total_count: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for PaginationMetadata {
+        fn default() -> Self {
+            Self {
+                filtered_count: Err("no value supplied for filtered_count".to_string()),
+                has_more: Err("no value supplied for has_more".to_string()),
+                offset: Err("no value supplied for offset".to_string()),
+                page_size: Err("no value supplied for page_size".to_string()),
+                total_count: Err("no value supplied for total_count".to_string()),
+            }
+        }
+    }
+    impl PaginationMetadata {
+        pub fn filtered_count<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.filtered_count = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for filtered_count: {e}")
+                });
+            self
+        }
+        pub fn has_more<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<bool>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.has_more = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for has_more: {e}")
+                });
+            self
+        }
+        pub fn offset<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.offset = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for offset: {e}"));
+            self
+        }
+        pub fn page_size<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.page_size = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for page_size: {e}")
+                });
+            self
+        }
+        pub fn total_count<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.total_count = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for total_count: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<PaginationMetadata> for super::PaginationMetadata {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: PaginationMetadata,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                filtered_count: value.filtered_count?,
+                has_more: value.has_more?,
+                offset: value.offset?,
+                page_size: value.page_size?,
+                total_count: value.total_count?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::PaginationMetadata> for PaginationMetadata {
+        fn from(value: super::PaginationMetadata) -> Self {
+            Self {
+                filtered_count: Ok(value.filtered_count),
+                has_more: Ok(value.has_more),
+                offset: Ok(value.offset),
+                page_size: Ok(value.page_size),
+                total_count: Ok(value.total_count),
             }
         }
     }
@@ -6347,7 +9578,7 @@ pub mod builder {
     #[derive(Clone, Debug)]
     pub struct QueuedJob {
         created: ::std::result::Result<::jiff::Timestamp, ::std::string::String>,
-        id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         job_params: ::std::result::Result<
             ::serde_json::Map<::std::string::String, ::serde_json::Value>,
             ::std::string::String,
@@ -6356,6 +9587,7 @@ pub mod builder {
             ::std::option::Option<super::JobType>,
             ::std::string::String,
         >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
         priority_score: ::std::result::Result<
             ::std::option::Option<f64>,
             ::std::string::String,
@@ -6370,7 +9602,7 @@ pub mod builder {
         >,
         user_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
         user_pawsey_group: ::std::result::Result<
-            ::std::option::Option<::std::string::String>,
+            ::std::option::Option<super::UserPawseyGroup>,
             ::std::string::String,
         >,
     }
@@ -6378,9 +9610,10 @@ pub mod builder {
         fn default() -> Self {
             Self {
                 created: Err("no value supplied for created".to_string()),
-                id: Err("no value supplied for id".to_string()),
+                job_id: Err("no value supplied for job_id".to_string()),
                 job_params: Err("no value supplied for job_params".to_string()),
                 job_type: Ok(Default::default()),
+                obs_id: Err("no value supplied for obs_id".to_string()),
                 priority_score: Ok(Default::default()),
                 queue_position_cache: Ok(Default::default()),
                 user_dug_group: Ok(Default::default()),
@@ -6402,14 +9635,14 @@ pub mod builder {
                 });
             self
         }
-        pub fn id<T>(mut self, value: T) -> Self
+        pub fn job_id<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::num::NonZeroU64>,
             T::Error: ::std::fmt::Display,
         {
-            self.id = value
+            self.job_id = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for id: {e}"));
+                .map_err(|e| format!("error converting supplied value for job_id: {e}"));
             self
         }
         pub fn job_params<T>(mut self, value: T) -> Self
@@ -6436,6 +9669,16 @@ pub mod builder {
                 .map_err(|e| {
                     format!("error converting supplied value for job_type: {e}")
                 });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
             self
         }
         pub fn priority_score<T>(mut self, value: T) -> Self
@@ -6490,7 +9733,7 @@ pub mod builder {
         }
         pub fn user_pawsey_group<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<::std::string::String>>,
+            T: ::std::convert::TryInto<::std::option::Option<super::UserPawseyGroup>>,
             T::Error: ::std::fmt::Display,
         {
             self.user_pawsey_group = value
@@ -6508,9 +9751,10 @@ pub mod builder {
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
                 created: value.created?,
-                id: value.id?,
+                job_id: value.job_id?,
                 job_params: value.job_params?,
                 job_type: value.job_type?,
+                obs_id: value.obs_id?,
                 priority_score: value.priority_score?,
                 queue_position_cache: value.queue_position_cache?,
                 user_dug_group: value.user_dug_group?,
@@ -6523,9 +9767,10 @@ pub mod builder {
         fn from(value: super::QueuedJob) -> Self {
             Self {
                 created: Ok(value.created),
-                id: Ok(value.id),
+                job_id: Ok(value.job_id),
                 job_params: Ok(value.job_params),
                 job_type: Ok(value.job_type),
+                obs_id: Ok(value.obs_id),
                 priority_score: Ok(value.priority_score),
                 queue_position_cache: Ok(value.queue_position_cache),
                 user_dug_group: Ok(value.user_dug_group),
@@ -7656,13 +10901,12 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        channel_range: ::std::result::Result<
-            ::std::option::Option<bool>,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<::std::string::String, ::std::string::String>,
         delivery_format: ::std::result::Result<
-            ::std::string::String,
+            super::DeliveryFormat,
             ::std::string::String,
         >,
         duration: ::std::result::Result<u64, ::std::string::String>,
@@ -7681,7 +10925,6 @@ pub mod builder {
         fn default() -> Self {
             Self {
                 allow_resubmit: Ok(super::defaults::voltage_job_params_allow_resubmit()),
-                channel_range: Ok(super::defaults::voltage_job_params_channel_range()),
                 delivery: Ok(super::defaults::voltage_job_params_delivery()),
                 delivery_format: Ok(
                     super::defaults::voltage_job_params_delivery_format(),
@@ -7707,21 +10950,9 @@ pub mod builder {
                 });
             self
         }
-        pub fn channel_range<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.channel_range = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for channel_range: {e}")
-                });
-            self
-        }
         pub fn delivery<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery = value
@@ -7733,7 +10964,7 @@ pub mod builder {
         }
         pub fn delivery_format<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
             T::Error: ::std::fmt::Display,
         {
             self.delivery_format = value
@@ -7807,7 +11038,6 @@ pub mod builder {
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
                 allow_resubmit: value.allow_resubmit?,
-                channel_range: value.channel_range?,
                 delivery: value.delivery?,
                 delivery_format: value.delivery_format?,
                 duration: value.duration?,
@@ -7822,7 +11052,6 @@ pub mod builder {
         fn from(value: super::VoltageJobParams) -> Self {
             Self {
                 allow_resubmit: Ok(value.allow_resubmit),
-                channel_range: Ok(value.channel_range),
                 delivery: Ok(value.delivery),
                 delivery_format: Ok(value.delivery_format),
                 duration: Ok(value.duration),
@@ -7900,19 +11129,14 @@ pub mod defaults {
     pub(super) fn api_login_response_token_type() -> ::std::string::String {
         "bearer".to_string()
     }
-    pub(super) fn beamformer_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+    pub(super) fn cancel_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn beamformer_job_params_delivery() -> super::Delivery {
-        super::Delivery::Acacia
+    pub(super) fn cancel_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
     }
-    pub(super) fn beamformer_job_params_delivery_format() -> super::DeliveryFormat {
+    pub(super) fn cancel_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
-    }
-    pub(super) fn beamformer_job_params_mode() -> ::std::option::Option<
-        super::BeamformerJobParamsMode,
-    > {
-        ::std::option::Option::Some(super::BeamformerJobParamsMode::MwaxBeamformer)
     }
     pub(super) fn conversion_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
@@ -7923,11 +11147,11 @@ pub mod defaults {
     pub(super) fn conversion_job_params_avg_time_res() -> ::std::option::Option<f64> {
         ::std::option::Option::Some(2.0_f64)
     }
-    pub(super) fn conversion_job_params_centre() -> super::Centre {
-        super::Centre::Phase
+    pub(super) fn conversion_job_params_centre() -> super::PhaseCentre {
+        super::PhaseCentre::Phase
     }
-    pub(super) fn conversion_job_params_delivery() -> super::Delivery {
-        super::Delivery::Acacia
+    pub(super) fn conversion_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
     }
     pub(super) fn conversion_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
@@ -7959,14 +11183,14 @@ pub mod defaults {
     pub(super) fn conversion_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_output() -> super::Output {
-        super::Output::Ms
+    pub(super) fn conversion_job_params_output() -> super::OutputFormat {
+        super::OutputFormat::Ms
     }
     pub(super) fn download_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn download_job_params_delivery() -> super::Delivery {
-        super::Delivery::Acacia
+    pub(super) fn download_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
     }
     pub(super) fn download_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
@@ -7993,16 +11217,16 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_avg_time_res() -> ::std::option::Option<f64> {
         ::std::option::Option::Some(2.0_f64)
     }
-    pub(super) fn imaging_job_flow1_params_centre() -> super::Centre {
-        super::Centre::Phase
+    pub(super) fn imaging_job_flow1_params_centre() -> super::PhaseCentre {
+        super::PhaseCentre::Phase
     }
     pub(super) fn imaging_job_flow1_params_clean_threshold() -> ::std::option::Option<
         f64,
     > {
         ::std::option::Option::Some(0.001_f64)
     }
-    pub(super) fn imaging_job_flow1_params_delivery() -> super::Delivery {
-        super::Delivery::Acacia
+    pub(super) fn imaging_job_flow1_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
     }
     pub(super) fn imaging_job_flow1_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
@@ -8042,8 +11266,8 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow1_params_output_mode() -> super::OutputMode {
-        super::OutputMode::Fits
+    pub(super) fn imaging_job_flow1_params_output_mode() -> super::ImageOutputMode {
+        super::ImageOutputMode::Fits
     }
     pub(super) fn imaging_job_flow1_params_pixel_scale() -> f64 {
         20_f64
@@ -8057,8 +11281,8 @@ pub mod defaults {
     pub(super) fn imaging_job_flow1_params_uvw_min() -> f64 {
         75_f64
     }
-    pub(super) fn imaging_job_flow1_params_weighting() -> super::Weighting {
-        super::Weighting::Briggs
+    pub(super) fn imaging_job_flow1_params_weighting() -> super::ImageWeighting {
+        super::ImageWeighting::Briggs
     }
     pub(super) fn imaging_job_flow2_params_abs_threshold() -> ::std::option::Option<
         f64,
@@ -8078,8 +11302,8 @@ pub mod defaults {
     > {
         ::std::option::Option::Some(0.001_f64)
     }
-    pub(super) fn imaging_job_flow2_params_delivery() -> super::Delivery {
-        super::Delivery::Acacia
+    pub(super) fn imaging_job_flow2_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
     }
     pub(super) fn imaging_job_flow2_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
@@ -8090,8 +11314,8 @@ pub mod defaults {
     pub(super) fn imaging_job_flow2_params_mgain() -> f64 {
         0.8_f64
     }
-    pub(super) fn imaging_job_flow2_params_output_mode() -> super::OutputMode {
-        super::OutputMode::Fits
+    pub(super) fn imaging_job_flow2_params_output_mode() -> super::ImageOutputMode {
+        super::ImageOutputMode::Fits
     }
     pub(super) fn imaging_job_flow2_params_pixel_scale() -> f64 {
         20_f64
@@ -8105,11 +11329,14 @@ pub mod defaults {
     pub(super) fn imaging_job_flow2_params_uvw_min() -> f64 {
         75_f64
     }
-    pub(super) fn imaging_job_flow2_params_weighting() -> super::Weighting {
-        super::Weighting::Briggs
+    pub(super) fn imaging_job_flow2_params_weighting() -> super::ImageWeighting {
+        super::ImageWeighting::Briggs
     }
     pub(super) fn job_cancelled_response_status() -> super::Status {
         super::Status::Success
+    }
+    pub(super) fn job_list_request_sort_by() -> super::SortBy {
+        super::SortBy::Id
     }
     pub(super) fn job_submitted_response_status() -> super::Status {
         super::Status::Success
@@ -8119,8 +11346,8 @@ pub mod defaults {
     > {
         ::std::option::Option::Some(::std::num::NonZeroU64::new(30).unwrap())
     }
-    pub(super) fn jobs_by_user_request_sort_by() -> ::std::string::String {
-        "id".to_string()
+    pub(super) fn jobs_by_user_request_sort_by() -> super::SortBy {
+        super::SortBy::Id
     }
     pub(super) fn mark_as_error_request_message() -> ::std::string::String {
         "Unknown Error".to_string()
@@ -8134,14 +11361,11 @@ pub mod defaults {
     pub(super) fn voltage_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn voltage_job_params_channel_range() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
+    pub(super) fn voltage_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Scratch
     }
-    pub(super) fn voltage_job_params_delivery() -> ::std::string::String {
-        "scratch".to_string()
-    }
-    pub(super) fn voltage_job_params_delivery_format() -> ::std::string::String {
-        "files".to_string()
+    pub(super) fn voltage_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Files
     }
 }
 /// Error types.
