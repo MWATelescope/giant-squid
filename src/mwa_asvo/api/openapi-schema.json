@@ -4327,5 +4327,895 @@
     "/v2/user/update_profile": [
       "post"
     ]
+  },
+  "operations": {
+    "GET /health": {
+      "request": [],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/admin/jobs": {
+      "request": [
+        "JobListRequest"
+      ],
+      "responses": {
+        "200": [
+          "JobListResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/auth/api_login": {
+      "request": [
+        "ApiLoginRequest"
+      ],
+      "responses": {
+        "200": [
+          "ApiLoginResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/auth/login": {
+      "request": [
+        "UserLoginRequest"
+      ],
+      "responses": {
+        "200": [
+          "TokenResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/auth/logout": {
+      "request": [],
+      "responses": {
+        "200": [
+          "UserLogoutResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/auth/refresh": {
+      "request": [],
+      "responses": {
+        "200": [
+          "TokenResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/auth/socket_token": {
+      "request": [],
+      "responses": {
+        "200": [
+          "WebSocketTokenResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/auth/status": {
+      "request": [],
+      "responses": {
+        "200": [
+          "AuthStatusResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/health": {
+      "request": [],
+      "responses": {
+        "200": [
+          "HealthResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": []
+      }
+    },
+    "POST /v2/jobs/calibration_ready": {
+      "request": [
+        "CalibrationReadyCallback"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/create": {
+      "request": [
+        "DownloadJobParams",
+        "ConversionJobParams",
+        "VoltageJobParams",
+        "ImagingJobFlow2Params",
+        "ImagingJobFlow1Params",
+        "CancelJobParams"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/image": {
+      "request": [
+        "ImagingJobFlow2Params"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/job_staged": {
+      "request": [
+        "StagingCallback"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/list": {
+      "request": [
+        "JobsByUserRequest"
+      ],
+      "responses": {
+        "200": [
+          "JobsByUserResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "DELETE /v2/jobs/{job_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "JobCancelledResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/jobs/{job_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "JobDetailResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/observations/export": {
+      "request": [
+        "ObservationExportRequest"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/observations/projects": {
+      "request": [
+        "ObservationListRequest"
+      ],
+      "responses": {
+        "200": [
+          "ObservationProjectsResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/observations/search": {
+      "request": [],
+      "responses": {
+        "200": [
+          "ObservationSearchResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/observations/search/{obs_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "ObservationMetadata"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/observations/size": {
+      "request": [
+        "ObservationListRequest"
+      ],
+      "responses": {
+        "200": [
+          "ObservationSizeResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/projects/permissions": {
+      "request": [],
+      "responses": {
+        "200": [
+          "ProjectPermissionsResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/projects/pi": {
+      "request": [],
+      "responses": {
+        "200": [
+          "UserProjectsPiResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/cancel_jobs": {
+      "request": [
+        "JobsToCancelRequest"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/error_job": {
+      "request": [
+        "MarkAsErrorRequest"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "DELETE /v2/scheduler/job/{job_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "JobStateUpdateResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/scheduler/job/{job_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "QueuedJobsResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/jobs_to_cancel": {
+      "request": [
+        "CancelledJobsRequest"
+      ],
+      "responses": {
+        "200": [
+          "QueuedJobsResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/queued_jobs": {
+      "request": [
+        "QueuedJobsRequest"
+      ],
+      "responses": {
+        "200": [
+          "QueuedJobsResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/restage_job": {
+      "request": [
+        "RestageRequest"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/scheduler/update_job_queue_positions": {
+      "request": [],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/update_job_state": {
+      "request": [
+        "UpdateStateRequest"
+      ],
+      "responses": {
+        "200": [
+          "JobStateUpdateResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/scheduler/update_priorities": {
+      "request": [
+        "JobPriorityUpdate"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/scheduler/user_job_count/{user_id}": {
+      "request": [],
+      "responses": {
+        "200": [
+          "UserQueuedJobCountResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/user": {
+      "request": [],
+      "responses": {
+        "200": [
+          "UserResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "GET /v2/user/new_api_key": {
+      "request": [],
+      "responses": {
+        "200": [
+          "APIKeyResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/user/update_profile": {
+      "request": [
+        "UserUpdateProfileRequest"
+      ],
+      "responses": {
+        "200": [],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    }
   }
 }
