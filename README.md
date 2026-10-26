@@ -226,7 +226,7 @@ $ giant-squid submit-vis 1065880128 --json
 
 ```bash
 $ giant-squid submit-vis 1065880128 --dry-run
-13:10:06 [INFO] [dry run] Would POST /api/v2/download_vis_job for Obs ID 1065880128:
+13:10:06 [INFO] [dry run] Would POST /api/v2/jobs/create for Obs ID 1065880128:
 {
   "allow_resubmit": false,
   "delivery": "acacia",
@@ -234,7 +234,7 @@ $ giant-squid submit-vis 1065880128 --dry-run
   "download_type": "vis",
   "obs_id": 1065880128
 }
-13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/download_vis_job. Nothing was sent.
+13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/create. Nothing was sent.
 ```
 
 The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them.
@@ -552,20 +552,17 @@ join the value to the option with an equals sign, for example `--join-channels=f
 #### Imaging from a conversion job
 
 `submit-image-from-job` makes an image from a conversion job that has already completed. It skips the conversion
-step, so it takes none of the conversion options. It needs exactly one Obs ID (the Obs ID of the conversion job)
-and the ID of the conversion job:
+step, so it takes none of the conversion options. It needs only the ID of the conversion job, with
+`--source-job-id`, and no Obs ID (the MWA ASVO takes the Obs ID from the conversion job):
 
 ```bash
-giant-squid submit-image-from-job --source-job-id 12345 1065880128 --image-size 2048 --multiscale
+giant-squid submit-image-from-job --source-job-id 12345 --image-size 2048 --multiscale
 ```
 
 ```text
 Submit MWA ASVO imaging jobs from an existing conversion job. Unlike submit-image, this skips the conversion step and images directly from the output of a previous conversion job
 
-Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID> [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs ID to image. Exactly one Obs ID is required (the source_job_id identifies the conversion job for this Obs ID)
+Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID>
 
 Options:
       --source-job-id <SOURCE_JOB_ID>
@@ -779,7 +776,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data. The only valid value for a voltage job is "scratch", which requires the "mwavcs" Pawsey Group on your MWA ASVO profile [env: GIANT_SQUID_DELIVERY=] [default: scratch]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: scratch] [possible values: acacia, scratch, dug]
+  -f, --delivery-format <DELIVERY_FORMAT>
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: files] [possible values: tar, files]
   -o, --offset <OFFSET>
           The offset in seconds from the start GPS time of the observation
   -u, --duration <DURATION>
@@ -849,8 +848,8 @@ as in the manta-ray-client README (and the other fields of the request body of t
 |---|---|
 | `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `no_apply_amps`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
-| `b` | `mode`, `delivery`, `delivery_format`, `allow_resubmit` |
-| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `channel_range`, `delivery`, `allow_resubmit` |
+| `b` | `delivery`, `delivery_format`, `allow_resubmit` |
+| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `delivery`, `allow_resubmit` |
 | `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `clean_threshold`, `abs_threshold`, `auto_threshold`, `nwlayers`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
@@ -903,7 +902,7 @@ Options:
       --days <DAYS>             Only fetch jobs from the past N days (1 to 30). Cannot be used with --date-from or --date-to, which select the jobs by date instead [default: 30]
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
-      --sort-by <SORT_BY>       The column to sort the jobs by, for example "id"
+      --sort-by <SORT_BY>       The column to sort the jobs by [possible values: id, created, completed]
   -h, --help                    Print help
   -V, --version                 Print version
 ```
@@ -923,11 +922,11 @@ Example output:
 
 ```bash
 giant-squid list --json
-{"325430":{"obs_id":1090528304,"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54.757232Z","first_name":"Jane","id":325430,"job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"},"job_state":"completed","job_type":1,"last_name":"Citizen","modified":"2026-09-08T06:00:00Z","product":{"files":[{"format":"tar","sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","size":10762878689,"type":"acacia","url":"https://..."}]},"started":"2026-09-08T05:42:10Z","user_id":4242}}
+{"325430":{"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54.757232Z","first_name":"Jane","job_id":325430,"job_params":{"obs_id":1090528304,"delivery":"acacia","delivery_format":"tar","download_type":"vis"},"job_state":"completed","job_type":"visibility","last_name":"Citizen","modified":"2026-09-08T06:00:00Z","obs_id":1090528304,"product":{"files":[{"format":"tar","sha1":"ca0e89e56cbeb05816dad853f5bab0b4075097da","size":10762878689,"type":"acacia","url":"https://..."}]},"started":"2026-09-08T05:42:10Z","user_id":4242}}
 ```
 
-The output is an object keyed by Job ID. Each job is the MWA ASVO API's `JobDetailResponse`, with one more
-key, `obs_id` (which the API has only in `job_params`): `id` (the Job ID), `job_type`, `job_state`, `product`,
+The output is an object keyed by Job ID. Each job is the MWA ASVO API's `JobDetailResponse`:
+`job_id`, `obs_id`, `job_type`, `job_state`, `product`,
 `created`, `started`, `completed`, `modified`, `error_code`, `error_text`, `user_id`, `first_name`, `last_name`
 and `job_params`. As in the API, a key that has no value is left out (for example `completed` for a job that
 is not finished). `product` is left out until the job has files; then its `files` list has, for each file, the keys of the API's
@@ -942,18 +941,9 @@ full list. For now, `--legacy-json` (on `list` and `wait`) prints the old format
 on stderr. It is deprecated and will be removed in a later release, so update scripts to the new
 keys.
 
-`job_type` is the MWA ASVO API's code for the job type, or `null` if the server gives none. The table
-and `--job-types` use the API's name for each code:
-
-| Code | Name |
-|---|---|
-| 0 | `conversion` |
-| 1 | `visibility` |
-| 2 | `metadata` |
-| 3 | `voltage` |
-| 4 | `cancel` |
-| 5 | `beamformer` |
-| 6 | `imaging` |
+`job_type` is the MWA ASVO API's name for the job type, one of `conversion`, `visibility`, `metadata`, `voltage`,
+`cancel`, `beamformer` or `imaging`, or `null` if the server gives none. The table and `--job-types` use the same
+names.
 
 `job_state` is the MWA ASVO API's value, one of `preparing`, `queued`, `waitcal`, `staging`, `staged`,
 `downloading`, `preprocessing`, `imaging`, `delivering`, `completed`, `error` or `cancelled`. A job is

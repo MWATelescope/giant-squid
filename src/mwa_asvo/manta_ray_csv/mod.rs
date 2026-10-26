@@ -47,24 +47,20 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::helpers::BYTE_ORDER_MARK;
-use crate::mwa_asvo::api::client::{
-    AsvoClient, ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_IMAGING_JOB, ENDPOINT_VOLTAGE_JOB,
-};
+use crate::mwa_asvo::api::client::{AsvoClient, ENDPOINT_CREATE_JOB};
 use crate::mwa_asvo::api::error::AsvoApiError;
 use crate::mwa_asvo::api::job_params::{
-    beamformer_params, conversion_params, download_params, imaging_params, set_channel_range,
-    voltage_params,
+    conversion_params, download_params, imaging_params, voltage_params,
 };
 use crate::mwa_asvo::api::openapi::{
-    BeamformerJobParams, BeamformerJobParamsMode, Centre, ConversionJobParams, Delivery,
-    DeliveryFormat, DownloadJobParams, DownloadType, ImagingJobFlow1Params, JobSubmittedResponse,
-    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, DownloadType,
+    ImageOutputMode, ImageWeighting, ImagingJobFlow1Params, JobSubmittedResponse, OutputFormat,
+    PhaseCentre, Polarization, VoltageJobParams,
 };
-use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
+use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::api::validate::{
-    self, validate_beamformer_params, validate_conversion_params, validate_download_params,
-    validate_imaging_params, validate_voltage_params,
+    self, validate_conversion_params, validate_download_params, validate_imaging_params,
+    validate_voltage_params,
 };
 use crate::obs_id::ObsId;
 
@@ -110,7 +106,7 @@ const KEY_VALUE_SEPARATOR: char = '=';
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CsvDefaults {
     /// The `delivery` of a line that has none.
-    pub delivery: Option<Delivery>,
+    pub delivery: Option<DeliveryDestination>,
     /// The `delivery_format` of a line that has none.
     pub delivery_format: Option<DeliveryFormat>,
     /// The `allow_resubmit` of a line that has none.
@@ -133,19 +129,16 @@ pub enum CsvJobParams {
     /// A voltage job (`job_type=v`).
     Voltage(VoltageJobParams),
     /// A beamformer job (`job_type=b`).
-    Beamformer(BeamformerJobParams),
+    ///
+    /// A download job like [`Self::Download`], with `download_type` `beam`.
+    Beamformer(DownloadJobParams),
 }
 
 impl CsvJobParams {
     /// The endpoint that the request goes to.
     pub fn endpoint(&self) -> &'static str {
-        match self {
-            Self::Conversion(_) => ENDPOINT_CONVERSION_JOB,
-            Self::Imaging(_) => ENDPOINT_IMAGING_JOB,
-            Self::Download(_) => ENDPOINT_DOWNLOAD_VIS_JOB,
-            Self::Voltage(_) => ENDPOINT_VOLTAGE_JOB,
-            Self::Beamformer(_) => ENDPOINT_BEAMFORMER_JOB,
-        }
+        // Every job of a file goes to the one endpoint that creates a job.
+        ENDPOINT_CREATE_JOB
     }
 
     /// The kind of job, in words: for example `conversion`.
@@ -172,7 +165,7 @@ impl CsvJobParams {
             Self::Imaging(p) => validate_imaging_params(p),
             Self::Download(p) => validate_download_params(p),
             Self::Voltage(p) => validate_voltage_params(p),
-            Self::Beamformer(p) => validate_beamformer_params(p),
+            Self::Beamformer(p) => validate_download_params(p),
         }
     }
 }
@@ -501,7 +494,10 @@ fn parse_line(
 /// both) from the line, or from `defaults`, or leave the schema's default.
 macro_rules! apply_delivery {
     ($row:expr, $defaults:expr, $params:expr) => {
-        if let Some(delivery) = $row.named::<Delivery>("delivery")?.or($defaults.delivery) {
+        if let Some(delivery) = $row
+            .named::<DeliveryDestination>("delivery")?
+            .or($defaults.delivery)
+        {
             $params.delivery = delivery;
         }
         if let Some(format) = $row
@@ -541,7 +537,7 @@ macro_rules! apply_preprocessing {
         if let Some(v) = $row.boolean("no_apply_amps")? {
             $params.no_apply_amps = v;
         }
-        if let Some(v) = $row.named::<Centre>("centre")? {
+        if let Some(v) = $row.named::<PhaseCentre>("centre")? {
             $params.centre = v;
         }
         if let Some(v) = $row.float("phase_centre_ra")? {
@@ -585,7 +581,7 @@ fn parse_conversion(
 ) -> Result<ConversionJobParams, String> {
     let mut params = conversion_params(obs_id);
     apply_delivery!(row, defaults, params);
-    if let Some(output) = row.named::<Output>("output")? {
+    if let Some(output) = row.named::<OutputFormat>("output")? {
         params.output = output;
     }
     apply_preprocessing!(row, params);
@@ -610,7 +606,7 @@ fn parse_imaging(
     if let Some(v) = row.float("pixel_scale")? {
         params.pixel_scale = v;
     }
-    if let Some(v) = row.named::<Weighting>("weighting")? {
+    if let Some(v) = row.named::<ImageWeighting>("weighting")? {
         params.weighting = v;
     }
     if let Some(v) = row.float("robust")? {
@@ -667,7 +663,7 @@ fn parse_imaging(
     if let Some(v) = row.named::<Polarization>("pol")? {
         params.pol = v;
     }
-    if let Some(v) = row.named::<OutputMode>("output_mode")? {
+    if let Some(v) = row.named::<ImageOutputMode>("output_mode")? {
         params.output_mode = v;
     }
     apply_resubmit!(row, defaults, params);
@@ -704,32 +700,12 @@ fn parse_beamformer(
     row: &mut Row,
     obs_id: ObsId,
     defaults: &CsvDefaults,
-) -> Result<BeamformerJobParams, String> {
-    let mut params = beamformer_params(obs_id);
+) -> Result<DownloadJobParams, String> {
+    let mut params = download_params(obs_id, DownloadType::Beam);
     apply_delivery!(row, defaults, params);
-    if let Some(mode) = row.text("mode") {
-        params.mode = Some(parse_beamformer_mode(&mode)?);
-    }
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("beamformer")?;
     Ok(params)
-}
-
-/// The `mode` of a beamformer job: the case, spaces, hyphens and underscores
-/// do not matter, as for the other named values.
-fn parse_beamformer_mode(text: &str) -> Result<BeamformerJobParamsMode, String> {
-    let modes = [
-        BeamformerJobParamsMode::MwaxBeamformer,
-        BeamformerJobParamsMode::MwaxCorrBf,
-    ];
-    let wanted = sanitize_identifier(text);
-    modes
-        .into_iter()
-        .find(|mode| sanitize_identifier(&mode.to_string()) == wanted)
-        .ok_or_else(|| {
-            let names: Vec<String> = modes.iter().map(ToString::to_string).collect();
-            format!("mode: `{text}` is not one of {}", names.join(", "))
-        })
 }
 
 fn parse_voltage(
@@ -740,24 +716,22 @@ fn parse_voltage(
     let offset = required(row.integer::<i64>("offset")?, "offset")?;
     let duration = required(row.integer::<u64>("duration")?, "duration")?;
     let mut params = voltage_params(obs_id, offset, duration);
-    // The delivery of a voltage job is text in the schema, and the only
-    // valid value is `scratch`: the server says so. Any other text is
-    // sent as it is.
+    // A voltage job is delivered to Scratch only: `validate` refuses any
+    // other delivery.
     if let Some(delivery) = row
-        .text("delivery")
-        .or_else(|| defaults.delivery.map(|d| d.to_string()))
+        .named::<DeliveryDestination>("delivery")?
+        .or(defaults.delivery)
     {
         params.delivery = delivery;
     }
     params.from_channel = row.integer::<u8>("from_channel")?;
     params.to_channel = row.integer::<u8>("to_channel")?;
     apply_resubmit!(row, defaults, params);
-    let channel_range = row.boolean("channel_range")?;
-    set_channel_range(&mut params);
-    // `channel_range` is derived from the channels. A file that gives it
-    // must give the value that the channels make.
-    if let Some(given) = channel_range {
-        let derived = params.channel_range.unwrap_or(false);
+    // `channel_range` is not in the schema any more (the API derives it
+    // from the channels), but manta-ray-client files have it. A file that
+    // gives it must give the value that the channels make; it is not sent.
+    if let Some(given) = row.boolean("channel_range")? {
+        let derived = params.from_channel.is_some() || params.to_channel.is_some();
         if given != derived {
             return Err(format!(
                 "channel_range={given} does not agree with from_channel and to_channel \
@@ -1008,7 +982,7 @@ impl AsvoClient {
             }
             CsvJobParams::Download(p) => self.submit_download_vis_job(p),
             CsvJobParams::Voltage(p) => self.submit_voltage_job(p),
-            CsvJobParams::Beamformer(p) => self.submit_beamformer_job(p),
+            CsvJobParams::Beamformer(p) => self.submit_download_beam_job(p),
         }
     }
 }

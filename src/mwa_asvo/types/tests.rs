@@ -30,36 +30,20 @@ fn test_created() -> jiff::Timestamp {
 /// The schema, for the checks of the job type names.
 const SCHEMA: &str = include_str!("../api/openapi-schema.json");
 
-/// The job type names are those that the schema gives the codes, in the
-/// description of `JobDetailResponse.job_type` ("0=conversion, 1=visibility,
-/// ..."), and every code of the schema's `JobType` has one.
+/// The job type names are the values of the schema's `JobType`, in its order.
 #[test]
-fn the_job_type_names_are_the_schema_names() {
+fn the_job_type_names_are_the_schema_values() {
     let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
-    let definitions = &schema["definitions"];
-    let description = definitions["JobDetailResponse"]["properties"]["job_type"]["description"]
-        .as_str()
-        .expect("job_type has a description");
-    let codes: Vec<i64> = definitions["JobType"]["enum"]
+    let values: Vec<&str> = schema["definitions"]["JobType"]["enum"]
         .as_array()
-        .expect("JobType is an enum of codes")
+        .expect("JobType is an enum")
         .iter()
-        .map(|code| code.as_i64().expect("a code is an integer"))
+        .map(|value| value.as_str().expect("a JobType value is text"))
         .collect();
-
-    let names = JobType::names();
-    assert_eq!(names.len(), codes.len());
-    for code in codes {
-        let job_type = JobType::try_from(code).expect("a schema code is a JobType");
-        let in_schema = format!("{code}={}", job_type.name());
-        assert!(
-            description.contains(&in_schema),
-            "{in_schema} is not in the schema's description: {description}"
-        );
-    }
+    assert_eq!(JobType::names(), values);
 }
 
-/// The names are listed in the order of their codes.
+/// The names are listed in the schema's order.
 #[test]
 fn the_job_type_names_are_listed_in_order() {
     assert_eq!(
@@ -81,7 +65,6 @@ fn the_job_type_names_are_listed_in_order() {
 fn a_job_type_is_parsed_from_its_name() {
     for name in JobType::names() {
         let job_type = JobType::parse_name(&name).expect("a listed name should parse");
-        assert_eq!(job_type.name(), name);
         assert_eq!(job_type.to_string(), name);
     }
     assert_eq!(
@@ -177,7 +160,8 @@ fn job(job_id: AsvoJobId, state: JobState) -> AsvoJob {
     crate::test_config::asvo_job(
         ObsId::validate(OBS_ID).expect("the test obsid should be valid"),
         JobDetailResponse {
-            id: i64::try_from(job_id.get()).expect("a test job ID fits in i64"),
+            job_id,
+            obs_id: 0,
             job_type: Some(job_type("visibility")),
             job_state: state,
             product: None,
@@ -320,7 +304,8 @@ fn job_with(job_id: AsvoJobId, obs_id: u64, job_type: JobType, state: JobState) 
     crate::test_config::asvo_job(
         ObsId::validate(obs_id).expect("the test obsid should be valid"),
         JobDetailResponse {
-            id: i64::try_from(job_id.get()).expect("a test job ID fits in i64"),
+            job_id,
+            obs_id: 0,
             job_type: Some(job_type),
             job_state: state,
             product: None,
@@ -435,7 +420,7 @@ fn the_json_output_keys_are_the_openapi_names() {
         [
             "created",
             "first_name",
-            "id",
+            "job_id",
             "job_params",
             "job_state",
             "job_type",
@@ -455,32 +440,6 @@ fn the_json_output_keys_are_the_openapi_names() {
     // `format`), as the schema does.
     assert_eq!(file_keys, ["sha1", "size", "type", "url"]);
     assert_eq!(entry["product"]["files"][0]["type"], "acacia");
-}
-
-/// Each named code of a job type is the code of the type with that name, and
-/// the named codes are all the codes (so a match on them is complete).
-#[test]
-fn the_job_type_codes_have_the_names_of_the_schema() {
-    use crate::mwa_asvo::types::{
-        JOB_TYPE_CODE_BEAMFORMER, JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_CONVERSION,
-        JOB_TYPE_CODE_IMAGING, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VISIBILITY,
-        JOB_TYPE_CODE_VOLTAGE,
-    };
-
-    let codes = [
-        (JOB_TYPE_CODE_CONVERSION, "conversion"),
-        (JOB_TYPE_CODE_VISIBILITY, "visibility"),
-        (JOB_TYPE_CODE_METADATA, "metadata"),
-        (JOB_TYPE_CODE_VOLTAGE, "voltage"),
-        (JOB_TYPE_CODE_CANCEL, "cancel"),
-        (JOB_TYPE_CODE_BEAMFORMER, "beamformer"),
-        (JOB_TYPE_CODE_IMAGING, "imaging"),
-    ];
-    for (code, name) in codes {
-        let job_type = JobType::try_from(code).expect("a named code is a JobType");
-        assert_eq!(job_type.name(), name, "code {code}");
-    }
-    assert_eq!(codes.len(), JobType::names().len());
 }
 
 // ---------------------------------------------------------------------------

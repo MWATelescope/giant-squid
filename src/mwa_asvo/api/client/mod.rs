@@ -33,16 +33,15 @@ use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
-use super::job_params::set_channel_range;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, BeamformerJobParams, ConversionJobParams, DownloadJobParams,
-    DownloadType, ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    JobCancelledResponse, JobDetailResponse, JobState, JobSubmittedResponse, JobType,
-    JobsByUserRequest, Login, TokenResponse, UserResponse, VoltageJobParams,
+    ApiLoginRequest, ApiLoginResponse, ConversionJobParams, DownloadJobParams, DownloadType,
+    ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobCancelledResponse,
+    JobDetailResponse, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy,
+    TokenResponse, UserResponse, VoltageJobParams,
 };
 use super::validate::{
-    self, validate_beamformer_params, validate_conversion_params, validate_download_params,
-    validate_image_from_job_params, validate_imaging_params, validate_voltage_params,
+    self, validate_conversion_params, validate_download_params, validate_image_from_job_params,
+    validate_imaging_params, validate_voltage_params,
 };
 
 /// The production MWA ASVO host. Callers that do not need a different
@@ -78,26 +77,25 @@ macro_rules! api_path {
 }
 
 /// Where the MWA ASVO serves its API: the schema's paths (for example
-/// `/v2/get_jobs`) are under this prefix, which the schema does not give
+/// `/v2/jobs/list`) are under this prefix, which the schema does not give
 /// (the API is mounted there behind the web server).
 pub const API_PREFIX: &str = api_path!("");
 
 // The MWA ASVO API endpoints this client uses: the schema's paths, under
 // `API_PREFIX`. The login, refresh and job list endpoints are used only
 // here.
-const ENDPOINT_API_LOGIN: &str = api_path!("/v2/api_login");
-const ENDPOINT_REFRESH: &str = api_path!("/v2/refresh");
-const ENDPOINT_GET_JOBS: &str = api_path!("/v2/get_jobs");
+const ENDPOINT_API_LOGIN: &str = api_path!("/v2/auth/api_login");
+const ENDPOINT_REFRESH: &str = api_path!("/v2/auth/refresh");
+const ENDPOINT_LIST_JOBS: &str = api_path!("/v2/jobs/list");
 // The job and submission endpoints are public, so that the CLI can name the
 // endpoint that a `--dry-run` submission or cancellation would go to,
 // without a copy of the path.
 pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
-pub const ENDPOINT_CONVERSION_JOB: &str = api_path!("/v2/conversion_job");
-pub const ENDPOINT_DOWNLOAD_VIS_JOB: &str = api_path!("/v2/download_vis_job");
-pub const ENDPOINT_VOLTAGE_JOB: &str = api_path!("/v2/voltage_job");
-pub const ENDPOINT_BEAMFORMER_JOB: &str = api_path!("/v2/beamformer_job");
-pub const ENDPOINT_IMAGING_JOB: &str = api_path!("/v2/imaging_job");
-pub const ENDPOINT_IMAGE_FROM_JOB: &str = api_path!("/v2/image_from_job");
+// The one endpoint that creates a job of any type except an image from a job
+// (the server takes the job type from the body), and the endpoint that
+// creates an image from a job.
+pub const ENDPOINT_CREATE_JOB: &str = api_path!("/v2/jobs/create");
+pub const ENDPOINT_IMAGE_JOB: &str = api_path!("/v2/jobs/image");
 
 /// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
 ///
@@ -797,17 +795,15 @@ impl AsvoClient {
                 builder = builder.days(days);
             }
             if let Some(sort_by) = &filter.sort_by {
-                builder = builder.sort_by(sort_by.clone());
+                builder = builder.sort_by(*sort_by);
             }
             let request: JobsByUserRequest = builder.try_into()?;
 
-            // The job list is a POST to /api/v2/get_jobs. (The schema's
-            // description of `JobsByUserRequest` says /job_history, which is
-            // stale.)
+            // The job list is a POST to /api/v2/jobs/list.
             let host = &self.config.host;
             let body = self.send_authed(|client| {
                 client
-                    .post(format!("{host}{ENDPOINT_GET_JOBS}"))
+                    .post(format!("{host}{ENDPOINT_LIST_JOBS}"))
                     .json(&request)
             })?;
             // Not parsed as `JobsByUserResponse` at once: since schema
@@ -910,7 +906,7 @@ impl AsvoClient {
         validate_imaging_params(params)?;
         debug!("Submitting an imaging job to MWA ASVO");
 
-        self.submit(ENDPOINT_IMAGING_JOB, params)
+        self.submit(ENDPOINT_CREATE_JOB, params)
     }
 
     /// Submit an MWA ASVO imaging job (flow 2: from a conversion job).
@@ -926,7 +922,7 @@ impl AsvoClient {
         validate_image_from_job_params(params)?;
         debug!("Submitting an image-from-job job to MWA ASVO");
 
-        self.submit(ENDPOINT_IMAGE_FROM_JOB, params)
+        self.submit(ENDPOINT_IMAGE_JOB, params)
     }
 
     /// Submit a visibility download job. Any `download_type` in `params` is
@@ -947,9 +943,19 @@ impl AsvoClient {
         self.submit_download_job(params, DownloadType::Meta)
     }
 
-    /// Submit a download job of `download_type`. Visibility and metadata
-    /// jobs use the same endpoint and request body; the server uses the
-    /// body's `download_type` to decide which kind of job to create.
+    /// Submit a beamformer download job. Any `download_type` in `params` is
+    /// replaced with `beam`, so this always submits a beamformer job.
+    pub fn submit_download_beam_job(
+        &self,
+        params: &DownloadJobParams,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        self.submit_download_job(params, DownloadType::Beam)
+    }
+
+    /// Submit a download job of `download_type`. Visibility, metadata and
+    /// beamformer jobs use the same endpoint and request body; the server
+    /// uses the body's `download_type` to decide which kind of job to
+    /// create.
     ///
     /// The delivery and its format are checked first
     /// ([`validate_download_params`]); nothing is sent if they do not agree,
@@ -965,7 +971,7 @@ impl AsvoClient {
         let mut params = params.clone();
         params.download_type = download_type;
 
-        self.submit(ENDPOINT_DOWNLOAD_VIS_JOB, &params)
+        self.submit(ENDPOINT_CREATE_JOB, &params)
     }
 
     /// Submit an MWA ASVO conversion job.
@@ -982,18 +988,15 @@ impl AsvoClient {
         validate_conversion_params(params)?;
         debug!("Submitting a conversion job to MWA ASVO");
 
-        self.submit(ENDPOINT_CONVERSION_JOB, params)
+        self.submit(ENDPOINT_CREATE_JOB, params)
     }
 
     /// Submit an MWA ASVO voltage download job.
     ///
-    /// `params.offset` is checked against the schema's limits first
-    /// ([`validate_voltage_params`]); nothing is sent if it is out of range,
-    /// and the error is [`AsvoApiError::InvalidParameter`].
-    ///
-    /// `channel_range` is derived, not taken from `params`: it is sent as
-    /// `true` when `from_channel` or `to_channel` is set, and as `false`
-    /// when neither is (the API needs it until it removes the field).
+    /// `params` is checked first ([`validate_voltage_params`]): the
+    /// delivery must be Scratch and the delivery format files, and
+    /// `params.offset` must be within the schema's limits. Nothing is sent
+    /// if one is wrong, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_voltage_job(
         &self,
         params: &VoltageJobParams,
@@ -1001,26 +1004,7 @@ impl AsvoClient {
         validate_voltage_params(params)?;
         debug!("Submitting a voltage job to MWA ASVO");
 
-        let mut params = params.clone();
-        set_channel_range(&mut params);
-
-        self.submit(ENDPOINT_VOLTAGE_JOB, &params)
-    }
-
-    /// Submit an MWA ASVO beamformer download job.
-    ///
-    /// The schema gives the beamformer request body no numeric limits, so
-    /// only the delivery and its format are checked before the request is
-    /// sent ([`validate_beamformer_params`]); nothing is sent if they do not
-    /// agree, and the error is [`AsvoApiError::InvalidParameter`].
-    pub fn submit_beamformer_job(
-        &self,
-        params: &BeamformerJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_beamformer_params(params)?;
-        debug!("Submitting a beamformer job to MWA ASVO");
-
-        self.submit(ENDPOINT_BEAMFORMER_JOB, params)
+        self.submit(ENDPOINT_CREATE_JOB, params)
     }
 
     /// POST the job submission `params` to `endpoint`, and parse the reply.
@@ -1139,7 +1123,7 @@ pub struct JobsFilter {
     /// Only the jobs created at or before this time.
     pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
-    pub sort_by: Option<String>,
+    pub sort_by: Option<SortBy>,
     /// Only these jobs. Cannot be combined with `obs_ids`.
     pub job_ids: Vec<AsvoJobId>,
     /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.

@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use log::debug;
 
-use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
+use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::manta_ray_csv::CsvDefaults;
 use crate::mwa_asvo::{
@@ -244,7 +244,7 @@ impl CsvDefaults {
     /// As [`Self::from_env`], reading the variables with `get`.
     fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, AsvoError> {
         Ok(Self {
-            delivery: named_value::<Delivery>(&get, ENV_GIANT_SQUID_DELIVERY)?,
+            delivery: named_value::<DeliveryDestination>(&get, ENV_GIANT_SQUID_DELIVERY)?,
             delivery_format: named_value::<DeliveryFormat>(&get, ENV_GIANT_SQUID_DELIVERY_FORMAT)?,
             allow_resubmit: None,
         })

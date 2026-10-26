@@ -43,8 +43,8 @@ DELIVERY_METHODS = [
     ("submit_download_meta_job", DOWNLOAD_PATH, (TEST_OBS_ID,)),
     ("submit_conversion_job", CONVERSION_PATH, (TEST_OBS_ID,)),
     ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,)),
-    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (TEST_OBS_ID, SOURCE_JOB_ID)),
-    ("submit_beamformer_job", BEAMFORMER_PATH, (TEST_OBS_ID,)),
+    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,)),
+    ("submit_download_beam_job", BEAMFORMER_PATH, (TEST_OBS_ID,)),
 ]
 
 
@@ -91,7 +91,7 @@ def test_acacia_with_files_is_refused_before_any_request(
     submitted(httpserver, path)
     submit: Callable[..., Any] = getattr(client, method)
 
-    for delivery in ({}, {"delivery": gs.Delivery.Acacia}):
+    for delivery in ({}, {"delivery": gs.DeliveryDestination.Acacia}):
         with pytest.raises(ValueError, match="delivery_format: must be tar when delivery is acacia"):
             submit(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
     assert requests_to(httpserver, path) == []
@@ -113,11 +113,11 @@ def test_the_other_deliveries_and_formats_are_sent(
     submitted(httpserver, path)
     submit: Callable[..., Any] = getattr(client, method)
     combinations = [
-        (gs.Delivery.Acacia, gs.DeliveryFormat.Tar),
-        (gs.Delivery.Scratch, gs.DeliveryFormat.Files),
-        (gs.Delivery.Scratch, gs.DeliveryFormat.Tar),
-        (gs.Delivery.Dug, gs.DeliveryFormat.Files),
-        (gs.Delivery.Dug, gs.DeliveryFormat.Tar),
+        (gs.DeliveryDestination.Acacia, gs.DeliveryFormat.Tar),
+        (gs.DeliveryDestination.Scratch, gs.DeliveryFormat.Files),
+        (gs.DeliveryDestination.Scratch, gs.DeliveryFormat.Tar),
+        (gs.DeliveryDestination.Dug, gs.DeliveryFormat.Files),
+        (gs.DeliveryDestination.Dug, gs.DeliveryFormat.Tar),
     ]
     for delivery, delivery_format in combinations:
         submit(*args, delivery=delivery, delivery_format=delivery_format)

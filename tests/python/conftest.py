@@ -19,15 +19,15 @@ TEST_USER_EMAIL = "test_user@example.org"
 TEST_OBS_ID = 1065880128
 
 # The MWA ASVO endpoints the mock serves.
-LOGIN_PATH = "/api/v2/api_login"
-GET_JOBS_PATH = "/api/v2/get_jobs"
+LOGIN_PATH = "/api/v2/auth/api_login"
+GET_JOBS_PATH = "/api/v2/jobs/list"
 
 # Token lifetimes, in seconds.
 ACCESS_TOKEN_LIFETIME = 3600
 REFRESH_TOKEN_LIFETIME = 86400
 
-# The server's job_type number for a visibility download.
-JOB_TYPE_DOWNLOAD_VISIBILITIES = 1
+# The server's job_type for a visibility download.
+JOB_TYPE_DOWNLOAD_VISIBILITIES = "visibility"
 
 
 def jwt_expiring_in(seconds: int) -> str:
@@ -75,8 +75,9 @@ def job_detail(job_id: int, job_state: str, **extra: Any) -> dict[str, Any]:
     job = {
         "created": "2026-09-08T05:41:54.757232",
         "first_name": "Test",
-        "id": job_id,
+        "job_id": job_id,
         "job_params": {"obs_id": str(TEST_OBS_ID), "delivery": "acacia"},
+        "obs_id": TEST_OBS_ID,
         "job_state": job_state,
         "job_type": JOB_TYPE_DOWNLOAD_VISIBILITIES,
         "last_name": "User",

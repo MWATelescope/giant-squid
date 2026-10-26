@@ -30,7 +30,7 @@ use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
-use crate::mwa_asvo::{JobState, JobType};
+use crate::mwa_asvo::{JobState, JobType, SortBy};
 use params::{
     list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
     DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
@@ -170,9 +170,9 @@ pub enum Args {
         #[arg(long, value_parser = parse_utc_time)]
         date_to: Option<Timestamp>,
 
-        /// The column to sort the jobs by, for example "id".
-        #[arg(long)]
-        sort_by: Option<String>,
+        /// The column to sort the jobs by.
+        #[arg(long, value_parser = SchemaEnumParser::<SortBy>::new())]
+        sort_by: Option<SortBy>,
 
         /// Job IDs or Obs IDs to filter by. Files containing Job IDs or
         /// Obs IDs are also accepted.
@@ -305,11 +305,6 @@ pub enum Args {
 
         #[command(flatten)]
         submit: SubmitOptions,
-
-        /// The Obs ID to image. Exactly one Obs ID is required (the
-        /// source_job_id identifies the conversion job for this Obs ID).
-        #[arg(id = "OBS_ID")]
-        obs_ids: Vec<String>,
     },
 
     /// Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs

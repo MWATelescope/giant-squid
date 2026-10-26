@@ -16,8 +16,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use super::openapi::{
-    Centre, Delivery, DeliveryFormat, JobState, Output, OutputMode, Polarization, Status, Type,
-    Weighting,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobState, JobType,
+    OutputFormat, PhaseCentre, Polarization, SortBy, Status, Type,
 };
 
 /// An enum of the OpenAPI schema, with the list of all its values.
@@ -61,12 +61,12 @@ pub(crate) fn sanitize_identifier(s: &str) -> String {
 macro_rules! for_each_schema_enum {
     ($callback:ident) => {
         $callback!(
-            Delivery,
-            PyDelivery,
-            "Delivery",
+            DeliveryDestination,
+            PyDeliveryDestination,
+            "DeliveryDestination",
             "Where the MWA ASVO delivers a job's files: the OpenAPI schema's\n\
-             `Delivery`, the `delivery` argument of the submit methods. `str()` is\n\
-             the API value.",
+             `DeliveryDestination`, the `delivery` argument of the submit methods.\n\
+             `str()` is the API value.",
             [Acacia, Scratch, Dug]
         );
         $callback!(
@@ -86,31 +86,31 @@ macro_rules! for_each_schema_enum {
             [Tar, Files]
         );
         $callback!(
-            Output,
-            PyOutput,
-            "Output",
+            OutputFormat,
+            PyOutputFormat,
+            "OutputFormat",
             "The format of a conversion job's output. `str()` is the API value.",
             [Ms, Uvfits]
         );
         $callback!(
-            Centre,
-            PyCentre,
-            "Centre",
+            PhaseCentre,
+            PyPhaseCentre,
+            "PhaseCentre",
             "Where to put the phase centre of a conversion job or an imaging job.\n\
              `str()` is the API value.",
             [Phase, Pointing, Custom]
         );
         $callback!(
-            OutputMode,
-            PyOutputMode,
-            "OutputMode",
+            ImageOutputMode,
+            PyImageOutputMode,
+            "ImageOutputMode",
             "The products an imaging job returns. `str()` is the API value.",
             [Fits, AllFits, AllFiles]
         );
         $callback!(
-            Weighting,
-            PyWeighting,
-            "Weighting",
+            ImageWeighting,
+            PyImageWeighting,
+            "ImageWeighting",
             "The WSClean weighting scheme of an imaging job. `str()` is the API\n\
              value.",
             [Briggs, Uniform, Natural]
@@ -143,6 +143,22 @@ macro_rules! for_each_schema_enum {
                 Error,
                 Cancelled
             ]
+        );
+        $callback!(
+            JobType,
+            PyJobType,
+            "JobType",
+            "The type of an MWA ASVO job: the OpenAPI schema's `JobType`. `str()` is\n\
+             the API value (for example \"visibility\").",
+            [Conversion, Visibility, Metadata, Voltage, Cancel, Beamformer, Imaging]
+        );
+        $callback!(
+            SortBy,
+            PySortBy,
+            "SortBy",
+            "The column to sort a job list by: the OpenAPI schema's `SortBy`. `str()`\n\
+             is the API value.",
+            [Id, Created, Completed]
         );
         $callback!(
             Status,

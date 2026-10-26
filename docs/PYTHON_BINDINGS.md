@@ -66,14 +66,14 @@ release tag or by hand),
   has a hand-written `text_signature`, because pyo3 writes only literal
   defaults in a run-time signature and `help()` must show the defaults. Python
   accepts only literals there, so an enum default is its quoted name
-  (`'Delivery.Acacia'`). `tests/python/test_signatures.py` checks the text
+  (`'DeliveryDestination.Acacia'`). `tests/python/test_signatures.py` checks the text
   signatures against the schema, and the six methods with an enum default are
   in `tools/stubtest_allowlist.txt` (the stub has the member, the run-time
   signature the name).
 - **The OpenAPI schema dictates the library.** Defaults, names, limits and
   types come from the schema. Where a schema type exists, the library uses
   it instead of a copy of its own (`JobState`, `JobType`, `JobDetailResponse`
-  inside `AsvoJob`, `JobFile`, `JobProduct`, `Delivery`, `Type`,
+  inside `AsvoJob`, `JobFile`, `JobProduct`, `DeliveryDestination`, `Type`,
   `JobSubmittedResponse`, `JobCancelledResponse`, `Status`). A wrong schema is
   fixed in the API, not worked around in giant-squid. The library may do
   more than the API (for example the downloads).
@@ -141,25 +141,25 @@ release tag or by hand),
 
 Sent by the user (October 2026), not fixed yet:
 
-- `JobFile.type` uses its own enum `Type`; it should use `Delivery` (the
+- `JobFile.type` uses its own enum `Type`; it should use `DeliveryDestination` (the
   members are the same). Python has `mwa_giant_squid.Type` until then.
-- The Job ID is `id` (`i64`) in `JobDetailResponse` and `QueuedJob`, but
-  `job_id` (`NonZeroU64`) in the responses; `CalibrationReadyCallback` has
-  `asvo_job_id`.
-- Voltage jobs: `delivery` (always scratch), `delivery_format` (always
-  files) and `channel_range` (only "from/to channel given") are redundant,
-  and `delivery`/`delivery_format` are free `String`s.
-  `AsvoClient::submit_voltage_job` derives `channel_range` until then.
-- `ImagingJobFlow2Params.obs_id` is not needed (the source job has it).
-- `obs_id` should be a typed field of `JobDetailResponse`; it is only in the
-  untyped `job_params`, as a number or a string (`AsvoJob::try_from` reads
-  both).
-- Stale description: `JobsByUserRequest` says "/job_history" (the endpoint
-  is `/v2/get_jobs`).
+- Schema 2.5.0 removed `channel_range`, made `job_id` and `obs_id` typed
+  fields of `JobDetailResponse` and made `ImagingJobFlow2Params.obs_id`
+  optional (the library leaves it out). Still open:
+- Voltage jobs: `delivery` (always scratch) and `delivery_format` (always
+  files) are redundant, and are now the shared `DeliveryDestination` and
+  `DeliveryFormat` enums, so the schema no longer shows that only one value
+  works. `AsvoClient::submit_voltage_job` refuses any other value.
+- `CancelJobParams` (in the body of `POST /v2/jobs/create`) has the fields
+  of `DownloadJobParams` without `download_type`. Every other body type has
+  all its fields, and no schema sets `additionalProperties: false`, so the
+  server may not be able to tell the six body types apart. (The user is
+  discussing it with the API developer.)
+- `CalibrationReadyCallback` has `asvo_job_id`.
 
 Not yet raised:
 
-- The schema's paths have no `/api` prefix (for example `/v2/get_jobs`), but
+- The schema's paths have no `/api` prefix (for example `/v2/jobs/list`), but
   the API is served at `/api/v2/...`. FastAPI's `root_path` would put the
   prefix in the schema's `servers`; until then the client has it as
   `API_PREFIX`.

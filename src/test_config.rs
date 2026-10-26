@@ -27,9 +27,11 @@ pub fn job_type(name: &str) -> JobType {
     JobType::parse_name(name).expect("a test job type should be a schema name")
 }
 
-/// A job for the tests: `detail`, with `obs_id` put in its `job_params`
-/// (where the API has it), checked as a job from the API is.
+/// A job for the tests: `detail`, with `obs_id` set as its `obs_id` (and put
+/// in its `job_params`, where the API has it too), checked as a job from the
+/// API is.
 pub fn asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> AsvoJob {
+    detail.obs_id = i64::from(obs_id);
     detail
         .job_params
         .insert("obs_id".to_string(), serde_json::json!(u64::from(obs_id)));

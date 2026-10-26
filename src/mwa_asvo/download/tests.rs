@@ -150,7 +150,7 @@ fn downloading_an_unknown_job_id_is_reported() {
 fn a_failed_job_listing_is_reported_as_an_api_error() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(500)
             .header("content-type", "application/json")
             .json_body(error_response("INTERNAL_ERROR", "the job list failed"));
@@ -1199,7 +1199,8 @@ mod retries {
             ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
                 .expect("the test obsid should be valid"),
             JobDetailResponse {
-                id: i64::try_from(TEST_JOB_ID).expect("a test job ID fits in i64"),
+                job_id: crate::AsvoJobId::new(TEST_JOB_ID).expect("a test job ID is not zero"),
+                obs_id: 0,
                 job_type: Some(job_type("visibility")),
                 job_state: JobState::Completed,
                 product: None,
@@ -3245,7 +3246,7 @@ fn job_directory_name() -> String {
 /// A completed job `job_id` of the test observation, with one Acacia file.
 fn ready_job_with_id(job_id: i64, url: &str, size: u64, sha1: &str) -> Value {
     let mut detail = ready_job_serving(url, size, sha1);
-    detail["id"] = json!(job_id);
+    detail["job_id"] = json!(job_id);
     detail
 }
 

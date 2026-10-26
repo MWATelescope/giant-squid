@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             "{:>10}  {:>10}  {:<24}  {}",
             job.job_id(),
             job.obs_id(),
-            job.job_type.map(|t| t.name()).unwrap_or_default(),
+            job.job_type.map(|t| t.to_string()).unwrap_or_default(),
             job.job_state
         );
     }

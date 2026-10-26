@@ -120,11 +120,12 @@ giant-squid submit-image 12345 --parameters=image_size=2048,multiscale=true
 
 # 3.0.0
 giant-squid submit-image 1065880128 --image-size 2048 --multiscale
-giant-squid submit-image-from-job --source-job-id 12345 1065880128 --image-size 2048 --multiscale
+giant-squid submit-image-from-job --source-job-id 12345 --image-size 2048 --multiscale
 ```
 
-`submit-image-from-job` (alias `sifj`) needs the conversion job's Obs ID as
-well as its Job ID. As in 2.x, the conversion job must have made a CASA
+`submit-image-from-job` (alias `sifj`) needs only the conversion job's Job ID,
+as `--source-job-id`: it takes no Obs ID, because the MWA ASVO takes the Obs ID
+from the conversion job. As in 2.x, the conversion job must have made a CASA
 measurement set, delivered to Acacia or Scratch.
 
 The imaging defaults are now the API's. Most are as in
@@ -155,7 +156,12 @@ options as in 2.x. The default delivery format is now `tar` for every job
 except voltage jobs, whatever the delivery: in 2.x a Scratch or DUG delivery
 gave individual files unless you asked for `tar`. Add `--delivery-format files`
 to get the individual files. `submit-volt --offset` must now be from 0 to 5400, and a
-negative value (`--offset -1`) is rejected with that range.
+negative value (`--offset -1`) is rejected with that range. A voltage job is
+delivered to Scratch as files: `submit-volt` keeps `--delivery` and
+`--delivery-format`, but the library refuses any other value before it sends
+the request. `submit-volt` also takes `-f` for `--delivery-format`, as the
+other submit commands do. `submit-bf` is a download job of the MWA ASVO
+API with `download_type` `beam`, so it has no beamformer `mode`.
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
@@ -237,20 +243,19 @@ The other states have the same names, in lower case in the JSON (for
 example `queued`). `preparing` and `imaging` are new. The names are still
 case insensitive. `giant-squid list --help` lists them.
 
-**The job type names are the API's.** The MWA ASVO API gives each job type a
-code and a name. `--job-types` takes the names, and the table shows them. The
-JSON shows the code:
+**The job type names are the API's.** `--job-types` takes the names of the MWA
+ASVO API's `JobType`, the table shows them, and so does the JSON:
 
-| 2.x name | 2.x JSON | 3.0.0 name | 3.0.0 JSON |
-|---|---|---|---|
-| `conversion` | `Conversion` | `conversion` | `0` |
-| `download_visibilities` | `DownloadVisibilities` | `visibility` | `1` |
-| `download_metadata` | `DownloadMetadata` | `metadata` | `2` |
-| `download_voltages` | `DownloadVoltage` | `voltage` | `3` |
-| `cancel_job` | `CancelJob` | `cancel` | `4` |
-| `download_beamformer` | `DownloadBeamformer` | `beamformer` | `5` |
-| `imaging` | `Imaging` | `imaging` | `6` |
-| none | `Unknown` | none | `null` (the server gave no type) |
+| 2.x name | 2.x JSON | 3.0.0 name and JSON |
+|---|---|---|
+| `conversion` | `Conversion` | `conversion` |
+| `download_visibilities` | `DownloadVisibilities` | `visibility` |
+| `download_metadata` | `DownloadMetadata` | `metadata` |
+| `download_voltages` | `DownloadVoltage` | `voltage` |
+| `cancel_job` | `CancelJob` | `cancel` |
+| `download_beamformer` | `DownloadBeamformer` | `beamformer` |
+| `imaging` | `Imaging` | `imaging` |
+| none | `Unknown` | none: `null` (the server gave no type) |
 
 `--job-types` now refuses text that is not a job type, with an error that
 names it. This includes the 2.x names. In 2.x any other text (a misspelt name,
@@ -306,7 +311,7 @@ more of them:
 | 2.x key | 3.0.0 key |
 |---|---|
 | `obsid` | `obs_id` |
-| `jobId` | `id` (the API's name in a job's details) |
+| `jobId` | `job_id` (the API's name in a job's details) |
 | `jobType` | `job_type` |
 | `jobState` | `job_state` |
 | `files` | `product.files` (the file list is inside `product`) |
@@ -319,8 +324,8 @@ more of them:
 New keys: `completed`, `created`, `started`, `modified`, `error_code`, `error_text`, `user_id`,
 `first_name`, `last_name`, `job_params`, and `format` for each file. The
 value of `job_state` is the API's (for example `completed`, see the table in
-the previous section). The value of `job_type` is the API's code (for example
-`1` for a visibility download). A file's `type` is the API's value
+the previous section). The value of `job_type` is the API's name (for example
+`visibility` for a visibility download). A file's `type` is the API's value
 (`acacia`, `scratch` or `dug`; in 2.x `Acacia` and so on). As in the API, a
 key that has no value is left out, for a job and for a file (in 2.x it was
 `null`): for example `completed` for a job that is not finished. Use `//` in
@@ -335,7 +340,7 @@ giant-squid list --json --types download_visibilities --states ready \
 
 # 3.0.0
 giant-squid list --json --job-types visibility --job-states completed \
-  | jq -r '.[]|[.id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
+  | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv'
 ```
 
 For now, `--legacy-json` (on `list` and `wait`, in place of `--json`)

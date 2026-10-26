@@ -140,29 +140,29 @@ impl TestEnv {
         serde_json::from_str(&contents).ok()
     }
 
-    /// Serve `POST /api/v2/api_login` with a successful login response.
+    /// Serve `POST /api/v2/auth/api_login` with a successful login response.
     pub fn mock_login(&self) -> Mock<'_> {
         self.server.mock(|when, then| {
-            when.method(POST).path("/api/v2/api_login");
+            when.method(POST).path("/api/v2/auth/api_login");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(login_response());
         })
     }
 
-    /// Serve `POST /api/v2/api_login` with a failure.
+    /// Serve `POST /api/v2/auth/api_login` with a failure.
     pub fn mock_login_failure(&self, status: u16, body: &str) -> Mock<'_> {
         self.server.mock(|when, then| {
-            when.method(POST).path("/api/v2/api_login");
+            when.method(POST).path("/api/v2/auth/api_login");
             then.status(status).body(body);
         })
     }
 
-    /// Serve `POST /api/v2/get_jobs` with one page of jobs.
+    /// Serve `POST /api/v2/jobs/list` with one page of jobs.
     pub fn mock_get_jobs(&self, jobs: Vec<Value>) -> Mock<'_> {
         let total_count = jobs.len();
         self.server.mock(|when, then| {
-            when.method(POST).path("/api/v2/get_jobs");
+            when.method(POST).path("/api/v2/jobs/list");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(json!({ "jobs": jobs, "total_count": total_count }));
@@ -280,20 +280,35 @@ pub fn job_submitted_response(job_id: u64) -> Value {
     })
 }
 
-/// One entry of a `get_jobs` page.
+/// The values of the schema's `JobType`, in its order: `job_detail` takes
+/// the index of one.
+const JOB_TYPE_VALUES: [&str; 7] = [
+    "conversion",
+    "visibility",
+    "metadata",
+    "voltage",
+    "cancel",
+    "beamformer",
+    "imaging",
+];
+
+/// One entry of a job list page. `job_type` is the index of the job type in
+/// the schema's `JobType` (0 is `conversion`, 1 is `visibility`, and so on).
 ///
 /// The timestamps are deliberately naive (no `Z`) and `modified` is
 /// omitted entirely, which is what the real server sends - the client
 /// normalises both before deserialising.
-pub fn job_detail(id: i64, obs_id: &str, job_state: &str, job_type: i64) -> Value {
+pub fn job_detail(job_id: i64, obs_id: &str, job_state: &str, job_type: usize) -> Value {
+    let obs_id_number: i64 = obs_id.parse().expect("a test Obs ID is a number");
     json!({
         "created": "2026-09-08T05:41:54.757232",
         "first_name": "Test",
-        "id": id,
+        "job_id": job_id,
         "job_params": { "obs_id": obs_id, "delivery": "acacia" },
         "job_state": job_state,
-        "job_type": job_type,
+        "job_type": JOB_TYPE_VALUES[job_type],
         "last_name": "User",
+        "obs_id": obs_id_number,
         "user_id": TEST_USER_ID,
     })
 }

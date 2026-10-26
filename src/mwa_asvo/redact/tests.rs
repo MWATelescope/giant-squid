@@ -56,9 +56,9 @@ fn an_empty_query_value_stays_empty() {
 
 #[test]
 fn a_url_without_a_query_is_unchanged() {
-    let redacted = redact_url("https://asvo.example.org/api/v2/get_jobs");
+    let redacted = redact_url("https://asvo.example.org/api/v2/jobs/list");
 
-    assert_eq!(redacted, "https://asvo.example.org/api/v2/get_jobs");
+    assert_eq!(redacted, "https://asvo.example.org/api/v2/jobs/list");
 }
 
 #[test]

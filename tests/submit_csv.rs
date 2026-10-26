@@ -22,12 +22,12 @@ const CSV_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/files/manta-ra
 
 /// The six files, and the endpoint that the jobs of each file go to.
 const FILES: [(&str, &str); 6] = [
-    ("beamformer_jobs.csv", "/api/v2/beamformer_job"),
-    ("conversion_jobs.csv", "/api/v2/conversion_job"),
-    ("imaging_jobs.csv", "/api/v2/imaging_job"),
-    ("meta_jobs.csv", "/api/v2/download_vis_job"),
-    ("visibility_jobs.csv", "/api/v2/download_vis_job"),
-    ("voltage_jobs.csv", "/api/v2/voltage_job"),
+    ("beamformer_jobs.csv", "/api/v2/jobs/create"),
+    ("conversion_jobs.csv", "/api/v2/jobs/create"),
+    ("imaging_jobs.csv", "/api/v2/jobs/create"),
+    ("meta_jobs.csv", "/api/v2/jobs/create"),
+    ("visibility_jobs.csv", "/api/v2/jobs/create"),
+    ("voltage_jobs.csv", "/api/v2/jobs/create"),
 ];
 
 /// A mock that matches anything, used to prove that no request was made.
@@ -120,7 +120,7 @@ fn a_dry_run_without_json_prints_each_body_and_a_summary() {
     assert_eq!(requests.calls(), 0);
     let output = result.combined();
     for expected in [
-        "Would POST /api/v2/conversion_job for Obs ID 1349904240 (line 1)",
+        "Would POST /api/v2/jobs/create for Obs ID 1349904240 (line 1)",
         "\"output\": \"uvfits\"",
         "\"custom_centre_ra\": 123.0",
         "Would have submitted 2 jobs. Nothing was sent.",
@@ -136,7 +136,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
     let env = CliEnv::with_session();
     let conversion = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/conversion_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(
                 json!({"obs_id": 1349904240_u64, "output": "uvfits", "no_rfi": true, "avg_freq_res": 80.0})
                     .to_string(),
@@ -147,7 +147,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
     });
     let visibility = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(
                 json!({"obs_id": 1349904184_u64, "download_type": "vis"}).to_string(),
             );
@@ -157,7 +157,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
     });
     let metadata = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(
                 json!({"obs_id": 1349904185_u64, "download_type": "meta"}).to_string(),
             );
@@ -167,24 +167,21 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
     });
     let voltage = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/voltage_job")
-            .json_body_includes(
-                json!({"obs_id": 1323507256_u64, "from_channel": 185, "channel_range": true})
-                    .to_string(),
-            );
+            .path("/api/v2/jobs/create")
+            .json_body_includes(json!({"obs_id": 1323507256_u64, "from_channel": 185}).to_string());
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(104));
     });
     let imaging = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/imaging_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(json!({"obs_id": 1349904240_u64, "image_size": 3072}).to_string());
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(105));
     });
-    let beamformer = mock_submit(&env, "/api/v2/beamformer_job", 1457858440, 106);
+    let beamformer = mock_submit(&env, "/api/v2/jobs/create", 1457858440, 106);
     let file = CsvFile::new(
         "# one of each\n\
          obs_id=1349904240, job_type=c, avg_freq_res=80.0, output=uvfits, no_rfi=true\n\
@@ -359,14 +356,14 @@ fn a_failed_submission_does_not_stop_the_other_jobs() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(json!({"obs_id": 1349904240_u64}).to_string());
         then.status(400)
             .header("content-type", "application/json")
             .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
     });
-    let second = mock_submit(&env, "/api/v2/download_vis_job", 1349904184, 202);
-    let third = mock_submit(&env, "/api/v2/conversion_job", 1349904185, 203);
+    let second = mock_submit(&env, "/api/v2/jobs/create", 1349904184, 202);
+    let third = mock_submit(&env, "/api/v2/jobs/create", 1349904185, 203);
     let file = CsvFile::new(
         "obs_id=1349904240, job_type=d, download_type=vis\n\
          obs_id=1349904184, job_type=d, download_type=vis\n\
@@ -395,7 +392,7 @@ fn a_failed_submission_does_not_stop_the_other_jobs() {
 fn with_json_a_failed_submission_is_an_error_line_with_its_obs_id() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/download_vis_job");
+        when.method(POST).path("/api/v2/jobs/create");
         then.status(400)
             .header("content-type", "application/json")
             .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
@@ -420,7 +417,7 @@ fn with_json_only_the_error_line_of_a_job_has_the_line_of_the_file() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(json!({"obs_id": 1349904240_u64}).to_string());
         then.status(400)
             .header("content-type", "application/json")
@@ -428,7 +425,7 @@ fn with_json_only_the_error_line_of_a_job_has_the_line_of_the_file() {
     });
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(json!({"obs_id": 1349904184_u64}).to_string());
         then.status(200)
             .header("content-type", "application/json")
@@ -533,7 +530,7 @@ fn allow_resubmit_applies_to_the_lines_that_do_not_give_it() {
 #[test]
 fn wait_waits_for_the_jobs_that_were_submitted() {
     let env = CliEnv::with_session();
-    let submit = mock_submit(&env, "/api/v2/download_vis_job", 1065880128, 12345);
+    let submit = mock_submit(&env, "/api/v2/jobs/create", 1065880128, 12345);
     let jobs = env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
     let file = CsvFile::new("obs_id=1065880128, job_type=d, download_type=vis\n");
 
@@ -599,7 +596,7 @@ fn the_other_fields_of_the_schema_are_accepted_as_keys() {
     let file = CsvFile::new(
         "obs_id=1349904240, job_type=i, pol=xx_yy, join_channels=true, abs_threshold=0.5, wstack_nwlayers=64, no_rfi=true\n\
          obs_id=1349904240, job_type=c, no_apply_amps=true\n\
-         obs_id=1457858440, job_type=b, mode=MWAX_CORR_BF\n",
+         obs_id=1457858440, job_type=b, allow_resubmit=true\n",
     );
 
     let mut cmd = env.command();
@@ -611,5 +608,5 @@ fn the_other_fields_of_the_schema_are_accepted_as_keys() {
     assert_eq!(lines[0]["params"]["pol"], "XXYY");
     assert_eq!(lines[0]["params"]["wstack_nwlayers"], 64);
     assert_eq!(lines[1]["params"]["no_apply_amps"], true);
-    assert_eq!(lines[2]["params"]["mode"], "MWAX_CORR_BF");
+    assert_eq!(lines[2]["params"]["download_type"], "beam");
 }

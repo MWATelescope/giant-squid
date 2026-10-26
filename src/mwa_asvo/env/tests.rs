@@ -226,7 +226,7 @@ fn the_delivery_variables_are_the_defaults_of_a_csv_file() {
     ]))
     .expect("both values are valid");
 
-    assert_eq!(defaults.delivery, Some(Delivery::Scratch));
+    assert_eq!(defaults.delivery, Some(DeliveryDestination::Scratch));
     assert_eq!(defaults.delivery_format, Some(DeliveryFormat::Files));
     assert_eq!(defaults.allow_resubmit, None);
 }

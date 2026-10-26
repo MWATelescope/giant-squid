@@ -182,10 +182,9 @@ Notes:
 - The `obs_id` minimum (888888889, but an Obs ID has 10 digits).
 - `clean_iterations` has no minimum.
 - `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
-- The voltage fields (`delivery`, `delivery_format`, `channel_range`).
-- The flow-2 `obs_id`.
+- The voltage fields (`delivery`, `delivery_format`: shared enums since schema 2.5.0, but only scratch and files work).
+- `CancelJobParams` in the body of `POST /v2/jobs/create`: the server may not tell the six body types apart.
 - `JobFile.type` uses its own `Type` enum.
-- A typed `obs_id` in `JobDetailResponse`.
 - The meaning of `days: null` (A13).
 - New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.
 - Server-side, not a question: test-asvo sometimes returns `EXT_TAP_SERVICE_ERROR` (TAP connection reset). This made `live_cancel` fail once.

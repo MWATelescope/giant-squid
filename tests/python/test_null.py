@@ -58,11 +58,11 @@ NULLABLE_WITH_DEFAULT = [
     ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
     ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,), "clean_threshold", 0.001),
     ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
-    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (TEST_OBS_ID, SOURCE_JOB_ID), "allow_resubmit", False),
-    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (TEST_OBS_ID, SOURCE_JOB_ID), "abs_threshold", 0.001),
-    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (TEST_OBS_ID, SOURCE_JOB_ID), "clean_threshold", 0.001),
+    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
+    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
+    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "clean_threshold", 0.001),
     ("submit_voltage_job", VOLTAGE_PATH, (TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION), "allow_resubmit", False),
-    ("submit_beamformer_job", BEAMFORMER_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    ("submit_download_beam_job", BEAMFORMER_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
 ]
 
 

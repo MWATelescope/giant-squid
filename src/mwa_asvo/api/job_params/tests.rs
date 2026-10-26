@@ -53,7 +53,6 @@ fn the_defaults_are_the_schemas() {
     assert_defaults_are_the_schemas("ImagingJobFlow1Params", &imaging_defaults());
     assert_defaults_are_the_schemas("ImagingJobFlow2Params", &image_from_job_defaults());
     assert_defaults_are_the_schemas("VoltageJobParams", &voltage_defaults());
-    assert_defaults_are_the_schemas("BeamformerJobParams", &beamformer_defaults());
 }
 
 /// `None` in a field that the schema allows to be `null`, and whose default
@@ -112,13 +111,14 @@ fn the_constructors_set_the_required_fields() {
     );
 
     let source_job_id = NonZeroU64::new(77).expect("not zero");
-    let image = image_from_job_params(obs_id, source_job_id);
-    assert_eq!(
-        (image.obs_id, image.source_job_id),
-        (i64::from(obs_id), source_job_id)
-    );
+    // An image of a job has no Obs ID of its own: it is sent as null.
+    let image = image_from_job_params(source_job_id);
+    assert_eq!((image.obs_id, image.source_job_id), (None, source_job_id));
 
     assert_eq!(conversion_params(obs_id).obs_id, i64::from(obs_id));
     assert_eq!(imaging_params(obs_id).obs_id, i64::from(obs_id));
-    assert_eq!(beamformer_params(obs_id).obs_id, i64::from(obs_id));
+    assert_eq!(
+        download_params(obs_id, DownloadType::Beam).download_type,
+        DownloadType::Beam
+    );
 }

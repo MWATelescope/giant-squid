@@ -90,11 +90,11 @@ impl CliEnv {
         cmd
     }
 
-    /// Serve `POST /api/v2/get_jobs` with one page of jobs.
+    /// Serve `POST /api/v2/jobs/list` with one page of jobs.
     pub fn mock_get_jobs(&self, jobs: Vec<Value>) -> Mock<'_> {
         let total_count = jobs.len();
         self.server.mock(|when, then| {
-            when.method(POST).path("/api/v2/get_jobs");
+            when.method(POST).path("/api/v2/jobs/list");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(json!({ "jobs": jobs, "total_count": total_count }));

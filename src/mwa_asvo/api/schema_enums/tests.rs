@@ -15,13 +15,19 @@ fn values<T: SchemaEnum>() -> Vec<String> {
 /// variant.
 #[test]
 fn each_list_is_in_the_schema_order_and_parses_back() {
-    assert_eq!(values::<Delivery>(), ["acacia", "scratch", "dug"]);
+    assert_eq!(
+        values::<DeliveryDestination>(),
+        ["acacia", "scratch", "dug"]
+    );
     assert_eq!(values::<Polarization>(), ["XX", "YY", "XXYY"]);
     assert_eq!(
         values::<JobState>().first().map(String::as_str),
         Some("preparing")
     );
-    for variant in Centre::VARIANTS {
-        assert_eq!(variant.to_string().parse::<Centre>().ok(), Some(*variant));
+    for variant in PhaseCentre::VARIANTS {
+        assert_eq!(
+            variant.to_string().parse::<PhaseCentre>().ok(),
+            Some(*variant)
+        );
     }
 }

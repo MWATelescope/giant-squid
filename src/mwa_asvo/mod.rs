@@ -25,10 +25,9 @@ pub(crate) mod types;
 pub(crate) use self::{
     api::client::{
         AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
-        ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
-        ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+        ENDPOINT_CREATE_JOB, ENDPOINT_IMAGE_JOB, ENDPOINT_JOBS,
     },
-    api::openapi::{Delivery, JobFile, JobProduct, JobState, JobType},
+    api::openapi::{DeliveryDestination, JobFile, JobProduct, JobState, JobType, SortBy},
     api::AsvoApiError,
     download::{
         DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,

@@ -175,7 +175,7 @@ def test_a_dry_run_logs_with_the_commands_own_logger(run: Callable[..., Result])
     result = run("submit-vis", "--dry-run", str(TEST_OBS_ID))
 
     assert result.code == EXIT_OK, result.err
-    assert "[dry run] Would POST /api/v2/download_vis_job" in result.err
+    assert "[dry run] Would POST /api/v2/jobs/create" in result.err
     assert "INFO" in result.err
     assert result.out == ""
 

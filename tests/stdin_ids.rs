@@ -321,7 +321,7 @@ fn wait_reads_the_job_ids_of_list_json() {
     let result = run_with_stdin(cmd, &list);
 
     assert!(result.success, "{}", result.combined());
-    assert_eq!(result.stdout_json()[JOB_ID.to_string()]["id"], JOB_ID);
+    assert_eq!(result.stdout_json()[JOB_ID.to_string()]["job_id"], JOB_ID);
 }
 
 // ---------------------------------------------------------------------------

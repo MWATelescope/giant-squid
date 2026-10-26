@@ -312,8 +312,8 @@ def test_one_client_can_be_used_from_several_threads(host: str, serve_jobs: Call
     assert counts == [len(mixed_jobs())] * THREADS
 
 
-def test_every_job_type_is_a_schema_code_with_its_name() -> None:
-    """Each JobType member is a schema code, in code order, and str() is the schema's name for it."""
+def test_every_job_type_has_the_name_of_the_schema() -> None:
+    """str() of each JobType member is the schema's value, in the schema's order."""
     members = [
         gs.JobType.Conversion,
         gs.JobType.Visibility,
@@ -324,7 +324,6 @@ def test_every_job_type_is_a_schema_code_with_its_name() -> None:
         gs.JobType.Imaging,
     ]
 
-    assert all(member == code for code, member in enumerate(members))
     assert [str(member) for member in members] == [
         "conversion",
         "visibility",
@@ -337,11 +336,10 @@ def test_every_job_type_is_a_schema_code_with_its_name() -> None:
 
 
 def test_the_enums_have_readable_names() -> None:
-    """str() of a JobState member is the schema's value; a JobType member is its code, and str() is its name."""
+    """str() of a JobState or JobType member is the schema's value."""
     assert str(gs.JobState.Completed) == "completed"
     assert str(gs.JobState.Waitcal) == "waitcal"
     assert str(gs.JobType.Visibility) == "visibility"
-    assert gs.JobType.Visibility == VISIBILITY_JOB_TYPE_NUMBER
     assert gs.JobState.Completed != gs.JobState.Queued
 
 
@@ -384,10 +382,9 @@ def parse_rfc3339(text: str) -> datetime.datetime:
 
 FILTER_FROM = datetime.datetime(2026, 9, 1, tzinfo=datetime.timezone.utc)
 FILTER_TO = datetime.datetime(2026, 9, 30, tzinfo=datetime.timezone.utc)
-FILTER_SORT = "created"
-IMAGING_JOB_TYPE_NUMBER = 6
-# The code of the visibility download job type.
-VISIBILITY_JOB_TYPE_NUMBER = 1
+FILTER_SORT = gs.SortBy.Created
+# The API value of the imaging job type.
+IMAGING_JOB_TYPE = "imaging"
 
 
 def get_jobs_body(httpserver: HTTPServer) -> dict[str, Any]:
@@ -423,8 +420,8 @@ def test_get_jobs_sends_every_filter_to_the_server(
     body = get_jobs_body(httpserver)
     assert body["days"] == FILTER_DAYS
     assert body["job_state"] == "completed"
-    assert body["job_type"] == IMAGING_JOB_TYPE_NUMBER
-    assert body["sort_by"] == FILTER_SORT
+    assert body["job_type"] == IMAGING_JOB_TYPE
+    assert body["sort_by"] == str(FILTER_SORT)
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -518,9 +515,10 @@ def three_jobs() -> list[dict[str, Any]]:
     Returns:
         The jobs, as the server sends them.
     """
-    other = job_detail(3, "cancelled", job_type=1)
+    other = job_detail(3, "cancelled", job_type="visibility")
     other["job_params"] = {"obs_id": str(OTHER_OBS_ID), "delivery": "acacia"}
-    return [job_detail(1, "completed", job_type=0), job_detail(2, "queued", job_type=6), other]
+    other["obs_id"] = OTHER_OBS_ID
+    return [job_detail(1, "completed", job_type="conversion"), job_detail(2, "queued", job_type="imaging"), other]
 
 
 # An obsid that differs from TEST_OBS_ID.
@@ -555,7 +553,7 @@ def test_get_jobs_sends_a_single_state_and_type_to_the_server(
 
     body = get_jobs_body(httpserver)
     assert body["job_state"] == "queued"
-    assert body["job_type"] == IMAGING_JOB_TYPE_NUMBER
+    assert body["job_type"] == IMAGING_JOB_TYPE
     assert body["days"] == FILTER_DAYS
     assert [job.job_id for job in jobs] == [2]
 

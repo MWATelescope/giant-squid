@@ -11,20 +11,8 @@ use std::collections::BTreeMap;
 use crate::mwa_asvo::api::openapi::{
     JobDetailResponse, JobFile, JobState, JobType, Type as FileType,
 };
-use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
+use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::{obs_id::ObsId, AsvoError};
-
-/// The `JobType` codes of the OpenAPI schema. The schema's `JobType` is only
-/// an integer; the names are in the description of the `job_type` fields
-/// ("0=conversion, 1=visibility, ..."). A test checks these codes and
-/// [`JOB_TYPE_NAMES`] against the schema.
-pub(crate) const JOB_TYPE_CODE_CONVERSION: i64 = 0;
-pub(crate) const JOB_TYPE_CODE_VISIBILITY: i64 = 1;
-pub(crate) const JOB_TYPE_CODE_METADATA: i64 = 2;
-pub(crate) const JOB_TYPE_CODE_VOLTAGE: i64 = 3;
-pub(crate) const JOB_TYPE_CODE_CANCEL: i64 = 4;
-pub(crate) const JOB_TYPE_CODE_BEAMFORMER: i64 = 5;
-pub(crate) const JOB_TYPE_CODE_IMAGING: i64 = 6;
 
 /// The query key of the time at which a signed download URL stops working:
 /// seconds since the Unix epoch (an S3 presigned URL has `Expires=<seconds>`).
@@ -48,57 +36,23 @@ pub(crate) fn signed_url_expiry(url: &str) -> Option<Timestamp> {
     Timestamp::from_second(value.parse::<i64>().ok()?).ok()
 }
 
-/// The job types of the OpenAPI schema: each `JobType` code, with the name
-/// that the schema gives it.
-const JOB_TYPE_NAMES: [(i64, &str); 7] = [
-    (JOB_TYPE_CODE_CONVERSION, "conversion"),
-    (JOB_TYPE_CODE_VISIBILITY, "visibility"),
-    (JOB_TYPE_CODE_METADATA, "metadata"),
-    (JOB_TYPE_CODE_VOLTAGE, "voltage"),
-    (JOB_TYPE_CODE_CANCEL, "cancel"),
-    (JOB_TYPE_CODE_BEAMFORMER, "beamformer"),
-    (JOB_TYPE_CODE_IMAGING, "imaging"),
-];
-
 impl JobType {
-    /// The name of the job type, for example `visibility`.
-    pub fn name(&self) -> &'static str {
-        JOB_TYPE_NAMES
-            .iter()
-            .find(|(code, _)| *code == **self)
-            .map(|(_, name)| *name)
-            .expect("every JobType code of the schema is in JOB_TYPE_NAMES")
-    }
-
-    /// The names of the job types, in the order of their codes (the
-    /// schema's order). [`JobType::parse_name`] accepts each of them.
+    /// The names of the job types: the schema's values (for example
+    /// `visibility`), in the schema's order. [`JobType::parse_name`] accepts
+    /// each of them.
     pub fn names() -> Vec<String> {
-        JOB_TYPE_NAMES
-            .iter()
-            .map(|(_, name)| name.to_string())
-            .collect()
+        <Self as SchemaEnum>::names()
     }
 
-    /// Parse the name of a job type, as a user types it: the case, spaces,
-    /// hyphens and underscores do not matter.
+    /// Parse the name of a job type, as a user types it (see
+    /// [`SchemaEnum::from_name`]): the case, spaces, hyphens and underscores
+    /// do not matter.
     ///
     /// # Errors
     ///
     /// [`AsvoError::InvalidJobType`] for any other text.
     pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        let wanted = sanitize_identifier(s);
-        JOB_TYPE_NAMES
-            .iter()
-            .find(|(_, name)| sanitize_identifier(name) == wanted)
-            .and_then(|(code, _)| JobType::try_from(*code).ok())
-            .ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
-    }
-}
-
-/// The name of the job type (see [`JobType::name`]).
-impl std::fmt::Display for JobType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name())
+        Self::from_name(s).ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
     }
 }
 
@@ -131,42 +85,39 @@ impl JobFile {
 }
 
 /// An MWA ASVO Job ID: a `NonZeroU64`, as the OpenAPI schema's `job_id` is
-/// (in `JobSubmittedResponse` and the other responses). The `id` of a
-/// `JobDetailResponse` is an `i64`; [`AsvoJob`] checks it. A type alias, not
-/// a newtype, because a newtype would add complexity for no gain.
+/// (in `JobSubmittedResponse`, `JobDetailResponse` and the other responses).
+/// A type alias, not a newtype, because a newtype would add complexity for no
+/// gain.
 pub type AsvoJobId = std::num::NonZeroU64;
 
 /// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's Obs ID
-/// and ID checked.
+/// checked.
 ///
 /// The fields of the `JobDetailResponse` are reached through [`Deref`]
-/// (`job.job_state`, `job.product` and so on). The Obs ID, which the API has
-/// only in the untyped `job_params`, is [`AsvoJob::obs_id`], and the Job ID
-/// is [`AsvoJob::job_id`].
+/// (`job.job_id`, `job.job_state`, `job.product` and so on). The checked
+/// Obs ID is [`AsvoJob::obs_id`].
 ///
-/// In JSON the job is its `JobDetailResponse`, as the API gives it, with one
-/// more key, `obs_id`.
+/// In JSON the job is its `JobDetailResponse`, as the API gives it.
 ///
 /// [`Deref`]: std::ops::Deref
 #[derive(Serialize, Debug, Clone, PartialEq)]
 pub struct AsvoJob {
-    obs_id: ObsId,
-    /// `detail.id`, checked. Not in the JSON: that has `id`.
+    /// `detail.obs_id`, checked. Not in the JSON: that has `obs_id`.
     #[serde(skip)]
-    job_id: AsvoJobId,
+    obs_id: ObsId,
     #[serde(flatten)]
     detail: JobDetailResponse,
 }
 
 impl AsvoJob {
-    /// The job's Obs ID, from its `job_params`.
+    /// The job's Obs ID: the `obs_id` of its `JobDetailResponse`, checked.
     pub fn obs_id(&self) -> ObsId {
         self.obs_id
     }
 
-    /// The job's ID: the `id` of its `JobDetailResponse`.
+    /// The job's ID: the `job_id` of its `JobDetailResponse`.
     pub fn job_id(&self) -> AsvoJobId {
-        self.job_id
+        self.detail.job_id
     }
 
     /// The job as the API gives it.
@@ -175,7 +126,7 @@ impl AsvoJob {
     }
 
     /// The job as the API gives it, to change in a test. A test must not
-    /// change `id` or the `obs_id` of `job_params`.
+    /// change `obs_id`.
     #[cfg(test)]
     pub(crate) fn detail_mut(&mut self) -> &mut JobDetailResponse {
         &mut self.detail
@@ -244,9 +195,7 @@ impl std::ops::Deref for AsvoJob {
     }
 }
 
-/// Check a job from the API: its `id` must be a Job ID, and its
-/// `job_params` must have a valid `obs_id` (a number, or a string of
-/// digits, as the MWA ASVO has sent both).
+/// Check a job from the API: its `obs_id` must be a valid Obs ID.
 ///
 /// # Errors
 ///
@@ -256,28 +205,14 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
 
     fn try_from(detail: JobDetailResponse) -> Result<Self, AsvoError> {
         let invalid = |problem: String| AsvoError::InvalidJob {
-            id: detail.id,
+            id: detail.job_id,
             problem,
         };
-        let job_id = u64::try_from(detail.id)
-            .ok()
-            .and_then(AsvoJobId::new)
-            .ok_or_else(|| invalid("its ID is not a Job ID".to_string()))?;
-        let obs_id = detail
-            .job_params
-            .get("obs_id")
-            .and_then(|v| {
-                v.as_u64()
-                    .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
-            })
-            .ok_or_else(|| invalid("its job_params have no usable obs_id".to_string()))?;
-        let obs_id = ObsId::validate(obs_id)
-            .map_err(|e| invalid(format!("its job_params have an invalid obs_id: {e}")))?;
-        Ok(Self {
-            obs_id,
-            job_id,
-            detail,
-        })
+        let obs_id = u64::try_from(detail.obs_id)
+            .map_err(|_| invalid(format!("its obs_id is negative ({})", detail.obs_id)))?;
+        let obs_id =
+            ObsId::validate(obs_id).map_err(|e| invalid(format!("its obs_id is invalid: {e}")))?;
+        Ok(Self { obs_id, detail })
     }
 }
 
@@ -295,7 +230,8 @@ impl AsvoJobVec {
     /// If the job list has a Job ID more than once, the output has only the
     /// last of those jobs.
     pub fn json(self) -> Result<String, serde_json::Error> {
-        let map: BTreeMap<AsvoJobId, AsvoJob> = self.0.into_iter().map(|j| (j.job_id, j)).collect();
+        let map: BTreeMap<AsvoJobId, AsvoJob> =
+            self.0.into_iter().map(|j| (j.job_id(), j)).collect();
         serde_json::to_string(&map)
     }
 
@@ -323,7 +259,7 @@ impl AsvoJobVec {
             let job = self
                 .0
                 .iter()
-                .find(|j| j.job_id == *job_id)
+                .find(|j| j.job_id() == *job_id)
                 .ok_or(AsvoError::NoAsvoJob(*job_id))?;
             match &job.job_state {
                 JobState::Completed if job.is_expired_at(now) => {
@@ -364,7 +300,7 @@ impl AsvoJobVec {
         states: &[JobState],
     ) -> Self {
         self.retain(|j| {
-            (job_ids.is_empty() || job_ids.contains(&j.job_id))
+            (job_ids.is_empty() || job_ids.contains(&j.job_id()))
                 && (obs_ids.is_empty() || obs_ids.contains(&j.obs_id))
                 && (job_types.is_empty() || j.job_type.is_some_and(|t| job_types.contains(&t)))
                 && (states.is_empty() || states.contains(&j.job_state))
@@ -386,8 +322,8 @@ impl std::fmt::Display for AsvoJob {
             f,
             "Job ID: {job_id}, Obs ID: {obs_id}, type: {type}, state: {state}, files: {files:?}",
             obs_id=self.obs_id,
-            job_id=self.job_id,
-            type=self.job_type.map(|t| t.name()).unwrap_or_default(),
+            job_id=self.job_id(),
+            type=self.job_type.map(|t| t.to_string()).unwrap_or_default(),
             state=self.job_state,
             files=self.product.as_ref().map(|p| &p.files),
         )

@@ -16,13 +16,12 @@ use pyo3::types::{PyDict, PyList};
 use super::error::asvo_error;
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
-    Centre, DeliveryFormat, JobCancelledResponse, JobSubmittedResponse, Output, OutputMode,
-    Polarization, Status, Type, Weighting,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
+    JobSubmittedResponse, JobType, OutputFormat, PhaseCentre, Polarization, SortBy, Status, Type,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{
-    AsvoJob, AsvoJobId, AsvoJobVec, Delivery, DownloadProgress, JobFile, JobProduct, JobState,
-    JobType,
+    AsvoJob, AsvoJobId, AsvoJobVec, DownloadProgress, JobFile, JobProduct, JobState,
 };
 use crate::obs_id::ObsId;
 
@@ -66,69 +65,9 @@ macro_rules! py_enum {
     };
 }
 
-// One Python enum for each schema enum (`Delivery`, `JobState` and the others).
+// One Python enum for each schema enum (`DeliveryDestination`, `JobState`,
+// `JobType` and the others).
 for_each_schema_enum!(py_enum);
-
-/// The type of an MWA ASVO job: the OpenAPI schema's `JobType`, whose value
-/// is the API's code (for example `JobType.Visibility` is 1). `str()` is the
-/// name that the schema gives the code (for example "visibility").
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyclass_enum
-)]
-#[pyclass(
-    eq,
-    eq_int,
-    frozen,
-    hash,
-    from_py_object,
-    name = "JobType",
-    module = "mwa_giant_squid"
-)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum PyJobType {
-    Conversion = 0,
-    Visibility = 1,
-    Metadata = 2,
-    Voltage = 3,
-    Cancel = 4,
-    Beamformer = 5,
-    Imaging = 6,
-}
-
-/// Every member of [`PyJobType`], to find the member of a code.
-const PY_JOB_TYPES: [PyJobType; 7] = [
-    PyJobType::Conversion,
-    PyJobType::Visibility,
-    PyJobType::Metadata,
-    PyJobType::Voltage,
-    PyJobType::Cancel,
-    PyJobType::Beamformer,
-    PyJobType::Imaging,
-];
-
-impl From<PyJobType> for JobType {
-    fn from(v: PyJobType) -> Self {
-        JobType::try_from(v as i64).expect("each JobType member is a code of the schema")
-    }
-}
-
-impl From<JobType> for PyJobType {
-    fn from(v: JobType) -> Self {
-        *PY_JOB_TYPES
-            .iter()
-            .find(|member| **member as i64 == *v)
-            .expect("each code of the schema is a JobType member")
-    }
-}
-
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyJobType {
-    fn __str__(&self) -> String {
-        JobType::from(*self).name().to_string()
-    }
-}
 
 /// One file of a job's product: the OpenAPI schema's `JobFile`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
@@ -366,7 +305,10 @@ impl PyAsvoJob {
     fn __repr__(&self) -> String {
         let job_id = self.0.job_id();
         let obs_id = self.0.obs_id();
-        let job_type = self.0.job_type.map(|t| t.name()).unwrap_or("None");
+        let job_type = self
+            .0
+            .job_type
+            .map_or("None".to_string(), |t| t.to_string());
         let job_state = self.0.job_state;
         format!(
             "AsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"

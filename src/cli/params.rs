@@ -17,14 +17,14 @@ use std::num::NonZeroU64;
 use clap::ArgAction;
 
 use crate::mwa_asvo::api::job_params::{
-    beamformer_defaults, beamformer_params, conversion_defaults, conversion_params,
-    download_defaults, download_params, image_from_job_defaults, image_from_job_params,
-    imaging_defaults, imaging_params, set_channel_range, voltage_defaults, voltage_params,
+    conversion_defaults, conversion_params, download_defaults, download_params,
+    image_from_job_defaults, image_from_job_params, imaging_defaults, imaging_params,
+    voltage_defaults, voltage_params,
 };
 use crate::mwa_asvo::api::openapi::{
-    BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    DownloadType, ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest,
-    Output, OutputMode, Polarization, VoltageJobParams, Weighting,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, DownloadType,
+    ImageOutputMode, ImageSizes, ImageWeighting, ImagingJobFlow1Params, ImagingJobFlow2Params,
+    JobsByUserRequest, OutputFormat, PhaseCentre, Polarization, VoltageJobParams,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
 use crate::mwa_asvo::{ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
@@ -156,7 +156,6 @@ impl_schema_defaults!(
     ImagingJobFlow1Params => imaging_defaults,
     ImagingJobFlow2Params => image_from_job_defaults,
     VoltageJobParams => voltage_defaults,
-    BeamformerJobParams => beamformer_defaults,
 );
 
 /// Implement an accessor trait: each method returns that field of the
@@ -178,7 +177,7 @@ macro_rules! impl_fields {
 
 /// The delivery fields of a schema type.
 pub trait DeliveryFields: SchemaDefaults {
-    fn delivery(&self) -> Delivery;
+    fn delivery(&self) -> DeliveryDestination;
     fn delivery_format(&self) -> DeliveryFormat;
 }
 
@@ -187,9 +186,9 @@ impl_fields!(DeliveryFields for [
     ConversionJobParams,
     ImagingJobFlow1Params,
     ImagingJobFlow2Params,
-    BeamformerJobParams,
+    VoltageJobParams,
 ] {
-    delivery: Delivery,
+    delivery: DeliveryDestination,
     delivery_format: DeliveryFormat,
 });
 
@@ -212,7 +211,7 @@ pub trait PreprocessingFields: SchemaDefaults {
     fn flag_edge_width(&self) -> f64;
     fn apply_di_cal(&self) -> bool;
     fn no_apply_amps(&self) -> bool;
-    fn centre(&self) -> Centre;
+    fn centre(&self) -> PhaseCentre;
     fn no_digital_gains(&self) -> Option<bool>;
     fn no_flag_dc(&self) -> Option<bool>;
     fn no_geometric_delay(&self) -> Option<bool>;
@@ -227,7 +226,7 @@ impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params
     flag_edge_width: f64,
     apply_di_cal: bool,
     no_apply_amps: bool,
-    centre: Centre,
+    centre: PhaseCentre,
     no_digital_gains: Option<bool>,
     no_flag_dc: Option<bool>,
     no_geometric_delay: Option<bool>,
@@ -251,12 +250,12 @@ pub trait WscleanFields: SchemaDefaults {
     fn mgain(&self) -> f64;
     fn multiscale(&self) -> bool;
     fn nmiter(&self) -> NonZeroU64;
-    fn output_mode(&self) -> OutputMode;
+    fn output_mode(&self) -> ImageOutputMode;
     fn pixel_scale(&self) -> f64;
     fn pol(&self) -> Polarization;
     fn robust(&self) -> f64;
     fn uvw_min(&self) -> f64;
-    fn weighting(&self) -> Weighting;
+    fn weighting(&self) -> ImageWeighting;
 }
 
 impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
@@ -273,12 +272,12 @@ impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
     mgain: f64,
     multiscale: bool,
     nmiter: NonZeroU64,
-    output_mode: OutputMode,
+    output_mode: ImageOutputMode,
     pixel_scale: f64,
     pol: Polarization,
     robust: f64,
     uvw_min: f64,
-    weighting: Weighting,
+    weighting: ImageWeighting,
 });
 
 /// Implement `apply_to` for an argument group: it sets the fields of a
@@ -316,7 +315,6 @@ impl_fields!(ResubmitField for [
     ImagingJobFlow1Params,
     ImagingJobFlow2Params,
     VoltageJobParams,
-    BeamformerJobParams,
 ] {
     allow_resubmit: Option<bool>,
 });
@@ -332,8 +330,8 @@ impl_fields!(ResubmitField for [
 #[derive(clap::Args, Debug, Clone)]
 struct RawDeliveryArgs<P: DeliveryFields> {
     /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<Delivery>::new())]
-    delivery: Delivery,
+    #[arg(short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]
+    delivery: DeliveryDestination,
 
     /// Tell MWA ASVO to deliver the data in a particular format. Must be tar
     /// when the delivery is acacia.
@@ -351,7 +349,7 @@ struct RawDeliveryArgs<P: DeliveryFields> {
 /// the values come from the command line or the environment.
 #[derive(Debug, Clone)]
 pub struct DeliveryArgs<P: DeliveryFields> {
-    pub delivery: Delivery,
+    pub delivery: DeliveryDestination,
     pub delivery_format: DeliveryFormat,
     schema: PhantomData<fn() -> P>,
 }
@@ -413,8 +411,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
 
     /// Phase centre: "phase", "pointing", or "custom".
     /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, alias = "phase-center", default_value = P::schema_defaults().centre().to_string(), value_parser = SchemaEnumParser::<Centre>::new())]
-    pub centre: Centre,
+    #[arg(long, alias = "phase-center", default_value = P::schema_defaults().centre().to_string(), value_parser = SchemaEnumParser::<PhaseCentre>::new())]
+    pub centre: PhaseCentre,
 
     /// Custom phase centre right ascension (degrees). Requires --centre custom.
     #[arg(long, aliases = ["phase-centre-ra", "custom-ra"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
@@ -601,8 +599,8 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub nwlayers: Option<i64>,
 
     /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value = P::schema_defaults().output_mode().to_string(), value_parser = SchemaEnumParser::<OutputMode>::new())]
-    pub output_mode: OutputMode,
+    #[arg(short = 'o', long, default_value = P::schema_defaults().output_mode().to_string(), value_parser = SchemaEnumParser::<ImageOutputMode>::new())]
+    pub output_mode: ImageOutputMode,
 
     /// Pixel scale (arcsec/pixel).
     #[arg(long, default_value = P::schema_defaults().pixel_scale().to_string(), value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
@@ -626,8 +624,8 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub uvw_min: f64,
 
     /// WSClean weighting scheme.
-    #[arg(long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<Weighting>::new())]
-    pub weighting: Weighting,
+    #[arg(long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<ImageWeighting>::new())]
+    pub weighting: ImageWeighting,
 
     /// Number of w-stacking layers. Leave unset to let the server
     /// decide.
@@ -665,7 +663,7 @@ impl_apply_to!(DeliveryArgs for [
     ConversionJobParams,
     ImagingJobFlow1Params,
     ImagingJobFlow2Params,
-    BeamformerJobParams,
+    VoltageJobParams,
 ] {
     copy: [delivery, delivery_format],
     nullable: [],
@@ -678,7 +676,6 @@ impl_apply_to!(ResubmitArgs for [
     ImagingJobFlow1Params,
     ImagingJobFlow2Params,
     VoltageJobParams,
-    BeamformerJobParams,
 ] {
     copy: [],
     nullable: [allow_resubmit],
@@ -735,7 +732,8 @@ impl_apply_to!(WscleanArgs for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
 
 /// Arguments shared by the visibility and metadata download jobs, which use
 /// the same request body and the same endpoint, differing only in their
-/// `download_type`.
+/// `download_type`. (The beamformer job uses the same body too, with
+/// `download_type` `beam`: see [`BeamformerJobArgs`].)
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
     #[command(flatten)]
@@ -774,8 +772,8 @@ pub struct ConversionJobArgs {
     pub delivery_args: DeliveryArgs<ConversionJobParams>,
 
     /// Output format: "ms" (measurement set) or "uvfits".
-    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<Output>::new())]
-    pub output: Output,
+    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<OutputFormat>::new())]
+    pub output: OutputFormat,
 
     #[command(flatten)]
     pub preprocessing: PreprocessingArgs<ConversionJobParams>,
@@ -850,8 +848,9 @@ impl ImagingFromJobArgs {
     /// The request body for an image of the conversion job
     /// `--source-job-id`. The CLI has a value for every option (its defaults
     /// are the schema's), so each field that the options cover is set.
-    pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow2Params {
-        let mut params = image_from_job_params(obs_id, self.source_job_id);
+    /// `obs_id` is left out (`null`): the MWA ASVO takes it from the source job.
+    pub fn to_params(&self) -> ImagingJobFlow2Params {
+        let mut params = image_from_job_params(self.source_job_id);
         self.delivery_args.apply_to(&mut params);
         self.wsclean.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
@@ -862,11 +861,11 @@ impl ImagingFromJobArgs {
 /// Arguments for a voltage download job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct VoltageJobArgs {
-    /// Tell MWA ASVO where to deliver the data. The only valid value for
-    /// a voltage job is "scratch", which requires the "mwavcs" Pawsey
-    /// Group on your MWA ASVO profile.
-    #[arg(short, long, default_value_t = voltage_defaults().delivery, env = ENV_GIANT_SQUID_DELIVERY)]
-    pub delivery: String,
+    /// The MWA ASVO delivers a voltage job to scratch, as files, and the
+    /// library refuses any other `--delivery` or `--delivery-format`.
+    /// Scratch requires the "mwavcs" Pawsey Group on your MWA ASVO profile.
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<VoltageJobParams>,
 
     /// The offset in seconds from the start GPS time of the observation.
     #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
@@ -889,36 +888,34 @@ pub struct VoltageJobArgs {
 }
 
 impl VoltageJobArgs {
-    /// The request body for a voltage job, with `channel_range` derived
-    /// from the channels as the client derives it when it submits, so that
-    /// `--dry-run` shows what is sent.
+    /// The request body for a voltage job.
     pub fn to_params(&self, obs_id: ObsId) -> VoltageJobParams {
         let mut params = VoltageJobParams {
-            delivery: self.delivery.clone(),
             from_channel: self.from_channel,
             to_channel: self.to_channel,
             ..voltage_params(obs_id, self.offset, self.duration)
         };
+        self.delivery_args.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
-        set_channel_range(&mut params);
         params
     }
 }
 
-/// Arguments for a beamformer download job.
+/// Arguments for a beamformer download job. It is a download job (see
+/// [`DownloadJobArgs`]) with `download_type` `beam`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct BeamformerJobArgs {
     #[command(flatten)]
-    pub delivery_args: DeliveryArgs<BeamformerJobParams>,
+    pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<BeamformerJobParams>,
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
 }
 
 impl BeamformerJobArgs {
     /// The request body for a beamformer job.
-    pub fn to_params(&self, obs_id: ObsId) -> BeamformerJobParams {
-        let mut params = beamformer_params(obs_id);
+    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        let mut params = download_params(obs_id, DownloadType::Beam);
         self.delivery_args.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
         params

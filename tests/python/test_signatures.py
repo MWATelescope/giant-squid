@@ -22,27 +22,27 @@ METHODS = [
     ("submit_download_meta_job", "DownloadJobParams", ["obs_id"], {"download_type"}),
     ("submit_conversion_job", "ConversionJobParams", ["obs_id"], set()),
     ("submit_imaging_job", "ImagingJobFlow1Params", ["obs_id"], set()),
-    ("submit_image_from_job", "ImagingJobFlow2Params", ["obs_id", "source_job_id"], set()),
-    ("submit_voltage_job", "VoltageJobParams", ["obs_id", "offset", "duration"], {"channel_range", "delivery_format"}),
-    ("submit_beamformer_job", "BeamformerJobParams", ["obs_id"], {"mode"}),
+    ("submit_image_from_job", "ImagingJobFlow2Params", ["source_job_id"], {"obs_id"}),
+    ("submit_voltage_job", "VoltageJobParams", ["obs_id", "offset", "duration"], set()),
+    ("submit_download_beam_job", "DownloadJobParams", ["obs_id"], {"download_type"}),
 ]
 
 # The schema enums that the methods take, by the name that a default has in a signature.
 ENUMS = {
-    "Delivery": gs.Delivery,
+    "DeliveryDestination": gs.DeliveryDestination,
     "DeliveryFormat": gs.DeliveryFormat,
-    "Output": gs.Output,
-    "Centre": gs.Centre,
-    "OutputMode": gs.OutputMode,
+    "OutputFormat": gs.OutputFormat,
+    "PhaseCentre": gs.PhaseCentre,
+    "ImageOutputMode": gs.ImageOutputMode,
     "Polarization": gs.Polarization,
-    "Weighting": gs.Weighting,
+    "ImageWeighting": gs.ImageWeighting,
 }
 
 
 def signature_default(default: Any) -> Any:
     """The value that a default in a signature stands for.
 
-    An enum member is written in a signature as its quoted name, for example ``'Delivery.Acacia'``, because
+    An enum member is written in a signature as its quoted name, for example ``'DeliveryDestination.Acacia'``, because
     ``inspect.signature`` accepts only literals. Its schema value is the ``str`` of the member. Any other string
     (for example the voltage ``delivery``, which is a plain string in the schema) is its own value.
 

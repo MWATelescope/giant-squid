@@ -7,7 +7,7 @@
 use serde_json::{json, Value};
 
 use super::{parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams};
-use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
+use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 
 const BEAMFORMER_FILE: &str =
     include_str!("../../../tests/files/manta-ray-client/beamformer_jobs.csv");
@@ -172,17 +172,19 @@ fn the_voltage_file_has_two_voltage_jobs() {
     assert_eq!(jobs.len(), 2);
     assert_has(
         &body(&jobs[0]),
-        json!({"obs_id": 1323577520_u64, "offset": 0, "duration": 16, "delivery": "scratch", "channel_range": false}),
+        json!({"obs_id": 1323577520_u64, "offset": 0, "duration": 16, "delivery": "scratch"}),
     );
+    // `channel_range` is not in the schema any more: it is not sent.
+    assert!(body(&jobs[0]).get("channel_range").is_none());
     assert_has(
         &body(&jobs[1]),
         json!({
             "obs_id": 1323507256_u64,
             "from_channel": 185,
             "to_channel": 185,
-            "channel_range": true,
         }),
     );
+    assert!(body(&jobs[1]).get("channel_range").is_none());
 }
 
 #[test]
@@ -269,7 +271,7 @@ fn a_key_that_a_line_does_not_give_has_the_schema_default() {
 #[test]
 fn the_defaults_of_the_file_fill_the_keys_that_a_line_leaves_out() {
     let defaults = CsvDefaults {
-        delivery: Some(Delivery::Scratch),
+        delivery: Some(DeliveryDestination::Scratch),
         delivery_format: Some(DeliveryFormat::Files),
         allow_resubmit: Some(true),
     };
@@ -623,25 +625,25 @@ fn no_apply_amps_is_a_key_of_a_conversion_job() {
     assert_has(&body(&jobs[0]), json!({"no_apply_amps": true}));
 }
 
+/// The schema's beamformer job (a download with `download_type` `beam`) has
+/// no `mode`, so the key is an error like any other unknown key.
 #[test]
-fn the_mode_of_a_beamformer_job_is_a_key() {
-    let jobs = parse(
-        "obs_id=1457858440,job_type=b,mode=mwax_corr_bf\n\
-         obs_id=1459045600,job_type=b,mode=MWAX-BEAMFORMER\n",
-    );
-
-    assert_has(&body(&jobs[0]), json!({"mode": "MWAX_CORR_BF"}));
-    assert_has(&body(&jobs[1]), json!({"mode": "MWAX_BEAMFORMER"}));
-}
-
-#[test]
-fn a_bad_beamformer_mode_names_the_modes() {
-    let problems = problems("obs_id=1457858440,job_type=b,mode=fast\n");
+fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
+    let problems = problems("obs_id=1457858440,job_type=b,mode=mwax_corr_bf\n");
 
     assert!(
-        problems[0].contains("mode: `fast` is not one of MWAX_BEAMFORMER, MWAX_CORR_BF"),
+        problems[0].contains("unknown key `mode` for a beamformer job"),
         "{problems:?}"
     );
+}
+
+/// A beamformer job is a download job of the schema, with `download_type`
+/// `beam`.
+#[test]
+fn a_beamformer_job_is_a_beam_download() {
+    let jobs = parse("obs_id=1457858440,job_type=b\n");
+
+    assert_has(&body(&jobs[0]), json!({"download_type": "beam"}));
 }
 
 #[test]
@@ -696,8 +698,8 @@ mod submitting {
     #[test]
     fn a_file_gives_the_reply_of_each_job_in_order() {
         let env = TestEnv::with_session();
-        let first = mock_submit(&env, "/api/v2/download_vis_job", 1349904240, 11);
-        let second = mock_submit(&env, "/api/v2/conversion_job", 1349904184, 12);
+        let first = mock_submit(&env, "/api/v2/jobs/create", 1349904240, 11);
+        let second = mock_submit(&env, "/api/v2/jobs/create", 1349904184, 12);
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(
             &dir,
@@ -720,13 +722,13 @@ mod submitting {
         let env = TestEnv::with_session();
         env.server.mock(|when, then| {
             when.method(POST)
-                .path("/api/v2/download_vis_job")
+                .path("/api/v2/jobs/create")
                 .json_body_includes(serde_json::json!({ "obs_id": 1349904240_u64 }).to_string());
             then.status(400)
                 .header("content-type", "application/json")
                 .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
         });
-        let ok = mock_submit(&env, "/api/v2/download_vis_job", 1349904184, 22);
+        let ok = mock_submit(&env, "/api/v2/jobs/create", 1349904184, 22);
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(
             &dir,

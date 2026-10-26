@@ -169,8 +169,8 @@ Notes:
 Each job type has one method. Every keyword argument has the MWA ASVO's default as its default value. The type stub
 (`mwa_giant_squid.pyi`) shows it, for example `avg_freq_res: float | None = 40.0`, and so does `help()`. In
 `help()` (and `inspect.signature`) an enum default is written as a quoted name, for example
-`delivery='Delivery.Acacia'`, because Python accepts only literals there; the default is the enum member
-`Delivery.Acacia`. Leave an argument out to use the default.
+`delivery='DeliveryDestination.Acacia'`, because Python accepts only literals there; the default is the enum member
+`DeliveryDestination.Acacia`. Leave an argument out to use the default.
 
 `None` is not the default. An argument that the MWA ASVO allows to be `null` (its type in the stub has `| None`)
 accepts `None`, and `None` is sent as `null`. For example, `avg_freq_res=None` sends `"avg_freq_res": null`. The
@@ -182,32 +182,33 @@ MWA ASVO schema does not say what the MWA ASVO does with a `null` for each argum
 | `submit_download_meta_job(obs_id, ...)` | `submit-meta` |
 | `submit_conversion_job(obs_id, ...)` | `submit-conv` |
 | `submit_imaging_job(obs_id, ...)` | `submit-image` |
-| `submit_image_from_job(obs_id, source_job_id, ...)` | `submit-image-from-job` |
+| `submit_image_from_job(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
 | `submit_voltage_job(obs_id, offset, duration, ...)` | `submit-volt` |
-| `submit_beamformer_job(obs_id, ...)` | `submit-bf` |
+| `submit_download_beam_job(obs_id, ...)` | `submit-bf` |
 | `cancel_job(job_id)` | `cancel` |
 
 The keyword names are the MWA ASVO API field names, for example `avg_freq_res`. Where an argument has a
-fixed set of values, the module has an enum (`Delivery`, `DeliveryFormat`, `Output`, `Centre`,
-`OutputMode`, `Polarization`, `Weighting`). The docstring of each method gives the limits of each number.
+fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `OutputFormat`, `PhaseCentre`,
+`ImageOutputMode`, `Polarization`, `ImageWeighting`, and `JobState`, `JobType` and `SortBy` for job lists). The docstring of each method gives the limits of each number.
 
 ```python
-from mwa_giant_squid import Delivery, DeliveryFormat, Output
+from mwa_giant_squid import DeliveryDestination, DeliveryFormat, OutputFormat
 
 reply = client.submit_conversion_job(
     1065880128,
-    output=Output.Ms,
+    output=OutputFormat.Ms,
     avg_freq_res=80.0,
     avg_time_res=4.0,
-    delivery=Delivery.Acacia,
+    delivery=DeliveryDestination.Acacia,
     delivery_format=DeliveryFormat.Tar,
 )
 print(reply.job_id, reply.status, reply.message)
 ```
 
 The methods check the arguments before they send a request. A value outside the MWA ASVO limits raises
-`ValueError` (or `OverflowError`) that names the argument. Nothing is sent. So does `delivery_format=DeliveryFormat.Files` with `delivery=Delivery.Acacia` (the default): Acacia delivers a tar
-only. The other deliveries take either format.
+`ValueError` (or `OverflowError`) that names the argument. Nothing is sent. So does `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
+only. The other deliveries take either format. A voltage job is delivered to Scratch as files, and
+`submit_voltage_job` raises `ValueError` for any other `delivery` or `delivery_format`.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
 (a `Status`: `Success` or `Failed`) and the `message` describe the reply and are for display. A call that fails
@@ -236,9 +237,9 @@ MWA ASVO. The arguments `delivery`, `delivery_format` and `allow_resubmit` are t
 give that key (the module reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used):
 
 ```python
-from mwa_giant_squid import Delivery
+from mwa_giant_squid import DeliveryDestination
 
-replies = client.submit_csv_file("jobs.csv", delivery=Delivery.Scratch, allow_resubmit=True)
+replies = client.submit_csv_file("jobs.csv", delivery=DeliveryDestination.Scratch, allow_resubmit=True)
 ```
 
 A key that a line gives twice, and a line that makes the same job as an earlier line, are logged as warnings (see

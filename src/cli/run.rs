@@ -25,16 +25,17 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::mwa_asvo::api::openapi::{JobSubmittedResponse, Status, Type as FileType};
+use crate::mwa_asvo::api::openapi::{
+    ImagingJobFlow2Params, JobSubmittedResponse, Status, Type as FileType,
+};
 use crate::mwa_asvo::api::validate::{
-    validate_beamformer_params, validate_conversion_params, validate_download_params,
-    validate_image_from_job_params, validate_imaging_params, validate_voltage_params,
+    validate_conversion_params, validate_download_params, validate_image_from_job_params,
+    validate_imaging_params, validate_voltage_params,
 };
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
-    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
-    ENDPOINT_BEAMFORMER_JOB, ENDPOINT_CONVERSION_JOB, ENDPOINT_DOWNLOAD_VIS_JOB,
-    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_IMAGING_JOB, ENDPOINT_JOBS, ENDPOINT_VOLTAGE_JOB,
+    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter, ENDPOINT_CREATE_JOB,
+    ENDPOINT_IMAGE_JOB, ENDPOINT_JOBS,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -208,6 +209,15 @@ struct DryRunDownload {
 struct DryRunSubmission<'a, T: serde::Serialize> {
     endpoint: &'a str,
     obs_id: ObsId,
+    params: &'a T,
+}
+
+/// What `submit-image-from-job --dry-run --json` prints: the endpoint and the
+/// request body. The job has no Obs ID: the MWA ASVO takes it from the source
+/// job.
+#[derive(serde::Serialize)]
+struct DryRunImageFromJob<'a, T: serde::Serialize> {
+    endpoint: &'a str,
     params: &'a T,
 }
 
@@ -420,6 +430,50 @@ where
     }
 }
 
+/// Run `submit-image-from-job`: one job, which has no Obs ID (the MWA ASVO
+/// takes it from the source job), so it does not go through [`run_submit`].
+/// The body is checked (the library's [`validate_image_from_job_params`])
+/// before any login, also with `--dry-run`. An error is returned as it is: no
+/// other job needs to be attempted, and the caller reports it.
+fn run_submit_image_from_job(
+    params: &ImagingJobFlow2Params,
+    submit: &SubmitOptions,
+) -> anyhow::Result<()> {
+    validate_image_from_job_params(params)?;
+    if submit.dry_run {
+        if submit.json {
+            return print_json_line(
+                &DryRunImageFromJob {
+                    endpoint: ENDPOINT_IMAGE_JOB,
+                    params,
+                },
+                true,
+            );
+        }
+        let body = serde_json::to_string_pretty(params)?;
+        info!(
+            "[dry run] Would POST {ENDPOINT_IMAGE_JOB} for an image of Job ID {}:\n{body}",
+            params.source_job_id
+        );
+        info!("[dry run] Nothing was sent.");
+        return Ok(());
+    }
+
+    let client = connect()?;
+    let resp = client.submit_image_from_job(params)?;
+    print_json_line(&StatusFirst(&resp), submit.json)?;
+    let job_id = resp.job_id;
+    info!(
+        "Submitted an image of Job ID {} as MWA ASVO Job ID {job_id}",
+        params.source_job_id
+    );
+    if submit.wait {
+        wait_for_submitted(&client, &[job_id], Ok(()))
+    } else {
+        Ok(())
+    }
+}
+
 /// Run `submit-csv`: read the jobs of a manta-ray-client CSV file, check all
 /// of them, and submit them in the order of the file.
 ///
@@ -628,11 +682,6 @@ const EMPTY_LIST_MESSAGE: &str = "Standard input has no IDs. Nothing to do.";
 /// The message of `submit-image` for a Job ID: this command takes Obs IDs
 /// only, and `submit-image-from-job` is the command for a conversion job.
 const IMAGE_JOB_IDS_MESSAGE: &str = "This command only accepts Obs IDs; to image an existing conversion job, use submit-image-from-job instead.";
-
-/// The message of `submit-image-from-job` for a Job ID among its arguments.
-/// The command takes a conversion job, but as `--source-job-id`.
-const IMAGE_FROM_JOB_JOB_IDS_MESSAGE: &str =
-    "The arguments must be Obs IDs, not Job IDs. Give the conversion job with --source-job-id.";
 
 /// Parse the Obs IDs of a submit command with the library's
 /// [`parse_obs_ids_only`]. `job_ids_message` is the command's own text for
@@ -1075,7 +1124,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_VIS_JOB, "visibility download"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "visibility download"),
                 |obs_id| download.to_vis_params(obs_id),
                 validate_download_params,
                 |client, params| client.submit_download_vis_job(params),
@@ -1090,7 +1139,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CONVERSION_JOB, "conversion"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "conversion"),
                 |obs_id| conv.to_params(obs_id),
                 validate_conversion_params,
                 |client, params| client.submit_conversion_job(params),
@@ -1105,40 +1154,16 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_IMAGING_JOB, "imaging"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "imaging"),
                 |obs_id| image.to_params(obs_id),
                 validate_imaging_params,
                 |client, params| client.submit_imaging_job(params),
             )?;
         }
 
-        Args::SubmitImageFromJob {
-            image,
-            submit,
-            obs_ids,
-        } => {
+        Args::SubmitImageFromJob { image, submit } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_FROM_JOB_JOB_IDS_MESSAGE))?;
-
-            if obs_ids.len() != 1 {
-                return Err(ArgumentError(
-                    "submit-image-from-job requires exactly one obsid \
-                     (the source_job_id identifies the conversion job for that obsid)."
-                        .to_string(),
-                )
-                .into());
-            }
-
-            run_submit(
-                &submit.submission(
-                    &obs_ids,
-                    ENDPOINT_IMAGE_FROM_JOB,
-                    "imaging from a conversion job",
-                ),
-                |obs_id| image.to_params(obs_id),
-                validate_image_from_job_params,
-                |client, params| client.submit_image_from_job(params),
-            )?;
+            run_submit_image_from_job(&image.to_params(), &submit)?;
         }
 
         Args::SubmitMeta {
@@ -1149,7 +1174,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_VIS_JOB, "metadata download"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "metadata download"),
                 |obs_id| download.to_meta_params(obs_id),
                 validate_download_params,
                 |client, params| client.submit_download_meta_job(params),
@@ -1164,7 +1189,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_VOLTAGE_JOB, "voltage download"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "voltage download"),
                 |obs_id| volt.to_params(obs_id),
                 validate_voltage_params,
                 |client, params| client.submit_voltage_job(params),
@@ -1179,10 +1204,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_BEAMFORMER_JOB, "beamformer download"),
+                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "beamformer download"),
                 |obs_id| bf.to_params(obs_id),
-                validate_beamformer_params,
-                |client, params| client.submit_beamformer_job(params),
+                validate_download_params,
+                |client, params| client.submit_download_beam_job(params),
             )?;
         }
 

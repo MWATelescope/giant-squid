@@ -21,12 +21,12 @@ from .conftest import TEST_API_KEY, error_response
 # The manta-ray-client files that the project keeps for its tests, and the endpoint of the jobs of each.
 SAMPLE_DIR = pathlib.Path(__file__).resolve().parents[1] / "files" / "manta-ray-client"
 SAMPLE_FILES = [
-    ("beamformer_jobs.csv", "/api/v2/beamformer_job"),
-    ("conversion_jobs.csv", "/api/v2/conversion_job"),
-    ("imaging_jobs.csv", "/api/v2/imaging_job"),
-    ("meta_jobs.csv", "/api/v2/download_vis_job"),
-    ("visibility_jobs.csv", "/api/v2/download_vis_job"),
-    ("voltage_jobs.csv", "/api/v2/voltage_job"),
+    ("beamformer_jobs.csv", "/api/v2/jobs/create"),
+    ("conversion_jobs.csv", "/api/v2/jobs/create"),
+    ("imaging_jobs.csv", "/api/v2/jobs/create"),
+    ("meta_jobs.csv", "/api/v2/jobs/create"),
+    ("visibility_jobs.csv", "/api/v2/jobs/create"),
+    ("voltage_jobs.csv", "/api/v2/jobs/create"),
 ]
 SUBMIT_PATHS = sorted({path for _, path in SAMPLE_FILES})
 
@@ -146,8 +146,8 @@ def test_the_replies_are_in_the_order_of_the_file(
     assert [reply.job_id for reply in replies] == [job_id_for(FIRST_OBS_ID), job_id_for(SECOND_OBS_ID)]
     assert all(reply.status == gs.Status.Success for reply in replies)
     assert [p for p, _ in requests_to_submit_paths(httpserver)] == [
-        "/api/v2/download_vis_job",
-        "/api/v2/conversion_job",
+        "/api/v2/jobs/create",
+        "/api/v2/jobs/create",
     ]
 
 
@@ -183,7 +183,7 @@ def test_the_arguments_are_the_defaults_of_the_lines_that_give_no_value(
     )
 
     client.submit_csv_file(
-        path, delivery=gs.Delivery.Scratch, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
+        path, delivery=gs.DeliveryDestination.Scratch, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
     )
 
     first, second = (body for _, body in requests_to_submit_paths(httpserver))

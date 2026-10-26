@@ -10,10 +10,10 @@
 //! module holds those limits once, so that every caller checks the same
 //! values: the CLI (which uses them as `clap` value parsers, to fail
 //! early), the Python module, and any Rust program that uses the library.
-//! The client's submit methods for conversion, imaging, image-from-job and
-//! voltage jobs check their request body with the `validate_*_params`
-//! function for that body, so an out-of-range value is never sent. The
-//! download and beamformer bodies have no numeric limits.
+//! The client's submit methods check their request body with the
+//! `validate_*_params` function for that body, so an out-of-range value is
+//! never sent. The download body (visibility, metadata and beamformer jobs)
+//! has no numeric limits.
 //!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
@@ -26,8 +26,8 @@ use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    BeamformerJobParams, Centre, ConversionJobParams, Delivery, DeliveryFormat, DownloadJobParams,
-    ImageSizes, ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageSizes,
+    ImagingJobFlow1Params, ImagingJobFlow2Params, PhaseCentre, VoltageJobParams,
 };
 
 #[cfg(test)]
@@ -213,7 +213,7 @@ fn check_preprocessing(
     avg_freq_res: Option<f64>,
     avg_time_res: Option<f64>,
     flag_edge_width: f64,
-    centre: Centre,
+    centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
 ) -> Result<(), AsvoApiError> {
@@ -237,16 +237,16 @@ fn check_preprocessing(
 /// [`AsvoApiError::InvalidParameter`] for `delivery_format`, if `delivery` is
 /// `acacia` and `delivery_format` is `files`.
 pub fn check_delivery_format(
-    delivery: Delivery,
+    delivery: DeliveryDestination,
     delivery_format: DeliveryFormat,
 ) -> Result<(), AsvoApiError> {
-    if delivery == Delivery::Acacia && delivery_format == DeliveryFormat::Files {
+    if delivery == DeliveryDestination::Acacia && delivery_format == DeliveryFormat::Files {
         return Err(AsvoApiError::InvalidParameter {
             name: "delivery_format",
             message: format!(
                 "must be {} when delivery is {} (got {delivery_format})",
                 DeliveryFormat::Tar,
-                Delivery::Acacia
+                DeliveryDestination::Acacia
             ),
         });
     }
@@ -263,11 +263,11 @@ pub fn check_delivery_format(
 /// `custom_centre_dec` that is missing when `centre` is `custom`, or the first
 /// that is given when it is not.
 pub fn check_centre(
-    centre: Centre,
+    centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
 ) -> Result<(), AsvoApiError> {
-    let custom = Centre::Custom;
+    let custom = PhaseCentre::Custom;
     for (name, value) in [
         ("custom_centre_ra", custom_centre_ra),
         ("custom_centre_dec", custom_centre_dec),
@@ -288,25 +288,15 @@ pub fn check_centre(
     Ok(())
 }
 
-/// Check a visibility or metadata download request body: its delivery
-/// ([`check_delivery_format`]). The schema gives it no numeric limits.
+/// Check a download request body (a visibility, metadata or beamformer job):
+/// its delivery ([`check_delivery_format`]). The schema gives it no numeric
+/// limits.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
 /// agree.
 pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)
-}
-
-/// Check a beamformer request body: its delivery
-/// ([`check_delivery_format`]). The schema gives it no numeric limits.
-///
-/// # Errors
-///
-/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree.
-pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)
 }
 
@@ -330,14 +320,42 @@ pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), As
     )
 }
 
-/// Check the numbers of a voltage request body against the schema's
-/// limits. `duration`, `from_channel` and `to_channel` need no check: the
-/// schema's limits for them are the limits of their types (`u64`, `u8`).
+/// The delivery that the MWA ASVO allows for a voltage job.
+pub const VOLTAGE_DELIVERY: DeliveryDestination = DeliveryDestination::Scratch;
+/// The delivery format that the MWA ASVO allows for a voltage job.
+pub const VOLTAGE_DELIVERY_FORMAT: DeliveryFormat = DeliveryFormat::Files;
+
+/// Check a voltage request body. The MWA ASVO delivers a voltage job to
+/// Scratch as files only ([`VOLTAGE_DELIVERY`], [`VOLTAGE_DELIVERY_FORMAT`]),
+/// although the schema types both fields as the enums that every job type
+/// shares, so the schema does not show this and the library checks it. Then
+/// the `offset` is checked against the schema's limits. `duration`,
+/// `from_channel` and `to_channel` need no check: the schema's limits for
+/// them are the limits of their types (`u64`, `u8`).
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `offset` is out of range.
+/// [`AsvoApiError::InvalidParameter`] for the first of `delivery`,
+/// `delivery_format` and `offset` that is not allowed.
 pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiError> {
+    if params.delivery != VOLTAGE_DELIVERY {
+        return Err(AsvoApiError::InvalidParameter {
+            name: "delivery",
+            message: format!(
+                "must be {VOLTAGE_DELIVERY} for a voltage job (got {})",
+                params.delivery
+            ),
+        });
+    }
+    if params.delivery_format != VOLTAGE_DELIVERY_FORMAT {
+        return Err(AsvoApiError::InvalidParameter {
+            name: "delivery_format",
+            message: format!(
+                "must be {VOLTAGE_DELIVERY_FORMAT} for a voltage job (got {})",
+                params.delivery_format
+            ),
+        });
+    }
     VOLTAGE_OFFSET.check("offset", params.offset as f64)
 }
 

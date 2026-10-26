@@ -1,5 +1,5 @@
 when:
-  path: /api/v2/api_login
+  path: /api/v2/auth/api_login
   method: POST
   header:
   - name: Accept
@@ -25,7 +25,7 @@ then:
   body: '{"access_token":"notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature","refresh_token":"notaheader.eyJleHAiOjIwODI3NTg0MDB9.notasignature","token_type":"bearer","user":{"id":4242,"login":"test_user","email":"test_user@example.org","is_superuser":true,"pawsey_group":null,"dug_group":null}}'
 ---
 when:
-  path: /api/v2/get_jobs
+  path: /api/v2/jobs/list
   method: POST
   header:
   - name: Accept
@@ -44,4 +44,4 @@ then:
     value: nginx/1.31.6
   - name: x-request-id
     value: ef02bda6-0c3d-45fb-bab0-713895ce217f
-  body: '{"jobs":[{"job_type":2,"job_state":"completed","user_id":4242,"job_params":{"obs_id":1115977528,"delivery":"acacia","delivery_format":"tar","allow_resubmit":false,"download_type":"meta"},"error_code":null,"error_text":null,"created":"2026-09-22T07:42:27.031512","started":"2026-09-22T10:30:42.836734","completed":"2026-09-22T10:46:25.508526","product":{"files":[{"type":"acacia","url":"https://projects.pawsey.org.au/test-mwa-asvo/1115977528_30000517_meta.tar?AWSAccessKeyId=a5e466f891734d45a67676504a309c35&Signature=YOPM8T6gzr4jzzeUz86NFd4lj%2Fs%3D&Expires=1790678779","size":117016360960,"sha1":"ce32e0aeec0b7c64dec4deeb89881ba4452a6330"}]},"id":30000517,"client":null,"priority_score":null,"queue_position_cache":null,"estimated_start":null,"first_name":"Test","last_name":"User"}],"total_count":1}'
+  body: '{"jobs":[{"job_type":"metadata","job_state":"completed","user_id":4242,"job_params":{"obs_id":1115977528,"delivery":"acacia","delivery_format":"tar","allow_resubmit":false,"download_type":"meta"},"error_code":null,"error_text":null,"created":"2026-09-22T07:42:27.031512","started":"2026-09-22T10:30:42.836734","completed":"2026-09-22T10:46:25.508526","product":{"files":[{"type":"acacia","url":"https://projects.pawsey.org.au/test-mwa-asvo/1115977528_30000517_meta.tar?AWSAccessKeyId=a5e466f891734d45a67676504a309c35&Signature=YOPM8T6gzr4jzzeUz86NFd4lj%2Fs%3D&Expires=1790678779","size":117016360960,"sha1":"ce32e0aeec0b7c64dec4deeb89881ba4452a6330"}]},"client":null,"priority_score":null,"queue_position_cache":null,"estimated_start":null,"first_name":"Test","last_name":"User","job_id":30000517,"obs_id":1115977528}],"total_count":1}'

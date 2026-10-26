@@ -3,8 +3,8 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 //! The clap value parser for every option that takes a named value: the
-//! enums of the OpenAPI schema (`Delivery`, `JobState`, `Polarization` and
-//! so on) and the job types.
+//! enums of the OpenAPI schema (`DeliveryDestination`, `JobState`,
+//! `JobType`, `Polarization` and so on).
 //!
 //! The parser has two jobs:
 //!
@@ -24,11 +24,10 @@ use clap::builder::{PossibleValue, TypedValueParser};
 use clap::{Arg, Command};
 
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
-use crate::mwa_asvo::JobType;
 
 /// The clap value parser for a [`NamedValue`].
 ///
-/// Use it as `value_parser = SchemaEnumParser::<Delivery>::new()`.
+/// Use it as `value_parser = SchemaEnumParser::<DeliveryDestination>::new()`.
 pub struct SchemaEnumParser<T>(PhantomData<fn() -> T>);
 
 impl<T> SchemaEnumParser<T> {
@@ -52,8 +51,7 @@ impl<T> Clone for SchemaEnumParser<T> {
     }
 }
 
-/// A value that the CLI takes by name: a schema enum ([`SchemaEnum`]), or a
-/// job type, whose schema type is a number with a name.
+/// A value that the CLI takes by name: a schema enum ([`SchemaEnum`]).
 pub trait NamedValue: Copy + Send + Sync + 'static {
     /// The names, in the schema's order: the order of `--help` and of the
     /// messages.
@@ -71,16 +69,6 @@ impl<T: SchemaEnum> NamedValue for T {
 
     fn from_value_name(text: &str) -> Option<Self> {
         T::from_name(text)
-    }
-}
-
-impl NamedValue for JobType {
-    fn value_names() -> Vec<String> {
-        JobType::names()
-    }
-
-    fn from_value_name(text: &str) -> Option<Self> {
-        JobType::parse_name(text).ok()
     }
 }
 

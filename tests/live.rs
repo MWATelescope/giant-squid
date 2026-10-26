@@ -113,15 +113,13 @@ const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
 const INVALID_API_KEY: &str = "not-a-real-api-key";
 
 /// Job types and states as `list --json` prints them: the schema's
-/// `JobType` code and `JobState` value.
-const TYPE_CONVERSION: i64 = 0;
-const TYPE_DOWNLOAD_VIS: i64 = 1;
-const TYPE_DOWNLOAD_META: i64 = 2;
-const TYPE_DOWNLOAD_VOLTAGE: i64 = 3;
-const TYPE_DOWNLOAD_BEAMFORMER: i64 = 5;
-const TYPE_IMAGING: i64 = 6;
-/// The name of the metadata job type, for `list --job-types`.
-const TYPE_NAME_DOWNLOAD_META: &str = "metadata";
+/// `JobType` and `JobState` values.
+const TYPE_CONVERSION: &str = "conversion";
+const TYPE_DOWNLOAD_VIS: &str = "visibility";
+const TYPE_DOWNLOAD_META: &str = "metadata";
+const TYPE_DOWNLOAD_VOLTAGE: &str = "voltage";
+const TYPE_DOWNLOAD_BEAMFORMER: &str = "beamformer";
+const TYPE_IMAGING: &str = "imaging";
 const STATE_CANCELLED: &str = "cancelled";
 const STATE_ERROR: &str = "error";
 const STATE_COMPLETED: &str = "completed";
@@ -260,7 +258,7 @@ impl LiveEnv {
     }
 
     /// Check that `id` is listed as a live job of `job_type` for `obs_id`.
-    fn assert_submitted(&self, id: u64, obs_id: &str, job_type: i64) {
+    fn assert_submitted(&self, id: u64, obs_id: &str, job_type: &str) {
         let job = self.listed_job(id);
         assert_eq!(
             job["obs_id"].as_u64().map(|o| o.to_string()).as_deref(),
@@ -458,7 +456,7 @@ fn live_list_forms() {
         );
     }
 
-    let result = env.run(&["list", "--json", "--types", TYPE_NAME_DOWNLOAD_META]);
+    let result = env.run(&["list", "--json", "--types", TYPE_DOWNLOAD_META]);
     assert!(result.success, "{}", result.combined());
     for job in result.stdout_json().as_object().unwrap().values() {
         assert_eq!(
@@ -652,13 +650,7 @@ fn live_image_from_an_unfinished_conversion_is_rejected() {
     .to_string();
     env.submit_expecting_rejection(
         &mut guard,
-        &[
-            "submit-image-from-job",
-            "-r",
-            "--source-job-id",
-            &conv_id,
-            LIVE_TEST_OBS_ID,
-        ],
+        &["submit-image-from-job", "-r", "--source-job-id", &conv_id],
     );
 }
 
@@ -670,13 +662,7 @@ fn live_image_from_an_unknown_job_is_rejected() {
 
     env.submit_expecting_rejection(
         &mut guard,
-        &[
-            "sifj",
-            "-r",
-            "--source-job-id",
-            LIVE_UNKNOWN_JOB_ID,
-            LIVE_TEST_OBS_ID,
-        ],
+        &["sifj", "-r", "--source-job-id", LIVE_UNKNOWN_JOB_ID],
     );
 }
 

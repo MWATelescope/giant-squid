@@ -13,7 +13,8 @@ use clap::{CommandFactory, Parser};
 use super::*;
 use crate::cli::Args;
 use crate::mwa_asvo::api::openapi::{
-    Centre, Delivery, DeliveryFormat, Output, OutputMode, Polarization, Weighting,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, OutputFormat,
+    PhaseCentre, Polarization,
 };
 
 // The values in the schema's order, which `--help` and the messages use.
@@ -91,13 +92,13 @@ fn check_enum<T: SchemaEnum + PartialEq + Debug>() {
 
 #[test]
 fn every_schema_enum_is_listed_once_and_in_order() {
-    check_enum::<Centre>();
-    check_enum::<Delivery>();
+    check_enum::<PhaseCentre>();
+    check_enum::<DeliveryDestination>();
     check_enum::<DeliveryFormat>();
-    check_enum::<Output>();
-    check_enum::<OutputMode>();
+    check_enum::<OutputFormat>();
+    check_enum::<ImageOutputMode>();
     check_enum::<Polarization>();
-    check_enum::<Weighting>();
+    check_enum::<ImageWeighting>();
 }
 
 #[test]
@@ -182,8 +183,8 @@ fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
     .expect("the values parse");
     match args {
         Args::SubmitImage { image, .. } => {
-            assert_eq!(image.delivery_args.delivery, Delivery::Acacia);
-            assert_eq!(image.wsclean.output_mode, OutputMode::AllFits);
+            assert_eq!(image.delivery_args.delivery, DeliveryDestination::Acacia);
+            assert_eq!(image.wsclean.output_mode, ImageOutputMode::AllFits);
             assert_eq!(image.wsclean.pol, Polarization::Xxyy);
         }
         other => panic!("expected SubmitImage, got {other:?}"),

@@ -20,8 +20,8 @@ use super::params::{
 };
 use super::Args;
 use crate::mwa_asvo::api::job_params::{
-    beamformer_defaults, conversion_defaults, download_defaults, image_from_job_defaults,
-    imaging_defaults, voltage_defaults,
+    conversion_defaults, download_defaults, image_from_job_defaults, imaging_defaults,
+    voltage_defaults,
 };
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::parse_many_job_ids_or_obs_ids;
@@ -74,9 +74,9 @@ fn image_args(args: &[&str]) -> (ImagingJobArgs, Vec<String>) {
     }
 }
 
-fn image_from_job_args(args: &[&str]) -> (ImagingFromJobArgs, Vec<String>) {
+fn image_from_job_args(args: &[&str]) -> ImagingFromJobArgs {
     match parse(args) {
-        Args::SubmitImageFromJob { image, obs_ids, .. } => (image, obs_ids),
+        Args::SubmitImageFromJob { image, .. } => image,
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     }
 }
@@ -123,13 +123,7 @@ fn every_command_alias_resolves_to_its_command() {
         Args::SubmitImage { .. }
     ));
     assert!(matches!(
-        parse(&[
-            "giant-squid",
-            "sifj",
-            "--source-job-id",
-            TEST_JOB_ID,
-            TEST_OBS_ID
-        ]),
+        parse(&["giant-squid", "sifj", "--source-job-id", TEST_JOB_ID]),
         Args::SubmitImageFromJob { .. }
     ));
     assert!(matches!(
@@ -621,26 +615,26 @@ fn submit_image_range_errors_carry_the_librarys_message() {
 
 #[test]
 fn submit_image_from_job_requires_a_source_job_id() {
-    let err = parse_err(&["giant-squid", "submit-image-from-job", TEST_OBS_ID]);
+    let err = parse_err(&["giant-squid", "submit-image-from-job"]);
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
 #[test]
 fn submit_image_from_job_builds_a_flow2_body() {
-    let (args, obs_ids) = image_from_job_args(&[
+    let args = image_from_job_args(&[
         "giant-squid",
         "submit-image-from-job",
         "--source-job-id",
         "4242",
-        TEST_OBS_ID,
     ]);
-    assert_eq!(obs_ids.len(), 1);
     assert_eq!(args.source_job_id.get(), 4242);
     assert_eq!(args.wsclean.pol, image_from_job_defaults().pol);
 
-    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    let json = json_of(&args.to_params());
     assert_eq!(json["source_job_id"], 4242);
-    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
+    // The job has no Obs ID: the body leaves it out (`null`), and the MWA ASVO
+    // takes it from the source job.
+    assert!(json.get("obs_id").is_none());
     // Since schema v1.11 clean_threshold has a default here, as in the flow
     // 1 imaging job, and the CLI sends it.
     assert_eq!(
@@ -656,7 +650,6 @@ fn submit_image_from_job_rejects_a_zero_source_job_id() {
         "submit-image-from-job",
         "--source-job-id",
         "0",
-        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -682,11 +675,15 @@ fn submit_volt_delivery_default_comes_from_the_schema() {
         "8",
         TEST_OBS_ID,
     ]);
-    assert_eq!(args.delivery, voltage_defaults().delivery);
+    assert_eq!(args.delivery_args.delivery, voltage_defaults().delivery);
+    assert_eq!(
+        args.delivery_args.delivery_format,
+        voltage_defaults().delivery_format
+    );
 }
 
 #[test]
-fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
+fn submit_volt_sends_the_channel_bounds_and_no_channel_range() {
     let (args, _) = volt_args(&[
         "giant-squid",
         "submit-volt",
@@ -697,7 +694,7 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         TEST_OBS_ID,
     ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
-    assert_eq!(json["channel_range"], false);
+    assert!(json.get("channel_range").is_none());
     assert_eq!(json["offset"], 16);
     assert_eq!(json["duration"], 8);
 
@@ -713,7 +710,7 @@ fn submit_volt_channel_range_is_derived_from_the_channel_bounds() {
         TEST_OBS_ID,
     ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
-    assert_eq!(json["channel_range"], true);
+    assert!(json.get("channel_range").is_none());
     assert_eq!(json["from_channel"], 109);
     assert!(json.get("to_channel").is_none());
 }
@@ -741,14 +738,15 @@ fn submit_volt_rejects_a_channel_above_the_receiver_range() {
 #[test]
 fn submit_bf_builds_a_beamformer_body() {
     let (args, _) = bf_args(&["giant-squid", "submit-bf", TEST_OBS_ID]);
-    assert_eq!(args.delivery_args.delivery, beamformer_defaults().delivery);
+    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
     assert_eq!(
         args.delivery_args.delivery_format,
-        beamformer_defaults().delivery_format
+        download_defaults().delivery_format
     );
 
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
+    assert_eq!(json["download_type"], "beam");
 }
 
 // ---------------------------------------------------------------------------
@@ -968,7 +966,6 @@ fn submit_image_from_job_rejects_out_of_range_values() {
             TEST_JOB_ID,
         ];
         argv.extend_from_slice(&bad);
-        argv.push(TEST_OBS_ID);
         let err = parse_err(&argv);
         assert_eq!(
             err.kind(),
@@ -1042,7 +1039,6 @@ fn submit_image_from_job_rejects_an_out_of_range_wstack_nwlayers() {
         TEST_JOB_ID,
         "--wstack-nwlayers",
         "16",
-        TEST_OBS_ID,
     ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
 }
@@ -1222,7 +1218,8 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
         crate::test_config::asvo_job(
             obs_id,
             JobDetailResponse {
-                id: 101,
+                job_id: crate::AsvoJobId::new(101).expect("not zero"),
+                obs_id: 0,
                 job_type: Some(crate::test_config::job_type("visibility")),
                 job_state: JobState::Completed,
                 product: Some(JobProduct {
@@ -1260,7 +1257,8 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
         crate::test_config::asvo_job(
             obs_id,
             JobDetailResponse {
-                id: 102,
+                job_id: crate::AsvoJobId::new(102).expect("not zero"),
+                obs_id: 0,
                 job_type: Some(crate::test_config::job_type("conversion")),
                 job_state: JobState::Queued,
                 product: None,
@@ -1279,7 +1277,8 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
         crate::test_config::asvo_job(
             obs_id,
             JobDetailResponse {
-                id: 103,
+                job_id: crate::AsvoJobId::new(103).expect("not zero"),
+                obs_id: 0,
                 job_type: Some(crate::test_config::job_type("imaging")),
                 job_state: JobState::Error,
                 product: Some(JobProduct { files: vec![] }),
@@ -1317,11 +1316,14 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 #[test]
 fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
     use crate::mwa_asvo::api::openapi::JobDetailResponse;
+    use crate::mwa_asvo::api::schema_enums::SchemaEnum;
     use crate::mwa_asvo::{AsvoJobVec, JobState, JobType};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
-    let job_types: Vec<Option<JobType>> = (0..=6)
-        .map(|code| Some(JobType::try_from(code).expect("a code of the schema")))
+    let job_types: Vec<Option<JobType>> = JobType::VARIANTS
+        .iter()
+        .copied()
+        .map(Some)
         .chain([None])
         .collect();
     let jobs = AsvoJobVec(
@@ -1332,7 +1334,8 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
                 crate::test_config::asvo_job(
                     obs_id,
                     JobDetailResponse {
-                        id,
+                        job_id: crate::AsvoJobId::new(id).expect("not zero"),
+                        obs_id: 0,
                         job_type,
                         job_state: JobState::Completed,
                         product: None,
@@ -1359,11 +1362,11 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
 }
 
 /// `--json` prints each job as the OpenAPI schema's `JobDetailResponse`, with
-/// one more key, `obs_id`: the schema's names and values (the job type is
-/// its code), and no key for a field that has no value.
+/// the schema's names and values (the job type is its name, as the API gives
+/// it), and no key for a field that has no value.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"obs_id":1065880128,"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54Z","first_name":"Test","id":101,"job_params":{"delivery":"acacia","obs_id":1065880128},"job_state":"completed","job_type":1,"last_name":"User","modified":"2026-09-08T06:00:00Z","product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"started":"2026-09-08T05:41:54Z","user_id":4242},"102":{"obs_id":1065880128,"created":"2026-09-08T05:41:54Z","first_name":"Test","id":102,"job_params":{"obs_id":1065880128},"job_state":"queued","job_type":0,"last_name":"User","user_id":4242},"103":{"obs_id":1065880128,"created":"2026-09-08T05:41:54Z","error_code":12,"error_text":"the \"conversion\" failed","first_name":"Test","id":103,"job_params":{"obs_id":1065880128},"job_state":"error","job_type":6,"last_name":"User","product":{"files":[]},"user_id":4242}}"#;
+    let expected = r#"{"101":{"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":101,"job_params":{"delivery":"acacia","obs_id":1065880128},"job_state":"completed","job_type":"visibility","last_name":"User","modified":"2026-09-08T06:00:00Z","obs_id":1065880128,"product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"started":"2026-09-08T05:41:54Z","user_id":4242},"102":{"created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":102,"job_params":{"obs_id":1065880128},"job_state":"queued","job_type":"conversion","last_name":"User","obs_id":1065880128,"user_id":4242},"103":{"created":"2026-09-08T05:41:54Z","error_code":12,"error_text":"the \"conversion\" failed","first_name":"Test","job_id":103,"job_params":{"obs_id":1065880128},"job_state":"error","job_type":"imaging","last_name":"User","obs_id":1065880128,"product":{"files":[]},"user_id":4242}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 
@@ -1455,7 +1458,6 @@ fn submit_image_from_job_does_not_take_the_conversion_switches() {
             "--source-job-id",
             "5",
             flag,
-            TEST_OBS_ID,
         ]);
         assert!(result.is_err(), "{flag} must be refused");
     }
@@ -1503,7 +1505,7 @@ fn list_takes_the_date_and_sort_filters() {
         } => {
             assert_eq!(date_from, Some(utc("2026-09-01T00:00:00Z")));
             assert_eq!(date_to, Some(utc("2026-09-30T00:00:00Z")));
-            assert_eq!(sort_by.as_deref(), Some("created"));
+            assert_eq!(sort_by, Some(crate::mwa_asvo::SortBy::Created));
         }
         other => panic!("expected List, got {other:?}"),
     }
@@ -1662,8 +1664,8 @@ fn the_help_has_colours() {
 #[test]
 fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     use crate::mwa_asvo::api::openapi::{
-        BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
-        ImagingJobFlow1Params, ImagingJobFlow2Params,
+        ConversionJobParams, DownloadJobParams, DownloadType, ImagingJobFlow1Params,
+        ImagingJobFlow2Params,
     };
 
     let obs_id: crate::obs_id::ObsId = TEST_OBS_ID.parse().expect("a valid Obs ID");
@@ -1697,13 +1699,11 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         "submit-image-from-job",
         "--source-job-id",
         "5",
-        TEST_OBS_ID,
     ]) {
-        Args::SubmitImageFromJob { image, .. } => image.to_params(obs_id),
+        Args::SubmitImageFromJob { image, .. } => image.to_params(),
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     };
     let expected: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
-        .obs_id(TEST_OBS_ID_I64)
         .source_job_id(std::num::NonZeroU64::new(5).expect("not zero"))
         .try_into()
         .expect("defaults build");
@@ -1724,8 +1724,9 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         Args::SubmitBf { bf, .. } => bf.to_params(obs_id),
         other => panic!("expected SubmitBf, got {other:?}"),
     };
-    let expected: BeamformerJobParams = BeamformerJobParams::builder()
+    let expected: DownloadJobParams = DownloadJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
+        .download_type(DownloadType::Beam)
         .try_into()
         .expect("defaults build");
     assert_eq!(body_json(&bf), body_json(&expected));
@@ -1885,12 +1886,7 @@ fn the_amps_polarization_and_multiscale_switches_take_true_or_false() {
                 "1",
             ];
             argv.extend_from_slice(extra);
-            argv.push(TEST_OBS_ID);
-            json_of(
-                &image_from_job_args(&argv)
-                    .0
-                    .to_params(crate::test_config::test_obs_id()),
-            )
+            json_of(&image_from_job_args(&argv).to_params())
         };
         assert_eq!(body(&[])[field], false, "{field} default");
         assert_eq!(body(&[flag])[field], true, "{field} bare");
@@ -2017,7 +2013,11 @@ fn acacia_with_files_is_a_usage_error_for_every_submit_command() {
             let mut argv = vec!["giant-squid"];
             argv.extend_from_slice(command);
             argv.extend_from_slice(delivery);
-            argv.extend_from_slice(&["--delivery-format", "files", TEST_OBS_ID]);
+            argv.extend_from_slice(&["--delivery-format", "files"]);
+            // `submit-image-from-job` takes no Obs ID.
+            if command[0] != "submit-image-from-job" {
+                argv.push(TEST_OBS_ID);
+            }
             argv
         };
 
@@ -2047,13 +2047,10 @@ fn acacia_with_files_is_a_usage_error_for_every_submit_command() {
         }
         let mut tar = vec!["giant-squid"];
         tar.extend_from_slice(command);
-        tar.extend_from_slice(&[
-            "--delivery",
-            "acacia",
-            "--delivery-format",
-            "tar",
-            TEST_OBS_ID,
-        ]);
+        tar.extend_from_slice(&["--delivery", "acacia", "--delivery-format", "tar"]);
+        if command[0] != "submit-image-from-job" {
+            tar.push(TEST_OBS_ID);
+        }
         Args::try_parse_from(tar).expect("acacia with tar is valid");
     }
 }

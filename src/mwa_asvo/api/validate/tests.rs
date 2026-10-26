@@ -25,14 +25,7 @@ const VOLTAGE: &str = "VoltageJobParams";
 
 /// Every job request body in the schema. The completeness test looks for
 /// limits in all of them, so a limit added to any body is noticed.
-const JOB_BODIES: [&str; 6] = [
-    "DownloadJobParams",
-    CONVERSION,
-    FLOW1,
-    FLOW2,
-    VOLTAGE,
-    "BeamformerJobParams",
-];
+const JOB_BODIES: [&str; 5] = ["DownloadJobParams", CONVERSION, FLOW1, FLOW2, VOLTAGE];
 
 /// The limits of the fields both imaging request bodies have.
 const SHARED_LIMITS: [(&str, Bounds); 13] = [
@@ -67,17 +60,12 @@ const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
 /// Schema limits that the Rust type enforces, so this module has no check
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
-const TYPE_ENFORCED: [(&str, &str, &str); 10] = [
+const TYPE_ENFORCED: [(&str, &str, &str); 9] = [
     ("DownloadJobParams", "obs_id", "ObsId::validate is stricter"),
     (CONVERSION, "obs_id", "ObsId::validate is stricter"),
     (FLOW1, "obs_id", "ObsId::validate is stricter"),
     (FLOW2, "obs_id", "ObsId::validate is stricter"),
     (VOLTAGE, "obs_id", "ObsId::validate is stricter"),
-    (
-        "BeamformerJobParams",
-        "obs_id",
-        "ObsId::validate is stricter",
-    ),
     (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
     (VOLTAGE, "duration", "u64 has minimum 0"),
     (VOLTAGE, "from_channel", "u8 has the range 0 to 255"),
@@ -251,7 +239,7 @@ const CUSTOM_CENTRE_TEST_DEC: f64 = -26.0;
 
 fn conversion_with_custom_centre() -> ConversionJobParams {
     ConversionJobParams {
-        centre: Centre::Custom,
+        centre: PhaseCentre::Custom,
         custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
         custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
         ..conversion_defaults()
@@ -260,7 +248,7 @@ fn conversion_with_custom_centre() -> ConversionJobParams {
 
 fn imaging_with_custom_centre() -> ImagingJobFlow1Params {
     ImagingJobFlow1Params {
-        centre: Centre::Custom,
+        centre: PhaseCentre::Custom,
         custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
         custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
         ..flow1_defaults()
@@ -593,12 +581,16 @@ fn a_value_the_schema_does_not_allow_is_refused() {
 /// it says what the format must be.
 #[test]
 fn only_acacia_delivery_with_files_is_refused() {
-    use crate::mwa_asvo::api::openapi::{Delivery, DeliveryFormat};
+    use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 
-    for delivery in [Delivery::Acacia, Delivery::Scratch, Delivery::Dug] {
+    for delivery in [
+        DeliveryDestination::Acacia,
+        DeliveryDestination::Scratch,
+        DeliveryDestination::Dug,
+    ] {
         for delivery_format in [DeliveryFormat::Tar, DeliveryFormat::Files] {
             let result = check_delivery_format(delivery, delivery_format);
-            if delivery == Delivery::Acacia && delivery_format == DeliveryFormat::Files {
+            if delivery == DeliveryDestination::Acacia && delivery_format == DeliveryFormat::Files {
                 let err = result.expect_err("acacia with files is refused");
                 assert!(
                     matches!(
@@ -624,13 +616,9 @@ fn only_acacia_delivery_with_files_is_refused() {
 /// Every request body that has a delivery and a format is checked.
 #[test]
 fn every_body_with_a_delivery_is_checked() {
-    use crate::mwa_asvo::api::openapi::{BeamformerJobParams, DeliveryFormat, DownloadJobParams};
+    use crate::mwa_asvo::api::openapi::{DeliveryFormat, DownloadJobParams};
 
     let mut download: DownloadJobParams = DownloadJobParams::builder()
-        .obs_id(1_065_880_128_i64)
-        .try_into()
-        .expect("defaults build");
-    let mut beamformer: BeamformerJobParams = BeamformerJobParams::builder()
         .obs_id(1_065_880_128_i64)
         .try_into()
         .expect("defaults build");
@@ -638,16 +626,13 @@ fn every_body_with_a_delivery_is_checked() {
     let mut flow1 = flow1_defaults();
     let mut flow2 = flow2_defaults();
     validate_download_params(&download).expect("the defaults are valid");
-    validate_beamformer_params(&beamformer).expect("the defaults are valid");
 
     download.delivery_format = DeliveryFormat::Files;
-    beamformer.delivery_format = DeliveryFormat::Files;
     conversion.delivery_format = DeliveryFormat::Files;
     flow1.delivery_format = DeliveryFormat::Files;
     flow2.delivery_format = DeliveryFormat::Files;
     for result in [
         validate_download_params(&download),
-        validate_beamformer_params(&beamformer),
         validate_conversion_params(&conversion),
         validate_imaging_params(&flow1),
         validate_image_from_job_params(&flow2),
@@ -678,13 +663,13 @@ fn an_infinite_value_is_never_in_bounds() {
 /// The coordinates of a custom phase centre are needed with `custom`.
 #[test]
 fn the_custom_centre_coordinates_go_with_a_custom_centre() {
-    use crate::mwa_asvo::api::openapi::Centre;
+    use crate::mwa_asvo::api::openapi::PhaseCentre;
 
-    assert!(check_centre(Centre::Custom, Some(10.0), Some(-26.0)).is_ok());
-    assert!(check_centre(Centre::Phase, None, None).is_ok());
+    assert!(check_centre(PhaseCentre::Custom, Some(10.0), Some(-26.0)).is_ok());
+    assert!(check_centre(PhaseCentre::Phase, None, None).is_ok());
     for (centre, ra, dec, name) in [
-        (Centre::Custom, None, Some(-26.0), "custom_centre_ra"),
-        (Centre::Custom, Some(10.0), None, "custom_centre_dec"),
+        (PhaseCentre::Custom, None, Some(-26.0), "custom_centre_ra"),
+        (PhaseCentre::Custom, Some(10.0), None, "custom_centre_dec"),
     ] {
         match check_centre(centre, ra, dec) {
             Err(AsvoApiError::InvalidParameter { name: got, .. }) => assert_eq!(got, name),
@@ -697,9 +682,9 @@ fn the_custom_centre_coordinates_go_with_a_custom_centre() {
 /// centre, and the message names the one that is given.
 #[test]
 fn the_custom_centre_coordinates_are_refused_without_a_custom_centre() {
-    use crate::mwa_asvo::api::openapi::Centre;
+    use crate::mwa_asvo::api::openapi::PhaseCentre;
 
-    for centre in [Centre::Phase, Centre::Pointing] {
+    for centre in [PhaseCentre::Phase, PhaseCentre::Pointing] {
         for (ra, dec, name) in [
             (Some(10.0), None, "custom_centre_ra"),
             (None, Some(-26.0), "custom_centre_dec"),
@@ -740,4 +725,45 @@ fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refuse
         .expect("a custom centre with both coordinates is valid");
     validate_imaging_params(&imaging_with_custom_centre())
         .expect("a custom centre with both coordinates is valid");
+}
+
+/// A voltage job is delivered to Scratch as files: the schema's defaults pass,
+/// and any other delivery or delivery format is refused, whatever the
+/// schema's enums allow.
+#[test]
+fn a_voltage_job_is_delivered_to_scratch_as_files() {
+    use crate::mwa_asvo::api::job_params::voltage_defaults;
+    use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
+
+    validate_voltage_params(&voltage_defaults()).expect("the defaults are valid");
+
+    for delivery in [DeliveryDestination::Acacia, DeliveryDestination::Dug] {
+        let mut params = voltage_defaults();
+        params.delivery = delivery;
+        let err = validate_voltage_params(&params).expect_err("only scratch is allowed");
+        assert!(
+            matches!(
+                err,
+                AsvoApiError::InvalidParameter {
+                    name: "delivery",
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
+    }
+
+    let mut params = voltage_defaults();
+    params.delivery_format = DeliveryFormat::Tar;
+    let err = validate_voltage_params(&params).expect_err("only files is allowed");
+    assert!(
+        matches!(
+            err,
+            AsvoApiError::InvalidParameter {
+                name: "delivery_format",
+                ..
+            }
+        ),
+        "{err:?}"
+    );
 }

@@ -150,7 +150,7 @@ fn a_fresh_login_is_performed_and_cached_when_no_session_exists() {
 fn a_rejected_login_with_an_error_response_has_its_fields() {
     let env = TestEnv::without_session();
     let login = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/api_login");
+        when.method(POST).path("/api/v2/auth/api_login");
         then.status(401)
             .header("content-type", "application/json")
             .json_body(json!({
@@ -316,7 +316,7 @@ fn a_refreshed_session_keeps_its_host_and_key_hash() {
     let env = TestEnv::with_session();
     env.write_session(jwt_expiring_in(-60), jwt_expiring_in(86400));
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/refresh");
+        when.method(POST).path("/api/v2/auth/refresh");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(token_response());
@@ -336,7 +336,7 @@ fn an_expired_access_token_is_refreshed_rather_than_re_logged_in() {
     env.write_session(jwt_expiring_in(-60), jwt_expiring_in(86400));
     let login = env.mock_login();
     let refresh = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/refresh");
+        when.method(POST).path("/api/v2/auth/refresh");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(token_response());
@@ -354,7 +354,7 @@ fn a_failed_refresh_falls_back_to_a_fresh_login() {
     env.write_session(jwt_expiring_in(-60), jwt_expiring_in(86400));
     let login = env.mock_login();
     let refresh = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/refresh");
+        when.method(POST).path("/api/v2/auth/refresh");
         then.status(401).body("refresh token already rotated");
     });
 
@@ -370,7 +370,7 @@ fn an_expired_refresh_token_goes_straight_to_a_fresh_login() {
     env.write_session(jwt_expiring_in(-120), jwt_expiring_in(-60));
     let login = env.mock_login();
     let refresh = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/refresh");
+        when.method(POST).path("/api/v2/auth/refresh");
         then.status(200).json_body(token_response());
     });
 
@@ -385,7 +385,7 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
     let env = TestEnv::with_session();
     let login = env.mock_login();
     let get_jobs = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(401)
             .header("content-type", "application/json")
             .json_body(error_response(
@@ -422,14 +422,14 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
     let mut login_body = login_response();
     login_body["access_token"] = json!(fresh);
     let login = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/api_login");
+        when.method(POST).path("/api/v2/auth/api_login");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(login_body);
     });
     let rejected = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .cookie("mwa_access_token", &stale);
         then.status(401)
             .header("content-type", "application/json")
@@ -440,7 +440,7 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
     });
     let accepted = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .cookie("mwa_access_token", &fresh);
         then.status(200)
             .header("content-type", "application/json")
@@ -480,10 +480,10 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
 /// A retry duration long enough that a test never reaches it.
 const LONG_RETRY: std::time::Duration = std::time::Duration::from_secs(600);
 
-/// Serve `POST /api/v2/get_jobs` with a failure of HTTP status `status`.
+/// Serve `POST /api/v2/jobs/list` with a failure of HTTP status `status`.
 fn mock_get_jobs_failure(env: &TestEnv, status: u16) -> httpmock::Mock<'_> {
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(status).body("try later");
     })
 }
@@ -622,7 +622,7 @@ fn only_a_failure_that_may_pass_is_transient() {
 fn an_api_error_has_the_http_status_of_the_reply() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(409)
             .header("content-type", "application/json")
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
@@ -643,7 +643,7 @@ fn an_api_error_has_the_http_status_of_the_reply() {
 fn a_structured_error_body_becomes_an_api_error() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(400)
             .header("content-type", "application/json")
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
@@ -668,7 +668,7 @@ fn a_structured_error_body_becomes_an_api_error() {
 fn a_non_json_error_body_becomes_a_bad_status() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(502).body("<html>bad gateway</html>");
     });
 
@@ -729,7 +729,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
 
     let first = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(r#"{ "offset": 0 }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -737,7 +737,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
     });
     let second = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(r#"{ "offset": 100 }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -784,18 +784,17 @@ fn an_errored_job_carries_the_servers_error_text() {
 fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     let env = TestEnv::with_session();
 
-    let mut no_obs_id = job_detail(1, TEST_OBS_ID, "completed", 1);
-    no_obs_id["job_params"] = json!({ "delivery": "acacia" });
-
+    // An `obs_id` that is not an Obs ID makes the job unusable: it is
+    // skipped, and the others are returned.
     let mut bad_obs_id = job_detail(3, TEST_OBS_ID, "completed", 1);
-    bad_obs_id["job_params"] = json!({ "obs_id": "42" });
+    bad_obs_id["obs_id"] = json!(42);
 
-    // The API has no job 0: job IDs are `NonZeroU64`.
-    let zero_id = job_detail(0, TEST_OBS_ID, "completed", 1);
+    let mut negative_obs_id = job_detail(4, TEST_OBS_ID, "completed", 1);
+    negative_obs_id["obs_id"] = json!(-1);
 
     let good = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "queued", 1);
 
-    env.mock_get_jobs(vec![no_obs_id, bad_obs_id, zero_id, good]);
+    env.mock_get_jobs(vec![bad_obs_id, negative_obs_id, good]);
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
@@ -805,6 +804,31 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
     assert_eq!(jobs.0[0].job_id(), crate::test_config::TEST_ASVO_JOB_ID);
     assert_eq!(jobs.0[0].job_state, JobState::Queued);
+}
+
+/// A job that is not even the schema's `JobDetailResponse` (a Job ID of 0, or
+/// no `obs_id`) fails the whole listing with a decode error: the schema
+/// requires both, and the generated types check them.
+#[test]
+fn a_job_that_breaks_the_schema_fails_the_listing() {
+    for break_it in [
+        |job: &mut serde_json::Value| job["job_id"] = json!(0),
+        |job: &mut serde_json::Value| {
+            job.as_object_mut().expect("an object").remove("obs_id");
+        },
+    ] {
+        let env = TestEnv::with_session();
+        let mut broken = job_detail(1, TEST_OBS_ID, "completed", 1);
+        break_it(&mut broken);
+        env.mock_get_jobs(vec![broken]);
+
+        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let err = client
+            .get_jobs(&JobsFilter::default())
+            .expect_err("a job that breaks the schema must fail the listing");
+
+        assert!(matches!(err, AsvoApiError::BadJson(_)), "{err:?}");
+    }
 }
 
 /// Since schema 1.13 the job state is the schema's `JobState`, not free text:
@@ -862,7 +886,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body(expected);
         then.status(200)
             .header("content-type", "application/json")
@@ -893,7 +917,7 @@ fn a_metadata_job_posts_to_the_same_endpoint_with_a_meta_download_type() {
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(r#"{ "download_type": "meta" }"#);
         then.status(200).json_body(job_submitted_response(778));
     });
@@ -917,7 +941,7 @@ fn a_metadata_job_method_always_sends_a_meta_download_type() {
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(r#"{ "download_type": "meta" }"#);
         then.status(200).json_body(job_submitted_response(779));
     });
@@ -948,7 +972,7 @@ fn a_visibility_job_method_always_sends_a_vis_download_type() {
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/download_vis_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(r#"{ "download_type": "vis" }"#);
         then.status(200).json_body(job_submitted_response(780));
     });
@@ -975,7 +999,7 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
 
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/conversion_job")
+            .path("/api/v2/jobs/create")
             .json_body_includes(format!(r#"{{ "obs_id": {TEST_OBS_ID_I64} }}"#));
         then.status(200).json_body(job_submitted_response(779));
     });
@@ -993,16 +1017,12 @@ fn a_conversion_job_posts_to_the_conversion_endpoint() {
 /// endpoints (the method and the path). The endpoints for the MWA ASVO's own
 /// processors and scheduler (`/v2/job_staged`, `/v2/scheduler/*`,
 /// `/v2/calibration_ready`) are not here, and must not be.
-const END_USER_ENDPOINTS: [(&str, &str); 9] = [
-    ("POST", "/api/v2/get_jobs"),
-    ("POST", "/api/v2/download_vis_job"),
-    ("POST", "/api/v2/conversion_job"),
-    ("POST", "/api/v2/imaging_job"),
-    ("POST", "/api/v2/image_from_job"),
-    ("POST", "/api/v2/voltage_job"),
-    ("POST", "/api/v2/beamformer_job"),
+const END_USER_ENDPOINTS: [(&str, &str); 5] = [
+    ("POST", "/api/v2/jobs/list"),
+    ("POST", "/api/v2/jobs/create"),
+    ("POST", "/api/v2/jobs/image"),
     ("DELETE", "/api/v2/jobs/12345"),
-    ("POST", "/api/v2/api_login"),
+    ("POST", "/api/v2/auth/api_login"),
 ];
 
 /// One request that the client made: the method, the path and the JSON body
@@ -1015,8 +1035,8 @@ type RecordedRequest = (String, String, serde_json::Value);
 /// made. The tests below check what the library sends and where.
 fn record_every_end_user_call() -> Vec<RecordedRequest> {
     use crate::mwa_asvo::api::openapi::{
-        BeamformerJobParams, ConversionJobParams, DownloadJobParams, DownloadType,
-        ImagingJobFlow1Params, ImagingJobFlow2Params, VoltageJobParams,
+        ConversionJobParams, DownloadJobParams, DownloadType, ImagingJobFlow1Params,
+        ImagingJobFlow2Params, VoltageJobParams,
     };
     use std::num::NonZeroU64;
     use std::sync::{Arc, Mutex};
@@ -1083,7 +1103,6 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
     client
         .submit_image_from_job(
             &ImagingJobFlow2Params::builder()
-                .obs_id(obs_id)
                 .source_job_id(source_job_id)
                 .try_into()
                 .expect("the image-from-job body should build"),
@@ -1100,9 +1119,10 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
         )
         .expect("voltage");
     client
-        .submit_beamformer_job(
-            &BeamformerJobParams::builder()
+        .submit_download_beam_job(
+            &DownloadJobParams::builder()
                 .obs_id(obs_id)
+                .download_type(DownloadType::Beam)
                 .try_into()
                 .expect("the beamformer body should build"),
         )
@@ -1180,17 +1200,27 @@ fn every_endpoint_the_client_calls_is_a_schema_path() {
     }
 }
 
-/// The schema of the body that each endpoint takes.
-const BODY_SCHEMAS: [(&str, &str); 8] = [
-    ("/api/v2/api_login", "ApiLoginRequest"),
-    ("/api/v2/get_jobs", "JobsByUserRequest"),
-    ("/api/v2/download_vis_job", "DownloadJobParams"),
-    ("/api/v2/conversion_job", "ConversionJobParams"),
-    ("/api/v2/imaging_job", "ImagingJobFlow1Params"),
-    ("/api/v2/image_from_job", "ImagingJobFlow2Params"),
-    ("/api/v2/voltage_job", "VoltageJobParams"),
-    ("/api/v2/beamformer_job", "BeamformerJobParams"),
-];
+/// The names of the schemas of the body of the operation `method` `path` (a
+/// path of the schema, which has `{name}` parts), from the `operations` key
+/// of the schema file. Empty when the operation has no body.
+fn request_schemas(schema: &serde_json::Value, method: &str, path: &str) -> Vec<String> {
+    let operations = schema["operations"]
+        .as_object()
+        .expect("openapi-schema.json has no operations: run tools/generate_openapi.sh");
+    operations
+        .iter()
+        .find(|(key, _)| {
+            key.split_once(' ')
+                .is_some_and(|(m, template)| m == method && path_matches(template, path))
+        })
+        .unwrap_or_else(|| panic!("{method} {path} is not an operation of the schema"))
+        .1["request"]
+        .as_array()
+        .expect("an operation has a request list")
+        .iter()
+        .map(|name| name.as_str().expect("a schema name").to_string())
+        .collect()
+}
 
 /// Only parameters that the API defines are sent: every key of every body is
 /// a property of that endpoint's schema. (In particular a conversion body has
@@ -1202,27 +1232,36 @@ const BODY_SCHEMAS: [(&str, &str); 8] = [
 fn every_field_of_every_request_body_is_in_the_schema() {
     let schema: serde_json::Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");
 
-    for (_, path, body) in record_every_end_user_call() {
-        let Some((_, name)) = BODY_SCHEMAS.iter().find(|(p, _)| *p == path) else {
+    for (method, path, body) in record_every_end_user_call() {
+        // The schemas that the endpoint takes as its body: the `operations`
+        // that `tools/generate_openapi.sh` keeps in the schema file. An
+        // endpoint with more than one (`/v2/jobs/create` takes one of
+        // several job types) takes any one of them.
+        let schema_path = path
+            .strip_prefix(super::API_PREFIX)
+            .expect("under API_PREFIX");
+        let names = request_schemas(&schema, &method, schema_path);
+        if names.is_empty() {
             assert!(
                 body.is_null(),
-                "{path} sent a body but has no schema: {body}"
+                "{method} {path} sent a body but has no schema: {body}"
             );
             continue;
-        };
-        let properties = schema["definitions"][name]["properties"]
-            .as_object()
-            .unwrap_or_else(|| panic!("the schema has no properties for {name}"));
+        }
         let body = body.as_object().expect("a request body is a JSON object");
 
         assert!(!body.is_empty(), "{path} sent an empty body");
-        for key in body.keys() {
-            assert!(
-                properties.contains_key(key),
-                "{path} sent `{key}`, which is not a property of {name}"
-            );
-        }
         assert!(!body.contains_key("flags"), "{path} sent flags");
+        assert!(
+            names.iter().any(|name| {
+                let properties = schema["definitions"][name]["properties"]
+                    .as_object()
+                    .unwrap_or_else(|| panic!("the schema has no properties for {name}"));
+                body.keys().all(|key| properties.contains_key(key))
+            }),
+            "{method} {path} sent {:?}, which are not all properties of one of {names:?}",
+            body.keys().collect::<Vec<_>>()
+        );
     }
 }
 
@@ -1279,7 +1318,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
     };
 
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/imaging_job");
+        when.method(POST).path("/api/v2/jobs/create");
         then.status(200).json_body(job_submitted_response(779));
     });
 
@@ -1301,18 +1340,15 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
         "submit-image-from-job",
         "--source-job-id",
         "12345",
-        TEST_OBS_ID,
     ])
     .expect("arguments should parse")
     {
-        Args::SubmitImageFromJob { image, .. } => {
-            image.to_params(crate::test_config::test_obs_id())
-        }
+        Args::SubmitImageFromJob { image, .. } => image.to_params(),
         _ => panic!("expected submit-image-from-job"),
     };
 
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/image_from_job");
+        when.method(POST).path("/api/v2/jobs/image");
         then.status(200).json_body(job_submitted_response(780));
     });
 
@@ -1337,7 +1373,7 @@ fn an_out_of_range_imaging_job_is_not_sent() {
             .expect("defaults build");
     params.mgain = 1.5;
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/imaging_job");
+        when.method(POST).path("/api/v2/jobs/create");
         then.status(200).json_body(job_submitted_response(1));
     });
 
@@ -1364,7 +1400,7 @@ fn an_out_of_range_image_from_job_is_not_sent() {
             .expect("defaults build");
     params.pixel_scale = 5.0;
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/image_from_job");
+        when.method(POST).path("/api/v2/jobs/image");
         then.status(200).json_body(job_submitted_response(1));
     });
 
@@ -1396,7 +1432,7 @@ fn an_out_of_range_conversion_job_is_not_sent() {
             .expect("defaults build");
     params.avg_freq_res = Some(5000.0);
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/conversion_job");
+        when.method(POST).path("/api/v2/jobs/create");
         then.status(200).json_body(job_submitted_response(1));
     });
 
@@ -1429,7 +1465,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
             .try_into()
             .expect("params build");
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/voltage_job");
+        when.method(POST).path("/api/v2/jobs/create");
         then.status(200).json_body(job_submitted_response(1));
     });
 
@@ -1445,15 +1481,11 @@ fn an_out_of_range_voltage_job_is_not_sent() {
     assert_eq!(submit.calls(), 0);
 }
 
-/// `channel_range` is derived from the channels: it is set exactly when a
-/// channel bound is given, whatever value the caller put in `params`.
+/// A voltage body sends the channel bounds that the caller gave, and no
+/// `channel_range`: the schema does not have it any more.
 #[test]
-fn channel_range_is_derived_from_the_channels() {
-    for (from_channel, to_channel, expected) in [
-        (None, None, false),
-        (Some(109), None, true),
-        (None, Some(132), true),
-    ] {
+fn a_voltage_body_sends_the_channels_and_no_channel_range() {
+    for (from_channel, to_channel) in [(None, None), (Some(109), None), (None, Some(132))] {
         let env = TestEnv::with_session();
         let mut params = crate::mwa_asvo::api::job_params::voltage_params(
             crate::test_config::test_obs_id(),
@@ -1462,11 +1494,18 @@ fn channel_range_is_derived_from_the_channels() {
         );
         params.from_channel = from_channel;
         params.to_channel = to_channel;
-        params.channel_range = Some(!expected);
         let submit = env.server.mock(|when, then| {
             when.method(POST)
-                .path("/api/v2/voltage_job")
-                .json_body_includes(json!({ "channel_range": expected }).to_string());
+                .path("/api/v2/jobs/create")
+                .is_true(move |req| {
+                    let body: serde_json::Value =
+                        serde_json::from_slice(req.body_ref()).unwrap_or_default();
+                    body.get("channel_range").is_none()
+                        && body.get("from_channel").and_then(|v| v.as_u64())
+                            == from_channel.map(u64::from)
+                        && body.get("to_channel").and_then(|v| v.as_u64())
+                            == to_channel.map(u64::from)
+                });
             then.status(200).json_body(job_submitted_response(1));
         });
 
@@ -1483,11 +1522,10 @@ fn channel_range_is_derived_from_the_channels() {
 #[test]
 fn acacia_delivery_with_files_is_refused_before_any_request() {
     use crate::mwa_asvo::api::job_params::{
-        beamformer_params, conversion_params, download_params, image_from_job_params,
-        imaging_params,
+        conversion_params, download_params, image_from_job_params, imaging_params,
     };
     use crate::mwa_asvo::api::openapi::{
-        Delivery, DeliveryFormat, DownloadType, JobSubmittedResponse,
+        DeliveryDestination, DeliveryFormat, DownloadType, JobSubmittedResponse,
     };
 
     let env = TestEnv::with_session();
@@ -1526,23 +1564,23 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
     let mut imaging = imaging_params(obs_id);
     imaging.delivery_format = DeliveryFormat::Files;
     refused(client.submit_imaging_job(&imaging));
-    let mut image_from_job = image_from_job_params(obs_id, source_job_id);
+    let mut image_from_job = image_from_job_params(source_job_id);
     image_from_job.delivery_format = DeliveryFormat::Files;
     refused(client.submit_image_from_job(&image_from_job));
-    let mut beamformer = beamformer_params(obs_id);
+    let mut beamformer = download_params(obs_id, DownloadType::Beam);
     beamformer.delivery_format = DeliveryFormat::Files;
-    refused(client.submit_beamformer_job(&beamformer));
+    refused(client.submit_download_beam_job(&beamformer));
     assert_eq!(submit.calls(), 0, "nothing should be sent");
 
     // The other combinations are sent: acacia with tar, and the other
     // deliveries with either format.
     let mut sent = 0;
     for (delivery, delivery_format) in [
-        (Delivery::Acacia, DeliveryFormat::Tar),
-        (Delivery::Scratch, DeliveryFormat::Files),
-        (Delivery::Scratch, DeliveryFormat::Tar),
-        (Delivery::Dug, DeliveryFormat::Files),
-        (Delivery::Dug, DeliveryFormat::Tar),
+        (DeliveryDestination::Acacia, DeliveryFormat::Tar),
+        (DeliveryDestination::Scratch, DeliveryFormat::Files),
+        (DeliveryDestination::Scratch, DeliveryFormat::Tar),
+        (DeliveryDestination::Dug, DeliveryFormat::Files),
+        (DeliveryDestination::Dug, DeliveryFormat::Tar),
     ] {
         vis.delivery = delivery;
         vis.delivery_format = delivery_format;
@@ -1567,7 +1605,7 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
         beamformer.delivery = delivery;
         beamformer.delivery_format = delivery_format;
         client
-            .submit_beamformer_job(&beamformer)
+            .submit_download_beam_job(&beamformer)
             .expect("a valid delivery");
         sent += 5;
     }
@@ -1793,9 +1831,9 @@ fn get_jobs_sends_every_filter_to_the_server() {
     let env = TestEnv::with_session();
     let filtered = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(
-                r#"{ "days": 7, "job_state": "completed", "job_type": 6,
+                r#"{ "days": 7, "job_state": "completed", "job_type": "imaging",
                  "sort_by": "created" }"#,
             );
         then.status(200)
@@ -1806,7 +1844,7 @@ fn get_jobs_sends_every_filter_to_the_server() {
         days: Some(crate::test_config::nonzero(7)),
         job_states: vec![JobState::Completed],
         job_types: vec![job_type("imaging")],
-        sort_by: Some("created".to_string()),
+        sort_by: Some(crate::mwa_asvo::SortBy::Created),
         ..JobsFilter::default()
     };
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
@@ -1829,7 +1867,7 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
         .get();
     let unfiltered = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(json!({ "days": schema_default_days, "sort_by": "id" }).to_string())
             .is_true(|req| {
                 let body: serde_json::Value =
@@ -1896,7 +1934,7 @@ fn a_date_sends_null_days_and_days_alone_sends_no_date() {
     let empty = json!({ "jobs": [], "total_count": 0 });
 
     let mut dated = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs").json_body_includes(
+        when.method(POST).path("/api/v2/jobs/list").json_body_includes(
             json!({ "days": null, "date_from": "2026-09-01T00:00:00Z", "date_to": "2026-09-30T00:00:00Z" })
                 .to_string(),
         );
@@ -1915,7 +1953,7 @@ fn a_date_sends_null_days_and_days_alone_sends_no_date() {
     // One date is enough to make `days` null.
     let mut one_date = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(
                 json!({ "days": null, "date_to": "2026-09-30T00:00:00Z" }).to_string(),
             );
@@ -1932,7 +1970,7 @@ fn a_date_sends_null_days_and_days_alone_sends_no_date() {
 
     let by_days = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
+            .path("/api/v2/jobs/list")
             .json_body_includes(json!({ "days": 7 }).to_string())
             .is_true(|req| {
                 let body: serde_json::Value =
@@ -2041,7 +2079,7 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
     ]);
     body["request_id"] = json!("req-1234");
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(422).json_body(body);
     });
 
@@ -2077,7 +2115,7 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
 fn an_api_error_without_details_has_the_plain_message() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(400)
             .json_body(json!({ "error_code": "JOB_INVALID_STATE", "message": "Job is not ready" }));
     });
@@ -2100,7 +2138,7 @@ fn an_api_error_without_details_has_the_plain_message() {
 fn an_api_error_shows_the_servers_detail_and_suggestion() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(400)
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
     });
@@ -2122,7 +2160,7 @@ fn an_api_error_shows_the_servers_detail_and_suggestion() {
 fn an_api_error_with_only_a_suggestion_shows_only_the_suggestion() {
     let env = TestEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs");
+        when.method(POST).path("/api/v2/jobs/list");
         then.status(400).json_body(json!({
             "error_code": "JOB_INVALID_STATE",
             "message": "Job is not ready",
@@ -2162,8 +2200,8 @@ fn get_jobs_sends_a_single_state_and_type_to_the_server() {
     let env = TestEnv::with_session();
     let listing = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/get_jobs")
-            .json_body_includes(r#"{ "job_state": "queued", "job_type": 6 }"#);
+            .path("/api/v2/jobs/list")
+            .json_body_includes(r#"{ "job_state": "queued", "job_type": "imaging" }"#);
         then.status(200)
             .json_body(json!({ "jobs": three_jobs(), "total_count": 3 }));
     });
@@ -2187,7 +2225,7 @@ fn get_jobs_sends_a_single_state_and_type_to_the_server() {
 fn get_jobs_filters_several_states_on_the_client() {
     let env = TestEnv::with_session();
     let listing = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/get_jobs").is_true(|req| {
+        when.method(POST).path("/api/v2/jobs/list").is_true(|req| {
             let body: serde_json::Value =
                 serde_json::from_slice(req.body().as_ref()).unwrap_or_default();
             body.get("job_state").is_none() && body.get("job_type").is_none()

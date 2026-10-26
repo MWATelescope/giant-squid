@@ -17,24 +17,25 @@ __all__ = [
     "AsvoError",
     "AsvoJob",
     "AsvoJobVec",
-    "Centre",
     "CsvJobFailure",
     "CsvSubmitError",
-    "Delivery",
+    "DeliveryDestination",
     "DeliveryFormat",
     "DownloadProgress",
+    "ImageOutputMode",
+    "ImageWeighting",
     "JobCancelledResponse",
     "JobFile",
     "JobProduct",
     "JobState",
     "JobSubmittedResponse",
     "JobType",
-    "Output",
-    "OutputMode",
+    "OutputFormat",
+    "PhaseCentre",
     "Polarization",
+    "SortBy",
     "Status",
     "Type",
-    "Weighting",
     "reset_logging",
 ]
 
@@ -123,7 +124,7 @@ class AsvoClient:
         days: builtins.int | None = None,
         date_from: datetime.datetime | None = None,
         date_to: datetime.datetime | None = None,
-        sort_by: builtins.str | None = None,
+        sort_by: SortBy | None = None,
     ) -> AsvoJobVec:
         r"""
         Get your jobs, as `giant-squid list` does: the server filters what it
@@ -146,7 +147,7 @@ class AsvoClient:
                 have a time zone.
             date_to: Only the jobs created at or before this time. It must
                 have a time zone.
-            sort_by: The column to sort the jobs by, for example "id".
+            sort_by: The column to sort the jobs by (a `SortBy`).
                 `None` uses the server's default order.
 
         Raises:
@@ -160,7 +161,7 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
@@ -176,7 +177,7 @@ class AsvoClient:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
             allow_resubmit: Submit the job even if an identical one has
                 completed.
 
@@ -185,7 +186,7 @@ class AsvoClient:
 
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryDestination.Acacia` and `delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
                 is sent.
             AsvoApiError: The request failed.
@@ -194,7 +195,7 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
@@ -208,7 +209,7 @@ class AsvoClient:
 
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryDestination.Acacia` and `delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
                 is sent.
             AsvoApiError: The request failed.
@@ -217,14 +218,14 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        output: Output = Output.Ms,
+        output: OutputFormat = OutputFormat.Ms,
         avg_freq_res: builtins.float | None = 40.0,
         avg_time_res: builtins.float | None = 2.0,
         flag_edge_width: builtins.float = 80.0,
         apply_di_cal: builtins.bool = False,
-        centre: Centre = Centre.Phase,
+        centre: PhaseCentre = PhaseCentre.Phase,
         custom_centre_ra: builtins.float | None = None,
         custom_centre_dec: builtins.float | None = None,
         no_apply_amps: builtins.bool = False,
@@ -248,13 +249,13 @@ class AsvoClient:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
             output: The output format.
             avg_freq_res: The frequency resolution to average to (kHz).
             avg_time_res: The time resolution to average to (s).
             flag_edge_width: The width of the frequency edge flagging (kHz).
             apply_di_cal: Apply the DI calibration solution.
-            centre: The phase centre mode. `Centre.Custom` needs
+            centre: The phase centre mode. `PhaseCentre.Custom` needs
                 `custom_centre_ra` and `custom_centre_dec`, and they are only
                 allowed with it.
             custom_centre_ra: The custom phase centre's right ascension
@@ -277,9 +278,9 @@ class AsvoClient:
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
-                1280), `delivery` is `Delivery.Acacia` and `delivery_format`
+                1280), `delivery` is `DeliveryDestination.Acacia` and `delivery_format`
                 is `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `Centre.Custom` without both `custom_centre_ra`
+                `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
                 and `custom_centre_dec`, or either of them is given with
                 another `centre`. The message names the argument and
                 its limits. Nothing is sent.
@@ -289,7 +290,7 @@ class AsvoClient:
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         apply_di_cal: builtins.bool = True,
         apply_primary_beam: builtins.bool = True,
@@ -301,7 +302,7 @@ class AsvoClient:
         channels_out: builtins.int = 4,
         clean_iterations: builtins.int = 100000,
         clean_threshold: builtins.float | None = 0.001,
-        centre: Centre = Centre.Phase,
+        centre: PhaseCentre = PhaseCentre.Phase,
         custom_centre_dec: builtins.float | None = None,
         custom_centre_ra: builtins.float | None = None,
         flag_edge_width: builtins.float = 80.0,
@@ -319,13 +320,13 @@ class AsvoClient:
         no_cable_delay: builtins.bool | None = False,
         no_rfi: builtins.bool | None = False,
         nwlayers: builtins.int | None = None,
-        output_mode: OutputMode = OutputMode.Fits,
+        output_mode: ImageOutputMode = ImageOutputMode.Fits,
         pixel_scale: builtins.float = 20.0,
         pol: Polarization = Polarization.Xxyy,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
-        weighting: Weighting = Weighting.Briggs,
+        weighting: ImageWeighting = ImageWeighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
         allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
@@ -341,7 +342,7 @@ class AsvoClient:
             obs_id: The Obs ID.
             delivery: Where the MWA ASVO delivers the data.
             delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
             apply_di_cal: Apply the DI calibration solution.
             apply_primary_beam: Apply the primary beam correction.
             auto_mask: The WSClean -auto-mask value.
@@ -355,7 +356,7 @@ class AsvoClient:
             clean_iterations: The WSClean -niter value.
             clean_threshold: The WSClean cleaning threshold (Jy). This
                 field is deprecated in the API: use `abs_threshold`.
-            centre: Where to centre the image. `Centre.Custom` needs
+            centre: Where to centre the image. `PhaseCentre.Custom` needs
                 `custom_centre_ra` and `custom_centre_dec`, and they are only
                 allowed with it.
             custom_centre_dec: The custom phase centre's declination
@@ -397,9 +398,9 @@ class AsvoClient:
             ValueError: `obs_id` is not a valid Obs ID, or an argument is
                 outside what the MWA ASVO accepts (for example `mgain`
                 above 1, or an `image_size` that is not a supported size),
-                `delivery` is `Delivery.Acacia` and `delivery_format` is
+                `delivery` is `DeliveryDestination.Acacia` and `delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `Centre.Custom` without both `custom_centre_ra`
+                `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
                 and `custom_centre_dec`, or either of them is given with
                 another `centre`. The message names the argument and
                 its limits. Nothing is sent.
@@ -407,10 +408,9 @@ class AsvoClient:
         """
     def submit_image_from_job(
         self,
-        obs_id: builtins.int,
         source_job_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         apply_primary_beam: builtins.bool = True,
         auto_mask: builtins.int = 3,
@@ -426,13 +426,13 @@ class AsvoClient:
         multiscale: builtins.bool = False,
         nmiter: builtins.int = 10,
         nwlayers: builtins.int | None = None,
-        output_mode: OutputMode = OutputMode.Fits,
+        output_mode: ImageOutputMode = ImageOutputMode.Fits,
         pixel_scale: builtins.float = 20.0,
         pol: Polarization = Polarization.Xxyy,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
-        weighting: Weighting = Weighting.Briggs,
+        weighting: ImageWeighting = ImageWeighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
         allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
@@ -447,8 +447,10 @@ class AsvoClient:
         data come from a conversion job, so there are no calibration,
         averaging, flagging or phase centre arguments.
 
+        The job has no Obs ID argument: the MWA ASVO takes the Obs ID from
+        the conversion job (the body has no `obs_id`, which is the same as `null`).
+
         Args:
-            obs_id: The Obs ID.
             source_job_id: The ID of the conversion job to image. Must be
                 greater than zero.
 
@@ -456,7 +458,7 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, `source_job_id` is
+            ValueError: `source_job_id` is
                 zero, or an argument is outside what the MWA ASVO accepts or
                 does not agree with another (see `submit_imaging_job`).
                 Nothing is sent.
@@ -468,7 +470,8 @@ class AsvoClient:
         offset: builtins.int,
         duration: builtins.int,
         *,
-        delivery: builtins.str = "scratch",
+        delivery: DeliveryDestination = DeliveryDestination.Scratch,
+        delivery_format: DeliveryFormat = DeliveryFormat.Files,
         from_channel: builtins.int | None = None,
         to_channel: builtins.int | None = None,
         allow_resubmit: builtins.bool | None = False,
@@ -487,8 +490,10 @@ class AsvoClient:
                 observation, from 0 to 5400.
             duration: The duration to download, in seconds.
             delivery: Where the MWA ASVO delivers the data. The only valid
-                value is "scratch", which needs the "mwavcs" Pawsey Group
-                on your MWA ASVO profile.
+                value is `DeliveryDestination.Scratch`, which needs the
+                "mwavcs" Pawsey Group on your MWA ASVO profile.
+            delivery_format: How the MWA ASVO packages the data. The only
+                valid value is `DeliveryFormat.Files`.
             from_channel: The first receiver channel number (0 to 255).
             to_channel: The last receiver channel number (0 to 255).
             allow_resubmit: Submit the job even if an identical one has
@@ -498,16 +503,18 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
-                from 0 to 5400. Nothing is sent.
+            ValueError: `obs_id` is not a valid Obs ID, `delivery` is not
+                `DeliveryDestination.Scratch`, `delivery_format` is not
+                `DeliveryFormat.Files`, or `offset` is not from 0 to 5400.
+                Nothing is sent.
             OverflowError: A channel number is not from 0 to 255.
             AsvoApiError: The request failed.
         """
-    def submit_beamformer_job(
+    def submit_download_beam_job(
         self,
         obs_id: builtins.int,
         *,
-        delivery: Delivery = Delivery.Acacia,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         allow_resubmit: builtins.bool | None = False,
     ) -> JobSubmittedResponse:
@@ -521,7 +528,7 @@ class AsvoClient:
 
         Raises:
             ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `Delivery.Acacia` and `delivery_format` is
+                `DeliveryDestination.Acacia` and `delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
                 is sent.
             AsvoApiError: The request failed.
@@ -530,7 +537,7 @@ class AsvoClient:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        delivery: Delivery | None = None,
+        delivery: DeliveryDestination | None = None,
         delivery_format: DeliveryFormat | None = None,
         allow_resubmit: builtins.bool | None = None,
     ) -> builtins.list[JobSubmittedResponse]:
@@ -1133,22 +1140,11 @@ class JobSubmittedResponse:
         """
 
 @typing.final
-class Centre(enum.Enum):
-    r"""
-    Where to put the phase centre of a conversion job or an imaging job.
-    `str()` is the API value.
-    """
-
-    Phase = ...
-    Pointing = ...
-    Custom = ...
-
-@typing.final
-class Delivery(enum.Enum):
+class DeliveryDestination(enum.Enum):
     r"""
     Where the MWA ASVO delivers a job's files: the OpenAPI schema's
-    `Delivery`, the `delivery` argument of the submit methods. `str()` is
-    the API value.
+    `DeliveryDestination`, the `delivery` argument of the submit methods.
+    `str()` is the API value.
     """
 
     Acacia = ...
@@ -1164,6 +1160,27 @@ class DeliveryFormat(enum.Enum):
 
     Tar = ...
     Files = ...
+
+@typing.final
+class ImageOutputMode(enum.Enum):
+    r"""
+    The products an imaging job returns. `str()` is the API value.
+    """
+
+    Fits = ...
+    AllFits = ...
+    AllFiles = ...
+
+@typing.final
+class ImageWeighting(enum.Enum):
+    r"""
+    The WSClean weighting scheme of an imaging job. `str()` is the API
+    value.
+    """
+
+    Briggs = ...
+    Uniform = ...
+    Natural = ...
 
 @typing.final
 class JobState(enum.Enum):
@@ -1189,9 +1206,8 @@ class JobState(enum.Enum):
 @typing.final
 class JobType(enum.Enum):
     r"""
-    The type of an MWA ASVO job: the OpenAPI schema's `JobType`, whose value
-    is the API's code (for example `JobType.Visibility` is 1). `str()` is the
-    name that the schema gives the code (for example "visibility").
+    The type of an MWA ASVO job: the OpenAPI schema's `JobType`. `str()` is
+    the API value (for example "visibility").
     """
 
     Conversion = ...
@@ -1203,7 +1219,7 @@ class JobType(enum.Enum):
     Imaging = ...
 
 @typing.final
-class Output(enum.Enum):
+class OutputFormat(enum.Enum):
     r"""
     The format of a conversion job's output. `str()` is the API value.
     """
@@ -1212,14 +1228,15 @@ class Output(enum.Enum):
     Uvfits = ...
 
 @typing.final
-class OutputMode(enum.Enum):
+class PhaseCentre(enum.Enum):
     r"""
-    The products an imaging job returns. `str()` is the API value.
+    Where to put the phase centre of a conversion job or an imaging job.
+    `str()` is the API value.
     """
 
-    Fits = ...
-    AllFits = ...
-    AllFiles = ...
+    Phase = ...
+    Pointing = ...
+    Custom = ...
 
 @typing.final
 class Polarization(enum.Enum):
@@ -1230,6 +1247,17 @@ class Polarization(enum.Enum):
     Xx = ...
     Yy = ...
     Xxyy = ...
+
+@typing.final
+class SortBy(enum.Enum):
+    r"""
+    The column to sort a job list by: the OpenAPI schema's `SortBy`. `str()`
+    is the API value.
+    """
+
+    Id = ...
+    Created = ...
+    Completed = ...
 
 @typing.final
 class Status(enum.Enum):
@@ -1254,17 +1282,6 @@ class Type(enum.Enum):
     Acacia = ...
     Scratch = ...
     Dug = ...
-
-@typing.final
-class Weighting(enum.Enum):
-    r"""
-    The WSClean weighting scheme of an imaging job. `str()` is the API
-    value.
-    """
-
-    Briggs = ...
-    Uniform = ...
-    Natural = ...
 
 def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
     r"""

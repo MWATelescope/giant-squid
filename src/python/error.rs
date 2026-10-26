@@ -316,7 +316,7 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::InvalidJob { id, problem } => (
             "InvalidJob",
             vec![
-                ("id", Field::OptInt(Some(id))),
+                ("id", Field::OptInt(i64::try_from(id.get()).ok())),
                 ("problem", Field::Str(problem)),
             ],
         ),

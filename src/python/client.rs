@@ -23,9 +23,9 @@ use super::error::{api_error, asvo_error};
 use super::params::job_obs_id;
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
-    PyAsvoJob, PyAsvoJobVec, PyCentre, PyDelivery, PyDeliveryFormat, PyJobCancelledResponse,
-    PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput, PyOutputMode, PyPolarization,
-    PyWeighting,
+    PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyImageOutputMode,
+    PyImageWeighting, PyJobCancelledResponse, PyJobState, PyJobSubmittedResponse, PyJobType,
+    PyOutputFormat, PyPhaseCentre, PyPolarization, PySortBy,
 };
 use crate::mwa_asvo::api::job_params as schema;
 use crate::mwa_asvo::api::openapi::DownloadType;
@@ -108,7 +108,7 @@ impl PyAsvoClient {
     ///         have a time zone.
     ///     date_to: Only the jobs created at or before this time. It must
     ///         have a time zone.
-    ///     sort_by: The column to sort the jobs by, for example "id".
+    ///     sort_by: The column to sort the jobs by (a `SortBy`).
     ///         `None` uses the server's default order.
     ///
     /// Raises:
@@ -139,7 +139,7 @@ impl PyAsvoClient {
         days: Option<i64>,
         date_from: Option<Timestamp>,
         date_to: Option<Timestamp>,
-        sort_by: Option<String>,
+        sort_by: Option<PySortBy>,
     ) -> PyResult<PyAsvoJobVec> {
         let obs_ids = obs_ids
             .unwrap_or_default()
@@ -154,7 +154,7 @@ impl PyAsvoClient {
             days,
             date_from,
             date_to,
-            sort_by,
+            sort_by: sort_by.map(Into::into),
             job_ids: job_ids
                 .unwrap_or_default()
                 .into_iter()
@@ -188,7 +188,7 @@ impl PyAsvoClient {
     ///     obs_id: The Obs ID.
     ///     delivery: Where the MWA ASVO delivers the data.
     ///     delivery_format: How the MWA ASVO packages the files. Must be
-    ///         `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+    ///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
     ///     allow_resubmit: Submit the job even if an identical one has
     ///         completed.
     ///
@@ -197,19 +197,19 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-    ///         `Delivery.Acacia` and `delivery_format` is
+    ///         `DeliveryDestination.Acacia` and `delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
     ///         is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
-        delivery='Delivery.Acacia', \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
         allow_resubmit=False\
         )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDelivery::from(schema::download_defaults().delivery),
+        delivery = PyDeliveryDestination::from(schema::download_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
         allow_resubmit = schema::download_defaults().allow_resubmit,
     ))]
@@ -217,7 +217,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
@@ -239,19 +239,19 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-    ///         `Delivery.Acacia` and `delivery_format` is
+    ///         `DeliveryDestination.Acacia` and `delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
     ///         is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
-        delivery='Delivery.Acacia', \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
         allow_resubmit=False\
         )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDelivery::from(schema::download_defaults().delivery),
+        delivery = PyDeliveryDestination::from(schema::download_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
         allow_resubmit = schema::download_defaults().allow_resubmit,
     ))]
@@ -259,7 +259,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
@@ -283,13 +283,13 @@ impl PyAsvoClient {
     ///     obs_id: The Obs ID.
     ///     delivery: Where the MWA ASVO delivers the data.
     ///     delivery_format: How the MWA ASVO packages the files. Must be
-    ///         `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+    ///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
     ///     output: The output format.
     ///     avg_freq_res: The frequency resolution to average to (kHz).
     ///     avg_time_res: The time resolution to average to (s).
     ///     flag_edge_width: The width of the frequency edge flagging (kHz).
     ///     apply_di_cal: Apply the DI calibration solution.
-    ///     centre: The phase centre mode. `Centre.Custom` needs
+    ///     centre: The phase centre mode. `PhaseCentre.Custom` needs
     ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
     ///         allowed with it.
     ///     custom_centre_ra: The custom phase centre's right ascension
@@ -312,22 +312,22 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, a number is outside
     ///         what the MWA ASVO accepts (for example `avg_freq_res` above
-    ///         1280), `delivery` is `Delivery.Acacia` and `delivery_format`
+    ///         1280), `delivery` is `DeliveryDestination.Acacia` and `delivery_format`
     ///         is `DeliveryFormat.Files` (Acacia delivers a tar only), or
-    ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
+    ///         `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
     ///         and `custom_centre_dec`, or either of them is given with
     ///         another `centre`. The message names the argument and
     ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
-        delivery='Delivery.Acacia', \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
-        output='Output.Ms', \
+        output='OutputFormat.Ms', \
         avg_freq_res=40.0, \
         avg_time_res=2.0, \
         flag_edge_width=80.0, \
         apply_di_cal=False, \
-        centre='Centre.Phase', \
+        centre='PhaseCentre.Phase', \
         custom_centre_ra=None, \
         custom_centre_dec=None, \
         no_apply_amps=False, \
@@ -342,14 +342,14 @@ impl PyAsvoClient {
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDelivery::from(schema::conversion_defaults().delivery),
+        delivery = PyDeliveryDestination::from(schema::conversion_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::conversion_defaults().delivery_format),
-        output = PyOutput::from(schema::conversion_defaults().output),
+        output = PyOutputFormat::from(schema::conversion_defaults().output),
         avg_freq_res = schema::conversion_defaults().avg_freq_res,
         avg_time_res = schema::conversion_defaults().avg_time_res,
         flag_edge_width = schema::conversion_defaults().flag_edge_width,
         apply_di_cal = schema::conversion_defaults().apply_di_cal,
-        centre = PyCentre::from(schema::conversion_defaults().centre),
+        centre = PyPhaseCentre::from(schema::conversion_defaults().centre),
         custom_centre_ra = schema::conversion_defaults().custom_centre_ra,
         custom_centre_dec = schema::conversion_defaults().custom_centre_dec,
         no_apply_amps = schema::conversion_defaults().no_apply_amps,
@@ -366,14 +366,14 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
-        output: PyOutput,
+        output: PyOutputFormat,
         avg_freq_res: Option<f64>,
         avg_time_res: Option<f64>,
         flag_edge_width: f64,
         apply_di_cal: bool,
-        centre: PyCentre,
+        centre: PyPhaseCentre,
         custom_centre_ra: Option<f64>,
         custom_centre_dec: Option<f64>,
         no_apply_amps: bool,
@@ -420,7 +420,7 @@ impl PyAsvoClient {
     ///     obs_id: The Obs ID.
     ///     delivery: Where the MWA ASVO delivers the data.
     ///     delivery_format: How the MWA ASVO packages the files. Must be
-    ///         `DeliveryFormat.Tar` when `delivery` is `Delivery.Acacia`.
+    ///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
     ///     apply_di_cal: Apply the DI calibration solution.
     ///     apply_primary_beam: Apply the primary beam correction.
     ///     auto_mask: The WSClean -auto-mask value.
@@ -434,7 +434,7 @@ impl PyAsvoClient {
     ///     clean_iterations: The WSClean -niter value.
     ///     clean_threshold: The WSClean cleaning threshold (Jy). This
     ///         field is deprecated in the API: use `abs_threshold`.
-    ///     centre: Where to centre the image. `Centre.Custom` needs
+    ///     centre: Where to centre the image. `PhaseCentre.Custom` needs
     ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
     ///         allowed with it.
     ///     custom_centre_dec: The custom phase centre's declination
@@ -476,15 +476,15 @@ impl PyAsvoClient {
     ///     ValueError: `obs_id` is not a valid Obs ID, or an argument is
     ///         outside what the MWA ASVO accepts (for example `mgain`
     ///         above 1, or an `image_size` that is not a supported size),
-    ///         `delivery` is `Delivery.Acacia` and `delivery_format` is
+    ///         `delivery` is `DeliveryDestination.Acacia` and `delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only), or
-    ///         `centre` is `Centre.Custom` without both `custom_centre_ra`
+    ///         `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
     ///         and `custom_centre_dec`, or either of them is given with
     ///         another `centre`. The message names the argument and
     ///         its limits. Nothing is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
-        delivery='Delivery.Acacia', \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
         apply_di_cal=True, \
         apply_primary_beam=True, \
@@ -496,7 +496,7 @@ impl PyAsvoClient {
         channels_out=4, \
         clean_iterations=100000, \
         clean_threshold=0.001, \
-        centre='Centre.Phase', \
+        centre='PhaseCentre.Phase', \
         custom_centre_dec=None, \
         custom_centre_ra=None, \
         flag_edge_width=80.0, \
@@ -514,20 +514,20 @@ impl PyAsvoClient {
         no_cable_delay=False, \
         no_rfi=False, \
         nwlayers=None, \
-        output_mode='OutputMode.Fits', \
+        output_mode='ImageOutputMode.Fits', \
         pixel_scale=20.0, \
         pol='Polarization.Xxyy', \
         robust=-0.5, \
         uvw_max=None, \
         uvw_min=75.0, \
-        weighting='Weighting.Briggs', \
+        weighting='ImageWeighting.Briggs', \
         wstack_nwlayers=None, \
         allow_resubmit=False\
         )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDelivery::from(schema::imaging_defaults().delivery),
+        delivery = PyDeliveryDestination::from(schema::imaging_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::imaging_defaults().delivery_format),
         apply_di_cal = schema::imaging_defaults().apply_di_cal,
         apply_primary_beam = schema::imaging_defaults().apply_primary_beam,
@@ -539,7 +539,7 @@ impl PyAsvoClient {
         channels_out = schema::imaging_defaults().channels_out,
         clean_iterations = schema::imaging_defaults().clean_iterations,
         clean_threshold = schema::imaging_defaults().clean_threshold,
-        centre = PyCentre::from(schema::imaging_defaults().centre),
+        centre = PyPhaseCentre::from(schema::imaging_defaults().centre),
         custom_centre_dec = schema::imaging_defaults().custom_centre_dec,
         custom_centre_ra = schema::imaging_defaults().custom_centre_ra,
         flag_edge_width = schema::imaging_defaults().flag_edge_width,
@@ -557,13 +557,13 @@ impl PyAsvoClient {
         no_cable_delay = schema::imaging_defaults().no_cable_delay,
         no_rfi = schema::imaging_defaults().no_rfi,
         nwlayers = schema::imaging_defaults().nwlayers,
-        output_mode = PyOutputMode::from(schema::imaging_defaults().output_mode),
+        output_mode = PyImageOutputMode::from(schema::imaging_defaults().output_mode),
         pixel_scale = schema::imaging_defaults().pixel_scale,
         pol = PyPolarization::from(schema::imaging_defaults().pol),
         robust = schema::imaging_defaults().robust,
         uvw_max = schema::imaging_defaults().uvw_max,
         uvw_min = schema::imaging_defaults().uvw_min,
-        weighting = PyWeighting::from(schema::imaging_defaults().weighting),
+        weighting = PyImageWeighting::from(schema::imaging_defaults().weighting),
         wstack_nwlayers = schema::imaging_defaults().wstack_nwlayers,
         allow_resubmit = schema::imaging_defaults().allow_resubmit,
     ))]
@@ -572,7 +572,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         apply_di_cal: bool,
         apply_primary_beam: bool,
@@ -584,7 +584,7 @@ impl PyAsvoClient {
         channels_out: i64,
         clean_iterations: i64,
         clean_threshold: Option<f64>,
-        centre: PyCentre,
+        centre: PyPhaseCentre,
         custom_centre_dec: Option<f64>,
         custom_centre_ra: Option<f64>,
         flag_edge_width: f64,
@@ -602,13 +602,13 @@ impl PyAsvoClient {
         no_cable_delay: Option<bool>,
         no_rfi: Option<bool>,
         nwlayers: Option<i64>,
-        output_mode: PyOutputMode,
+        output_mode: PyImageOutputMode,
         pixel_scale: f64,
         pol: PyPolarization,
         robust: f64,
         uvw_max: Option<f64>,
         uvw_min: f64,
-        weighting: PyWeighting,
+        weighting: PyImageWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
@@ -669,8 +669,10 @@ impl PyAsvoClient {
     /// data come from a conversion job, so there are no calibration,
     /// averaging, flagging or phase centre arguments.
     ///
+    /// The job has no Obs ID argument: the MWA ASVO takes the Obs ID from
+    /// the conversion job (the body has no `obs_id`, which is the same as `null`).
+    ///
     /// Args:
-    ///     obs_id: The Obs ID.
     ///     source_job_id: The ID of the conversion job to image. Must be
     ///         greater than zero.
     ///
@@ -678,13 +680,13 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid Obs ID, `source_job_id` is
+    ///     ValueError: `source_job_id` is
     ///         zero, or an argument is outside what the MWA ASVO accepts or
     ///         does not agree with another (see `submit_imaging_job`).
     ///         Nothing is sent.
     ///     AsvoApiError: The request failed.
-    #[pyo3(text_signature = "($self, obs_id, source_job_id, *, \
-        delivery='Delivery.Acacia', \
+    #[pyo3(text_signature = "($self, source_job_id, *, \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
         apply_primary_beam=True, \
         auto_mask=3, \
@@ -700,21 +702,20 @@ impl PyAsvoClient {
         multiscale=False, \
         nmiter=10, \
         nwlayers=None, \
-        output_mode='OutputMode.Fits', \
+        output_mode='ImageOutputMode.Fits', \
         pixel_scale=20.0, \
         pol='Polarization.Xxyy', \
         robust=-0.5, \
         uvw_max=None, \
         uvw_min=75.0, \
-        weighting='Weighting.Briggs', \
+        weighting='ImageWeighting.Briggs', \
         wstack_nwlayers=None, \
         allow_resubmit=False\
         )")]
     #[pyo3(signature = (
-        obs_id,
         source_job_id,
         *,
-        delivery = PyDelivery::from(schema::image_from_job_defaults().delivery),
+        delivery = PyDeliveryDestination::from(schema::image_from_job_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::image_from_job_defaults().delivery_format),
         apply_primary_beam = schema::image_from_job_defaults().apply_primary_beam,
         auto_mask = schema::image_from_job_defaults().auto_mask,
@@ -730,13 +731,13 @@ impl PyAsvoClient {
         multiscale = schema::image_from_job_defaults().multiscale,
         nmiter = schema::image_from_job_defaults().nmiter.get(),
         nwlayers = schema::image_from_job_defaults().nwlayers,
-        output_mode = PyOutputMode::from(schema::image_from_job_defaults().output_mode),
+        output_mode = PyImageOutputMode::from(schema::image_from_job_defaults().output_mode),
         pixel_scale = schema::image_from_job_defaults().pixel_scale,
         pol = PyPolarization::from(schema::image_from_job_defaults().pol),
         robust = schema::image_from_job_defaults().robust,
         uvw_max = schema::image_from_job_defaults().uvw_max,
         uvw_min = schema::image_from_job_defaults().uvw_min,
-        weighting = PyWeighting::from(schema::image_from_job_defaults().weighting),
+        weighting = PyImageWeighting::from(schema::image_from_job_defaults().weighting),
         wstack_nwlayers = schema::image_from_job_defaults().wstack_nwlayers,
         allow_resubmit = schema::image_from_job_defaults().allow_resubmit,
     ))]
@@ -744,9 +745,8 @@ impl PyAsvoClient {
     fn submit_image_from_job(
         &self,
         py: Python<'_>,
-        obs_id: u64,
         source_job_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         apply_primary_beam: bool,
         auto_mask: i64,
@@ -762,20 +762,20 @@ impl PyAsvoClient {
         multiscale: bool,
         nmiter: u64,
         nwlayers: Option<i64>,
-        output_mode: PyOutputMode,
+        output_mode: PyImageOutputMode,
         pixel_scale: f64,
         pol: PyPolarization,
         robust: f64,
         uvw_max: Option<f64>,
         uvw_min: f64,
-        weighting: PyWeighting,
+        weighting: PyImageWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let source_job_id = validate::source_job_id(source_job_id).map_err(|e| api_error(py, e))?;
         let image_size = validate::image_size(image_size).map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(nmiter).map_err(|e| api_error(py, e))?;
-        let mut params = schema::image_from_job_params(job_obs_id(obs_id)?, source_job_id);
+        let mut params = schema::image_from_job_params(source_job_id);
         params.delivery = delivery.into();
         params.delivery_format = delivery_format.into();
         params.apply_primary_beam = apply_primary_beam;
@@ -819,8 +819,10 @@ impl PyAsvoClient {
     ///         observation, from 0 to 5400.
     ///     duration: The duration to download, in seconds.
     ///     delivery: Where the MWA ASVO delivers the data. The only valid
-    ///         value is "scratch", which needs the "mwavcs" Pawsey Group
-    ///         on your MWA ASVO profile.
+    ///         value is `DeliveryDestination.Scratch`, which needs the
+    ///         "mwavcs" Pawsey Group on your MWA ASVO profile.
+    ///     delivery_format: How the MWA ASVO packages the data. The only
+    ///         valid value is `DeliveryFormat.Files`.
     ///     from_channel: The first receiver channel number (0 to 255).
     ///     to_channel: The last receiver channel number (0 to 255).
     ///     allow_resubmit: Submit the job even if an identical one has
@@ -830,12 +832,15 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
-    ///         from 0 to 5400. Nothing is sent.
+    ///     ValueError: `obs_id` is not a valid Obs ID, `delivery` is not
+    ///         `DeliveryDestination.Scratch`, `delivery_format` is not
+    ///         `DeliveryFormat.Files`, or `offset` is not from 0 to 5400.
+    ///         Nothing is sent.
     ///     OverflowError: A channel number is not from 0 to 255.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, offset, duration, *, \
-        delivery='scratch', \
+        delivery='DeliveryDestination.Scratch', \
+        delivery_format='DeliveryFormat.Files', \
         from_channel=None, \
         to_channel=None, \
         allow_resubmit=False\
@@ -845,7 +850,8 @@ impl PyAsvoClient {
         offset,
         duration,
         *,
-        delivery = schema::voltage_defaults().delivery,
+        delivery = PyDeliveryDestination::from(schema::voltage_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::voltage_defaults().delivery_format),
         from_channel = schema::voltage_defaults().from_channel,
         to_channel = schema::voltage_defaults().to_channel,
         allow_resubmit = schema::voltage_defaults().allow_resubmit,
@@ -857,13 +863,15 @@ impl PyAsvoClient {
         obs_id: u64,
         offset: i64,
         duration: u64,
-        delivery: String,
+        delivery: PyDeliveryDestination,
+        delivery_format: PyDeliveryFormat,
         from_channel: Option<u8>,
         to_channel: Option<u8>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
         let mut params = schema::voltage_params(job_obs_id(obs_id)?, offset, duration);
-        params.delivery = delivery;
+        params.delivery = delivery.into();
+        params.delivery_format = delivery_format.into();
         params.from_channel = from_channel;
         params.to_channel = to_channel;
         params.allow_resubmit = allow_resubmit;
@@ -881,35 +889,35 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-    ///         `Delivery.Acacia` and `delivery_format` is
+    ///         `DeliveryDestination.Acacia` and `delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
     ///         is sent.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, *, \
-        delivery='Delivery.Acacia', \
+        delivery='DeliveryDestination.Acacia', \
         delivery_format='DeliveryFormat.Tar', \
         allow_resubmit=False\
         )")]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDelivery::from(schema::beamformer_defaults().delivery),
-        delivery_format = PyDeliveryFormat::from(schema::beamformer_defaults().delivery_format),
-        allow_resubmit = schema::beamformer_defaults().allow_resubmit,
+        delivery = PyDeliveryDestination::from(schema::download_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
+        allow_resubmit = schema::download_defaults().allow_resubmit,
     ))]
-    fn submit_beamformer_job(
+    fn submit_download_beam_job(
         &self,
         py: Python<'_>,
         obs_id: u64,
-        delivery: PyDelivery,
+        delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let mut params = schema::beamformer_params(job_obs_id(obs_id)?);
+        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Beam);
         params.delivery = delivery.into();
         params.delivery_format = delivery_format.into();
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_beamformer_job(&params))
+        py.detach(|| self.inner.submit_download_beam_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
@@ -958,7 +966,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         path: PathBuf,
-        delivery: Option<PyDelivery>,
+        delivery: Option<PyDeliveryDestination>,
         delivery_format: Option<PyDeliveryFormat>,
         allow_resubmit: Option<bool>,
     ) -> PyResult<Vec<PyJobSubmittedResponse>> {

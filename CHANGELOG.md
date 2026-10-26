@@ -63,12 +63,14 @@ before you upgrade scripts.**
     `download_obs`, and return the `AsvoJob` that was downloaded (they returned `()`); `download_job_from` and
     `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. The `submit_*`
     methods are `submit_download_vis_job`, `submit_download_meta_job`, `submit_conversion_job`,
-    `submit_imaging_job`, `submit_voltage_job` and `submit_beamformer_job`; `submit_image_from_job` is new. Their
-    request bodies are made at the schema's defaults by `mwa_asvo::api::job_params`.
+    `submit_imaging_job`, `submit_voltage_job` and `submit_download_beam_job` (a download job with `download_type`
+    `beam`); `submit_image_from_job` is new, and takes no Obs ID. Their request bodies are made at the schema's
+    defaults by `mwa_asvo::api::job_params`. The library refuses a voltage job that is not delivered to Scratch as
+    files.
   * The types of the OpenAPI schema replace the library's own: `AsvoJobState` is `JobState` (its `Error` member has
-    no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (a code, with `name()`, `names()` and
+    no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (the schema's string enum, with `names()` and
     `parse_name()`), `AsvoFilesArray` and `AsvoJobProduct` are `JobFile` and `JobProduct`, and `Delivery` is the
-    schema's. `AsvoJob` wraps `JobDetailResponse` (through `Deref`); `obs_id()` and `job_id()` are methods.
+    schema's `DeliveryDestination`. `AsvoJob` wraps `JobDetailResponse` (through `Deref`); `obs_id()` and `job_id()` are methods.
   * Errors: a request to the MWA ASVO API fails with `AsvoApiError`, which holds the API's `ErrorResponse`
     (`AsvoError::AsvoApi`); `AsvoError::Reqwest` is gone. `AsvoError::HttpError` has the `job_id` of the download.
     A file or directory that cannot be created is `AsvoError::CannotCreate`, not `AsvoError::IO`. A failed download is
@@ -161,6 +163,15 @@ before you upgrade scripts.**
 * The environment variable `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how long a failing download is retried.
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
+
+* MWA ASVO API 2.5.0 (OpenAPI 3.1.0) is applied. All job submissions go to the one endpoint `/v2/jobs/create`, except
+  an image from a conversion job (`/v2/jobs/image`), and the job list, login and refresh endpoints have new paths.
+  A job has `job_id` (not `id`) and a typed `obs_id`, and `job_type` is a name (`visibility`), not a code.
+  `submit-bf` is a download job with `download_type` `beam`, so the beamformer `mode` and `channel_range` are
+  gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
+  `submit-image-from-job` takes no Obs ID. `list --sort-by` takes `id`, `created` or `completed`.
+  `giant-squid` regenerates the library's types from the schema in `tools/generate_openapi.sh`, which now also
+  keeps the request and response schemas of each operation.
 
 ### Added in 3.0.0
 

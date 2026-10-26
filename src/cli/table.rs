@@ -10,7 +10,6 @@ use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 use jiff::Timestamp;
 
-use crate::mwa_asvo::types::{JOB_TYPE_CODE_CANCEL, JOB_TYPE_CODE_METADATA, JOB_TYPE_CODE_VOLTAGE};
 use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobFile, JobState, JobType};
 
 /// The format for the "Completed" column.
@@ -94,7 +93,7 @@ pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
             Cell::new(j.job_id()),
             Cell::new(j.obs_id()),
             coloured(
-                Cell::new(j.job_type.map(|t| t.name()).unwrap_or_default()),
+                Cell::new(j.job_type.map(|t| t.to_string()).unwrap_or_default()),
                 job_type_colour(j.job_type),
             ),
             coloured(
@@ -120,10 +119,10 @@ fn coloured(cell: Cell, colour: Option<Color>) -> Cell {
 
 /// The colour of a job type cell. A job with no type has no colour.
 fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
-    job_type.map(|job_type| match i64::from(job_type) {
-        JOB_TYPE_CODE_METADATA => Color::DarkYellow,
-        JOB_TYPE_CODE_VOLTAGE => Color::DarkMagenta,
-        JOB_TYPE_CODE_CANCEL => Color::DarkRed,
+    job_type.map(|job_type| match job_type {
+        JobType::Metadata => Color::DarkYellow,
+        JobType::Voltage => Color::DarkMagenta,
+        JobType::Cancel => Color::DarkRed,
         _ => Color::DarkBlue,
     })
 }

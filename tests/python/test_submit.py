@@ -18,12 +18,12 @@ from .conftest import TEST_API_KEY, TEST_OBS_ID, error_response
 from .test_client import SCHEMA_PATH
 
 # The endpoint of each job type.
-DOWNLOAD_PATH = "/api/v2/download_vis_job"
-CONVERSION_PATH = "/api/v2/conversion_job"
-IMAGING_PATH = "/api/v2/imaging_job"
-IMAGE_FROM_JOB_PATH = "/api/v2/image_from_job"
-VOLTAGE_PATH = "/api/v2/voltage_job"
-BEAMFORMER_PATH = "/api/v2/beamformer_job"
+DOWNLOAD_PATH = "/api/v2/jobs/create"
+CONVERSION_PATH = "/api/v2/jobs/create"
+IMAGING_PATH = "/api/v2/jobs/create"
+IMAGE_FROM_JOB_PATH = "/api/v2/jobs/image"
+VOLTAGE_PATH = "/api/v2/jobs/create"
+BEAMFORMER_PATH = "/api/v2/jobs/create"
 
 # The job the mock says it created.
 NEW_JOB_ID = 777
@@ -108,7 +108,7 @@ def assert_response(response: gs.JobSubmittedResponse) -> None:
 DOWNLOAD_LIKE_METHODS = [
     ("submit_download_vis_job", DOWNLOAD_PATH),
     ("submit_download_meta_job", DOWNLOAD_PATH),
-    ("submit_beamformer_job", BEAMFORMER_PATH),
+    ("submit_download_beam_job", BEAMFORMER_PATH),
 ]
 
 
@@ -120,7 +120,7 @@ def test_download_like_jobs_send_the_arguments_and_return_the_response(
     submitted(httpserver, path)
 
     response = getattr(client, method)(
-        TEST_OBS_ID, delivery=gs.Delivery.Dug, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
+        TEST_OBS_ID, delivery=gs.DeliveryDestination.Dug, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
     )
 
     assert_response(response)
@@ -169,14 +169,14 @@ def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: H
 
     response = client.submit_conversion_job(
         TEST_OBS_ID,
-        delivery=gs.Delivery.Scratch,
+        delivery=gs.DeliveryDestination.Scratch,
         delivery_format=gs.DeliveryFormat.Files,
-        output=gs.Output.Uvfits,
+        output=gs.OutputFormat.Uvfits,
         avg_freq_res=FREQ_RES,
         avg_time_res=FREQ_RES,
         flag_edge_width=FREQ_RES,
         apply_di_cal=True,
-        centre=gs.Centre.Custom,
+        centre=gs.PhaseCentre.Custom,
         custom_centre_ra=CUSTOM_RA,
         custom_centre_dec=CUSTOM_DEC,
         no_apply_amps=True,
@@ -235,12 +235,12 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
     response = client.submit_imaging_job(
         TEST_OBS_ID,
         apply_di_cal=False,
-        centre=gs.Centre.Pointing,
+        centre=gs.PhaseCentre.Pointing,
         image_size=VALID_IMAGE_SIZE,
         nmiter=NMITER,
-        output_mode=gs.OutputMode.AllFits,
+        output_mode=gs.ImageOutputMode.AllFits,
         pol=gs.Polarization.Xx,
-        weighting=gs.Weighting.Natural,
+        weighting=gs.ImageWeighting.Natural,
         uvw_max=FREQ_RES,
         wstack_nwlayers=WSTACK_LAYERS,
         clean_threshold=CLEAN_THRESHOLD_JY,
@@ -296,28 +296,28 @@ IMAGING_SWITCHES = (
 BODY_CASES: list[tuple[str, str, tuple[Any, ...], dict[str, Any], str]] = [
     (
         "submit_download_vis_job",
-        "/api/v2/download_vis_job",
+        "/api/v2/jobs/create",
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
         "DownloadJobParams",
     ),
     (
         "submit_download_meta_job",
-        "/api/v2/download_vis_job",
+        "/api/v2/jobs/create",
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
         "DownloadJobParams",
     ),
-    ("submit_conversion_job", "/api/v2/conversion_job", (TEST_OBS_ID,), {"avg_freq_res": 10.0}, "ConversionJobParams"),
-    ("submit_imaging_job", "/api/v2/imaging_job", (TEST_OBS_ID,), {"image_size": 1024}, "ImagingJobFlow1Params"),
-    ("submit_image_from_job", "/api/v2/image_from_job", (TEST_OBS_ID, 555), {"nmiter": 7}, "ImagingJobFlow2Params"),
-    ("submit_voltage_job", "/api/v2/voltage_job", (TEST_OBS_ID, 10, 32), {"from_channel": 3}, "VoltageJobParams"),
+    ("submit_conversion_job", "/api/v2/jobs/create", (TEST_OBS_ID,), {"avg_freq_res": 10.0}, "ConversionJobParams"),
+    ("submit_imaging_job", "/api/v2/jobs/create", (TEST_OBS_ID,), {"image_size": 1024}, "ImagingJobFlow1Params"),
+    ("submit_image_from_job", "/api/v2/jobs/image", (555,), {"nmiter": 7}, "ImagingJobFlow2Params"),
+    ("submit_voltage_job", "/api/v2/jobs/create", (TEST_OBS_ID, 10, 32), {"from_channel": 3}, "VoltageJobParams"),
     (
-        "submit_beamformer_job",
-        "/api/v2/beamformer_job",
+        "submit_download_beam_job",
+        "/api/v2/jobs/create",
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
-        "BeamformerJobParams",
+        "DownloadJobParams",
     ),
 ]
 BODY_CASE_IDS = [method for method, *_ in BODY_CASES]
@@ -373,11 +373,10 @@ def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.Asvo
     submitted(httpserver, IMAGE_FROM_JOB_PATH)
 
     response = client.submit_image_from_job(
-        TEST_OBS_ID,
         SOURCE_JOB_ID,
         pol=gs.Polarization.Yy,
-        weighting=gs.Weighting.Uniform,
-        output_mode=gs.OutputMode.AllFiles,
+        weighting=gs.ImageWeighting.Uniform,
+        output_mode=gs.ImageOutputMode.AllFiles,
         image_size=VALID_IMAGE_SIZE,
         nmiter=NMITER,
         allow_resubmit=True,
@@ -385,7 +384,8 @@ def test_image_from_job_sends_the_source_job_and_a_free_form_pol(client: gs.Asvo
 
     assert_response(response)
     body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
-    assert body["obs_id"] == TEST_OBS_ID
+    # The job has no Obs ID: the body leaves it out, which is `null` for the API.
+    assert "obs_id" not in body
     assert body["source_job_id"] == SOURCE_JOB_ID
     assert body["pol"] == "YY"
     assert body["weighting"] == "uniform"
@@ -401,7 +401,7 @@ def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
     """The flow 2 default for pol is the Polarization default, as for flow 1 (since schema v1.11)."""
     submitted(httpserver, IMAGE_FROM_JOB_PATH)
 
-    client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID)
+    client.submit_image_from_job(SOURCE_JOB_ID)
 
     body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
     assert body["pol"] == "XXYY"
@@ -409,17 +409,16 @@ def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
     assert body["weighting"] == "briggs"
 
 
-def test_voltage_job_sends_the_arguments_and_derives_channel_range(
-    client: gs.AsvoClient, httpserver: HTTPServer
-) -> None:
-    """A channel bound sets channel_range, as in the CLI."""
+def test_voltage_job_sends_the_arguments_and_no_channel_range(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """The channel bounds are sent as given, and there is no channel_range (the schema has none)."""
     submitted(httpserver, VOLTAGE_PATH)
 
     response = client.submit_voltage_job(
         TEST_OBS_ID,
         VOLTAGE_OFFSET,
         VOLTAGE_DURATION,
-        delivery="scratch",
+        delivery=gs.DeliveryDestination.Scratch,
+        delivery_format=gs.DeliveryFormat.Files,
         from_channel=FROM_CHANNEL,
         to_channel=TO_CHANNEL,
         allow_resubmit=True,
@@ -431,23 +430,33 @@ def test_voltage_job_sends_the_arguments_and_derives_channel_range(
     assert body["offset"] == VOLTAGE_OFFSET
     assert body["duration"] == VOLTAGE_DURATION
     assert body["delivery"] == "scratch"
+    assert body["delivery_format"] == "files"
     assert body["from_channel"] == FROM_CHANNEL
     assert body["to_channel"] == TO_CHANNEL
-    assert body["channel_range"] is True
+    assert "channel_range" not in body
     assert body["allow_resubmit"] is True
 
 
-def test_voltage_job_without_channels_has_no_channel_range(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """With no channel bound, channel_range is false and no channel is sent."""
+def test_voltage_job_without_channels_sends_no_channel(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """With no channel bound, no channel is sent, and the delivery is the schema's default."""
     submitted(httpserver, VOLTAGE_PATH)
 
     client.submit_voltage_job(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION)
 
     body = body_sent_to(httpserver, VOLTAGE_PATH)
-    assert body["channel_range"] is False
+    assert "channel_range" not in body
     assert "from_channel" not in body
     assert "to_channel" not in body
     assert body["delivery"] == "scratch"
+    assert body["delivery_format"] == "files"
+
+
+def test_voltage_job_refuses_any_delivery_but_scratch(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """The library refuses another delivery or delivery format before any request."""
+    with pytest.raises(ValueError, match="voltage job"):
+        client.submit_voltage_job(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION, delivery=gs.DeliveryDestination.Acacia)
+    with pytest.raises(ValueError, match="voltage job"):
+        client.submit_voltage_job(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION, delivery_format=gs.DeliveryFormat.Tar)
 
 
 def test_a_server_error_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
@@ -469,9 +478,8 @@ ALL_SUBMITS: list[tuple[str, Callable[[gs.AsvoClient, int], object]]] = [
     ("download_meta", lambda c, obs_id: c.submit_download_meta_job(obs_id)),
     ("conversion", lambda c, obs_id: c.submit_conversion_job(obs_id)),
     ("imaging", lambda c, obs_id: c.submit_imaging_job(obs_id)),
-    ("image_from_job", lambda c, obs_id: c.submit_image_from_job(obs_id, SOURCE_JOB_ID)),
     ("voltage", lambda c, obs_id: c.submit_voltage_job(obs_id, VOLTAGE_OFFSET, VOLTAGE_DURATION)),
-    ("beamformer", lambda c, obs_id: c.submit_beamformer_job(obs_id)),
+    ("beamformer", lambda c, obs_id: c.submit_download_beam_job(obs_id)),
 ]
 
 
@@ -491,7 +499,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_submission(
 @pytest.mark.parametrize("method", ["submit_imaging_job", "submit_image_from_job"])
 def test_an_invalid_image_size_is_rejected(client: gs.AsvoClient, httpserver: HTTPServer, method: str) -> None:
     """An image size the API does not accept raises ValueError, and nothing is sent."""
-    args = (TEST_OBS_ID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBS_ID,)
+    args = (SOURCE_JOB_ID,) if method == "submit_image_from_job" else (TEST_OBS_ID,)
     requests_before = len(httpserver.log)
 
     with pytest.raises(ValueError, match="image_size"):
@@ -503,7 +511,7 @@ def test_an_invalid_image_size_is_rejected(client: gs.AsvoClient, httpserver: HT
 @pytest.mark.parametrize("method", ["submit_imaging_job", "submit_image_from_job"])
 def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, method: str) -> None:
     """nmiter must be greater than zero."""
-    args = (TEST_OBS_ID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBS_ID,)
+    args = (SOURCE_JOB_ID,) if method == "submit_image_from_job" else (TEST_OBS_ID,)
 
     with pytest.raises(ValueError, match="nmiter"):
         getattr(client, method)(*args, nmiter=0)
@@ -512,7 +520,7 @@ def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, method: str) -> None:
 def test_a_zero_source_job_id_is_rejected(client: gs.AsvoClient) -> None:
     """source_job_id must be greater than zero."""
     with pytest.raises(ValueError, match="source_job_id"):
-        client.submit_image_from_job(TEST_OBS_ID, 0)
+        client.submit_image_from_job(0)
 
 
 def test_a_channel_number_out_of_range_is_rejected(client: gs.AsvoClient) -> None:
@@ -524,7 +532,7 @@ def test_a_channel_number_out_of_range_is_rejected(client: gs.AsvoClient) -> Non
 def test_optional_arguments_must_be_given_by_keyword(client: gs.AsvoClient) -> None:
     """Optional arguments are keyword-only."""
     with pytest.raises(TypeError):
-        client.submit_download_vis_job(TEST_OBS_ID, gs.Delivery.Acacia)  # ty: ignore[too-many-positional-arguments]
+        client.submit_download_vis_job(TEST_OBS_ID, gs.DeliveryDestination.Acacia)  # ty: ignore[too-many-positional-arguments]
 
 
 def test_a_delivery_of_the_wrong_type_is_rejected(client: gs.AsvoClient) -> None:
@@ -536,12 +544,12 @@ def test_a_delivery_of_the_wrong_type_is_rejected(client: gs.AsvoClient) -> None
 def test_the_new_enums_use_the_api_values_as_their_text() -> None:
     """str() of a member is the value the API uses."""
     assert str(gs.DeliveryFormat.Tar) == "tar"
-    assert str(gs.Output.Uvfits) == "uvfits"
-    assert str(gs.Centre.Custom) == "custom"
-    assert str(gs.OutputMode.AllFits) == "all_fits"
-    assert str(gs.Weighting.Briggs) == "briggs"
+    assert str(gs.OutputFormat.Uvfits) == "uvfits"
+    assert str(gs.PhaseCentre.Custom) == "custom"
+    assert str(gs.ImageOutputMode.AllFits) == "all_fits"
+    assert str(gs.ImageWeighting.Briggs) == "briggs"
     assert str(gs.Polarization.Xxyy) == "XXYY"
-    assert gs.Output.Ms != gs.Output.Uvfits
+    assert gs.OutputFormat.Ms != gs.OutputFormat.Uvfits
 
 
 def test_the_response_has_a_readable_repr(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
@@ -571,8 +579,8 @@ OUT_OF_RANGE = [
     ("submit_imaging_job", {"avg_freq_res": 1281.0}, "avg_freq_res"),
     ("submit_imaging_job", {"avg_time_res": -1.0}, "avg_time_res"),
     ("submit_imaging_job", {"flag_edge_width": 641.0}, "flag_edge_width"),
-    ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
-    ("submit_imaging_job", {"centre": gs.Centre.Custom, "custom_centre_dec": -91.0}, "custom_centre_dec"),
+    ("submit_imaging_job", {"centre": gs.PhaseCentre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
+    ("submit_imaging_job", {"centre": gs.PhaseCentre.Custom, "custom_centre_dec": -91.0}, "custom_centre_dec"),
     ("submit_imaging_job", {"mgain": float("nan")}, "mgain"),
     ("submit_imaging_job", {"wstack_nwlayers": 16}, "wstack_nwlayers"),
     ("submit_imaging_job", {"wstack_nwlayers": 513}, "wstack_nwlayers"),
@@ -593,7 +601,7 @@ def imaging_args(method: str) -> tuple[int, ...]:
     Returns:
         The obsid, and the source job ID for ``submit_image_from_job``.
     """
-    return (TEST_OBS_ID, SOURCE_JOB_ID) if method == "submit_image_from_job" else (TEST_OBS_ID,)
+    return (SOURCE_JOB_ID,) if method == "submit_image_from_job" else (TEST_OBS_ID,)
 
 
 @pytest.mark.parametrize(("method", "kwargs", "name"), OUT_OF_RANGE)
@@ -648,8 +656,8 @@ CONVERSION_OUT_OF_RANGE = [
     ({"avg_freq_res": -1.0}, "avg_freq_res"),
     ({"avg_time_res": -1.0}, "avg_time_res"),
     ({"flag_edge_width": 641.0}, "flag_edge_width"),
-    ({"centre": gs.Centre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
-    ({"centre": gs.Centre.Custom, "custom_centre_dec": 91.0}, "custom_centre_dec"),
+    ({"centre": gs.PhaseCentre.Custom, "custom_centre_ra": 360.0}, "custom_centre_ra"),
+    ({"centre": gs.PhaseCentre.Custom, "custom_centre_dec": 91.0}, "custom_centre_dec"),
 ]
 
 
@@ -684,7 +692,7 @@ def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(client: gs.AsvoC
     requests_before = len(httpserver.log)
 
     with pytest.raises(ValueError, match="wstack_nwlayers"):
-        client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID, wstack_nwlayers=16)
+        client.submit_image_from_job(SOURCE_JOB_ID, wstack_nwlayers=16)
 
     assert len(httpserver.log) == requests_before
 
@@ -692,7 +700,7 @@ def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(client: gs.AsvoC
 def test_image_from_job_rejects_a_polarisation_string(client: gs.AsvoClient) -> None:
     """Since schema v1.11 pol is a Polarization for both imaging jobs, not a string."""
     with pytest.raises(TypeError):
-        client.submit_image_from_job(TEST_OBS_ID, SOURCE_JOB_ID, pol="XX,YY")  # ty: ignore[invalid-argument-type]
+        client.submit_image_from_job(SOURCE_JOB_ID, pol="XX,YY")  # ty: ignore[invalid-argument-type]
 
 
 # The endpoint that cancels a job: DELETE <CANCEL_PATH>/<job id>.

@@ -509,7 +509,7 @@ fn try_download(
         .as_deref()
         .ok_or(AsvoError::NoHash { job_id })?;
 
-    let job_type = job.job_type.map(|t| t.name()).unwrap_or_default();
+    let job_type = job.job_type.map(|t| t.to_string()).unwrap_or_default();
     let size_text = bytesize::ByteSize(file_info.size_bytes()).display().iec();
     info!("{log_prefix} Download starting (type: {job_type}, {size_text})");
 
