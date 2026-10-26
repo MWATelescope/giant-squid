@@ -5,7 +5,9 @@
 //! Live end-to-end tests: the built `giant-squid` binary is run against a
 //! real MWA ASVO server.
 //!
-//! Every test here is `#[ignore]`d, so CI never runs them. Run them by hand:
+//! Every test here that talks to a server is `#[ignore]`d, so CI never runs it.
+//! (The one test of this file's own helper, `a_server_error_code_is_recognised`,
+//! needs no server and is not ignored.) Run them by hand:
 //!
 //! ```text
 //! MWA_ASVO_E2E_TARGET=https://test-asvo.mwatelescope.org \
@@ -42,6 +44,12 @@
 //! test asserts the exact code. Otherwise it asserts that the server sent a
 //! structured `ErrorResponse`, and prints the code so it can be pinned later.
 //!
+//! No test may get a server error: a request that the server cannot handle
+//! must be answered with a 4xx error and a specific code, never a 5xx
+//! (`INTERNAL_ERROR`). Every `--json` error line that a test reads is checked
+//! for it ([`assert_not_a_server_error`]), so a live test fails when the API
+//! answers with a 500, with a message that says so.
+//!
 //! See docs/TESTING.md, layer 3.
 
 mod common;
@@ -58,7 +66,7 @@ use tempfile::{NamedTempFile, TempDir};
 use common::{jwt_expiring_in, run, write_session_at, Run};
 use mwa_giant_squid::mwa_asvo::api::openapi::Status;
 use mwa_giant_squid::mwa_asvo::error_response::{
-    ERROR_CODE_JOB_CANCELLED, ERROR_CODE_JOB_NOT_FOUND,
+    ERROR_CODE_HTTP_PREFIX, ERROR_CODE_JOB_CANCELLED, ERROR_CODE_JOB_NOT_FOUND,
 };
 
 /// The server to test against. Required.
@@ -201,7 +209,13 @@ impl LiveEnv {
     fn run(&self, args: &[&str]) -> Run {
         let mut cmd = self.command();
         cmd.args(args);
-        run(cmd)
+        let result = run(cmd);
+        // With `--json`, every line of stdout is JSON, and an error line can
+        // be checked for a server error.
+        if args.contains(&"--json") {
+            assert_no_server_error(&result);
+        }
+        result
     }
 
     /// Submit with `--json` and return the new job IDs. Each ID is given
@@ -219,6 +233,7 @@ impl LiveEnv {
         let result = run(cmd);
         let ids = submitted_job_ids(&result);
         ids.iter().for_each(|id| guard.track(*id));
+        assert_no_server_error(&result);
         assert!(result.success, "submission failed: {}", result.combined());
         assert!(!ids.is_empty(), "no job IDs on stdout: {}", result.stdout);
         ids
@@ -387,12 +402,71 @@ fn json_replies(result: &Run) -> Vec<Value> {
 }
 
 /// The `error_code` of the first error line among the `--json` lines of
-/// `result`, or `None` if there is no error line.
+/// `result`, or `None` if there is no error line. A server error (see
+/// [`assert_not_a_server_error`]) fails the test.
 fn json_error_code(result: &Run) -> Option<String> {
-    result
+    let code = result
         .stdout_json_lines()
         .iter()
-        .find_map(|line| line[KEY_ERROR_CODE].as_str().map(str::to_string))
+        .find_map(|line| line[KEY_ERROR_CODE].as_str().map(str::to_string));
+    if let Some(code) = &code {
+        assert_not_a_server_error(code, result);
+    }
+    code
+}
+
+/// The `error_code` that the MWA ASVO gives its own server error (HTTP 500).
+const SERVER_ERROR_CODE: &str = "INTERNAL_ERROR";
+
+/// Whether `error_code` is the code of a server error (HTTP 5xx): the API's
+/// own [`SERVER_ERROR_CODE`], or `HTTP_5xx`, which giant-squid gives a 5xx
+/// reply that is not an `ErrorResponse` (for example a 502 from the web
+/// server). The `--json` error line has the error code, not the HTTP status,
+/// so a server error is known by its code.
+fn is_server_error_code(error_code: &str) -> bool {
+    error_code == SERVER_ERROR_CODE
+        || error_code
+            .strip_prefix(ERROR_CODE_HTTP_PREFIX)
+            .is_some_and(|status| status.starts_with('5'))
+}
+
+/// Fail the test if `error_code` is that of a server error. A request that
+/// the MWA ASVO cannot handle must be answered with a 4xx error and a code
+/// that says what is wrong, not with a 500: that is a bug of the API.
+fn assert_not_a_server_error(error_code: &str, result: &Run) {
+    assert!(
+        !is_server_error_code(error_code),
+        "the MWA ASVO answered with a server error ({error_code}); it should be a 4xx error with a \
+         specific code: {}",
+        result.combined()
+    );
+}
+
+/// Fail the test if any `--json` error line of `result` is a server error.
+fn assert_no_server_error(result: &Run) {
+    for line in result.stdout_json_lines() {
+        if let Some(code) = line[KEY_ERROR_CODE].as_str() {
+            assert_not_a_server_error(code, result);
+        }
+    }
+}
+
+#[test]
+fn a_server_error_code_is_recognised() {
+    for code in [SERVER_ERROR_CODE, "HTTP_500", "HTTP_502", "HTTP_503"] {
+        assert!(is_server_error_code(code), "{code}");
+    }
+    for code in [
+        "JOB_NOT_FOUND",
+        "AUTH_REQUIRED",
+        "INVALID_ARGUMENT",
+        "HTTP_400",
+        "HTTP_404",
+        "HTTP_422",
+        "NETWORK_ERROR",
+    ] {
+        assert!(!is_server_error_code(code), "{code}");
+    }
 }
 
 /// The `status` of a `--json` line, as text: `success` or `failed`.

@@ -164,7 +164,7 @@ a reader that fails the test if it is read.
 ### Layer 3 - opt-in live tests
 
 `tests/live.rs` (18 tests) runs the built binary against a real MWA ASVO.
-Every test is `#[ignore]`d, so CI never runs it. Run it by hand with
+Every test that talks to a server is `#[ignore]`d, so CI never runs it. Run it by hand with
 `tools/run_live_tests.sh`, which sets the target to the test server and runs:
 
 ```text
@@ -185,6 +185,15 @@ with no data, `submit-image-from-job` from an unfinished or unknown job, an
 unknown Job ID (`JOB_NOT_FOUND`), a bad API key, and a cached token the
 server did not issue (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`, then a fresh
 login). Job IDs come from the submit commands' `--json` output.
+
+No live test may get a server error. A request that the MWA ASVO cannot
+handle must be answered with a 4xx error and a specific code, never a 5xx.
+Every `--json` error line that a live test reads is checked, and the test
+fails when the code is `INTERNAL_ERROR`, or `HTTP_5xx` (a 5xx reply that is
+not an `ErrorResponse`). The error line has the code but not the HTTP status,
+so a server error is known by its code. The helper that recognises them has
+its own test (`a_server_error_code_is_recognised`), which needs no server and
+is not ignored.
 
 The production host is refused unless `MWA_ASVO_E2E_ALLOW_PRODUCTION=1` is
 set. The server allows 5 logins a minute, so the tests share one token cache
