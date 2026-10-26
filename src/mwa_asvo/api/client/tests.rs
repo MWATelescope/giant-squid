@@ -1631,10 +1631,15 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
 
 /// Values from the recorded response, so a re-record that changes them
 /// fails loudly here rather than silently weakening the test.
-const RECORDED_JOB_ID: AsvoJobId = crate::test_config::job_id(30000517);
-const RECORDED_OBS_ID: u64 = 1115977528;
-const RECORDED_SIZE: u64 = 117016360960;
-const RECORDED_SHA1: &str = "ce32e0aeec0b7c64dec4deeb89881ba4452a6330";
+///
+/// The recording has three pages of the job list (100, 100 and 1 jobs), so it
+/// also plays back the paging of `get_jobs`. The first job is the newest: a
+/// completed imaging job with one Acacia file.
+const RECORDED_JOB_COUNT: usize = 201;
+const RECORDED_JOB_ID: AsvoJobId = crate::test_config::job_id(30000796);
+const RECORDED_OBS_ID: u64 = 1349904184;
+const RECORDED_SIZE: u64 = 377692160;
+const RECORDED_SHA1: &str = "9c189b4eb6387d846dc5248f28ce1f3662ed7830";
 
 #[test]
 fn a_recorded_job_listing_is_mapped_as_expected() {
@@ -1656,11 +1661,11 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
         })
         .expect("the recorded listing should be served");
 
-    assert_eq!(jobs.0.len(), 1);
+    assert_eq!(jobs.0.len(), RECORDED_JOB_COUNT);
     let job = &jobs.0[0];
     assert_eq!(job.job_id(), RECORDED_JOB_ID);
     assert_eq!(job.obs_id().get(), RECORDED_OBS_ID);
-    assert_eq!(job.job_type, Some(job_type("metadata")));
+    assert_eq!(job.job_type, Some(job_type("imaging")));
     assert_eq!(job.job_state, JobState::Completed);
     assert!(job.completed.is_some(), "completed should be parsed");
 }
@@ -1699,7 +1704,7 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
         file.url
             .as_deref()
             .unwrap_or_default()
-            .contains("1115977528_30000517_meta.tar"),
+            .contains("1349904184_30000796_image.tar"),
         "the signed download URL should be carried through: {:?}",
         file.url
     );

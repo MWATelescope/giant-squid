@@ -150,11 +150,12 @@ Sent by the user (October 2026), not fixed yet:
   files) are redundant, and are now the shared `DeliveryDestination` and
   `DeliveryFormat` enums, so the schema no longer shows that only one value
   works. `AsvoClient::submit_voltage_job` refuses any other value.
-- `CancelJobParams` (in the body of `POST /v2/jobs/create`) has the fields
-  of `DownloadJobParams` without `download_type`. Every other body type has
-  all its fields, and no schema sets `additionalProperties: false`, so the
-  server may not be able to tell the six body types apart. (The user is
-  discussing it with the API developer.)
+- `CancelJobParams` should not be a body type of `POST /v2/jobs/create`:
+  cancelling is the separate `DELETE /v2/jobs/{job_id}` call (the user told
+  the API developer). The client never sends it. No schema sets
+  `additionalProperties: false`, and `DownloadJobParams`, `ConversionJobParams`
+  and `ImagingJobFlow1Params` need only `obs_id`, so only a live test shows
+  that the server tells the remaining body types apart.
 - `CalibrationReadyCallback` has `asvo_job_id`.
 
 Not yet raised:
