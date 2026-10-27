@@ -451,14 +451,6 @@ def test_voltage_job_without_channels_sends_no_channel(client: gs.AsvoClient, ht
     assert body["delivery_format"] == "files"
 
 
-def test_voltage_job_refuses_any_delivery_but_scratch(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """The library refuses another delivery or delivery format before any request."""
-    with pytest.raises(ValueError, match="voltage job"):
-        client.submit_voltage_job(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION, delivery=gs.DeliveryDestination.Acacia)
-    with pytest.raises(ValueError, match="voltage job"):
-        client.submit_voltage_job(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION, delivery_format=gs.DeliveryFormat.Tar)
-
-
 def test_a_server_error_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
     """An error reply to a submission has the server's error fields."""
     httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(

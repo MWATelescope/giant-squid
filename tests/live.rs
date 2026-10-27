@@ -630,7 +630,7 @@ fn live_submit_volt() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
     // A voltage job takes the delivery defaults of every download job,
-    // which the library refuses for a voltage job: give Scratch and files.
+    // which the MWA ASVO refuses for a voltage job: give Scratch and files.
     let range = [
         "--delivery",
         "scratch",

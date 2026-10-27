@@ -855,11 +855,11 @@ impl ImagingFromJobArgs {
 /// Arguments for a voltage download job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct VoltageJobArgs {
-    /// The MWA ASVO delivers a voltage job to scratch, as files, and the
-    /// library refuses any other `--delivery` or `--delivery-format`. The
-    /// defaults are those of every download job, so give `--delivery
-    /// scratch --delivery-format files`. Scratch requires the "mwavcs"
-    /// Pawsey Group on your MWA ASVO profile.
+    /// The MWA ASVO delivers a voltage job to scratch, as files, and
+    /// refuses any other `--delivery` or `--delivery-format`. The defaults
+    /// are those of every download job, so give `--delivery scratch
+    /// --delivery-format files`. Scratch requires the "mwavcs" Pawsey Group
+    /// on your MWA ASVO profile.
     #[command(flatten)]
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 

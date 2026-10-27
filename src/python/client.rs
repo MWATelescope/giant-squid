@@ -28,6 +28,7 @@ use super::types::{
     PyOutputFormat, PyPhaseCentre, PyPolarization, PySortBy,
 };
 use crate::mwa_asvo::api::job_params::{self as schema, PreprocessJobParams};
+use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 use crate::mwa_asvo::api::validate;
 use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobsFilter};
 use crate::obs_id::ObsId;
@@ -826,11 +827,11 @@ impl PyAsvoClient {
     ///     offset: The offset in seconds from the start GPS time of the
     ///         observation, from 0 to 5400.
     ///     duration: The duration to download, in seconds.
-    ///     delivery: Where the MWA ASVO delivers the data. The only valid
-    ///         value is `DeliveryDestination.Scratch`, which needs the
+    ///     delivery: Where the MWA ASVO delivers the data. The MWA ASVO
+    ///         accepts only `DeliveryDestination.Scratch`, which needs the
     ///         "mwavcs" Pawsey Group on your MWA ASVO profile.
-    ///     delivery_format: How the MWA ASVO packages the data. The only
-    ///         valid value is `DeliveryFormat.Files`.
+    ///     delivery_format: How the MWA ASVO packages the data. The MWA
+    ///         ASVO accepts only `DeliveryFormat.Files`.
     ///     from_channel: The first receiver channel number (0 to 255).
     ///     to_channel: The last receiver channel number (0 to 255).
     ///     allow_resubmit: Submit the job even if an identical one has
@@ -840,10 +841,8 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid Obs ID, `delivery` is not
-    ///         `DeliveryDestination.Scratch`, `delivery_format` is not
-    ///         `DeliveryFormat.Files`, or `offset` is not from 0 to 5400.
-    ///         Nothing is sent.
+    ///     ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
+    ///         from 0 to 5400. Nothing is sent.
     ///     OverflowError: A channel number is not from 0 to 255.
     ///     AsvoApiError: The request failed.
     #[pyo3(text_signature = "($self, obs_id, offset, duration, *, \
@@ -858,8 +857,8 @@ impl PyAsvoClient {
         offset,
         duration,
         *,
-        delivery = PyDeliveryDestination::from(validate::VOLTAGE_DELIVERY),
-        delivery_format = PyDeliveryFormat::from(validate::VOLTAGE_DELIVERY_FORMAT),
+        delivery = PyDeliveryDestination::from(DeliveryDestination::Scratch),
+        delivery_format = PyDeliveryFormat::from(DeliveryFormat::Files),
         from_channel = schema::download_defaults().from_channel,
         to_channel = schema::download_defaults().to_channel,
         allow_resubmit = schema::download_defaults().allow_resubmit,
@@ -883,12 +882,9 @@ impl PyAsvoClient {
         params.from_channel = from_channel;
         params.to_channel = to_channel;
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| {
-            validate::validate_voltage_params(&params)?;
-            self.inner.submit_download_job(&params)
-        })
-        .map(PyJobSubmittedResponse::from)
-        .map_err(|e| api_error(py, e))
+        py.detach(|| self.inner.submit_download_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
     }
 
     /// Submit a job to download an observation's beamformer data.

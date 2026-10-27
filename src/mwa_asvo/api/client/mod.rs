@@ -894,10 +894,9 @@ impl AsvoClient {
     /// The delivery and its format, and the `offset` limits, are checked
     /// first ([`validate_download_params`]); nothing is sent if one is
     /// wrong, and the error is [`AsvoApiError::InvalidParameter`]. The
-    /// request body does not say that it is a voltage job, so the extra
-    /// rules of a voltage job are not checked here: call
-    /// [`validate_voltage_params`](super::validate::validate_voltage_params)
-    /// first for a voltage job.
+    /// request body does not say which kind of download it is, so the
+    /// rules of each kind (for example, those of a voltage job) are the MWA
+    /// ASVO's: it refuses a body that does not suit its observation.
     pub fn submit_download_job(
         &self,
         params: &DownloadJobParams,

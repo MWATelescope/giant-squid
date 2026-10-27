@@ -489,11 +489,11 @@ class AsvoClient:
             offset: The offset in seconds from the start GPS time of the
                 observation, from 0 to 5400.
             duration: The duration to download, in seconds.
-            delivery: Where the MWA ASVO delivers the data. The only valid
-                value is `DeliveryDestination.Scratch`, which needs the
+            delivery: Where the MWA ASVO delivers the data. The MWA ASVO
+                accepts only `DeliveryDestination.Scratch`, which needs the
                 "mwavcs" Pawsey Group on your MWA ASVO profile.
-            delivery_format: How the MWA ASVO packages the data. The only
-                valid value is `DeliveryFormat.Files`.
+            delivery_format: How the MWA ASVO packages the data. The MWA
+                ASVO accepts only `DeliveryFormat.Files`.
             from_channel: The first receiver channel number (0 to 255).
             to_channel: The last receiver channel number (0 to 255).
             allow_resubmit: Submit the job even if an identical one has
@@ -503,10 +503,8 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, `delivery` is not
-                `DeliveryDestination.Scratch`, `delivery_format` is not
-                `DeliveryFormat.Files`, or `offset` is not from 0 to 5400.
-                Nothing is sent.
+            ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
+                from 0 to 5400. Nothing is sent.
             OverflowError: A channel number is not from 0 to 255.
             AsvoApiError: The request failed.
         """

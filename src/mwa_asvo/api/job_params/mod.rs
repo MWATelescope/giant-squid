@@ -126,9 +126,8 @@ pub fn image_from_job_params(source_job_id: NonZeroU64) -> ImagingJobFlow2Params
 /// The request body of a voltage download job for `obs_id`, from `offset`
 /// seconds after the start of the observation, for `duration` seconds. The
 /// other fields are at the schema's defaults, which are those of every
-/// download job: the MWA ASVO allows only some of them for a voltage job,
-/// which [`validate_voltage_params`](super::validate::validate_voltage_params)
-/// checks.
+/// download job. The MWA ASVO refuses a voltage job whose delivery it does
+/// not allow (it is delivered to Scratch as files).
 pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> DownloadJobParams {
     DownloadJobParams {
         offset: Some(offset),

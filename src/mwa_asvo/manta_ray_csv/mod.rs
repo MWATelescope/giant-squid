@@ -61,7 +61,6 @@ use crate::mwa_asvo::api::openapi::{
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::api::validate::{
     self, validate_conversion_params, validate_download_params, validate_imaging_params,
-    validate_voltage_params, VOLTAGE_DELIVERY, VOLTAGE_DELIVERY_FORMAT,
 };
 use crate::obs_id::ObsId;
 
@@ -86,6 +85,13 @@ const JOB_TYPE_IMAGING: &str = "i";
 /// The `job_type` of an imaging job from a conversion job, which the format
 /// cannot describe.
 const JOB_TYPE_IMAGING_FROM_JOB: &str = "p";
+
+/// The delivery and the delivery format of a voltage line that gives none.
+/// manta-ray-client files never gave them, because a voltage job was
+/// always delivered to Scratch as files. The schema's defaults (those of
+/// every download job) are not these, so the voltage lines have their own.
+const VOLTAGE_ROW_DELIVERY: DeliveryDestination = DeliveryDestination::Scratch;
+const VOLTAGE_ROW_DELIVERY_FORMAT: DeliveryFormat = DeliveryFormat::Files;
 
 /// The `download_type` of a visibility download.
 const DOWNLOAD_TYPE_VIS: &str = "vis";
@@ -170,9 +176,9 @@ impl CsvJobParams {
         match self {
             Self::Conversion(p) => validate_conversion_params(p),
             Self::Imaging(p) => validate_imaging_params(p),
-            Self::Download(p) => validate_download_params(p),
-            Self::Voltage(p) => validate_voltage_params(p),
-            Self::Beamformer(p) => validate_download_params(p),
+            Self::Download(p) | Self::Voltage(p) | Self::Beamformer(p) => {
+                validate_download_params(p)
+            }
         }
     }
 }
@@ -725,12 +731,12 @@ fn parse_voltage(
     // A voltage job is delivered to Scratch as files only, and
     // manta-ray-client files do not give the format, so a line that gives
     // no delivery gets Scratch and files (not the schema's defaults of a
-    // download job). `validate` refuses any other delivery.
+    // download job). The MWA ASVO refuses any other delivery.
     params.delivery = row
         .named::<DeliveryDestination>("delivery")?
         .or(defaults.delivery)
-        .unwrap_or(VOLTAGE_DELIVERY);
-    params.delivery_format = VOLTAGE_DELIVERY_FORMAT;
+        .unwrap_or(VOLTAGE_ROW_DELIVERY);
+    params.delivery_format = VOLTAGE_ROW_DELIVERY_FORMAT;
     params.from_channel = row.integer::<u8>("from_channel")?;
     params.to_channel = row.integer::<u8>("to_channel")?;
     apply_resubmit!(row, defaults, params);
@@ -973,12 +979,11 @@ impl AsvoClient {
 
     /// Submit the job of a line of a `manta-ray-client` CSV file (see
     /// [`parse_manta_ray_csv`]), to the endpoint of its job type
-    /// ([`CsvJobParams::endpoint`]). A voltage job is checked with
-    /// [`validate_voltage_params`] first.
+    /// ([`CsvJobParams::endpoint`]).
     ///
     /// # Errors
     ///
-    /// The error of the check or of the submit method.
+    /// The error of the submit method.
     pub fn submit_csv_job(
         &self,
         params: &CsvJobParams,
@@ -990,9 +995,7 @@ impl AsvoClient {
             CsvJobParams::Imaging(p) => {
                 self.submit_preprocess_job(&PreprocessJobParams::Imaging(p.clone()))
             }
-            CsvJobParams::Download(p) | CsvJobParams::Beamformer(p) => self.submit_download_job(p),
-            CsvJobParams::Voltage(p) => {
-                validate_voltage_params(p)?;
+            CsvJobParams::Download(p) | CsvJobParams::Voltage(p) | CsvJobParams::Beamformer(p) => {
                 self.submit_download_job(p)
             }
         }

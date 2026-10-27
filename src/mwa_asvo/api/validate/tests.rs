@@ -100,13 +100,10 @@ fn conversion_defaults() -> ConversionJobParams {
         .expect("defaults build")
 }
 
-/// A voltage job: a download body with an offset and a duration, delivered
-/// to Scratch as files (the only delivery of a voltage job).
+/// A voltage job: a download body with an offset and a duration.
 fn voltage_defaults() -> DownloadJobParams {
     DownloadJobParams::builder()
         .obs_id(1_065_880_128_i64)
-        .delivery(VOLTAGE_DELIVERY)
-        .delivery_format(VOLTAGE_DELIVERY_FORMAT)
         .offset(Some(0_i64))
         .duration(Some(8_u64))
         .try_into()
@@ -209,7 +206,7 @@ fn the_schema_defaults_are_within_the_limits() {
     validate_imaging_params(&flow1_defaults()).expect("flow 1 defaults are valid");
     validate_image_from_job_params(&flow2_defaults()).expect("flow 2 defaults are valid");
     validate_conversion_params(&conversion_defaults()).expect("conversion defaults are valid");
-    validate_voltage_params(&voltage_defaults()).expect("voltage defaults are valid");
+    validate_download_params(&voltage_defaults()).expect("voltage defaults are valid");
 }
 
 /// Check both ends of each of `limits` with `validate`, starting from
@@ -274,11 +271,6 @@ fn every_limit_is_enforced_on_both_ends_for_the_download_body() {
         &voltage_defaults(),
         &DOWNLOAD_LIMITS,
         validate_download_params,
-    );
-    assert_limits_enforced(
-        &voltage_defaults(),
-        &DOWNLOAD_LIMITS,
-        validate_voltage_params,
     );
 }
 
@@ -734,82 +726,4 @@ fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refuse
         .expect("a custom centre with both coordinates is valid");
     validate_imaging_params(&imaging_with_custom_centre())
         .expect("a custom centre with both coordinates is valid");
-}
-
-/// A voltage job is delivered to Scratch as files: Scratch and files pass,
-/// and any other delivery or delivery format is refused, whatever the
-/// schema's enums allow.
-#[test]
-fn a_voltage_job_is_delivered_to_scratch_as_files() {
-    use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
-
-    validate_voltage_params(&voltage_defaults()).expect("scratch and files are valid");
-
-    for delivery in [DeliveryDestination::Acacia, DeliveryDestination::Dug] {
-        let mut params = voltage_defaults();
-        params.delivery = delivery;
-        let err = validate_voltage_params(&params).expect_err("only scratch is allowed");
-        assert!(
-            matches!(
-                err,
-                AsvoApiError::InvalidParameter {
-                    name: "delivery",
-                    ..
-                }
-            ),
-            "{err:?}"
-        );
-    }
-
-    let mut params = voltage_defaults();
-    params.delivery_format = DeliveryFormat::Tar;
-    let err = validate_voltage_params(&params).expect_err("only files is allowed");
-    assert!(
-        matches!(
-            err,
-            AsvoApiError::InvalidParameter {
-                name: "delivery_format",
-                ..
-            }
-        ),
-        "{err:?}"
-    );
-}
-
-/// The schema's defaults of a download body are not those of a voltage job
-/// (the user gives Scratch and files), and a voltage job needs an `offset`
-/// and a `duration`, which the schema makes optional.
-#[test]
-fn a_voltage_job_needs_its_delivery_offset_and_duration() {
-    use crate::mwa_asvo::api::job_params::voltage_params;
-    use crate::test_config::test_obs_id;
-
-    let err = validate_voltage_params(&voltage_params(test_obs_id(), 0, 8))
-        .expect_err("the download defaults are not a voltage delivery");
-    assert_eq!(invalid_name(Err(err)), "delivery");
-
-    for (field, params) in [
-        (
-            "offset",
-            DownloadJobParams {
-                offset: None,
-                ..voltage_defaults()
-            },
-        ),
-        (
-            "duration",
-            DownloadJobParams {
-                duration: None,
-                ..voltage_defaults()
-            },
-        ),
-    ] {
-        validate_download_params(&params).expect("a download job may have no offset or duration");
-        let err = validate_voltage_params(&params).expect_err("a voltage job needs both");
-        assert!(
-            err.to_string().contains("is required for a voltage job"),
-            "{err}"
-        );
-        assert_eq!(invalid_name(Err(err)), field);
-    }
 }

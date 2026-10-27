@@ -29,9 +29,7 @@ use crate::mwa_asvo::api::job_params::PreprocessJobParams;
 use crate::mwa_asvo::api::openapi::{
     ImagingJobFlow2Params, JobSubmittedResponse, Status, Type as FileType,
 };
-use crate::mwa_asvo::api::validate::{
-    validate_download_params, validate_image_from_job_params, validate_voltage_params,
-};
+use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
     DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
@@ -1191,9 +1189,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "voltage download"),
                 |obs_id| volt.to_params(obs_id),
-                // The request body does not say that it is a voltage job, so
-                // the client cannot check the voltage rules: this does.
-                validate_voltage_params,
+                validate_download_params,
                 AsvoClient::submit_download_job,
             )?;
         }
