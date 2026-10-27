@@ -33,16 +33,13 @@ use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
+use super::job_params::PreprocessJobParams;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, ConversionJobParams, DownloadJobParams, DownloadType,
-    ErrorResponse, ImagingJobFlow1Params, ImagingJobFlow2Params, JobCancelledResponse,
+    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, JobCancelledResponse,
     JobDetailResponse, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy,
-    TokenResponse, UserResponse, VoltageJobParams,
+    TokenResponse, UserResponse,
 };
-use super::validate::{
-    self, validate_conversion_params, validate_download_params, validate_image_from_job_params,
-    validate_imaging_params, validate_voltage_params,
-};
+use super::validate::{self, validate_download_params};
 
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
@@ -91,11 +88,11 @@ const ENDPOINT_LIST_JOBS: &str = api_path!("/v2/jobs/list");
 // endpoint that a `--dry-run` submission or cancellation would go to,
 // without a copy of the path.
 pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
-// The one endpoint that creates a job of any type except an image from a job
-// (the server takes the job type from the body), and the endpoint that
-// creates an image from a job.
-pub const ENDPOINT_CREATE_JOB: &str = api_path!("/v2/jobs/create");
-pub const ENDPOINT_IMAGE_JOB: &str = api_path!("/v2/jobs/image");
+// The two endpoints that create a job: one for the download jobs
+// (visibility, metadata, voltage and beamformer) and one for the
+// preprocessing jobs (conversion, imaging, imaging from a job).
+pub const ENDPOINT_DOWNLOAD_JOB: &str = api_path!("/v2/jobs/download");
+pub const ENDPOINT_PREPROCESS_JOB: &str = api_path!("/v2/jobs/preprocess");
 
 /// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
 ///
@@ -889,122 +886,42 @@ impl AsvoClient {
         }
     }
 
-    /// Submit an MWA ASVO imaging job (flow 1: from an Obs ID).
+    /// Submit a download job: a visibility, metadata, voltage or beamformer
+    /// job. The MWA ASVO finds the kind of download from the observation
+    /// (and `only_get_metadata`). Like the other submit endpoint, a success
+    /// returns a `JobSubmittedResponse` carrying the new job's ID.
     ///
-    /// Like every other submit endpoint, a success returns a
-    /// `JobSubmittedResponse` carrying the new job's ID.
-    ///
-    /// The numbers in `params` are checked against the schema's limits, the
-    /// delivery against its format, and the phase centre against its
-    /// coordinates, first ([`validate_imaging_params`]);
-    /// nothing is sent if one is wrong, and the error is
-    /// [`AsvoApiError::InvalidParameter`].
-    pub fn submit_imaging_job(
-        &self,
-        params: &ImagingJobFlow1Params,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_imaging_params(params)?;
-        debug!("Submitting an imaging job to MWA ASVO");
-
-        self.submit(ENDPOINT_CREATE_JOB, params)
-    }
-
-    /// Submit an MWA ASVO imaging job (flow 2: from a conversion job).
-    ///
-    /// The numbers in `params` are checked against the schema's limits, and
-    /// the delivery against its format, first
-    /// ([`validate_image_from_job_params`]); nothing is sent if one is
-    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
-    pub fn submit_image_from_job(
-        &self,
-        params: &ImagingJobFlow2Params,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_image_from_job_params(params)?;
-        debug!("Submitting an image-from-job job to MWA ASVO");
-
-        self.submit(ENDPOINT_IMAGE_JOB, params)
-    }
-
-    /// Submit a visibility download job. Any `download_type` in `params` is
-    /// replaced with `vis`, so this always submits a visibility job.
-    pub fn submit_download_vis_job(
+    /// The delivery and its format, and the `offset` limits, are checked
+    /// first ([`validate_download_params`]); nothing is sent if one is
+    /// wrong, and the error is [`AsvoApiError::InvalidParameter`]. The
+    /// request body does not say that it is a voltage job, so the extra
+    /// rules of a voltage job are not checked here: call
+    /// [`validate_voltage_params`](super::validate::validate_voltage_params)
+    /// first for a voltage job.
+    pub fn submit_download_job(
         &self,
         params: &DownloadJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        self.submit_download_job(params, DownloadType::Vis)
-    }
-
-    /// Submit a metadata download job. Any `download_type` in `params` is
-    /// replaced with `meta`, so this always submits a metadata job.
-    pub fn submit_download_meta_job(
-        &self,
-        params: &DownloadJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        self.submit_download_job(params, DownloadType::Meta)
-    }
-
-    /// Submit a beamformer download job. Any `download_type` in `params` is
-    /// replaced with `beam`, so this always submits a beamformer job.
-    pub fn submit_download_beam_job(
-        &self,
-        params: &DownloadJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        self.submit_download_job(params, DownloadType::Beam)
-    }
-
-    /// Submit a download job of `download_type`. Visibility, metadata and
-    /// beamformer jobs use the same endpoint and request body; the server
-    /// uses the body's `download_type` to decide which kind of job to
-    /// create.
-    ///
-    /// The delivery and its format are checked first
-    /// ([`validate_download_params`]); nothing is sent if they do not agree,
-    /// and the error is [`AsvoApiError::InvalidParameter`].
-    fn submit_download_job(
-        &self,
-        params: &DownloadJobParams,
-        download_type: DownloadType,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_download_params(params)?;
-        debug!("Submitting a download-{download_type} job to MWA ASVO");
+        debug!("Submitting a download job to MWA ASVO");
 
-        let mut params = params.clone();
-        params.download_type = download_type;
-
-        self.submit(ENDPOINT_CREATE_JOB, &params)
+        self.submit(ENDPOINT_DOWNLOAD_JOB, params)
     }
 
-    /// Submit an MWA ASVO conversion job.
+    /// Submit a preprocessing job: a conversion job, an imaging job from an
+    /// Obs ID (flow 1) or an imaging job from a conversion job (flow 2).
     ///
-    /// The numbers in `params` are checked against the schema's limits, the
-    /// delivery against its format, and the phase centre against its
-    /// coordinates, first ([`validate_conversion_params`]); nothing is sent
-    /// if one is wrong, and
-    /// the error is [`AsvoApiError::InvalidParameter`].
-    pub fn submit_conversion_job(
+    /// The body is checked against the schema's limits first
+    /// ([`PreprocessJobParams::validate`]); nothing is sent if a value is
+    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
+    pub fn submit_preprocess_job(
         &self,
-        params: &ConversionJobParams,
+        params: &PreprocessJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_conversion_params(params)?;
-        debug!("Submitting a conversion job to MWA ASVO");
+        params.validate()?;
+        debug!("Submitting a preprocess job to MWA ASVO");
 
-        self.submit(ENDPOINT_CREATE_JOB, params)
-    }
-
-    /// Submit an MWA ASVO voltage download job.
-    ///
-    /// `params` is checked first ([`validate_voltage_params`]): the
-    /// delivery must be Scratch and the delivery format files, and
-    /// `params.offset` must be within the schema's limits. Nothing is sent
-    /// if one is wrong, and the error is [`AsvoApiError::InvalidParameter`].
-    pub fn submit_voltage_job(
-        &self,
-        params: &VoltageJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_voltage_params(params)?;
-        debug!("Submitting a voltage job to MWA ASVO");
-
-        self.submit(ENDPOINT_CREATE_JOB, params)
+        self.submit(ENDPOINT_PREPROCESS_JOB, params)
     }
 
     /// POST the job submission `params` to `endpoint`, and parse the reply.

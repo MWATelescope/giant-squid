@@ -17,15 +17,24 @@ from .test_client import SCHEMA_PATH
 
 # Each submit method: the schema type of its request body, the positional arguments, and the schema fields that
 # the method does not take as an argument (it sets them itself, or leaves them to the MWA ASVO).
+# The voltage fields of the download body, which only a voltage job uses.
+VOLTAGE_FIELDS = {"offset", "duration", "from_channel", "to_channel"}
 METHODS = [
-    ("submit_download_vis_job", "DownloadJobParams", ["obs_id"], {"download_type"}),
-    ("submit_download_meta_job", "DownloadJobParams", ["obs_id"], {"download_type"}),
+    ("submit_download_vis_job", "DownloadJobParams", ["obs_id"], {"only_get_metadata"} | VOLTAGE_FIELDS),
+    ("submit_download_meta_job", "DownloadJobParams", ["obs_id"], {"only_get_metadata"} | VOLTAGE_FIELDS),
     ("submit_conversion_job", "ConversionJobParams", ["obs_id"], set()),
     ("submit_imaging_job", "ImagingJobFlow1Params", ["obs_id"], set()),
     ("submit_image_from_job", "ImagingJobFlow2Params", ["source_job_id"], {"obs_id"}),
-    ("submit_voltage_job", "VoltageJobParams", ["obs_id", "offset", "duration"], set()),
-    ("submit_download_beam_job", "DownloadJobParams", ["obs_id"], {"download_type"}),
+    ("submit_voltage_job", "DownloadJobParams", ["obs_id", "offset", "duration"], {"only_get_metadata"}),
+    ("submit_download_beam_job", "DownloadJobParams", ["obs_id"], {"only_get_metadata"} | VOLTAGE_FIELDS),
 ]
+
+# The defaults that are not the schema's: `submit_voltage_job` keeps the only delivery of a voltage job (Scratch, as
+# files) until the Python methods follow the API (one method for each submit endpoint).
+NOT_SCHEMA_DEFAULTS = {
+    ("submit_voltage_job", "delivery"): "scratch",
+    ("submit_voltage_job", "delivery_format"): "files",
+}
 
 # The schema enums that the methods take, by the name that a default has in a signature.
 ENUMS = {
@@ -79,4 +88,5 @@ def test_the_signature_has_the_schema_defaults(
     assert set(keyword) == set(properties) - set(positional) - not_arguments
 
     for name, default in keyword.items():
-        assert signature_default(default) == properties[name].get("default"), f"{method}: {name}"
+        expected = NOT_SCHEMA_DEFAULTS.get((method, name), properties[name].get("default"))
+        assert signature_default(default) == expected, f"{method}: {name}"

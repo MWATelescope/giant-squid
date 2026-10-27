@@ -116,7 +116,7 @@ fn a_dry_run_prints_the_endpoint_and_the_request_body() {
     assert_eq!(requests.calls(), 0);
     let output = result.combined();
     for expected in [
-        "/api/v2/jobs/create",
+        "/api/v2/jobs/preprocess",
         "\"obs_id\": 1065880128",
         "\"delivery\": \"scratch\"",
         "\"avg_freq_res\": 40",
@@ -194,7 +194,7 @@ fn a_dry_run_cancellation_contacts_no_server() {
 fn a_submission_reaches_the_server_and_reports_the_job_id() {
     let env = CliEnv::with_session();
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(4321));
@@ -217,7 +217,7 @@ fn a_submission_reaches_the_server_and_reports_the_job_id() {
 fn several_obs_ids_are_submitted_one_request_each() {
     let env = CliEnv::with_session();
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(4321));
@@ -237,7 +237,7 @@ fn several_obs_ids_are_submitted_one_request_each() {
 fn json_prints_one_submitted_response_per_obs_id() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(4321));
@@ -265,7 +265,7 @@ fn json_prints_one_submitted_response_per_obs_id() {
 fn json_works_for_image_from_job_submissions() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/image");
+        when.method(POST).path("/api/v2/jobs/preprocess");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(4322));
@@ -292,7 +292,7 @@ fn the_delivery_environment_variables_supply_the_defaults() {
     let env = CliEnv::with_session();
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "delivery": "scratch", "delivery_format": "tar" }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -314,7 +314,7 @@ fn a_command_line_flag_beats_the_environment() {
     let env = CliEnv::with_session();
     let submit = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "delivery": "acacia" }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -377,7 +377,7 @@ fn one_failing_obs_id_does_not_stop_the_others() {
     let env = CliEnv::with_session();
     let rejected = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1115977528 }"#);
         then.status(400)
             .header("content-type", "application/json")
@@ -388,7 +388,7 @@ fn one_failing_obs_id_does_not_stop_the_others() {
     });
     let accepted = env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -418,7 +418,7 @@ fn one_failing_obs_id_does_not_stop_the_others() {
 fn every_failure_is_listed_at_the_end() {
     let env = CliEnv::with_session();
     let rejected = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(400)
             .header("content-type", "application/json")
             .json_body(error_response("OBSID_NOT_FOUND", "No such observation"));
@@ -447,7 +447,7 @@ fn every_failure_is_listed_at_the_end() {
 fn a_server_error_on_submission_fails_the_run() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(400)
             .header("content-type", "application/json")
             .json_body(error_response("OBSID_NOT_FOUND", "No such observation"));
@@ -1150,7 +1150,7 @@ const HTML_503_BODY: &str =
 fn submit_json_prints_an_http_error_as_an_error_response_only() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(503)
             .header("content-type", "text/html")
             .body(HTML_503_BODY);
@@ -1177,7 +1177,7 @@ fn submit_json_copies_an_api_error_and_prints_the_successes() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
         then.status(400)
             .header("content-type", "application/json")
@@ -1185,7 +1185,7 @@ fn submit_json_copies_an_api_error_and_prints_the_successes() {
     });
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1061311784 }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -1221,7 +1221,7 @@ fn submit_json_copies_an_api_error_and_prints_the_successes() {
 fn submit_json_prints_no_logs() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/create");
+        when.method(POST).path("/api/v2/jobs/download");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(12345));
@@ -1352,7 +1352,7 @@ fn submit_dry_run_json_prints_each_request() {
     assert_eq!(result.stderr, "");
     let lines = result.stdout_json_lines();
     assert_eq!(lines.len(), 2, "stdout: {}", result.stdout);
-    assert_eq!(lines[0]["endpoint"], "/api/v2/jobs/create");
+    assert_eq!(lines[0]["endpoint"], "/api/v2/jobs/download");
     assert_eq!(lines[0]["obs_id"], 1061311664_u64);
     assert_eq!(lines[0]["params"]["obs_id"], 1061311664_u64);
     assert_eq!(lines[1]["obs_id"], 1061311784_u64);
@@ -1406,7 +1406,7 @@ fn json_lines_have_the_status_first() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1061311664 }"#);
         then.status(200)
             .header("content-type", "application/json")
@@ -1414,7 +1414,7 @@ fn json_lines_have_the_status_first() {
     });
     env.server.mock(|when, then| {
         when.method(POST)
-            .path("/api/v2/jobs/create")
+            .path("/api/v2/jobs/download")
             .json_body_includes(r#"{ "obs_id": 1115977528 }"#);
         then.status(400)
             .header("content-type", "application/json")

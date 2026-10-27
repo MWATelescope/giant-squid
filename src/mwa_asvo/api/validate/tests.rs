@@ -21,11 +21,12 @@ const SCHEMA: &str = include_str!("../openapi-schema.json");
 const CONVERSION: &str = "ConversionJobParams";
 const FLOW1: &str = "ImagingJobFlow1Params";
 const FLOW2: &str = "ImagingJobFlow2Params";
-const VOLTAGE: &str = "VoltageJobParams";
+/// The download body, which voltage jobs use too.
+const DOWNLOAD: &str = "DownloadJobParams";
 
 /// Every job request body in the schema. The completeness test looks for
 /// limits in all of them, so a limit added to any body is noticed.
-const JOB_BODIES: [&str; 5] = ["DownloadJobParams", CONVERSION, FLOW1, FLOW2, VOLTAGE];
+const JOB_BODIES: [&str; 4] = [DOWNLOAD, CONVERSION, FLOW1, FLOW2];
 
 /// The limits of the fields both imaging request bodies have.
 const SHARED_LIMITS: [(&str, Bounds); 13] = [
@@ -54,22 +55,21 @@ const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("flag_edge_width", FLAG_EDGE_WIDTH),
 ];
 
-/// The limits of the voltage body that this module checks.
-const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
+/// The limits of the download body that this module checks.
+const DOWNLOAD_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
 
 /// Schema limits that the Rust type enforces, so this module has no check
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
-const TYPE_ENFORCED: [(&str, &str, &str); 9] = [
-    ("DownloadJobParams", "obs_id", "ObsId::validate is stricter"),
+const TYPE_ENFORCED: [(&str, &str, &str); 8] = [
+    (DOWNLOAD, "obs_id", "ObsId::validate is stricter"),
     (CONVERSION, "obs_id", "ObsId::validate is stricter"),
     (FLOW1, "obs_id", "ObsId::validate is stricter"),
     (FLOW2, "obs_id", "ObsId::validate is stricter"),
-    (VOLTAGE, "obs_id", "ObsId::validate is stricter"),
     (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
-    (VOLTAGE, "duration", "u64 has minimum 0"),
-    (VOLTAGE, "from_channel", "u8 has the range 0 to 255"),
-    (VOLTAGE, "to_channel", "u8 has the range 0 to 255"),
+    (DOWNLOAD, "duration", "u64 has minimum 0"),
+    (DOWNLOAD, "from_channel", "u8 has the range 0 to 255"),
+    (DOWNLOAD, "to_channel", "u8 has the range 0 to 255"),
 ];
 
 /// The fields whose values are integers in the request body.
@@ -100,11 +100,15 @@ fn conversion_defaults() -> ConversionJobParams {
         .expect("defaults build")
 }
 
-fn voltage_defaults() -> VoltageJobParams {
-    VoltageJobParams::builder()
+/// A voltage job: a download body with an offset and a duration, delivered
+/// to Scratch as files (the only delivery of a voltage job).
+fn voltage_defaults() -> DownloadJobParams {
+    DownloadJobParams::builder()
         .obs_id(1_065_880_128_i64)
-        .offset(0_i64)
-        .duration(8_u64)
+        .delivery(VOLTAGE_DELIVERY)
+        .delivery_format(VOLTAGE_DELIVERY_FORMAT)
+        .offset(Some(0_i64))
+        .duration(Some(8_u64))
         .try_into()
         .expect("defaults build")
 }
@@ -265,10 +269,15 @@ fn every_limit_is_enforced_on_both_ends_for_the_conversion_body() {
 }
 
 #[test]
-fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
+fn every_limit_is_enforced_on_both_ends_for_the_download_body() {
     assert_limits_enforced(
         &voltage_defaults(),
-        &VOLTAGE_LIMITS,
+        &DOWNLOAD_LIMITS,
+        validate_download_params,
+    );
+    assert_limits_enforced(
+        &voltage_defaults(),
+        &DOWNLOAD_LIMITS,
         validate_voltage_params,
     );
 }
@@ -444,7 +453,7 @@ fn limit_tables() -> Vec<(&'static str, &'static [(&'static str, Bounds)])> {
         (FLOW2, &SHARED_LIMITS),
         (FLOW1, &CONVERSION_LIMITS),
         (CONVERSION, &CONVERSION_LIMITS),
-        (VOLTAGE, &VOLTAGE_LIMITS),
+        (DOWNLOAD, &DOWNLOAD_LIMITS),
     ]
 }
 
@@ -505,7 +514,7 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
             "{body}.obs_id: the schema minimum is above what Obsid accepts"
         );
     }
-    let voltage = schema_properties(VOLTAGE);
+    let voltage = schema_properties(DOWNLOAD);
     assert_eq!(schema_limit(&voltage["duration"], "minimum"), Some(0.0));
     assert_eq!(schema_limit(&voltage["duration"], "maximum"), None);
     for channel in ["from_channel", "to_channel"] {
@@ -727,15 +736,14 @@ fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refuse
         .expect("a custom centre with both coordinates is valid");
 }
 
-/// A voltage job is delivered to Scratch as files: the schema's defaults pass,
+/// A voltage job is delivered to Scratch as files: Scratch and files pass,
 /// and any other delivery or delivery format is refused, whatever the
 /// schema's enums allow.
 #[test]
 fn a_voltage_job_is_delivered_to_scratch_as_files() {
-    use crate::mwa_asvo::api::job_params::voltage_defaults;
     use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 
-    validate_voltage_params(&voltage_defaults()).expect("the defaults are valid");
+    validate_voltage_params(&voltage_defaults()).expect("scratch and files are valid");
 
     for delivery in [DeliveryDestination::Acacia, DeliveryDestination::Dug] {
         let mut params = voltage_defaults();
@@ -766,4 +774,42 @@ fn a_voltage_job_is_delivered_to_scratch_as_files() {
         ),
         "{err:?}"
     );
+}
+
+/// The schema's defaults of a download body are not those of a voltage job
+/// (the user gives Scratch and files), and a voltage job needs an `offset`
+/// and a `duration`, which the schema makes optional.
+#[test]
+fn a_voltage_job_needs_its_delivery_offset_and_duration() {
+    use crate::mwa_asvo::api::job_params::voltage_params;
+    use crate::test_config::test_obs_id;
+
+    let err = validate_voltage_params(&voltage_params(test_obs_id(), 0, 8))
+        .expect_err("the download defaults are not a voltage delivery");
+    assert_eq!(invalid_name(Err(err)), "delivery");
+
+    for (field, params) in [
+        (
+            "offset",
+            DownloadJobParams {
+                offset: None,
+                ..voltage_defaults()
+            },
+        ),
+        (
+            "duration",
+            DownloadJobParams {
+                duration: None,
+                ..voltage_defaults()
+            },
+        ),
+    ] {
+        validate_download_params(&params).expect("a download job may have no offset or duration");
+        let err = validate_voltage_params(&params).expect_err("a voltage job needs both");
+        assert!(
+            err.to_string().contains("is required for a voltage job"),
+            "{err}"
+        );
+        assert_eq!(invalid_name(Err(err)), field);
+    }
 }

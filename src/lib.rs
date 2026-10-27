@@ -36,7 +36,7 @@ pub use helpers::{
 pub use jiff;
 pub use mwa_asvo::api::client::{
     AsvoClient, AsvoClientConfig, JobsFilter, API_PREFIX, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
-    ENDPOINT_CREATE_JOB, ENDPOINT_IMAGE_JOB, ENDPOINT_JOBS,
+    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 pub use mwa_asvo::api::error::AsvoApiError;
 pub use mwa_asvo::download::{

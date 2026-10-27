@@ -629,7 +629,13 @@ fn live_submit_image() {
 fn live_submit_volt() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
+    // A voltage job takes the delivery defaults of every download job,
+    // which the library refuses for a voltage job: give Scratch and files.
     let range = [
+        "--delivery",
+        "scratch",
+        "--delivery-format",
+        "files",
         "--offset",
         LIVE_VOLTAGE_OFFSET_SECS,
         "--duration",

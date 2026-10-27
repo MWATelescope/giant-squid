@@ -25,17 +25,17 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
+use crate::mwa_asvo::api::job_params::PreprocessJobParams;
 use crate::mwa_asvo::api::openapi::{
     ImagingJobFlow2Params, JobSubmittedResponse, Status, Type as FileType,
 };
 use crate::mwa_asvo::api::validate::{
-    validate_conversion_params, validate_download_params, validate_image_from_job_params,
-    validate_imaging_params, validate_voltage_params,
+    validate_download_params, validate_image_from_job_params, validate_voltage_params,
 };
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
-    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter, ENDPOINT_CREATE_JOB,
-    ENDPOINT_IMAGE_JOB, ENDPOINT_JOBS,
+    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
+    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -444,7 +444,7 @@ fn run_submit_image_from_job(
         if submit.json {
             return print_json_line(
                 &DryRunImageFromJob {
-                    endpoint: ENDPOINT_IMAGE_JOB,
+                    endpoint: ENDPOINT_PREPROCESS_JOB,
                     params,
                 },
                 true,
@@ -452,7 +452,7 @@ fn run_submit_image_from_job(
         }
         let body = serde_json::to_string_pretty(params)?;
         info!(
-            "[dry run] Would POST {ENDPOINT_IMAGE_JOB} for an image of Job ID {}:\n{body}",
+            "[dry run] Would POST {ENDPOINT_PREPROCESS_JOB} for an image of Job ID {}:\n{body}",
             params.source_job_id
         );
         info!("[dry run] Nothing was sent.");
@@ -460,7 +460,7 @@ fn run_submit_image_from_job(
     }
 
     let client = connect()?;
-    let resp = client.submit_image_from_job(params)?;
+    let resp = client.submit_preprocess_job(&PreprocessJobParams::from(params.clone()))?;
     print_json_line(&StatusFirst(&resp), submit.json)?;
     let job_id = resp.job_id;
     info!(
@@ -1124,10 +1124,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "visibility download"),
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "visibility download"),
                 |obs_id| download.to_vis_params(obs_id),
                 validate_download_params,
-                |client, params| client.submit_download_vis_job(params),
+                AsvoClient::submit_download_job,
             )?;
         }
 
@@ -1139,10 +1139,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "conversion"),
-                |obs_id| conv.to_params(obs_id),
-                validate_conversion_params,
-                |client, params| client.submit_conversion_job(params),
+                &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "conversion"),
+                |obs_id| PreprocessJobParams::from(conv.to_params(obs_id)),
+                PreprocessJobParams::validate,
+                AsvoClient::submit_preprocess_job,
             )?;
         }
 
@@ -1154,10 +1154,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, Some(IMAGE_JOB_IDS_MESSAGE))?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "imaging"),
-                |obs_id| image.to_params(obs_id),
-                validate_imaging_params,
-                |client, params| client.submit_imaging_job(params),
+                &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "imaging"),
+                |obs_id| PreprocessJobParams::from(image.to_params(obs_id)),
+                PreprocessJobParams::validate,
+                AsvoClient::submit_preprocess_job,
             )?;
         }
 
@@ -1174,10 +1174,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "metadata download"),
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "metadata download"),
                 |obs_id| download.to_meta_params(obs_id),
                 validate_download_params,
-                |client, params| client.submit_download_meta_job(params),
+                AsvoClient::submit_download_job,
             )?;
         }
 
@@ -1189,10 +1189,12 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "voltage download"),
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "voltage download"),
                 |obs_id| volt.to_params(obs_id),
+                // The request body does not say that it is a voltage job, so
+                // the client cannot check the voltage rules: this does.
                 validate_voltage_params,
-                |client, params| client.submit_voltage_job(params),
+                AsvoClient::submit_download_job,
             )?;
         }
 
@@ -1204,10 +1206,10 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(submit.verbosity, submit.json);
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_CREATE_JOB, "beamformer download"),
+                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "beamformer download"),
                 |obs_id| bf.to_params(obs_id),
                 validate_download_params,
-                |client, params| client.submit_download_beam_job(params),
+                AsvoClient::submit_download_job,
             )?;
         }
 

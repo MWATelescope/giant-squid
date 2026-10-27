@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.5.0"
+    "version": "2.6.0"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -161,41 +161,6 @@
       ],
       "title": "CalibrationReadyCallback",
       "description": "Calibration service callback"
-    },
-    "CancelJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id"
-      ],
-      "title": "CancelJobParams"
     },
     "CancelledJobsRequest": {
       "properties": {
@@ -476,9 +441,61 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "download_type": {
-          "$ref": "#/definitions/DownloadType",
-          "default": "vis"
+        "only_get_metadata": {
+          "type": "boolean",
+          "title": "Only Get Metadata",
+          "default": false
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 5400.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Offset"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration"
+        },
+        "from_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Channel"
+        },
+        "to_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Channel"
         }
       },
       "type": "object",
@@ -487,15 +504,6 @@
       ],
       "title": "DownloadJobParams",
       "description": "Parameters for download job submission"
-    },
-    "DownloadType": {
-      "type": "string",
-      "enum": [
-        "vis",
-        "meta",
-        "beam"
-      ],
-      "title": "DownloadType"
     },
     "ErrorResponse": {
       "properties": {
@@ -4125,81 +4133,6 @@
       "title": "UserUpdateProfileRequest",
       "description": "Request model for updating a user's profile"
     },
-    "VoltageJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "scratch"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "files"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        },
-        "offset": {
-          "type": "integer",
-          "maximum": 5400.0,
-          "minimum": 0.0,
-          "title": "Offset"
-        },
-        "duration": {
-          "type": "integer",
-          "minimum": 0.0,
-          "title": "Duration"
-        },
-        "from_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "From Channel"
-        },
-        "to_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "To Channel"
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id",
-        "offset",
-        "duration"
-      ],
-      "title": "VoltageJobParams",
-      "description": "Parameters for voltage job submission"
-    },
     "WebSocketTokenResponse": {
       "properties": {
         "token": {
@@ -4250,16 +4183,16 @@
     "/v2/jobs/calibration_ready": [
       "post"
     ],
-    "/v2/jobs/create": [
-      "post"
-    ],
-    "/v2/jobs/image": [
+    "/v2/jobs/download": [
       "post"
     ],
     "/v2/jobs/job_staged": [
       "post"
     ],
     "/v2/jobs/list": [
+      "post"
+    ],
+    "/v2/jobs/preprocess": [
       "post"
     ],
     "/v2/jobs/{job_id}": [
@@ -4548,39 +4481,9 @@
         ]
       }
     },
-    "POST /v2/jobs/create": {
+    "POST /v2/jobs/download": {
       "request": [
-        "DownloadJobParams",
-        "ConversionJobParams",
-        "VoltageJobParams",
-        "ImagingJobFlow2Params",
-        "ImagingJobFlow1Params",
-        "CancelJobParams"
-      ],
-      "responses": {
-        "200": [
-          "JobSubmittedResponse"
-        ],
-        "401": [
-          "ErrorResponse"
-        ],
-        "403": [
-          "ErrorResponse"
-        ],
-        "422": [
-          "ErrorResponse"
-        ],
-        "500": [
-          "ErrorResponse"
-        ],
-        "503": [
-          "ErrorResponse"
-        ]
-      }
-    },
-    "POST /v2/jobs/image": {
-      "request": [
-        "ImagingJobFlow2Params"
+        "DownloadJobParams"
       ],
       "responses": {
         "200": [
@@ -4643,6 +4546,33 @@
           "ErrorResponse"
         ],
         "404": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/preprocess": {
+      "request": [
+        "ConversionJobParams",
+        "ImagingJobFlow1Params",
+        "ImagingJobFlow2Params"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
           "ErrorResponse"
         ],
         "422": [

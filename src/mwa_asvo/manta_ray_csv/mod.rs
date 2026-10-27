@@ -47,20 +47,21 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::helpers::BYTE_ORDER_MARK;
-use crate::mwa_asvo::api::client::{AsvoClient, ENDPOINT_CREATE_JOB};
+use crate::mwa_asvo::api::client::{AsvoClient, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_PREPROCESS_JOB};
 use crate::mwa_asvo::api::error::AsvoApiError;
 use crate::mwa_asvo::api::job_params::{
-    conversion_params, download_params, imaging_params, voltage_params,
+    conversion_params, download_params, imaging_params, metadata_params, voltage_params,
+    PreprocessJobParams,
 };
 use crate::mwa_asvo::api::openapi::{
-    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, DownloadType,
-    ImageOutputMode, ImageWeighting, ImagingJobFlow1Params, JobSubmittedResponse, OutputFormat,
-    PhaseCentre, Polarization, VoltageJobParams,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageOutputMode,
+    ImageWeighting, ImagingJobFlow1Params, JobSubmittedResponse, OutputFormat, PhaseCentre,
+    Polarization,
 };
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::api::validate::{
     self, validate_conversion_params, validate_download_params, validate_imaging_params,
-    validate_voltage_params,
+    validate_voltage_params, VOLTAGE_DELIVERY, VOLTAGE_DELIVERY_FORMAT,
 };
 use crate::obs_id::ObsId;
 
@@ -127,18 +128,24 @@ pub enum CsvJobParams {
     /// A visibility or metadata download job (`job_type=d`).
     Download(DownloadJobParams),
     /// A voltage job (`job_type=v`).
-    Voltage(VoltageJobParams),
+    ///
+    /// A download job like [`Self::Download`], with `offset` and
+    /// `duration`.
+    Voltage(DownloadJobParams),
     /// A beamformer job (`job_type=b`).
     ///
-    /// A download job like [`Self::Download`], with `download_type` `beam`.
+    /// A download job like [`Self::Download`]: the MWA ASVO finds the kind
+    /// of download from the observation.
     Beamformer(DownloadJobParams),
 }
 
 impl CsvJobParams {
     /// The endpoint that the request goes to.
     pub fn endpoint(&self) -> &'static str {
-        // Every job of a file goes to the one endpoint that creates a job.
-        ENDPOINT_CREATE_JOB
+        match self {
+            Self::Conversion(_) | Self::Imaging(_) => ENDPOINT_PREPROCESS_JOB,
+            Self::Download(_) | Self::Voltage(_) | Self::Beamformer(_) => ENDPOINT_DOWNLOAD_JOB,
+        }
     }
 
     /// The kind of job, in words: for example `conversion`.
@@ -146,7 +153,7 @@ impl CsvJobParams {
         match self {
             Self::Conversion(_) => "conversion",
             Self::Imaging(_) => "imaging",
-            Self::Download(p) if p.download_type == DownloadType::Meta => "metadata download",
+            Self::Download(p) if p.only_get_metadata => "metadata download",
             Self::Download(_) => "visibility download",
             Self::Voltage(_) => "voltage",
             Self::Beamformer(_) => "beamformer",
@@ -677,11 +684,11 @@ fn parse_download(
     defaults: &CsvDefaults,
 ) -> Result<DownloadJobParams, String> {
     let download_type = required(row.text("download_type"), "download_type")?;
-    // The format's names are `vis` and `vis_meta`; the schema's are `vis`
-    // and `meta`.
-    let download_type = match download_type.to_lowercase().as_str() {
-        DOWNLOAD_TYPE_VIS => DownloadType::Vis,
-        DOWNLOAD_TYPE_META => DownloadType::Meta,
+    // The format's names are `vis` and `vis_meta`. The schema has no
+    // download type: a metadata download sets `only_get_metadata`.
+    let mut params = match download_type.to_lowercase().as_str() {
+        DOWNLOAD_TYPE_VIS => download_params(obs_id),
+        DOWNLOAD_TYPE_META => metadata_params(obs_id),
         _ => {
             return Err(format!(
                 "download_type: `{download_type}` is not one of {DOWNLOAD_TYPE_VIS}, \
@@ -689,7 +696,6 @@ fn parse_download(
             ))
         }
     };
-    let mut params = download_params(obs_id, download_type);
     apply_delivery!(row, defaults, params);
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("download")?;
@@ -701,7 +707,7 @@ fn parse_beamformer(
     obs_id: ObsId,
     defaults: &CsvDefaults,
 ) -> Result<DownloadJobParams, String> {
-    let mut params = download_params(obs_id, DownloadType::Beam);
+    let mut params = download_params(obs_id);
     apply_delivery!(row, defaults, params);
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("beamformer")?;
@@ -712,18 +718,19 @@ fn parse_voltage(
     row: &mut Row,
     obs_id: ObsId,
     defaults: &CsvDefaults,
-) -> Result<VoltageJobParams, String> {
+) -> Result<DownloadJobParams, String> {
     let offset = required(row.integer::<i64>("offset")?, "offset")?;
     let duration = required(row.integer::<u64>("duration")?, "duration")?;
     let mut params = voltage_params(obs_id, offset, duration);
-    // A voltage job is delivered to Scratch only: `validate` refuses any
-    // other delivery.
-    if let Some(delivery) = row
+    // A voltage job is delivered to Scratch as files only, and
+    // manta-ray-client files do not give the format, so a line that gives
+    // no delivery gets Scratch and files (not the schema's defaults of a
+    // download job). `validate` refuses any other delivery.
+    params.delivery = row
         .named::<DeliveryDestination>("delivery")?
         .or(defaults.delivery)
-    {
-        params.delivery = delivery;
-    }
+        .unwrap_or(VOLTAGE_DELIVERY);
+    params.delivery_format = VOLTAGE_DELIVERY_FORMAT;
     params.from_channel = row.integer::<u8>("from_channel")?;
     params.to_channel = row.integer::<u8>("to_channel")?;
     apply_resubmit!(row, defaults, params);
@@ -965,24 +972,29 @@ impl AsvoClient {
     }
 
     /// Submit the job of a line of a `manta-ray-client` CSV file (see
-    /// [`parse_manta_ray_csv`]), with the submit method of its job type.
+    /// [`parse_manta_ray_csv`]), to the endpoint of its job type
+    /// ([`CsvJobParams::endpoint`]). A voltage job is checked with
+    /// [`validate_voltage_params`] first.
     ///
     /// # Errors
     ///
-    /// The error of the submit method of the job type.
+    /// The error of the check or of the submit method.
     pub fn submit_csv_job(
         &self,
         params: &CsvJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         match params {
-            CsvJobParams::Conversion(p) => self.submit_conversion_job(p),
-            CsvJobParams::Imaging(p) => self.submit_imaging_job(p),
-            CsvJobParams::Download(p) if p.download_type == DownloadType::Meta => {
-                self.submit_download_meta_job(p)
+            CsvJobParams::Conversion(p) => {
+                self.submit_preprocess_job(&PreprocessJobParams::Conversion(p.clone()))
             }
-            CsvJobParams::Download(p) => self.submit_download_vis_job(p),
-            CsvJobParams::Voltage(p) => self.submit_voltage_job(p),
-            CsvJobParams::Beamformer(p) => self.submit_download_beam_job(p),
+            CsvJobParams::Imaging(p) => {
+                self.submit_preprocess_job(&PreprocessJobParams::Imaging(p.clone()))
+            }
+            CsvJobParams::Download(p) | CsvJobParams::Beamformer(p) => self.submit_download_job(p),
+            CsvJobParams::Voltage(p) => {
+                validate_voltage_params(p)?;
+                self.submit_download_job(p)
+            }
         }
     }
 }

@@ -26,9 +26,14 @@
 
 use std::num::NonZeroU64;
 
+use serde::Serialize;
+
+use super::error::AsvoApiError;
 use super::openapi::{
-    ConversionJobParams, DownloadJobParams, DownloadType, ImagingJobFlow1Params,
-    ImagingJobFlow2Params, VoltageJobParams,
+    ConversionJobParams, DownloadJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
+};
+use super::validate::{
+    validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
 };
 use crate::obs_id::ObsId;
 
@@ -72,24 +77,23 @@ pub(crate) fn image_from_job_defaults() -> ImagingJobFlow2Params {
     })
 }
 
-/// A [`VoltageJobParams`] at the schema's defaults. `obs_id`, `offset` and
-/// `duration` are placeholders (0); see [`download_defaults`].
-pub(crate) fn voltage_defaults() -> VoltageJobParams {
-    schema_defaults!(VoltageJobParams {
-        obs_id: 0_i64,
-        offset: 0_i64,
-        duration: 0_u64,
-    })
-}
-
-/// The request body of a visibility, metadata or beamformer download job for
-/// `obs_id`, a download of `download_type`. (The client's submit methods set
-/// the `download_type` of their own job type in any case.)
-pub fn download_params(obs_id: ObsId, download_type: DownloadType) -> DownloadJobParams {
+/// The request body of a visibility or beamformer download job for
+/// `obs_id`. The MWA ASVO finds the kind of download from the observation.
+/// The voltage fields (`offset`, `duration`, `from_channel`, `to_channel`)
+/// are `None`.
+pub fn download_params(obs_id: ObsId) -> DownloadJobParams {
     DownloadJobParams {
         obs_id: i64::from(obs_id),
-        download_type,
         ..download_defaults()
+    }
+}
+
+/// The request body of a metadata download job for `obs_id`: a download job
+/// with `only_get_metadata` set.
+pub fn metadata_params(obs_id: ObsId) -> DownloadJobParams {
+    DownloadJobParams {
+        only_get_metadata: true,
+        ..download_params(obs_id)
     }
 }
 
@@ -119,14 +123,68 @@ pub fn image_from_job_params(source_job_id: NonZeroU64) -> ImagingJobFlow2Params
     }
 }
 
-/// The request body of a voltage download job for `obs_id`. `offset` and
-/// `duration` are required by the schema.
-pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> VoltageJobParams {
-    VoltageJobParams {
-        obs_id: i64::from(obs_id),
-        offset,
-        duration,
-        ..voltage_defaults()
+/// The request body of a voltage download job for `obs_id`, from `offset`
+/// seconds after the start of the observation, for `duration` seconds. The
+/// other fields are at the schema's defaults, which are those of every
+/// download job: the MWA ASVO allows only some of them for a voltage job,
+/// which [`validate_voltage_params`](super::validate::validate_voltage_params)
+/// checks.
+pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> DownloadJobParams {
+    DownloadJobParams {
+        offset: Some(offset),
+        duration: Some(duration),
+        ..download_params(obs_id)
+    }
+}
+
+/// The request body of a preprocessing job: one of the schema types that
+/// the preprocess endpoint takes. The body has no field that names its
+/// type: the MWA ASVO tells them apart by their fields (for example, only
+/// an imaging body has the imaging fields), so the body is serialised as
+/// the type it holds.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum PreprocessJobParams {
+    /// A conversion job.
+    Conversion(Box<ConversionJobParams>),
+    /// An imaging job from an Obs ID (flow 1).
+    Imaging(Box<ImagingJobFlow1Params>),
+    /// An imaging job from a conversion job (flow 2).
+    ImageFromJob(Box<ImagingJobFlow2Params>),
+}
+
+impl PreprocessJobParams {
+    /// Check the body against the limits of the schema, with the
+    /// `validate_*_params` function of its type.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoApiError::InvalidParameter`] for the first value that is not
+    /// allowed.
+    pub fn validate(&self) -> Result<(), AsvoApiError> {
+        match self {
+            Self::Conversion(p) => validate_conversion_params(p),
+            Self::Imaging(p) => validate_imaging_params(p),
+            Self::ImageFromJob(p) => validate_image_from_job_params(p),
+        }
+    }
+}
+
+impl From<ConversionJobParams> for PreprocessJobParams {
+    fn from(params: ConversionJobParams) -> Self {
+        Self::Conversion(Box::new(params))
+    }
+}
+
+impl From<ImagingJobFlow1Params> for PreprocessJobParams {
+    fn from(params: ImagingJobFlow1Params) -> Self {
+        Self::Imaging(Box::new(params))
+    }
+}
+
+impl From<ImagingJobFlow2Params> for PreprocessJobParams {
+    fn from(params: ImagingJobFlow2Params) -> Self {
+        Self::ImageFromJob(Box::new(params))
     }
 }
 

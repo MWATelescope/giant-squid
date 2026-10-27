@@ -27,8 +27,7 @@ use super::types::{
     PyImageWeighting, PyJobCancelledResponse, PyJobState, PyJobSubmittedResponse, PyJobType,
     PyOutputFormat, PyPhaseCentre, PyPolarization, PySortBy,
 };
-use crate::mwa_asvo::api::job_params as schema;
-use crate::mwa_asvo::api::openapi::DownloadType;
+use crate::mwa_asvo::api::job_params::{self as schema, PreprocessJobParams};
 use crate::mwa_asvo::api::validate;
 use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobsFilter};
 use crate::obs_id::ObsId;
@@ -221,11 +220,11 @@ impl PyAsvoClient {
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Vis);
+        let mut params = schema::download_params(job_obs_id(obs_id)?);
         params.delivery = delivery.into();
         params.delivery_format = delivery_format.into();
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_download_vis_job(&params))
+        py.detach(|| self.inner.submit_download_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
@@ -263,11 +262,11 @@ impl PyAsvoClient {
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Meta);
+        let mut params = schema::metadata_params(job_obs_id(obs_id)?);
         params.delivery = delivery.into();
         params.delivery_format = delivery_format.into();
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_download_meta_job(&params))
+        py.detach(|| self.inner.submit_download_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
@@ -404,9 +403,12 @@ impl PyAsvoClient {
         params.no_cable_delay = no_cable_delay;
         params.no_rfi = no_rfi;
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_conversion_job(&params))
-            .map(PyJobSubmittedResponse::from)
-            .map_err(|e| api_error(py, e))
+        py.detach(|| {
+            self.inner
+                .submit_preprocess_job(&PreprocessJobParams::from(params))
+        })
+        .map(PyJobSubmittedResponse::from)
+        .map_err(|e| api_error(py, e))
     }
 
     /// Submit an imaging job that starts from an Obs ID.
@@ -654,9 +656,12 @@ impl PyAsvoClient {
         params.weighting = weighting.into();
         params.wstack_nwlayers = wstack_nwlayers;
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_imaging_job(&params))
-            .map(PyJobSubmittedResponse::from)
-            .map_err(|e| api_error(py, e))
+        py.detach(|| {
+            self.inner
+                .submit_preprocess_job(&PreprocessJobParams::from(params))
+        })
+        .map(PyJobSubmittedResponse::from)
+        .map_err(|e| api_error(py, e))
     }
 
     /// Submit an imaging job that starts from an existing conversion job.
@@ -801,9 +806,12 @@ impl PyAsvoClient {
         params.weighting = weighting.into();
         params.wstack_nwlayers = wstack_nwlayers;
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_image_from_job(&params))
-            .map(PyJobSubmittedResponse::from)
-            .map_err(|e| api_error(py, e))
+        py.detach(|| {
+            self.inner
+                .submit_preprocess_job(&PreprocessJobParams::from(params))
+        })
+        .map(PyJobSubmittedResponse::from)
+        .map_err(|e| api_error(py, e))
     }
 
     /// Submit a job to download an observation's voltage data.
@@ -850,11 +858,11 @@ impl PyAsvoClient {
         offset,
         duration,
         *,
-        delivery = PyDeliveryDestination::from(schema::voltage_defaults().delivery),
-        delivery_format = PyDeliveryFormat::from(schema::voltage_defaults().delivery_format),
-        from_channel = schema::voltage_defaults().from_channel,
-        to_channel = schema::voltage_defaults().to_channel,
-        allow_resubmit = schema::voltage_defaults().allow_resubmit,
+        delivery = PyDeliveryDestination::from(validate::VOLTAGE_DELIVERY),
+        delivery_format = PyDeliveryFormat::from(validate::VOLTAGE_DELIVERY_FORMAT),
+        from_channel = schema::download_defaults().from_channel,
+        to_channel = schema::download_defaults().to_channel,
+        allow_resubmit = schema::download_defaults().allow_resubmit,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn submit_voltage_job(
@@ -875,9 +883,12 @@ impl PyAsvoClient {
         params.from_channel = from_channel;
         params.to_channel = to_channel;
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_voltage_job(&params))
-            .map(PyJobSubmittedResponse::from)
-            .map_err(|e| api_error(py, e))
+        py.detach(|| {
+            validate::validate_voltage_params(&params)?;
+            self.inner.submit_download_job(&params)
+        })
+        .map(PyJobSubmittedResponse::from)
+        .map_err(|e| api_error(py, e))
     }
 
     /// Submit a job to download an observation's beamformer data.
@@ -913,11 +924,11 @@ impl PyAsvoClient {
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let mut params = schema::download_params(job_obs_id(obs_id)?, DownloadType::Beam);
+        let mut params = schema::download_params(job_obs_id(obs_id)?);
         params.delivery = delivery.into();
         params.delivery_format = delivery_format.into();
         params.allow_resubmit = allow_resubmit;
-        py.detach(|| self.inner.submit_download_beam_job(&params))
+        py.detach(|| self.inner.submit_download_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }

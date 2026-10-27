@@ -52,7 +52,6 @@ fn the_defaults_are_the_schemas() {
     assert_defaults_are_the_schemas("ConversionJobParams", &conversion_defaults());
     assert_defaults_are_the_schemas("ImagingJobFlow1Params", &imaging_defaults());
     assert_defaults_are_the_schemas("ImagingJobFlow2Params", &image_from_job_defaults());
-    assert_defaults_are_the_schemas("VoltageJobParams", &voltage_defaults());
 }
 
 /// `None` in a field that the schema allows to be `null`, and whose default
@@ -92,23 +91,38 @@ fn none_in_a_field_whose_default_is_null_is_left_out() {
 fn the_constructors_set_the_required_fields() {
     let obs_id = test_obs_id();
 
-    let download = download_params(obs_id, DownloadType::Meta);
-    assert_eq!(download.obs_id, i64::from(obs_id));
-    assert_eq!(download.download_type, DownloadType::Meta);
+    let download = download_params(obs_id);
     assert_eq!(
         DownloadJobParams {
             obs_id: 0,
-            download_type: DownloadType::Vis,
-            ..download
+            ..download.clone()
         },
         download_defaults()
     );
+    assert_eq!(download.obs_id, i64::from(obs_id));
+    assert!(!download.only_get_metadata);
 
+    let metadata = metadata_params(obs_id);
+    assert_eq!(
+        DownloadJobParams {
+            only_get_metadata: false,
+            ..metadata
+        },
+        download
+    );
+
+    // A voltage job is a download job with an offset and a duration, at
+    // the defaults of every download job.
     let voltage = voltage_params(obs_id, -5, 8);
     assert_eq!(
-        (voltage.obs_id, voltage.offset, voltage.duration),
-        (i64::from(obs_id), -5, 8)
+        DownloadJobParams {
+            offset: None,
+            duration: None,
+            ..voltage.clone()
+        },
+        download
     );
+    assert_eq!((voltage.offset, voltage.duration), (Some(-5), Some(8)));
 
     let source_job_id = NonZeroU64::new(77).expect("not zero");
     // An image of a job has no Obs ID of its own: it is sent as null.
@@ -117,8 +131,48 @@ fn the_constructors_set_the_required_fields() {
 
     assert_eq!(conversion_params(obs_id).obs_id, i64::from(obs_id));
     assert_eq!(imaging_params(obs_id).obs_id, i64::from(obs_id));
-    assert_eq!(
-        download_params(obs_id, DownloadType::Beam).download_type,
-        DownloadType::Beam
-    );
+}
+
+/// A preprocess body is sent as the body that it holds, with no tag.
+#[test]
+fn a_preprocess_body_is_sent_as_the_body_it_holds() {
+    let obs_id = test_obs_id();
+    let source_job_id = NonZeroU64::new(77).expect("not zero");
+    let cases = [
+        (
+            PreprocessJobParams::from(conversion_params(obs_id)),
+            serde_json::to_value(conversion_params(obs_id)),
+        ),
+        (
+            PreprocessJobParams::from(imaging_params(obs_id)),
+            serde_json::to_value(imaging_params(obs_id)),
+        ),
+        (
+            PreprocessJobParams::from(image_from_job_params(source_job_id)),
+            serde_json::to_value(image_from_job_params(source_job_id)),
+        ),
+    ];
+    for (params, expected) in cases {
+        assert_eq!(
+            serde_json::to_value(&params).expect("JSON"),
+            expected.expect("JSON")
+        );
+    }
+}
+
+/// A preprocess body is checked with the check of the body that it holds.
+#[test]
+fn a_preprocess_body_is_checked_as_the_body_it_holds() {
+    let mut conversion = conversion_params(test_obs_id());
+    assert!(PreprocessJobParams::from(conversion.clone())
+        .validate()
+        .is_ok());
+    conversion.flag_edge_width = -1.0;
+    assert!(matches!(
+        PreprocessJobParams::from(conversion).validate(),
+        Err(AsvoApiError::InvalidParameter {
+            name: "flag_edge_width",
+            ..
+        })
+    ));
 }

@@ -146,7 +146,7 @@ fn the_metadata_file_has_two_metadata_downloads() {
         assert_eq!(job.params.description(), "metadata download");
         assert_has(
             &body(job),
-            json!({"download_type": "meta", "delivery": "acacia"}),
+            json!({"only_get_metadata": true, "delivery": "acacia"}),
         );
     }
 }
@@ -160,7 +160,7 @@ fn the_visibility_file_has_two_visibility_downloads() {
         assert_eq!(job.params.description(), "visibility download");
         assert_has(
             &body(job),
-            json!({"download_type": "vis", "delivery_format": "tar"}),
+            json!({"only_get_metadata": false, "delivery_format": "tar"}),
         );
     }
 }
@@ -625,8 +625,7 @@ fn no_apply_amps_is_a_key_of_a_conversion_job() {
     assert_has(&body(&jobs[0]), json!({"no_apply_amps": true}));
 }
 
-/// The schema's beamformer job (a download with `download_type` `beam`) has
-/// no `mode`, so the key is an error like any other unknown key.
+/// The schema's beamformer job (a download job) has no `mode`, so the key is an error like any other unknown key.
 #[test]
 fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
     let problems = problems("obs_id=1457858440,job_type=b,mode=mwax_corr_bf\n");
@@ -637,13 +636,41 @@ fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
     );
 }
 
-/// A beamformer job is a download job of the schema, with `download_type`
-/// `beam`.
+/// A beamformer job is a download job of the schema, which goes to the
+/// download endpoint: the MWA ASVO finds the kind of download from the
+/// observation.
 #[test]
-fn a_beamformer_job_is_a_beam_download() {
+fn a_beamformer_job_is_a_download() {
     let jobs = parse("obs_id=1457858440,job_type=b\n");
 
-    assert_has(&body(&jobs[0]), json!({"download_type": "beam"}));
+    assert_has(&body(&jobs[0]), json!({"only_get_metadata": false}));
+    assert_eq!(jobs[0].params.endpoint(), crate::ENDPOINT_DOWNLOAD_JOB);
+}
+
+/// Each job type goes to the endpoint of its kind: the download jobs to the
+/// download endpoint, the conversion and imaging jobs to the preprocess
+/// endpoint.
+#[test]
+fn each_job_type_goes_to_the_endpoint_of_its_kind() {
+    use crate::{ENDPOINT_DOWNLOAD_JOB, ENDPOINT_PREPROCESS_JOB};
+
+    for (file, endpoint) in [
+        (BEAMFORMER_FILE, ENDPOINT_DOWNLOAD_JOB),
+        (META_FILE, ENDPOINT_DOWNLOAD_JOB),
+        (VISIBILITY_FILE, ENDPOINT_DOWNLOAD_JOB),
+        (VOLTAGE_FILE, ENDPOINT_DOWNLOAD_JOB),
+        (CONVERSION_FILE, ENDPOINT_PREPROCESS_JOB),
+        (IMAGING_FILE, ENDPOINT_PREPROCESS_JOB),
+    ] {
+        for job in parse(file) {
+            assert_eq!(
+                job.params.endpoint(),
+                endpoint,
+                "{}",
+                job.params.description()
+            );
+        }
+    }
 }
 
 #[test]
@@ -698,8 +725,8 @@ mod submitting {
     #[test]
     fn a_file_gives_the_reply_of_each_job_in_order() {
         let env = TestEnv::with_session();
-        let first = mock_submit(&env, "/api/v2/jobs/create", 1349904240, 11);
-        let second = mock_submit(&env, "/api/v2/jobs/create", 1349904184, 12);
+        let first = mock_submit(&env, "/api/v2/jobs/download", 1349904240, 11);
+        let second = mock_submit(&env, "/api/v2/jobs/preprocess", 1349904184, 12);
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(
             &dir,
@@ -722,13 +749,13 @@ mod submitting {
         let env = TestEnv::with_session();
         env.server.mock(|when, then| {
             when.method(POST)
-                .path("/api/v2/jobs/create")
+                .path("/api/v2/jobs/download")
                 .json_body_includes(serde_json::json!({ "obs_id": 1349904240_u64 }).to_string());
             then.status(400)
                 .header("content-type", "application/json")
                 .json_body(error_response("VALID_MISSING_FIELD", "Bad obsid"));
         });
-        let ok = mock_submit(&env, "/api/v2/jobs/create", 1349904184, 22);
+        let ok = mock_submit(&env, "/api/v2/jobs/download", 1349904184, 22);
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(
             &dir,

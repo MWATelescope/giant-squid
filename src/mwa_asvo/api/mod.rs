@@ -8,9 +8,10 @@
 //! # What the library uses of the API
 //!
 //! The library wraps only the endpoints that giant-squid uses: login and
-//! refresh, the job list, the seven job submissions (visibilities and
-//! metadata, conversion, imaging, imaging from a job, voltage, beamformer)
-//! and the cancellation of a job.
+//! refresh, the job list, the two job submissions (the download endpoint
+//! for visibility, metadata, voltage and beamformer jobs, and the
+//! preprocess endpoint for conversion, imaging and imaging from a job) and
+//! the cancellation of a job.
 //!
 //! The API has other endpoints that the library does not call and does not
 //! wrap: the account and session endpoints (`/v2/user`, `/v2/update_profile`,

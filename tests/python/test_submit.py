@@ -18,12 +18,12 @@ from .conftest import TEST_API_KEY, TEST_OBS_ID, error_response
 from .test_client import SCHEMA_PATH
 
 # The endpoint of each job type.
-DOWNLOAD_PATH = "/api/v2/jobs/create"
-CONVERSION_PATH = "/api/v2/jobs/create"
-IMAGING_PATH = "/api/v2/jobs/create"
-IMAGE_FROM_JOB_PATH = "/api/v2/jobs/image"
-VOLTAGE_PATH = "/api/v2/jobs/create"
-BEAMFORMER_PATH = "/api/v2/jobs/create"
+DOWNLOAD_PATH = "/api/v2/jobs/download"
+CONVERSION_PATH = "/api/v2/jobs/preprocess"
+IMAGING_PATH = "/api/v2/jobs/preprocess"
+IMAGE_FROM_JOB_PATH = "/api/v2/jobs/preprocess"
+VOLTAGE_PATH = "/api/v2/jobs/download"
+BEAMFORMER_PATH = "/api/v2/jobs/download"
 
 # The job the mock says it created.
 NEW_JOB_ID = 777
@@ -146,8 +146,8 @@ def test_download_like_jobs_use_the_schema_defaults_when_arguments_are_left_out(
     assert body["allow_resubmit"] is False
 
 
-def test_vis_and_meta_jobs_differ_only_in_download_type(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """Both use the download endpoint, and the library sets download_type."""
+def test_vis_and_meta_jobs_differ_only_in_only_get_metadata(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+    """Both use the download endpoint, and the library sets only_get_metadata."""
     httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(
         {"job_id": NEW_JOB_ID, "message": NEW_JOB_MESSAGE, "status": "success"}
     )
@@ -156,11 +156,11 @@ def test_vis_and_meta_jobs_differ_only_in_download_type(client: gs.AsvoClient, h
     client.submit_download_meta_job(TEST_OBS_ID)
 
     types = [
-        json.loads(request.get_data())["download_type"]
+        json.loads(request.get_data())["only_get_metadata"]
         for request, _ in httpserver.log
         if request.path == DOWNLOAD_PATH
     ]
-    assert types == ["vis", "meta"]
+    assert types == [False, True]
 
 
 def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
@@ -296,25 +296,25 @@ IMAGING_SWITCHES = (
 BODY_CASES: list[tuple[str, str, tuple[Any, ...], dict[str, Any], str]] = [
     (
         "submit_download_vis_job",
-        "/api/v2/jobs/create",
+        DOWNLOAD_PATH,
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
         "DownloadJobParams",
     ),
     (
         "submit_download_meta_job",
-        "/api/v2/jobs/create",
+        DOWNLOAD_PATH,
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
         "DownloadJobParams",
     ),
-    ("submit_conversion_job", "/api/v2/jobs/create", (TEST_OBS_ID,), {"avg_freq_res": 10.0}, "ConversionJobParams"),
-    ("submit_imaging_job", "/api/v2/jobs/create", (TEST_OBS_ID,), {"image_size": 1024}, "ImagingJobFlow1Params"),
-    ("submit_image_from_job", "/api/v2/jobs/image", (555,), {"nmiter": 7}, "ImagingJobFlow2Params"),
-    ("submit_voltage_job", "/api/v2/jobs/create", (TEST_OBS_ID, 10, 32), {"from_channel": 3}, "VoltageJobParams"),
+    ("submit_conversion_job", CONVERSION_PATH, (TEST_OBS_ID,), {"avg_freq_res": 10.0}, "ConversionJobParams"),
+    ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,), {"image_size": 1024}, "ImagingJobFlow1Params"),
+    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (555,), {"nmiter": 7}, "ImagingJobFlow2Params"),
+    ("submit_voltage_job", VOLTAGE_PATH, (TEST_OBS_ID, 10, 32), {"from_channel": 3}, "DownloadJobParams"),
     (
         "submit_download_beam_job",
-        "/api/v2/jobs/create",
+        DOWNLOAD_PATH,
         (TEST_OBS_ID,),
         {"allow_resubmit": True},
         "DownloadJobParams",

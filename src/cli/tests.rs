@@ -21,7 +21,6 @@ use super::params::{
 use super::Args;
 use crate::mwa_asvo::api::job_params::{
     conversion_defaults, download_defaults, image_from_job_defaults, imaging_defaults,
-    voltage_defaults,
 };
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::parse_many_job_ids_or_obs_ids;
@@ -244,7 +243,7 @@ fn submit_vis_builds_a_vis_download_body() {
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["download_type"], "vis");
+    assert_eq!(json["only_get_metadata"], false);
     assert_eq!(json["allow_resubmit"], false);
 }
 
@@ -252,7 +251,7 @@ fn submit_vis_builds_a_vis_download_body() {
 fn submit_meta_builds_a_meta_download_body() {
     let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBS_ID]);
     let params = args.to_meta_params(crate::test_config::test_obs_id());
-    assert_eq!(json_of(&params)["download_type"], "meta");
+    assert_eq!(json_of(&params)["only_get_metadata"], true);
 }
 
 #[test]
@@ -664,6 +663,9 @@ fn submit_volt_requires_offset_and_duration() {
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
+/// A voltage job uses the download body, so its delivery defaults are those
+/// of every download job (which the library refuses for a voltage job: the
+/// user gives Scratch and files).
 #[test]
 fn submit_volt_delivery_default_comes_from_the_schema() {
     let (args, _) = volt_args(&[
@@ -675,10 +677,10 @@ fn submit_volt_delivery_default_comes_from_the_schema() {
         "8",
         TEST_OBS_ID,
     ]);
-    assert_eq!(args.delivery_args.delivery, voltage_defaults().delivery);
+    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
     assert_eq!(
         args.delivery_args.delivery_format,
-        voltage_defaults().delivery_format
+        download_defaults().delivery_format
     );
 }
 
@@ -746,7 +748,7 @@ fn submit_bf_builds_a_beamformer_body() {
 
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["download_type"], "beam");
+    assert_eq!(json["only_get_metadata"], false);
 }
 
 // ---------------------------------------------------------------------------
@@ -1664,8 +1666,7 @@ fn the_help_has_colours() {
 #[test]
 fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     use crate::mwa_asvo::api::openapi::{
-        ConversionJobParams, DownloadJobParams, DownloadType, ImagingJobFlow1Params,
-        ImagingJobFlow2Params,
+        ConversionJobParams, DownloadJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
     };
 
     let obs_id: crate::obs_id::ObsId = TEST_OBS_ID.parse().expect("a valid Obs ID");
@@ -1715,7 +1716,6 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     };
     let expected: DownloadJobParams = DownloadJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
-        .download_type(DownloadType::Vis)
         .try_into()
         .expect("defaults build");
     assert_eq!(body_json(&vis), body_json(&expected));
@@ -1726,7 +1726,6 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     };
     let expected: DownloadJobParams = DownloadJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
-        .download_type(DownloadType::Beam)
         .try_into()
         .expect("defaults build");
     assert_eq!(body_json(&bf), body_json(&expected));
