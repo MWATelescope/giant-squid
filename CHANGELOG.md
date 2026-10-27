@@ -61,12 +61,13 @@ before you upgrade scripts.**
     (a `NonZeroU64`). `ObsId::MIN` and `ObsId::MAX` give the range of a valid Obs ID.
   * `AsvoClient::new` takes an `AsvoClientConfig`. `download_jobid` and `download_obsid` are `download_job` and
     `download_obs`, and return the `AsvoJob` that was downloaded (they returned `()`); `download_job_from` and
-    `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. The `submit_*`
-    methods are `submit_download_vis_job`, `submit_download_meta_job`, `submit_conversion_job`,
-    `submit_imaging_job`, `submit_voltage_job` and `submit_download_beam_job` (a download job with `download_type`
-    `beam`); `submit_image_from_job` is new, and takes no Obs ID. Their request bodies are made at the schema's
-    defaults by `mwa_asvo::api::job_params`. The library refuses a voltage job that is not delivered to Scratch as
-    files.
+    `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. There are two
+    submit methods, one for each submit endpoint of the API: `submit_download_job` (a `DownloadJobParams`: a
+    visibility, metadata, voltage or beamformer job) and `submit_preprocess_job` (a `PreprocessJobParams`: a
+    `ConversionJobParams`, an `ImagingJobFlow1Params` or an `ImagingJobFlow2Params`, which takes no Obs ID). Their
+    request bodies are made at the schema's defaults by `mwa_asvo::api::job_params`. A voltage job is a
+    `DownloadJobParams` with `offset` and `duration`: the library does not check its delivery, because the MWA ASVO
+    finds the kind of download from the observation and refuses a delivery that does not suit it.
   * The types of the OpenAPI schema replace the library's own: `AsvoJobState` is `JobState` (its `Error` member has
     no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (the schema's string enum, with `names()` and
     `parse_name()`), `AsvoFilesArray` and `AsvoJobProduct` are `JobFile` and `JobProduct`, and `Delivery` is the
@@ -86,8 +87,10 @@ before you upgrade scripts.**
 * Every command except the file transfer of `download` uses the v2 API. The defaults and limits of the job
   options are the API's, and a value outside a limit is refused before any request is sent. The defaults of
   conversion and imaging jobs changed: see the migration guide.
-* The default delivery format is now `tar` for every job except voltage jobs, whatever the delivery. Use
-  `--delivery-format files` for individual files.
+* The default delivery format is now `tar` for every job, whatever the delivery. Use `--delivery-format files` for
+  individual files. This includes `submit-volt`, whose defaults are no longer Scratch and files: they are those of
+  every download job, and the MWA ASVO refuses them for a voltage job, so give `--delivery scratch
+  --delivery-format files`. The voltage lines of a manta-ray-client CSV file still default to Scratch and files.
 * `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
   option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
   `--custom-ra`, `--custom-dec` and `--phase-center` still work.
@@ -164,11 +167,13 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
-* MWA ASVO API 2.5.0 (OpenAPI 3.1.0) is applied. All job submissions go to the one endpoint `/v2/jobs/create`, except
-  an image from a conversion job (`/v2/jobs/image`), and the job list, login and refresh endpoints have new paths.
-  A job has `job_id` (not `id`) and a typed `obs_id`, and `job_type` is a name (`visibility`), not a code.
-  `submit-bf` is a download job with `download_type` `beam`, so the beamformer `mode` and `channel_range` are
-  gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
+* MWA ASVO API 2.6.0 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
+  `/v2/jobs/download`, and the conversion and imaging jobs (also an image from a conversion job) to
+  `/v2/jobs/preprocess`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not `id`) and a
+  typed `obs_id`, and `job_type` is a name (`visibility`), not a code. A download body has no `download_type`: a
+  metadata job sets `only_get_metadata`, and `submit-bf` sends the same body as `submit-vis`, so the beamformer
+  `mode` and `channel_range` are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not
+  sent. The voltage fields `offset`, `duration`, `from_channel` and `to_channel` are fields of the download body.
   `submit-image-from-job` takes no Obs ID. `list --sort-by` takes `id`, `created` or `completed`.
   `giant-squid` regenerates the library's types from the schema in `tools/generate_openapi.sh`, which now also
   keeps the request and response schemas of each operation.
@@ -178,9 +183,11 @@ before you upgrade scripts.**
 * `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs the `giant-squid` command, which is the Rust program run inside the module, so it is the same
-  program as the Rust one (the same commands, options, help, messages and exit codes). Each optional argument of the
-  submit methods has the schema's default as its default value (for example `avg_freq_res=40.0`), and `None` is sent
-  as `null` for the arguments that the schema allows to be `null`. The API reference is generated with pdoc and
+  program as the Rust one (the same commands, options, help, messages and exit codes). The two submit methods
+  (`submit_download_job` and `submit_preprocess_job`) take a request body class (`DownloadJobParams`,
+  `ConversionJobParams`, `ImagingJobFlow1Params` or `ImagingJobFlow2Params`). Each optional argument of a class has
+  the schema's default as its default value (for example `avg_freq_res=40.0`), and `None` is sent as `null` for the
+  arguments that the schema allows to be `null`. The API reference is generated with pdoc and
   published to GitHub Pages, <https://mwatelescope.github.io/giant-squid/>. See [docs/PYTHON.md](docs/PYTHON.md). The
   wheels are attached to each GitHub release.
 * `download` without `--keep-tar` (stream untar) now resumes. A retry after a failed attempt (for example, a
@@ -196,7 +203,8 @@ before you upgrade scripts.**
   imaging jobs, one per line. It reads and checks the whole file before it submits anything, and a submission that
   fails does not stop the others. A key that the job type does not have is an error. A key that a line gives twice,
   and a line that makes the same job as an earlier line, are warnings. A line that gives no delivery or delivery
-  format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set. See the
+  format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set; a voltage line that gives
+  none and has none set is delivered to Scratch as files, as in manta-ray-client. See the
   [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `AsvoClient::submit_csv_file`, which
   reads a file and returns the `JobSubmittedResponse` of each job, `AsvoClient::submit_csv_jobs`,
   `read_manta_ray_csv`, `parse_manta_ray_csv` and `CsvDefaults`. A file with no job is an error (`CsvFileError::NoJobs`). The Python module has `AsvoClient.submit_csv_file`, which returns a list

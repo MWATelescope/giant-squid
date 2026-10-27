@@ -3,10 +3,10 @@
 ## Start here
 
 1. Make a fresh clone of `MWATelescope/giant-squid`, branch `apiv2`.
-2. Check that the head is `3d9752d` "Read stdin IDs only when an argument is `-`", or a later commit by Greg.
+2. Check that the head is `5b8de97` "Python: request body classes and two submit methods", or a later commit by Greg.
 3. Run the full check (see "How to check") before you change anything. Expected result:
-   - 505 Rust unit tests, 56 CLI tests, 7 `download_job_dir` tests, 25 `stdin_ids` tests and 18 `submit_csv` tests pass; 1 unit test and 18 live tests are ignored;
-   - 215 Python tests pass;
+   - 520 Rust unit tests, 59 CLI tests, 7 `download_job_dir` tests, 25 `stdin_ids` tests and 18 `submit_csv` tests pass; 1 unit test and 18 live tests are ignored;
+   - 218 Python tests pass;
    - clippy is clean in all three configurations, and `check.sh` passes;
    - `ruff check`, `ruff format --check` and `ty check` pass (ruff 0.17.1);
    - the regenerated `mwa_giant_squid.pyi` and `openapi.rs` do not change.
@@ -149,6 +149,16 @@ Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, 
 - **L9:** a Scratch move checks its target first: new error `DestinationExists` (`DESTINATION_EXISTS`); a symbolic link gives `SymlinkInDownloadDir`.
 - **L10 (part A):** `centre` `custom` needs both `custom_centre_ra` and `custom_centre_dec`; each submit command checks its body once, before login, also with `--dry-run`.
 
+### Done for the API 2.6.0 revamp (draft schema; 27 Oct 2026)
+
+- **The schema is a draft.** `src/mwa_asvo/api/openapi-schema.json` was edited by hand (`info.version` 2.6.0) and `openapi.rs` regenerated with `cargo xtask regen-openapi`. When the real `openapi.json` is ready, run `tools/generate_openapi.sh` and read the diff: it shows where the draft was wrong.
+- **Endpoints:** `POST /v2/jobs/download` (`DownloadJobParams`) and `POST /v2/jobs/preprocess` (a conversion, imaging flow 1 or imaging flow 2 body). `/v2/jobs/create` and `/v2/jobs/image` are gone, and so are `VoltageJobParams`, `CancelJobParams` and `DownloadType`.
+- **`DownloadJobParams`:** `obs_id`, `delivery`, `delivery_format`, `allow_resubmit`, `only_get_metadata` (metadata job), and the nullable `offset`, `duration`, `from_channel` and `to_channel` (voltage). It has no `download_type`: the MWA ASVO finds vis, beamformer and voltage from the observation, and refuses a body that does not suit it. The library and the CLI do not check this.
+- **Library:** `AsvoClient::submit_download_job` and `submit_preprocess_job` (a `PreprocessJobParams`, an untagged enum). `job_params` has `download_params`, `metadata_params` and `voltage_params`. `validate_download_params` checks the delivery format and the `offset` limits only. `validate_voltage_params` was removed (Greg: the server decides).
+- **CLI:** the `submit-*` commands are unchanged. `submit-volt` defaults to the schema's `acacia`/`tar`, which the MWA ASVO refuses: the user gives `--delivery scratch --delivery-format files`. A CSV voltage line with no delivery still defaults to Scratch and files (a CSV-only exception).
+- **Python:** the classes `DownloadJobParams`, `ConversionJobParams`, `ImagingJobFlow1Params` and `ImagingJobFlow2Params` are plain classes (read/write attributes, no checks until submit), and `AsvoClient` has `submit_download_job` and `submit_preprocess_job`. The seven per-type methods are gone.
+- **Tests:** `tests/live.rs` `live_submit_volt` passes `--delivery scratch --delivery-format files`. The live tests have not run against a server that has the new endpoints.
+
 ## Waiting for the API developer
 
 - **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
@@ -182,8 +192,9 @@ Notes:
 - The `obs_id` minimum (888888889, but an Obs ID has 10 digits).
 - `clean_iterations` has no minimum.
 - `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
-- The voltage fields (`delivery`, `delivery_format`: shared enums since schema 2.5.0, but only scratch and files work).
-- `CancelJobParams` in the body of `POST /v2/jobs/create` is a mistake (to be removed in the API); then check with `tests/live.rs` that the server tells the other body types apart.
+- The voltage fields (`delivery`, `delivery_format`: shared enums, but only scratch and files work for a voltage job). The server tells the kinds of download apart from the observation: a refused body must be a 4xx with a specific code, not a 500 (the live tests fail on `INTERNAL_ERROR`).
+- `POST /v2/jobs/preprocess` takes one of three bodies and has no discriminator. The server tells a conversion body from an imaging flow 1 body by the imaging fields. Check with `tests/live.rs` that it does, and that a flow 2 body (with `source_job_id`) is told apart too.
+- Replace the draft `openapi-schema.json` with the real one (see "Done for the API 2.6.0 revamp") and check the names (`only_get_metadata`, the paths) against it.
 - `JobFile.type` uses its own `Type` enum.
 - The meaning of `days: null` (A13).
 - New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.

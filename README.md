@@ -189,8 +189,8 @@ each Obs ID and carries on if one fails. It ends with a summary and a non-zero e
 
 | Option | Meaning |
 |---|---|
-| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). `submit-volt` takes `scratch` only |
-| `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have it, because voltage data is always delivered as files |
+| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). The MWA ASVO delivers a voltage job (`submit-volt`) to `scratch` only |
+| `-f`, `--delivery-format` | `tar` (the default) or `files`. The MWA ASVO delivers a voltage job (`submit-volt`) as `files` only |
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed (`-r` alone is true; the value can be true, false or null): see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
@@ -226,15 +226,15 @@ $ giant-squid submit-vis 1065880128 --json
 
 ```bash
 $ giant-squid submit-vis 1065880128 --dry-run
-13:10:06 [INFO] [dry run] Would POST /api/v2/jobs/create for Obs ID 1065880128:
+13:10:06 [INFO] [dry run] Would POST /api/v2/jobs/download for Obs ID 1065880128:
 {
   "allow_resubmit": false,
   "delivery": "acacia",
   "delivery_format": "tar",
-  "download_type": "vis",
-  "obs_id": 1065880128
+  "obs_id": 1065880128,
+  "only_get_metadata": false
 }
-13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/create. Nothing was sent.
+13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/download. Nothing was sent.
 ```
 
 The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them.
@@ -776,9 +776,9 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: scratch] [possible values: acacia, scratch, dug]
+          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: files] [possible values: tar, files]
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -o, --offset <OFFSET>
           The offset in seconds from the start GPS time of the observation
   -u, --duration <DURATION>
@@ -806,7 +806,7 @@ Options:
 To submit a voltage download job for the Obs ID 1065880128:
 
 ```bash
-giant-squid submit-volt --delivery scratch --offset 0 --duration 8 1065880128
+giant-squid submit-volt --delivery scratch --delivery-format files --offset 0 --duration 8 1065880128
 ```
 
 Text files containing Obs IDs may be used too.
@@ -818,7 +818,12 @@ will result in the center frequency (in MHz) of that channel. Each MWA observati
 Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
 download or DUG's filesystem, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
 set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
-a job with the /scratch option, set the environment variable `GIANT_SQUID_DELIVERY=scratch` or pass `--delivery scratch`.
+a job with the /scratch option, set the environment variables `GIANT_SQUID_DELIVERY=scratch` and
+`GIANT_SQUID_DELIVERY_FORMAT=files`, or pass `--delivery scratch --delivery-format files`.
+
+The default delivery of `submit-volt` is the same as for every other download job (`acacia` as a `tar`), and the MWA ASVO refuses
+it for a voltage job: giant-squid does not check this, because a voltage job is a download job whose kind the MWA ASVO finds
+from the observation. Always give the delivery and the format.
 
 #### Jobs from a manta-ray-client CSV file
 
@@ -1479,15 +1484,17 @@ An example:
 
 ```rust
 use std::error::Error;
+use std::num::NonZeroU64;
 use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use mwa_giant_squid::mwa_asvo::api::openapi::DownloadJobParams;
+use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
-    JobsFilter, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
+    JobsFilter, ObsId, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -1499,21 +1506,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     // List the ready jobs from the past 7 days. The server filters them;
     // `AsvoJobVec::filter` can then filter by several states or types.
     let ready = client.get_jobs(&JobsFilter {
-        days: Some(7),
-        job_state: Some(JobState::Completed),
+        days: NonZeroU64::new(7),
+        job_states: vec![JobState::Completed],
         ..JobsFilter::default()
     })?;
     for job in &ready.0 {
         println!("{} {} {}", job.job_id(), job.obs_id(), job.job_state);
     }
 
-    // Submit a visibility download job. Fields you do not set use the
-    // MWA ASVO API's own defaults.
-    let params: DownloadJobParams = DownloadJobParams::builder()
-        .obs_id(1090008640)
-        .try_into()?;
-    let resp = client.submit_download_vis_job(&params)?;
-    let job_id = resp.job_id.get();
+    // Submit a download job (here for visibilities: the MWA ASVO finds the
+    // kind of download from the observation). `download_params` has the
+    // MWA ASVO API's own defaults for every other field.
+    let params = download_params(ObsId::validate(1090008640)?);
+    let resp = client.submit_download_job(&params)?;
+    let job_id = resp.job_id;
 
     // Wait for it: the library checks once, the caller loops and sleeps.
     while !client.get_jobs(&JobsFilter::default())?.all_ready(&[job_id])? {

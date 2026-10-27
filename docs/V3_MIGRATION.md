@@ -36,6 +36,10 @@ giant-squid, the API and its documentation use the same names everywhere.
    or `wait`**, change it: see [Short flags](#short-flags).
 9. If a script expects the files of **`download`** in the download directory
    itself, change it: see [Downloading](#downloading-download).
+10. If a script runs **`submit-volt`** without `--delivery scratch
+    --delivery-format files` (or `GIANT_SQUID_DELIVERY` and
+    `GIANT_SQUID_DELIVERY_FORMAT`), add them: see
+    [Other submit commands](#other-submit-commands).
 
 Your API key and environment variables need no change.
 
@@ -152,16 +156,23 @@ see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
 ## Other submit commands
 
 `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf` take the same
-options as in 2.x. The default delivery format is now `tar` for every job
-except voltage jobs, whatever the delivery: in 2.x a Scratch or DUG delivery
+options as in 2.x. The default delivery format is now `tar` for every job,
+whatever the delivery: in 2.x a Scratch or DUG delivery
 gave individual files unless you asked for `tar`. Add `--delivery-format files`
 to get the individual files. `submit-volt --offset` must now be from 0 to 5400, and a
-negative value (`--offset -1`) is rejected with that range. A voltage job is
-delivered to Scratch as files: `submit-volt` keeps `--delivery` and
-`--delivery-format`, but the library refuses any other value before it sends
-the request. `submit-volt` also takes `-f` for `--delivery-format`, as the
-other submit commands do. `submit-bf` is a download job of the MWA ASVO
-API with `download_type` `beam`, so it has no beamformer `mode`.
+negative value (`--offset -1`) is rejected with that range.
+
+**`submit-volt` no longer defaults to Scratch and files.** Its defaults are
+those of every download job (`acacia` and `tar`), and the MWA ASVO refuses
+them for a voltage job. Give `--delivery scratch --delivery-format files`, or
+set `GIANT_SQUID_DELIVERY=scratch` and `GIANT_SQUID_DELIVERY_FORMAT=files`.
+giant-squid does not check this itself: the MWA ASVO finds the kind of
+download from the observation, and its error is shown as it is. The voltage
+lines of a manta-ray-client CSV file still default to Scratch and files, so
+`submit-csv` needs no change. `submit-volt` also takes `-f` for
+`--delivery-format`, as the other submit commands do. `submit-bf` sends the
+same kind of body as `submit-vis` (the MWA ASVO finds the beamformer data from
+the observation), so it has no beamformer `mode`.
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
