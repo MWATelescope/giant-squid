@@ -29,6 +29,7 @@ mod client;
 mod csv;
 mod download;
 mod error;
+mod job_params;
 mod params;
 mod typed;
 mod types;
@@ -105,6 +106,11 @@ mod module {
     use super::csv::{CsvSubmitError, PyCsvJobFailure};
     #[pymodule_export]
     use super::error::{AsvoApiError, AsvoError};
+    #[pymodule_export]
+    use super::job_params::{
+        PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
+        PyImagingJobFlow2Params,
+    };
     #[pymodule_export]
     use super::types::{
         PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress,

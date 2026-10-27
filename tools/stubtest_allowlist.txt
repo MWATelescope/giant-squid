@@ -68,15 +68,12 @@ mwa_giant_squid.__all__
 # layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which pyo3-stub-gen does not write.
 mwa_giant_squid.DownloadProgress
 
-# The defaults of the submit methods are made from the schema's defaults at run time (see
-# `mwa_asvo/api/job_params`). The run-time signature of each method is a hand-written `text_signature`, because pyo3
+# The defaults of the request body classes are made from the schema's defaults at run time (see
+# `mwa_asvo/api/job_params`). The run-time signature of each class is a hand-written `text_signature`, because pyo3
 # writes only a literal default in a run-time signature, and `inspect.signature` accepts only literals: an enum
 # default is written as its quoted name (`'DeliveryDestination.Acacia'`), while the stub has the member (`DeliveryDestination.Acacia`).
 # tests/python/test_signatures.py checks the text signatures against the schema.
-mwa_giant_squid.AsvoClient.submit_download_vis_job
-mwa_giant_squid.AsvoClient.submit_download_meta_job
-mwa_giant_squid.AsvoClient.submit_conversion_job
-mwa_giant_squid.AsvoClient.submit_imaging_job
-mwa_giant_squid.AsvoClient.submit_image_from_job
-mwa_giant_squid.AsvoClient.submit_voltage_job
-mwa_giant_squid.AsvoClient.submit_download_beam_job
+mwa_giant_squid.DownloadJobParams.__new__
+mwa_giant_squid.ConversionJobParams.__new__
+mwa_giant_squid.ImagingJobFlow1Params.__new__
+mwa_giant_squid.ImagingJobFlow2Params.__new__

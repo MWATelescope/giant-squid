@@ -166,7 +166,24 @@ Notes:
 
 ## Submit jobs
 
-Each job type has one method. Every keyword argument has the MWA ASVO's default as its default value. The type stub
+There are two submit methods, one for each MWA ASVO submit endpoint, and each takes a request body class:
+
+| Method | Request body | `giant-squid` command |
+|---|---|---|
+| `submit_download_job(params)` | `DownloadJobParams(obs_id, ...)` | `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` |
+| `submit_preprocess_job(params)` | `ConversionJobParams(obs_id, ...)` | `submit-conv` |
+| `submit_preprocess_job(params)` | `ImagingJobFlow1Params(obs_id, ...)` | `submit-image` |
+| `submit_preprocess_job(params)` | `ImagingJobFlow2Params(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
+| `cancel_job(job_id)` | | `cancel` |
+
+A `DownloadJobParams` is the body of a visibility, metadata, voltage or beamformer job. The body does not say which:
+the MWA ASVO finds the kind of download from the observation. `only_get_metadata=True` asks for the metadata only.
+`offset`, `duration`, `from_channel` and `to_channel` are for a voltage observation, and the MWA ASVO refuses them for
+another kind. A voltage job is delivered to Scratch as files, which is not the default, so give
+`delivery=DeliveryDestination.Scratch` and `delivery_format=DeliveryFormat.Files`. The MWA ASVO refuses any other
+delivery for it.
+
+Every keyword argument of a class has the MWA ASVO's default as its default value. The type stub
 (`mwa_giant_squid.pyi`) shows it, for example `avg_freq_res: float | None = 40.0`, and so does `help()`. In
 `help()` (and `inspect.signature`) an enum default is written as a quoted name, for example
 `delivery='DeliveryDestination.Acacia'`, because Python accepts only literals there; the default is the enum member
@@ -176,39 +193,34 @@ Each job type has one method. Every keyword argument has the MWA ASVO's default 
 accepts `None`, and `None` is sent as `null`. For example, `avg_freq_res=None` sends `"avg_freq_res": null`. The
 MWA ASVO schema does not say what the MWA ASVO does with a `null` for each argument.
 
-| Method | `giant-squid` command |
-|---|---|
-| `submit_download_vis_job(obs_id, ...)` | `submit-vis` |
-| `submit_download_meta_job(obs_id, ...)` | `submit-meta` |
-| `submit_conversion_job(obs_id, ...)` | `submit-conv` |
-| `submit_imaging_job(obs_id, ...)` | `submit-image` |
-| `submit_image_from_job(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
-| `submit_voltage_job(obs_id, offset, duration, ...)` | `submit-volt` |
-| `submit_download_beam_job(obs_id, ...)` | `submit-bf` |
-| `cancel_job(job_id)` | `cancel` |
-
 The keyword names are the MWA ASVO API field names, for example `avg_freq_res`. Where an argument has a
 fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `OutputFormat`, `PhaseCentre`,
-`ImageOutputMode`, `Polarization`, `ImageWeighting`, and `JobState`, `JobType` and `SortBy` for job lists). The docstring of each method gives the limits of each number.
+`ImageOutputMode`, `Polarization`, `ImageWeighting`, and `JobState`, `JobType` and `SortBy` for job lists). The
+docstring of each class gives the limits of each number.
+
+Each class is a plain class. Every argument is an attribute that can be read and changed, and the object can be
+submitted again after a change. The class checks nothing when it is made or changed.
 
 ```python
-from mwa_giant_squid import DeliveryDestination, DeliveryFormat, OutputFormat
+from mwa_giant_squid import ConversionJobParams, DeliveryDestination, DeliveryFormat, OutputFormat
 
-reply = client.submit_conversion_job(
+params = ConversionJobParams(
     1065880128,
     output=OutputFormat.Ms,
     avg_freq_res=80.0,
-    avg_time_res=4.0,
     delivery=DeliveryDestination.Acacia,
     delivery_format=DeliveryFormat.Tar,
 )
+params.avg_time_res = 4.0
+reply = client.submit_preprocess_job(params)
 print(reply.job_id, reply.status, reply.message)
 ```
 
-The methods check the arguments before they send a request. A value outside the MWA ASVO limits raises
-`ValueError` (or `OverflowError`) that names the argument. Nothing is sent. So does `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
-only. The other deliveries take either format. A voltage job is delivered to Scratch as files, and
-`submit_voltage_job` raises `ValueError` for any other `delivery` or `delivery_format`.
+The submit methods check the request body before they send a request. A value outside the MWA ASVO limits, or an
+Obs ID or Job ID that is not valid, raises `ValueError` that names the argument. Nothing is sent. So does
+`delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
+only. The other deliveries take either format. `submit_preprocess_job` raises `TypeError` for an object that is not one
+of the three preprocess classes.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
 (a `Status`: `Success` or `Failed`) and the `message` describe the reply and are for display. A call that fails

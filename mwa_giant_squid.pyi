@@ -17,13 +17,17 @@ __all__ = [
     "AsvoError",
     "AsvoJob",
     "AsvoJobVec",
+    "ConversionJobParams",
     "CsvJobFailure",
     "CsvSubmitError",
     "DeliveryDestination",
     "DeliveryFormat",
+    "DownloadJobParams",
     "DownloadProgress",
     "ImageOutputMode",
     "ImageWeighting",
+    "ImagingJobFlow1Params",
+    "ImagingJobFlow2Params",
     "JobCancelledResponse",
     "JobFile",
     "JobProduct",
@@ -157,378 +161,61 @@ class AsvoClient:
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
-    def submit_download_vis_job(
-        self,
-        obs_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
+    def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
         r"""
-        Submit a job to download an observation's raw visibilities.
+        Submit a download job: a visibility, metadata, voltage or
+        beamformer job.
 
-        Every keyword argument has the MWA ASVO's default as its default
-        value (the type stubs show it). `None` is accepted by the arguments
-        that the MWA ASVO allows to be `null`, and is sent as `null`: it
-        does not mean "use the default".
+        The request body does not say which kind of download it is. The MWA
+        ASVO finds that from the observation (and `only_get_metadata`), and
+        it refuses a body that does not suit the observation: for example a
+        delivery that the kind of observation does not allow, or `offset`,
+        `duration` and the channels for an observation that is not a
+        voltage observation. A voltage job is delivered to Scratch as
+        files, which is not the default: give `delivery` and
+        `delivery_format` in the `DownloadJobParams`.
 
         Args:
-            obs_id: The Obs ID.
-            delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-            allow_resubmit: Submit the job even if an identical one has
-                completed.
+            params: The request body.
 
         Returns:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `DeliveryDestination.Acacia` and `delivery_format` is
+            ValueError: `params.obs_id` is not a valid Obs ID, `params.offset`
+                is not from 0 to 5400, or `params.delivery` is
+                `DeliveryDestination.Acacia` and `params.delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
                 is sent.
             AsvoApiError: The request failed.
         """
-    def submit_download_meta_job(
-        self,
-        obs_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        allow_resubmit: builtins.bool | None = False,
+    def submit_preprocess_job(
+        self, params: ConversionJobParams | ImagingJobFlow1Params | ImagingJobFlow2Params
     ) -> JobSubmittedResponse:
         r"""
-        Submit a job to download an observation's metadata.
+        Submit a preprocessing job: a conversion job, an imaging job from an
+        Obs ID (flow 1), or an imaging job from a conversion job (flow 2).
 
-        The arguments are those of `submit_download_vis_job`.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `DeliveryDestination.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
-                is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_conversion_job(
-        self,
-        obs_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        output: OutputFormat = OutputFormat.Ms,
-        avg_freq_res: builtins.float | None = 40.0,
-        avg_time_res: builtins.float | None = 2.0,
-        flag_edge_width: builtins.float = 80.0,
-        apply_di_cal: builtins.bool = False,
-        centre: PhaseCentre = PhaseCentre.Phase,
-        custom_centre_ra: builtins.float | None = None,
-        custom_centre_dec: builtins.float | None = None,
-        no_apply_amps: builtins.bool = False,
-        no_digital_gains: builtins.bool | None = False,
-        no_flag_dc: builtins.bool | None = False,
-        no_geometric_delay: builtins.bool | None = False,
-        no_passband_gains: builtins.bool | None = False,
-        no_cable_delay: builtins.bool | None = False,
-        no_rfi: builtins.bool | None = False,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit a conversion (preprocessing) job.
-
-        Every keyword argument has the MWA ASVO's default as its default
-        value (the type stubs show it). `None` is accepted by the arguments
-        that the MWA ASVO allows to be `null`, and is sent as `null`: it
-        does not mean "use the default".
+        The MWA ASVO finds the kind of job from the fields of the request
+        body: only an imaging body has the imaging fields.
 
         Args:
-            obs_id: The Obs ID.
-            delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-            output: The output format.
-            avg_freq_res: The frequency resolution to average to (kHz).
-            avg_time_res: The time resolution to average to (s).
-            flag_edge_width: The width of the frequency edge flagging (kHz).
-            apply_di_cal: Apply the DI calibration solution.
-            centre: The phase centre mode. `PhaseCentre.Custom` needs
-                `custom_centre_ra` and `custom_centre_dec`, and they are only
-                allowed with it.
-            custom_centre_ra: The custom phase centre's right ascension
-                (degrees).
-            custom_centre_dec: The custom phase centre's declination
-                (degrees).
-            no_apply_amps: Do not apply the amplitude calibration solutions.
-            no_digital_gains: Do not apply the digital gains.
-            no_flag_dc: Do not flag the DC channel.
-            no_geometric_delay: Do not apply the geometric delay corrections.
-            no_passband_gains: Do not apply the passband gain corrections.
-            no_cable_delay: Do not apply the cable delay corrections.
-            no_rfi: Do not flag RFI.
-            allow_resubmit: Submit the job even if an identical one has
-                completed.
+            params: The request body: a `ConversionJobParams`, an
+                `ImagingJobFlow1Params` or an `ImagingJobFlow2Params`.
 
         Returns:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID, a number is outside
+            TypeError: `params` is not one of the three classes.
+            ValueError: An Obs ID or Job ID is not valid, a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
-                1280), `delivery` is `DeliveryDestination.Acacia` and `delivery_format`
-                is `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
-                and `custom_centre_dec`, or either of them is given with
-                another `centre`. The message names the argument and
-                its limits. Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_imaging_job(
-        self,
-        obs_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        apply_di_cal: builtins.bool = True,
-        apply_primary_beam: builtins.bool = True,
-        auto_mask: builtins.int = 3,
-        auto_threshold: builtins.float = 0.5,
-        abs_threshold: builtins.float | None = 0.001,
-        avg_freq_res: builtins.float | None = 40.0,
-        avg_time_res: builtins.float | None = 2.0,
-        channels_out: builtins.int = 4,
-        clean_iterations: builtins.int = 100000,
-        clean_threshold: builtins.float | None = 0.001,
-        centre: PhaseCentre = PhaseCentre.Phase,
-        custom_centre_dec: builtins.float | None = None,
-        custom_centre_ra: builtins.float | None = None,
-        flag_edge_width: builtins.float = 80.0,
-        image_size: builtins.int = 3072,
-        join_channels: builtins.bool = True,
-        join_polarizations: builtins.bool = False,
-        mgain: builtins.float = 0.8,
-        multiscale: builtins.bool = False,
-        nmiter: builtins.int = 10,
-        no_apply_amps: builtins.bool = False,
-        no_digital_gains: builtins.bool | None = False,
-        no_flag_dc: builtins.bool | None = False,
-        no_geometric_delay: builtins.bool | None = False,
-        no_passband_gains: builtins.bool | None = False,
-        no_cable_delay: builtins.bool | None = False,
-        no_rfi: builtins.bool | None = False,
-        nwlayers: builtins.int | None = None,
-        output_mode: ImageOutputMode = ImageOutputMode.Fits,
-        pixel_scale: builtins.float = 20.0,
-        pol: Polarization = Polarization.Xxyy,
-        robust: builtins.float = -0.5,
-        uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float = 75.0,
-        weighting: ImageWeighting = ImageWeighting.Briggs,
-        wstack_nwlayers: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit an imaging job that starts from an Obs ID.
-
-        Every keyword argument has the MWA ASVO's default as its default
-        value (the type stubs show it). `None` is accepted by the arguments
-        that the MWA ASVO allows to be `null`, and is sent as `null`: it
-        does not mean "use the default".
-
-        Args:
-            obs_id: The Obs ID.
-            delivery: Where the MWA ASVO delivers the data.
-            delivery_format: How the MWA ASVO packages the files. Must be
-                `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-            apply_di_cal: Apply the DI calibration solution.
-            apply_primary_beam: Apply the primary beam correction.
-            auto_mask: The WSClean -auto-mask value.
-            auto_threshold: The WSClean -auto-threshold value.
-            abs_threshold: The absolute cleaning threshold (Jy).
-            avg_freq_res: The frequency resolution to average to before
-                imaging (kHz).
-            avg_time_res: The time resolution to average to before imaging
-                (s).
-            channels_out: The number of output channel groups.
-            clean_iterations: The WSClean -niter value.
-            clean_threshold: The WSClean cleaning threshold (Jy). This
-                field is deprecated in the API: use `abs_threshold`.
-            centre: Where to centre the image. `PhaseCentre.Custom` needs
-                `custom_centre_ra` and `custom_centre_dec`, and they are only
-                allowed with it.
-            custom_centre_dec: The custom phase centre's declination
-                (degrees).
-            custom_centre_ra: The custom phase centre's right ascension
-                (degrees).
-            flag_edge_width: The width of the frequency edge flagging (kHz).
-            image_size: The WSClean image size in pixels. Only the sizes
-                that the MWA ASVO accepts are valid.
-            join_channels: Join the output channel groups for cleaning.
-            join_polarizations: Join the polarisations for cleaning.
-            mgain: The WSClean -mgain value.
-            multiscale: Use WSClean multiscale cleaning.
-            nmiter: The WSClean -nmiter value. Must be greater than zero.
-            no_apply_amps: Do not apply the amplitude calibration solutions.
-            no_digital_gains: Do not apply the digital gains.
-            no_flag_dc: Do not flag the DC channel.
-            no_geometric_delay: Do not apply the geometric delay corrections.
-            no_passband_gains: Do not apply the passband gain corrections.
-            no_cable_delay: Do not apply the cable delay corrections.
-            no_rfi: Do not flag RFI.
-            nwlayers: The number of w-projection layers. This field is
-                deprecated in the API: use `wstack_nwlayers`.
-            output_mode: The products to return.
-            pixel_scale: The pixel scale (arcsec per pixel).
-            pol: The polarisation to image.
-            robust: The WSClean -robust value.
-            uvw_max: The maximum uv distance to image (wavelengths).
-            uvw_min: The minimum uv distance to image (wavelengths).
-            weighting: The WSClean weighting scheme.
-            wstack_nwlayers: The number of w-stacking layers.
-            allow_resubmit: Submit the job even if an identical one has
-                completed.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or an argument is
-                outside what the MWA ASVO accepts (for example `mgain`
-                above 1, or an `image_size` that is not a supported size),
-                `delivery` is `DeliveryDestination.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `PhaseCentre.Custom` without both `custom_centre_ra`
-                and `custom_centre_dec`, or either of them is given with
-                another `centre`. The message names the argument and
-                its limits. Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_image_from_job(
-        self,
-        source_job_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        apply_primary_beam: builtins.bool = True,
-        auto_mask: builtins.int = 3,
-        auto_threshold: builtins.float = 0.5,
-        abs_threshold: builtins.float | None = 0.001,
-        channels_out: builtins.int = 4,
-        clean_iterations: builtins.int = 100000,
-        clean_threshold: builtins.float | None = 0.001,
-        image_size: builtins.int = 3072,
-        join_channels: builtins.bool = True,
-        join_polarizations: builtins.bool = False,
-        mgain: builtins.float = 0.8,
-        multiscale: builtins.bool = False,
-        nmiter: builtins.int = 10,
-        nwlayers: builtins.int | None = None,
-        output_mode: ImageOutputMode = ImageOutputMode.Fits,
-        pixel_scale: builtins.float = 20.0,
-        pol: Polarization = Polarization.Xxyy,
-        robust: builtins.float = -0.5,
-        uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float = 75.0,
-        weighting: ImageWeighting = ImageWeighting.Briggs,
-        wstack_nwlayers: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit an imaging job that starts from an existing conversion job.
-
-        Every keyword argument has the MWA ASVO's default as its default
-        value (the type stubs show it). `None` is accepted by the arguments
-        that the MWA ASVO allows to be `null`, and is sent as `null`: it
-        does not mean "use the default".
-        The arguments are those of `submit_imaging_job`, except that the
-        data come from a conversion job, so there are no calibration,
-        averaging, flagging or phase centre arguments.
-
-        The job has no Obs ID argument: the MWA ASVO takes the Obs ID from
-        the conversion job (the body has no `obs_id`, which is the same as `null`).
-
-        Args:
-            source_job_id: The ID of the conversion job to image. Must be
-                greater than zero.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: `source_job_id` is
-                zero, or an argument is outside what the MWA ASVO accepts or
-                does not agree with another (see `submit_imaging_job`).
-                Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_voltage_job(
-        self,
-        obs_id: builtins.int,
-        offset: builtins.int,
-        duration: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Scratch,
-        delivery_format: DeliveryFormat = DeliveryFormat.Files,
-        from_channel: builtins.int | None = None,
-        to_channel: builtins.int | None = None,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit a job to download an observation's voltage data.
-
-        Every keyword argument has the MWA ASVO's default as its default
-        value (the type stubs show it). `None` is accepted by the arguments
-        that the MWA ASVO allows to be `null`, and is sent as `null`: it
-        does not mean "use the default".
-
-        Args:
-            obs_id: The Obs ID.
-            offset: The offset in seconds from the start GPS time of the
-                observation, from 0 to 5400.
-            duration: The duration to download, in seconds.
-            delivery: Where the MWA ASVO delivers the data. The MWA ASVO
-                accepts only `DeliveryDestination.Scratch`, which needs the
-                "mwavcs" Pawsey Group on your MWA ASVO profile.
-            delivery_format: How the MWA ASVO packages the data. The MWA
-                ASVO accepts only `DeliveryFormat.Files`.
-            from_channel: The first receiver channel number (0 to 255).
-            to_channel: The last receiver channel number (0 to 255).
-            allow_resubmit: Submit the job even if an identical one has
-                completed.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or `offset` is not
-                from 0 to 5400. Nothing is sent.
-            OverflowError: A channel number is not from 0 to 255.
-            AsvoApiError: The request failed.
-        """
-    def submit_download_beam_job(
-        self,
-        obs_id: builtins.int,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        allow_resubmit: builtins.bool | None = False,
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit a job to download an observation's beamformer data.
-
-        The arguments are those of `submit_download_vis_job`.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: `obs_id` is not a valid Obs ID, or `delivery` is
-                `DeliveryDestination.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
-                is sent.
+                1280), `delivery` is `DeliveryDestination.Acacia` and
+                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+                tar only), or `centre` is `PhaseCentre.Custom` without both
+                `custom_centre_ra` and `custom_centre_dec`, or either of them
+                is given with another `centre`. The message names the
+                argument and its limits. Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_csv_file(
@@ -933,6 +620,144 @@ class AsvoJobVec:
         """
 
 @typing.final
+class ConversionJobParams:
+    r"""
+    The request body of a conversion (preprocessing) job: the schema's `ConversionJobParams`.
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    Nothing is checked until the job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        delivery: Where the MWA ASVO delivers the data.
+        delivery_format: How the MWA ASVO packages the files. Must be
+            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
+        output: The output format.
+        avg_freq_res: The frequency resolution to average to (kHz).
+        avg_time_res: The time resolution to average to (s).
+        flag_edge_width: The width of the frequency edge flagging (kHz).
+        apply_di_cal: Apply the DI calibration solution.
+        centre: The phase centre mode. `PhaseCentre.Custom` needs
+            `custom_centre_ra` and `custom_centre_dec`, and they are only
+            allowed with it.
+        custom_centre_ra: The custom phase centre's right ascension
+            (degrees).
+        custom_centre_dec: The custom phase centre's declination
+            (degrees).
+        no_apply_amps: Do not apply the amplitude calibration solutions.
+        no_digital_gains: Do not apply the digital gains.
+        no_flag_dc: Do not flag the DC channel.
+        no_geometric_delay: Do not apply the geometric delay corrections.
+        no_passband_gains: Do not apply the passband gain corrections.
+        no_cable_delay: Do not apply the cable delay corrections.
+        no_rfi: Do not flag RFI.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+    """
+    @property
+    def obs_id(self) -> builtins.int: ...
+    @obs_id.setter
+    def obs_id(self, value: builtins.int) -> None: ...
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def output(self) -> OutputFormat: ...
+    @output.setter
+    def output(self, value: OutputFormat) -> None: ...
+    @property
+    def avg_freq_res(self) -> builtins.float | None: ...
+    @avg_freq_res.setter
+    def avg_freq_res(self, value: builtins.float | None) -> None: ...
+    @property
+    def avg_time_res(self) -> builtins.float | None: ...
+    @avg_time_res.setter
+    def avg_time_res(self, value: builtins.float | None) -> None: ...
+    @property
+    def flag_edge_width(self) -> builtins.float: ...
+    @flag_edge_width.setter
+    def flag_edge_width(self, value: builtins.float) -> None: ...
+    @property
+    def apply_di_cal(self) -> builtins.bool: ...
+    @apply_di_cal.setter
+    def apply_di_cal(self, value: builtins.bool) -> None: ...
+    @property
+    def centre(self) -> PhaseCentre: ...
+    @centre.setter
+    def centre(self, value: PhaseCentre) -> None: ...
+    @property
+    def custom_centre_ra(self) -> builtins.float | None: ...
+    @custom_centre_ra.setter
+    def custom_centre_ra(self, value: builtins.float | None) -> None: ...
+    @property
+    def custom_centre_dec(self) -> builtins.float | None: ...
+    @custom_centre_dec.setter
+    def custom_centre_dec(self, value: builtins.float | None) -> None: ...
+    @property
+    def no_apply_amps(self) -> builtins.bool: ...
+    @no_apply_amps.setter
+    def no_apply_amps(self, value: builtins.bool) -> None: ...
+    @property
+    def no_digital_gains(self) -> builtins.bool | None: ...
+    @no_digital_gains.setter
+    def no_digital_gains(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_flag_dc(self) -> builtins.bool | None: ...
+    @no_flag_dc.setter
+    def no_flag_dc(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_geometric_delay(self) -> builtins.bool | None: ...
+    @no_geometric_delay.setter
+    def no_geometric_delay(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_passband_gains(self) -> builtins.bool | None: ...
+    @no_passband_gains.setter
+    def no_passband_gains(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_cable_delay(self) -> builtins.bool | None: ...
+    @no_cable_delay.setter
+    def no_cable_delay(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_rfi(self) -> builtins.bool | None: ...
+    @no_rfi.setter
+    def no_rfi(self, value: builtins.bool | None) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    def __new__(
+        cls,
+        obs_id: builtins.int,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        output: OutputFormat = OutputFormat.Ms,
+        avg_freq_res: builtins.float | None = 40.0,
+        avg_time_res: builtins.float | None = 2.0,
+        flag_edge_width: builtins.float = 80.0,
+        apply_di_cal: builtins.bool = False,
+        centre: PhaseCentre = PhaseCentre.Phase,
+        custom_centre_ra: builtins.float | None = None,
+        custom_centre_dec: builtins.float | None = None,
+        no_apply_amps: builtins.bool = False,
+        no_digital_gains: builtins.bool | None = False,
+        no_flag_dc: builtins.bool | None = False,
+        no_geometric_delay: builtins.bool | None = False,
+        no_passband_gains: builtins.bool | None = False,
+        no_cable_delay: builtins.bool | None = False,
+        no_rfi: builtins.bool | None = False,
+        allow_resubmit: builtins.bool | None = False,
+    ) -> ConversionJobParams: ...
+
+@typing.final
 class CsvJobFailure:
     r"""
     A job of a CSV file that was not submitted.
@@ -968,6 +793,89 @@ class CsvSubmitError(builtins.Exception):
     r"""
     The jobs that were not submitted, in the order of the file.
     """
+
+@typing.final
+class DownloadJobParams:
+    r"""
+    The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
+    visibility, metadata, voltage or beamformer download job. The body does not say which: the
+    MWA ASVO finds that from the observation, and it refuses a body that does not suit it (for
+    example a voltage job's `offset` for a visibility observation, or a delivery that the kind
+    of observation does not allow).
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    Nothing is checked until the job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        delivery: Where the MWA ASVO delivers the data.
+        delivery_format: How the MWA ASVO packages the files. Must be
+            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+        only_get_metadata: Download only the observation's metadata,
+            not its data.
+        offset: For a voltage observation, the offset in seconds from
+            the start GPS time of the observation, from 0 to 5400.
+        duration: For a voltage observation, the duration to download,
+            in seconds.
+        from_channel: For a voltage observation, the first receiver
+            channel number (0 to 255).
+        to_channel: For a voltage observation, the last receiver channel
+            number (0 to 255).
+    """
+    @property
+    def obs_id(self) -> builtins.int: ...
+    @obs_id.setter
+    def obs_id(self, value: builtins.int) -> None: ...
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    @property
+    def only_get_metadata(self) -> builtins.bool: ...
+    @only_get_metadata.setter
+    def only_get_metadata(self, value: builtins.bool) -> None: ...
+    @property
+    def offset(self) -> builtins.int | None: ...
+    @offset.setter
+    def offset(self, value: builtins.int | None) -> None: ...
+    @property
+    def duration(self) -> builtins.int | None: ...
+    @duration.setter
+    def duration(self, value: builtins.int | None) -> None: ...
+    @property
+    def from_channel(self) -> builtins.int | None: ...
+    @from_channel.setter
+    def from_channel(self, value: builtins.int | None) -> None: ...
+    @property
+    def to_channel(self) -> builtins.int | None: ...
+    @to_channel.setter
+    def to_channel(self, value: builtins.int | None) -> None: ...
+    def __new__(
+        cls,
+        obs_id: builtins.int,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
+        only_get_metadata: builtins.bool = False,
+        offset: builtins.int | None = None,
+        duration: builtins.int | None = None,
+        from_channel: builtins.int | None = None,
+        to_channel: builtins.int | None = None,
+    ) -> DownloadJobParams: ...
 
 class DownloadProgress:
     r"""
@@ -1041,6 +949,428 @@ class DownloadProgress:
 
         __match_args__ = ()
         def __new__(cls) -> DownloadProgress.Finished: ...
+
+@typing.final
+class ImagingJobFlow1Params:
+    r"""
+    The request body of an imaging job that starts from an Obs ID (flow 1): the schema's
+    `ImagingJobFlow1Params`.
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    Nothing is checked until the job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        delivery: Where the MWA ASVO delivers the data.
+        delivery_format: How the MWA ASVO packages the files. Must be
+            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
+        apply_di_cal: Apply the DI calibration solution.
+        apply_primary_beam: Apply the primary beam correction.
+        auto_mask: The WSClean -auto-mask value.
+        auto_threshold: The WSClean -auto-threshold value.
+        abs_threshold: The absolute cleaning threshold (Jy).
+        avg_freq_res: The frequency resolution to average to before
+            imaging (kHz).
+        avg_time_res: The time resolution to average to before imaging
+            (s).
+        channels_out: The number of output channel groups.
+        clean_iterations: The WSClean -niter value.
+        clean_threshold: The WSClean cleaning threshold (Jy). This
+            field is deprecated in the API: use `abs_threshold`.
+        centre: Where to centre the image. `PhaseCentre.Custom` needs
+            `custom_centre_ra` and `custom_centre_dec`, and they are only
+            allowed with it.
+        custom_centre_dec: The custom phase centre's declination
+            (degrees).
+        custom_centre_ra: The custom phase centre's right ascension
+            (degrees).
+        flag_edge_width: The width of the frequency edge flagging (kHz).
+        image_size: The WSClean image size in pixels. Only the sizes
+            that the MWA ASVO accepts are valid.
+        join_channels: Join the output channel groups for cleaning.
+        join_polarizations: Join the polarisations for cleaning.
+        mgain: The WSClean -mgain value.
+        multiscale: Use WSClean multiscale cleaning.
+        nmiter: The WSClean -nmiter value. Must be greater than zero.
+        no_apply_amps: Do not apply the amplitude calibration solutions.
+        no_digital_gains: Do not apply the digital gains.
+        no_flag_dc: Do not flag the DC channel.
+        no_geometric_delay: Do not apply the geometric delay corrections.
+        no_passband_gains: Do not apply the passband gain corrections.
+        no_cable_delay: Do not apply the cable delay corrections.
+        no_rfi: Do not flag RFI.
+        nwlayers: The number of w-projection layers. This field is
+            deprecated in the API: use `wstack_nwlayers`.
+        output_mode: The products to return.
+        pixel_scale: The pixel scale (arcsec per pixel).
+        pol: The polarisation to image.
+        robust: The WSClean -robust value.
+        uvw_max: The maximum uv distance to image (wavelengths).
+        uvw_min: The minimum uv distance to image (wavelengths).
+        weighting: The WSClean weighting scheme.
+        wstack_nwlayers: The number of w-stacking layers.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+    """
+    @property
+    def obs_id(self) -> builtins.int: ...
+    @obs_id.setter
+    def obs_id(self, value: builtins.int) -> None: ...
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def apply_di_cal(self) -> builtins.bool: ...
+    @apply_di_cal.setter
+    def apply_di_cal(self, value: builtins.bool) -> None: ...
+    @property
+    def apply_primary_beam(self) -> builtins.bool: ...
+    @apply_primary_beam.setter
+    def apply_primary_beam(self, value: builtins.bool) -> None: ...
+    @property
+    def auto_mask(self) -> builtins.int: ...
+    @auto_mask.setter
+    def auto_mask(self, value: builtins.int) -> None: ...
+    @property
+    def auto_threshold(self) -> builtins.float: ...
+    @auto_threshold.setter
+    def auto_threshold(self, value: builtins.float) -> None: ...
+    @property
+    def abs_threshold(self) -> builtins.float | None: ...
+    @abs_threshold.setter
+    def abs_threshold(self, value: builtins.float | None) -> None: ...
+    @property
+    def avg_freq_res(self) -> builtins.float | None: ...
+    @avg_freq_res.setter
+    def avg_freq_res(self, value: builtins.float | None) -> None: ...
+    @property
+    def avg_time_res(self) -> builtins.float | None: ...
+    @avg_time_res.setter
+    def avg_time_res(self, value: builtins.float | None) -> None: ...
+    @property
+    def channels_out(self) -> builtins.int: ...
+    @channels_out.setter
+    def channels_out(self, value: builtins.int) -> None: ...
+    @property
+    def clean_iterations(self) -> builtins.int: ...
+    @clean_iterations.setter
+    def clean_iterations(self, value: builtins.int) -> None: ...
+    @property
+    def clean_threshold(self) -> builtins.float | None: ...
+    @clean_threshold.setter
+    def clean_threshold(self, value: builtins.float | None) -> None: ...
+    @property
+    def centre(self) -> PhaseCentre: ...
+    @centre.setter
+    def centre(self, value: PhaseCentre) -> None: ...
+    @property
+    def custom_centre_dec(self) -> builtins.float | None: ...
+    @custom_centre_dec.setter
+    def custom_centre_dec(self, value: builtins.float | None) -> None: ...
+    @property
+    def custom_centre_ra(self) -> builtins.float | None: ...
+    @custom_centre_ra.setter
+    def custom_centre_ra(self, value: builtins.float | None) -> None: ...
+    @property
+    def flag_edge_width(self) -> builtins.float: ...
+    @flag_edge_width.setter
+    def flag_edge_width(self, value: builtins.float) -> None: ...
+    @property
+    def image_size(self) -> builtins.int: ...
+    @image_size.setter
+    def image_size(self, value: builtins.int) -> None: ...
+    @property
+    def join_channels(self) -> builtins.bool: ...
+    @join_channels.setter
+    def join_channels(self, value: builtins.bool) -> None: ...
+    @property
+    def join_polarizations(self) -> builtins.bool: ...
+    @join_polarizations.setter
+    def join_polarizations(self, value: builtins.bool) -> None: ...
+    @property
+    def mgain(self) -> builtins.float: ...
+    @mgain.setter
+    def mgain(self, value: builtins.float) -> None: ...
+    @property
+    def multiscale(self) -> builtins.bool: ...
+    @multiscale.setter
+    def multiscale(self, value: builtins.bool) -> None: ...
+    @property
+    def nmiter(self) -> builtins.int: ...
+    @nmiter.setter
+    def nmiter(self, value: builtins.int) -> None: ...
+    @property
+    def no_apply_amps(self) -> builtins.bool: ...
+    @no_apply_amps.setter
+    def no_apply_amps(self, value: builtins.bool) -> None: ...
+    @property
+    def no_digital_gains(self) -> builtins.bool | None: ...
+    @no_digital_gains.setter
+    def no_digital_gains(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_flag_dc(self) -> builtins.bool | None: ...
+    @no_flag_dc.setter
+    def no_flag_dc(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_geometric_delay(self) -> builtins.bool | None: ...
+    @no_geometric_delay.setter
+    def no_geometric_delay(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_passband_gains(self) -> builtins.bool | None: ...
+    @no_passband_gains.setter
+    def no_passband_gains(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_cable_delay(self) -> builtins.bool | None: ...
+    @no_cable_delay.setter
+    def no_cable_delay(self, value: builtins.bool | None) -> None: ...
+    @property
+    def no_rfi(self) -> builtins.bool | None: ...
+    @no_rfi.setter
+    def no_rfi(self, value: builtins.bool | None) -> None: ...
+    @property
+    def nwlayers(self) -> builtins.int | None: ...
+    @nwlayers.setter
+    def nwlayers(self, value: builtins.int | None) -> None: ...
+    @property
+    def output_mode(self) -> ImageOutputMode: ...
+    @output_mode.setter
+    def output_mode(self, value: ImageOutputMode) -> None: ...
+    @property
+    def pixel_scale(self) -> builtins.float: ...
+    @pixel_scale.setter
+    def pixel_scale(self, value: builtins.float) -> None: ...
+    @property
+    def pol(self) -> Polarization: ...
+    @pol.setter
+    def pol(self, value: Polarization) -> None: ...
+    @property
+    def robust(self) -> builtins.float: ...
+    @robust.setter
+    def robust(self, value: builtins.float) -> None: ...
+    @property
+    def uvw_max(self) -> builtins.float | None: ...
+    @uvw_max.setter
+    def uvw_max(self, value: builtins.float | None) -> None: ...
+    @property
+    def uvw_min(self) -> builtins.float: ...
+    @uvw_min.setter
+    def uvw_min(self, value: builtins.float) -> None: ...
+    @property
+    def weighting(self) -> ImageWeighting: ...
+    @weighting.setter
+    def weighting(self, value: ImageWeighting) -> None: ...
+    @property
+    def wstack_nwlayers(self) -> builtins.int | None: ...
+    @wstack_nwlayers.setter
+    def wstack_nwlayers(self, value: builtins.int | None) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    def __new__(
+        cls,
+        obs_id: builtins.int,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        apply_di_cal: builtins.bool = True,
+        apply_primary_beam: builtins.bool = True,
+        auto_mask: builtins.int = 3,
+        auto_threshold: builtins.float = 0.5,
+        abs_threshold: builtins.float | None = 0.001,
+        avg_freq_res: builtins.float | None = 40.0,
+        avg_time_res: builtins.float | None = 2.0,
+        channels_out: builtins.int = 4,
+        clean_iterations: builtins.int = 100000,
+        clean_threshold: builtins.float | None = 0.001,
+        centre: PhaseCentre = PhaseCentre.Phase,
+        custom_centre_dec: builtins.float | None = None,
+        custom_centre_ra: builtins.float | None = None,
+        flag_edge_width: builtins.float = 80.0,
+        image_size: builtins.int = 3072,
+        join_channels: builtins.bool = True,
+        join_polarizations: builtins.bool = False,
+        mgain: builtins.float = 0.8,
+        multiscale: builtins.bool = False,
+        nmiter: builtins.int = 10,
+        no_apply_amps: builtins.bool = False,
+        no_digital_gains: builtins.bool | None = False,
+        no_flag_dc: builtins.bool | None = False,
+        no_geometric_delay: builtins.bool | None = False,
+        no_passband_gains: builtins.bool | None = False,
+        no_cable_delay: builtins.bool | None = False,
+        no_rfi: builtins.bool | None = False,
+        nwlayers: builtins.int | None = None,
+        output_mode: ImageOutputMode = ImageOutputMode.Fits,
+        pixel_scale: builtins.float = 20.0,
+        pol: Polarization = Polarization.Xxyy,
+        robust: builtins.float = -0.5,
+        uvw_max: builtins.float | None = None,
+        uvw_min: builtins.float = 75.0,
+        weighting: ImageWeighting = ImageWeighting.Briggs,
+        wstack_nwlayers: builtins.int | None = None,
+        allow_resubmit: builtins.bool | None = False,
+    ) -> ImagingJobFlow1Params: ...
+
+@typing.final
+class ImagingJobFlow2Params:
+    r"""
+    The request body of an imaging job that starts from a conversion job (flow 2): the
+    schema's `ImagingJobFlow2Params`. Its `obs_id` is not an argument: the MWA ASVO takes
+    the Obs ID from the source job, so it is sent as `null`.
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    Nothing is checked until the job is submitted (see the submit method).
+
+    Args:
+        source_job_id: The ID of the conversion job to image. Must be
+            greater than zero.
+    """
+    @property
+    def source_job_id(self) -> builtins.int: ...
+    @source_job_id.setter
+    def source_job_id(self, value: builtins.int) -> None: ...
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def apply_primary_beam(self) -> builtins.bool: ...
+    @apply_primary_beam.setter
+    def apply_primary_beam(self, value: builtins.bool) -> None: ...
+    @property
+    def auto_mask(self) -> builtins.int: ...
+    @auto_mask.setter
+    def auto_mask(self, value: builtins.int) -> None: ...
+    @property
+    def auto_threshold(self) -> builtins.float: ...
+    @auto_threshold.setter
+    def auto_threshold(self, value: builtins.float) -> None: ...
+    @property
+    def abs_threshold(self) -> builtins.float | None: ...
+    @abs_threshold.setter
+    def abs_threshold(self, value: builtins.float | None) -> None: ...
+    @property
+    def channels_out(self) -> builtins.int: ...
+    @channels_out.setter
+    def channels_out(self, value: builtins.int) -> None: ...
+    @property
+    def clean_iterations(self) -> builtins.int: ...
+    @clean_iterations.setter
+    def clean_iterations(self, value: builtins.int) -> None: ...
+    @property
+    def clean_threshold(self) -> builtins.float | None: ...
+    @clean_threshold.setter
+    def clean_threshold(self, value: builtins.float | None) -> None: ...
+    @property
+    def image_size(self) -> builtins.int: ...
+    @image_size.setter
+    def image_size(self, value: builtins.int) -> None: ...
+    @property
+    def join_channels(self) -> builtins.bool: ...
+    @join_channels.setter
+    def join_channels(self, value: builtins.bool) -> None: ...
+    @property
+    def join_polarizations(self) -> builtins.bool: ...
+    @join_polarizations.setter
+    def join_polarizations(self, value: builtins.bool) -> None: ...
+    @property
+    def mgain(self) -> builtins.float: ...
+    @mgain.setter
+    def mgain(self, value: builtins.float) -> None: ...
+    @property
+    def multiscale(self) -> builtins.bool: ...
+    @multiscale.setter
+    def multiscale(self, value: builtins.bool) -> None: ...
+    @property
+    def nmiter(self) -> builtins.int: ...
+    @nmiter.setter
+    def nmiter(self, value: builtins.int) -> None: ...
+    @property
+    def nwlayers(self) -> builtins.int | None: ...
+    @nwlayers.setter
+    def nwlayers(self, value: builtins.int | None) -> None: ...
+    @property
+    def output_mode(self) -> ImageOutputMode: ...
+    @output_mode.setter
+    def output_mode(self, value: ImageOutputMode) -> None: ...
+    @property
+    def pixel_scale(self) -> builtins.float: ...
+    @pixel_scale.setter
+    def pixel_scale(self, value: builtins.float) -> None: ...
+    @property
+    def pol(self) -> Polarization: ...
+    @pol.setter
+    def pol(self, value: Polarization) -> None: ...
+    @property
+    def robust(self) -> builtins.float: ...
+    @robust.setter
+    def robust(self, value: builtins.float) -> None: ...
+    @property
+    def uvw_max(self) -> builtins.float | None: ...
+    @uvw_max.setter
+    def uvw_max(self, value: builtins.float | None) -> None: ...
+    @property
+    def uvw_min(self) -> builtins.float: ...
+    @uvw_min.setter
+    def uvw_min(self, value: builtins.float) -> None: ...
+    @property
+    def weighting(self) -> ImageWeighting: ...
+    @weighting.setter
+    def weighting(self, value: ImageWeighting) -> None: ...
+    @property
+    def wstack_nwlayers(self) -> builtins.int | None: ...
+    @wstack_nwlayers.setter
+    def wstack_nwlayers(self, value: builtins.int | None) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    def __new__(
+        cls,
+        source_job_id: builtins.int,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        apply_primary_beam: builtins.bool = True,
+        auto_mask: builtins.int = 3,
+        auto_threshold: builtins.float = 0.5,
+        abs_threshold: builtins.float | None = 0.001,
+        channels_out: builtins.int = 4,
+        clean_iterations: builtins.int = 100000,
+        clean_threshold: builtins.float | None = 0.001,
+        image_size: builtins.int = 3072,
+        join_channels: builtins.bool = True,
+        join_polarizations: builtins.bool = False,
+        mgain: builtins.float = 0.8,
+        multiscale: builtins.bool = False,
+        nmiter: builtins.int = 10,
+        nwlayers: builtins.int | None = None,
+        output_mode: ImageOutputMode = ImageOutputMode.Fits,
+        pixel_scale: builtins.float = 20.0,
+        pol: Polarization = Polarization.Xxyy,
+        robust: builtins.float = -0.5,
+        uvw_max: builtins.float | None = None,
+        uvw_min: builtins.float = 75.0,
+        weighting: ImageWeighting = ImageWeighting.Briggs,
+        wstack_nwlayers: builtins.int | None = None,
+        allow_resubmit: builtins.bool | None = False,
+    ) -> ImagingJobFlow2Params: ...
 
 @typing.final
 class JobCancelledResponse:

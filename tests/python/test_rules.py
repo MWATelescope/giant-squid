@@ -8,6 +8,7 @@
 import datetime
 import json
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import pytest
@@ -18,12 +19,12 @@ import mwa_giant_squid as gs
 from .conftest import GET_JOBS_PATH, TEST_API_KEY, TEST_OBS_ID
 from .test_client import SCHEMA_PATH
 from .test_submit import (
-    BEAMFORMER_PATH,
     CONVERSION_PATH,
     DOWNLOAD_PATH,
     IMAGE_FROM_JOB_PATH,
     IMAGING_PATH,
     SOURCE_JOB_ID,
+    submit,
     submitted,
 )
 
@@ -37,14 +38,13 @@ DATE_TO_JSON = "2026-09-30T00:00:00Z"
 # The `days` that the tests give.
 DAYS = 7
 
-# Each submit method that has a delivery and a format, its endpoint and its positional arguments.
-DELIVERY_METHODS = [
-    ("submit_download_vis_job", DOWNLOAD_PATH, (TEST_OBS_ID,)),
-    ("submit_download_meta_job", DOWNLOAD_PATH, (TEST_OBS_ID,)),
-    ("submit_conversion_job", CONVERSION_PATH, (TEST_OBS_ID,)),
-    ("submit_imaging_job", IMAGING_PATH, (TEST_OBS_ID,)),
-    ("submit_image_from_job", IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,)),
-    ("submit_download_beam_job", BEAMFORMER_PATH, (TEST_OBS_ID,)),
+# Each class that has a delivery and a format (a function that makes it), its endpoint and its positional arguments.
+DELIVERY_JOBS = [
+    pytest.param(gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), id="vis"),
+    pytest.param(partial(gs.DownloadJobParams, only_get_metadata=True), DOWNLOAD_PATH, (TEST_OBS_ID,), id="meta"),
+    pytest.param(gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), id="conversion"),
+    pytest.param(gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), id="imaging"),
+    pytest.param(gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), id="image_from_job"),
 ]
 
 
@@ -75,43 +75,42 @@ def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:
     return [json.loads(request.get_data()) for request, _ in httpserver.log if request.path == path]
 
 
-@pytest.mark.parametrize(("method", "path", "args"), DELIVERY_METHODS)
+@pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)
 def test_acacia_with_files_is_refused_before_any_request(
-    httpserver: HTTPServer, client: gs.AsvoClient, method: str, path: str, args: tuple[Any, ...]
+    httpserver: HTTPServer, client: gs.AsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
 ) -> None:
     """Every submit method refuses ``Files`` with ``Acacia`` (given, or the default), and sends nothing.
 
     Args:
         httpserver: The mock server.
         client: A logged-in client.
-        method: The submit method.
+        job: The class of the request body.
         path: Its endpoint.
         args: Its positional arguments.
     """
     submitted(httpserver, path)
-    submit: Callable[..., Any] = getattr(client, method)
 
     for delivery in ({}, {"delivery": gs.DeliveryDestination.Acacia}):
+        params = job(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
         with pytest.raises(ValueError, match="delivery_format: must be tar when delivery is acacia"):
-            submit(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
+            submit(client, params)
     assert requests_to(httpserver, path) == []
 
 
-@pytest.mark.parametrize(("method", "path", "args"), DELIVERY_METHODS)
+@pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)
 def test_the_other_deliveries_and_formats_are_sent(
-    httpserver: HTTPServer, client: gs.AsvoClient, method: str, path: str, args: tuple[Any, ...]
+    httpserver: HTTPServer, client: gs.AsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
 ) -> None:
     """Acacia with tar, and the other deliveries with either format, are sent as they are given.
 
     Args:
         httpserver: The mock server.
         client: A logged-in client.
-        method: The submit method.
+        job: The class of the request body.
         path: Its endpoint.
         args: Its positional arguments.
     """
     submitted(httpserver, path)
-    submit: Callable[..., Any] = getattr(client, method)
     combinations = [
         (gs.DeliveryDestination.Acacia, gs.DeliveryFormat.Tar),
         (gs.DeliveryDestination.Scratch, gs.DeliveryFormat.Files),
@@ -120,7 +119,7 @@ def test_the_other_deliveries_and_formats_are_sent(
         (gs.DeliveryDestination.Dug, gs.DeliveryFormat.Tar),
     ]
     for delivery, delivery_format in combinations:
-        submit(*args, delivery=delivery, delivery_format=delivery_format)
+        submit(client, job(*args, delivery=delivery, delivery_format=delivery_format))
 
     bodies = requests_to(httpserver, path)
     assert [(body["delivery"], body["delivery_format"]) for body in bodies] == [
