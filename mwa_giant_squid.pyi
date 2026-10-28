@@ -45,6 +45,7 @@ __all__ = [
     "ImagingJobFlow1Params",
     "ImagingJobFlow2Params",
     "JobCancelledResponse",
+    "JobDetailResponse",
     "JobFile",
     "JobProduct",
     "JobState",
@@ -544,11 +545,6 @@ class AsvoJob:
         The Job ID.
         """
     @property
-    def obs_id(self) -> ObsId:
-        r"""
-        The Obs ID.
-        """
-    @property
     def job_type(self) -> JobType | None:
         r"""
         The job type, or `None` if the server gives none.
@@ -561,19 +557,20 @@ class AsvoJob:
     @property
     def error_code(self) -> builtins.int | None:
         r"""
-        The server's error code, or `None`. The MWA ASVO does not document
-        its values, so it is given as it is.
+        The server's error code, or `None`. The MWA ASVO does not
+        document its values, so it is given as it is.
         """
     @property
     def error_text(self) -> builtins.str | None:
         r"""
-        The server's error message, or `None`. A job in the `Error` state
-        has its message here.
+        The server's error message, or `None`. A job in the `Error`
+        state has its message here.
         """
     @property
     def product(self) -> JobProduct | None:
         r"""
-        The job's product (its files), or `None` if the job has none yet.
+        The job's product (its files), or `None` if the job has none
+        yet.
         """
     @property
     def completed(self) -> datetime.datetime | None:
@@ -611,6 +608,16 @@ class AsvoJob:
         The last name of the user who submitted the job.
         """
     @property
+    def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
+        r"""
+        The job's parameters as the server gives them, as a `dict`.
+        """
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID.
+        """
+    @property
     def expires(self) -> datetime.datetime | None:
         r"""
         When the download links of the job stop working (UTC): the earliest
@@ -632,10 +639,10 @@ class AsvoJob:
         (for example `queued`), except that a completed job is
         `completed (ready)` or `completed (expired)`.
         """
-    @property
-    def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
+    def detail(self) -> JobDetailResponse:
         r"""
-        The job's parameters as the server gives them, as a `dict`.
+        The job as the API gives it: the schema's `JobDetailResponse`. Its
+        `obs_id` is the number that the API gave, not checked.
         """
 
 @typing.final
@@ -659,6 +666,13 @@ class AsvoJobVec:
 
         Raises:
             ObsIdError: An Obs ID is not valid.
+        """
+    def json(self) -> builtins.str:
+        r"""
+        The jobs as JSON: an object keyed by Job ID, in Job ID order, whose
+        values are the jobs as the API gives them. `giant-squid list --json`
+        prints this. If a Job ID is in the list more than once, only the last
+        of those jobs is in the output.
         """
     def all_ready(self, job_ids: typing.Sequence[builtins.int]) -> builtins.bool:
         r"""
@@ -1452,6 +1466,94 @@ class JobCancelledResponse:
         """
 
 @typing.final
+class JobDetailResponse:
+    r"""
+    A job as the MWA ASVO API gives it: the OpenAPI schema's
+    `JobDetailResponse`. `AsvoJob.detail` returns it. It has the same
+    attributes as `AsvoJob`, except that `obs_id` is the `int` that the API
+    gave, not a checked `ObsId`.
+    """
+    @property
+    def job_id(self) -> builtins.int:
+        r"""
+        The Job ID.
+        """
+    @property
+    def job_type(self) -> JobType | None:
+        r"""
+        The job type, or `None` if the server gives none.
+        """
+    @property
+    def job_state(self) -> JobState:
+        r"""
+        The job state.
+        """
+    @property
+    def error_code(self) -> builtins.int | None:
+        r"""
+        The server's error code, or `None`. The MWA ASVO does not
+        document its values, so it is given as it is.
+        """
+    @property
+    def error_text(self) -> builtins.str | None:
+        r"""
+        The server's error message, or `None`. A job in the `Error`
+        state has its message here.
+        """
+    @property
+    def product(self) -> JobProduct | None:
+        r"""
+        The job's product (its files), or `None` if the job has none
+        yet.
+        """
+    @property
+    def completed(self) -> datetime.datetime | None:
+        r"""
+        When the job completed (UTC), or `None`.
+        """
+    @property
+    def created(self) -> datetime.datetime:
+        r"""
+        When the job was created (UTC).
+        """
+    @property
+    def started(self) -> datetime.datetime | None:
+        r"""
+        When the job started (UTC), or `None` if it has not started.
+        """
+    @property
+    def modified(self) -> datetime.datetime | None:
+        r"""
+        When the job was last changed (UTC), or `None`.
+        """
+    @property
+    def user_id(self) -> builtins.int:
+        r"""
+        The ID of the user who submitted the job.
+        """
+    @property
+    def first_name(self) -> builtins.str:
+        r"""
+        The first name of the user who submitted the job.
+        """
+    @property
+    def last_name(self) -> builtins.str:
+        r"""
+        The last name of the user who submitted the job.
+        """
+    @property
+    def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
+        r"""
+        The job's parameters as the server gives them, as a `dict`.
+        """
+    @property
+    def obs_id(self) -> builtins.int:
+        r"""
+        The Obs ID, as the API gives it: a number that is not checked. (The
+        Obs ID of an `AsvoJob` is an `ObsId`.)
+        """
+
+@typing.final
 class JobFile:
     r"""
     One file of a job's product: the OpenAPI schema's `JobFile`.
@@ -1475,6 +1577,12 @@ class JobFile:
     def size(self) -> builtins.int:
         r"""
         The size of the file in bytes.
+        """
+    @property
+    def size_bytes(self) -> builtins.int:
+        r"""
+        The size of the file in bytes, as an unsigned number: a negative
+        `size` (which the MWA ASVO does not send) is 0.
         """
     @property
     def sha1(self) -> builtins.str | None:
@@ -1778,6 +1886,27 @@ class JobState(enum.Enum):
     Error = ...
     Cancelled = ...
 
+    @staticmethod
+    def names() -> builtins.list[builtins.str]:
+        r"""
+        The names of the job states: the MWA ASVO's values (for
+        example `completed`), in its order. `parse_name` accepts each
+        of them.
+        """
+    @staticmethod
+    def parse_name(s: builtins.str) -> JobState:
+        r"""
+        Read the name of a job state, as a user types it: the case,
+        spaces, hyphens and underscores do not matter.
+
+        Args:
+            s: The name.
+
+        Raises:
+            AsvoError: The text is not the name of a job state (kind
+                `InvalidJobState`).
+        """
+
 @typing.final
 class JobType(enum.Enum):
     r"""
@@ -1792,6 +1921,27 @@ class JobType(enum.Enum):
     Cancel = ...
     Beamformer = ...
     Imaging = ...
+
+    @staticmethod
+    def names() -> builtins.list[builtins.str]:
+        r"""
+        The names of the job types: the MWA ASVO's values (for
+        example `visibility`), in its order. `parse_name` accepts each
+        of them.
+        """
+    @staticmethod
+    def parse_name(s: builtins.str) -> JobType:
+        r"""
+        Read the name of a job type, as a user types it: the case,
+        spaces, hyphens and underscores do not matter.
+
+        Args:
+            s: The name.
+
+        Raises:
+            AsvoError: The text is not the name of a job type (kind
+                `InvalidJobType`).
+        """
 
 @typing.final
 class OutputFormat(enum.Enum):

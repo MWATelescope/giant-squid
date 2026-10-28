@@ -229,6 +229,8 @@ before you upgrade scripts.**
   (`ObsIdErrorWrongNumDigits`, `ObsIdErrorParse`). The functions `parse_obs_ids_only`, `parse_job_ids_only`,
   `parse_many_job_ids_or_obs_ids`, `parse_job_ids_and_obs_ids_from_file` and `parse_utc_time`, and the exception
   `ParseError` with a subclass for each Rust variant (`ParseErrorNoObsIds` and so on).
+* Python: `JobDetailResponse` and `AsvoJob.detail()` (the job as the API gives it), `JobFile.size_bytes`,
+  `AsvoJobVec.json()` (as `giant-squid list --json`), and `names()` and `parse_name()` on `JobType` and `JobState`.
 
 ### Fixed in 3.0.0
 

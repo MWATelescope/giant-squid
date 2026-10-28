@@ -18,7 +18,8 @@ use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
-    JobSubmittedResponse, JobType, OutputFormat, PhaseCentre, Polarization, SortBy, Status, Type,
+    JobDetailResponse, JobSubmittedResponse, JobType, OutputFormat, PhaseCentre, Polarization,
+    SortBy, Status, Type,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{
@@ -30,8 +31,10 @@ use crate::obs_id::ObsId;
 /// conversions in both directions. Called by `for_each_schema_enum!`, which
 /// has the list of every schema enum (see
 /// [`crate::mwa_asvo::api::schema_enums`]).
-macro_rules! py_enum {
-    ($lib:ident, $py:ident, $name:literal, $doc:literal, [$($variant:ident),+ $(,)?]) => {
+///
+/// `$extra` are more methods of the Python class (see [`py_enum`]).
+macro_rules! py_enum_with {
+    ($lib:ident, $py:ident, $name:literal, $doc:literal, [$($variant:ident),+ $(,)?], { $($extra:item)* }) => {
         #[doc = $doc]
         #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass_enum)]
         #[pyclass(eq, eq_int, frozen, hash, from_py_object, name = $name, module = "mwa_giant_squid")]
@@ -62,7 +65,71 @@ macro_rules! py_enum {
             fn __str__(&self) -> String {
                 $lib::from(*self).to_string()
             }
+
+            $($extra)*
         }
+    };
+}
+
+/// Define the Python enum of a schema enum, with `py_enum_with!`. `JobType`
+/// and `JobState` also have the library's `names` and `parse_name`.
+macro_rules! py_enum {
+    (JobType, $py:ident, $name:literal, $doc:literal, $variants:tt) => {
+        py_enum_with!(JobType, $py, $name, $doc, $variants, {
+            /// The names of the job types: the MWA ASVO's values (for
+            /// example `visibility`), in its order. `parse_name` accepts each
+            /// of them.
+            #[staticmethod]
+            fn names() -> Vec<String> {
+                JobType::names()
+            }
+
+            /// Read the name of a job type, as a user types it: the case,
+            /// spaces, hyphens and underscores do not matter.
+            ///
+            /// Args:
+            ///     s: The name.
+            ///
+            /// Raises:
+            ///     AsvoError: The text is not the name of a job type (kind
+            ///         `InvalidJobType`).
+            #[staticmethod]
+            fn parse_name(py: Python<'_>, s: &str) -> PyResult<Self> {
+                JobType::parse_name(s)
+                    .map(Self::from)
+                    .map_err(|e| asvo_error(py, e))
+            }
+        });
+    };
+    (JobState, $py:ident, $name:literal, $doc:literal, $variants:tt) => {
+        py_enum_with!(JobState, $py, $name, $doc, $variants, {
+            /// The names of the job states: the MWA ASVO's values (for
+            /// example `completed`), in its order. `parse_name` accepts each
+            /// of them.
+            #[staticmethod]
+            fn names() -> Vec<String> {
+                JobState::names()
+            }
+
+            /// Read the name of a job state, as a user types it: the case,
+            /// spaces, hyphens and underscores do not matter.
+            ///
+            /// Args:
+            ///     s: The name.
+            ///
+            /// Raises:
+            ///     AsvoError: The text is not the name of a job state (kind
+            ///         `InvalidJobState`).
+            #[staticmethod]
+            fn parse_name(py: Python<'_>, s: &str) -> PyResult<Self> {
+                JobState::parse_name(s)
+                    .map(Self::from)
+                    .map_err(|e| asvo_error(py, e))
+            }
+        });
+    };
+    ($lib:ident, $py:ident, $name:literal, $doc:literal, $variants:tt) => {
+        py_enum_with!($lib, $py, $name, $doc, $variants, {});
     };
 }
 
@@ -107,6 +174,13 @@ impl PyJobFile {
     #[getter]
     fn size(&self) -> i64 {
         self.0.size
+    }
+
+    /// The size of the file in bytes, as an unsigned number: a negative
+    /// `size` (which the MWA ASVO does not send) is 0.
+    #[getter]
+    fn size_bytes(&self) -> u64 {
+        self.0.size_bytes()
     }
 
     /// The file's SHA-1 hash, or `None`.
@@ -177,93 +251,124 @@ impl From<AsvoJob> for PyAsvoJob {
     }
 }
 
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyAsvoJob {
-    /// The Job ID.
-    #[getter]
-    fn job_id(&self) -> JobId {
-        JobId(self.0.job_id())
-    }
+/// Make the `#[pymethods]` block of a class that has the fields of the
+/// schema's `JobDetailResponse` as attributes: `AsvoJob` (which derefs to it
+/// in Rust) and `JobDetailResponse`. `$extra` are the methods of only this
+/// class. (A class has one `#[pymethods]` block, so the block is made here.)
+macro_rules! detail_pymethods {
+    ($ty:ty, { $($extra:item)* }) => {
+        #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
+        #[pymethods]
+        impl $ty {
+            /// The Job ID.
+            #[getter]
+            fn job_id(&self) -> JobId {
+                JobId(self.0.job_id)
+            }
 
+            /// The job type, or `None` if the server gives none.
+            #[getter]
+            fn job_type(&self) -> Option<PyJobType> {
+                self.0.job_type.map(PyJobType::from)
+            }
+
+            /// The job state.
+            #[getter]
+            fn job_state(&self) -> PyJobState {
+                PyJobState::from(self.0.job_state)
+            }
+
+            /// The server's error code, or `None`. The MWA ASVO does not
+            /// document its values, so it is given as it is.
+            #[getter]
+            fn error_code(&self) -> Option<i64> {
+                self.0.error_code
+            }
+
+            /// The server's error message, or `None`. A job in the `Error`
+            /// state has its message here.
+            #[getter]
+            fn error_text(&self) -> Option<String> {
+                self.0.error_text.clone()
+            }
+
+            /// The job's product (its files), or `None` if the job has none
+            /// yet.
+            #[getter]
+            fn product(&self) -> Option<PyJobProduct> {
+                self.0.product.clone().map(PyJobProduct)
+            }
+
+            /// When the job completed (UTC), or `None`.
+            #[getter]
+            fn completed(&self) -> Option<Timestamp> {
+                self.0.completed
+            }
+
+            /// When the job was created (UTC).
+            #[getter]
+            fn created(&self) -> Timestamp {
+                self.0.created
+            }
+
+            /// When the job started (UTC), or `None` if it has not started.
+            #[getter]
+            fn started(&self) -> Option<Timestamp> {
+                self.0.started
+            }
+
+            /// When the job was last changed (UTC), or `None`.
+            #[getter]
+            fn modified(&self) -> Option<Timestamp> {
+                self.0.modified
+            }
+
+            /// The ID of the user who submitted the job.
+            #[getter]
+            fn user_id(&self) -> i64 {
+                self.0.user_id
+            }
+
+            /// The first name of the user who submitted the job.
+            #[getter]
+            fn first_name(&self) -> String {
+                self.0.first_name.clone()
+            }
+
+            /// The last name of the user who submitted the job.
+            #[getter]
+            fn last_name(&self) -> String {
+                self.0.last_name.clone()
+            }
+
+            /// The job's parameters as the server gives them, as a `dict`.
+            #[getter]
+            fn job_params<'py>(&self, py: Python<'py>) -> PyResult<JsonDict<'py>> {
+                let json = serde_json::to_string(&self.0.job_params)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                py.import("json")?
+                    .call_method1("loads", (json,))?
+                    .cast_into::<PyDict>()
+                    .map(JsonDict)
+                    .map_err(PyErr::from)
+            }
+
+            $($extra)*
+        }
+    };
+}
+
+detail_pymethods!(PyAsvoJob, {
     /// The Obs ID.
     #[getter]
     fn obs_id(&self) -> PyObsId {
         PyObsId(self.0.obs_id())
     }
 
-    /// The job type, or `None` if the server gives none.
-    #[getter]
-    fn job_type(&self) -> Option<PyJobType> {
-        self.0.job_type.map(PyJobType::from)
-    }
-
-    /// The job state.
-    #[getter]
-    fn job_state(&self) -> PyJobState {
-        PyJobState::from(self.0.job_state)
-    }
-
-    /// The server's error code, or `None`. The MWA ASVO does not document
-    /// its values, so it is given as it is.
-    #[getter]
-    fn error_code(&self) -> Option<i64> {
-        self.0.error_code
-    }
-
-    /// The server's error message, or `None`. A job in the `Error` state
-    /// has its message here.
-    #[getter]
-    fn error_text(&self) -> Option<String> {
-        self.0.error_text.clone()
-    }
-
-    /// The job's product (its files), or `None` if the job has none yet.
-    #[getter]
-    fn product(&self) -> Option<PyJobProduct> {
-        self.0.product.clone().map(PyJobProduct)
-    }
-
-    /// When the job completed (UTC), or `None`.
-    #[getter]
-    fn completed(&self) -> Option<Timestamp> {
-        self.0.completed
-    }
-
-    /// When the job was created (UTC).
-    #[getter]
-    fn created(&self) -> Timestamp {
-        self.0.created
-    }
-
-    /// When the job started (UTC), or `None` if it has not started.
-    #[getter]
-    fn started(&self) -> Option<Timestamp> {
-        self.0.started
-    }
-
-    /// When the job was last changed (UTC), or `None`.
-    #[getter]
-    fn modified(&self) -> Option<Timestamp> {
-        self.0.modified
-    }
-
-    /// The ID of the user who submitted the job.
-    #[getter]
-    fn user_id(&self) -> i64 {
-        self.0.user_id
-    }
-
-    /// The first name of the user who submitted the job.
-    #[getter]
-    fn first_name(&self) -> String {
-        self.0.first_name.clone()
-    }
-
-    /// The last name of the user who submitted the job.
-    #[getter]
-    fn last_name(&self) -> String {
-        self.0.last_name.clone()
+    /// The job as the API gives it: the schema's `JobDetailResponse`. Its
+    /// `obs_id` is the number that the API gave, not checked.
+    fn detail(&self) -> PyJobDetailResponse {
+        PyJobDetailResponse(self.0.detail().clone())
     }
 
     /// When the download links of the job stop working (UTC): the earliest
@@ -291,18 +396,6 @@ impl PyAsvoJob {
         self.0.display_state()
     }
 
-    /// The job's parameters as the server gives them, as a `dict`.
-    #[getter]
-    fn job_params<'py>(&self, py: Python<'py>) -> PyResult<JsonDict<'py>> {
-        let json = serde_json::to_string(&self.0.job_params)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
-        py.import("json")?
-            .call_method1("loads", (json,))?
-            .cast_into::<PyDict>()
-            .map(JsonDict)
-            .map_err(PyErr::from)
-    }
-
     fn __repr__(&self) -> String {
         let job_id = self.0.job_id();
         let obs_id = self.0.obs_id();
@@ -315,7 +408,43 @@ impl PyAsvoJob {
             "AsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
         )
     }
-}
+});
+
+/// A job as the MWA ASVO API gives it: the OpenAPI schema's
+/// `JobDetailResponse`. `AsvoJob.detail` returns it. It has the same
+/// attributes as `AsvoJob`, except that `obs_id` is the `int` that the API
+/// gave, not a checked `ObsId`.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
+#[pyclass(
+    frozen,
+    skip_from_py_object,
+    name = "JobDetailResponse",
+    module = "mwa_giant_squid"
+)]
+#[derive(Clone)]
+pub struct PyJobDetailResponse(JobDetailResponse);
+
+detail_pymethods!(PyJobDetailResponse, {
+    /// The Obs ID, as the API gives it: a number that is not checked. (The
+    /// Obs ID of an `AsvoJob` is an `ObsId`.)
+    #[getter]
+    fn obs_id(&self) -> i64 {
+        self.0.obs_id
+    }
+
+    fn __repr__(&self) -> String {
+        let job_id = self.0.job_id;
+        let obs_id = self.0.obs_id;
+        let job_type = self
+            .0
+            .job_type
+            .map_or("None".to_string(), |t| t.to_string());
+        let job_state = self.0.job_state;
+        format!(
+            "JobDetailResponse(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
+        )
+    }
+});
 
 /// A download progress event, given to the `progress` callback of
 /// `AsvoClient.download_job` and `AsvoClient.download_obs`.
@@ -545,6 +674,17 @@ impl PyAsvoJobVec {
                 &job_states,
             ),
         ))
+    }
+
+    /// The jobs as JSON: an object keyed by Job ID, in Job ID order, whose
+    /// values are the jobs as the API gives them. `giant-squid list --json`
+    /// prints this. If a Job ID is in the list more than once, only the last
+    /// of those jobs is in the output.
+    fn json(&self) -> PyResult<String> {
+        self.0
+            .clone()
+            .json()
+            .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Whether all of `job_ids` are ready for download. `False` means some

@@ -174,7 +174,13 @@ ID or the name of a file of IDs), and `parse_utc_time` (RFC 3339 or a date, as a
 `ParseError`.
 
 The result is an `AsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
-filters a list that you already have, without a request.
+filters a list that you already have, without a request. Its `json()` method gives the jobs as JSON, an object
+keyed by Job ID, as `giant-squid list --json` prints.
+
+`AsvoJob.detail()` is the job as the API gives it, a `JobDetailResponse` that has the attributes of the job. Its
+`obs_id` is the `int` that the API gave, not a checked `ObsId`. `JobType.names()` and `JobState.names()` are the
+names of the API's values, and `JobType.parse_name(text)` and `JobState.parse_name(text)` read a name as a user types
+it (case, spaces, hyphens and underscores do not matter), or raise `AsvoError`.
 
 Notes:
 
