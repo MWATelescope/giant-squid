@@ -26,6 +26,7 @@
 #![cfg_attr(feature = "python-stubgen", allow(clippy::incompatible_msrv))]
 
 mod client;
+mod constants;
 mod csv;
 mod download;
 mod error;
@@ -96,8 +97,11 @@ pub(crate) fn connect_python_logging() {
 mod module {
     use pyo3::prelude::*;
 
+    use super::error::asvo_error;
+    use super::typed::JobId;
     use super::{CLI_HAS_RUN, LOG_RESET_HANDLE, RUN_CLI_AFTER_CLIENT, RUN_CLI_TWICE};
     use pyo3::exceptions::PyRuntimeError;
+    use std::path::PathBuf;
     use std::sync::atomic::Ordering;
 
     #[pymodule_export]
@@ -173,8 +177,49 @@ mod module {
         Ok(py.detach(|| crate::cli::run::run_cli(args)))
     }
 
+    /// The path of the token cache that mwa-cli also uses:
+    /// `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
+    /// `AsvoClient` to share sessions with mwa-cli.
+    ///
+    /// Args:
+    ///     home: The home directory.
+    ///
+    /// Returns:
+    ///     The path of the token cache file.
+    #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
+    #[pyfunction]
+    fn default_token_cache_path(home: PathBuf) -> PathBuf {
+        crate::default_token_cache_path(&home)
+    }
+
+    /// Check the SHA-1 hash of a file against an expected hash.
+    ///
+    /// The comparison ignores the case of the hexadecimal digits.
+    ///
+    /// Args:
+    ///     filename: The file to hash.
+    ///     expected_hash: The hash that the file must have.
+    ///     job_id: The Job ID that the file belongs to. It is for the error.
+    ///
+    /// Raises:
+    ///     AsvoError: The hash does not match (kind `HashMismatch`).
+    ///     ValueError: `job_id` is 0.
+    ///     OSError: The file cannot be read.
+    #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
+    #[pyfunction]
+    fn check_file_sha1_hash(
+        py: Python<'_>,
+        filename: PathBuf,
+        expected_hash: &str,
+        job_id: JobId,
+    ) -> PyResult<()> {
+        py.detach(|| crate::check_file_sha1_hash(&filename, expected_hash, job_id.0))
+            .map_err(|e| asvo_error(py, e))
+    }
+
     #[pymodule_init]
     fn init(m: &Bound<'_, PyModule>) -> PyResult<()> {
+        super::constants::add(m)?;
         m.add("__version__", env!("CARGO_PKG_VERSION"))?;
         // The name of the `giant-squid` program, which the Python launcher
         // gives to `_run_cli` as the first argument. Not part of the API.

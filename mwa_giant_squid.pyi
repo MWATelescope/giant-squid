@@ -12,6 +12,22 @@ import pathlib
 import typing
 
 __all__ = [
+    "BYTES_PER_MIB",
+    "DEFAULT_API_TIMEOUT",
+    "DEFAULT_ASVO_HOST",
+    "DEFAULT_DOWNLOAD_BUFFER_SIZE",
+    "DEFAULT_DOWNLOAD_RETRY_DURATION",
+    "ENV_GIANT_SQUID_BUF_SIZE",
+    "ENV_GIANT_SQUID_DELIVERY",
+    "ENV_GIANT_SQUID_DELIVERY_FORMAT",
+    "ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS",
+    "ENV_HOME",
+    "ENV_MWA_ASVO_API_KEY",
+    "ENV_MWA_ASVO_API_TIMEOUT",
+    "ENV_MWA_ASVO_HOST",
+    "MIN_DOWNLOAD_BUFFER_SIZE",
+    "OBS_ID_HINT",
+    "SIGNED_URL_LIFETIME_DAYS",
     "AsvoApiError",
     "AsvoClient",
     "AsvoError",
@@ -40,9 +56,27 @@ __all__ = [
     "SortBy",
     "Status",
     "Type",
+    "check_file_sha1_hash",
+    "default_token_cache_path",
     "reset_logging",
 ]
 
+BYTES_PER_MIB: builtins.int = 1048576
+DEFAULT_API_TIMEOUT: builtins.float = 60.0
+DEFAULT_ASVO_HOST: builtins.str = "https://asvo.mwatelescope.org:443"
+DEFAULT_DOWNLOAD_BUFFER_SIZE: builtins.int = 104857600
+DEFAULT_DOWNLOAD_RETRY_DURATION: builtins.float = 900.0
+ENV_GIANT_SQUID_BUF_SIZE: builtins.str = "GIANT_SQUID_BUF_SIZE"
+ENV_GIANT_SQUID_DELIVERY: builtins.str = "GIANT_SQUID_DELIVERY"
+ENV_GIANT_SQUID_DELIVERY_FORMAT: builtins.str = "GIANT_SQUID_DELIVERY_FORMAT"
+ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS: builtins.str = "GIANT_SQUID_DOWNLOAD_RETRY_SECS"
+ENV_HOME: builtins.str = "HOME"
+ENV_MWA_ASVO_API_KEY: builtins.str = "MWA_ASVO_API_KEY"
+ENV_MWA_ASVO_API_TIMEOUT: builtins.str = "MWA_ASVO_API_TIMEOUT"
+ENV_MWA_ASVO_HOST: builtins.str = "MWA_ASVO_HOST"
+MIN_DOWNLOAD_BUFFER_SIZE: builtins.int = 1
+OBS_ID_HINT: builtins.str = "To find the Job IDs of an Obs ID, use 'giant-squid list <OBS_ID>'."
+SIGNED_URL_LIFETIME_DAYS: builtins.int = 7
 _PROGRAM_NAME: builtins.str
 __version__: builtins.str
 
@@ -1637,6 +1671,38 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
             installed) would write its log lines to the wrong place. Run
             each command in a process of its own, as the `giant-squid`
             program does.
+    """
+
+def check_file_sha1_hash(
+    filename: builtins.str | os.PathLike | pathlib.Path, expected_hash: builtins.str, job_id: builtins.int
+) -> None:
+    r"""
+    Check the SHA-1 hash of a file against an expected hash.
+
+    The comparison ignores the case of the hexadecimal digits.
+
+    Args:
+        filename: The file to hash.
+        expected_hash: The hash that the file must have.
+        job_id: The Job ID that the file belongs to. It is for the error.
+
+    Raises:
+        AsvoError: The hash does not match (kind `HashMismatch`).
+        ValueError: `job_id` is 0.
+        OSError: The file cannot be read.
+    """
+
+def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) -> pathlib.Path:
+    r"""
+    The path of the token cache that mwa-cli also uses:
+    `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
+    `AsvoClient` to share sessions with mwa-cli.
+
+    Args:
+        home: The home directory.
+
+    Returns:
+        The path of the token cache file.
     """
 
 def reset_logging() -> None:

@@ -67,9 +67,8 @@ ERROR_VARIANTS = [
     "Http404Error",
 ]
 
-# The variants of `AsvoError` that have no subclass yet because Python handles them in another way.
+# The variants of `AsvoError` that are not decided yet, because Python handles them in another way.
 UNDECIDED_ERROR_VARIANTS = {
-    "AsvoApi": "Python raises AsvoApiError (and its subclasses) directly, not an AsvoError that wraps it.",
     "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an AsvoError.",
 }
 
@@ -177,6 +176,12 @@ ASVO_JOB_MEMBERS = [
     "display_state",
 ]
 
+# Why the helpers of the Rust validation module have no Python counterpart.
+VALIDATION_NOTE = (
+    "Python validation is the Rust validation: the bindings call it, and the `validate()` methods and the submit "
+    "methods run it."
+)
+
 MANIFEST: list[Entry] = [
     # --- The client ---
     done("crate::AsvoClient", "AsvoClient"),
@@ -216,35 +221,29 @@ MANIFEST: list[Entry] = [
     excluded("crate::ENDPOINT_JOBS", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_DOWNLOAD_JOB", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_PREPROCESS_JOB", "An internal detail of the HTTP client."),
-    pending("crate::DEFAULT_ASVO_HOST", "DEFAULT_ASVO_HOST"),
-    pending("crate::DEFAULT_API_TIMEOUT", "DEFAULT_API_TIMEOUT", "Seconds, as a float (a Rust `Duration`)."),
+    done("crate::DEFAULT_ASVO_HOST", "DEFAULT_ASVO_HOST"),
+    done("crate::DEFAULT_API_TIMEOUT", "DEFAULT_API_TIMEOUT"),  # Seconds, as a float (a Rust `Duration`).
     # --- Downloads ---
     done("crate::DownloadProgress", "DownloadProgress"),
     done("crate::DownloadProgress::Started", "DownloadProgress.Started"),
     done("crate::DownloadProgress::Advanced", "DownloadProgress.Advanced"),
     done("crate::DownloadProgress::Finished", "DownloadProgress.Finished"),
-    pending("crate::BYTES_PER_MIB", "BYTES_PER_MIB"),
-    pending("crate::MIN_DOWNLOAD_BUFFER_SIZE", "MIN_DOWNLOAD_BUFFER_SIZE"),
-    pending("crate::DEFAULT_DOWNLOAD_BUFFER_SIZE", "DEFAULT_DOWNLOAD_BUFFER_SIZE"),
-    pending(
-        "crate::DEFAULT_DOWNLOAD_RETRY_DURATION",
-        "DEFAULT_DOWNLOAD_RETRY_DURATION",
-        "Seconds, as a float (a Rust `Duration`).",
-    ),
+    done("crate::BYTES_PER_MIB", "BYTES_PER_MIB"),
+    done("crate::MIN_DOWNLOAD_BUFFER_SIZE", "MIN_DOWNLOAD_BUFFER_SIZE"),
+    done("crate::DEFAULT_DOWNLOAD_BUFFER_SIZE", "DEFAULT_DOWNLOAD_BUFFER_SIZE"),
+    done("crate::DEFAULT_DOWNLOAD_RETRY_DURATION", "DEFAULT_DOWNLOAD_RETRY_DURATION"),  # Seconds, as a float.
     pending("crate::DownloadSettings", "DownloadSettings"),
     pending("crate::DownloadSettings::from_env", "DownloadSettings.from_env"),
     # --- The environment and the token cache ---
     pending("crate::client_config_from_env", "client_config_from_env"),
-    *[pending(f"crate::{name}", name) for name in ENV_CONSTANTS],
-    pending("crate::default_token_cache_path", "default_token_cache_path"),
+    *[done(f"crate::{name}", name) for name in ENV_CONSTANTS],
+    done("crate::default_token_cache_path", "default_token_cache_path"),
     excluded("crate::StoredTokens", "An internal detail of the token cache. Python gives a path only."),
     # --- Jobs ---
     done("crate::AsvoJob", "AsvoJob"),
     *[done(f"crate::AsvoJob::{name}", f"AsvoJob.{name}") for name in ASVO_JOB_MEMBERS],
-    undecided(
-        "crate::AsvoJob::detail",
-        "Returns the generated JobDetailResponse. Python's AsvoJob has every field of it as an attribute.",
-    ),
+    pending("crate::AsvoJob::detail", "AsvoJob.detail", "Returns the JobDetailResponse."),
+    pending("mwa_asvo::api::openapi::JobDetailResponse", "JobDetailResponse"),
     excluded("crate::AsvoJob::is_expired_at", "A clock-injection helper for tests."),
     excluded("crate::AsvoJob::display_state_at", "A clock-injection helper for tests."),
     done("crate::AsvoJobVec", "AsvoJobVec"),
@@ -254,7 +253,7 @@ MANIFEST: list[Entry] = [
     excluded("crate::AsvoJobVec::all_ready_at", "A clock-injection helper for tests."),
     excluded("crate::AsvoJobVec::retain", "Takes a Rust closure. `filter` and Python list comprehensions cover it."),
     excluded("crate::AsvoJobId", "An alias of a non-zero u64. Python uses `int`."),
-    pending("crate::SIGNED_URL_LIFETIME_DAYS", "SIGNED_URL_LIFETIME_DAYS"),
+    done("crate::SIGNED_URL_LIFETIME_DAYS", "SIGNED_URL_LIFETIME_DAYS"),
     pending("mwa_asvo::types::JobType::names", "JobType.names"),
     pending("mwa_asvo::types::JobType::parse_name", "JobType.parse_name"),
     pending("mwa_asvo::types::JobState::names", "JobState.names"),
@@ -275,18 +274,14 @@ MANIFEST: list[Entry] = [
     pending("mwa_asvo::api::validate::validate_conversion_params", "ConversionJobParams.validate"),
     pending("mwa_asvo::api::validate::validate_imaging_params", "ImagingJobFlow1Params.validate"),
     pending("mwa_asvo::api::validate::validate_image_from_job_params", "ImagingJobFlow2Params.validate"),
-    undecided("mwa_asvo::api::validate::image_size", "Makes a schema value from a plain number. Python has no use."),
-    undecided("mwa_asvo::api::validate::nmiter", "Makes a schema value from a plain number. Python has no use."),
-    undecided("mwa_asvo::api::validate::days", "Makes a schema value from a plain number. Python has no use."),
-    undecided("mwa_asvo::api::validate::check_days", "Checks a schema value. Python has no use."),
-    undecided("mwa_asvo::api::validate::source_job_id", "Makes a schema value from a plain number. Python has no use."),
-    undecided(
-        "mwa_asvo::api::validate::check_delivery_format", "The delivery and format check. Covered by `validate`."
-    ),
-    undecided("mwa_asvo::api::validate::check_centre", "The phase centre check. Covered by `validate`."),
-    undecided(
-        "mwa_asvo::api::validate::Bounds", "The limits as constants (DAYS, AUTO_MASK and so on). Python has none."
-    ),
+    excluded("mwa_asvo::api::validate::image_size", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::nmiter", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::days", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::check_days", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::source_job_id", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::check_delivery_format", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::check_centre", VALIDATION_NOTE),
+    excluded("mwa_asvo::api::validate::Bounds", VALIDATION_NOTE),
     # --- IDs and parsing ---
     pending("crate::ObsId", "ObsId"),
     pending("crate::ObsId::MIN", "ObsId.MIN"),
@@ -295,13 +290,13 @@ MANIFEST: list[Entry] = [
     pending("crate::ObsId::get", "ObsId.get"),
     pending("crate::ObsIdError", "ObsIdError"),
     pending("crate::ParseError", "ParseError"),
-    pending("crate::OBS_ID_HINT", "OBS_ID_HINT"),
+    done("crate::OBS_ID_HINT", "OBS_ID_HINT"),
     pending("crate::parse_obs_ids_only", "parse_obs_ids_only"),
     pending("crate::parse_job_ids_only", "parse_job_ids_only"),
     pending("crate::parse_many_job_ids_or_obs_ids", "parse_many_job_ids_or_obs_ids"),
     pending("crate::parse_job_ids_and_obs_ids_from_file", "parse_job_ids_and_obs_ids_from_file"),
     pending("crate::parse_utc_time", "parse_utc_time"),
-    pending("crate::check_file_sha1_hash", "check_file_sha1_hash"),
+    done("crate::check_file_sha1_hash", "check_file_sha1_hash"),
     excluded("crate::jiff", "A Rust crate re-export. Python dates are `datetime.datetime`."),
     # --- The manta-ray-client CSV file ---
     done("crate::CsvJobFailure", "CsvJobFailure"),

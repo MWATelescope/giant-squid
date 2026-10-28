@@ -217,6 +217,11 @@ before you upgrade scripts.**
   only because of the `-`, never guessed from the kind of input, so a command with no ID and no `-` fails as in 2.x
   (its error says to give `-`). See the
   [README](README.md#use-the-output-of-list-as-the-input-of-other-commands).
+* Python: the constants of the Rust library (`DEFAULT_ASVO_HOST`, `DEFAULT_API_TIMEOUT` and
+  `DEFAULT_DOWNLOAD_RETRY_DURATION` in seconds, `BYTES_PER_MIB`, `MIN_DOWNLOAD_BUFFER_SIZE`,
+  `DEFAULT_DOWNLOAD_BUFFER_SIZE`, `SIGNED_URL_LIFETIME_DAYS`, `OBS_ID_HINT` and the `ENV_*` names of the
+  environment variables), and the functions `default_token_cache_path` and `check_file_sha1_hash`. This is the
+  first step to make the Python API match the Rust API (`tests/python/parity_manifest.py` lists what is left).
 
 ### Fixed in 3.0.0
 

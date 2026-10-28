@@ -97,6 +97,17 @@ release tag or by hand),
   `AsvoJob`, `AsvoJobVec`). The Python enums are made from the library's list
   (`for_each_schema_enum!`). An argument outside the schema's limits raises
   `ValueError`.
+- **The Python API matches the Rust API where possible.** A public item of
+  the library (the ones that `src/lib.rs` exports) has a Python item with the
+  same name and the same members, and the Python code calls the library, so
+  the library's validation, defaults and messages are used and not repeated.
+  `tests/python/parity_manifest.py` lists every public Rust item and its
+  Python counterpart (`done`, `pending`, `excluded` with a reason, or
+  `undecided`); `test_parity.py` checks the list against the module, against
+  `src/lib.rs` and against the error enums, so a change on either side fails
+  until the list is updated. Python types stand in for the Rust ones where
+  needed: `int` for a Job ID or Obs ID, `float` seconds for a `Duration`,
+  `datetime.datetime` for a `jiff::Timestamp`, `pathlib.Path` for a `PathBuf`.
 - **Names** in the library, the CLI flags, Python and the JSON output follow
   the schema (`job_id`, `obs_id`; `id` in a listed job, as in
   `JobDetailResponse`).
