@@ -225,6 +225,7 @@ uv run pytest
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
 | `test_csv.py` | `submit_csv_file`: the six manta-ray-client files, the replies in file order, the arguments as defaults, `ValueError` for a bad line with nothing sent, `FileNotFoundError`, `CsvSubmitError` with its replies and failures, and the warnings in `logging` |
 | `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, Ctrl-C, and `job_subdirectory` |
+| `test_parity.py` | The Python API against the Rust API. `parity_manifest.py` lists each public Rust item and its Python counterpart (`done`, `pending`, `excluded`, `undecided`). The tests check it against the module and against `src/lib.rs` and the two error enums, so a change on either side fails until the manifest says what it means |
 
 Two things are particular to this suite:
 
