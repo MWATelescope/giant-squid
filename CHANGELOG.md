@@ -222,6 +222,13 @@ before you upgrade scripts.**
   `DEFAULT_DOWNLOAD_BUFFER_SIZE`, `SIGNED_URL_LIFETIME_DAYS`, `OBS_ID_HINT` and the `ENV_*` names of the
   environment variables), and the functions `default_token_cache_path` and `check_file_sha1_hash`. This is the
   first step to make the Python API match the Rust API (`tests/python/parity_manifest.py` lists what is left).
+* Python: `ObsId`, the library's checked Obs ID (`ObsId.MIN`, `MAX`, `validate`, `from_str`, `get`). Every Obs ID
+  argument takes an `int` or an `ObsId`, and `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
+  `ObsId` (it is equal to the `int` of the same value, but `json.dumps` needs `int(obs_id)`). An Obs ID that is not
+  valid raises `ObsIdError` (before, `ValueError`), which has a subclass for each Rust variant
+  (`ObsIdErrorWrongNumDigits`, `ObsIdErrorParse`). The functions `parse_obs_ids_only`, `parse_job_ids_only`,
+  `parse_many_job_ids_or_obs_ids`, `parse_job_ids_and_obs_ids_from_file` and `parse_utc_time`, and the exception
+  `ParseError` with a subclass for each Rust variant (`ParseErrorNoObsIds` and so on).
 
 ### Fixed in 3.0.0
 

@@ -31,7 +31,9 @@ mod csv;
 mod download;
 mod error;
 mod job_params;
+mod obs_id;
 mod params;
+mod parse;
 mod typed;
 mod types;
 
@@ -109,11 +111,23 @@ mod module {
     #[pymodule_export]
     use super::csv::{CsvSubmitError, PyCsvJobFailure};
     #[pymodule_export]
-    use super::error::{AsvoApiError, AsvoError};
+    use super::error::{
+        AsvoApiError, AsvoError, ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError,
+        ParseErrorInsideFile, ParseErrorInsideStdin, ParseErrorInvalidTime, ParseErrorJobIdsGiven,
+        ParseErrorNoJobIds, ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError,
+        ParseErrorStdinJson, ParseErrorZeroJobId,
+    };
     #[pymodule_export]
     use super::job_params::{
         PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
         PyImagingJobFlow2Params,
+    };
+    #[pymodule_export]
+    use super::obs_id::PyObsId;
+    #[pymodule_export]
+    use super::parse::{
+        parse_job_ids_and_obs_ids_from_file, parse_job_ids_only, parse_many_job_ids_or_obs_ids,
+        parse_obs_ids_only, parse_utc_time,
     };
     #[pymodule_export]
     use super::types::{

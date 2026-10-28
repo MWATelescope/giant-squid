@@ -514,13 +514,14 @@ ALL_JOBS: list[tuple[str, Callable[[int], Any]]] = [
 def test_an_invalid_obs_id_is_rejected_before_any_submission(
     client: gs.AsvoClient, httpserver: HTTPServer, name: str, make: Callable[[int], Any]
 ) -> None:
-    """Every submit method raises ValueError for a bad obsid, and sends nothing. Making the class does not raise."""
+    """Every submit method raises ObsIdError for a bad obsid, and sends nothing. Making the class does not raise."""
     params = make(INVALID_OBS_ID)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="Obs ID"):
+    with pytest.raises(gs.ObsIdErrorWrongNumDigits, match="10 digits") as excinfo:
         submit(client, params)
 
+    assert excinfo.value.value == INVALID_OBS_ID
     assert len(httpserver.log) == requests_before, name
 
 

@@ -137,7 +137,7 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     assert len(jobs.filter(job_types=[gs.JobType.Conversion])) == 0
     errors_and_ready = jobs.filter(job_states=[gs.JobState.Error, gs.JobState.Completed])
     assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
-    with pytest.raises(ValueError, match="Obs ID"):
+    with pytest.raises(gs.ObsIdError, match="10 digits"):
         jobs.filter(obs_ids=[1])
 
 
@@ -595,3 +595,26 @@ def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HT
         client.get_jobs(job_ids=[1], obs_ids=[TEST_OBS_ID])
 
     assert len(httpserver.log) == requests_before
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_a_job_has_an_obs_id(host: str, serve_jobs: Callable[..., None]) -> None:
+    """`AsvoJob.obs_id` is an `ObsId`, which is equal to the number."""
+    serve_jobs(mixed_jobs())
+    job = gs.AsvoClient(host, TEST_API_KEY).get_jobs()[0]
+
+    assert isinstance(job.obs_id, gs.ObsId)
+    assert job.obs_id == TEST_OBS_ID
+    assert int(job.obs_id) == TEST_OBS_ID
+
+
+@pytest.mark.usefixtures("mock_login")
+def test_an_obs_id_argument_is_an_int_or_an_obs_id(host: str, serve_jobs: Callable[..., None]) -> None:
+    """`filter` and `get_jobs` take an `ObsId` as well as an `int`."""
+    serve_jobs(mixed_jobs())
+    client = gs.AsvoClient(host, TEST_API_KEY)
+    jobs = client.get_jobs(obs_ids=[gs.ObsId(TEST_OBS_ID)])
+
+    assert len(jobs) == len(mixed_jobs())
+    assert len(jobs.filter(obs_ids=[gs.ObsId(TEST_OBS_ID)])) == len(mixed_jobs())
+    assert len(jobs.filter(obs_ids=[TEST_OBS_ID])) == len(mixed_jobs())

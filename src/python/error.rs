@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The Python exceptions `AsvoApiError` and `AsvoError`.
+//! The Python exceptions `AsvoApiError`, `AsvoError`, `ObsIdError` and
+//! `ParseError`.
 //!
 //! Each exception has the name of the Rust error enum. Its `kind` attribute
 //! is the name of the Rust variant (for example `"ApiError"`), and it has one
@@ -15,10 +16,13 @@ use pyo3::exceptions::{PyException, PyOSError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use super::obs_id::PyObsId;
 use super::types::{PyJobState, PyType};
 // The library's error enums have the same names as the Python exceptions,
 // so they are used through this path.
 use crate::mwa_asvo as lib;
+use crate::obs_id::{ObsId, ObsIdError as LibObsIdError};
+use crate::ParseError as LibParseError;
 
 // With the "python-stubgen" feature, pyo3-stub-gen's `create_exception!`
 // wraps pyo3's and also registers the exception for the stubs.
@@ -41,6 +45,84 @@ create_exception!(
     "A download or job check failed. `kind` is the Rust `AsvoError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
 );
 
+create_exception!(
+    mwa_giant_squid,
+    ObsIdError,
+    PyException,
+    "A number or text is not a valid Obs ID. `kind` is the Rust `ObsIdError` variant, and the exception is also an instance of the class for that variant (for example `ObsIdErrorWrongNumDigits`).\n\n`kind` is always set. The other attributes are set only for the kinds shown."
+);
+
+create_exception!(
+    mwa_giant_squid,
+    ParseError,
+    PyException,
+    "Job IDs, Obs IDs or a time could not be read. `kind` is the Rust `ParseError` variant, and the exception is also an instance of the class for that variant (for example `ParseErrorNoObsIds`).\n\n`kind` is always set. The other attributes are set only for the kinds shown. A file that cannot be read raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
+);
+
+/// Make the exception class of each variant of an error: a subclass of the
+/// error's exception, which has the names of the error and the variant
+/// (`ParseErrorNoObsIds`).
+///
+/// With the "python-stubgen" feature, the class is also registered for the
+/// stubs, with the error's exception as its base. (pyo3-stub-gen's
+/// `create_exception!` writes the name of a base that is not a built-in
+/// exception with the module `builtins`, which is wrong.)
+macro_rules! variant_exceptions {
+    ($base:ident: $($name:ident => $doc:literal,)+) => {
+        $(
+            pyo3::create_exception!(mwa_giant_squid, $name, $base, $doc);
+
+            #[cfg(feature = "python-stubgen")]
+            impl pyo3_stub_gen::PyStubType for $name {
+                fn type_output() -> pyo3_stub_gen::TypeInfo {
+                    pyo3_stub_gen::TypeInfo::unqualified(stringify!($name))
+                }
+            }
+
+            #[cfg(feature = "python-stubgen")]
+            pyo3_stub_gen::impl_py_runtime_type!($name);
+
+            #[cfg(feature = "python-stubgen")]
+            pyo3_stub_gen::inventory::submit! {
+                pyo3_stub_gen::type_info::PyClassInfo {
+                    pyclass_name: stringify!($name),
+                    struct_id: std::any::TypeId::of::<$name>,
+                    getters: &[],
+                    setters: &[],
+                    module: Some("mwa_giant_squid"),
+                    doc: $doc,
+                    bases: &[|| pyo3_stub_gen::TypeInfo::unqualified(stringify!($base))],
+                    has_eq: false,
+                    has_ord: false,
+                    has_hash: false,
+                    has_str: false,
+                    subclass: true,
+                }
+            }
+        )+
+    };
+}
+
+variant_exceptions! {
+    ObsIdError:
+    ObsIdErrorWrongNumDigits => "The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.",
+    ObsIdErrorParse => "The text is not a number (kind `Parse`).",
+}
+
+variant_exceptions! {
+    ParseError:
+    ParseErrorInsideFile => "A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.",
+    ParseErrorInsideStdin => "A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.",
+    ParseErrorStdinError => "Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.",
+    ParseErrorStdinJson => "Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.",
+    ParseErrorJobIdsGiven => "Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.",
+    ParseErrorObsIdsGiven => "Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.",
+    ParseErrorZeroJobId => "0 is not a Job ID or an Obs ID (kind `ZeroJobId`).",
+    ParseErrorNoObsIds => "No Obs IDs were given (kind `NoObsIds`).",
+    ParseErrorNoJobIds => "No Job IDs were given (kind `NoJobIds`).",
+    ParseErrorInvalidTime => "The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).",
+}
+
 /// The attributes of the two exceptions, for the stubs. `build` sets them
 /// at run time, so pyo3-stub-gen cannot see them.
 #[cfg(feature = "python-stubgen")]
@@ -50,8 +132,9 @@ mod stub_attributes {
     use pyo3_stub_gen::type_info::{MemberInfo, PyMethodsInfo};
     use pyo3_stub_gen::PyStubType;
 
+    use super::super::obs_id::PyObsId;
     use super::super::types::{PyJobState, PyType};
-    use super::{AsvoApiError, AsvoError};
+    use super::{AsvoApiError, AsvoError, ObsIdError, ParseError};
 
     /// One attribute: its name, its Rust type (for the Python type) and its
     /// docstring.
@@ -95,7 +178,7 @@ mod stub_attributes {
             attrs: &[
                 attr!("kind", String, "The variant, for example \"NoAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
                 attr!("job_id", u64, "NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error."),
-                attr!("obs_id", u64, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
+                attr!("obs_id", PyObsId, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("expired", Option<jiff::Timestamp>, "JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known."),
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
@@ -121,6 +204,43 @@ mod stub_attributes {
             column: column!(),
         }
     }
+
+    pyo3_stub_gen::inventory::submit! {
+        PyMethodsInfo {
+            struct_id: std::any::TypeId::of::<ObsIdError>,
+            attrs: &[
+                attr!("kind", String, "\"WrongNumDigits\" or \"Parse\"."),
+                attr!("value", u64, "WrongNumDigits: the number."),
+            ],
+            getters: &[],
+            setters: &[],
+            methods: &[],
+            file: file!(),
+            line: line!(),
+            column: column!(),
+        }
+    }
+
+    pyo3_stub_gen::inventory::submit! {
+        PyMethodsInfo {
+            struct_id: std::any::TypeId::of::<ParseError>,
+            attrs: &[
+                attr!("kind", String, "The variant, for example \"NoObsIds\", \"JobIdsGiven\" or \"InvalidTime\"."),
+                attr!("file", String, "InsideFile: the file."),
+                attr!("text", String, "InsideFile and InsideStdin: the word that is not a number."),
+                attr!("message", String, "StdinError: the message of the error."),
+                attr!("problem", String, "StdinJson: what is wrong."),
+                attr!("job_ids", Vec<u64>, "JobIdsGiven: the Job IDs."),
+                attr!("obs_ids", Vec<PyObsId>, "ObsIdsGiven: the Obs IDs."),
+            ],
+            getters: &[],
+            setters: &[],
+            methods: &[],
+            file: file!(),
+            line: line!(),
+            column: column!(),
+        }
+    }
 }
 
 /// The name of the attribute that holds the Rust variant name.
@@ -131,6 +251,12 @@ enum Field {
     Str(String),
     OptStr(Option<String>),
     Int(u64),
+    /// An Obs ID (`ObsId`).
+    ObsId(ObsId),
+    /// A list of Job IDs, as `int`.
+    Ints(Vec<u64>),
+    /// A list of Obs IDs (`ObsId`).
+    ObsIds(Vec<ObsId>),
     OptInt(Option<i64>),
     State(PyJobState),
     /// A delivery type (`Type`), or `None`.
@@ -149,7 +275,11 @@ fn build<T: pyo3::PyTypeInfo>(
     kind: &str,
     fields: Vec<(&str, Field)>,
 ) -> PyErr {
-    let err = PyErr::new::<T, _>(message);
+    build_from(py, PyErr::new::<T, _>(message), kind, fields)
+}
+
+/// Set `kind` and `fields` on the exception `err`, and return it.
+fn build_from(py: Python<'_>, err: PyErr, kind: &str, fields: Vec<(&str, Field)>) -> PyErr {
     let value = err.value(py);
     let mut result = value.setattr(KIND, kind);
     for (name, field) in fields {
@@ -157,6 +287,11 @@ fn build<T: pyo3::PyTypeInfo>(
             Field::Str(s) => value.setattr(name, s),
             Field::OptStr(s) => value.setattr(name, s),
             Field::Int(n) => value.setattr(name, n),
+            Field::ObsId(o) => value.setattr(name, PyObsId(o)),
+            Field::Ints(ids) => value.setattr(name, ids),
+            Field::ObsIds(ids) => {
+                value.setattr(name, ids.into_iter().map(PyObsId).collect::<Vec<_>>())
+            }
             Field::OptInt(n) => value.setattr(name, n),
             Field::State(s) => value.setattr(name, s),
             Field::Delivery(d) => value.setattr(name, d),
@@ -292,7 +427,7 @@ pub(crate) fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> P
 pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
     let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(id.get()));
-    let obs_id = |o: crate::ObsId| ("obs_id", Field::Int(u64::from(o)));
+    let obs_id = |o: crate::ObsId| ("obs_id", Field::ObsId(o));
     let (kind, fields) = match e {
         lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
         lib::AsvoError::InvalidOption { .. } => return PyValueError::new_err(message),
@@ -413,4 +548,79 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
         lib::AsvoError::Http404Error { job_id: id } => ("Http404Error", vec![job_id(id)]),
     };
     build::<AsvoError>(py, message, kind, fields)
+}
+
+/// Convert a library [`LibObsIdError`] to a Python `ObsIdError`: the class of
+/// its variant.
+pub(crate) fn obs_id_error(py: Python<'_>, e: LibObsIdError) -> PyErr {
+    let message = e.to_string();
+    match e {
+        LibObsIdError::WrongNumDigits(value) => build_from(
+            py,
+            PyErr::new::<ObsIdErrorWrongNumDigits, _>(message),
+            "WrongNumDigits",
+            vec![("value", Field::Int(value))],
+        ),
+        LibObsIdError::Parse(_) => build_from(
+            py,
+            PyErr::new::<ObsIdErrorParse, _>(message),
+            "Parse",
+            vec![],
+        ),
+    }
+}
+
+/// Convert a library [`LibParseError`] to a Python `ParseError`: the class of
+/// its variant. A file or standard input that cannot be read is an `OSError`.
+pub(crate) fn parse_error(py: Python<'_>, e: LibParseError) -> PyErr {
+    let message = e.to_string();
+    // The exception of a variant, with `kind` and `fields`.
+    macro_rules! raise {
+        ($class:ident, $kind:literal, $fields:expr) => {
+            build_from(py, PyErr::new::<$class, _>(message), $kind, $fields)
+        };
+    }
+    match e {
+        LibParseError::InsideFile { file, text } => raise!(
+            ParseErrorInsideFile,
+            "InsideFile",
+            vec![("file", Field::Str(file)), ("text", Field::Str(text))]
+        ),
+        LibParseError::InsideStdin { text } => {
+            raise!(
+                ParseErrorInsideStdin,
+                "InsideStdin",
+                vec![("text", Field::Str(text))]
+            )
+        }
+        LibParseError::StdinIO { source } => PyErr::from(source),
+        LibParseError::StdinError { message: problem } => raise!(
+            ParseErrorStdinError,
+            "StdinError",
+            vec![("message", Field::Str(problem))]
+        ),
+        LibParseError::StdinJson { problem } => raise!(
+            ParseErrorStdinJson,
+            "StdinJson",
+            vec![("problem", Field::Str(problem))]
+        ),
+        LibParseError::IO { file, source } => os_error(py, &file, source),
+        LibParseError::JobIdsGiven { job_ids } => raise!(
+            ParseErrorJobIdsGiven,
+            "JobIdsGiven",
+            vec![(
+                "job_ids",
+                Field::Ints(job_ids.into_iter().map(|id| id.get()).collect())
+            )]
+        ),
+        LibParseError::ObsIdsGiven { obs_ids } => raise!(
+            ParseErrorObsIdsGiven,
+            "ObsIdsGiven",
+            vec![("obs_ids", Field::ObsIds(obs_ids))]
+        ),
+        LibParseError::ZeroJobId => raise!(ParseErrorZeroJobId, "ZeroJobId", vec![]),
+        LibParseError::NoObsIds => raise!(ParseErrorNoObsIds, "NoObsIds", vec![]),
+        LibParseError::NoJobIds => raise!(ParseErrorNoJobIds, "NoJobIds", vec![]),
+        LibParseError::InvalidTime => raise!(ParseErrorInvalidTime, "InvalidTime", vec![]),
+    }
 }

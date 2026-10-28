@@ -147,6 +147,32 @@ jobs = client.get_jobs(
 
 `job_ids` and `obs_ids` cannot be given together: that raises `ValueError`.
 
+### Obs IDs
+
+An Obs ID argument takes an `int` or an `ObsId`. `ObsId` is the library's checked Obs ID (10 digits). An `int` that
+is not a valid Obs ID raises `ObsIdError`. `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
+`ObsId`. An `ObsId` is not an `int`, but it acts as one where a number is needed: it is equal to the `int` of the
+same value, has its hash, is ordered with it, and has `__int__` and `__index__`. `json.dumps` does not know it:
+use `int(obs_id)`.
+
+```python
+from mwa_giant_squid import ObsId, ObsIdError
+
+obs_id = ObsId(1065880128)  # or ObsId.from_str("1065880128")
+assert obs_id == 1065880128
+print(int(obs_id), ObsId.MIN, ObsId.MAX)
+
+try:
+    ObsId(123)
+except ObsIdError as e:
+    print(e.kind, e.value)  # WrongNumDigits 123
+```
+
+The functions that read IDs on the command line are also in the module: `parse_obs_ids_only`,
+`parse_job_ids_only`, `parse_many_job_ids_or_obs_ids` and `parse_job_ids_and_obs_ids_from_file` (each argument is an
+ID or the name of a file of IDs), and `parse_utc_time` (RFC 3339 or a date, as a `datetime` in UTC). A problem is a
+`ParseError`.
+
 The result is an `AsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
 filters a list that you already have, without a request.
 
@@ -216,8 +242,9 @@ reply = client.submit_preprocess_job(params)
 print(reply.job_id, reply.status, reply.message)
 ```
 
-The submit methods check the request body before they send a request. A value outside the MWA ASVO limits, or an
-Obs ID or Job ID that is not valid, raises `ValueError` that names the argument. Nothing is sent. So does
+The submit methods check the request body before they send a request. A value outside the MWA ASVO limits, or a
+Job ID that is not valid, raises `ValueError` that names the argument, and an Obs ID that is not valid raises
+`ObsIdError`. Nothing is sent. So does
 `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
 only. The other deliveries take either format. `submit_preprocess_job` raises `TypeError` for an object that is not one
 of the three preprocess classes.
@@ -370,13 +397,16 @@ the function raises an exception, the download stops and the call raises that ex
 |---|---|
 | `AsvoApiError` | An API call failed. This includes a login that failed and an API call inside a download. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
 | `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. (A file that cannot be read or written is an `OSError`, not this.) |
+| `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
+| `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
 | `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
 | `OSError` | A file or directory cannot be read, written or made: the CSV file of `submit_csv_file`, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
 | `CsvSubmitError` | `submit_csv_file` submitted the jobs of a file, and some failed. It has `submitted` (the replies of the jobs that were submitted) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 
-Both `AsvoApiError` and `AsvoError` have a `kind` attribute: the name of the Rust error variant. The
-other attributes exist only for the kinds that use them (see the docstrings). For example:
+`AsvoApiError`, `AsvoError`, `ObsIdError` and `ParseError` have a `kind` attribute: the name of the Rust error
+variant. `ObsIdError` and `ParseError` also have a subclass for each kind (`ParseErrorNoObsIds`), so you can catch
+one kind with `except`. The other attributes exist only for the kinds that use them (see the docstrings). For example:
 
 ```python
 from mwa_giant_squid import AsvoApiError

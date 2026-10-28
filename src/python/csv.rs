@@ -17,6 +17,7 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use super::error::{api_error, os_error};
+use super::obs_id::PyObsId;
 use super::typed::ExceptionObject;
 use super::types::PyJobSubmittedResponse;
 // The library's error has the name of the Python exception.
@@ -85,7 +86,7 @@ mod stub_attributes {
 )]
 pub struct PyCsvJobFailure {
     line: usize,
-    obs_id: u64,
+    obs_id: PyObsId,
     error: Py<PyAny>,
 }
 
@@ -94,7 +95,7 @@ impl PyCsvJobFailure {
         let error = api_error(py, failure.error);
         Self {
             line: failure.line,
-            obs_id: u64::from(failure.obs_id),
+            obs_id: PyObsId(failure.obs_id),
             error: error.value(py).clone().into_any().unbind(),
         }
     }
@@ -111,7 +112,7 @@ impl PyCsvJobFailure {
 
     /// The Obs ID of the job.
     #[getter]
-    fn obs_id(&self) -> u64 {
+    fn obs_id(&self) -> PyObsId {
         self.obs_id
     }
 
@@ -129,7 +130,7 @@ impl PyCsvJobFailure {
             .map_or_else(|_| String::new(), |s| s.to_string());
         format!(
             "CsvJobFailure(line={}, obs_id={}, error={message:?})",
-            self.line, self.obs_id
+            self.line, self.obs_id.0
         )
     }
 }

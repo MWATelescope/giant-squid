@@ -15,12 +15,22 @@ import pytest
 
 import mwa_giant_squid
 
-from .parity_manifest import API_ERROR_VARIANTS, ERROR_VARIANTS, MANIFEST, PYTHON_ONLY, Entry
+from .parity_manifest import (
+    API_ERROR_VARIANTS,
+    ERROR_VARIANTS,
+    MANIFEST,
+    OBS_ID_ERROR_VARIANTS,
+    PARSE_ERROR_VARIANTS,
+    PYTHON_ONLY,
+    Entry,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIB_RS = REPO_ROOT / "src" / "lib.rs"
 API_ERROR_RS = REPO_ROOT / "src" / "mwa_asvo" / "api" / "error.rs"
 ERROR_RS = REPO_ROOT / "src" / "mwa_asvo" / "error.rs"
+OBS_ID_RS = REPO_ROOT / "src" / "obs_id" / "mod.rs"
+HELPERS_RS = REPO_ROOT / "src" / "helpers" / "mod.rs"
 
 # What `resolve` returns for a name that the module does not have.
 MISSING = object()
@@ -130,7 +140,12 @@ def test_every_crate_root_entry_is_exported() -> None:
 
 @pytest.mark.parametrize(
     ("path", "enum", "listed"),
-    [(API_ERROR_RS, "AsvoApiError", API_ERROR_VARIANTS), (ERROR_RS, "AsvoError", ERROR_VARIANTS)],
+    [
+        (API_ERROR_RS, "AsvoApiError", API_ERROR_VARIANTS),
+        (ERROR_RS, "AsvoError", ERROR_VARIANTS),
+        (OBS_ID_RS, "ObsIdError", OBS_ID_ERROR_VARIANTS),
+        (HELPERS_RS, "ParseError", PARSE_ERROR_VARIANTS),
+    ],
 )
 def test_error_variants_match_the_rust_enum(path: Path, enum: str, listed: list[str]) -> None:
     """The variants in the manifest are those of the Rust enum."""

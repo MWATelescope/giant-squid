@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use super::error::asvo_error;
+use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
@@ -187,8 +188,8 @@ impl PyAsvoJob {
 
     /// The Obs ID.
     #[getter]
-    fn obs_id(&self) -> u64 {
-        u64::from(self.0.obs_id())
+    fn obs_id(&self) -> PyObsId {
+        PyObsId(self.0.obs_id())
     }
 
     /// The job type, or `None` if the server gives none.
@@ -508,20 +509,20 @@ impl PyAsvoJobVec {
     /// `None` or empty does not filter.
     ///
     /// Raises:
-    ///     ValueError: An Obs ID is not valid.
+    ///     ObsIdError: An Obs ID is not valid.
     #[pyo3(signature = (job_ids=None, obs_ids=None, job_types=None, job_states=None))]
     fn filter(
         &self,
         job_ids: Option<Vec<JobId>>,
-        obs_ids: Option<Vec<u64>>,
+        obs_ids: Option<Vec<ObsIdArg>>,
         job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
     ) -> PyResult<Self> {
         let obs_ids = obs_ids
             .unwrap_or_default()
             .into_iter()
-            .map(|o| ObsId::validate(o).map_err(|e| PyValueError::new_err(e.to_string())))
-            .collect::<PyResult<Vec<ObsId>>>()?;
+            .map(|o| o.0)
+            .collect::<Vec<ObsId>>();
         let job_types: Vec<JobType> = job_types
             .unwrap_or_default()
             .into_iter()

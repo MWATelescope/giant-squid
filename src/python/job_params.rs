@@ -20,6 +20,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 
 use super::error::api_error;
+use super::obs_id::RawObsId;
 use super::params::job_obs_id;
 use super::types::{
     PyDeliveryDestination, PyDeliveryFormat, PyImageOutputMode, PyImageWeighting, PyOutputFormat,
@@ -64,7 +65,7 @@ use crate::mwa_asvo::api::validate;
 #[pyclass(name = "DownloadJobParams", module = "mwa_giant_squid")]
 pub struct PyDownloadJobParams {
     #[pyo3(get, set)]
-    pub obs_id: u64,
+    pub obs_id: RawObsId,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
     #[pyo3(get, set)]
@@ -104,7 +105,7 @@ impl PyDownloadJobParams {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        obs_id: u64,
+        obs_id: RawObsId,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
@@ -133,9 +134,10 @@ impl PyDownloadJobParams {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the Obs ID, Job ID, image size or `nmiter` is not valid.
-    pub(super) fn to_schema(&self) -> PyResult<DownloadJobParams> {
-        let mut params = schema::download_params(job_obs_id(self.obs_id)?);
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
+    /// valid.
+    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<DownloadJobParams> {
+        let mut params = schema::download_params(job_obs_id(py, self.obs_id)?);
         params.delivery = self.delivery.into();
         params.delivery_format = self.delivery_format.into();
         params.allow_resubmit = self.allow_resubmit;
@@ -186,7 +188,7 @@ impl PyDownloadJobParams {
 #[pyclass(name = "ConversionJobParams", module = "mwa_giant_squid")]
 pub struct PyConversionJobParams {
     #[pyo3(get, set)]
-    pub obs_id: u64,
+    pub obs_id: RawObsId,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
     #[pyo3(get, set)]
@@ -256,7 +258,7 @@ impl PyConversionJobParams {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        obs_id: u64,
+        obs_id: RawObsId,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         output: PyOutputFormat,
@@ -305,9 +307,10 @@ impl PyConversionJobParams {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the Obs ID, Job ID, image size or `nmiter` is not valid.
-    pub(super) fn to_schema(&self) -> PyResult<ConversionJobParams> {
-        let mut params = schema::conversion_params(job_obs_id(self.obs_id)?);
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
+    /// valid.
+    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ConversionJobParams> {
+        let mut params = schema::conversion_params(job_obs_id(py, self.obs_id)?);
         params.delivery = self.delivery.into();
         params.delivery_format = self.delivery_format.into();
         params.output = self.output.into();
@@ -395,7 +398,7 @@ impl PyConversionJobParams {
 #[pyclass(name = "ImagingJobFlow1Params", module = "mwa_giant_squid")]
 pub struct PyImagingJobFlow1Params {
     #[pyo3(get, set)]
-    pub obs_id: u64,
+    pub obs_id: RawObsId,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
     #[pyo3(get, set)]
@@ -528,7 +531,7 @@ impl PyImagingJobFlow1Params {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        obs_id: u64,
+        obs_id: RawObsId,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         apply_di_cal: bool,
@@ -619,11 +622,12 @@ impl PyImagingJobFlow1Params {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the Obs ID, Job ID, image size or `nmiter` is not valid.
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
+    /// valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobFlow1Params> {
         let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
-        let mut params = schema::imaging_params(job_obs_id(self.obs_id)?);
+        let mut params = schema::imaging_params(job_obs_id(py, self.obs_id)?);
         params.delivery = self.delivery.into();
         params.delivery_format = self.delivery_format.into();
         params.apply_di_cal = self.apply_di_cal;
@@ -838,7 +842,8 @@ impl PyImagingJobFlow2Params {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the Obs ID, Job ID, image size or `nmiter` is not valid.
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
+    /// valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobFlow2Params> {
         let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
@@ -884,7 +889,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for PreprocessParams {
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
         let py = obj.py();
         if let Ok(params) = obj.cast::<PyConversionJobParams>() {
-            return Ok(Self(params.borrow().to_schema()?.into()));
+            return Ok(Self(params.borrow().to_schema(py)?.into()));
         }
         if let Ok(params) = obj.cast::<PyImagingJobFlow1Params>() {
             return Ok(Self(params.borrow().to_schema(py)?.into()));

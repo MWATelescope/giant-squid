@@ -50,7 +50,22 @@ __all__ = [
     "JobState",
     "JobSubmittedResponse",
     "JobType",
+    "ObsId",
+    "ObsIdError",
+    "ObsIdErrorParse",
+    "ObsIdErrorWrongNumDigits",
     "OutputFormat",
+    "ParseError",
+    "ParseErrorInsideFile",
+    "ParseErrorInsideStdin",
+    "ParseErrorInvalidTime",
+    "ParseErrorJobIdsGiven",
+    "ParseErrorNoJobIds",
+    "ParseErrorNoObsIds",
+    "ParseErrorObsIdsGiven",
+    "ParseErrorStdinError",
+    "ParseErrorStdinJson",
+    "ParseErrorZeroJobId",
     "PhaseCentre",
     "Polarization",
     "SortBy",
@@ -58,6 +73,11 @@ __all__ = [
     "Type",
     "check_file_sha1_hash",
     "default_token_cache_path",
+    "parse_job_ids_and_obs_ids_from_file",
+    "parse_job_ids_only",
+    "parse_many_job_ids_or_obs_ids",
+    "parse_obs_ids_only",
+    "parse_utc_time",
     "reset_logging",
 ]
 
@@ -155,7 +175,7 @@ class AsvoClient:
     def get_jobs(
         self,
         job_ids: typing.Sequence[builtins.int] | None = None,
-        obs_ids: typing.Sequence[builtins.int] | None = None,
+        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
         job_types: typing.Sequence[JobType] | None = None,
         job_states: typing.Sequence[JobState] | None = None,
         *,
@@ -189,9 +209,9 @@ class AsvoClient:
                 `None` uses the server's default order.
 
         Raises:
-            ValueError: Both `job_ids` and `obs_ids` are given, an Obs ID is
-                not valid, or `days` is not from 1 to 30 or is given with
-                `date_from` or `date_to`.
+            ObsIdError: An Obs ID is not valid.
+            ValueError: Both `job_ids` and `obs_ids` are given, or `days` is
+                not from 1 to 30 or is given with `date_from` or `date_to`.
             TypeError: `date_from` or `date_to` has no time zone.
             AsvoApiError: The request failed.
         """
@@ -216,8 +236,8 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: `params.obs_id` is not a valid Obs ID, `params.offset`
-                is not from 0 to 5400, or `params.delivery` is
+            ObsIdError: `params.obs_id` is not a valid Obs ID.
+            ValueError: `params.offset` is not from 0 to 5400, or `params.delivery` is
                 `DeliveryDestination.Acacia` and `params.delivery_format` is
                 `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
                 is sent.
@@ -242,7 +262,8 @@ class AsvoClient:
 
         Raises:
             TypeError: `params` is not one of the three classes.
-            ValueError: An Obs ID or Job ID is not valid, a number is outside
+            ObsIdError: An Obs ID is not valid.
+            ValueError: A Job ID is not valid, a number is outside
                 what the MWA ASVO accepts (for example `avg_freq_res` above
                 1280), `delivery` is `DeliveryDestination.Acacia` and
                 `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
@@ -392,7 +413,7 @@ class AsvoClient:
         """
     def download_obs(
         self,
-        obs_id: builtins.int,
+        obs_id: builtins.int | ObsId,
         download_dir: builtins.str | os.PathLike | pathlib.Path,
         *,
         keep_tar: builtins.bool = False,
@@ -420,7 +441,7 @@ class AsvoClient:
             the Obs ID).
 
         Raises:
-            ValueError: `obs_id` is not a valid Obs ID.
+            ObsIdError: `obs_id` is not a valid Obs ID.
             AsvoError: No job, no ready job, or more than one ready job has
                 this Obs ID, or the download failed (see `download_job`).
             AsvoApiError: Getting the job list failed (only when `jobs` is
@@ -443,7 +464,7 @@ class AsvoError(builtins.Exception):
     r"""
     NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
     """
-    obs_id: builtins.int
+    obs_id: ObsId
     r"""
     JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds.
     """
@@ -523,7 +544,7 @@ class AsvoJob:
         The Job ID.
         """
     @property
-    def obs_id(self) -> builtins.int:
+    def obs_id(self) -> ObsId:
         r"""
         The Obs ID.
         """
@@ -628,7 +649,7 @@ class AsvoJobVec:
     def filter(
         self,
         job_ids: typing.Sequence[builtins.int] | None = None,
-        obs_ids: typing.Sequence[builtins.int] | None = None,
+        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
         job_types: typing.Sequence[JobType] | None = None,
         job_states: typing.Sequence[JobState] | None = None,
     ) -> AsvoJobVec:
@@ -637,7 +658,7 @@ class AsvoJobVec:
         `None` or empty does not filter.
 
         Raises:
-            ValueError: An Obs ID is not valid.
+            ObsIdError: An Obs ID is not valid.
         """
     def all_ready(self, job_ids: typing.Sequence[builtins.int]) -> builtins.bool:
         r"""
@@ -694,7 +715,7 @@ class ConversionJobParams:
     @property
     def obs_id(self) -> builtins.int: ...
     @obs_id.setter
-    def obs_id(self, value: builtins.int) -> None: ...
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
     @property
     def delivery(self) -> DeliveryDestination: ...
     @delivery.setter
@@ -769,7 +790,7 @@ class ConversionJobParams:
     def allow_resubmit(self, value: builtins.bool | None) -> None: ...
     def __new__(
         cls,
-        obs_id: builtins.int,
+        obs_id: builtins.int | ObsId,
         *,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
@@ -802,7 +823,7 @@ class CsvJobFailure:
         The line of the file, from 1.
         """
     @property
-    def obs_id(self) -> builtins.int:
+    def obs_id(self) -> ObsId:
         r"""
         The Obs ID of the job.
         """
@@ -864,7 +885,7 @@ class DownloadJobParams:
     @property
     def obs_id(self) -> builtins.int: ...
     @obs_id.setter
-    def obs_id(self, value: builtins.int) -> None: ...
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
     @property
     def delivery(self) -> DeliveryDestination: ...
     @delivery.setter
@@ -899,7 +920,7 @@ class DownloadJobParams:
     def to_channel(self, value: builtins.int | None) -> None: ...
     def __new__(
         cls,
-        obs_id: builtins.int,
+        obs_id: builtins.int | ObsId,
         *,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
@@ -1052,7 +1073,7 @@ class ImagingJobFlow1Params:
     @property
     def obs_id(self) -> builtins.int: ...
     @obs_id.setter
-    def obs_id(self, value: builtins.int) -> None: ...
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
     @property
     def delivery(self) -> DeliveryDestination: ...
     @delivery.setter
@@ -1211,7 +1232,7 @@ class ImagingJobFlow1Params:
     def allow_resubmit(self, value: builtins.bool | None) -> None: ...
     def __new__(
         cls,
-        obs_id: builtins.int,
+        obs_id: builtins.int | ObsId,
         *,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
@@ -1502,6 +1523,198 @@ class JobSubmittedResponse:
         """
 
 @typing.final
+class ObsId:
+    r"""
+    An MWA observation ID that is known to be valid.
+
+    An `ObsId` is not an `int`, but it can be used where a number is needed
+    (`int(obs_id)`, `range`, a list index, a dictionary key) and it is equal
+    to the `int` of the same value. `json.dumps` does not know it: use
+    `int(obs_id)`.
+
+    Every argument of this module that is an Obs ID takes an `int` or an
+    `ObsId`. An Obs ID that is not valid raises `ObsIdError`.
+    """
+
+    MIN: builtins.int = 1000000000
+    r"""
+    The smallest valid Obs ID: the smallest 10-digit number.
+    """
+    MAX: builtins.int = 9999999999
+    r"""
+    The largest valid Obs ID: the largest 10-digit number.
+    """
+    def __new__(cls, value: builtins.int | ObsId) -> ObsId:
+        r"""
+        Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+
+        Args:
+            value: The Obs ID.
+
+        Raises:
+            ObsIdError: The number is not a valid Obs ID (kind
+                `WrongNumDigits`).
+            OverflowError: The number is negative, or too large for 64 bits.
+        """
+    @staticmethod
+    def validate(o: builtins.int | ObsId) -> ObsId:
+        r"""
+        Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+
+        Args:
+            o: The Obs ID.
+
+        Raises:
+            ObsIdError: The number is not a valid Obs ID (kind
+                `WrongNumDigits`).
+            OverflowError: The number is negative, or too large for 64 bits.
+        """
+    @staticmethod
+    def from_str(text: builtins.str) -> ObsId:
+        r"""
+        Make an `ObsId` from text, such as `"1065880128"`.
+
+        Args:
+            text: The Obs ID as decimal digits.
+
+        Raises:
+            ObsIdError: The text is not a number (kind `Parse`), or is not a
+                valid Obs ID (kind `WrongNumDigits`).
+        """
+    def get(self) -> builtins.int:
+        r"""
+        The value, as an `int`.
+        """
+    def __int__(self) -> builtins.int: ...
+    def __index__(self) -> builtins.int: ...
+    def __hash__(self) -> builtins.int:
+        r"""
+        The hash of the `int` of the same value, so that an `ObsId` and an
+        `int` are the same key of a dictionary.
+        """
+    def __eq__(self, other: object) -> builtins.bool: ...
+    def __lt__(self, other: typing.Any) -> builtins.bool: ...
+    def __le__(self, other: typing.Any) -> builtins.bool: ...
+    def __gt__(self, other: typing.Any) -> builtins.bool: ...
+    def __ge__(self, other: typing.Any) -> builtins.bool: ...
+    def __getnewargs__(self) -> tuple[builtins.int]:
+        r"""
+        The arguments for `copy` and `pickle`.
+        """
+
+class ObsIdError(builtins.Exception):
+    r"""
+    A number or text is not a valid Obs ID. `kind` is the Rust `ObsIdError` variant, and the exception is also an instance of the class for that variant (for example `ObsIdErrorWrongNumDigits`).
+
+    `kind` is always set. The other attributes are set only for the kinds shown.
+    """
+
+    kind: builtins.str
+    r"""
+    "WrongNumDigits" or "Parse".
+    """
+    value: builtins.int
+    r"""
+    WrongNumDigits: the number.
+    """
+
+class ObsIdErrorParse(ObsIdError):
+    r"""
+    The text is not a number (kind `Parse`).
+    """
+
+class ObsIdErrorWrongNumDigits(ObsIdError):
+    r"""
+    The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.
+    """
+
+class ParseError(builtins.Exception):
+    r"""
+    Job IDs, Obs IDs or a time could not be read. `kind` is the Rust `ParseError` variant, and the exception is also an instance of the class for that variant (for example `ParseErrorNoObsIds`).
+
+    `kind` is always set. The other attributes are set only for the kinds shown. A file that cannot be read raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
+    """
+
+    kind: builtins.str
+    r"""
+    The variant, for example "NoObsIds", "JobIdsGiven" or "InvalidTime".
+    """
+    file: builtins.str
+    r"""
+    InsideFile: the file.
+    """
+    text: builtins.str
+    r"""
+    InsideFile and InsideStdin: the word that is not a number.
+    """
+    message: builtins.str
+    r"""
+    StdinError: the message of the error.
+    """
+    problem: builtins.str
+    r"""
+    StdinJson: what is wrong.
+    """
+    job_ids: builtins.list[builtins.int]
+    r"""
+    JobIdsGiven: the Job IDs.
+    """
+    obs_ids: builtins.list[ObsId]
+    r"""
+    ObsIdsGiven: the Obs IDs.
+    """
+
+class ParseErrorInsideFile(ParseError):
+    r"""
+    A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.
+    """
+
+class ParseErrorInsideStdin(ParseError):
+    r"""
+    A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.
+    """
+
+class ParseErrorInvalidTime(ParseError):
+    r"""
+    The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).
+    """
+
+class ParseErrorJobIdsGiven(ParseError):
+    r"""
+    Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.
+    """
+
+class ParseErrorNoJobIds(ParseError):
+    r"""
+    No Job IDs were given (kind `NoJobIds`).
+    """
+
+class ParseErrorNoObsIds(ParseError):
+    r"""
+    No Obs IDs were given (kind `NoObsIds`).
+    """
+
+class ParseErrorObsIdsGiven(ParseError):
+    r"""
+    Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.
+    """
+
+class ParseErrorStdinError(ParseError):
+    r"""
+    Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.
+    """
+
+class ParseErrorStdinJson(ParseError):
+    r"""
+    Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.
+    """
+
+class ParseErrorZeroJobId(ParseError):
+    r"""
+    0 is not a Job ID or an Obs ID (kind `ZeroJobId`).
+    """
+
+@typing.final
 class DeliveryDestination(enum.Enum):
     r"""
     Where the MWA ASVO delivers a job's files: the OpenAPI schema's
@@ -1703,6 +1916,110 @@ def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) ->
 
     Returns:
         The path of the token cache file.
+    """
+
+def parse_job_ids_and_obs_ids_from_file(
+    f: builtins.str | os.PathLike | pathlib.Path,
+) -> tuple[builtins.list[builtins.int], builtins.list[ObsId]]:
+    r"""
+    Read the Job IDs and the Obs IDs of a file.
+
+    The IDs are separated by spaces or lines. A number that has 10 digits is
+    an Obs ID, and any other number is a Job ID.
+
+    Args:
+        f: The file.
+
+    Returns:
+        The Job IDs and the Obs IDs, each in order.
+
+    Raises:
+        ParseError: A word in the file is not a number (kind `InsideFile`),
+            or an ID is 0 (kind `ZeroJobId`).
+        OSError: The file cannot be read.
+    """
+
+def parse_job_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[builtins.int]:
+    r"""
+    Read Job IDs and files of Job IDs, for a command that takes Job IDs only.
+
+    Each string is a Job ID, or the name of a file of IDs that spaces or
+    lines separate.
+
+    Args:
+        strings: Job IDs, and files of them.
+
+    Returns:
+        The Job IDs, in order.
+
+    Raises:
+        ParseError: An Obs ID is given anywhere, even with Job IDs (kind
+            `ObsIdsGiven`), no Job ID is given (kind `NoJobIds`), a word is
+            not a number (kind `InsideFile`), or an ID is 0 (kind
+            `ZeroJobId`).
+        OSError: A file cannot be read.
+    """
+
+def parse_many_job_ids_or_obs_ids(
+    strings: typing.Sequence[builtins.str],
+) -> tuple[builtins.list[builtins.int], builtins.list[ObsId]]:
+    r"""
+    Read Job IDs, Obs IDs, and files of them.
+
+    A number that has 10 digits is an Obs ID, and any other number is a Job
+    ID. A string that is not a number is the name of a file of IDs that
+    spaces or lines separate.
+
+    Args:
+        strings: Job IDs, Obs IDs, and files of them.
+
+    Returns:
+        The Job IDs and the Obs IDs, each in order.
+
+    Raises:
+        ParseError: A word in a file is not a number (kind `InsideFile`),
+            or an ID is 0 (kind `ZeroJobId`).
+        OSError: A file cannot be read.
+    """
+
+def parse_obs_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[ObsId]:
+    r"""
+    Read Obs IDs and files of Obs IDs, for a command that takes Obs IDs only.
+
+    Each string is an Obs ID, or the name of a file of IDs that spaces or
+    lines separate. Read a number that has 10 digits as an Obs ID, and any
+    other number as a Job ID.
+
+    Args:
+        strings: Obs IDs, and files of them.
+
+    Returns:
+        The Obs IDs, in order.
+
+    Raises:
+        ParseError: A Job ID is given anywhere, even with Obs IDs (kind
+            `JobIdsGiven`), no Obs ID is given (kind `NoObsIds`), a word is
+            not a number (kind `InsideFile`), or an ID is 0 (kind
+            `ZeroJobId`).
+        OSError: A file cannot be read.
+    """
+
+def parse_utc_time(text: builtins.str) -> datetime.datetime:
+    r"""
+    Read a time for the `date_from` and `date_to` of a job list.
+
+    The text is RFC 3339 (for example `2026-09-01T00:00:00Z`), or a date
+    alone (`2026-09-01`), which is midnight UTC. A date and time with no
+    offset (`2026-09-01T12:00:00`) is refused and not guessed.
+
+    Args:
+        text: The time.
+
+    Returns:
+        The time, as a `datetime.datetime` that has the UTC time zone.
+
+    Raises:
+        ParseError: The text is not a time (kind `InvalidTime`).
     """
 
 def reset_logging() -> None:

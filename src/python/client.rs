@@ -21,7 +21,7 @@ use super::csv::csv_submit_error;
 use super::download::{run_download, PyDownloadArgs};
 use super::error::{api_error, asvo_error};
 use super::job_params::{PreprocessParams, PyDownloadJobParams};
-use super::params::job_obs_id;
+use super::obs_id::ObsIdArg;
 use super::typed::{JobId, ProgressCallback};
 use super::types::{
     PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyJobCancelledResponse,
@@ -110,9 +110,9 @@ impl PyAsvoClient {
     ///         `None` uses the server's default order.
     ///
     /// Raises:
-    ///     ValueError: Both `job_ids` and `obs_ids` are given, an Obs ID is
-    ///         not valid, or `days` is not from 1 to 30 or is given with
-    ///         `date_from` or `date_to`.
+    ///     ObsIdError: An Obs ID is not valid.
+    ///     ValueError: Both `job_ids` and `obs_ids` are given, or `days` is
+    ///         not from 1 to 30 or is given with `date_from` or `date_to`.
     ///     TypeError: `date_from` or `date_to` has no time zone.
     ///     AsvoApiError: The request failed.
     #[pyo3(signature = (
@@ -131,7 +131,7 @@ impl PyAsvoClient {
         &self,
         py: Python<'_>,
         job_ids: Option<Vec<JobId>>,
-        obs_ids: Option<Vec<u64>>,
+        obs_ids: Option<Vec<ObsIdArg>>,
         job_types: Option<Vec<PyJobType>>,
         job_states: Option<Vec<PyJobState>>,
         days: Option<i64>,
@@ -142,8 +142,8 @@ impl PyAsvoClient {
         let obs_ids = obs_ids
             .unwrap_or_default()
             .into_iter()
-            .map(job_obs_id)
-            .collect::<PyResult<Vec<ObsId>>>()?;
+            .map(|o| o.0)
+            .collect::<Vec<ObsId>>();
         let days = days
             .map(validate::days)
             .transpose()
@@ -194,8 +194,8 @@ impl PyAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: `params.obs_id` is not a valid Obs ID, `params.offset`
-    ///         is not from 0 to 5400, or `params.delivery` is
+    ///     ObsIdError: `params.obs_id` is not a valid Obs ID.
+    ///     ValueError: `params.offset` is not from 0 to 5400, or `params.delivery` is
     ///         `DeliveryDestination.Acacia` and `params.delivery_format` is
     ///         `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
     ///         is sent.
@@ -205,7 +205,7 @@ impl PyAsvoClient {
         py: Python<'_>,
         params: PyRef<'_, PyDownloadJobParams>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = params.to_schema()?;
+        let params = params.to_schema(py)?;
         py.detach(|| self.inner.submit_download_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
@@ -226,7 +226,8 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     TypeError: `params` is not one of the three classes.
-    ///     ValueError: An Obs ID or Job ID is not valid, a number is outside
+    ///     ObsIdError: An Obs ID is not valid.
+    ///     ValueError: A Job ID is not valid, a number is outside
     ///         what the MWA ASVO accepts (for example `avg_freq_res` above
     ///         1280), `delivery` is `DeliveryDestination.Acacia` and
     ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
@@ -451,7 +452,7 @@ impl PyAsvoClient {
     ///     the Obs ID).
     ///
     /// Raises:
-    ///     ValueError: `obs_id` is not a valid Obs ID.
+    ///     ObsIdError: `obs_id` is not a valid Obs ID.
     ///     AsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
     ///     AsvoApiError: Getting the job list failed (only when `jobs` is
@@ -476,7 +477,7 @@ impl PyAsvoClient {
     fn download_obs(
         &self,
         py: Python<'_>,
-        obs_id: u64,
+        obs_id: ObsIdArg,
         download_dir: PathBuf,
         keep_tar: bool,
         job_subdirectory: bool,
@@ -489,7 +490,7 @@ impl PyAsvoClient {
         download_count: usize,
         jobs: Option<PyRef<'_, PyAsvoJobVec>>,
     ) -> PyResult<PyAsvoJob> {
-        let obs_id = job_obs_id(obs_id)?;
+        let obs_id = obs_id.0;
         let args = PyDownloadArgs {
             download_dir,
             job_subdirectory,

@@ -67,9 +67,31 @@ ERROR_VARIANTS = [
     "Http404Error",
 ]
 
-# The variants of `AsvoError` that are not decided yet, because Python handles them in another way.
-UNDECIDED_ERROR_VARIANTS = {
+# The variants of `AsvoError` that have no subclass, because Python raises another exception for them.
+EXCLUDED_ERROR_VARIANTS = {
     "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an AsvoError.",
+}
+
+# The variants of `ObsIdError` (`src/obs_id/mod.rs`) and `ParseError` (`src/helpers/mod.rs`).
+OBS_ID_ERROR_VARIANTS = ["WrongNumDigits", "Parse"]
+PARSE_ERROR_VARIANTS = [
+    "InsideFile",
+    "InsideStdin",
+    "StdinIO",
+    "StdinError",
+    "StdinJson",
+    "IO",
+    "JobIdsGiven",
+    "ObsIdsGiven",
+    "ZeroJobId",
+    "NoObsIds",
+    "NoJobIds",
+    "InvalidTime",
+]
+# The variants of `ParseError` that have no subclass, because Python raises another exception for them.
+PARSE_ERROR_EXCLUDED = {
+    "StdinIO": "Python raises OSError, not a ParseError.",
+    "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not a ParseError.",
 }
 
 # The names in the Python module that the Rust library does not have, and why.
@@ -108,14 +130,27 @@ def undecided(rust: str, note: str, python: str | None = None) -> Entry:
     return Entry(rust, "undecided", python, note)
 
 
+def _variant_entries(enum: str, variants: list[str], excluded_variants: dict[str, str] | None = None) -> list[Entry]:
+    """The entries of the variants of a Rust error enum: each is a Python subclass of the enum's exception."""
+    excluded_variants = excluded_variants or {}
+    entries: list[Entry] = []
+    for variant in variants:
+        rust = f"crate::{enum}::{variant}"
+        if variant in excluded_variants:
+            entries.append(excluded(rust, excluded_variants[variant]))
+        else:
+            entries.append(done(rust, f"{enum}{variant}"))
+    return entries
+
+
 def _errors() -> list[Entry]:
     entries: list[Entry] = []
     for variant in API_ERROR_VARIANTS:
         entries.append(pending(f"crate::AsvoApiError::{variant}", f"AsvoApiError{variant}"))
     for variant in ERROR_VARIANTS:
         rust = f"crate::AsvoError::{variant}"
-        if variant in UNDECIDED_ERROR_VARIANTS:
-            entries.append(undecided(rust, UNDECIDED_ERROR_VARIANTS[variant], f"AsvoError{variant}"))
+        if variant in EXCLUDED_ERROR_VARIANTS:
+            entries.append(excluded(rust, EXCLUDED_ERROR_VARIANTS[variant]))
         else:
             entries.append(pending(rust, f"AsvoError{variant}"))
     return entries
@@ -283,19 +318,22 @@ MANIFEST: list[Entry] = [
     excluded("mwa_asvo::api::validate::check_centre", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::Bounds", VALIDATION_NOTE),
     # --- IDs and parsing ---
-    pending("crate::ObsId", "ObsId"),
-    pending("crate::ObsId::MIN", "ObsId.MIN"),
-    pending("crate::ObsId::MAX", "ObsId.MAX"),
-    pending("crate::ObsId::validate", "ObsId.validate"),
-    pending("crate::ObsId::get", "ObsId.get"),
-    pending("crate::ObsIdError", "ObsIdError"),
-    pending("crate::ParseError", "ParseError"),
+    done("crate::ObsId", "ObsId"),
+    done("crate::ObsId::MIN", "ObsId.MIN"),
+    done("crate::ObsId::MAX", "ObsId.MAX"),
+    done("crate::ObsId::validate", "ObsId.validate"),
+    done("crate::ObsId::get", "ObsId.get"),
+    done("crate::ObsId::from_str", "ObsId.from_str"),
+    done("crate::ObsIdError", "ObsIdError"),
+    done("crate::ParseError", "ParseError"),
+    *_variant_entries("ObsIdError", OBS_ID_ERROR_VARIANTS),
+    *_variant_entries("ParseError", PARSE_ERROR_VARIANTS, PARSE_ERROR_EXCLUDED),
     done("crate::OBS_ID_HINT", "OBS_ID_HINT"),
-    pending("crate::parse_obs_ids_only", "parse_obs_ids_only"),
-    pending("crate::parse_job_ids_only", "parse_job_ids_only"),
-    pending("crate::parse_many_job_ids_or_obs_ids", "parse_many_job_ids_or_obs_ids"),
-    pending("crate::parse_job_ids_and_obs_ids_from_file", "parse_job_ids_and_obs_ids_from_file"),
-    pending("crate::parse_utc_time", "parse_utc_time"),
+    done("crate::parse_obs_ids_only", "parse_obs_ids_only"),
+    done("crate::parse_job_ids_only", "parse_job_ids_only"),
+    done("crate::parse_many_job_ids_or_obs_ids", "parse_many_job_ids_or_obs_ids"),
+    done("crate::parse_job_ids_and_obs_ids_from_file", "parse_job_ids_and_obs_ids_from_file"),
+    done("crate::parse_utc_time", "parse_utc_time"),
     done("crate::check_file_sha1_hash", "check_file_sha1_hash"),
     excluded("crate::jiff", "A Rust crate re-export. Python dates are `datetime.datetime`."),
     # --- The manta-ray-client CSV file ---

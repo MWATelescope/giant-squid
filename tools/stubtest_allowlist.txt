@@ -60,6 +60,14 @@ mwa_giant_squid.ImageWeighting.Uniform
 # run time, while the stub names it.
 mwa_giant_squid.AsvoJobVec.__getitem__
 
+# `ObsId.__eq__`, `__lt__`, `__le__`, `__gt__` and `__ge__`: as for `AsvoJobVec.__getitem__`, pyo3 does not permit a `signature`
+# on a magic method, so the other operand is positional-only at run time, while the stub names it `other`.
+mwa_giant_squid.ObsId.__eq__
+mwa_giant_squid.ObsId.__lt__
+mwa_giant_squid.ObsId.__le__
+mwa_giant_squid.ObsId.__gt__
+mwa_giant_squid.ObsId.__ge__
+
 # The run-time `__all__` has `__version__` (the module adds it); pyo3-stub-gen's `__all__` lists the classes and
 # functions, and declares `__version__` separately.
 mwa_giant_squid.__all__
