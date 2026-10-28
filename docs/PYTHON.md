@@ -81,48 +81,48 @@ What is particular to running the program from Python:
 You need an MWA ASVO API key. To get one, log in to the
 [MWA ASVO portal](https://asvo.mwatelescope.org/) and copy the key from your profile.
 
-The module reads no environment variable. Your program reads the key and gives it to the client:
+`AsvoClient(config)` logs in when it is created. The `AsvoClientConfig` is the same as the library's: it holds the
+host, your API key, the API timeout and the token cache. `AsvoClientConfig` itself reads no environment variable.
+To read them as the `giant-squid` command does, use `client_config_from_env()`.
 
 ```python
-import os
+import mwa_giant_squid as gs
 
-import mwa_giant_squid
+# Your program gives the key ...
+client = gs.AsvoClient(gs.AsvoClientConfig("https://asvo.mwatelescope.org:443", api_key))
 
-client = mwa_giant_squid.AsvoClient(
-    "https://asvo.mwatelescope.org:443",
-    os.environ["MWA_ASVO_API_KEY"],
-)
+# ... or the environment does: MWA_ASVO_API_KEY (required), MWA_ASVO_HOST, MWA_ASVO_API_TIMEOUT and HOME.
+client = gs.AsvoClient(gs.client_config_from_env())
 ```
 
-`AsvoClient(host, api_key, *, api_timeout=None, token_cache_path=None)` logs in when it is created.
+`AsvoClientConfig(host, api_key, *, api_timeout=None, token_cache_path=None)` has these values. They are also
+attributes, which you can change before you make the client.
 
 | Argument | Meaning |
 |---|---|
 | `host` | The MWA ASVO URL. Use `http://` only for a local test server. All other hosts must use TLS. |
-| `api_key` | Your API key. |
-| `api_timeout` | The time limit for one API request, in seconds (more than 0). `None` uses the library's `DEFAULT_API_TIMEOUT`. |
+| `api_key` | Your API key. The `repr` of the config does not show it. |
+| `api_timeout` | The time limit for one API request, in seconds (more than 0). `None` uses `DEFAULT_API_TIMEOUT`. |
 | `token_cache_path` | A file in which to keep the session between runs. `None` keeps the session in memory only. A session is used only by a client with the same `host` and `api_key` as the one that made it; the file holds a hash of the key, never the key. |
 
 The MWA ASVO allows only a few logins each minute. A program that runs often must set
-`token_cache_path`. The `giant-squid` command uses `$HOME/.mwa-asvo/tokens.json`.
-You can give the same path to share its session (for the same host and API key):
+`token_cache_path`. The `giant-squid` command uses `$HOME/.mwa-asvo/tokens.json`
+(`default_token_cache_path(home)`). You can give the same path to share its session (for the same host and API key):
 
 ```python
 from pathlib import Path
 
-client = mwa_giant_squid.AsvoClient(
-    host,
-    api_key,
-    token_cache_path=Path.home() / ".mwa-asvo" / "tokens.json",
-)
+config = gs.AsvoClientConfig(host, api_key, token_cache_path=gs.default_token_cache_path(Path.home()))
+client = gs.AsvoClient(config)
 ```
 
 To use a different MWA ASVO server (for example, to test a new feature), give its URL as `host`.
 
 ## List jobs
 
-`get_jobs` gets your jobs, as `giant-squid list` does. It accepts lists of Job IDs, Obs IDs, job types and job
-states. The server does what it can (one state, one type, the days or the dates, the sort order), and the module
+`get_jobs` gets your jobs, as `giant-squid list` does. It takes a `JobsFilter`, which has lists of Job IDs, Obs IDs,
+job types and job states, `days` or `date_from` and `date_to`, and `sort_by`. The server does what it can (one
+state, one type, the days or the dates, the sort order), and the module
 filters the rest. Every filter that is `None` does not filter, except `days` and `sort_by`: with `days=None` you
 get the jobs from the MWA ASVO's default window (the schema's default for `days`, which is also the most `days`
 can be), not your full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both:
@@ -130,22 +130,27 @@ can be), not your full history. The jobs are selected by `days` or by `date_from
 than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find it either.
 
 ```python
-from mwa_giant_squid import JobState, JobType
+from mwa_giant_squid import JobsFilter, JobState, JobType
 
 # The jobs of the past 7 days (days: 1 to 30) that are completed.
-jobs = client.get_jobs(days=7, job_states=[JobState.Completed])
+jobs = client.get_jobs(JobsFilter(days=7, job_states=[JobState.Completed]))
 for job in jobs:
     print(job.job_id, job.obs_id, job.job_type, job.job_state, job.created)
 
 # Several Obs IDs, job types and job states.
 jobs = client.get_jobs(
-    obs_ids=[1065880128, 1065880248],
-    job_types=[JobType.Visibility],
-    job_states=[JobState.Completed, JobState.Error],
+    JobsFilter(
+        obs_ids=[1065880128, 1065880248],
+        job_types=[JobType.Visibility],
+        job_states=[JobState.Completed, JobState.Error],
+    )
 )
 ```
 
-`job_ids` and `obs_ids` cannot be given together: that raises `ValueError`.
+`get_jobs()` with no filter gets the jobs of the default window. `job_ids` and `obs_ids` cannot be given together:
+that raises `ValueError`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked when you set it,
+as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 or `days` outside 1 to 30
+raises `ValueError`.
 
 ### Obs IDs
 
@@ -279,7 +284,7 @@ for reply in replies:
 The whole file is read and checked before anything is submitted. Then the jobs are submitted in the order of the
 file, and the list has the `JobSubmittedResponse` of each. A key that a line does not give has the default of the
 MWA ASVO. The arguments `delivery`, `delivery_format` and `allow_resubmit` are the defaults of the lines that do not
-give that key (the module reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used):
+give that key (`submit_csv_file` reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used):
 
 ```python
 from mwa_giant_squid import DeliveryDestination
@@ -336,16 +341,26 @@ an error, was cancelled, or is completed but its download links have expired (ki
 
 ## Download
 
-`download_job` downloads the files of one ready job. `download_obs` does the same for the one ready job
-of an Obs ID. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the Job ID of the
-Obs ID's job.
+`download_job(job_id, options)` downloads the files of one ready job. `download_obs(obs_id, options)` does the same
+for the one ready job of an Obs ID. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the
+Job ID of the Obs ID's job. `options` is a `DownloadOptions`.
 
 ```python
-client.download_job(reply.job_id, "/data/mwa")
+client.download_job(reply.job_id, gs.DownloadOptions("/data/mwa"))
 ```
 
+The call gets the job list first. To download several jobs, get the list once and use `download_job_from(jobs,
+job_id, options)` or `download_obs_from(jobs, obs_id, options)` for each: they find the job in your list and make
+no request for it.
+
 The directory must exist. The call blocks until the download ends. It releases the GIL, so other Python
-threads run during the download.
+threads run during the download. One `DownloadOptions` can serve a series of downloads: set `download_number`
+between them. `DownloadSettings.from_env()` reads `GIANT_SQUID_BUF_SIZE` and `GIANT_SQUID_DOWNLOAD_RETRY_SECS`, as the
+command does. Give its `buffer_size` and `retry_duration` to the options.
+
+`DownloadOptions(download_dir, *, keep_tar=False, job_subdirectory=True, no_resume=False, hash=True,
+progress=None, buffer_size=None, retry_duration=None, download_number=1, download_count=1)`. Each is also an
+attribute.
 
 | Argument | Meaning |
 |---|---|
@@ -354,10 +369,10 @@ threads run during the download.
 | `no_resume` | Download the whole file again, even if part of it is on disk. |
 | `hash` | Check the SHA-1 hash of the file. A resumed download, and a complete file that is already on disk, are always checked. Default: `True`. |
 | `progress` | A function that receives `DownloadProgress` events. |
-| `buffer_size` | How many bytes to hold in memory before they are written. Default: the library's `DEFAULT_DOWNLOAD_BUFFER_SIZE`. |
-| `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: the library's `DEFAULT_DOWNLOAD_RETRY_DURATION`. |
+| `download_dir` | The directory for the files. It must exist. |
+| `buffer_size` | How many bytes to hold in memory before they are written. Default: `DEFAULT_DOWNLOAD_BUFFER_SIZE`. At least `MIN_DOWNLOAD_BUFFER_SIZE`. |
+| `retry_duration` | How long to retry a failing download, in seconds. `0` disables retries. Default: `DEFAULT_DOWNLOAD_RETRY_DURATION`. |
 | `download_number`, `download_count` | The place of this download in a series. They set the `[1/2]` text in labels. |
-| `jobs` | A job list from `get_jobs` to find the job in. By default the call gets the job list first. To download several jobs, get the list once and pass it to each call. |
 
 ### Resume and Ctrl-C
 
@@ -391,7 +406,7 @@ def on_progress(event: DownloadProgress) -> None:
             print()
 
 
-client.download_job(job_id, "/data/mwa", progress=on_progress)
+client.download_job(job_id, gs.DownloadOptions("/data/mwa", progress=on_progress))
 ```
 
 `Advanced` events are combined, so the function is called about 10 times each second at most. If

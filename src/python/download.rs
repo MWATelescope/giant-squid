@@ -42,7 +42,9 @@ use std::time::{Duration, Instant};
 use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
+use super::config::duration_from_seconds;
 use super::error::asvo_error;
+use super::typed::ProgressCallback;
 use super::types::PyDownloadProgress;
 use crate::mwa_asvo::{
     AsvoError, DownloadOptions, DownloadProgress, DEFAULT_DOWNLOAD_BUFFER_SIZE,
@@ -53,19 +55,148 @@ use crate::mwa_asvo::{
 /// and between two checks for signals.
 const CALLBACK_INTERVAL: Duration = Duration::from_millis(100);
 
-/// The download options that a Python caller gives, before they become a
-/// library [`DownloadOptions`].
-pub(super) struct PyDownloadArgs {
+/// The options of a download: the library's [`DownloadOptions`].
+///
+/// A library `DownloadOptions` borrows its directory and its hooks, so this
+/// class holds the values and the Python progress callback, and the library
+/// options are made from them when a download runs. The `should_stop` hook of
+/// the library has no counterpart: a download stops at Ctrl-C
+/// (`KeyboardInterrupt`) instead.
+///
+/// Args:
+///     download_dir: The directory for the files. It must exist.
+///     keep_tar: Keep the tar file as it is. `False` unpacks it into
+///         `download_dir` while it downloads.
+///     job_subdirectory: Put the files in a directory of their own,
+///         `download_dir/<job_id>`, which is made if it is not there, and not
+///         in `download_dir` itself, as the `giant-squid` command does. The
+///         files of two jobs of the same observation do not meet in one
+///         directory. `False` puts the files in `download_dir` itself, as
+///         giant-squid 2.x did. It has no effect on a Scratch job, which is
+///         moved into `download_dir` in a folder of its own.
+///     no_resume: Download the whole file again, even if part of it is on
+///         disk.
+///     hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
+///         resumed download, and a complete file that is already on disk,
+///         are always checked, even when this is `False`.
+///     progress: A function to call with each `DownloadProgress` event, or
+///         `None`. `Advanced` events are combined, so the function is called
+///         about 10 times a second at most. If it raises, the download stops
+///         and its exception is raised.
+///     buffer_size: How many bytes to hold in memory before they are
+///         written. At least `MIN_DOWNLOAD_BUFFER_SIZE`. `None` is
+///         `DEFAULT_DOWNLOAD_BUFFER_SIZE`.
+///     retry_duration: How long to retry a failing download, in seconds. 0
+///         disables retries. `None` is `DEFAULT_DOWNLOAD_RETRY_DURATION`.
+///     download_number: The number of this download, in a series, for the
+///         progress and log label (`[1/2]`).
+///     download_count: How many downloads there are in the series.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
+#[pyclass(name = "DownloadOptions", module = "mwa_giant_squid")]
+pub struct PyDownloadOptions {
+    /// The directory for the files.
+    #[pyo3(get, set)]
     pub download_dir: PathBuf,
-    pub job_subdirectory: bool,
+    /// Keep the tar file as it is.
+    #[pyo3(get, set)]
     pub keep_tar: bool,
+    /// Put the files in a directory of their own, `download_dir/<job_id>`.
+    #[pyo3(get, set)]
+    pub job_subdirectory: bool,
+    /// Download the whole file again, even if part of it is on disk.
+    #[pyo3(get, set)]
     pub no_resume: bool,
+    /// Check the SHA-1 hash of the file against the MWA ASVO's.
+    #[pyo3(get, set)]
     pub hash: bool,
-    pub progress: Option<Py<PyAny>>,
-    pub buffer_size: Option<usize>,
-    pub retry_duration: Option<f64>,
+    progress: Option<Py<PyAny>>,
+    /// How many bytes to hold in memory before they are written.
+    #[pyo3(get, set)]
+    pub buffer_size: usize,
+    /// How long to retry a failing download, in seconds.
+    #[pyo3(get, set)]
+    pub retry_duration: f64,
+    /// The number of this download, in a series.
+    #[pyo3(get, set)]
     pub download_number: usize,
+    /// How many downloads there are in the series.
+    #[pyo3(get, set)]
     pub download_count: usize,
+}
+
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
+#[pymethods]
+impl PyDownloadOptions {
+    #[new]
+    #[pyo3(signature = (
+        download_dir,
+        *,
+        keep_tar=false,
+        job_subdirectory=true,
+        no_resume=false,
+        hash=true,
+        progress=None,
+        buffer_size=None,
+        retry_duration=None,
+        download_number=1,
+        download_count=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        download_dir: PathBuf,
+        keep_tar: bool,
+        job_subdirectory: bool,
+        no_resume: bool,
+        hash: bool,
+        progress: Option<ProgressCallback>,
+        buffer_size: Option<usize>,
+        retry_duration: Option<f64>,
+        download_number: usize,
+        download_count: usize,
+    ) -> Self {
+        Self {
+            download_dir,
+            keep_tar,
+            job_subdirectory,
+            no_resume,
+            hash,
+            progress: progress.map(|p| p.0),
+            buffer_size: buffer_size.unwrap_or(DEFAULT_DOWNLOAD_BUFFER_SIZE),
+            retry_duration: retry_duration
+                .unwrap_or_else(|| DEFAULT_DOWNLOAD_RETRY_DURATION.as_secs_f64()),
+            download_number,
+            download_count,
+        }
+    }
+
+    /// A function to call with each `DownloadProgress` event, or `None`.
+    #[getter]
+    fn progress(&self, py: Python<'_>) -> Option<ProgressCallback> {
+        self.progress
+            .as_ref()
+            .map(|callback| ProgressCallback(callback.clone_ref(py)))
+    }
+
+    #[setter]
+    fn set_progress(&mut self, progress: Option<ProgressCallback>) {
+        self.progress = progress.map(|p| p.0);
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "DownloadOptions(download_dir={:?}, keep_tar={}, job_subdirectory={}, no_resume={}, hash={}, \
+             buffer_size={}, retry_duration={}, download_number={}, download_count={})",
+            self.download_dir,
+            self.keep_tar,
+            self.job_subdirectory,
+            self.no_resume,
+            self.hash,
+            self.buffer_size,
+            self.retry_duration,
+            self.download_number,
+            self.download_count
+        )
+    }
 }
 
 /// The state that the two hooks share.
@@ -222,40 +353,39 @@ fn take_stray_error(py: Python<'_>) -> Option<PyErr> {
 /// `ValueError` for a `download_dir` that is not UTF-8 or a bad
 /// `retry_duration`; `AsvoError` or `AsvoApiError` from the download; or
 /// the exception from the callback or a signal handler.
-pub(super) fn run_download<F, T>(py: Python<'_>, args: PyDownloadArgs, download: F) -> PyResult<T>
+pub(super) fn run_download<F, T>(
+    py: Python<'_>,
+    options: &PyDownloadOptions,
+    download: F,
+) -> PyResult<T>
 where
     F: FnOnce(&DownloadOptions) -> Result<T, AsvoError> + Send,
     T: Send,
 {
-    let download_dir = args
+    let download_dir = options
         .download_dir
         .to_str()
         .ok_or_else(|| {
-            let download_dir = &args.download_dir;
+            let download_dir = &options.download_dir;
             PyValueError::new_err(format!("download_dir={download_dir:?} is not valid UTF-8"))
         })?
         .to_string();
-    let retry_duration = match args.retry_duration {
-        None => DEFAULT_DOWNLOAD_RETRY_DURATION,
-        Some(seconds) => Duration::try_from_secs_f64(seconds).map_err(|e| {
-            PyValueError::new_err(format!("retry_duration={seconds} is not valid: {e}"))
-        })?,
-    };
-    let hooks = Hooks::new(args.progress);
+    let retry_duration = duration_from_seconds("retry_duration", options.retry_duration)?;
+    let hooks = Hooks::new(options.progress.as_ref().map(|p| p.clone_ref(py)));
 
     let result = py.detach(|| {
         let progress = |event: DownloadProgress| hooks.progress(event);
         let should_stop = || hooks.should_stop();
         let opts = DownloadOptions {
-            keep_tar: args.keep_tar,
-            no_resume: args.no_resume,
-            hash: args.hash,
+            keep_tar: options.keep_tar,
+            no_resume: options.no_resume,
+            hash: options.hash,
             download_dir: &download_dir,
-            job_subdirectory: args.job_subdirectory,
+            job_subdirectory: options.job_subdirectory,
             progress: Some(&progress),
-            download_number: args.download_number,
-            download_count: args.download_count,
-            buffer_size: args.buffer_size.unwrap_or(DEFAULT_DOWNLOAD_BUFFER_SIZE),
+            download_number: options.download_number,
+            download_count: options.download_count,
+            buffer_size: options.buffer_size,
             retry_duration,
             should_stop: Some(&should_stop),
         };

@@ -231,6 +231,14 @@ before you upgrade scripts.**
   `ParseError` with a subclass for each Rust variant (`ParseErrorNoObsIds` and so on).
 * Python: `JobDetailResponse` and `AsvoJob.detail()` (the job as the API gives it), `JobFile.size_bytes`,
   `AsvoJobVec.json()` (as `giant-squid list --json`), and `names()` and `parse_name()` on `JobType` and `JobState`.
+* Python: `AsvoClientConfig`, `JobsFilter`, `DownloadOptions` and `DownloadSettings`, as in the Rust library, and
+  `client_config_from_env()` and `DownloadSettings.from_env()`, which read the environment variables of the
+  `giant-squid` command. **Changed:** `AsvoClient(config)` takes an `AsvoClientConfig` instead of `host`, `api_key`,
+  `api_timeout` and `token_cache_path`. `get_jobs(filter=None)` takes a `JobsFilter` instead of keyword arguments.
+  `download_job(job_id, options)` and `download_obs(obs_id, options)` take a `DownloadOptions` instead of
+  `download_dir` and keyword arguments, and the new `download_job_from(jobs, job_id, options)` and
+  `download_obs_from(jobs, obs_id, options)` replace the `jobs=` argument. The `repr` of an `AsvoClientConfig` does
+  not show the API key.
 
 ### Fixed in 3.0.0
 

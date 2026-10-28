@@ -86,6 +86,16 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ProgressCallback {
     }
 }
 
+impl<'py> IntoPyObject<'py> for ProgressCallback {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        Ok(self.0.into_bound(py))
+    }
+}
+
 #[cfg(feature = "python-stubgen")]
 impl pyo3_stub_gen::PyStubType for ProgressCallback {
     fn type_output() -> pyo3_stub_gen::TypeInfo {

@@ -51,7 +51,7 @@ def served_jobs() -> list[dict[str, Any]]:
 def jobs(host: str, mock_login: None, serve_jobs: Callable[..., None]) -> gs.AsvoJobVec:
     """The jobs of `served_jobs`, got through a client."""
     serve_jobs(served_jobs())
-    return gs.AsvoClient(host, TEST_API_KEY).get_jobs()
+    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
 
 def job_with_id(jobs: gs.AsvoJobVec, job_id: int) -> gs.AsvoJob:
@@ -118,7 +118,7 @@ def test_size_bytes_is_zero_for_a_negative_size(host: str, serve_jobs: Callable[
     product = {"files": [{"type": "acacia", "url": FILE_URL, "size": NEGATIVE_FILE_SIZE}]}
     serve_jobs([job_detail(JOB_ID_FIRST, "completed", completed=COMPLETED_TEXT, product=product)])
 
-    job = gs.AsvoClient(host, TEST_API_KEY).get_jobs()[0]
+    job = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()[0]
 
     assert job.product is not None
     (file,) = job.product.files
@@ -154,7 +154,7 @@ def test_json_of_no_jobs_is_an_empty_object(host: str, serve_jobs: Callable[...,
     """An empty job list is `{}`."""
     serve_jobs([])
 
-    assert gs.AsvoClient(host, TEST_API_KEY).get_jobs().json() == "{}"
+    assert gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs().json() == "{}"
 
 
 @pytest.mark.parametrize("enum", [gs.JobType, gs.JobState])

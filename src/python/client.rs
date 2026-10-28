@@ -9,49 +9,36 @@
 //! Python `AsvoClient` can be used from several threads.
 
 use std::path::PathBuf;
-use std::time::Duration;
 
-use jiff::Timestamp;
-
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use super::config::PyAsvoClientConfig;
 use super::connect_python_logging;
 use super::csv::csv_submit_error;
-use super::download::{run_download, PyDownloadArgs};
+use super::download::{run_download, PyDownloadOptions};
 use super::error::{api_error, asvo_error};
+use super::filter::PyJobsFilter;
 use super::job_params::{PreprocessParams, PyDownloadJobParams};
 use super::obs_id::ObsIdArg;
-use super::typed::{JobId, ProgressCallback};
+use super::typed::JobId;
 use super::types::{
     PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyJobCancelledResponse,
-    PyJobState, PyJobSubmittedResponse, PyJobType, PySortBy,
+    PyJobSubmittedResponse,
 };
-use crate::mwa_asvo::api::validate;
-use crate::mwa_asvo::{AsvoClient, AsvoClientConfig, JobsFilter};
-use crate::obs_id::ObsId;
+use crate::mwa_asvo::{AsvoClient, JobsFilter};
 use crate::CsvDefaults;
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
 /// Args:
-///     host: The MWA ASVO base URL, for example
-///         "https://asvo.mwatelescope.org:443". An "http://" host is
-///         permitted (a local test server); every other host must use TLS.
-///     api_key: Your MWA ASVO API key.
-///     api_timeout: The timeout for one API request, in seconds. More
-///         than 0. `None` uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
-///         library).
-///     token_cache_path: Where to cache the session between runs. `None`
-///         keeps the session in memory only, so every new client logs in.
-///         Give a path for a script that runs often, because the server
-///         permits only a few logins a minute. A cached session is used
-///         only by a client with the same `host` and `api_key`; the file
-///         holds a hash of the key, never the key.
+///     config: The host, your API key, the API timeout and the token cache
+///         (an `AsvoClientConfig`). `client_config_from_env` reads them from
+///         the environment, as the `giant-squid` command does.
 ///
 /// Raises:
-///     AsvoApiError: The API key is empty, or the login failed.
-///     ValueError: `api_timeout` is not finite, or is not more than 0.
+///     AsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
+///         login failed.
+///     ValueError: `config.api_timeout` is not finite, or is not more than 0.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "AsvoClient", module = "mwa_giant_squid")]
 pub struct PyAsvoClient {
@@ -63,113 +50,37 @@ pub struct PyAsvoClient {
 #[pymethods]
 impl PyAsvoClient {
     #[new]
-    #[pyo3(signature = (host, api_key, *, api_timeout=None, token_cache_path=None))]
-    fn new(
-        py: Python<'_>,
-        host: String,
-        api_key: String,
-        api_timeout: Option<f64>,
-        token_cache_path: Option<PathBuf>,
-    ) -> PyResult<Self> {
+    fn new(py: Python<'_>, config: PyRef<'_, PyAsvoClientConfig>) -> PyResult<Self> {
         connect_python_logging();
-        let mut config = AsvoClientConfig::new(host.clone(), api_key);
-        if let Some(seconds) = api_timeout {
-            config.api_timeout = Duration::try_from_secs_f64(seconds).map_err(|e| {
-                PyValueError::new_err(format!("api_timeout={seconds} is not valid: {e}"))
-            })?;
-        }
-        config.token_cache_path = token_cache_path;
-
+        let host = config.host.clone();
+        let lib_config = config.to_lib()?;
         let inner = py
-            .detach(|| AsvoClient::new(config))
+            .detach(|| AsvoClient::new(lib_config))
             .map_err(|e| asvo_error(py, e))?;
         Ok(Self { inner, host })
     }
 
     /// Get your jobs, as `giant-squid list` does: the server filters what it
     /// can, and the lists (several Job IDs, Obs IDs, types or states) are
-    /// applied to the result. Every filter that is `None` does not filter,
-    /// except `days` and `sort_by`: `days=None` is the default window of the
-    /// MWA ASVO API, not your full history.
+    /// applied to the result.
     ///
     /// Args:
-    ///     job_ids: Only these jobs. Cannot be combined with `obs_ids`.
-    ///     obs_ids: Only the jobs for these Obs IDs.
-    ///     job_types: Only the jobs of these types.
-    ///     job_states: Only the jobs in these states.
-    ///     days: Only the jobs from the past `days` days, from 1 to 30.
-    ///         Cannot be given with `date_from` or `date_to`: the jobs are
-    ///         selected by `days` or by the dates. `None` is the default of
-    ///         the MWA ASVO API (30 days), unless a date is given, and then
-    ///         `days` is sent as `null`.
-    ///     date_from: Only the jobs created at or after this time. It must
-    ///         have a time zone.
-    ///     date_to: Only the jobs created at or before this time. It must
-    ///         have a time zone.
-    ///     sort_by: The column to sort the jobs by (a `SortBy`).
-    ///         `None` uses the server's default order.
+    ///     filter: Which jobs to get (a `JobsFilter`). `None` is a filter
+    ///         that does not filter, but note that `days=None` is the
+    ///         default window of the MWA ASVO API, not your full history.
     ///
     /// Raises:
-    ///     ObsIdError: An Obs ID is not valid.
-    ///     ValueError: Both `job_ids` and `obs_ids` are given, or `days` is
-    ///         not from 1 to 30 or is given with `date_from` or `date_to`.
-    ///     TypeError: `date_from` or `date_to` has no time zone.
+    ///     ValueError: The filter is not valid: both `job_ids` and
+    ///         `obs_ids` are given, or `days` is not from 1 to 30 or is
+    ///         given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
     ///     AsvoApiError: The request failed.
-    #[pyo3(signature = (
-        job_ids=None,
-        obs_ids=None,
-        job_types=None,
-        job_states=None,
-        *,
-        days=None,
-        date_from=None,
-        date_to=None,
-        sort_by=None,
-    ))]
-    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (filter=None))]
     fn get_jobs(
         &self,
         py: Python<'_>,
-        job_ids: Option<Vec<JobId>>,
-        obs_ids: Option<Vec<ObsIdArg>>,
-        job_types: Option<Vec<PyJobType>>,
-        job_states: Option<Vec<PyJobState>>,
-        days: Option<i64>,
-        date_from: Option<Timestamp>,
-        date_to: Option<Timestamp>,
-        sort_by: Option<PySortBy>,
+        filter: Option<PyRef<'_, PyJobsFilter>>,
     ) -> PyResult<PyAsvoJobVec> {
-        let obs_ids = obs_ids
-            .unwrap_or_default()
-            .into_iter()
-            .map(|o| o.0)
-            .collect::<Vec<ObsId>>();
-        let days = days
-            .map(validate::days)
-            .transpose()
-            .map_err(|e| api_error(py, e))?;
-        let filter = JobsFilter {
-            days,
-            date_from,
-            date_to,
-            sort_by: sort_by.map(Into::into),
-            job_ids: job_ids
-                .unwrap_or_default()
-                .into_iter()
-                .map(|id| id.0)
-                .collect(),
-            obs_ids,
-            job_types: job_types
-                .unwrap_or_default()
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            job_states: job_states
-                .unwrap_or_default()
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        };
+        let filter = filter.map_or_else(JobsFilter::default, |f| f.0.clone());
         py.detach(|| self.inner.get_jobs(&filter))
             .map(PyAsvoJobVec::from)
             .map_err(|e| api_error(py, e))
@@ -339,42 +250,14 @@ impl PyAsvoClient {
     /// until the download ends, with the GIL released. Ctrl-C stops the
     /// download at the next chunk and raises `KeyboardInterrupt`, when the
     /// call is made from the main thread. A partial file stays on disk, so
-    /// a new call resumes it (unless `no_resume`).
+    /// a new call resumes it (unless `options.no_resume`).
+    ///
+    /// The call gets the job list first. To download several jobs, get the
+    /// job list once and call `download_job_from` for each.
     ///
     /// Args:
     ///     job_id: The Job ID.
-    ///     download_dir: The directory for the files. It must exist.
-    ///     keep_tar: Keep the tar file as it is. `False` unpacks it into
-    ///         `download_dir` while it downloads.
-    ///     job_subdirectory: Put the files in a directory of their own,
-    ///         `download_dir/<job_id>`, which is made if it is not there,
-    ///         and not in `download_dir` itself, as the `giant-squid`
-    ///         command does. The files of two jobs of the same observation
-    ///         do not meet in one directory. `False` puts the files in
-    ///         `download_dir` itself, as giant-squid 2.x did. It has no
-    ///         effect on a Scratch job, which is moved into `download_dir`
-    ///         in a folder of its own.
-    ///     no_resume: Download the whole file again, even if part of it is
-    ///         on disk.
-    ///     hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
-    ///         resumed download, and a complete file that is already on
-    ///         disk, are always checked, even when this is `False`.
-    ///     progress: A function to call with each `DownloadProgress` event,
-    ///         or `None`. `Advanced` events are combined, so the function is
-    ///         called about 10 times a second at most. If it raises, the
-    ///         download stops and its exception is raised.
-    ///     buffer_size: How many bytes to hold in memory before they are
-    ///         written. At least 1. `None` uses the library default
-    ///         (`DEFAULT_DOWNLOAD_BUFFER_SIZE` of the Rust library).
-    ///     retry_duration: How long to retry a failing download, in
-    ///         seconds. 0 disables retries. `None` uses the library default
-    ///         (`DEFAULT_DOWNLOAD_RETRY_DURATION` of the Rust library).
-    ///     download_number: The number of this download, in a series,
-    ///         for the progress and log label (`[1/2]`).
-    ///     download_count: How many downloads there are in the series.
-    ///     jobs: A job list from `get_jobs` to find the job
-    ///         in. `None` gets the job list first. To download several jobs,
-    ///         get the job list once and pass it to each call.
+    ///     options: How to download, and where to (a `DownloadOptions`).
     ///
     /// Returns:
     ///     The job that was downloaded.
@@ -382,70 +265,61 @@ impl PyAsvoClient {
     /// Raises:
     ///     AsvoError: The job is missing, not ready or has no files, a
     ///         transfer failed, or the hash does not match.
-    ///     AsvoApiError: Getting the job list failed (only when `jobs` is
-    ///         `None`).
-    ///     ValueError: `download_dir`, `buffer_size` or `retry_duration` is not valid.
+    ///     AsvoApiError: Getting the job list failed.
+    ///     ValueError: `options.download_dir`, `options.buffer_size` or
+    ///         `options.retry_duration` is not valid.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
-    #[pyo3(signature = (
-        job_id,
-        download_dir,
-        *,
-        keep_tar=false,
-        job_subdirectory=true,
-        no_resume=false,
-        hash=true,
-        progress=None,
-        buffer_size=None,
-        retry_duration=None,
-        download_number=1,
-        download_count=1,
-        jobs=None,
-    ))]
-    #[allow(clippy::too_many_arguments)]
     fn download_job(
         &self,
         py: Python<'_>,
         job_id: JobId,
-        download_dir: PathBuf,
-        keep_tar: bool,
-        job_subdirectory: bool,
-        no_resume: bool,
-        hash: bool,
-        progress: Option<ProgressCallback>,
-        buffer_size: Option<usize>,
-        retry_duration: Option<f64>,
-        download_number: usize,
-        download_count: usize,
-        jobs: Option<PyRef<'_, PyAsvoJobVec>>,
+        options: PyRef<'_, PyDownloadOptions>,
     ) -> PyResult<PyAsvoJob> {
-        let args = PyDownloadArgs {
-            download_dir,
-            job_subdirectory,
-            keep_tar,
-            no_resume,
-            hash,
-            progress: progress.map(|p| p.0),
-            buffer_size,
-            retry_duration,
-            download_number,
-            download_count,
-        };
+        run_download(py, &options, |opts| self.inner.download_job(job_id.0, opts))
+            .map(PyAsvoJob::from)
+    }
+
+    /// Download the files of a job that is in a job list that you have.
+    ///
+    /// As `download_job`, but it finds the job in `jobs`, and makes no
+    /// request to get the job list.
+    ///
+    /// Args:
+    ///     jobs: A job list from `get_jobs`.
+    ///     job_id: The Job ID.
+    ///     options: How to download, and where to (a `DownloadOptions`).
+    ///
+    /// Returns:
+    ///     The job that was downloaded.
+    ///
+    /// Raises:
+    ///     AsvoError: The job is missing from `jobs`, not ready or has no
+    ///         files, a transfer failed, or the hash does not match.
+    ///     ValueError: `options.download_dir`, `options.buffer_size` or
+    ///         `options.retry_duration` is not valid.
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    fn download_job_from(
+        &self,
+        py: Python<'_>,
+        jobs: PyRef<'_, PyAsvoJobVec>,
+        job_id: JobId,
+        options: PyRef<'_, PyDownloadOptions>,
+    ) -> PyResult<PyAsvoJob> {
         // A copy, so that the download can run without the GIL.
-        let jobs = jobs.map(|jobs| jobs.inner().clone());
-        run_download(py, args, |opts| match &jobs {
-            Some(jobs) => self.inner.download_job_from(jobs, job_id.0, opts),
-            None => self.inner.download_job(job_id.0, opts),
+        let jobs = jobs.inner().clone();
+        run_download(py, &options, |opts| {
+            self.inner.download_job_from(&jobs, job_id.0, opts)
         })
         .map(PyAsvoJob::from)
     }
 
     /// Download the files of the one ready job for an Obs ID.
     ///
-    /// The arguments, and the way the download runs, are those of
-    /// `download_job`.
+    /// The way the download runs is that of `download_job`.
     ///
     /// Args:
     ///     obs_id: The Obs ID. There must be exactly one ready job for it.
+    ///     options: How to download, and where to (a `DownloadOptions`).
     ///
     /// Returns:
     ///     The job that was downloaded (its `job_id` is the job found for
@@ -455,59 +329,48 @@ impl PyAsvoClient {
     ///     ObsIdError: `obs_id` is not a valid Obs ID.
     ///     AsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
-    ///     AsvoApiError: Getting the job list failed (only when `jobs` is
-    ///         `None`).
+    ///     AsvoApiError: Getting the job list failed.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
-    #[pyo3(signature = (
-        obs_id,
-        download_dir,
-        *,
-        keep_tar=false,
-        job_subdirectory=true,
-        no_resume=false,
-        hash=true,
-        progress=None,
-        buffer_size=None,
-        retry_duration=None,
-        download_number=1,
-        download_count=1,
-        jobs=None,
-    ))]
-    #[allow(clippy::too_many_arguments)]
     fn download_obs(
         &self,
         py: Python<'_>,
         obs_id: ObsIdArg,
-        download_dir: PathBuf,
-        keep_tar: bool,
-        job_subdirectory: bool,
-        no_resume: bool,
-        hash: bool,
-        progress: Option<ProgressCallback>,
-        buffer_size: Option<usize>,
-        retry_duration: Option<f64>,
-        download_number: usize,
-        download_count: usize,
-        jobs: Option<PyRef<'_, PyAsvoJobVec>>,
+        options: PyRef<'_, PyDownloadOptions>,
     ) -> PyResult<PyAsvoJob> {
-        let obs_id = obs_id.0;
-        let args = PyDownloadArgs {
-            download_dir,
-            job_subdirectory,
-            keep_tar,
-            no_resume,
-            hash,
-            progress: progress.map(|p| p.0),
-            buffer_size,
-            retry_duration,
-            download_number,
-            download_count,
-        };
+        run_download(py, &options, |opts| self.inner.download_obs(obs_id.0, opts))
+            .map(PyAsvoJob::from)
+    }
+
+    /// Download the files of the one ready job for an Obs ID, from a job
+    /// list that you have.
+    ///
+    /// As `download_obs`, but it finds the job in `jobs`, and makes no
+    /// request to get the job list.
+    ///
+    /// Args:
+    ///     jobs: A job list from `get_jobs`.
+    ///     obs_id: The Obs ID. There must be exactly one ready job for it.
+    ///     options: How to download, and where to (a `DownloadOptions`).
+    ///
+    /// Returns:
+    ///     The job that was downloaded.
+    ///
+    /// Raises:
+    ///     ObsIdError: `obs_id` is not a valid Obs ID.
+    ///     AsvoError: No job, no ready job, or more than one ready job has
+    ///         this Obs ID, or the download failed (see `download_job`).
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    fn download_obs_from(
+        &self,
+        py: Python<'_>,
+        jobs: PyRef<'_, PyAsvoJobVec>,
+        obs_id: ObsIdArg,
+        options: PyRef<'_, PyDownloadOptions>,
+    ) -> PyResult<PyAsvoJob> {
         // A copy, so that the download can run without the GIL.
-        let jobs = jobs.map(|jobs| jobs.inner().clone());
-        run_download(py, args, |opts| match &jobs {
-            Some(jobs) => self.inner.download_obs_from(jobs, obs_id, opts),
-            None => self.inner.download_obs(obs_id, opts),
+        let jobs = jobs.inner().clone();
+        run_download(py, &options, |opts| {
+            self.inner.download_obs_from(&jobs, obs_id.0, opts)
         })
         .map(PyAsvoJob::from)
     }

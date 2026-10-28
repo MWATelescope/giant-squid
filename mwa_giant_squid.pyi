@@ -30,6 +30,7 @@ __all__ = [
     "SIGNED_URL_LIFETIME_DAYS",
     "AsvoApiError",
     "AsvoClient",
+    "AsvoClientConfig",
     "AsvoError",
     "AsvoJob",
     "AsvoJobVec",
@@ -39,7 +40,9 @@ __all__ = [
     "DeliveryDestination",
     "DeliveryFormat",
     "DownloadJobParams",
+    "DownloadOptions",
     "DownloadProgress",
+    "DownloadSettings",
     "ImageOutputMode",
     "ImageWeighting",
     "ImagingJobFlow1Params",
@@ -51,6 +54,7 @@ __all__ = [
     "JobState",
     "JobSubmittedResponse",
     "JobType",
+    "JobsFilter",
     "ObsId",
     "ObsIdError",
     "ObsIdErrorParse",
@@ -73,6 +77,7 @@ __all__ = [
     "Status",
     "Type",
     "check_file_sha1_hash",
+    "client_config_from_env",
     "default_token_cache_path",
     "parse_job_ids_and_obs_ids_from_file",
     "parse_job_ids_only",
@@ -147,73 +152,31 @@ class AsvoClient:
     A client for the MWA ASVO. It logs in when it is created.
 
     Args:
-        host: The MWA ASVO base URL, for example
-            "https://asvo.mwatelescope.org:443". An "http://" host is
-            permitted (a local test server); every other host must use TLS.
-        api_key: Your MWA ASVO API key.
-        api_timeout: The timeout for one API request, in seconds. More
-            than 0. `None` uses the library default (`DEFAULT_API_TIMEOUT` of the Rust
-            library).
-        token_cache_path: Where to cache the session between runs. `None`
-            keeps the session in memory only, so every new client logs in.
-            Give a path for a script that runs often, because the server
-            permits only a few logins a minute. A cached session is used
-            only by a client with the same `host` and `api_key`; the file
-            holds a hash of the key, never the key.
+        config: The host, your API key, the API timeout and the token cache
+            (an `AsvoClientConfig`). `client_config_from_env` reads them from
+            the environment, as the `giant-squid` command does.
 
     Raises:
-        AsvoApiError: The API key is empty, or the login failed.
-        ValueError: `api_timeout` is not finite, or is not more than 0.
+        AsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
+            login failed.
+        ValueError: `config.api_timeout` is not finite, or is not more than 0.
     """
-    def __new__(
-        cls,
-        host: builtins.str,
-        api_key: builtins.str,
-        *,
-        api_timeout: builtins.float | None = None,
-        token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
-    ) -> AsvoClient: ...
-    def get_jobs(
-        self,
-        job_ids: typing.Sequence[builtins.int] | None = None,
-        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
-        job_types: typing.Sequence[JobType] | None = None,
-        job_states: typing.Sequence[JobState] | None = None,
-        *,
-        days: builtins.int | None = None,
-        date_from: datetime.datetime | None = None,
-        date_to: datetime.datetime | None = None,
-        sort_by: SortBy | None = None,
-    ) -> AsvoJobVec:
+    def __new__(cls, config: AsvoClientConfig) -> AsvoClient: ...
+    def get_jobs(self, filter: JobsFilter | None = None) -> AsvoJobVec:
         r"""
         Get your jobs, as `giant-squid list` does: the server filters what it
         can, and the lists (several Job IDs, Obs IDs, types or states) are
-        applied to the result. Every filter that is `None` does not filter,
-        except `days` and `sort_by`: `days=None` is the default window of the
-        MWA ASVO API, not your full history.
+        applied to the result.
 
         Args:
-            job_ids: Only these jobs. Cannot be combined with `obs_ids`.
-            obs_ids: Only the jobs for these Obs IDs.
-            job_types: Only the jobs of these types.
-            job_states: Only the jobs in these states.
-            days: Only the jobs from the past `days` days, from 1 to 30.
-                Cannot be given with `date_from` or `date_to`: the jobs are
-                selected by `days` or by the dates. `None` is the default of
-                the MWA ASVO API (30 days), unless a date is given, and then
-                `days` is sent as `null`.
-            date_from: Only the jobs created at or after this time. It must
-                have a time zone.
-            date_to: Only the jobs created at or before this time. It must
-                have a time zone.
-            sort_by: The column to sort the jobs by (a `SortBy`).
-                `None` uses the server's default order.
+            filter: Which jobs to get (a `JobsFilter`). `None` is a filter
+                that does not filter, but note that `days=None` is the
+                default window of the MWA ASVO API, not your full history.
 
         Raises:
-            ObsIdError: An Obs ID is not valid.
-            ValueError: Both `job_ids` and `obs_ids` are given, or `days` is
-                not from 1 to 30 or is given with `date_from` or `date_to`.
-            TypeError: `date_from` or `date_to` has no time zone.
+            ValueError: The filter is not valid: both `job_ids` and
+                `obs_ids` are given, or `days` is not from 1 to 30 or is
+                given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
             AsvoApiError: The request failed.
         """
     def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
@@ -341,22 +304,7 @@ class AsvoClient:
             AsvoApiError: The request failed, for example because there is
                 no such job.
         """
-    def download_job(
-        self,
-        job_id: builtins.int,
-        download_dir: builtins.str | os.PathLike | pathlib.Path,
-        *,
-        keep_tar: builtins.bool = False,
-        job_subdirectory: builtins.bool = True,
-        no_resume: builtins.bool = False,
-        hash: builtins.bool = True,
-        progress: collections.abc.Callable[[DownloadProgress], builtins.object] | None = None,
-        buffer_size: builtins.int | None = None,
-        retry_duration: builtins.float | None = None,
-        download_number: builtins.int = 1,
-        download_count: builtins.int = 1,
-        jobs: AsvoJobVec | None = None,
-    ) -> AsvoJob:
+    def download_job(self, job_id: builtins.int, options: DownloadOptions) -> AsvoJob:
         r"""
         Download the files of a job.
 
@@ -364,42 +312,14 @@ class AsvoClient:
         until the download ends, with the GIL released. Ctrl-C stops the
         download at the next chunk and raises `KeyboardInterrupt`, when the
         call is made from the main thread. A partial file stays on disk, so
-        a new call resumes it (unless `no_resume`).
+        a new call resumes it (unless `options.no_resume`).
+
+        The call gets the job list first. To download several jobs, get the
+        job list once and call `download_job_from` for each.
 
         Args:
             job_id: The Job ID.
-            download_dir: The directory for the files. It must exist.
-            keep_tar: Keep the tar file as it is. `False` unpacks it into
-                `download_dir` while it downloads.
-            job_subdirectory: Put the files in a directory of their own,
-                `download_dir/<job_id>`, which is made if it is not there,
-                and not in `download_dir` itself, as the `giant-squid`
-                command does. The files of two jobs of the same observation
-                do not meet in one directory. `False` puts the files in
-                `download_dir` itself, as giant-squid 2.x did. It has no
-                effect on a Scratch job, which is moved into `download_dir`
-                in a folder of its own.
-            no_resume: Download the whole file again, even if part of it is
-                on disk.
-            hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
-                resumed download, and a complete file that is already on
-                disk, are always checked, even when this is `False`.
-            progress: A function to call with each `DownloadProgress` event,
-                or `None`. `Advanced` events are combined, so the function is
-                called about 10 times a second at most. If it raises, the
-                download stops and its exception is raised.
-            buffer_size: How many bytes to hold in memory before they are
-                written. At least 1. `None` uses the library default
-                (`DEFAULT_DOWNLOAD_BUFFER_SIZE` of the Rust library).
-            retry_duration: How long to retry a failing download, in
-                seconds. 0 disables retries. `None` uses the library default
-                (`DEFAULT_DOWNLOAD_RETRY_DURATION` of the Rust library).
-            download_number: The number of this download, in a series,
-                for the progress and log label (`[1/2]`).
-            download_count: How many downloads there are in the series.
-            jobs: A job list from `get_jobs` to find the job
-                in. `None` gets the job list first. To download several jobs,
-                get the job list once and pass it to each call.
+            options: How to download, and where to (a `DownloadOptions`).
 
         Returns:
             The job that was downloaded.
@@ -407,35 +327,42 @@ class AsvoClient:
         Raises:
             AsvoError: The job is missing, not ready or has no files, a
                 transfer failed, or the hash does not match.
-            AsvoApiError: Getting the job list failed (only when `jobs` is
-                `None`).
-            ValueError: `download_dir`, `buffer_size` or `retry_duration` is not valid.
+            AsvoApiError: Getting the job list failed.
+            ValueError: `options.download_dir`, `options.buffer_size` or
+                `options.retry_duration` is not valid.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
-    def download_obs(
-        self,
-        obs_id: builtins.int | ObsId,
-        download_dir: builtins.str | os.PathLike | pathlib.Path,
-        *,
-        keep_tar: builtins.bool = False,
-        job_subdirectory: builtins.bool = True,
-        no_resume: builtins.bool = False,
-        hash: builtins.bool = True,
-        progress: collections.abc.Callable[[DownloadProgress], builtins.object] | None = None,
-        buffer_size: builtins.int | None = None,
-        retry_duration: builtins.float | None = None,
-        download_number: builtins.int = 1,
-        download_count: builtins.int = 1,
-        jobs: AsvoJobVec | None = None,
-    ) -> AsvoJob:
+    def download_job_from(self, jobs: AsvoJobVec, job_id: builtins.int, options: DownloadOptions) -> AsvoJob:
+        r"""
+        Download the files of a job that is in a job list that you have.
+
+        As `download_job`, but it finds the job in `jobs`, and makes no
+        request to get the job list.
+
+        Args:
+            jobs: A job list from `get_jobs`.
+            job_id: The Job ID.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded.
+
+        Raises:
+            AsvoError: The job is missing from `jobs`, not ready or has no
+                files, a transfer failed, or the hash does not match.
+            ValueError: `options.download_dir`, `options.buffer_size` or
+                `options.retry_duration` is not valid.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def download_obs(self, obs_id: builtins.int | ObsId, options: DownloadOptions) -> AsvoJob:
         r"""
         Download the files of the one ready job for an Obs ID.
 
-        The arguments, and the way the download runs, are those of
-        `download_job`.
+        The way the download runs is that of `download_job`.
 
         Args:
             obs_id: The Obs ID. There must be exactly one ready job for it.
+            options: How to download, and where to (a `DownloadOptions`).
 
         Returns:
             The job that was downloaded (its `job_id` is the job found for
@@ -445,10 +372,103 @@ class AsvoClient:
             ObsIdError: `obs_id` is not a valid Obs ID.
             AsvoError: No job, no ready job, or more than one ready job has
                 this Obs ID, or the download failed (see `download_job`).
-            AsvoApiError: Getting the job list failed (only when `jobs` is
-                `None`).
+            AsvoApiError: Getting the job list failed.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
+    def download_obs_from(self, jobs: AsvoJobVec, obs_id: builtins.int | ObsId, options: DownloadOptions) -> AsvoJob:
+        r"""
+        Download the files of the one ready job for an Obs ID, from a job
+        list that you have.
+
+        As `download_obs`, but it finds the job in `jobs`, and makes no
+        request to get the job list.
+
+        Args:
+            jobs: A job list from `get_jobs`.
+            obs_id: The Obs ID. There must be exactly one ready job for it.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded.
+
+        Raises:
+            ObsIdError: `obs_id` is not a valid Obs ID.
+            AsvoError: No job, no ready job, or more than one ready job has
+                this Obs ID, or the download failed (see `download_job`).
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+
+@typing.final
+class AsvoClientConfig:
+    r"""
+    Everything an `AsvoClient` needs to connect to the MWA ASVO.
+
+    The module reads no environment variables here. To read them (as the
+    `giant-squid` command does), use `client_config_from_env`.
+
+    Args:
+        host: The MWA ASVO base URL, for example
+            "https://asvo.mwatelescope.org:443". An "http://" host is
+            permitted (a local test server); every other host must use TLS.
+        api_key: Your MWA ASVO API key.
+        api_timeout: The timeout for one API request, in seconds. More than 0.
+            `None` is `DEFAULT_API_TIMEOUT`.
+        token_cache_path: Where to cache the session between runs. `None`
+            keeps the session in memory only, so every new client logs in.
+            Give a path for a script that runs often, because the server
+            permits only a few logins a minute. A cached session is used only
+            by a client with the same `host` and `api_key`; the file holds a
+            hash of the key, never the key. `default_token_cache_path` is the
+            place that the `giant-squid` command uses.
+    """
+    @property
+    def host(self) -> builtins.str:
+        r"""
+        The MWA ASVO base URL.
+        """
+    @host.setter
+    def host(self, value: builtins.str) -> None:
+        r"""
+        The MWA ASVO base URL.
+        """
+    @property
+    def api_key(self) -> builtins.str:
+        r"""
+        Your MWA ASVO API key.
+        """
+    @api_key.setter
+    def api_key(self, value: builtins.str) -> None:
+        r"""
+        Your MWA ASVO API key.
+        """
+    @property
+    def api_timeout(self) -> builtins.float:
+        r"""
+        The timeout for one API request, in seconds. More than 0.
+        """
+    @api_timeout.setter
+    def api_timeout(self, value: builtins.float) -> None:
+        r"""
+        The timeout for one API request, in seconds. More than 0.
+        """
+    @property
+    def token_cache_path(self) -> pathlib.Path | None:
+        r"""
+        Where to cache the session between runs, or `None`.
+        """
+    @token_cache_path.setter
+    def token_cache_path(self, value: builtins.str | os.PathLike | pathlib.Path | None) -> None:
+        r"""
+        Where to cache the session between runs, or `None`.
+        """
+    def __new__(
+        cls,
+        host: builtins.str,
+        api_key: builtins.str,
+        *,
+        api_timeout: builtins.float | None = None,
+        token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
+    ) -> AsvoClientConfig: ...
 
 class AsvoError(builtins.Exception):
     r"""
@@ -946,6 +966,158 @@ class DownloadJobParams:
         to_channel: builtins.int | None = None,
     ) -> DownloadJobParams: ...
 
+@typing.final
+class DownloadOptions:
+    r"""
+    The options of a download: the library's [`DownloadOptions`].
+
+    A library `DownloadOptions` borrows its directory and its hooks, so this
+    class holds the values and the Python progress callback, and the library
+    options are made from them when a download runs. The `should_stop` hook of
+    the library has no counterpart: a download stops at Ctrl-C
+    (`KeyboardInterrupt`) instead.
+
+    Args:
+        download_dir: The directory for the files. It must exist.
+        keep_tar: Keep the tar file as it is. `False` unpacks it into
+            `download_dir` while it downloads.
+        job_subdirectory: Put the files in a directory of their own,
+            `download_dir/<job_id>`, which is made if it is not there, and not
+            in `download_dir` itself, as the `giant-squid` command does. The
+            files of two jobs of the same observation do not meet in one
+            directory. `False` puts the files in `download_dir` itself, as
+            giant-squid 2.x did. It has no effect on a Scratch job, which is
+            moved into `download_dir` in a folder of its own.
+        no_resume: Download the whole file again, even if part of it is on
+            disk.
+        hash: Check the SHA-1 hash of the file against the MWA ASVO's. A
+            resumed download, and a complete file that is already on disk,
+            are always checked, even when this is `False`.
+        progress: A function to call with each `DownloadProgress` event, or
+            `None`. `Advanced` events are combined, so the function is called
+            about 10 times a second at most. If it raises, the download stops
+            and its exception is raised.
+        buffer_size: How many bytes to hold in memory before they are
+            written. At least `MIN_DOWNLOAD_BUFFER_SIZE`. `None` is
+            `DEFAULT_DOWNLOAD_BUFFER_SIZE`.
+        retry_duration: How long to retry a failing download, in seconds. 0
+            disables retries. `None` is `DEFAULT_DOWNLOAD_RETRY_DURATION`.
+        download_number: The number of this download, in a series, for the
+            progress and log label (`[1/2]`).
+        download_count: How many downloads there are in the series.
+    """
+    @property
+    def download_dir(self) -> pathlib.Path:
+        r"""
+        The directory for the files.
+        """
+    @download_dir.setter
+    def download_dir(self, value: builtins.str | os.PathLike | pathlib.Path) -> None:
+        r"""
+        The directory for the files.
+        """
+    @property
+    def keep_tar(self) -> builtins.bool:
+        r"""
+        Keep the tar file as it is.
+        """
+    @keep_tar.setter
+    def keep_tar(self, value: builtins.bool) -> None:
+        r"""
+        Keep the tar file as it is.
+        """
+    @property
+    def job_subdirectory(self) -> builtins.bool:
+        r"""
+        Put the files in a directory of their own, `download_dir/<job_id>`.
+        """
+    @job_subdirectory.setter
+    def job_subdirectory(self, value: builtins.bool) -> None:
+        r"""
+        Put the files in a directory of their own, `download_dir/<job_id>`.
+        """
+    @property
+    def no_resume(self) -> builtins.bool:
+        r"""
+        Download the whole file again, even if part of it is on disk.
+        """
+    @no_resume.setter
+    def no_resume(self, value: builtins.bool) -> None:
+        r"""
+        Download the whole file again, even if part of it is on disk.
+        """
+    @property
+    def hash(self) -> builtins.bool:
+        r"""
+        Check the SHA-1 hash of the file against the MWA ASVO's.
+        """
+    @hash.setter
+    def hash(self, value: builtins.bool) -> None:
+        r"""
+        Check the SHA-1 hash of the file against the MWA ASVO's.
+        """
+    @property
+    def buffer_size(self) -> builtins.int:
+        r"""
+        How many bytes to hold in memory before they are written.
+        """
+    @buffer_size.setter
+    def buffer_size(self, value: builtins.int) -> None:
+        r"""
+        How many bytes to hold in memory before they are written.
+        """
+    @property
+    def retry_duration(self) -> builtins.float:
+        r"""
+        How long to retry a failing download, in seconds.
+        """
+    @retry_duration.setter
+    def retry_duration(self, value: builtins.float) -> None:
+        r"""
+        How long to retry a failing download, in seconds.
+        """
+    @property
+    def download_number(self) -> builtins.int:
+        r"""
+        The number of this download, in a series.
+        """
+    @download_number.setter
+    def download_number(self, value: builtins.int) -> None:
+        r"""
+        The number of this download, in a series.
+        """
+    @property
+    def download_count(self) -> builtins.int:
+        r"""
+        How many downloads there are in the series.
+        """
+    @download_count.setter
+    def download_count(self, value: builtins.int) -> None:
+        r"""
+        How many downloads there are in the series.
+        """
+    @property
+    def progress(self) -> collections.abc.Callable[[DownloadProgress], builtins.object] | None:
+        r"""
+        A function to call with each `DownloadProgress` event, or `None`.
+        """
+    @progress.setter
+    def progress(self, value: collections.abc.Callable[[DownloadProgress], builtins.object] | None) -> None: ...
+    def __new__(
+        cls,
+        download_dir: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        keep_tar: builtins.bool = False,
+        job_subdirectory: builtins.bool = True,
+        no_resume: builtins.bool = False,
+        hash: builtins.bool = True,
+        progress: collections.abc.Callable[[DownloadProgress], builtins.object] | None = None,
+        buffer_size: builtins.int | None = None,
+        retry_duration: builtins.float | None = None,
+        download_number: builtins.int = 1,
+        download_count: builtins.int = 1,
+    ) -> DownloadOptions: ...
+
 class DownloadProgress:
     r"""
     A download progress event, given to the `progress` callback of
@@ -1018,6 +1190,62 @@ class DownloadProgress:
 
         __match_args__ = ()
         def __new__(cls) -> DownloadProgress.Finished: ...
+
+@typing.final
+class DownloadSettings:
+    r"""
+    The settings of a download that the environment can give: how much data to
+    hold in memory before it is written, and how long to retry a failing
+    download.
+
+    Args:
+        buffer_size: How many bytes to hold in memory before they are
+            written. At least `MIN_DOWNLOAD_BUFFER_SIZE`. `None` is
+            `DEFAULT_DOWNLOAD_BUFFER_SIZE`.
+        retry_duration: How long to retry a failing download, in seconds. 0
+            disables retries. `None` is `DEFAULT_DOWNLOAD_RETRY_DURATION`.
+    """
+    @property
+    def buffer_size(self) -> builtins.int:
+        r"""
+        How many bytes to hold in memory before they are written.
+        """
+    @buffer_size.setter
+    def buffer_size(self, value: builtins.int) -> None:
+        r"""
+        How many bytes to hold in memory before they are written.
+        """
+    @property
+    def retry_duration(self) -> builtins.float:
+        r"""
+        How long to retry a failing download, in seconds.
+        """
+    @retry_duration.setter
+    def retry_duration(self, value: builtins.float) -> None:
+        r"""
+        How long to retry a failing download, in seconds.
+        """
+    def __new__(
+        cls, buffer_size: builtins.int | None = None, retry_duration: builtins.float | None = None
+    ) -> DownloadSettings: ...
+    @staticmethod
+    def from_env() -> DownloadSettings:
+        r"""
+        Read the settings from the environment, as the `giant-squid` command
+        does.
+
+        - `GIANT_SQUID_BUF_SIZE` is a whole number of MiB. The default is
+          `DEFAULT_DOWNLOAD_BUFFER_SIZE`.
+        - `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is a whole number of seconds. The
+          default is `DEFAULT_DOWNLOAD_RETRY_DURATION`.
+
+        Returns:
+            The settings.
+
+        Raises:
+            AsvoError: A variable is set but is not a whole number, or is too
+                large (kind `InvalidEnvironment`).
+        """
 
 @typing.final
 class ImagingJobFlow1Params:
@@ -1631,6 +1859,116 @@ class JobSubmittedResponse:
         """
 
 @typing.final
+class JobsFilter:
+    r"""
+    Which of your jobs to get: the filter of `AsvoClient.get_jobs`.
+
+    A filter that is `None` or empty does not filter, except `days` and
+    `sort_by`: `days=None` is the default window of the MWA ASVO API (30
+    days), not your full history. The server filters by `days`, the dates
+    and the sort order, and the lists (Job IDs, Obs IDs, types and states) are
+    applied to the result.
+
+    Args:
+        days: Only the jobs from the past `days` days, from 1 to 30. Cannot
+            be given with `date_from` or `date_to`: the jobs are selected by
+            `days` or by the dates. With a date and no `days`, `days` is sent
+            as `null`.
+        date_from: Only the jobs created at or after this time. It must have
+            a time zone.
+        date_to: Only the jobs created at or before this time. It must have a
+            time zone.
+        sort_by: The column to sort the jobs by (a `SortBy`). `None` uses the
+            server's default order.
+        job_ids: Only these jobs. Cannot be combined with `obs_ids`.
+        obs_ids: Only the jobs for these Obs IDs.
+        job_types: Only the jobs of these types.
+        job_states: Only the jobs in these states.
+
+    Raises:
+        ObsIdError: An Obs ID is not valid.
+        ValueError: A Job ID is 0, or `days` is outside the limits of the API.
+        TypeError: `date_from` or `date_to` has no time zone.
+    """
+    @property
+    def days(self) -> builtins.int | None:
+        r"""
+        Only the jobs from the past `days` days, from 1 to 30, or `None`.
+        """
+    @days.setter
+    def days(self, value: builtins.int | None) -> None: ...
+    @property
+    def date_from(self) -> datetime.datetime | None:
+        r"""
+        Only the jobs created at or after this time, or `None`.
+        """
+    @date_from.setter
+    def date_from(self, value: datetime.datetime | None) -> None: ...
+    @property
+    def date_to(self) -> datetime.datetime | None:
+        r"""
+        Only the jobs created at or before this time, or `None`.
+        """
+    @date_to.setter
+    def date_to(self, value: datetime.datetime | None) -> None: ...
+    @property
+    def sort_by(self) -> SortBy | None:
+        r"""
+        The column to sort the jobs by, or `None`.
+        """
+    @sort_by.setter
+    def sort_by(self, value: SortBy | None) -> None: ...
+    @property
+    def job_ids(self) -> builtins.list[builtins.int]:
+        r"""
+        Only these jobs. Cannot be combined with `obs_ids`.
+        """
+    @job_ids.setter
+    def job_ids(self, value: typing.Sequence[builtins.int]) -> None: ...
+    @property
+    def obs_ids(self) -> builtins.list[ObsId]:
+        r"""
+        Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
+        """
+    @obs_ids.setter
+    def obs_ids(self, value: typing.Sequence[builtins.int | ObsId]) -> None: ...
+    @property
+    def job_types(self) -> builtins.list[JobType]:
+        r"""
+        Only the jobs of these types.
+        """
+    @job_types.setter
+    def job_types(self, value: typing.Sequence[JobType]) -> None: ...
+    @property
+    def job_states(self) -> builtins.list[JobState]:
+        r"""
+        Only the jobs in these states.
+        """
+    @job_states.setter
+    def job_states(self, value: typing.Sequence[JobState]) -> None: ...
+    def __new__(
+        cls,
+        *,
+        days: builtins.int | None = None,
+        date_from: datetime.datetime | None = None,
+        date_to: datetime.datetime | None = None,
+        sort_by: SortBy | None = None,
+        job_ids: typing.Sequence[builtins.int] | None = None,
+        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
+        job_types: typing.Sequence[JobType] | None = None,
+        job_states: typing.Sequence[JobState] | None = None,
+    ) -> JobsFilter: ...
+    def validate(self) -> None:
+        r"""
+        Check the filter before any request. `AsvoClient.get_jobs` does this.
+
+        Raises:
+            ValueError: Both `job_ids` and `obs_ids` are given, `days` is not
+                from 1 to 30, or `days` is given with `date_from` or
+                `date_to`.
+        """
+
+@typing.final
 class ObsId:
     r"""
     An MWA observation ID that is known to be valid.
@@ -2053,6 +2391,27 @@ def check_file_sha1_hash(
         AsvoError: The hash does not match (kind `HashMismatch`).
         ValueError: `job_id` is 0.
         OSError: The file cannot be read.
+    """
+
+def client_config_from_env() -> AsvoClientConfig:
+    r"""
+    Build an `AsvoClientConfig` from the environment, as the `giant-squid`
+    command does.
+
+    - `MWA_ASVO_API_KEY` is required.
+    - `MWA_ASVO_HOST` is the host. The default is `DEFAULT_ASVO_HOST`.
+    - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds. The default is
+      `DEFAULT_API_TIMEOUT`.
+    - The session is cached under `HOME` (see `default_token_cache_path`).
+      Without `HOME` it is not cached.
+
+    Returns:
+        The config.
+
+    Raises:
+        AsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
+            seconds of at least 1 (kind `InvalidEnvironment`).
+        AsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
     """
 
 def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) -> pathlib.Path:

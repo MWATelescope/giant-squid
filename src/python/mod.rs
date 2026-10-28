@@ -26,10 +26,12 @@
 #![cfg_attr(feature = "python-stubgen", allow(clippy::incompatible_msrv))]
 
 mod client;
+mod config;
 mod constants;
 mod csv;
 mod download;
 mod error;
+mod filter;
 mod job_params;
 mod obs_id;
 mod params;
@@ -109,7 +111,11 @@ mod module {
     #[pymodule_export]
     use super::client::PyAsvoClient;
     #[pymodule_export]
+    use super::config::{client_config_from_env, PyAsvoClientConfig, PyDownloadSettings};
+    #[pymodule_export]
     use super::csv::{CsvSubmitError, PyCsvJobFailure};
+    #[pymodule_export]
+    use super::download::PyDownloadOptions;
     #[pymodule_export]
     use super::error::{
         AsvoApiError, AsvoError, ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError,
@@ -117,6 +123,8 @@ mod module {
         ParseErrorNoJobIds, ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError,
         ParseErrorStdinJson, ParseErrorZeroJobId,
     };
+    #[pymodule_export]
+    use super::filter::PyJobsFilter;
     #[pymodule_export]
     use super::job_params::{
         PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,

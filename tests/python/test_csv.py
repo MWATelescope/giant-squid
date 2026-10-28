@@ -98,7 +98,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(host, TEST_API_KEY)
+    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
 
 @pytest.fixture

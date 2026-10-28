@@ -59,7 +59,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(host, TEST_API_KEY)
+    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
 
 def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:
@@ -154,7 +154,7 @@ def test_days_with_a_date_is_refused_before_any_request(
     expect_get_jobs(httpserver)
 
     with pytest.raises(ValueError, match="days: can't be used with date_from or date_to"):
-        client.get_jobs(days=DAYS, date_from=date_from, date_to=date_to)
+        client.get_jobs(gs.JobsFilter(days=DAYS, date_from=date_from, date_to=date_to))
     assert requests_to(httpserver, GET_JOBS_PATH) == []
 
 
@@ -170,10 +170,10 @@ def test_a_date_sends_null_days_and_days_alone_sends_no_date(httpserver: HTTPSer
     ]
     expect_get_jobs(httpserver)
 
-    client.get_jobs(date_from=DATE_FROM, date_to=DATE_TO)
-    client.get_jobs(date_to=DATE_TO)
-    client.get_jobs(date_from=DATE_FROM)
-    client.get_jobs(days=DAYS)
+    client.get_jobs(gs.JobsFilter(date_from=DATE_FROM, date_to=DATE_TO))
+    client.get_jobs(gs.JobsFilter(date_to=DATE_TO))
+    client.get_jobs(gs.JobsFilter(date_from=DATE_FROM))
+    client.get_jobs(gs.JobsFilter(days=DAYS))
     client.get_jobs()
 
     dated, one_date, listed, by_days, neither = requests_to(httpserver, GET_JOBS_PATH)

@@ -94,7 +94,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(host, TEST_API_KEY)
+    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
 
 @pytest.fixture
@@ -212,7 +212,7 @@ def test_download_job_id_keeps_the_tar_and_checks_the_hash(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """With keep_tar, the tar file is saved as it is."""
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, job_subdirectory=False)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=False))
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
@@ -221,7 +221,7 @@ def test_download_job_id_unpacks_the_tar_by_default(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """Without keep_tar, the tar is unpacked into the directory while it downloads."""
-    client.download_job(JOB_ID, tmp_path, job_subdirectory=False)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=False))
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / FILE_NAME).exists()
@@ -231,7 +231,7 @@ def test_a_download_returns_the_job_it_downloaded(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """download_job and download_obs return the job, so a caller learns the job ID of an obsid."""
-    by_obs_id = client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True)
+    by_obs_id = client.download_obs(TEST_OBS_ID, gs.DownloadOptions(str(tmp_path), keep_tar=True))
 
     assert by_obs_id.job_id == JOB_ID
     assert by_obs_id.obs_id == TEST_OBS_ID
@@ -245,9 +245,9 @@ def test_a_download_from_a_job_list_gets_no_job_list(
     jobs = client.get_jobs()
     listings = sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH)
 
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, jobs=jobs, job_subdirectory=False)
+    client.download_job_from(jobs, JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=False))
     (tmp_path / FILE_NAME).unlink()
-    client.download_obs(TEST_OBS_ID, tmp_path, keep_tar=True, jobs=jobs, job_subdirectory=False)
+    client.download_obs_from(jobs, TEST_OBS_ID, gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=False))
 
     assert sum(1 for request, _ in httpserver.log if request.path == GET_JOBS_PATH) == listings
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
@@ -255,7 +255,7 @@ def test_a_download_from_a_job_list_gets_no_job_list(
 
 def test_download_obs_id_finds_the_ready_job(client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path) -> None:
     """download_obs downloads the one ready job of the obsid."""
-    client.download_obs(TEST_OBS_ID, str(tmp_path), keep_tar=True, job_subdirectory=False)
+    client.download_obs(TEST_OBS_ID, gs.DownloadOptions(str(tmp_path), keep_tar=True, job_subdirectory=False))
 
     assert (tmp_path / FILE_NAME).read_bytes() == served_tar
 
@@ -266,7 +266,7 @@ def test_progress_reports_every_byte_between_started_and_finished(
     """The events are Started, then Advanced, then Finished, and the Advanced bytes add up to the file size."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, progress=events.append))
 
     first, *middle, last = events
     assert isinstance(first, gs.DownloadProgress.Started)
@@ -283,7 +283,7 @@ def test_progress_combines_the_advanced_events(client: gs.AsvoClient, slow_file:
     """A slow download of many chunks gives far fewer Advanced events than chunks, with every byte counted."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, progress=events.append))
 
     advanced = [event for event in events if isinstance(event, gs.DownloadProgress.Advanced)]
     assert 0 < len(advanced) < CHUNKS
@@ -296,7 +296,9 @@ def test_the_label_numbers_the_download_in_a_series(
     """download_number and download_count go into the label."""
     events: list[gs.DownloadProgress] = []
 
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=events.append, download_number=2, download_count=3)
+    client.download_job(
+        JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, progress=events.append, download_number=2, download_count=3)
+    )
 
     started = events[0]
     assert isinstance(started, gs.DownloadProgress.Started)
@@ -317,7 +319,7 @@ def test_an_exception_in_the_callback_stops_the_download_and_is_raised(
 
     started = time.monotonic()
     with pytest.raises(StopHere):
-        client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, progress=progress))
 
     assert time.monotonic() - started < CHUNKS * CHUNK_DELAY
 
@@ -332,7 +334,9 @@ def test_ctrl_c_stops_a_download(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_job(JOB_ID, tmp_path, keep_tar=True, progress=progress, job_subdirectory=False)
+            client.download_job(
+                JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, progress=progress, job_subdirectory=False)
+            )
     finally:
         timer.cancel()
 
@@ -353,7 +357,7 @@ def test_ctrl_c_stops_the_wait_before_a_retry(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=LONG_RETRY)
+            client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, retry_duration=LONG_RETRY))
     finally:
         timer.cancel()
 
@@ -378,7 +382,7 @@ def test_ctrl_c_that_lands_in_a_log_call_still_stops_the_download(
     started = time.monotonic()
     try:
         with pytest.raises(KeyboardInterrupt):
-            client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=SHORT_RETRY)
+            client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, retry_duration=SHORT_RETRY))
     finally:
         timer.cancel()
 
@@ -391,9 +395,9 @@ def test_a_buffer_size_of_zero_raises_value_error_before_any_request(
 ) -> None:
     """A buffer of 0 bytes would write nothing, so the library refuses it (the server has no job list)."""
     with pytest.raises(ValueError, match="buffer_size"):
-        client.download_job(JOB_ID, tmp_path, buffer_size=0)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
     with pytest.raises(ValueError, match="buffer_size"):
-        client.download_obs(TEST_OBS_ID, tmp_path, buffer_size=0)
+        client.download_obs(TEST_OBS_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
 
 
 def test_a_hash_mismatch_raises_asvo_error(
@@ -405,7 +409,7 @@ def test_a_hash_mismatch_raises_asvo_error(
     httpserver.expect_request(FILE_PATH, method="GET").respond_with_data(data)
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_job(JOB_ID, tmp_path, keep_tar=True, retry_duration=0)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, retry_duration=0))
 
     assert err.value.kind == "HashMismatch"
     assert err.value.job_id == JOB_ID
@@ -420,7 +424,7 @@ def test_a_dug_job_raises_files_not_reachable(
     )
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_job(JOB_ID, tmp_path)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path))
 
     assert err.value.kind == "FilesNotReachable"
     assert err.value.job_id == JOB_ID
@@ -435,7 +439,7 @@ def test_an_unknown_job_raises_asvo_error(
     serve_jobs([])
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_job(JOB_ID, tmp_path)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path))
 
     assert err.value.kind == "NoAsvoJob"
 
@@ -447,7 +451,7 @@ def test_an_obs_id_with_no_ready_job_raises_asvo_error(
     serve_jobs([job_detail(JOB_ID, "queued")])
 
     with pytest.raises(gs.AsvoError) as err:
-        client.download_obs(TEST_OBS_ID, tmp_path)
+        client.download_obs(TEST_OBS_ID, gs.DownloadOptions(tmp_path))
 
     assert err.value.kind == "NoJobReadyForObsId"
     assert err.value.obs_id == TEST_OBS_ID
@@ -460,7 +464,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_request(
     requests_before = len(httpserver.log)
 
     with pytest.raises(gs.ObsIdError, match="10 digits"):
-        client.download_obs(1, tmp_path)
+        client.download_obs(1, gs.DownloadOptions(tmp_path))
 
     assert len(httpserver.log) == requests_before
 
@@ -468,7 +472,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_request(
 def test_a_bad_retry_duration_is_rejected(client: gs.AsvoClient, tmp_path: pathlib.Path) -> None:
     """A negative retry_duration raises ValueError."""
     with pytest.raises(ValueError, match="retry_duration"):
-        client.download_job(JOB_ID, tmp_path, retry_duration=-1.0)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, retry_duration=-1.0))
 
 
 def test_the_progress_events_have_readable_reprs() -> None:
@@ -481,7 +485,7 @@ def test_a_job_subdirectory_puts_the_files_in_a_directory_named_for_the_job(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """With job_subdirectory, the files go in download_dir/<job_id>, which is made."""
-    client.download_job(JOB_ID, tmp_path, job_subdirectory=True)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=True))
 
     assert (tmp_path / str(JOB_ID) / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert [entry.name for entry in tmp_path.iterdir()] == [str(JOB_ID)]
@@ -491,7 +495,7 @@ def test_a_job_subdirectory_holds_a_kept_tar_too(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """The tar that keep_tar keeps is in the directory of the job."""
-    client.download_job(JOB_ID, tmp_path, keep_tar=True, job_subdirectory=True)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=True))
 
     assert (tmp_path / str(JOB_ID) / FILE_NAME).read_bytes() == served_tar
     assert not (tmp_path / FILE_NAME).exists()
@@ -501,7 +505,7 @@ def test_without_a_job_subdirectory_the_files_stay_in_the_download_directory(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """With job_subdirectory off, the layout is that of 2.x: no directory for the job."""
-    client.download_job(JOB_ID, tmp_path, job_subdirectory=False)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=False))
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / str(JOB_ID)).exists()
@@ -511,7 +515,7 @@ def test_the_files_go_in_a_directory_for_the_job_by_default(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """Without job_subdirectory, the files go in download_dir/<job_id>, as for the giant-squid command."""
-    client.download_job(JOB_ID, tmp_path)
+    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path))
 
     assert (tmp_path / str(JOB_ID) / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert [entry.name for entry in tmp_path.iterdir()] == [str(JOB_ID)]
@@ -521,7 +525,7 @@ def test_download_obs_uses_the_directory_of_the_job_that_it_finds(
     client: gs.AsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
     """An Obs ID is downloaded into the directory of its one ready job."""
-    client.download_obs(int(TEST_OBS_ID), tmp_path, job_subdirectory=True)
+    client.download_obs(int(TEST_OBS_ID), gs.DownloadOptions(tmp_path, job_subdirectory=True))
 
     assert (tmp_path / str(JOB_ID) / MEMBER_NAME).is_file()
 
@@ -537,7 +541,7 @@ def test_a_job_subdirectory_that_is_a_symlink_is_refused(
     (download_dir / str(JOB_ID)).symlink_to(elsewhere)
 
     with pytest.raises(gs.AsvoError) as info:
-        client.download_job(JOB_ID, download_dir, job_subdirectory=True)
+        client.download_job(JOB_ID, gs.DownloadOptions(download_dir, job_subdirectory=True))
 
     assert info.value.kind == "SymlinkInDownloadDir"
     assert list(elsewhere.iterdir()) == []
@@ -548,7 +552,7 @@ def test_a_download_directory_that_is_missing_is_a_file_not_found_error(
 ) -> None:
     """A file system error is an OSError, as Python's open raises it, and not an AsvoError."""
     with pytest.raises(FileNotFoundError, match="download directory") as info:
-        client.download_job(JOB_ID, tmp_path / "missing", job_subdirectory=True)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path / "missing", job_subdirectory=True))
 
     assert not isinstance(info.value, gs.AsvoError)
 
@@ -560,7 +564,7 @@ def test_a_job_directory_that_cannot_be_made_is_an_os_error_with_its_path(
     (tmp_path / str(JOB_ID)).write_text("not a directory")
 
     with pytest.raises(OSError) as info:
-        client.download_job(JOB_ID, tmp_path, job_subdirectory=True)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=True))
 
     assert not isinstance(info.value, gs.AsvoError)
     assert info.value.filename is not None
@@ -609,7 +613,7 @@ def test_a_download_of_a_job_whose_links_expired_raises_job_expired(
     serve_jobs([job_with_url(httpserver, JOB_ID, EXPIRES_LONG_AGO)])
 
     with pytest.raises(gs.AsvoError) as info:
-        client.download_job(JOB_ID, tmp_path)
+        client.download_job(JOB_ID, gs.DownloadOptions(tmp_path))
 
     assert info.value.kind == "JobExpired"
     assert info.value.job_id == JOB_ID

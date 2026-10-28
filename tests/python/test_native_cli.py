@@ -242,7 +242,7 @@ RUN_AFTER_CLIENT_PROGRAM = """
 import mwa_giant_squid as gs
 try:
     # Nothing listens there, so the login fails; the client's Python logging is installed before it.
-    gs.AsvoClient("http://127.0.0.1:1", "key")
+    gs.AsvoClient(gs.AsvoClientConfig("http://127.0.0.1:1", "key"))
 except gs.AsvoApiError:
     pass
 try:
