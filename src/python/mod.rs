@@ -112,7 +112,12 @@ mod module {
     #[pymodule_export]
     use super::config::{client_config_from_env, PyAsvoClientConfig, PyDownloadSettings};
     #[pymodule_export]
-    use super::csv::{CsvSubmitError, PyCsvJobFailure};
+    use super::csv::{
+        parse_manta_ray_csv, read_manta_ray_csv, CsvError, CsvFileError, CsvFileErrorInvalid,
+        CsvFileErrorNoJobs, CsvJobsFailed, CsvSubmitError, CsvSubmitErrorFailed,
+        CsvSubmitErrorInvalid, CsvSubmitErrorNoJobs, PyCsvDefaults, PyCsvJob, PyCsvJobFailure,
+        PyCsvJobParams, PyCsvRowError,
+    };
     #[pymodule_export]
     use super::download::PyDownloadOptions;
     #[pymodule_export]

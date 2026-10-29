@@ -14,19 +14,17 @@ use pyo3::prelude::*;
 
 use super::config::PyAsvoClientConfig;
 use super::connect_python_logging;
-use super::csv::csv_submit_error;
+use super::csv::{
+    csv_jobs_failed, csv_submit_error, result_object, PyCsvDefaults, PyCsvJob, PyCsvJobParams,
+};
 use super::download::{run_download, PyDownloadOptions};
 use super::error::{api_error, asvo_error};
 use super::filter::PyJobsFilter;
 use super::job_params::{PreprocessParams, PyDownloadJobParams};
 use super::obs_id::ObsIdArg;
-use super::typed::JobId;
-use super::types::{
-    PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyJobCancelledResponse,
-    PyJobSubmittedResponse,
-};
+use super::typed::{JobId, ResultCallback};
+use super::types::{PyAsvoJob, PyAsvoJobVec, PyJobCancelledResponse, PyJobSubmittedResponse};
 use crate::mwa_asvo::{AsvoClient, JobsFilter};
-use crate::CsvDefaults;
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
@@ -166,50 +164,38 @@ impl PyAsvoClient {
     ///
     /// A key that a line does not give has the default of the MWA ASVO,
     /// except `delivery`, `delivery_format` and `allow_resubmit`, for which
-    /// the arguments below are the defaults. (The module reads no
-    /// environment variable, so `GIANT_SQUID_DELIVERY` is not used.) A key
-    /// that a line does give wins. A key that a line gives twice, and a line
-    /// that makes the same job as an earlier line, are logged as warnings.
-    /// See the README for the keys of each job type.
+    /// `defaults` are the defaults. (This method reads no environment
+    /// variable. `CsvDefaults.from_env()` reads the variables of the
+    /// `giant-squid` command.) A key that a line does give wins. A key that
+    /// a line gives twice, and a line that makes the same job as an earlier
+    /// line, are logged as warnings. See the README for the keys of each job
+    /// type.
     ///
     /// Args:
     ///     path: The CSV file.
-    ///     delivery: The `delivery` of the lines that have none. `None`
-    ///         leaves the default of the MWA ASVO.
-    ///     delivery_format: The `delivery_format` of the lines that have
-    ///         none. `None` leaves the default of the MWA ASVO.
-    ///     allow_resubmit: The `allow_resubmit` of the lines that have none.
-    ///         `None` leaves the default of the MWA ASVO.
+    ///     defaults: What the lines do not give (a `CsvDefaults`). `None` is
+    ///         no defaults.
     ///
     /// Returns:
     ///     The server's reply for each job, in the order of the file.
     ///
     /// Raises:
     ///     OSError: The file cannot be read. Nothing is submitted.
-    ///     ValueError: The file has no job, or a line of the file has a
-    ///         problem (for example an unknown key, or a value outside the
-    ///         limits of the MWA ASVO). The message lists every bad line by
-    ///         its line number. Nothing is submitted.
-    ///     CsvSubmitError: Some jobs failed. The other jobs were submitted:
-    ///         the exception's `submitted` has their replies, and its
-    ///         `failures` has a `CsvJobFailure` for each job that failed.
-    #[pyo3(
-        text_signature = "($self, path, *, delivery=None, delivery_format=None, allow_resubmit=None)"
-    )]
-    #[pyo3(signature = (path, *, delivery=None, delivery_format=None, allow_resubmit=None))]
+    ///     CsvSubmitError: The file has a problem on some lines (kind
+    ///         `Invalid`, with `errors`, the message lists every bad line by
+    ///         its line number), or it has no job (kind `NoJobs`). Nothing is
+    ///         submitted. Or some jobs failed (kind `Failed`): the other jobs
+    ///         were submitted, and the exception's `submitted` has their
+    ///         replies and its `failures` has a `CsvJobFailure` for each job
+    ///         that failed.
+    #[pyo3(signature = (path, defaults=None))]
     fn submit_csv_file(
         &self,
         py: Python<'_>,
         path: PathBuf,
-        delivery: Option<PyDeliveryDestination>,
-        delivery_format: Option<PyDeliveryFormat>,
-        allow_resubmit: Option<bool>,
+        defaults: Option<PyRef<'_, PyCsvDefaults>>,
     ) -> PyResult<Vec<PyJobSubmittedResponse>> {
-        let defaults = CsvDefaults {
-            delivery: delivery.map(Into::into),
-            delivery_format: delivery_format.map(Into::into),
-            allow_resubmit,
-        };
+        let defaults = PyCsvDefaults::lib_or_default(defaults);
         py.detach(|| self.inner.submit_csv_file(&path, &defaults))
             .map(|replies| {
                 replies
@@ -218,6 +204,101 @@ impl PyAsvoClient {
                     .collect()
             })
             .map_err(|e| csv_submit_error(py, e))
+    }
+
+    /// Submit the jobs that `parse_manta_ray_csv` or `read_manta_ray_csv`
+    /// read, in order, and carry on past a job that fails.
+    ///
+    /// Args:
+    ///     jobs: The jobs (`CsvJob`).
+    ///     on_result: A function to call for each job when its request is
+    ///         done, so that you can report it at once. It is called with
+    ///         the `CsvJob` and its result: the `JobSubmittedResponse`, or
+    ///         the `AsvoApiError` that the request failed with (as a value,
+    ///         not raised). If it raises, it is not called again, the other
+    ///         jobs are still submitted (the library's loop cannot be
+    ///         stopped), and its first exception is raised when they are
+    ///         done.
+    ///
+    /// Returns:
+    ///     The server's reply for each job, in the order of the jobs.
+    ///
+    /// Raises:
+    ///     ValueError: The image size or `nmiter` of an imaging job is not
+    ///         valid. Nothing is submitted.
+    ///     CsvJobsFailed: Some jobs failed. The other jobs were submitted:
+    ///         the exception's `submitted` has their replies and its
+    ///         `failures` has a `CsvJobFailure` for each job that failed.
+    #[pyo3(signature = (jobs, on_result=None))]
+    fn submit_csv_jobs(
+        &self,
+        py: Python<'_>,
+        jobs: Vec<Py<PyCsvJob>>,
+        on_result: Option<ResultCallback>,
+    ) -> PyResult<Vec<PyJobSubmittedResponse>> {
+        let lib_jobs = jobs
+            .iter()
+            .map(|job| job.get().to_lib(py))
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut done = 0;
+        let mut callback_error: Option<PyErr> = None;
+        let result = py.detach(|| {
+            self.inner.submit_csv_jobs(&lib_jobs, |_, result| {
+                let index = done;
+                done += 1;
+                let Some(callback) = &on_result else { return };
+                if callback_error.is_some() {
+                    return;
+                }
+                Python::attach(|py| {
+                    let outcome = result_object(py, result).and_then(|result| {
+                        callback
+                            .0
+                            .bind(py)
+                            .call1((jobs[index].clone_ref(py), result))
+                    });
+                    if let Err(e) = outcome {
+                        callback_error = Some(e);
+                    }
+                });
+            })
+        });
+        if let Some(e) = callback_error {
+            return Err(e);
+        }
+        result
+            .map(|replies| {
+                replies
+                    .into_iter()
+                    .map(PyJobSubmittedResponse::from)
+                    .collect()
+            })
+            .map_err(|e| csv_jobs_failed(py, e))
+    }
+
+    /// Submit the job of one line of a manta-ray-client CSV file (see
+    /// `parse_manta_ray_csv`), to the endpoint of its job type.
+    ///
+    /// Args:
+    ///     params: The request body (a `CsvJobParams`, from a `CsvJob`).
+    ///
+    /// Returns:
+    ///     The server's reply.
+    ///
+    /// Raises:
+    ///     ValueError: A value is outside the limits of the MWA ASVO. Nothing
+    ///         is sent.
+    ///     AsvoApiError: The request failed. (The errors of the submit
+    ///         methods.)
+    fn submit_csv_job(
+        &self,
+        py: Python<'_>,
+        params: Py<PyCsvJobParams>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = params.get().to_lib(py)?;
+        py.detach(|| self.inner.submit_csv_job(&params))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
     }
 
     /// Cancel a job.

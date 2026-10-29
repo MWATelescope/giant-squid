@@ -106,6 +106,30 @@ impl pyo3_stub_gen::PyStubType for ProgressCallback {
     }
 }
 
+/// The `on_result` argument of `submit_csv_jobs`: a function that takes a
+/// `CsvJob` and the result of its submission (a `JobSubmittedResponse`, or the
+/// `AsvoApiError` that it failed with). Any object is taken; a call to an
+/// object that is not callable raises when the first job is done.
+pub struct ResultCallback(pub Py<PyAny>);
+
+impl<'a, 'py> FromPyObject<'a, 'py> for ResultCallback {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
+        Ok(Self(obj.to_owned().unbind()))
+    }
+}
+
+#[cfg(feature = "python-stubgen")]
+impl pyo3_stub_gen::PyStubType for ResultCallback {
+    fn type_output() -> pyo3_stub_gen::TypeInfo {
+        stub_type(
+            "collections.abc.Callable[[CsvJob, JobSubmittedResponse | AsvoApiError], builtins.object]",
+            &["builtins", "collections.abc"],
+        )
+    }
+}
+
 /// An MWA ASVO Job ID ([`AsvoJobId`](crate::AsvoJobId), a `NonZeroU64`) as
 /// a Python `int`, as an argument or a return value. An argument that is 0
 /// raises `ValueError`.

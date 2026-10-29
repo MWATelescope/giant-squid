@@ -246,6 +246,15 @@ before you upgrade scripts.**
   (it still takes one of the three classes alone). **Changed:** the `obs_id` of a request body is an `ObsId`, checked
   when the class is made or the attribute is set (`ObsIdError`, before: `ValueError` when the job was submitted), and
   `source_job_id` is checked when it is set. `ImagingJobFlow2Params` has an `obs_id` (`None`), as the schema's type does.
+* Python: the items of the import of a manta-ray-client CSV file, as in the Rust library: `CsvDefaults` (with
+  `from_env()`), `CsvJob`, `CsvJobParams` (`Conversion`, `Imaging`, `Download`, `Voltage` and `Beamformer` variants,
+  with `description()` and `validate()`), `CsvRowError`, `parse_manta_ray_csv`, `read_manta_ray_csv`,
+  `AsvoClient.submit_csv_jobs(jobs, on_result=None)` and `AsvoClient.submit_csv_job(params)`. The errors have a
+  subclass for each Rust variant: `CsvError`, `CsvJobsFailed`, `CsvFileError` (`CsvFileErrorInvalid`,
+  `CsvFileErrorNoJobs`) and `CsvSubmitError` (`CsvSubmitErrorInvalid`, `CsvSubmitErrorNoJobs`,
+  `CsvSubmitErrorFailed`). **Changed:** `submit_csv_file(path, defaults=None)` takes a `CsvDefaults` instead of the
+  keyword arguments `delivery`, `delivery_format` and `allow_resubmit`, and a file with a problem or with no job raises
+  `CsvSubmitErrorInvalid` or `CsvSubmitErrorNoJobs` (instances of `CsvSubmitError`) instead of `ValueError`.
 
 ### Fixed in 3.0.0
 

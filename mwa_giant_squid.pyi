@@ -35,8 +35,20 @@ __all__ = [
     "AsvoJob",
     "AsvoJobVec",
     "ConversionJobParams",
+    "CsvDefaults",
+    "CsvError",
+    "CsvFileError",
+    "CsvFileErrorInvalid",
+    "CsvFileErrorNoJobs",
+    "CsvJob",
     "CsvJobFailure",
+    "CsvJobParams",
+    "CsvJobsFailed",
+    "CsvRowError",
     "CsvSubmitError",
+    "CsvSubmitErrorFailed",
+    "CsvSubmitErrorInvalid",
+    "CsvSubmitErrorNoJobs",
     "DeliveryDestination",
     "DeliveryFormat",
     "DownloadJobParams",
@@ -87,9 +99,11 @@ __all__ = [
     "metadata_params",
     "parse_job_ids_and_obs_ids_from_file",
     "parse_job_ids_only",
+    "parse_manta_ray_csv",
     "parse_many_job_ids_or_obs_ids",
     "parse_obs_ids_only",
     "parse_utc_time",
+    "read_manta_ray_csv",
     "reset_logging",
     "voltage_params",
 ]
@@ -245,12 +259,7 @@ class AsvoClient:
             AsvoApiError: The request failed.
         """
     def submit_csv_file(
-        self,
-        path: builtins.str | os.PathLike | pathlib.Path,
-        *,
-        delivery: DeliveryDestination | None = None,
-        delivery_format: DeliveryFormat | None = None,
-        allow_resubmit: builtins.bool | None = None,
+        self, path: builtins.str | os.PathLike | pathlib.Path, defaults: CsvDefaults | None = None
     ) -> builtins.list[JobSubmittedResponse]:
         r"""
         Submit the jobs of a manta-ray-client CSV file (the file that
@@ -262,33 +271,78 @@ class AsvoClient:
 
         A key that a line does not give has the default of the MWA ASVO,
         except `delivery`, `delivery_format` and `allow_resubmit`, for which
-        the arguments below are the defaults. (The module reads no
-        environment variable, so `GIANT_SQUID_DELIVERY` is not used.) A key
-        that a line does give wins. A key that a line gives twice, and a line
-        that makes the same job as an earlier line, are logged as warnings.
-        See the README for the keys of each job type.
+        `defaults` are the defaults. (This method reads no environment
+        variable. `CsvDefaults.from_env()` reads the variables of the
+        `giant-squid` command.) A key that a line does give wins. A key that
+        a line gives twice, and a line that makes the same job as an earlier
+        line, are logged as warnings. See the README for the keys of each job
+        type.
 
         Args:
             path: The CSV file.
-            delivery: The `delivery` of the lines that have none. `None`
-                leaves the default of the MWA ASVO.
-            delivery_format: The `delivery_format` of the lines that have
-                none. `None` leaves the default of the MWA ASVO.
-            allow_resubmit: The `allow_resubmit` of the lines that have none.
-                `None` leaves the default of the MWA ASVO.
+            defaults: What the lines do not give (a `CsvDefaults`). `None` is
+                no defaults.
 
         Returns:
             The server's reply for each job, in the order of the file.
 
         Raises:
             OSError: The file cannot be read. Nothing is submitted.
-            ValueError: The file has no job, or a line of the file has a
-                problem (for example an unknown key, or a value outside the
-                limits of the MWA ASVO). The message lists every bad line by
-                its line number. Nothing is submitted.
-            CsvSubmitError: Some jobs failed. The other jobs were submitted:
-                the exception's `submitted` has their replies, and its
+            CsvSubmitError: The file has a problem on some lines (kind
+                `Invalid`, with `errors`, the message lists every bad line by
+                its line number), or it has no job (kind `NoJobs`). Nothing is
+                submitted. Or some jobs failed (kind `Failed`): the other jobs
+                were submitted, and the exception's `submitted` has their
+                replies and its `failures` has a `CsvJobFailure` for each job
+                that failed.
+        """
+    def submit_csv_jobs(
+        self,
+        jobs: typing.Sequence[CsvJob],
+        on_result: collections.abc.Callable[[CsvJob, JobSubmittedResponse | AsvoApiError], builtins.object]
+        | None = None,
+    ) -> builtins.list[JobSubmittedResponse]:
+        r"""
+        Submit the jobs that `parse_manta_ray_csv` or `read_manta_ray_csv`
+        read, in order, and carry on past a job that fails.
+
+        Args:
+            jobs: The jobs (`CsvJob`).
+            on_result: A function to call for each job when its request is
+                done, so that you can report it at once. It is called with
+                the `CsvJob` and its result: the `JobSubmittedResponse`, or
+                the `AsvoApiError` that the request failed with (as a value,
+                not raised). If it raises, it is not called again, the other
+                jobs are still submitted (the library's loop cannot be
+                stopped), and its first exception is raised when they are
+                done.
+
+        Returns:
+            The server's reply for each job, in the order of the jobs.
+
+        Raises:
+            ValueError: The image size or `nmiter` of an imaging job is not
+                valid. Nothing is submitted.
+            CsvJobsFailed: Some jobs failed. The other jobs were submitted:
+                the exception's `submitted` has their replies and its
                 `failures` has a `CsvJobFailure` for each job that failed.
+        """
+    def submit_csv_job(self, params: CsvJobParams) -> JobSubmittedResponse:
+        r"""
+        Submit the job of one line of a manta-ray-client CSV file (see
+        `parse_manta_ray_csv`), to the endpoint of its job type.
+
+        Args:
+            params: The request body (a `CsvJobParams`, from a `CsvJob`).
+
+        Returns:
+            The server's reply.
+
+        Raises:
+            ValueError: A value is outside the limits of the MWA ASVO. Nothing
+                is sent.
+            AsvoApiError: The request failed. (The errors of the submit
+                methods.)
         """
     def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
         r"""
@@ -867,6 +921,147 @@ class ConversionJobParams:
     ) -> ConversionJobParams: ...
 
 @typing.final
+class CsvDefaults:
+    r"""
+    What the lines of a CSV file do not give, for the values that the
+    environment or a command line can set for a whole file.
+
+    A key that a line gives wins. Every other key that a line does not give has
+    the default of the MWA ASVO.
+
+    Args:
+        delivery: The `delivery` of a line that has none. `None` leaves the
+            default of the MWA ASVO.
+        delivery_format: The `delivery_format` of a line that has none.
+            `None` leaves the default of the MWA ASVO.
+        allow_resubmit: The `allow_resubmit` of a line that has none. `None`
+            leaves the default of the MWA ASVO.
+    """
+    @property
+    def delivery(self) -> DeliveryDestination | None:
+        r"""
+        The `delivery` of a line that has none.
+        """
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination | None) -> None:
+        r"""
+        The `delivery` of a line that has none.
+        """
+    @property
+    def delivery_format(self) -> DeliveryFormat | None:
+        r"""
+        The `delivery_format` of a line that has none.
+        """
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat | None) -> None:
+        r"""
+        The `delivery_format` of a line that has none.
+        """
+    @property
+    def allow_resubmit(self) -> builtins.bool | None:
+        r"""
+        The `allow_resubmit` of a line that has none.
+        """
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None:
+        r"""
+        The `allow_resubmit` of a line that has none.
+        """
+    def __new__(
+        cls,
+        *,
+        delivery: DeliveryDestination | None = None,
+        delivery_format: DeliveryFormat | None = None,
+        allow_resubmit: builtins.bool | None = None,
+    ) -> CsvDefaults: ...
+    @staticmethod
+    def from_env() -> CsvDefaults:
+        r"""
+        The defaults that come from the environment, as for the `submit-*`
+        commands.
+
+        - `GIANT_SQUID_DELIVERY` is the `delivery` of a line that has none.
+        - `GIANT_SQUID_DELIVERY_FORMAT` is the `delivery_format` of a line
+          that has none.
+
+        `allow_resubmit` is not read from the environment.
+
+        Returns:
+            The defaults.
+
+        Raises:
+            AsvoError: A variable is set to a value that the schema does not
+                list (kind `InvalidEnvironment`).
+        """
+
+class CsvError(builtins.Exception):
+    r"""
+    A CSV file has a problem on some lines. `errors` has a `CsvRowError` for each of them, in the order of the lines. There is at least one.
+    """
+
+    errors: builtins.list[CsvRowError]
+    r"""
+    The lines that have a problem, in the order of the lines.
+    """
+
+class CsvFileError(builtins.Exception):
+    r"""
+    `read_manta_ray_csv` could not turn a CSV file into jobs. `kind` is the Rust `CsvFileError` variant, and the exception is also an instance of the class for that variant (for example `CsvFileErrorNoJobs`). A file that cannot be read is an `OSError`, not this.
+
+    `kind` is always set. The other attributes are set only for the kinds shown.
+    """
+
+    kind: builtins.str
+    r"""
+    "Invalid" or "NoJobs".
+    """
+    errors: builtins.list[CsvRowError]
+    r"""
+    Invalid: the lines that have a problem.
+    """
+    path: pathlib.Path
+    r"""
+    NoJobs: the file.
+    """
+
+class CsvFileErrorInvalid(CsvFileError):
+    r"""
+    A line of the file has a problem (kind `Invalid`). `errors` has a `CsvRowError` for each of them.
+    """
+
+class CsvFileErrorNoJobs(CsvFileError):
+    r"""
+    The file has no job: it is empty, or has only blank lines and comments (kind `NoJobs`). `path` is the file.
+    """
+
+@typing.final
+class CsvJob:
+    r"""
+    One job of a CSV file.
+
+    Args:
+        line: The line of the file, from 1.
+        obs_id: The Obs ID of the job.
+        params: The request body.
+    """
+    @property
+    def line(self) -> builtins.int:
+        r"""
+        The line of the file, from 1.
+        """
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID of the job.
+        """
+    @property
+    def params(self) -> CsvJobParams:
+        r"""
+        The request body.
+        """
+    def __new__(cls, line: builtins.int, obs_id: builtins.int | ObsId, params: CsvJobParams) -> CsvJob: ...
+
+@typing.final
 class CsvJobFailure:
     r"""
     A job of a CSV file that was not submitted.
@@ -887,9 +1082,107 @@ class CsvJobFailure:
         Why the job was not submitted: the `AsvoApiError` of the request.
         """
 
-class CsvSubmitError(builtins.Exception):
+class CsvJobParams:
     r"""
-    `AsvoClient.submit_csv_file` submitted the jobs of a file, but some jobs failed.
+    The request body of one job of a CSV file: the library's `CsvJobParams`.
+
+    `CsvJobParams.Conversion(params)` (`job_type=c`), `CsvJobParams.Imaging(params)`
+    (`job_type=i`), `CsvJobParams.Download(params)` (`job_type=d`, a visibility
+    or metadata download), `CsvJobParams.Voltage(params)` (`job_type=v`) and
+    `CsvJobParams.Beamformer(params)` (`job_type=b`) hold the request body.
+    `Voltage` and `Beamformer` hold a `DownloadJobParams`, as `Download` does.
+    """
+    def description(self) -> builtins.str:
+        r"""
+        The kind of job, in words: for example `conversion`.
+
+        Raises:
+            ValueError: The image size or `nmiter` of an imaging job is not
+                valid.
+        """
+    def validate(self) -> None:
+        r"""
+        Check the request body against the limits of the schema, as the
+        client does before it sends the request.
+
+        Raises:
+            ValueError: A value is outside the limits (the first that is).
+        """
+    @typing.final
+    class Conversion(CsvJobParams):
+        r"""
+        A conversion job (`job_type=c`).
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> ConversionJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: ConversionJobParams) -> CsvJobParams.Conversion: ...
+
+    @typing.final
+    class Imaging(CsvJobParams):
+        r"""
+        An imaging job from an Obs ID (`job_type=i`).
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> ImagingJobFlow1Params:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: ImagingJobFlow1Params) -> CsvJobParams.Imaging: ...
+
+    @typing.final
+    class Download(CsvJobParams):
+        r"""
+        A visibility or metadata download job (`job_type=d`).
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> DownloadJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Download: ...
+
+    @typing.final
+    class Voltage(CsvJobParams):
+        r"""
+        A voltage job (`job_type=v`): a download job with `offset` and
+        `duration`.
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> DownloadJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Voltage: ...
+
+    @typing.final
+    class Beamformer(CsvJobParams):
+        r"""
+        A beamformer job (`job_type=b`): a download job. The MWA ASVO finds
+        the kind of download from the observation.
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> DownloadJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Beamformer: ...
+
+class CsvJobsFailed(builtins.Exception):
+    r"""
+    `AsvoClient.submit_csv_jobs` submitted the jobs, but some jobs failed.
 
     The jobs that did not fail were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.
     """
@@ -901,6 +1194,65 @@ class CsvSubmitError(builtins.Exception):
     failures: builtins.list[CsvJobFailure]
     r"""
     The jobs that were not submitted, in the order of the file.
+    """
+
+@typing.final
+class CsvRowError:
+    r"""
+    What is wrong with one line of a CSV file.
+    """
+    @property
+    def line(self) -> builtins.int:
+        r"""
+        The line of the file, from 1.
+        """
+    @property
+    def message(self) -> builtins.str:
+        r"""
+        What is wrong, in words.
+        """
+
+class CsvSubmitError(builtins.Exception):
+    r"""
+    `AsvoClient.submit_csv_file` did not submit every job of a file. `kind` is the Rust `CsvSubmitError` variant, and the exception is also an instance of the class for that variant (for example `CsvSubmitErrorFailed`). A file that cannot be read is an `OSError`, not this.
+
+    `kind` is always set. The other attributes are set only for the kinds shown. For every kind but `Failed`, nothing was submitted. For `Failed`, the jobs that did not fail were submitted: a failed job does not stop the others.
+    """
+
+    kind: builtins.str
+    r"""
+    "Invalid", "NoJobs" or "Failed".
+    """
+    errors: builtins.list[CsvRowError]
+    r"""
+    Invalid: the lines that have a problem.
+    """
+    path: pathlib.Path
+    r"""
+    NoJobs: the file.
+    """
+    submitted: builtins.list[JobSubmittedResponse]
+    r"""
+    Failed: the replies for the jobs that were submitted, in the order of the file.
+    """
+    failures: builtins.list[CsvJobFailure]
+    r"""
+    Failed: the jobs that were not submitted, in the order of the file.
+    """
+
+class CsvSubmitErrorFailed(CsvSubmitError):
+    r"""
+    The server refused some jobs, or a request failed (kind `Failed`). The other jobs were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.
+    """
+
+class CsvSubmitErrorInvalid(CsvSubmitError):
+    r"""
+    A line of the file has a problem. Nothing was submitted (kind `Invalid`). `errors` has a `CsvRowError` for each of them.
+    """
+
+class CsvSubmitErrorNoJobs(CsvSubmitError):
+    r"""
+    The file has no job: it is empty, or has only blank lines and comments. Nothing was submitted (kind `NoJobs`). `path` is the file.
     """
 
 @typing.final
@@ -2676,6 +3028,30 @@ def parse_job_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[
         OSError: A file cannot be read.
     """
 
+def parse_manta_ray_csv(text: builtins.str, defaults: CsvDefaults | None = None) -> builtins.list[CsvJob]:
+    r"""
+    Read the jobs of the text of a `manta-ray-client` CSV file.
+
+    Every line is read and checked (also against the limits of the schema)
+    before the function returns, so that a file with a bad line at its end
+    submits nothing. The jobs are in the order of the lines. A file with no job
+    gives an empty list.
+
+    A key that a line gives twice (the last value is used), and a line that
+    makes the same job as an earlier line, are logged as warnings.
+
+    Args:
+        text: The text of the file.
+        defaults: What the lines do not give (a `CsvDefaults`). `None` is no
+            defaults.
+
+    Returns:
+        The jobs, in the order of the lines.
+
+    Raises:
+        CsvError: Some lines have a problem. `errors` has all of them.
+    """
+
 def parse_many_job_ids_or_obs_ids(
     strings: typing.Sequence[builtins.str],
 ) -> tuple[builtins.list[builtins.int], builtins.list[ObsId]]:
@@ -2736,6 +3112,29 @@ def parse_utc_time(text: builtins.str) -> datetime.datetime:
 
     Raises:
         ParseError: The text is not a time (kind `InvalidTime`).
+    """
+
+def read_manta_ray_csv(
+    path: builtins.str | os.PathLike | pathlib.Path, defaults: CsvDefaults | None = None
+) -> builtins.list[CsvJob]:
+    r"""
+    Read the jobs of a `manta-ray-client` CSV file: read the file and parse it
+    as `parse_manta_ray_csv` does, which checks every line.
+
+    Args:
+        path: The file.
+        defaults: What the lines do not give (a `CsvDefaults`). `None` is no
+            defaults.
+
+    Returns:
+        The jobs, in the order of the lines.
+
+    Raises:
+        OSError: The file cannot be read.
+        CsvFileError: Some lines have a problem (kind `Invalid`, with
+            `errors`), or the file has no job (kind `NoJobs`: a command that
+            was asked to submit a file with nothing in it has been used
+            wrongly).
     """
 
 def reset_logging() -> None:

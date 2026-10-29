@@ -2,12 +2,15 @@
 
 import base64
 import json
+import pathlib
 import time
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from pytest_httpserver import HTTPServer
+
+import mwa_giant_squid as gs
 
 # Values the mock uses in place of real credentials and user details.
 TEST_API_KEY = "not-a-real-api-key"
@@ -140,3 +143,36 @@ def serve_jobs(httpserver: HTTPServer) -> Callable[[list[dict[str, Any]]], None]
         )
 
     return serve
+
+
+@pytest.fixture
+def client(host: str, mock_login: None) -> gs.AsvoClient:
+    """A client that has logged in to the mock.
+
+    Args:
+        host: The mock's base URL.
+        mock_login: Serves the login.
+
+    Returns:
+        The client.
+    """
+    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+
+
+@pytest.fixture
+def write_csv(tmp_path: pathlib.Path) -> Callable[[str], pathlib.Path]:
+    """A function that writes a CSV file in a temporary directory.
+
+    Args:
+        tmp_path: The test's temporary directory.
+
+    Returns:
+        The function, which returns the path of the file.
+    """
+
+    def write(text: str) -> pathlib.Path:
+        path = tmp_path / "jobs.csv"
+        path.write_text(text)
+        return path
+
+    return write

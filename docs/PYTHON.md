@@ -297,13 +297,15 @@ for reply in replies:
 
 The whole file is read and checked before anything is submitted. Then the jobs are submitted in the order of the
 file, and the list has the `JobSubmittedResponse` of each. A key that a line does not give has the default of the
-MWA ASVO. The arguments `delivery`, `delivery_format` and `allow_resubmit` are the defaults of the lines that do not
-give that key (`submit_csv_file` reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used):
+MWA ASVO. A `CsvDefaults` gives the `delivery`, `delivery_format` and `allow_resubmit` of the lines that do not give
+that key. `submit_csv_file` reads no environment variable, so `GIANT_SQUID_DELIVERY` is not used, unless you call
+`CsvDefaults.from_env()`:
 
 ```python
-from mwa_giant_squid import DeliveryDestination
+from mwa_giant_squid import CsvDefaults, DeliveryDestination
 
-replies = client.submit_csv_file("jobs.csv", delivery=DeliveryDestination.Scratch, allow_resubmit=True)
+defaults = CsvDefaults(delivery=DeliveryDestination.Scratch, allow_resubmit=True)
+replies = client.submit_csv_file("jobs.csv", defaults)  # or CsvDefaults.from_env()
 ```
 
 A key that a line gives twice, and a line that makes the same job as an earlier line, are logged as warnings (see
@@ -312,27 +314,63 @@ A key that a line gives twice, and a line that makes the same job as an earlier 
 If the file has a problem, the call raises an exception and submits nothing:
 
 - `OSError` (for example `FileNotFoundError`): the file cannot be read.
-- `ValueError`: the file has no job (it is empty, or has only blank lines and comments), or a line has a problem,
-  for example a key that the job type does not have, or a value outside the limits of the MWA ASVO. The message
-  lists every bad line with its line number.
+- `CsvSubmitErrorNoJobs` (kind `NoJobs`, with `path`): the file has no job (it is empty, or has only blank lines and
+  comments).
+- `CsvSubmitErrorInvalid` (kind `Invalid`, with `errors`): a line has a problem, for example a key that the job type
+  does not have, or a value outside the limits of the MWA ASVO. `errors` has a `CsvRowError` (`line` and `message`)
+  for every bad line, and the message lists them.
 
-A job that fails does not stop the others. When any job fails, the call raises `CsvSubmitError` after it has tried
-every job. The jobs that did not fail were submitted: the exception has their replies, so you do not submit them
-again.
+A job that fails does not stop the others. When any job fails, the call raises `CsvSubmitErrorFailed` (kind `Failed`)
+after it has tried every job. The jobs that did not fail were submitted: the exception has their replies, so you do
+not submit them again. All three are instances of `CsvSubmitError`.
 
 ```python
 from mwa_giant_squid import CsvSubmitError
 
 try:
-    replies = client.submit_csv_file("jobs.csv")
+    replies = client.submit_csv_file("jobs.csv", defaults)
 except CsvSubmitError as e:
-    for reply in e.submitted:  # the jobs that were submitted, in the order of the file
-        print("submitted", reply.job_id)
-    for failure in e.failures:  # the jobs that were not
-        print("line", failure.line, "Obs ID", failure.obs_id, "failed:", failure.error)
+    if e.kind == "Failed":
+        for reply in e.submitted:  # the jobs that were submitted, in the order of the file
+            print("submitted", reply.job_id)
+        for failure in e.failures:  # the jobs that were not
+            print("line", failure.line, "Obs ID", failure.obs_id, "failed:", failure.error)
 ```
 
 Each `CsvJobFailure` has `line` (of the file), `obs_id` and `error`, the `AsvoApiError` of the request.
+
+#### The steps of `submit_csv_file`
+
+`submit_csv_file` is `read_manta_ray_csv` and `submit_csv_jobs`, as in the Rust library. You can do the steps
+yourself, for example to show the jobs before they are submitted, or to report each job as soon as it is done:
+
+```python
+from mwa_giant_squid import CsvJobsFailed, read_manta_ray_csv
+
+jobs = read_manta_ray_csv("jobs.csv", defaults)  # a list of CsvJob, checked
+for job in jobs:
+    print(job.line, job.obs_id, job.params.description())  # for example "visibility download"
+
+
+def report(job, result):
+    # `result` is the JobSubmittedResponse, or the AsvoApiError of a request that failed (given, not raised).
+    print(job.line, result)
+
+
+try:
+    replies = client.submit_csv_jobs(jobs, report)
+except CsvJobsFailed as e:
+    print(len(e.submitted), "submitted,", len(e.failures), "failed")
+```
+
+`parse_manta_ray_csv(text, defaults=None)` reads the text of a file, and raises `CsvError` (with `errors`) for the bad
+lines. `read_manta_ray_csv(path, defaults=None)` reads a file, and raises `CsvFileErrorInvalid`,
+`CsvFileErrorNoJobs` or `OSError`. A `CsvJob` has `line`, `obs_id` and `params`, a `CsvJobParams`:
+`CsvJobParams.Conversion`, `Imaging`, `Download`, `Voltage` or `Beamformer`, each of which holds the request body
+(`params`), the class that the matching submit method takes (a voltage or beamformer job holds a `DownloadJobParams`).
+`CsvJobParams.description()` and `validate()` are the library's. `client.submit_csv_job(job.params)` submits one job.
+If the function that you give `submit_csv_jobs` raises, the other jobs are still submitted (the library's loop cannot
+be stopped), it is not called again, and its first exception is raised when the jobs are done.
 
 ## Wait for jobs
 
@@ -435,8 +473,10 @@ the function raises an exception, the download stops and the call raises that ex
 | `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
 | `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
 | `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
-| `OSError` | A file or directory cannot be read, written or made: the CSV file of `submit_csv_file`, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
-| `CsvSubmitError` | `submit_csv_file` submitted the jobs of a file, and some failed. It has `submitted` (the replies of the jobs that were submitted) and `failures` (a `CsvJobFailure` for each job that was not). |
+| `OSError` | A file or directory cannot be read, written or made: a CSV file, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
+| `CsvSubmitError` | `submit_csv_file` did not submit every job of a file. `CsvSubmitErrorInvalid` (a line has a problem; `errors`) and `CsvSubmitErrorNoJobs` (`path`) submit nothing. `CsvSubmitErrorFailed` means that some jobs failed and the others were submitted: it has `submitted` (the replies) and `failures` (a `CsvJobFailure` for each job that was not). |
+| `CsvFileError`, `CsvError` | `read_manta_ray_csv` (`CsvFileErrorInvalid` with `errors`, `CsvFileErrorNoJobs` with `path`) or `parse_manta_ray_csv` (`CsvError` with `errors`) could not read the jobs of a file. |
+| `CsvJobsFailed` | `submit_csv_jobs` submitted the jobs, and some failed. It has `submitted` and `failures`. |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 
 `AsvoApiError`, `AsvoError`, `ObsIdError` and `ParseError` have a `kind` attribute: the name of the Rust error

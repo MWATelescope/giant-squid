@@ -67,6 +67,15 @@ ERROR_VARIANTS = [
     "Http404Error",
 ]
 
+# The variants of the CSV enums (`src/mwa_asvo/manta_ray_csv/mod.rs`). `Read` is an `io::Error`, which Python raises
+# as `OSError`.
+CSV_JOB_PARAMS_VARIANTS = ["Conversion", "Imaging", "Download", "Voltage", "Beamformer"]
+CSV_FILE_ERROR_VARIANTS = ["Read", "Invalid", "NoJobs"]
+CSV_SUBMIT_ERROR_VARIANTS = ["Read", "Invalid", "NoJobs", "Failed"]
+CSV_READ_EXCLUDED = {
+    "Read": "Python raises OSError (FileNotFoundError, PermissionError and so on), not a CSV error.",
+}
+
 # The variants of `AsvoError` that have no subclass, because Python raises another exception for them.
 EXCLUDED_ERROR_VARIANTS = {
     "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an AsvoError.",
@@ -130,8 +139,17 @@ def undecided(rust: str, note: str, python: str | None = None) -> Entry:
     return Entry(rust, "undecided", python, note)
 
 
-def _variant_entries(enum: str, variants: list[str], excluded_variants: dict[str, str] | None = None) -> list[Entry]:
-    """The entries of the variants of a Rust error enum: each is a Python subclass of the enum's exception."""
+def _variant_entries(
+    enum: str,
+    variants: list[str],
+    excluded_variants: dict[str, str] | None = None,
+    nested: bool = False,
+) -> list[Entry]:
+    """The entries of the variants of a Rust enum.
+
+    A variant of an error enum is a Python subclass of the enum's exception, named by the enum and the variant
+    (`ParseErrorNoObsIds`). With `nested`, it is a class in the Python class of the enum (`CsvJobParams.Download`).
+    """
     excluded_variants = excluded_variants or {}
     entries: list[Entry] = []
     for variant in variants:
@@ -139,7 +157,7 @@ def _variant_entries(enum: str, variants: list[str], excluded_variants: dict[str
         if variant in excluded_variants:
             entries.append(excluded(rust, excluded_variants[variant]))
         else:
-            entries.append(done(rust, f"{enum}{variant}"))
+            entries.append(done(rust, f"{enum}.{variant}" if nested else f"{enum}{variant}"))
     return entries
 
 
@@ -230,8 +248,8 @@ MANIFEST: list[Entry] = [
     done("crate::AsvoClient::download_obs", "AsvoClient.download_obs"),
     done("crate::AsvoClient::download_job_from", "AsvoClient.download_job_from"),
     done("crate::AsvoClient::download_obs_from", "AsvoClient.download_obs_from"),
-    pending("crate::AsvoClient::submit_csv_jobs", "AsvoClient.submit_csv_jobs"),
-    pending("crate::AsvoClient::submit_csv_job", "AsvoClient.submit_csv_job"),
+    done("crate::AsvoClient::submit_csv_jobs", "AsvoClient.submit_csv_jobs"),
+    done("crate::AsvoClient::submit_csv_job", "AsvoClient.submit_csv_job"),
     done("crate::AsvoClientConfig", "AsvoClientConfig"),
     done("crate::JobsFilter", "JobsFilter"),
     done("crate::JobsFilter::validate", "JobsFilter.validate"),
@@ -326,20 +344,23 @@ MANIFEST: list[Entry] = [
     excluded("crate::jiff", "A Rust crate re-export. Python dates are `datetime.datetime`."),
     # --- The manta-ray-client CSV file ---
     done("crate::CsvJobFailure", "CsvJobFailure"),
-    done("crate::CsvSubmitError", "CsvSubmitError"),
-    pending("crate::CsvDefaults", "CsvDefaults", "AsvoClient.submit_csv_file takes it, instead of keyword arguments."),
-    pending("crate::CsvDefaults::from_env", "CsvDefaults.from_env"),
-    pending("crate::CsvJob", "CsvJob"),
-    pending("crate::CsvJobParams", "CsvJobParams"),
-    pending("crate::CsvJobParams::description", "CsvJobParams.description"),
-    pending("crate::CsvJobParams::validate", "CsvJobParams.validate"),
+    done("crate::CsvDefaults", "CsvDefaults"),
+    done("crate::CsvDefaults::from_env", "CsvDefaults.from_env"),
+    done("crate::CsvJob", "CsvJob"),
+    done("crate::CsvJobParams", "CsvJobParams"),
+    *_variant_entries("CsvJobParams", CSV_JOB_PARAMS_VARIANTS, nested=True),
+    done("crate::CsvJobParams::description", "CsvJobParams.description"),
+    done("crate::CsvJobParams::validate", "CsvJobParams.validate"),
     excluded("crate::CsvJobParams::endpoint", "Returns an ENDPOINT_* path, which Python does not have."),
-    pending("crate::CsvError", "CsvError"),
-    pending("crate::CsvFileError", "CsvFileError"),
-    pending("crate::CsvRowError", "CsvRowError"),
-    pending("crate::CsvJobsFailed", "CsvJobsFailed"),
-    pending("crate::parse_manta_ray_csv", "parse_manta_ray_csv"),
-    pending("crate::read_manta_ray_csv", "read_manta_ray_csv"),
+    done("crate::CsvRowError", "CsvRowError"),
+    done("crate::CsvError", "CsvError"),
+    done("crate::CsvJobsFailed", "CsvJobsFailed"),
+    done("crate::CsvFileError", "CsvFileError"),
+    *_variant_entries("CsvFileError", CSV_FILE_ERROR_VARIANTS, CSV_READ_EXCLUDED),
+    done("crate::CsvSubmitError", "CsvSubmitError"),
+    *_variant_entries("CsvSubmitError", CSV_SUBMIT_ERROR_VARIANTS, CSV_READ_EXCLUDED),
+    done("crate::parse_manta_ray_csv", "parse_manta_ray_csv"),
+    done("crate::read_manta_ray_csv", "read_manta_ray_csv"),
     # --- Errors ---
     done("crate::AsvoApiError", "AsvoApiError"),
     done("crate::AsvoError", "AsvoError"),

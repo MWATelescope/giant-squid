@@ -16,7 +16,7 @@ from werkzeug import Request, Response
 
 import mwa_giant_squid as gs
 
-from .conftest import TEST_API_KEY, error_response
+from .conftest import error_response
 
 # The manta-ray-client files that the project keeps for its tests, and the endpoint of the jobs of each.
 SAMPLE_DIR = pathlib.Path(__file__).resolve().parents[1] / "files" / "manta-ray-client"
@@ -87,39 +87,6 @@ def requests_to_submit_paths(httpserver: HTTPServer) -> list[tuple[str, dict[str
     ]
 
 
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
-    """A client that has logged in to the mock.
-
-    Args:
-        host: The mock's base URL.
-        mock_login: Serves the login.
-
-    Returns:
-        The client.
-    """
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
-
-
-@pytest.fixture
-def write_csv(tmp_path: pathlib.Path) -> Callable[[str], pathlib.Path]:
-    """A function that writes a CSV file in a temporary directory.
-
-    Args:
-        tmp_path: The test's temporary directory.
-
-    Returns:
-        The function, which returns the path of the file.
-    """
-
-    def write(text: str) -> pathlib.Path:
-        path = tmp_path / "jobs.csv"
-        path.write_text(text)
-        return path
-
-    return write
-
-
 @pytest.mark.parametrize(("file", "path"), SAMPLE_FILES)
 def test_every_manta_ray_file_is_submitted(client: gs.AsvoClient, httpserver: HTTPServer, file: str, path: str) -> None:
     """Each file that manta-ray-client users have gives two replies, from the endpoint of its job type."""
@@ -161,14 +128,20 @@ def test_the_path_can_be_a_string(
     assert len(client.submit_csv_file(str(path))) == 1
 
 
-def test_a_file_with_no_job_is_a_value_error(
+def test_a_file_with_no_job_is_refused(
     client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """Comments and blank lines are not jobs: a file with only those is refused, and nothing is sent."""
     serve_submissions(httpserver)
 
-    with pytest.raises(ValueError, match="has no jobs"):
-        client.submit_csv_file(write_csv("# nothing\n\n"))
+    path = write_csv("# nothing\n\n")
+
+    with pytest.raises(gs.CsvSubmitErrorNoJobs, match="has no jobs") as info:
+        client.submit_csv_file(path)
+
+    assert isinstance(info.value, gs.CsvSubmitError)
+    assert info.value.kind == "NoJobs"
+    assert info.value.path == path
     assert requests_to_submit_paths(httpserver) == []
 
 
@@ -182,16 +155,17 @@ def test_the_arguments_are_the_defaults_of_the_lines_that_give_no_value(
         f"obs_id={SECOND_OBS_ID}, job_type=d, download_type=vis, delivery=dug, delivery_format=tar, allow_resubmit=false\n"
     )
 
-    client.submit_csv_file(
-        path, delivery=gs.DeliveryDestination.Scratch, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
+    defaults = gs.CsvDefaults(
+        delivery=gs.DeliveryDestination.Scratch, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
     )
+    client.submit_csv_file(path, defaults)
 
     first, second = (body for _, body in requests_to_submit_paths(httpserver))
     assert (first["delivery"], first["delivery_format"], first["allow_resubmit"]) == ("scratch", "files", True)
     assert (second["delivery"], second["delivery_format"], second["allow_resubmit"]) == ("dug", "tar", False)
 
 
-def test_a_bad_line_raises_value_error_and_sends_nothing(
+def test_a_bad_line_is_refused_and_sends_nothing(
     client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """The message names every bad line, and no job is submitted."""
@@ -202,11 +176,15 @@ def test_a_bad_line_raises_value_error_and_sends_nothing(
         f"obs_id={SECOND_OBS_ID}, job_type=x\n"
     )
 
-    with pytest.raises(ValueError, match="2 problems in the CSV file") as info:
+    with pytest.raises(gs.CsvSubmitErrorInvalid, match="2 problems in the CSV file") as info:
         client.submit_csv_file(path)
 
+    assert isinstance(info.value, gs.CsvSubmitError)
+    assert info.value.kind == "Invalid"
     assert "line 2: unknown key `no_rf`" in str(info.value)
     assert "line 3: job_type" in str(info.value)
+    assert [e.line for e in info.value.errors] == [2, 3]
+    assert "unknown key `no_rf`" in info.value.errors[0].message
     assert requests_to_submit_paths(httpserver) == []
 
 

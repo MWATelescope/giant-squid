@@ -103,6 +103,8 @@ macro_rules! variant_exceptions {
     };
 }
 
+pub(super) use variant_exceptions;
+
 variant_exceptions! {
     ObsIdError:
     ObsIdErrorWrongNumDigits => "The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.",
@@ -244,7 +246,7 @@ mod stub_attributes {
 }
 
 /// The name of the attribute that holds the Rust variant name.
-const KIND: &str = "kind";
+pub(super) const KIND: &str = "kind";
 
 /// A Python attribute value for one field of an error variant.
 enum Field {
@@ -348,16 +350,22 @@ fn reply_fields(
 /// Python submit methods raise for the same fault when they build the
 /// request body.
 pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
+    api_error_ref(py, &e)
+}
+
+/// As [`api_error`], for an error that is borrowed (for example the error
+/// that the library gives to the `on_result` of `submit_csv_jobs`).
+pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
     let (kind, fields) = match e {
         lib::AsvoApiError::MissingAuthKey { .. } => ("MissingAuthKey", vec![]),
         lib::AsvoApiError::AuthenticationFailed { message, response } => {
             let error_code = response.as_ref().map(|r| r.error_code.clone());
             let mut fields = vec![
-                ("message", Field::Str(message)),
+                ("message", Field::Str(message.clone())),
                 ("error_code", Field::OptStr(error_code)),
             ];
-            fields.extend(reply_fields(response));
+            fields.extend(reply_fields(response.clone()));
             ("AuthenticationFailed", fields)
         }
         lib::AsvoApiError::InvalidParameter { .. } => {
@@ -368,18 +376,18 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
         lib::AsvoApiError::Reqwest(_) => ("Reqwest", vec![]),
         lib::AsvoApiError::ApiError { status, response } => {
             let mut fields = vec![
-                ("status", Field::Int(u64::from(status))),
+                ("status", Field::Int(u64::from(*status))),
                 ("error_code", Field::Str(response.error_code.clone())),
                 ("message", Field::Str(response.message.clone())),
             ];
-            fields.extend(reply_fields(Some(response)));
+            fields.extend(reply_fields(Some(response.clone())));
             ("ApiError", fields)
         }
         lib::AsvoApiError::BadStatus { status, message } => (
             "BadStatus",
             vec![
-                ("status", Field::Int(u64::from(status))),
-                ("message", Field::Str(message)),
+                ("status", Field::Int(u64::from(*status))),
+                ("message", Field::Str(message.clone())),
             ],
         ),
     };

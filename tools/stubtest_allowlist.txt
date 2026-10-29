@@ -72,9 +72,10 @@ mwa_giant_squid.ObsId.__ge__
 # functions, and declares `__version__` separately.
 mwa_giant_squid.__all__
 
-# `DownloadProgress` and `PreprocessJobParams` are the bases of their variant classes, and pyo3 makes each a
-# "disjoint base" (it has its own layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which
-# pyo3-stub-gen does not write.
+# `DownloadProgress`, `PreprocessJobParams` and `CsvJobParams` are the bases of their variant classes, and pyo3
+# makes each a "disjoint base" (it has its own layout). stubtest in mypy 1.19 and later asks for
+# `@disjoint_base`, which pyo3-stub-gen does not write.
+mwa_giant_squid.CsvJobParams
 mwa_giant_squid.DownloadProgress
 mwa_giant_squid.PreprocessJobParams
 

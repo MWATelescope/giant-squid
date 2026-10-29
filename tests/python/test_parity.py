@@ -17,6 +17,9 @@ import mwa_giant_squid
 
 from .parity_manifest import (
     API_ERROR_VARIANTS,
+    CSV_FILE_ERROR_VARIANTS,
+    CSV_JOB_PARAMS_VARIANTS,
+    CSV_SUBMIT_ERROR_VARIANTS,
     ERROR_VARIANTS,
     MANIFEST,
     OBS_ID_ERROR_VARIANTS,
@@ -31,6 +34,7 @@ API_ERROR_RS = REPO_ROOT / "src" / "mwa_asvo" / "api" / "error.rs"
 ERROR_RS = REPO_ROOT / "src" / "mwa_asvo" / "error.rs"
 OBS_ID_RS = REPO_ROOT / "src" / "obs_id" / "mod.rs"
 HELPERS_RS = REPO_ROOT / "src" / "helpers" / "mod.rs"
+CSV_RS = REPO_ROOT / "src" / "mwa_asvo" / "manta_ray_csv" / "mod.rs"
 
 # What `resolve` returns for a name that the module does not have.
 MISSING = object()
@@ -145,10 +149,15 @@ def test_every_crate_root_entry_is_exported() -> None:
         (ERROR_RS, "AsvoError", ERROR_VARIANTS),
         (OBS_ID_RS, "ObsIdError", OBS_ID_ERROR_VARIANTS),
         (HELPERS_RS, "ParseError", PARSE_ERROR_VARIANTS),
+        (CSV_RS, "CsvJobParams", CSV_JOB_PARAMS_VARIANTS),
+        (CSV_RS, "CsvFileError", CSV_FILE_ERROR_VARIANTS),
+        (CSV_RS, "CsvSubmitError", CSV_SUBMIT_ERROR_VARIANTS),
     ],
 )
-def test_error_variants_match_the_rust_enum(path: Path, enum: str, listed: list[str]) -> None:
-    """The variants in the manifest are those of the Rust enum."""
+def test_enum_variants_match_the_rust_enum(path: Path, enum: str, listed: list[str]) -> None:
+    """The variants in the manifest are those of the Rust enum (an error enum, or the enum of the CSV job bodies)."""
     assert sorted(rust_enum_variants(path, enum)) == sorted(listed)
-    in_manifest = {e.rust for e in MANIFEST if e.rust.startswith(f"crate::{enum}::")}
+    prefix = f"crate::{enum}::"
+    # A variant starts with a capital letter, and a method does not.
+    in_manifest = {e.rust for e in MANIFEST if e.rust.startswith(prefix) and e.rust[len(prefix)].isupper()}
     assert in_manifest == {f"crate::{enum}::{variant}" for variant in listed}
