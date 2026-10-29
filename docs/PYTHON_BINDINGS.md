@@ -75,9 +75,15 @@ release tag or by hand),
 - **Two submit methods, plain request body classes.** `AsvoClient` has one
   method for each MWA ASVO submit endpoint: `submit_download_job` and
   `submit_preprocess_job`. Each request body is a plain, mutable Python class
-  (`src/python/job_params.rs`) that holds Python values and checks nothing. The
-  submit method turns it into the library's request body, which checks it, so
-  the checks and their messages are the library's. The body of a voltage job
+  (`src/python/job_params.rs`) that holds Python values. It checks the values
+  whose Rust type cannot hold a wrong one when they are set (an Obs ID is an
+  `ObsId`, and `source_job_id` is not 0), as the library's helper functions
+  (`download_params(ObsId)` and so on) do. `validate()` and the submit method
+  turn it into the library's request body, which checks the rest, so the
+  checks and their messages are the library's. The helper functions of the
+  library (`download_params`, `metadata_params`, `voltage_params`,
+  `conversion_params`, `imaging_params`, `image_from_job_params`) are in the
+  module, and make their class from the library's body. The body of a voltage job
   is a `DownloadJobParams`: the MWA ASVO finds the kind of download from the
   observation, and the module has no check of its own for it.
 - **The OpenAPI schema dictates the library.** Defaults, names, limits and

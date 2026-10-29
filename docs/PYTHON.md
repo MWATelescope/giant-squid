@@ -210,7 +210,7 @@ There are two submit methods, one for each MWA ASVO submit endpoint, and each ta
 | `submit_download_job(params)` | `DownloadJobParams(obs_id, ...)` | `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` |
 | `submit_preprocess_job(params)` | `ConversionJobParams(obs_id, ...)` | `submit-conv` |
 | `submit_preprocess_job(params)` | `ImagingJobFlow1Params(obs_id, ...)` | `submit-image` |
-| `submit_preprocess_job(params)` | `ImagingJobFlow2Params(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
+| `submit_preprocess_job(params)` | `ImagingJobFlow2Params(source_job_id, ...)` | `submit-image-from-job` (`obs_id` is `None`: the MWA ASVO takes it from the job) |
 | `cancel_job(job_id)` | | `cancel` |
 
 A `DownloadJobParams` is the body of a visibility, metadata, voltage or beamformer job. The body does not say which:
@@ -236,7 +236,16 @@ fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFor
 docstring of each class gives the limits of each number.
 
 Each class is a plain class. Every argument is an attribute that can be read and changed, and the object can be
-submitted again after a change. The class checks nothing when it is made or changed.
+submitted again after a change. Only the values whose Rust type cannot hold a wrong one are checked when they are set:
+an Obs ID is an `ObsId` (`obs_id` returns an `ObsId`, and a number that is not valid raises `ObsIdError` when the class
+is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`). The limits of the other values are checked by
+`validate()` and when the job is submitted.
+
+The library's functions that make a body are in the module with the same names: `download_params(obs_id)`,
+`metadata_params(obs_id)`, `voltage_params(obs_id, offset, duration)`, `conversion_params(obs_id)`,
+`imaging_params(obs_id)` and `image_from_job_params(source_job_id)`. Each gives the class for the body that the
+library makes, which has the MWA ASVO's defaults (`download_params(obs_id)` is `DownloadJobParams(obs_id)`).
+`metadata_params` sets `only_get_metadata`, and `voltage_params` sets `offset` and `duration`.
 
 ```python
 from mwa_giant_squid import ConversionJobParams, DeliveryDestination, DeliveryFormat, OutputFormat
@@ -253,12 +262,17 @@ reply = client.submit_preprocess_job(params)
 print(reply.job_id, reply.status, reply.message)
 ```
 
-The submit methods check the request body before they send a request. A value outside the MWA ASVO limits, or a
-Job ID that is not valid, raises `ValueError` that names the argument, and an Obs ID that is not valid raises
-`ObsIdError`. Nothing is sent. So does
+`validate()` of a class checks the values against the limits with the library's `validate_*_params` function, and
+raises `ValueError` for the first value that is outside them. The submit methods do this before they send a request,
+so nothing is sent for a body that is not valid. A body that is not valid includes
 `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
-only. The other deliveries take either format. `submit_preprocess_job` raises `TypeError` for an object that is not one
-of the three preprocess classes.
+only. The other deliveries take either format.
+
+`submit_preprocess_job` takes a `PreprocessJobParams`, the library's enum of the three preprocess bodies:
+`PreprocessJobParams.Conversion(params)`, `PreprocessJobParams.Imaging(params)` or
+`PreprocessJobParams.ImageFromJob(params)`. It also takes one of the three classes alone, as the same variant.
+`PreprocessJobParams` has `validate()` and the variants can be used with `match`. A `TypeError` is raised for
+an object that is none of these.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`
 (a `Status`: `Success` or `Failed`) and the `message` describe the reply and are for display. A call that fails

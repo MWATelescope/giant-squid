@@ -21,7 +21,7 @@ CLASSES = [
     (gs.DownloadJobParams, "DownloadJobParams", ["obs_id"], set()),
     (gs.ConversionJobParams, "ConversionJobParams", ["obs_id"], set()),
     (gs.ImagingJobFlow1Params, "ImagingJobFlow1Params", ["obs_id"], set()),
-    (gs.ImagingJobFlow2Params, "ImagingJobFlow2Params", ["source_job_id"], {"obs_id"}),
+    (gs.ImagingJobFlow2Params, "ImagingJobFlow2Params", ["source_job_id"], set()),
 ]
 
 # The schema enums that the classes take, by the name that a default has in a signature.

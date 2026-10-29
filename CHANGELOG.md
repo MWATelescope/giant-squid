@@ -239,6 +239,13 @@ before you upgrade scripts.**
   `download_dir` and keyword arguments, and the new `download_job_from(jobs, job_id, options)` and
   `download_obs_from(jobs, obs_id, options)` replace the `jobs=` argument. The `repr` of an `AsvoClientConfig` does
   not show the API key.
+* Python: the library's functions that make a request body: `download_params`, `metadata_params`, `voltage_params`,
+  `conversion_params`, `imaging_params` and `image_from_job_params`. `validate()` on `DownloadJobParams`,
+  `ConversionJobParams`, `ImagingJobFlow1Params` and `ImagingJobFlow2Params`. `PreprocessJobParams`, the enum of the
+  three preprocess bodies (`PreprocessJobParams.Conversion(params)` and so on), which `submit_preprocess_job` takes
+  (it still takes one of the three classes alone). **Changed:** the `obs_id` of a request body is an `ObsId`, checked
+  when the class is made or the attribute is set (`ObsIdError`, before: `ValueError` when the job was submitted), and
+  `source_job_id` is checked when it is set. `ImagingJobFlow2Params` has an `obs_id` (`None`), as the schema's type does.
 
 ### Fixed in 3.0.0
 

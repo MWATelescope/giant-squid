@@ -116,7 +116,7 @@ impl PyAsvoClient {
         py: Python<'_>,
         params: PyRef<'_, PyDownloadJobParams>,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = params.to_schema(py)?;
+        let params = params.to_schema();
         py.detach(|| self.inner.submit_download_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))

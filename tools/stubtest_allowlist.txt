@@ -72,9 +72,11 @@ mwa_giant_squid.ObsId.__ge__
 # functions, and declares `__version__` separately.
 mwa_giant_squid.__all__
 
-# `DownloadProgress` is the base of the three event classes, and pyo3 makes it a "disjoint base" (it has its own
-# layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which pyo3-stub-gen does not write.
+# `DownloadProgress` and `PreprocessJobParams` are the bases of their variant classes, and pyo3 makes each a
+# "disjoint base" (it has its own layout). stubtest in mypy 1.19 and later asks for `@disjoint_base`, which
+# pyo3-stub-gen does not write.
 mwa_giant_squid.DownloadProgress
+mwa_giant_squid.PreprocessJobParams
 
 # The defaults of the request body classes are made from the schema's defaults at run time (see
 # `mwa_asvo/api/job_params`). The run-time signature of each class is a hand-written `text_signature`, because pyo3

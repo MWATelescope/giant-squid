@@ -34,7 +34,6 @@ mod error;
 mod filter;
 mod job_params;
 mod obs_id;
-mod params;
 mod parse;
 mod typed;
 mod types;
@@ -127,8 +126,9 @@ mod module {
     use super::filter::PyJobsFilter;
     #[pymodule_export]
     use super::job_params::{
-        PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
-        PyImagingJobFlow2Params,
+        conversion_params, download_params, image_from_job_params, imaging_params, metadata_params,
+        voltage_params, PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
+        PyImagingJobFlow2Params, PyPreprocessJobParams,
     };
     #[pymodule_export]
     use super::obs_id::PyObsId;

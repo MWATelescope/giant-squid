@@ -511,18 +511,12 @@ ALL_JOBS: list[tuple[str, Callable[[int], Any]]] = [
 
 
 @pytest.mark.parametrize(("name", "make"), ALL_JOBS, ids=[name for name, _ in ALL_JOBS])
-def test_an_invalid_obs_id_is_rejected_before_any_submission(
-    client: gs.AsvoClient, httpserver: HTTPServer, name: str, make: Callable[[int], Any]
-) -> None:
-    """Every submit method raises ObsIdError for a bad obsid, and sends nothing. Making the class does not raise."""
-    params = make(INVALID_OBS_ID)
-    requests_before = len(httpserver.log)
-
+def test_an_invalid_obs_id_is_rejected_when_the_class_is_made(name: str, make: Callable[[int], Any]) -> None:
+    """Every request body checks its Obs ID as the library's `ObsId` does, so there is nothing to submit."""
     with pytest.raises(gs.ObsIdErrorWrongNumDigits, match="10 digits") as excinfo:
-        submit(client, params)
+        make(INVALID_OBS_ID)
 
-    assert excinfo.value.value == INVALID_OBS_ID
-    assert len(httpserver.log) == requests_before, name
+    assert excinfo.value.value == INVALID_OBS_ID, name
 
 
 # The two imaging classes, with the argument that names the job: the Obs ID, or the source job.
