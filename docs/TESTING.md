@@ -205,7 +205,7 @@ docs for details.
 
 ### Layer 4 - the Python module and the `giant-squid` launcher (pytest)
 
-`tests/python/` has the pytest suite (214 tests) for the `mwa_giant_squid`
+`tests/python/` has the pytest suite (about 650 tests) for the `mwa_giant_squid`
 module (`src/python/`) and for the `giant-squid` command, which is the Rust
 program run inside the module (`mwa_giant_squid_cli/`). The rules are those of the Rust tests: every request
 goes to a local `pytest-httpserver` mock (the `host` and `mock_login`
@@ -220,12 +220,25 @@ uv run pytest
 | File | What it covers |
 | --- | --- |
 | `test_module.py` | The import, `__version__`, `reset_logging` |
+| `test_library.py` | The constants of the library, `default_token_cache_path` and `check_file_sha1_hash` |
+| `test_obs_id.py` | `ObsId` (the limits, `validate`, `from_str`, the number protocol, equality, hash and order with `int`, `copy` and `pickle`) and `ObsIdError` |
+| `test_parse.py` | `parse_obs_ids_only` and the other `parse_*` functions, `parse_utc_time`, and `ParseError` with its subclasses |
+| `test_config.py` | `AsvoClientConfig`, `DownloadSettings`, and `client_config_from_env` and `DownloadSettings.from_env` against the environment variables |
+| `test_filter.py` | `JobsFilter`: its values, the checks when they are set, `validate`, and `get_jobs` with and without a filter |
+| `test_options.py` | `DownloadOptions`: its defaults, values, attributes and `repr` |
 | `test_client.py` | `AsvoClient`: login, `get_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
+| `test_job_types.py` | `JobDetailResponse` and `AsvoJob.detail`, `JobFile.size_bytes`, `AsvoJobVec.json`, and `names` and `parse_name` of `JobType` and `JobState` |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
-| `test_csv.py` | `submit_csv_file`: the six manta-ray-client files, the replies in file order, the arguments as defaults, `ValueError` for a bad line with nothing sent, `FileNotFoundError`, `CsvSubmitError` with its replies and failures, and the warnings in `logging` |
+| `test_params.py` | The request-body classes: the checked Obs ID and source Job ID, `validate()`, the helper functions (`download_params` and so on), and `PreprocessJobParams` |
+| `test_null.py` | `None` is sent as `null`, and a default argument is the schema's default |
+| `test_rules.py` | The two rules of the MWA ASVO that the module refuses before a request: `days` with a date, and Acacia with `files` |
+| `test_signatures.py` | The run-time signature of each request body class has the schema's defaults |
+| `test_csv.py` | `submit_csv_file`: the six manta-ray-client files, the replies in file order, the defaults of a file, `CsvSubmitErrorInvalid` for a bad line with nothing sent, `FileNotFoundError`, `CsvSubmitErrorFailed` with its replies and failures, and the warnings in `logging` |
+| `test_csv_api.py` | The CSV classes and functions of the library: `CsvDefaults`, `CsvJob`, `CsvJobParams`, `parse_manta_ray_csv`, `read_manta_ray_csv`, `submit_csv_jobs`, `submit_csv_job` and the CSV errors |
 | `test_download.py` | Downloads: tar and untar, hash, resume, the progress callback, errors, Ctrl-C, and `job_subdirectory` |
-| `test_parity.py` | The Python API against the Rust API. `parity_manifest.py` lists each public Rust item and its Python counterpart (`done`, `pending`, `excluded`, `undecided`). The tests check it against the module and against `src/lib.rs` and the two error enums, so a change on either side fails until the manifest says what it means |
+| `test_errors.py` | The subclasses of `AsvoApiError` and `AsvoError` (one for each Rust variant), `AsvoErrorAsvoApi` and its `source`, `InvalidParameter` and `InvalidOption` |
+| `test_parity.py` | The Python API against the Rust API. `parity_manifest.py` lists each public Rust item and its Python counterpart (`done`, `pending`, `excluded` with a reason, or `undecided`). The tests check it against the module and against `src/lib.rs`, the error enums and the enum of the CSV job bodies, so a change on either side fails until the manifest says what it means |
 
 Two things are particular to this suite:
 

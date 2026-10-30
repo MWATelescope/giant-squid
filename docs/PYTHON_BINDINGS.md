@@ -150,6 +150,48 @@ release tag or by hand),
   The user commits and pushes. An existing test is changed only with the
   user's approval.
 
+## Where Python differs from Rust
+
+The Python API matches the Rust API where possible. `tests/python/parity_manifest.py` lists every public item of
+`src/lib.rs` and says what Python has for it, or why it has nothing (`excluded`). The differences that are left are
+these.
+
+**Types that Python maps.** `Duration` is a `float` of seconds; `jiff::Timestamp` is an aware `datetime`; `PathBuf` is
+a `str` or `pathlib.Path` (a `Path` is returned); `AsvoJobId` and the other Job IDs are `int` (not 0); `Vec` is a `list`;
+a closure is a callable (`progress` of `DownloadOptions`, `on_result` of `submit_csv_jobs`); a `Result` is an
+exception; `ObsId` is a Python class that acts as an `int` where a number is needed (PyO3 cannot extend `int`).
+
+**Items that Python does not have** (`excluded` in the manifest):
+
+- The paths of the endpoints (`ENDPOINT_*`, `API_PREFIX`), `StoredTokens`, the `jiff` re-export, and the
+  `validate` helpers that make a schema value from a number (the bindings use them inside).
+- `DownloadOptions::should_stop`: a download stops at Ctrl-C (`KeyboardInterrupt`).
+- `AsvoJob::is_expired_at`, `display_state_at`, `AsvoJobVec::all_ready_at` (clock helpers for tests) and `retain` (a
+  closure; `filter` and list comprehensions do it).
+- The variants that wrap an `io::Error` (`AsvoError::IO` and `CannotCreate`, `ParseError::IO` and `StdinIO`,
+  `CsvFileError::Read`, `CsvSubmitError::Read`): Python raises `OSError`, with its subclasses.
+- `CsvJobParams::endpoint`.
+
+**Items that Python has with a different shape:**
+
+- *Defaults.* A Rust struct has none. Python's `DownloadOptions`, `AsvoClientConfig` (the timeout), `JobsFilter` and
+  `CsvDefaults` have the defaults that the CLI has, and `get_jobs`, `parse_manta_ray_csv`, `read_manta_ray_csv` and
+  `submit_csv_file` take `None` for a default value of the argument.
+- *Request bodies.* A body is a Python class that holds Python numbers (it is the schema's struct and the library's
+  helper function in one). The values whose Rust type cannot hold a wrong one are checked when they are set (an
+  `ObsId`, a `source_job_id` that is not 0). `image_size` and `nmiter` are newtypes in Rust, but Python checks them in
+  `validate()` and when the job is submitted, where the other limits are checked. `PreprocessJobParams` and
+  `CsvJobParams` hold the body classes (not copies), so a change to a body after the variant was made is seen when it
+  is submitted.
+- *`JobsFilter`.* Each value is checked when it is set, as the Rust types do, and `get_jobs` calls `validate()`.
+- *`AsvoJobVec::json`.* It does not consume the list.
+- *`on_result` of `submit_csv_jobs`.* The Rust loop cannot be stopped, so if the function raises, the other jobs are
+  still submitted, it is not called again, and its first exception is raised at the end.
+- *Errors.* Every variant is a Python subclass of the enum's exception, named by the two (`AsvoErrorNoAsvoJob`), and
+  each also has `kind` and the fields of the variant. `AsvoErrorAsvoApi` is not an `AsvoApiError`: it has it as its
+  `source` and `__cause__`, as `AsvoError::AsvoApi` wraps it. `CsvError` and `CsvJobsFailed` have no `kind`.
+- *Python only.* `reset_logging`.
+
 ## Open items
 
 1. **`dug` for conversion and imaging.** The API developer will add `dug` to
