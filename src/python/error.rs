@@ -12,7 +12,7 @@
 
 use std::path::Path;
 
-use pyo3::exceptions::{PyException, PyOSError, PyValueError};
+use pyo3::exceptions::{PyBaseException, PyException, PyOSError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -35,14 +35,14 @@ create_exception!(
     mwa_giant_squid,
     AsvoApiError,
     PyException,
-    "An MWA ASVO API call failed. `kind` is the Rust `AsvoApiError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown."
+    "An MWA ASVO API call failed, or an argument is outside what the MWA ASVO API allows. `kind` is the Rust `AsvoApiError` variant, and the exception is also an instance of the class for that variant (for example `AsvoApiErrorInvalidParameter`).\n\n`kind` is always set. The other attributes are set only for the kinds shown."
 );
 
 create_exception!(
     mwa_giant_squid,
     AsvoError,
     PyException,
-    "A download or job check failed. `kind` is the Rust `AsvoError` variant.\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
+    "A download or job check failed. `kind` is the Rust `AsvoError` variant, and the exception is also an instance of the class for that variant (for example `AsvoErrorNoAsvoJob`).\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `AsvoErrorAsvoApi`, which has the `AsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
 );
 
 create_exception!(
@@ -106,6 +106,47 @@ macro_rules! variant_exceptions {
 pub(super) use variant_exceptions;
 
 variant_exceptions! {
+    AsvoApiError:
+    AsvoApiErrorMissingAuthKey => "No API key was given: it is empty (kind `MissingAuthKey`).",
+    AsvoApiErrorAuthenticationFailed => "The MWA ASVO refused the login (kind `AuthenticationFailed`).",
+    AsvoApiErrorConversion => "A value could not be turned into the type that the schema has (kind `Conversion`).",
+    AsvoApiErrorInvalidParameter => "A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.",
+    AsvoApiErrorBadJson => "The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).",
+    AsvoApiErrorReqwest => "An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).",
+    AsvoApiErrorApiError => "The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.",
+    AsvoApiErrorBadStatus => "The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).",
+}
+
+variant_exceptions! {
+    AsvoError:
+    AsvoErrorNoAsvoJob => "There is no job with this Job ID in the job list (kind `NoAsvoJob`).",
+    AsvoErrorJobFailed => "The job is in the `Error` state (kind `JobFailed`). `error` is its message.",
+    AsvoErrorInvalidJob => "The server gave a job that cannot be used (kind `InvalidJob`).",
+    AsvoErrorJobCancelled => "The job was cancelled (kind `JobCancelled`).",
+    AsvoErrorNoObsId => "No job has this Obs ID (kind `NoObsId`).",
+    AsvoErrorNoJobReadyForObsId => "No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).",
+    AsvoErrorTooManyObsIds => "More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).",
+    AsvoErrorNotReady => "The job is not ready for download (kind `NotReady`). `job_state` is its state.",
+    AsvoErrorNoFiles => "The job has no files (kind `NoFiles`).",
+    AsvoErrorHashMismatch => "The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).",
+    AsvoErrorInvalidJobState => "The text is not the name of a job state (kind `InvalidJobState`).",
+    AsvoErrorInvalidJobType => "The text is not the name of a job type (kind `InvalidJobType`).",
+    AsvoErrorInvalidEnvironment => "An environment variable has a value that cannot be used (kind `InvalidEnvironment`).",
+    AsvoErrorInvalidOption => "A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.",
+    AsvoErrorAsvoApi => "An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `AsvoApi`). `source` is the `AsvoApiError`, which is also the `__cause__`.",
+    AsvoErrorInterrupted => "The download was stopped (kind `Interrupted`).",
+    AsvoErrorNoUrl => "The job's file has no download URL (kind `NoUrl`).",
+    AsvoErrorNoHash => "The job's file has no hash (kind `NoHash`).",
+    AsvoErrorFilesNotReachable => "The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).",
+    AsvoErrorNoPath => "The job's files have no path (kind `NoPath`).",
+    AsvoErrorSymlinkInDownloadDir => "The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).",
+    AsvoErrorDestinationExists => "The place for the files of a Scratch job is already there (kind `DestinationExists`).",
+    AsvoErrorHttpError => "The download server replied with an HTTP error (kind `HttpError`).",
+    AsvoErrorJobExpired => "The download links of the job have expired (kind `JobExpired`). Resubmit the job.",
+    AsvoErrorHttp404Error => "The download server did not find the file (kind `Http404Error`).",
+}
+
+variant_exceptions! {
     ObsIdError:
     ObsIdErrorWrongNumDigits => "The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.",
     ObsIdErrorParse => "The text is not a number (kind `Parse`).",
@@ -138,6 +179,17 @@ mod stub_attributes {
     use super::super::types::{PyJobState, PyType};
     use super::{AsvoApiError, AsvoError, ObsIdError, ParseError};
 
+    /// The type of an `AsvoApiError` object, for the stub of `source`.
+    /// (pyo3-stub-gen writes the name of an exception that it makes with the
+    /// module `builtins`, which is wrong.)
+    struct ApiErrorObject;
+
+    impl PyStubType for ApiErrorObject {
+        fn type_output() -> pyo3_stub_gen::TypeInfo {
+            pyo3_stub_gen::TypeInfo::unqualified("AsvoApiError")
+        }
+    }
+
     /// One attribute: its name, its Rust type (for the Python type) and its
     /// docstring.
     macro_rules! attr {
@@ -156,8 +208,9 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<AsvoApiError>,
             attrs: &[
-                attr!("kind", String, "\"MissingAuthKey\" (the `api_key` given to `AsvoClient` is empty), \"AuthenticationFailed\", \"Conversion\", \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\". An argument outside the MWA ASVO limits raises `ValueError`, not this."),
-                attr!("message", String, "AuthenticationFailed, ApiError and BadStatus."),
+                attr!("kind", String, "\"MissingAuthKey\" (the `api_key` given to `AsvoClient` is empty), \"AuthenticationFailed\", \"Conversion\", \"InvalidParameter\" (an argument is outside the MWA ASVO limits), \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\"."),
+                attr!("name", String, "InvalidParameter: the name of the argument, as the OpenAPI schema has it."),
+                attr!("message", String, "AuthenticationFailed, InvalidParameter, ApiError and BadStatus."),
                 attr!("error_code", Option<String>, "ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse."),
                 attr!("detail", Option<String>, "ApiError and AuthenticationFailed."),
                 attr!("suggestion", Option<String>, "ApiError and AuthenticationFailed."),
@@ -191,9 +244,10 @@ mod stub_attributes {
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
                 attr!("status", u16, "HttpError: the HTTP status code."),
-                attr!("message", String, "HttpError."),
+                attr!("message", String, "HttpError and InvalidOption: what is wrong."),
                 attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
-                attr!("name", String, "InvalidEnvironment: the name of the environment variable. (The module reads no environment variables, so it does not raise InvalidEnvironment.)"),
+                attr!("name", String, "InvalidEnvironment: the name of the environment variable. InvalidOption: the name of the option."),
+                attr!("source", ApiErrorObject, "AsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`."),
                 attr!("value", String, "InvalidEnvironment: its value."),
                 attr!("problem", String, "InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)"),
                 attr!("id", i64, "InvalidJob: the `id` of the job, as the API gave it."),
@@ -267,6 +321,8 @@ enum Field {
     ErrorDicts(Vec<lib::api::openapi::FieldError>),
     /// A time (a `datetime`), or `None`.
     Time(Option<jiff::Timestamp>),
+    /// An exception object.
+    Exception(Py<PyBaseException>),
 }
 
 /// Make an exception of type `T` with the message of `message`, and set
@@ -298,6 +354,7 @@ fn build_from(py: Python<'_>, err: PyErr, kind: &str, fields: Vec<(&str, Field)>
             Field::State(s) => value.setattr(name, s),
             Field::Delivery(d) => value.setattr(name, d),
             Field::Time(t) => value.setattr(name, t),
+            Field::Exception(e) => value.setattr(name, e),
             Field::ErrorDicts(errors) => {
                 let list = errors
                     .into_iter()
@@ -343,12 +400,8 @@ fn reply_fields(
     ]
 }
 
-/// Convert a library [`lib::AsvoApiError`] to a Python `AsvoApiError`.
-///
-/// `lib::AsvoApiError::InvalidParameter` (a job argument the schema does
-/// not allow, found before any request) becomes a `ValueError`, as the
-/// Python submit methods raise for the same fault when they build the
-/// request body.
+/// Convert a library [`lib::AsvoApiError`] to a Python `AsvoApiError`: the
+/// class of its variant.
 pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
     api_error_ref(py, &e)
 }
@@ -357,23 +410,46 @@ pub(crate) fn api_error(py: Python<'_>, e: lib::AsvoApiError) -> PyErr {
 /// that the library gives to the `on_result` of `submit_csv_jobs`).
 pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::AsvoApiError) -> PyErr {
     let message = e.to_string();
-    let (kind, fields) = match e {
-        lib::AsvoApiError::MissingAuthKey { .. } => ("MissingAuthKey", vec![]),
-        lib::AsvoApiError::AuthenticationFailed { message, response } => {
+    // The exception of a variant, with `kind` and `fields`.
+    macro_rules! raise {
+        ($class:ident, $kind:literal, $fields:expr) => {
+            build::<$class>(py, message, $kind, $fields)
+        };
+    }
+    match e {
+        lib::AsvoApiError::MissingAuthKey { .. } => {
+            raise!(AsvoApiErrorMissingAuthKey, "MissingAuthKey", vec![])
+        }
+        lib::AsvoApiError::AuthenticationFailed {
+            message: text,
+            response,
+        } => {
             let error_code = response.as_ref().map(|r| r.error_code.clone());
             let mut fields = vec![
-                ("message", Field::Str(message.clone())),
+                ("message", Field::Str(text.clone())),
                 ("error_code", Field::OptStr(error_code)),
             ];
             fields.extend(reply_fields(response.clone()));
-            ("AuthenticationFailed", fields)
+            raise!(
+                AsvoApiErrorAuthenticationFailed,
+                "AuthenticationFailed",
+                fields
+            )
         }
-        lib::AsvoApiError::InvalidParameter { .. } => {
-            return PyValueError::new_err(message);
-        }
-        lib::AsvoApiError::Conversion(_) => ("Conversion", vec![]),
-        lib::AsvoApiError::BadJson(_) => ("BadJson", vec![]),
-        lib::AsvoApiError::Reqwest(_) => ("Reqwest", vec![]),
+        lib::AsvoApiError::InvalidParameter {
+            name,
+            message: text,
+        } => raise!(
+            AsvoApiErrorInvalidParameter,
+            "InvalidParameter",
+            vec![
+                ("name", Field::Str((*name).to_string())),
+                ("message", Field::Str(text.clone())),
+            ]
+        ),
+        lib::AsvoApiError::Conversion(_) => raise!(AsvoApiErrorConversion, "Conversion", vec![]),
+        lib::AsvoApiError::BadJson(_) => raise!(AsvoApiErrorBadJson, "BadJson", vec![]),
+        lib::AsvoApiError::Reqwest(_) => raise!(AsvoApiErrorReqwest, "Reqwest", vec![]),
         lib::AsvoApiError::ApiError { status, response } => {
             let mut fields = vec![
                 ("status", Field::Int(u64::from(*status))),
@@ -381,17 +457,20 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::AsvoApiError) -> PyErr {
                 ("message", Field::Str(response.message.clone())),
             ];
             fields.extend(reply_fields(Some(response.clone())));
-            ("ApiError", fields)
+            raise!(AsvoApiErrorApiError, "ApiError", fields)
         }
-        lib::AsvoApiError::BadStatus { status, message } => (
+        lib::AsvoApiError::BadStatus {
+            status,
+            message: text,
+        } => raise!(
+            AsvoApiErrorBadStatus,
             "BadStatus",
             vec![
                 ("status", Field::Int(u64::from(*status))),
-                ("message", Field::Str(message.clone())),
-            ],
+                ("message", Field::Str(text.clone())),
+            ]
         ),
-    };
-    build::<AsvoApiError>(py, message, kind, fields)
+    }
 }
 
 /// The `OSError` for a file that cannot be read, made as Python's `open`
@@ -423,11 +502,8 @@ pub(crate) fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> P
 /// Convert a library [`lib::AsvoError`] to a Python exception.
 ///
 /// `lib::AsvoError::AsvoApi` wraps an API error (for example, the job list
-/// request before a download), so it becomes a Python `AsvoApiError`, and
-/// the caller can catch every API failure in the same way.
-/// `lib::AsvoError::InvalidOption` (a download option that cannot be used,
-/// found before any request) becomes a `ValueError`, like an argument that
-/// the API does not allow.
+/// request before a download), so it becomes `AsvoErrorAsvoApi`, which has
+/// the Python `AsvoApiError` as its `source` and its `__cause__`.
 /// `lib::AsvoError::IO` and `lib::AsvoError::CannotCreate` (a file or a
 /// directory that cannot be read, written or made) become an `OSError`, as
 /// Python's `open` raises it: a `FileNotFoundError`, a `PermissionError` and
@@ -436,126 +512,179 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
     let message = e.to_string();
     let job_id = |id: crate::AsvoJobId| ("job_id", Field::Int(id.get()));
     let obs_id = |o: crate::ObsId| ("obs_id", Field::ObsId(o));
-    let (kind, fields) = match e {
-        lib::AsvoError::AsvoApi(inner) => return api_error(py, inner),
-        lib::AsvoError::InvalidOption { .. } => return PyValueError::new_err(message),
-        lib::AsvoError::IO(source) => return PyErr::from(source),
-        lib::AsvoError::CannotCreate { path, source } => return os_error(py, &path, source),
-        lib::AsvoError::NoAsvoJob(id) => ("NoAsvoJob", vec![job_id(id)]),
+    // The exception of a variant, with `kind` and `fields`.
+    macro_rules! raise {
+        ($class:ident, $kind:literal, $fields:expr) => {
+            build::<$class>(py, message, $kind, $fields)
+        };
+    }
+    match e {
+        lib::AsvoError::AsvoApi(inner) => {
+            let source = api_error(py, inner);
+            let cause = source.value(py).clone().unbind();
+            let err = raise!(
+                AsvoErrorAsvoApi,
+                "AsvoApi",
+                vec![("source", Field::Exception(cause.clone_ref(py)))]
+            );
+            err.set_cause(py, Some(source));
+            err
+        }
+        lib::AsvoError::InvalidOption {
+            name,
+            message: text,
+        } => raise!(
+            AsvoErrorInvalidOption,
+            "InvalidOption",
+            vec![
+                ("name", Field::Str(name.to_string())),
+                ("message", Field::Str(text)),
+            ]
+        ),
+        lib::AsvoError::IO(source) => PyErr::from(source),
+        lib::AsvoError::CannotCreate { path, source } => os_error(py, &path, source),
+        lib::AsvoError::NoAsvoJob(id) => raise!(AsvoErrorNoAsvoJob, "NoAsvoJob", vec![job_id(id)]),
         lib::AsvoError::JobFailed {
             job_id: id,
             obs_id: o,
             error,
             error_code,
-        } => (
+        } => raise!(
+            AsvoErrorJobFailed,
             "JobFailed",
             vec![
                 job_id(id),
                 obs_id(o),
                 ("error", Field::Str(error)),
                 ("error_code", Field::OptInt(error_code)),
-            ],
+            ]
         ),
-        lib::AsvoError::InvalidJob { id, problem } => (
+        lib::AsvoError::InvalidJob { id, problem } => raise!(
+            AsvoErrorInvalidJob,
             "InvalidJob",
             vec![
                 ("id", Field::OptInt(i64::try_from(id.get()).ok())),
                 ("problem", Field::Str(problem)),
-            ],
+            ]
         ),
-        lib::AsvoError::JobCancelled(id) => ("JobCancelled", vec![job_id(id)]),
-        lib::AsvoError::NoObsId(o) => ("NoObsId", vec![obs_id(o)]),
-        lib::AsvoError::NoJobReadyForObsId(o) => ("NoJobReadyForObsId", vec![obs_id(o)]),
-        lib::AsvoError::TooManyObsIds(o) => ("TooManyObsIds", vec![obs_id(o)]),
+        lib::AsvoError::JobCancelled(id) => {
+            raise!(AsvoErrorJobCancelled, "JobCancelled", vec![job_id(id)])
+        }
+        lib::AsvoError::NoObsId(o) => raise!(AsvoErrorNoObsId, "NoObsId", vec![obs_id(o)]),
+        lib::AsvoError::NoJobReadyForObsId(o) => raise!(
+            AsvoErrorNoJobReadyForObsId,
+            "NoJobReadyForObsId",
+            vec![obs_id(o)]
+        ),
+        lib::AsvoError::TooManyObsIds(o) => {
+            raise!(AsvoErrorTooManyObsIds, "TooManyObsIds", vec![obs_id(o)])
+        }
         lib::AsvoError::NotReady {
             job_id: id,
             job_state,
-        } => (
+        } => raise!(
+            AsvoErrorNotReady,
             "NotReady",
             vec![
                 job_id(id),
                 ("job_state", Field::State(PyJobState::from(job_state))),
-            ],
+            ]
         ),
-        lib::AsvoError::NoFiles(id) => ("NoFiles", vec![job_id(id)]),
+        lib::AsvoError::NoFiles(id) => raise!(AsvoErrorNoFiles, "NoFiles", vec![job_id(id)]),
         lib::AsvoError::JobExpired {
             job_id: id,
             expired,
-        } => (
+        } => raise!(
+            AsvoErrorJobExpired,
             "JobExpired",
-            vec![job_id(id), ("expired", Field::Time(expired))],
+            vec![job_id(id), ("expired", Field::Time(expired))]
         ),
         lib::AsvoError::HashMismatch {
             job_id: id,
             file,
             calculated_hash,
             expected_hash,
-        } => (
+        } => raise!(
+            AsvoErrorHashMismatch,
             "HashMismatch",
             vec![
                 job_id(id),
                 ("file", Field::Str(file)),
                 ("calculated_hash", Field::Str(calculated_hash)),
                 ("expected_hash", Field::Str(expected_hash)),
-            ],
+            ]
         ),
-        lib::AsvoError::InvalidJobState { str } => {
-            ("InvalidJobState", vec![("str", Field::Str(str))])
-        }
-        lib::AsvoError::InvalidJobType { str } => {
-            ("InvalidJobType", vec![("str", Field::Str(str))])
-        }
+        lib::AsvoError::InvalidJobState { str } => raise!(
+            AsvoErrorInvalidJobState,
+            "InvalidJobState",
+            vec![("str", Field::Str(str))]
+        ),
+        lib::AsvoError::InvalidJobType { str } => raise!(
+            AsvoErrorInvalidJobType,
+            "InvalidJobType",
+            vec![("str", Field::Str(str))]
+        ),
         lib::AsvoError::InvalidEnvironment {
             name,
             value,
             problem,
-        } => (
+        } => raise!(
+            AsvoErrorInvalidEnvironment,
             "InvalidEnvironment",
             vec![
                 ("name", Field::Str(name)),
                 ("value", Field::Str(value)),
                 ("problem", Field::Str(problem)),
-            ],
+            ]
         ),
-        lib::AsvoError::Interrupted => ("Interrupted", vec![]),
-        lib::AsvoError::NoUrl { job_id: id } => ("NoUrl", vec![job_id(id)]),
-        lib::AsvoError::NoPath { job_id: id } => ("NoPath", vec![job_id(id)]),
-        lib::AsvoError::NoHash { job_id: id } => ("NoHash", vec![job_id(id)]),
+        lib::AsvoError::Interrupted => raise!(AsvoErrorInterrupted, "Interrupted", vec![]),
+        lib::AsvoError::NoUrl { job_id: id } => raise!(AsvoErrorNoUrl, "NoUrl", vec![job_id(id)]),
+        lib::AsvoError::NoPath { job_id: id } => {
+            raise!(AsvoErrorNoPath, "NoPath", vec![job_id(id)])
+        }
+        lib::AsvoError::NoHash { job_id: id } => {
+            raise!(AsvoErrorNoHash, "NoHash", vec![job_id(id)])
+        }
         lib::AsvoError::FilesNotReachable {
             job_id: id,
             delivery,
             path,
-        } => (
+        } => raise!(
+            AsvoErrorFilesNotReachable,
             "FilesNotReachable",
             vec![
                 job_id(id),
                 ("delivery", Field::Delivery(PyType::from(delivery))),
                 ("path", Field::OptStr(path)),
-            ],
+            ]
         ),
-        lib::AsvoError::SymlinkInDownloadDir { path } => (
+        lib::AsvoError::SymlinkInDownloadDir { path } => raise!(
+            AsvoErrorSymlinkInDownloadDir,
             "SymlinkInDownloadDir",
-            vec![("file", Field::Str(path.display().to_string()))],
+            vec![("file", Field::Str(path.display().to_string()))]
         ),
-        lib::AsvoError::DestinationExists { job_id: id, path } => (
+        lib::AsvoError::DestinationExists { job_id: id, path } => raise!(
+            AsvoErrorDestinationExists,
             "DestinationExists",
-            vec![job_id(id), ("file", Field::Str(path.display().to_string()))],
+            vec![job_id(id), ("file", Field::Str(path.display().to_string()))]
         ),
         lib::AsvoError::HttpError {
             job_id: id,
             status,
             message,
-        } => (
+        } => raise!(
+            AsvoErrorHttpError,
             "HttpError",
             vec![
                 job_id(id),
                 ("status", Field::Int(u64::from(status))),
                 ("message", Field::Str(message)),
-            ],
+            ]
         ),
-        lib::AsvoError::Http404Error { job_id: id } => ("Http404Error", vec![job_id(id)]),
-    };
-    build::<AsvoError>(py, message, kind, fields)
+        lib::AsvoError::Http404Error { job_id: id } => {
+            raise!(AsvoErrorHttp404Error, "Http404Error", vec![job_id(id)])
+        }
+    }
 }
 
 /// Convert a library [`LibObsIdError`] to a Python `ObsIdError`: the class of

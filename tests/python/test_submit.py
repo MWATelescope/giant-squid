@@ -534,7 +534,7 @@ def test_an_invalid_image_size_is_rejected(
     params = job(first, image_size=INVALID_IMAGE_SIZE)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="image_size"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -543,7 +543,7 @@ def test_an_invalid_image_size_is_rejected(
 @pytest.mark.parametrize(("job", "first", "path"), IMAGING_JOBS)
 def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, job: Callable[..., Any], first: int, path: str) -> None:
     """nmiter must be greater than zero."""
-    with pytest.raises(ValueError, match="nmiter"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="nmiter"):
         client.submit_preprocess_job(job(first, nmiter=0))
 
 
@@ -604,7 +604,7 @@ def test_an_invalid_value_is_checked_at_the_submission_not_when_the_class_is_mad
     params.mgain = 1.5
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="mgain"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="mgain"):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -717,7 +717,7 @@ def test_an_argument_outside_the_schema_limits_is_rejected_before_any_request(
     params = job(*imaging_args(job), **kwargs)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match=name):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match=name):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -725,7 +725,7 @@ def test_an_argument_outside_the_schema_limits_is_rejected_before_any_request(
 
 def test_the_error_message_gives_the_limits(client: gs.AsvoClient) -> None:
     """The message is the library's: the same text the CLI and the Rust client give."""
-    with pytest.raises(ValueError) as err:
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter) as err:
         client.submit_preprocess_job(gs.ImagingJobFlow1Params(TEST_OBS_ID, mgain=1.5))
 
     assert str(err.value) == "Invalid mgain: must be between 0.1 and 1 (got 1.5)"
@@ -733,7 +733,7 @@ def test_the_error_message_gives_the_limits(client: gs.AsvoClient) -> None:
 
 def test_the_supported_image_sizes_are_listed_in_the_error(client: gs.AsvoClient) -> None:
     """An unsupported image size is reported with the sizes that the MWA ASVO accepts."""
-    with pytest.raises(ValueError, match="512, 1024, 2048, 3072, 4096, 8192"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="512, 1024, 2048, 3072, 4096, 8192"):
         client.submit_preprocess_job(gs.ImagingJobFlow1Params(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
 
@@ -776,7 +776,7 @@ def test_a_conversion_argument_outside_the_schema_limits_is_rejected(
     params = gs.ConversionJobParams(TEST_OBS_ID, **kwargs)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match=name):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match=name):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -790,7 +790,7 @@ def test_a_voltage_offset_outside_the_observation_is_rejected(
     params = gs.DownloadJobParams(TEST_OBS_ID, offset=offset, duration=VOLTAGE_DURATION)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="offset"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
         client.submit_download_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -801,7 +801,7 @@ def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(client: gs.AsvoC
     params = gs.ImagingJobFlow2Params(SOURCE_JOB_ID, wstack_nwlayers=16)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="wstack_nwlayers"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="wstack_nwlayers"):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before

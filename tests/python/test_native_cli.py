@@ -243,7 +243,7 @@ import mwa_giant_squid as gs
 try:
     # Nothing listens there, so the login fails; the client's Python logging is installed before it.
     gs.AsvoClient(gs.AsvoClientConfig("http://127.0.0.1:1", "key"))
-except gs.AsvoApiError:
+except gs.AsvoError:
     pass
 try:
     gs._run_cli([gs._PROGRAM_NAME, "--version"])

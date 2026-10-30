@@ -95,10 +95,10 @@ def test_the_repr_shows_the_values_that_are_set() -> None:
 @pytest.mark.parametrize("days", [0, -1, TOO_MANY_DAYS])
 def test_days_outside_the_limits_are_refused_when_they_are_set(days: int) -> None:
     """The check is the library's `validate::days`."""
-    with pytest.raises(ValueError, match="days"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days"):
         gs.JobsFilter(days=days)
     filter = gs.JobsFilter()
-    with pytest.raises(ValueError, match="days"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days"):
         filter.days = days
 
 
@@ -122,13 +122,13 @@ def test_validate_accepts_a_good_filter() -> None:
 
 def test_validate_refuses_job_ids_with_obs_ids() -> None:
     """The jobs are selected by Job IDs or by Obs IDs."""
-    with pytest.raises(ValueError, match="Job IDs and Obs IDs"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
         gs.JobsFilter(job_ids=[JOB_ID], obs_ids=[TEST_OBS_ID]).validate()
 
 
 def test_validate_refuses_days_with_a_date() -> None:
     """The jobs are selected by `days` or by the dates."""
-    with pytest.raises(ValueError, match="date_from or date_to"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="date_from or date_to"):
         gs.JobsFilter(days=FILTER_DAYS, date_from=FROM_DATE).validate()
 
 
@@ -160,7 +160,7 @@ def test_get_jobs_refuses_a_filter_that_is_not_valid_and_sends_nothing(
     filter = gs.JobsFilter(job_ids=[JOB_ID])
     filter.obs_ids = [TEST_OBS_ID]
 
-    with pytest.raises(ValueError, match="Job IDs and Obs IDs"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
         client.get_jobs(filter)
 
     assert len(httpserver.log) == before

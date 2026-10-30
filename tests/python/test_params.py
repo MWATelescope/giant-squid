@@ -101,7 +101,7 @@ def test_validate_accepts_the_defaults() -> None:
 
 def test_validate_refuses_an_offset_outside_the_limits() -> None:
     """The limit is the library's, and it names the value."""
-    with pytest.raises(ValueError, match="offset"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
         gs.DownloadJobParams(TEST_OBS_ID, offset=OFFSET_TOO_LARGE, duration=VOLTAGE_DURATION).validate()
 
 
@@ -109,15 +109,15 @@ def test_validate_refuses_a_delivery_that_the_format_does_not_suit() -> None:
     """Acacia delivers a tar file only."""
     params = gs.DownloadJobParams(TEST_OBS_ID, delivery_format=gs.DeliveryFormat.Files)
 
-    with pytest.raises(ValueError, match="delivery_format"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="delivery_format"):
         params.validate()
 
 
 def test_validate_refuses_an_image_size_that_is_not_allowed() -> None:
     """The size must be one of the sizes that the MWA ASVO allows, in both imaging flows."""
-    with pytest.raises(ValueError, match="image_size"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         gs.ImagingJobFlow1Params(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
-    with pytest.raises(ValueError, match="image_size"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         gs.ImagingJobFlow2Params(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
 
 
@@ -125,7 +125,7 @@ def test_validate_refuses_a_custom_centre_without_a_position() -> None:
     """A custom phase centre needs its RA and Dec."""
     params = gs.ConversionJobParams(TEST_OBS_ID, centre=gs.PhaseCentre.Custom)
 
-    with pytest.raises(ValueError, match="custom_centre"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="custom_centre"):
         params.validate()
 
 
@@ -136,7 +136,7 @@ def test_validate_checks_the_values_as_they_are_now() -> None:
 
     params.offset = OFFSET_TOO_LARGE
 
-    with pytest.raises(ValueError, match="offset"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
         params.validate()
 
 
@@ -241,7 +241,7 @@ def test_a_preprocess_job_params_validates_what_it_holds() -> None:
     gs.PreprocessJobParams.Conversion(gs.ConversionJobParams(TEST_OBS_ID)).validate()
     bad = gs.PreprocessJobParams.Imaging(gs.ImagingJobFlow1Params(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
-    with pytest.raises(ValueError, match="image_size"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         bad.validate()
 
 

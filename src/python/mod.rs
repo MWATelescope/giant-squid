@@ -122,10 +122,20 @@ mod module {
     use super::download::PyDownloadOptions;
     #[pymodule_export]
     use super::error::{
-        AsvoApiError, AsvoError, ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError,
-        ParseErrorInsideFile, ParseErrorInsideStdin, ParseErrorInvalidTime, ParseErrorJobIdsGiven,
-        ParseErrorNoJobIds, ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError,
-        ParseErrorStdinJson, ParseErrorZeroJobId,
+        AsvoApiError, AsvoApiErrorApiError, AsvoApiErrorAuthenticationFailed, AsvoApiErrorBadJson,
+        AsvoApiErrorBadStatus, AsvoApiErrorConversion, AsvoApiErrorInvalidParameter,
+        AsvoApiErrorMissingAuthKey, AsvoApiErrorReqwest, AsvoError, AsvoErrorAsvoApi,
+        AsvoErrorDestinationExists, AsvoErrorFilesNotReachable, AsvoErrorHashMismatch,
+        AsvoErrorHttp404Error, AsvoErrorHttpError, AsvoErrorInterrupted,
+        AsvoErrorInvalidEnvironment, AsvoErrorInvalidJob, AsvoErrorInvalidJobState,
+        AsvoErrorInvalidJobType, AsvoErrorInvalidOption, AsvoErrorJobCancelled,
+        AsvoErrorJobExpired, AsvoErrorJobFailed, AsvoErrorNoAsvoJob, AsvoErrorNoFiles,
+        AsvoErrorNoHash, AsvoErrorNoJobReadyForObsId, AsvoErrorNoObsId, AsvoErrorNoPath,
+        AsvoErrorNoUrl, AsvoErrorNotReady, AsvoErrorSymlinkInDownloadDir, AsvoErrorTooManyObsIds,
+        ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError, ParseErrorInsideFile,
+        ParseErrorInsideStdin, ParseErrorInvalidTime, ParseErrorJobIdsGiven, ParseErrorNoJobIds,
+        ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError, ParseErrorStdinJson,
+        ParseErrorZeroJobId,
     };
     #[pymodule_export]
     use super::filter::PyJobsFilter;

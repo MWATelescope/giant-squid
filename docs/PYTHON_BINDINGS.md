@@ -102,7 +102,10 @@ release tag or by hand),
   `JobCancelledResponse`, `Status`, `Type`) or the library's (`AsvoClient`,
   `AsvoJob`, `AsvoJobVec`). The Python enums are made from the library's list
   (`for_each_schema_enum!`). An argument outside the schema's limits raises
-  `ValueError`.
+  `AsvoApiErrorInvalidParameter`, the library's `AsvoApiError::InvalidParameter`.
+  Every variant of the library's error enums has a Python subclass of the
+  enum's exception, named by the two (`AsvoErrorNoAsvoJob`), with the fields
+  of the variant, and the variants that wrap an `io::Error` raise `OSError`.
 - **The Python API matches the Rust API where possible.** A public item of
   the library (the ones that `src/lib.rs` exports) has a Python item with the
   same name and the same members, and the Python code calls the library, so

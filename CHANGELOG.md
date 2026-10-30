@@ -255,6 +255,13 @@ before you upgrade scripts.**
   `CsvSubmitErrorFailed`). **Changed:** `submit_csv_file(path, defaults=None)` takes a `CsvDefaults` instead of the
   keyword arguments `delivery`, `delivery_format` and `allow_resubmit`, and a file with a problem or with no job raises
   `CsvSubmitErrorInvalid` or `CsvSubmitErrorNoJobs` (instances of `CsvSubmitError`) instead of `ValueError`.
+* Python: every variant of `AsvoApiError` and `AsvoError` has a subclass of that exception, named by the two
+  (`AsvoApiErrorInvalidParameter`, `AsvoErrorNoAsvoJob`), with the fields of the variant. `kind` is kept.
+  **Changed:** an argument outside the MWA ASVO limits raises `AsvoApiErrorInvalidParameter` (with `name` and `message`)
+  and a download option that cannot be used raises `AsvoErrorInvalidOption`, instead of `ValueError`. An API error
+  during `AsvoClient(config)`, `client_config_from_env()` or a download is `AsvoErrorAsvoApi`, as in the library, with
+  the `AsvoApiError` as its `source` and `__cause__`, instead of the `AsvoApiError` itself. A Job ID of 0, a negative
+  duration and other values that are not valid as Python values still raise `ValueError`.
 
 ### Fixed in 3.0.0
 

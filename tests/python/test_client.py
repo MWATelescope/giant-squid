@@ -164,39 +164,45 @@ def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., No
 
 
 def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
-    """An empty API key raises AsvoApiError with kind MissingAuthKey, and nothing is sent."""
-    with pytest.raises(gs.AsvoApiError) as err:
+    """An empty API key raises AsvoErrorAsvoApi (as in the library), whose source is an AsvoApiError of kind
+    MissingAuthKey, and nothing is sent."""
+    with pytest.raises(gs.AsvoErrorAsvoApi) as err:
         gs.AsvoClient(gs.AsvoClientConfig(host, ""))
-    assert err.value.kind == "MissingAuthKey"
+    assert isinstance(err.value.source, gs.AsvoApiErrorMissingAuthKey)
+    assert err.value.source.kind == "MissingAuthKey"
     assert len(httpserver.log) == 0
 
 
 def test_a_rejected_login_raises_an_authentication_failure(host: str, httpserver: HTTPServer) -> None:
-    """A failed login raises AsvoApiError with the server's message."""
+    """A failed login raises AsvoErrorAsvoApi, whose source is an AsvoApiError with the server's message."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_data("invalid api key", status=401)
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.AsvoErrorAsvoApi) as err:
         gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
-    assert err.value.kind == "AuthenticationFailed"
-    assert "invalid api key" in err.value.message
+    assert isinstance(err.value.source, gs.AsvoApiErrorAuthenticationFailed)
+    assert err.value.source.kind == "AuthenticationFailed"
+    assert "invalid api key" in err.value.source.message
 
 
 def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, httpserver: HTTPServer) -> None:
-    """A failed login with an ErrorResponse body raises AuthenticationFailed with the server's fields."""
+    """A failed login with an ErrorResponse body is an AuthenticationFailed with the server's fields, in the source of
+    the AsvoErrorAsvoApi."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_json(
         error_response("AUTH_INVALID_KEY", "Bad API key"), status=401
     )
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.AsvoErrorAsvoApi) as outer:
         gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
-    assert err.value.kind == "AuthenticationFailed"
-    assert err.value.error_code == "AUTH_INVALID_KEY"
-    assert err.value.message == "Bad API key"
-    assert err.value.detail == "detail from the mock"
-    assert err.value.suggestion == "try again"
-    assert "Suggestion: try again" in str(err.value)
+    err = outer.value.source
+    assert err.kind == "AuthenticationFailed"
+    assert err.error_code == "AUTH_INVALID_KEY"
+    assert err.message == "Bad API key"
+    assert err.detail == "detail from the mock"
+    assert err.suggestion == "try again"
+    assert "Suggestion: try again" in str(err)
+    assert str(outer.value) == str(err)
 
 
 @pytest.mark.usefixtures("mock_login")
@@ -283,7 +289,7 @@ def test_a_bad_timeout_is_rejected(host: str) -> None:
 
 def test_a_timeout_of_zero_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
     """An api_timeout of 0 would time out every request, so the library refuses it before the login."""
-    with pytest.raises(ValueError, match="api_timeout"):
+    with pytest.raises(gs.AsvoErrorInvalidOption, match="api_timeout"):
         gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, api_timeout=0.0))
 
     assert logins(httpserver) == 0
@@ -568,7 +574,7 @@ def test_days_outside_one_to_thirty_raise_value_error_before_any_request(
     client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="days.*between 1 and 30"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days.*between 1 and 30"):
         client.get_jobs(gs.JobsFilter(days=days))
 
     assert len(httpserver.log) == requests_before
@@ -592,7 +598,7 @@ def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HT
     client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="can't specify both"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="can't specify both"):
         client.get_jobs(gs.JobsFilter(job_ids=[1], obs_ids=[TEST_OBS_ID]))
 
     assert len(httpserver.log) == requests_before

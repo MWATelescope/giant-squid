@@ -394,9 +394,9 @@ def test_a_buffer_size_of_zero_raises_value_error_before_any_request(
     client: gs.AsvoClient, tmp_path: pathlib.Path
 ) -> None:
     """A buffer of 0 bytes would write nothing, so the library refuses it (the server has no job list)."""
-    with pytest.raises(ValueError, match="buffer_size"):
+    with pytest.raises(gs.AsvoErrorInvalidOption, match="buffer_size"):
         client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
-    with pytest.raises(ValueError, match="buffer_size"):
+    with pytest.raises(gs.AsvoErrorInvalidOption, match="buffer_size"):
         client.download_obs(TEST_OBS_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
 
 

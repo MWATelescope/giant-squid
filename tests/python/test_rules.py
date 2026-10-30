@@ -92,7 +92,9 @@ def test_acacia_with_files_is_refused_before_any_request(
 
     for delivery in ({}, {"delivery": gs.DeliveryDestination.Acacia}):
         params = job(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
-        with pytest.raises(ValueError, match="delivery_format: must be tar when delivery is acacia"):
+        with pytest.raises(
+            gs.AsvoApiErrorInvalidParameter, match="delivery_format: must be tar when delivery is acacia"
+        ):
             submit(client, params)
     assert requests_to(httpserver, path) == []
 
@@ -153,7 +155,7 @@ def test_days_with_a_date_is_refused_before_any_request(
     """
     expect_get_jobs(httpserver)
 
-    with pytest.raises(ValueError, match="days: can't be used with date_from or date_to"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days: can't be used with date_from or date_to"):
         client.get_jobs(gs.JobsFilter(days=DAYS, date_from=date_from, date_to=date_to))
     assert requests_to(httpserver, GET_JOBS_PATH) == []
 

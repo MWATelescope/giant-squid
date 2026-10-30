@@ -110,10 +110,12 @@ def test_the_client_config_from_the_environment_has_defaults(monkeypatch: pytest
 
 
 def test_the_client_config_from_the_environment_needs_a_key() -> None:
-    """No key is an `AsvoApiError`, which names the variable."""
-    with pytest.raises(gs.AsvoApiError, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
+    """No key is an `AsvoErrorAsvoApi` (as in the library) whose `source` is the `AsvoApiError`, which names the
+    variable."""
+    with pytest.raises(gs.AsvoErrorAsvoApi, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
         gs.client_config_from_env()
-    assert excinfo.value.kind == "MissingAuthKey"
+    assert excinfo.value.kind == "AsvoApi"
+    assert excinfo.value.source.kind == "MissingAuthKey"
 
 
 @pytest.mark.parametrize("value", ["soon", "1.5", "0", "-3"])

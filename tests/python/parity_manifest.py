@@ -79,6 +79,7 @@ CSV_READ_EXCLUDED = {
 # The variants of `AsvoError` that have no subclass, because Python raises another exception for them.
 EXCLUDED_ERROR_VARIANTS = {
     "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an AsvoError.",
+    "CannotCreate": "A file or directory that cannot be made. Python raises OSError, as for IO, with the path as `filename`.",
 }
 
 # The variants of `ObsIdError` (`src/obs_id/mod.rs`) and `ParseError` (`src/helpers/mod.rs`).
@@ -164,13 +165,13 @@ def _variant_entries(
 def _errors() -> list[Entry]:
     entries: list[Entry] = []
     for variant in API_ERROR_VARIANTS:
-        entries.append(pending(f"crate::AsvoApiError::{variant}", f"AsvoApiError{variant}"))
+        entries.append(done(f"crate::AsvoApiError::{variant}", f"AsvoApiError{variant}"))
     for variant in ERROR_VARIANTS:
         rust = f"crate::AsvoError::{variant}"
         if variant in EXCLUDED_ERROR_VARIANTS:
             entries.append(excluded(rust, EXCLUDED_ERROR_VARIANTS[variant]))
         else:
-            entries.append(pending(rust, f"AsvoError{variant}"))
+            entries.append(done(rust, f"AsvoError{variant}"))
     return entries
 
 

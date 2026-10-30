@@ -168,7 +168,7 @@ def test_validate_accepts_a_body_from_a_file_and_refuses_one_that_was_changed() 
 
     body(job.params).offset = 6000
 
-    with pytest.raises(ValueError, match="offset"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
         job.params.validate()
 
 
@@ -348,7 +348,7 @@ def test_submit_csv_jobs_refuses_a_body_that_is_not_valid_and_sends_nothing(
     jobs = gs.parse_manta_ray_csv(f"{LINE_BY_TYPE['Imaging']}\n")
     body(jobs[0].params).image_size = 100
 
-    with pytest.raises(ValueError, match="image_size"):
+    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         client.submit_csv_jobs(jobs)
 
     assert requests_to_submit_paths(httpserver) == []

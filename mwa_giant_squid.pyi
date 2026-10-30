@@ -29,9 +29,42 @@ __all__ = [
     "OBS_ID_HINT",
     "SIGNED_URL_LIFETIME_DAYS",
     "AsvoApiError",
+    "AsvoApiErrorApiError",
+    "AsvoApiErrorAuthenticationFailed",
+    "AsvoApiErrorBadJson",
+    "AsvoApiErrorBadStatus",
+    "AsvoApiErrorConversion",
+    "AsvoApiErrorInvalidParameter",
+    "AsvoApiErrorMissingAuthKey",
+    "AsvoApiErrorReqwest",
     "AsvoClient",
     "AsvoClientConfig",
     "AsvoError",
+    "AsvoErrorAsvoApi",
+    "AsvoErrorDestinationExists",
+    "AsvoErrorFilesNotReachable",
+    "AsvoErrorHashMismatch",
+    "AsvoErrorHttp404Error",
+    "AsvoErrorHttpError",
+    "AsvoErrorInterrupted",
+    "AsvoErrorInvalidEnvironment",
+    "AsvoErrorInvalidJob",
+    "AsvoErrorInvalidJobState",
+    "AsvoErrorInvalidJobType",
+    "AsvoErrorInvalidOption",
+    "AsvoErrorJobCancelled",
+    "AsvoErrorJobExpired",
+    "AsvoErrorJobFailed",
+    "AsvoErrorNoAsvoJob",
+    "AsvoErrorNoFiles",
+    "AsvoErrorNoHash",
+    "AsvoErrorNoJobReadyForObsId",
+    "AsvoErrorNoObsId",
+    "AsvoErrorNoPath",
+    "AsvoErrorNoUrl",
+    "AsvoErrorNotReady",
+    "AsvoErrorSymlinkInDownloadDir",
+    "AsvoErrorTooManyObsIds",
     "AsvoJob",
     "AsvoJobVec",
     "ConversionJobParams",
@@ -129,18 +162,22 @@ __version__: builtins.str
 
 class AsvoApiError(builtins.Exception):
     r"""
-    An MWA ASVO API call failed. `kind` is the Rust `AsvoApiError` variant.
+    An MWA ASVO API call failed, or an argument is outside what the MWA ASVO API allows. `kind` is the Rust `AsvoApiError` variant, and the exception is also an instance of the class for that variant (for example `AsvoApiErrorInvalidParameter`).
 
     `kind` is always set. The other attributes are set only for the kinds shown.
     """
 
     kind: builtins.str
     r"""
-    "MissingAuthKey" (the `api_key` given to `AsvoClient` is empty), "AuthenticationFailed", "Conversion", "BadJson", "Reqwest", "ApiError" or "BadStatus". An argument outside the MWA ASVO limits raises `ValueError`, not this.
+    "MissingAuthKey" (the `api_key` given to `AsvoClient` is empty), "AuthenticationFailed", "Conversion", "InvalidParameter" (an argument is outside the MWA ASVO limits), "BadJson", "Reqwest", "ApiError" or "BadStatus".
+    """
+    name: builtins.str
+    r"""
+    InvalidParameter: the name of the argument, as the OpenAPI schema has it.
     """
     message: builtins.str
     r"""
-    AuthenticationFailed, ApiError and BadStatus.
+    AuthenticationFailed, InvalidParameter, ApiError and BadStatus.
     """
     error_code: builtins.str | None
     r"""
@@ -165,6 +202,46 @@ class AsvoApiError(builtins.Exception):
     status: builtins.int
     r"""
     ApiError and BadStatus: the HTTP status code (as `status` of an AsvoError HttpError).
+    """
+
+class AsvoApiErrorApiError(AsvoApiError):
+    r"""
+    The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.
+    """
+
+class AsvoApiErrorAuthenticationFailed(AsvoApiError):
+    r"""
+    The MWA ASVO refused the login (kind `AuthenticationFailed`).
+    """
+
+class AsvoApiErrorBadJson(AsvoApiError):
+    r"""
+    The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).
+    """
+
+class AsvoApiErrorBadStatus(AsvoApiError):
+    r"""
+    The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).
+    """
+
+class AsvoApiErrorConversion(AsvoApiError):
+    r"""
+    A value could not be turned into the type that the schema has (kind `Conversion`).
+    """
+
+class AsvoApiErrorInvalidParameter(AsvoApiError):
+    r"""
+    A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.
+    """
+
+class AsvoApiErrorMissingAuthKey(AsvoApiError):
+    r"""
+    No API key was given: it is empty (kind `MissingAuthKey`).
+    """
+
+class AsvoApiErrorReqwest(AsvoApiError):
+    r"""
+    An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).
     """
 
 @typing.final
@@ -533,9 +610,9 @@ class AsvoClientConfig:
 
 class AsvoError(builtins.Exception):
     r"""
-    A download or job check failed. `kind` is the Rust `AsvoError` variant.
+    A download or job check failed. `kind` is the Rust `AsvoError` variant, and the exception is also an instance of the class for that variant (for example `AsvoErrorNoAsvoJob`).
 
-    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download raises `AsvoApiError`, not this. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
+    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `AsvoErrorAsvoApi`, which has the `AsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
     """
 
     kind: builtins.str
@@ -592,7 +669,7 @@ class AsvoError(builtins.Exception):
     """
     message: builtins.str
     r"""
-    HttpError.
+    HttpError and InvalidOption: what is wrong.
     """
     str: builtins.str
     r"""
@@ -600,7 +677,11 @@ class AsvoError(builtins.Exception):
     """
     name: builtins.str
     r"""
-    InvalidEnvironment: the name of the environment variable. (The module reads no environment variables, so it does not raise InvalidEnvironment.)
+    InvalidEnvironment: the name of the environment variable. InvalidOption: the name of the option.
+    """
+    source: AsvoApiError
+    r"""
+    AsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`.
     """
     value: builtins.str
     r"""
@@ -613,6 +694,131 @@ class AsvoError(builtins.Exception):
     id: builtins.int
     r"""
     InvalidJob: the `id` of the job, as the API gave it.
+    """
+
+class AsvoErrorAsvoApi(AsvoError):
+    r"""
+    An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `AsvoApi`). `source` is the `AsvoApiError`, which is also the `__cause__`.
+    """
+
+class AsvoErrorDestinationExists(AsvoError):
+    r"""
+    The place for the files of a Scratch job is already there (kind `DestinationExists`).
+    """
+
+class AsvoErrorFilesNotReachable(AsvoError):
+    r"""
+    The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).
+    """
+
+class AsvoErrorHashMismatch(AsvoError):
+    r"""
+    The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).
+    """
+
+class AsvoErrorHttp404Error(AsvoError):
+    r"""
+    The download server did not find the file (kind `Http404Error`).
+    """
+
+class AsvoErrorHttpError(AsvoError):
+    r"""
+    The download server replied with an HTTP error (kind `HttpError`).
+    """
+
+class AsvoErrorInterrupted(AsvoError):
+    r"""
+    The download was stopped (kind `Interrupted`).
+    """
+
+class AsvoErrorInvalidEnvironment(AsvoError):
+    r"""
+    An environment variable has a value that cannot be used (kind `InvalidEnvironment`).
+    """
+
+class AsvoErrorInvalidJob(AsvoError):
+    r"""
+    The server gave a job that cannot be used (kind `InvalidJob`).
+    """
+
+class AsvoErrorInvalidJobState(AsvoError):
+    r"""
+    The text is not the name of a job state (kind `InvalidJobState`).
+    """
+
+class AsvoErrorInvalidJobType(AsvoError):
+    r"""
+    The text is not the name of a job type (kind `InvalidJobType`).
+    """
+
+class AsvoErrorInvalidOption(AsvoError):
+    r"""
+    A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.
+    """
+
+class AsvoErrorJobCancelled(AsvoError):
+    r"""
+    The job was cancelled (kind `JobCancelled`).
+    """
+
+class AsvoErrorJobExpired(AsvoError):
+    r"""
+    The download links of the job have expired (kind `JobExpired`). Resubmit the job.
+    """
+
+class AsvoErrorJobFailed(AsvoError):
+    r"""
+    The job is in the `Error` state (kind `JobFailed`). `error` is its message.
+    """
+
+class AsvoErrorNoAsvoJob(AsvoError):
+    r"""
+    There is no job with this Job ID in the job list (kind `NoAsvoJob`).
+    """
+
+class AsvoErrorNoFiles(AsvoError):
+    r"""
+    The job has no files (kind `NoFiles`).
+    """
+
+class AsvoErrorNoHash(AsvoError):
+    r"""
+    The job's file has no hash (kind `NoHash`).
+    """
+
+class AsvoErrorNoJobReadyForObsId(AsvoError):
+    r"""
+    No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).
+    """
+
+class AsvoErrorNoObsId(AsvoError):
+    r"""
+    No job has this Obs ID (kind `NoObsId`).
+    """
+
+class AsvoErrorNoPath(AsvoError):
+    r"""
+    The job's files have no path (kind `NoPath`).
+    """
+
+class AsvoErrorNoUrl(AsvoError):
+    r"""
+    The job's file has no download URL (kind `NoUrl`).
+    """
+
+class AsvoErrorNotReady(AsvoError):
+    r"""
+    The job is not ready for download (kind `NotReady`). `job_state` is its state.
+    """
+
+class AsvoErrorSymlinkInDownloadDir(AsvoError):
+    r"""
+    The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).
+    """
+
+class AsvoErrorTooManyObsIds(AsvoError):
+    r"""
+    More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).
     """
 
 @typing.final

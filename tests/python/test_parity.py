@@ -96,11 +96,14 @@ def test_done_items_exist(entry: Entry) -> None:
     assert resolve(entry.python) is not MISSING, f"{entry.rust}: mwa_giant_squid.{entry.python} does not exist"
 
 
-@pytest.mark.parametrize("entry", entries_with("pending"), ids=lambda e: e.rust)
-def test_pending_items_do_not_exist_yet(entry: Entry) -> None:
-    """An item that the manifest calls pending is not in the module. When it is, the status must be done."""
-    assert entry.python is not None
-    assert resolve(entry.python) is MISSING, f"{entry.rust}: mwa_giant_squid.{entry.python} exists. Make it `done`."
+def test_pending_items_do_not_exist_yet() -> None:
+    """An item that the manifest calls pending is not in the module. When it is, the status must be done.
+
+    (No item is pending when the Python API is complete, and then the test has nothing to check.)
+    """
+    exist = [e.rust for e in entries_with("pending") if e.python and resolve(e.python) is not MISSING]
+
+    assert not exist, f"These items exist in the module. Make them `done`: {exist}"
 
 
 def test_every_python_name_is_in_the_manifest() -> None:

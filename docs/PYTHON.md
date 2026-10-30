@@ -126,7 +126,7 @@ state, one type, the days or the dates, the sort order), and the module
 filters the rest. Every filter that is `None` does not filter, except `days` and `sort_by`: with `days=None` you
 get the jobs from the MWA ASVO's default window (the schema's default for `days`, which is also the most `days`
 can be), not your full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both:
-`days` with a date raises `ValueError`, and with a date and no `days` the request has `"days": null`. A job older
+`days` with a date raises `AsvoApiErrorInvalidParameter`, and with a date and no `days` the request has `"days": null`. A job older
 than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find it either.
 
 ```python
@@ -148,9 +148,9 @@ jobs = client.get_jobs(
 ```
 
 `get_jobs()` with no filter gets the jobs of the default window. `job_ids` and `obs_ids` cannot be given together:
-that raises `ValueError`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked when you set it,
-as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 or `days` outside 1 to 30
-raises `ValueError`.
+that raises `AsvoApiErrorInvalidParameter`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked
+when you set it, as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 raises
+`ValueError`, and `days` outside 1 to 30 raises `AsvoApiErrorInvalidParameter`.
 
 ### Obs IDs
 
@@ -238,7 +238,7 @@ docstring of each class gives the limits of each number.
 Each class is a plain class. Every argument is an attribute that can be read and changed, and the object can be
 submitted again after a change. Only the values whose Rust type cannot hold a wrong one are checked when they are set:
 an Obs ID is an `ObsId` (`obs_id` returns an `ObsId`, and a number that is not valid raises `ObsIdError` when the class
-is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`). The limits of the other values are checked by
+is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`, as for every Job ID). The limits of the other values are checked by
 `validate()` and when the job is submitted.
 
 The library's functions that make a body are in the module with the same names: `download_params(obs_id)`,
@@ -263,7 +263,8 @@ print(reply.job_id, reply.status, reply.message)
 ```
 
 `validate()` of a class checks the values against the limits with the library's `validate_*_params` function, and
-raises `ValueError` for the first value that is outside them. The submit methods do this before they send a request,
+raises `AsvoApiErrorInvalidParameter` for the first value that is outside them (`name` is the argument, `message` says
+what is wrong). The submit methods do this before they send a request,
 so nothing is sent for a body that is not valid. A body that is not valid includes
 `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
 only. The other deliveries take either format.
@@ -468,11 +469,11 @@ the function raises an exception, the download stops and the call raises that ex
 
 | Exception | When |
 |---|---|
-| `AsvoApiError` | An API call failed. This includes a login that failed and an API call inside a download. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
-| `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. (A file that cannot be read or written is an `OSError`, not this.) |
+| `AsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `AsvoApiErrorMissingAuthKey`, `AsvoApiErrorAuthenticationFailed`, `AsvoApiErrorConversion`, `AsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `AsvoApiErrorBadJson`, `AsvoApiErrorReqwest`, `AsvoApiErrorApiError` and `AsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
+| `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. It has a subclass for each Rust variant (`AsvoErrorNoAsvoJob`, `AsvoErrorNotReady`, `AsvoErrorHashMismatch`, `AsvoErrorInvalidOption` and so on). `AsvoErrorAsvoApi` is an API call that failed inside a check or download, as in the library: for example the login of `AsvoClient(config)`, or the job list that a download gets first. Its `source` is the `AsvoApiError`, which is also its `__cause__`. (A file that cannot be read or written is an `OSError`, not this.) |
 | `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
 | `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
-| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid. The module raises these before it sends a request. |
+| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid as a Python value: a Job ID of 0, a number that is not an integer or is out of range, a negative duration. The module raises these before it sends a request. A value that the MWA ASVO does not allow is an `AsvoApiErrorInvalidParameter` or an `AsvoErrorInvalidOption`, not these. |
 | `OSError` | A file or directory cannot be read, written or made: a CSV file, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
 | `CsvSubmitError` | `submit_csv_file` did not submit every job of a file. `CsvSubmitErrorInvalid` (a line has a problem; `errors`) and `CsvSubmitErrorNoJobs` (`path`) submit nothing. `CsvSubmitErrorFailed` means that some jobs failed and the others were submitted: it has `submitted` (the replies) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `CsvFileError`, `CsvError` | `read_manta_ray_csv` (`CsvFileErrorInvalid` with `errors`, `CsvFileErrorNoJobs` with `path`) or `parse_manta_ray_csv` (`CsvError` with `errors`) could not read the jobs of a file. |
