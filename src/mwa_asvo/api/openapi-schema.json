@@ -134,7 +134,8 @@
       "required": [
         "obs_id"
       ],
-      "title": "BeamformerJobParams"
+      "title": "BeamformerJobParams",
+      "description": "Parameters and hidden fields for beamformer job submission"
     },
     "CalibrationReadyCallback": {
       "properties": {
@@ -458,8 +459,7 @@
       "type": "string",
       "enum": [
         "vis",
-        "meta",
-        "beam"
+        "meta"
       ],
       "title": "DownloadType"
     },
@@ -685,158 +685,9 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "output": {
-          "type": "string",
-          "const": "fits",
-          "title": "Output",
-          "description": "Imaging job output is fixed to fits and cannot be changed",
-          "default": "fits"
-        },
-        "avg_time_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Avg Time Res",
-          "default": 2.0
-        },
-        "avg_freq_res": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 1280.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Avg Freq Res",
-          "default": 40.0
-        },
-        "flag_edge_width": {
-          "type": "number",
-          "maximum": 640.0,
-          "minimum": 0.0,
-          "title": "Flag Edge Width",
-          "default": 80.0
-        },
         "centre": {
           "$ref": "#/definitions/PhaseCentre",
           "default": "phase"
-        },
-        "custom_centre_ra": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 359.999999,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Custom Centre Ra"
-        },
-        "custom_centre_dec": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 90.0,
-              "minimum": -90.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Custom Centre Dec"
-        },
-        "apply_di_cal": {
-          "type": "boolean",
-          "title": "Apply Di Cal",
-          "default": true
-        },
-        "no_apply_amps": {
-          "type": "boolean",
-          "title": "No Apply Amps",
-          "default": false
-        },
-        "no_rfi": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Rfi",
-          "default": false
-        },
-        "no_geometric_delay": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Geometric Delay",
-          "default": false
-        },
-        "no_cable_delay": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Cable Delay",
-          "default": false
-        },
-        "no_digital_gains": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Digital Gains",
-          "default": false
-        },
-        "no_flag_dc": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Flag Dc",
-          "default": false
-        },
-        "no_passband_gains": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "No Passband Gains",
-          "default": false
         },
         "image_size": {
           "$ref": "#/definitions/ImageSizes",
@@ -1001,6 +852,155 @@
         "output_mode": {
           "$ref": "#/definitions/ImageOutputMode",
           "default": "fits"
+        },
+        "output": {
+          "type": "string",
+          "const": "fits",
+          "title": "Output",
+          "description": "Imaging job output is fixed to fits and cannot be changed",
+          "default": "fits"
+        },
+        "avg_time_res": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Time Res",
+          "default": 2.0
+        },
+        "avg_freq_res": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 1280.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Avg Freq Res",
+          "default": 40.0
+        },
+        "flag_edge_width": {
+          "type": "number",
+          "maximum": 640.0,
+          "minimum": 0.0,
+          "title": "Flag Edge Width",
+          "default": 80.0
+        },
+        "custom_centre_ra": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 359.999999,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Custom Centre Ra"
+        },
+        "custom_centre_dec": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 90.0,
+              "minimum": -90.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Custom Centre Dec"
+        },
+        "apply_di_cal": {
+          "type": "boolean",
+          "title": "Apply Di Cal",
+          "default": true
+        },
+        "no_apply_amps": {
+          "type": "boolean",
+          "title": "No Apply Amps",
+          "default": false
+        },
+        "no_rfi": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Rfi",
+          "default": false
+        },
+        "no_geometric_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Geometric Delay",
+          "default": false
+        },
+        "no_cable_delay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Cable Delay",
+          "default": false
+        },
+        "no_digital_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Digital Gains",
+          "default": false
+        },
+        "no_flag_dc": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Flag Dc",
+          "default": false
+        },
+        "no_passband_gains": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "No Passband Gains",
+          "default": false
         }
       },
       "type": "object",
@@ -1033,10 +1033,9 @@
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
         },
-        "source_job_id": {
-          "type": "integer",
-          "minimum": 1.0,
-          "title": "Source Job Id"
+        "centre": {
+          "$ref": "#/definitions/PhaseCentre",
+          "default": "phase"
         },
         "image_size": {
           "$ref": "#/definitions/ImageSizes",
@@ -1092,6 +1091,7 @@
             }
           ],
           "title": "Clean Threshold",
+          "description": "deprecated. use abs_threshold instead",
           "default": 0.001
         },
         "auto_threshold": {
@@ -1138,7 +1138,8 @@
               "type": "null"
             }
           ],
-          "title": "Nwlayers"
+          "title": "Nwlayers",
+          "description": "deprecated. use wstack_nwlayers instead"
         },
         "wstack_nwlayers": {
           "anyOf": [
@@ -1199,6 +1200,11 @@
         "output_mode": {
           "$ref": "#/definitions/ImageOutputMode",
           "default": "fits"
+        },
+        "source_job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Source Job Id"
         }
       },
       "type": "object",
@@ -4125,14 +4131,6 @@
           "minimum": 888888889.0,
           "title": "Obs Id"
         },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "scratch"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "files"
-        },
         "allow_resubmit": {
           "anyOf": [
             {
@@ -4533,6 +4531,9 @@
         "403": [
           "ErrorResponse"
         ],
+        "404": [
+          "ErrorResponse"
+        ],
         "422": [
           "ErrorResponse"
         ],
@@ -4546,9 +4547,9 @@
     },
     "POST /v2/jobs/download": {
       "request": [
+        "BeamformerJobParams",
         "VisibilityJobParams",
-        "VoltageJobParams",
-        "BeamformerJobParams"
+        "VoltageJobParams"
       ],
       "responses": {
         "200": [
@@ -4608,6 +4609,9 @@
           "ErrorResponse"
         ],
         "403": [
+          "ErrorResponse"
+        ],
+        "404": [
           "ErrorResponse"
         ],
         "422": [
@@ -4685,6 +4689,9 @@
           "ErrorResponse"
         ],
         "403": [
+          "ErrorResponse"
+        ],
+        "404": [
           "ErrorResponse"
         ],
         "422": [

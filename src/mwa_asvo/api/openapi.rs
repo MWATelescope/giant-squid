@@ -62,7 +62,7 @@ impl AuthStatusResponse {
         Default::default()
     }
 }
-///`BeamformerJobParams`
+///Parameters and hidden fields for beamformer job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct BeamformerJobParams {
     ///allows user to resubmit a job despite it being completed
@@ -303,15 +303,12 @@ pub enum DownloadType {
     Vis,
     #[serde(rename = "meta")]
     Meta,
-    #[serde(rename = "beam")]
-    Beam,
 }
 impl ::std::fmt::Display for DownloadType {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Vis => f.write_str("vis"),
             Self::Meta => f.write_str("meta"),
-            Self::Beam => f.write_str("beam"),
         }
     }
 }
@@ -323,7 +320,6 @@ impl ::std::str::FromStr for DownloadType {
         match value {
             "vis" => Ok(Self::Vis),
             "meta" => Ok(Self::Meta),
-            "beam" => Ok(Self::Beam),
             _ => Err("invalid value".into()),
         }
     }
@@ -658,10 +654,13 @@ pub struct ImagingJobFlow2Params {
     pub auto_mask: i64,
     #[serde(default = "defaults::imaging_job_flow2_params_auto_threshold")]
     pub auto_threshold: f64,
+    #[serde(default = "defaults::imaging_job_flow2_params_centre")]
+    pub centre: PhaseCentre,
     #[serde(default = "defaults::default_u64::<i64, 4>")]
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
+    ///deprecated. use abs_threshold instead
     #[serde(default = "defaults::imaging_job_flow2_params_clean_threshold")]
     pub clean_threshold: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_flow2_params_delivery")]
@@ -680,6 +679,7 @@ pub struct ImagingJobFlow2Params {
     pub multiscale: bool,
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
+    ///deprecated. use wstack_nwlayers instead
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     #[serde(default = "defaults::imaging_job_flow2_params_output_mode")]
@@ -2598,10 +2598,6 @@ pub struct VoltageJobParams {
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::voltage_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::voltage_job_params_delivery")]
-    pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::voltage_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
     pub duration: u64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub from_channel: ::std::option::Option<u8>,
@@ -4636,6 +4632,7 @@ pub mod builder {
         apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
         auto_mask: ::std::result::Result<i64, ::std::string::String>,
         auto_threshold: ::std::result::Result<f64, ::std::string::String>,
+        centre: ::std::result::Result<super::PhaseCentre, ::std::string::String>,
         channels_out: ::std::result::Result<i64, ::std::string::String>,
         clean_iterations: ::std::result::Result<i64, ::std::string::String>,
         clean_threshold: ::std::result::Result<
@@ -4696,6 +4693,7 @@ pub mod builder {
                 auto_threshold: Ok(
                     super::defaults::imaging_job_flow2_params_auto_threshold(),
                 ),
+                centre: Ok(super::defaults::imaging_job_flow2_params_centre()),
                 channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
                 clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
                 clean_threshold: Ok(
@@ -4787,6 +4785,16 @@ pub mod builder {
                 .map_err(|e| {
                     format!("error converting supplied value for auto_threshold: {e}")
                 });
+            self
+        }
+        pub fn centre<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::PhaseCentre>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.centre = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for centre: {e}"));
             self
         }
         pub fn channels_out<T>(mut self, value: T) -> Self
@@ -5048,6 +5056,7 @@ pub mod builder {
                 apply_primary_beam: value.apply_primary_beam?,
                 auto_mask: value.auto_mask?,
                 auto_threshold: value.auto_threshold?,
+                centre: value.centre?,
                 channels_out: value.channels_out?,
                 clean_iterations: value.clean_iterations?,
                 clean_threshold: value.clean_threshold?,
@@ -5080,6 +5089,7 @@ pub mod builder {
                 apply_primary_beam: Ok(value.apply_primary_beam),
                 auto_mask: Ok(value.auto_mask),
                 auto_threshold: Ok(value.auto_threshold),
+                centre: Ok(value.centre),
                 channels_out: Ok(value.channels_out),
                 clean_iterations: Ok(value.clean_iterations),
                 clean_threshold: Ok(value.clean_threshold),
@@ -10912,14 +10922,6 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        delivery: ::std::result::Result<
-            super::DeliveryDestination,
-            ::std::string::String,
-        >,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
         duration: ::std::result::Result<u64, ::std::string::String>,
         from_channel: ::std::result::Result<
             ::std::option::Option<u8>,
@@ -10936,10 +10938,6 @@ pub mod builder {
         fn default() -> Self {
             Self {
                 allow_resubmit: Ok(super::defaults::voltage_job_params_allow_resubmit()),
-                delivery: Ok(super::defaults::voltage_job_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::voltage_job_params_delivery_format(),
-                ),
                 duration: Err("no value supplied for duration".to_string()),
                 from_channel: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
@@ -10958,30 +10956,6 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryDestination>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
                 });
             self
         }
@@ -11049,8 +11023,6 @@ pub mod builder {
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
                 allow_resubmit: value.allow_resubmit?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
                 duration: value.duration?,
                 from_channel: value.from_channel?,
                 obs_id: value.obs_id?,
@@ -11063,8 +11035,6 @@ pub mod builder {
         fn from(value: super::VoltageJobParams) -> Self {
             Self {
                 allow_resubmit: Ok(value.allow_resubmit),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
                 duration: Ok(value.duration),
                 from_channel: Ok(value.from_channel),
                 obs_id: Ok(value.obs_id),
@@ -11299,6 +11269,9 @@ pub mod defaults {
     pub(super) fn imaging_job_flow2_params_auto_threshold() -> f64 {
         0.5_f64
     }
+    pub(super) fn imaging_job_flow2_params_centre() -> super::PhaseCentre {
+        super::PhaseCentre::Phase
+    }
     pub(super) fn imaging_job_flow2_params_clean_threshold() -> ::std::option::Option<
         f64,
     > {
@@ -11374,12 +11347,6 @@ pub mod defaults {
     }
     pub(super) fn voltage_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
-    }
-    pub(super) fn voltage_job_params_delivery() -> super::DeliveryDestination {
-        super::DeliveryDestination::Scratch
-    }
-    pub(super) fn voltage_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Files
     }
 }
 /// Error types.
