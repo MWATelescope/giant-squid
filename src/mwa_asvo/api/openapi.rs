@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.6.0";
+pub const MWA_ASVO_API_VERSION: &str = "2.7.0";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -59,6 +59,23 @@ pub struct AuthStatusResponse {
 }
 impl AuthStatusResponse {
     pub fn builder() -> builder::AuthStatusResponse {
+        Default::default()
+    }
+}
+///`BeamformerJobParams`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct BeamformerJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::beamformer_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::beamformer_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::beamformer_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    pub obs_id: i64,
+}
+impl BeamformerJobParams {
+    pub fn builder() -> builder::BeamformerJobParams {
         Default::default()
     }
 }
@@ -145,8 +162,9 @@ pub struct ConversionJobParams {
     #[serde(default = "defaults::conversion_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
     pub obs_id: i64,
+    ///output uvfits or measurement sets.
     #[serde(default = "defaults::conversion_job_params_output")]
-    pub output: OutputFormat,
+    pub output: Output,
 }
 impl ConversionJobParams {
     pub fn builder() -> builder::ConversionJobParams {
@@ -267,31 +285,63 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
         value.parse()
     }
 }
-///Parameters for download job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct DownloadJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::download_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::download_job_params_delivery")]
-    pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::download_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub duration: ::std::option::Option<u64>,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub from_channel: ::std::option::Option<u8>,
-    pub obs_id: i64,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub offset: ::std::option::Option<i64>,
-    #[serde(default)]
-    pub only_get_metadata: bool,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub to_channel: ::std::option::Option<u8>,
+///`DownloadType`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum DownloadType {
+    #[serde(rename = "vis")]
+    Vis,
+    #[serde(rename = "meta")]
+    Meta,
+    #[serde(rename = "beam")]
+    Beam,
 }
-impl DownloadJobParams {
-    pub fn builder() -> builder::DownloadJobParams {
-        Default::default()
+impl ::std::fmt::Display for DownloadType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Vis => f.write_str("vis"),
+            Self::Meta => f.write_str("meta"),
+            Self::Beam => f.write_str("beam"),
+        }
+    }
+}
+impl ::std::str::FromStr for DownloadType {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "vis" => Ok(Self::Vis),
+            "meta" => Ok(Self::Meta),
+            "beam" => Ok(Self::Beam),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for DownloadType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DownloadType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///Standard error response structure for all ASVO API endpoints
@@ -569,6 +619,9 @@ pub struct ImagingJobFlow1Params {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
+    ///Imaging job output is fixed to fits and cannot be changed
+    #[serde(default = "defaults::imaging_job_flow1_params_output")]
+    pub output: ::std::string::String,
     #[serde(default = "defaults::imaging_job_flow1_params_output_mode")]
     pub output_mode: ImageOutputMode,
     #[serde(default = "defaults::imaging_job_flow1_params_pixel_scale")]
@@ -629,8 +682,6 @@ pub struct ImagingJobFlow2Params {
     pub nmiter: ::std::num::NonZeroU64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub obs_id: ::std::option::Option<i64>,
     #[serde(default = "defaults::imaging_job_flow2_params_output_mode")]
     pub output_mode: ImageOutputMode,
     #[serde(default = "defaults::imaging_job_flow2_params_pixel_scale")]
@@ -978,7 +1029,7 @@ impl JobSubmittedResponse {
         Default::default()
     }
 }
-///Enum representing job types with their integer values
+///Enum representing job types with their string values
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -1595,7 +1646,7 @@ impl ObservationSizeResponse {
         Default::default()
     }
 }
-///`OutputFormat`
+///output uvfits or measurement sets.
 #[derive(
     ::serde::Deserialize,
     ::serde::Serialize,
@@ -1608,13 +1659,13 @@ impl ObservationSizeResponse {
     PartialEq,
     PartialOrd
 )]
-pub enum OutputFormat {
+pub enum Output {
     #[serde(rename = "ms")]
     Ms,
     #[serde(rename = "uvfits")]
     Uvfits,
 }
-impl ::std::fmt::Display for OutputFormat {
+impl ::std::fmt::Display for Output {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Ms => f.write_str("ms"),
@@ -1622,7 +1673,7 @@ impl ::std::fmt::Display for OutputFormat {
         }
     }
 }
-impl ::std::str::FromStr for OutputFormat {
+impl ::std::str::FromStr for Output {
     type Err = self::error::ConversionError;
     fn from_str(
         value: &str,
@@ -1634,7 +1685,7 @@ impl ::std::str::FromStr for OutputFormat {
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for OutputFormat {
+impl ::std::convert::TryFrom<&str> for Output {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &str,
@@ -1642,12 +1693,17 @@ impl ::std::convert::TryFrom<&str> for OutputFormat {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for OutputFormat {
+impl ::std::convert::TryFrom<::std::string::String> for Output {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+impl ::std::default::Default for Output {
+    fn default() -> Self {
+        Output::Ms
     }
 }
 /**Pagination metadata for job lists
@@ -2517,6 +2573,48 @@ impl<'de> ::serde::Deserialize<'de> for Username {
             })
     }
 }
+///Parameters for visibility job submission
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct VisibilityJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::visibility_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::visibility_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::visibility_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    #[serde(default = "defaults::visibility_job_params_download_type")]
+    pub download_type: DownloadType,
+    pub obs_id: i64,
+}
+impl VisibilityJobParams {
+    pub fn builder() -> builder::VisibilityJobParams {
+        Default::default()
+    }
+}
+///Parameters for voltage job submission
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct VoltageJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::voltage_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::voltage_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::voltage_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    pub duration: u64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub from_channel: ::std::option::Option<u8>,
+    pub obs_id: i64,
+    pub offset: i64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub to_channel: ::std::option::Option<u8>,
+}
+impl VoltageJobParams {
+    pub fn builder() -> builder::VoltageJobParams {
+        Default::default()
+    }
+}
 ///Response model for token-issuing endpoint (/v2/ws/jobs)
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct WebSocketTokenResponse {
@@ -2777,6 +2875,107 @@ pub mod builder {
         fn from(value: super::AuthStatusResponse) -> Self {
             Self {
                 authenticated: Ok(value.authenticated),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct BeamformerJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for BeamformerJobParams {
+        fn default() -> Self {
+            Self {
+                allow_resubmit: Ok(
+                    super::defaults::beamformer_job_params_allow_resubmit(),
+                ),
+                delivery: Ok(super::defaults::beamformer_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::beamformer_job_params_delivery_format(),
+                ),
+                obs_id: Err("no value supplied for obs_id".to_string()),
+            }
+        }
+    }
+    impl BeamformerJobParams {
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<BeamformerJobParams> for super::BeamformerJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: BeamformerJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                allow_resubmit: value.allow_resubmit?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                obs_id: value.obs_id?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::BeamformerJobParams> for BeamformerJobParams {
+        fn from(value: super::BeamformerJobParams) -> Self {
+            Self {
+                allow_resubmit: Ok(value.allow_resubmit),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                obs_id: Ok(value.obs_id),
             }
         }
     }
@@ -3072,7 +3271,7 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output: ::std::result::Result<super::OutputFormat, ::std::string::String>,
+        output: ::std::result::Result<super::Output, ::std::string::String>,
     }
     impl ::std::default::Default for ConversionJobParams {
         fn default() -> Self {
@@ -3328,7 +3527,7 @@ pub mod builder {
         }
         pub fn output<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::OutputFormat>,
+            T: ::std::convert::TryInto<super::Output>,
             T::Error: ::std::fmt::Display,
         {
             self.output = value
@@ -3387,194 +3586,6 @@ pub mod builder {
                 no_rfi: Ok(value.no_rfi),
                 obs_id: Ok(value.obs_id),
                 output: Ok(value.output),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
-    pub struct DownloadJobParams {
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        delivery: ::std::result::Result<
-            super::DeliveryDestination,
-            ::std::string::String,
-        >,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
-        duration: ::std::result::Result<
-            ::std::option::Option<u64>,
-            ::std::string::String,
-        >,
-        from_channel: ::std::result::Result<
-            ::std::option::Option<u8>,
-            ::std::string::String,
-        >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-        offset: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
-        only_get_metadata: ::std::result::Result<bool, ::std::string::String>,
-        to_channel: ::std::result::Result<
-            ::std::option::Option<u8>,
-            ::std::string::String,
-        >,
-    }
-    impl ::std::default::Default for DownloadJobParams {
-        fn default() -> Self {
-            Self {
-                allow_resubmit: Ok(
-                    super::defaults::download_job_params_allow_resubmit(),
-                ),
-                delivery: Ok(super::defaults::download_job_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::download_job_params_delivery_format(),
-                ),
-                duration: Ok(Default::default()),
-                from_channel: Ok(Default::default()),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-                offset: Ok(Default::default()),
-                only_get_metadata: Ok(Default::default()),
-                to_channel: Ok(Default::default()),
-            }
-        }
-    }
-    impl DownloadJobParams {
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryDestination>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
-                });
-            self
-        }
-        pub fn duration<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<u64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.duration = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for duration: {e}")
-                });
-            self
-        }
-        pub fn from_channel<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<u8>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.from_channel = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for from_channel: {e}")
-                });
-            self
-        }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-        pub fn offset<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.offset = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for offset: {e}"));
-            self
-        }
-        pub fn only_get_metadata<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<bool>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.only_get_metadata = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for only_get_metadata: {e}")
-                });
-            self
-        }
-        pub fn to_channel<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<u8>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.to_channel = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for to_channel: {e}")
-                });
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<DownloadJobParams> for super::DownloadJobParams {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: DownloadJobParams,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                allow_resubmit: value.allow_resubmit?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
-                duration: value.duration?,
-                from_channel: value.from_channel?,
-                obs_id: value.obs_id?,
-                offset: value.offset?,
-                only_get_metadata: value.only_get_metadata?,
-                to_channel: value.to_channel?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::DownloadJobParams> for DownloadJobParams {
-        fn from(value: super::DownloadJobParams) -> Self {
-            Self {
-                allow_resubmit: Ok(value.allow_resubmit),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
-                duration: Ok(value.duration),
-                from_channel: Ok(value.from_channel),
-                obs_id: Ok(value.obs_id),
-                offset: Ok(value.offset),
-                only_get_metadata: Ok(value.only_get_metadata),
-                to_channel: Ok(value.to_channel),
             }
         }
     }
@@ -3938,6 +3949,7 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
+        output: ::std::result::Result<::std::string::String, ::std::string::String>,
         output_mode: ::std::result::Result<
             super::ImageOutputMode,
             ::std::string::String,
@@ -4017,6 +4029,7 @@ pub mod builder {
                 no_rfi: Ok(super::defaults::imaging_job_flow1_params_no_rfi()),
                 nwlayers: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
+                output: Ok(super::defaults::imaging_job_flow1_params_output()),
                 output_mode: Ok(super::defaults::imaging_job_flow1_params_output_mode()),
                 pixel_scale: Ok(super::defaults::imaging_job_flow1_params_pixel_scale()),
                 pol: Ok(super::defaults::imaging_job_flow1_params_pol()),
@@ -4409,6 +4422,16 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
             self
         }
+        pub fn output<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::string::String>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.output = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for output: {e}"));
+            self
+        }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::ImageOutputMode>,
@@ -4541,6 +4564,7 @@ pub mod builder {
                 no_rfi: value.no_rfi?,
                 nwlayers: value.nwlayers?,
                 obs_id: value.obs_id?,
+                output: value.output?,
                 output_mode: value.output_mode?,
                 pixel_scale: value.pixel_scale?,
                 pol: value.pol?,
@@ -4587,6 +4611,7 @@ pub mod builder {
                 no_rfi: Ok(value.no_rfi),
                 nwlayers: Ok(value.nwlayers),
                 obs_id: Ok(value.obs_id),
+                output: Ok(value.output),
                 output_mode: Ok(value.output_mode),
                 pixel_scale: Ok(value.pixel_scale),
                 pol: Ok(value.pol),
@@ -4635,7 +4660,6 @@ pub mod builder {
             ::std::option::Option<i64>,
             ::std::string::String,
         >,
-        obs_id: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
         output_mode: ::std::result::Result<
             super::ImageOutputMode,
             ::std::string::String,
@@ -4690,7 +4714,6 @@ pub mod builder {
                     super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
                 ),
                 nwlayers: Ok(Default::default()),
-                obs_id: Ok(Default::default()),
                 output_mode: Ok(super::defaults::imaging_job_flow2_params_output_mode()),
                 pixel_scale: Ok(super::defaults::imaging_job_flow2_params_pixel_scale()),
                 pol: Ok(super::defaults::imaging_job_flow2_params_pol()),
@@ -4908,16 +4931,6 @@ pub mod builder {
                 });
             self
         }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::ImageOutputMode>,
@@ -5047,7 +5060,6 @@ pub mod builder {
                 multiscale: value.multiscale?,
                 nmiter: value.nmiter?,
                 nwlayers: value.nwlayers?,
-                obs_id: value.obs_id?,
                 output_mode: value.output_mode?,
                 pixel_scale: value.pixel_scale?,
                 pol: value.pol?,
@@ -5080,7 +5092,6 @@ pub mod builder {
                 multiscale: Ok(value.multiscale),
                 nmiter: Ok(value.nmiter),
                 nwlayers: Ok(value.nwlayers),
-                obs_id: Ok(value.obs_id),
                 output_mode: Ok(value.output_mode),
                 pixel_scale: Ok(value.pixel_scale),
                 pol: Ok(value.pol),
@@ -10777,6 +10788,292 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct VisibilityJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        download_type: ::std::result::Result<super::DownloadType, ::std::string::String>,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+    }
+    impl ::std::default::Default for VisibilityJobParams {
+        fn default() -> Self {
+            Self {
+                allow_resubmit: Ok(
+                    super::defaults::visibility_job_params_allow_resubmit(),
+                ),
+                delivery: Ok(super::defaults::visibility_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::visibility_job_params_delivery_format(),
+                ),
+                download_type: Ok(
+                    super::defaults::visibility_job_params_download_type(),
+                ),
+                obs_id: Err("no value supplied for obs_id".to_string()),
+            }
+        }
+    }
+    impl VisibilityJobParams {
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn download_type<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DownloadType>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.download_type = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for download_type: {e}")
+                });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<VisibilityJobParams> for super::VisibilityJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: VisibilityJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                allow_resubmit: value.allow_resubmit?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                download_type: value.download_type?,
+                obs_id: value.obs_id?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::VisibilityJobParams> for VisibilityJobParams {
+        fn from(value: super::VisibilityJobParams) -> Self {
+            Self {
+                allow_resubmit: Ok(value.allow_resubmit),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                download_type: Ok(value.download_type),
+                obs_id: Ok(value.obs_id),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct VoltageJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        duration: ::std::result::Result<u64, ::std::string::String>,
+        from_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+        offset: ::std::result::Result<i64, ::std::string::String>,
+        to_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for VoltageJobParams {
+        fn default() -> Self {
+            Self {
+                allow_resubmit: Ok(super::defaults::voltage_job_params_allow_resubmit()),
+                delivery: Ok(super::defaults::voltage_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::voltage_job_params_delivery_format(),
+                ),
+                duration: Err("no value supplied for duration".to_string()),
+                from_channel: Ok(Default::default()),
+                obs_id: Err("no value supplied for obs_id".to_string()),
+                offset: Err("no value supplied for offset".to_string()),
+                to_channel: Ok(Default::default()),
+            }
+        }
+    }
+    impl VoltageJobParams {
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn duration<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<u64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.duration = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for duration: {e}")
+                });
+            self
+        }
+        pub fn from_channel<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<u8>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.from_channel = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for from_channel: {e}")
+                });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+        pub fn offset<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.offset = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for offset: {e}"));
+            self
+        }
+        pub fn to_channel<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<u8>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.to_channel = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for to_channel: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<VoltageJobParams> for super::VoltageJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: VoltageJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                allow_resubmit: value.allow_resubmit?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                duration: value.duration?,
+                from_channel: value.from_channel?,
+                obs_id: value.obs_id?,
+                offset: value.offset?,
+                to_channel: value.to_channel?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::VoltageJobParams> for VoltageJobParams {
+        fn from(value: super::VoltageJobParams) -> Self {
+            Self {
+                allow_resubmit: Ok(value.allow_resubmit),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                duration: Ok(value.duration),
+                from_channel: Ok(value.from_channel),
+                obs_id: Ok(value.obs_id),
+                offset: Ok(value.offset),
+                to_channel: Ok(value.to_channel),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct WebSocketTokenResponse {
         token: ::std::result::Result<::std::string::String, ::std::string::String>,
     }
@@ -10843,6 +11140,15 @@ pub mod defaults {
     pub(super) fn api_login_response_token_type() -> ::std::string::String {
         "bearer".to_string()
     }
+    pub(super) fn beamformer_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn beamformer_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
+    }
+    pub(super) fn beamformer_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Tar
+    }
     pub(super) fn conversion_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
@@ -10888,17 +11194,8 @@ pub mod defaults {
     pub(super) fn conversion_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_output() -> super::OutputFormat {
-        super::OutputFormat::Ms
-    }
-    pub(super) fn download_job_params_allow_resubmit() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn download_job_params_delivery() -> super::DeliveryDestination {
-        super::DeliveryDestination::Acacia
-    }
-    pub(super) fn download_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Tar
+    pub(super) fn conversion_job_params_output() -> super::Output {
+        super::Output::Ms
     }
     pub(super) fn imaging_job_flow1_params_abs_threshold() -> ::std::option::Option<
         f64,
@@ -10967,6 +11264,9 @@ pub mod defaults {
     }
     pub(super) fn imaging_job_flow1_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
+    }
+    pub(super) fn imaging_job_flow1_params_output() -> ::std::string::String {
+        "fits".to_string()
     }
     pub(super) fn imaging_job_flow1_params_output_mode() -> super::ImageOutputMode {
         super::ImageOutputMode::Fits
@@ -11059,6 +11359,27 @@ pub mod defaults {
     }
     pub(super) fn user_logout_response_message() -> ::std::string::String {
         "Logged out successfully".to_string()
+    }
+    pub(super) fn visibility_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn visibility_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
+    }
+    pub(super) fn visibility_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Tar
+    }
+    pub(super) fn visibility_job_params_download_type() -> super::DownloadType {
+        super::DownloadType::Vis
+    }
+    pub(super) fn voltage_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn voltage_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Scratch
+    }
+    pub(super) fn voltage_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Files
     }
 }
 /// Error types.

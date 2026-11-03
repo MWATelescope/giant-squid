@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.6.0"
+    "version": "2.7.0"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -100,6 +100,41 @@
         "authenticated"
       ],
       "title": "AuthStatusResponse"
+    },
+    "BeamformerJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "$ref": "#/definitions/DeliveryDestination",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "$ref": "#/definitions/DeliveryFormat",
+          "default": "tar"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
+      ],
+      "title": "BeamformerJobParams"
     },
     "CalibrationReadyCallback": {
       "properties": {
@@ -239,7 +274,13 @@
           "default": false
         },
         "output": {
-          "$ref": "#/definitions/OutputFormat",
+          "type": "string",
+          "enum": [
+            "ms",
+            "uvfits"
+          ],
+          "title": "Output",
+          "description": "output uvfits or measurement sets.",
           "default": "ms"
         },
         "avg_time_res": {
@@ -413,97 +454,14 @@
       ],
       "title": "DeliveryFormat"
     },
-    "DownloadJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        },
-        "only_get_metadata": {
-          "type": "boolean",
-          "title": "Only Get Metadata",
-          "default": false
-        },
-        "offset": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 5400.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Offset"
-        },
-        "duration": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Duration"
-        },
-        "from_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "From Channel"
-        },
-        "to_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "To Channel"
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id"
+    "DownloadType": {
+      "type": "string",
+      "enum": [
+        "vis",
+        "meta",
+        "beam"
       ],
-      "title": "DownloadJobParams",
-      "description": "Parameters for download job submission"
+      "title": "DownloadType"
     },
     "ErrorResponse": {
       "properties": {
@@ -726,6 +684,13 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
+        },
+        "output": {
+          "type": "string",
+          "const": "fits",
+          "title": "Output",
+          "description": "Imaging job output is fixed to fits and cannot be changed",
+          "default": "fits"
         },
         "avg_time_res": {
           "anyOf": [
@@ -1047,18 +1012,6 @@
     },
     "ImagingJobFlow2Params": {
       "properties": {
-        "obs_id": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 888888889.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Obs Id"
-        },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
           "default": "acacia"
@@ -1790,7 +1743,7 @@
         "imaging"
       ],
       "title": "JobType",
-      "description": "Enum representing job types with their integer values"
+      "description": "Enum representing job types with their string values"
     },
     "JobsByUserRequest": {
       "properties": {
@@ -3365,14 +3318,6 @@
       ],
       "title": "ObservationSizeResponse"
     },
-    "OutputFormat": {
-      "type": "string",
-      "enum": [
-        "ms",
-        "uvfits"
-      ],
-      "title": "OutputFormat"
-    },
     "PaginationMetadata": {
       "properties": {
         "total_count": {
@@ -4133,6 +4078,121 @@
       "title": "UserUpdateProfileRequest",
       "description": "Request model for updating a user's profile"
     },
+    "VisibilityJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "$ref": "#/definitions/DeliveryDestination",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "$ref": "#/definitions/DeliveryFormat",
+          "default": "tar"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "download_type": {
+          "$ref": "#/definitions/DownloadType",
+          "default": "vis"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
+      ],
+      "title": "VisibilityJobParams",
+      "description": "Parameters for visibility job submission"
+    },
+    "VoltageJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "$ref": "#/definitions/DeliveryDestination",
+          "default": "scratch"
+        },
+        "delivery_format": {
+          "$ref": "#/definitions/DeliveryFormat",
+          "default": "files"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "offset": {
+          "type": "integer",
+          "maximum": 5400.0,
+          "minimum": 0.0,
+          "title": "Offset"
+        },
+        "duration": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Duration"
+        },
+        "from_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Channel"
+        },
+        "to_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Channel"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id",
+        "offset",
+        "duration"
+      ],
+      "title": "VoltageJobParams",
+      "description": "Parameters for voltage job submission"
+    },
     "WebSocketTokenResponse": {
       "properties": {
         "token": {
@@ -4184,6 +4244,9 @@
       "post"
     ],
     "/v2/jobs/download": [
+      "post"
+    ],
+    "/v2/jobs/image_from_job": [
       "post"
     ],
     "/v2/jobs/job_staged": [
@@ -4483,7 +4546,34 @@
     },
     "POST /v2/jobs/download": {
       "request": [
-        "DownloadJobParams"
+        "VisibilityJobParams",
+        "VoltageJobParams",
+        "BeamformerJobParams"
+      ],
+      "responses": {
+        "200": [
+          "JobSubmittedResponse"
+        ],
+        "401": [
+          "ErrorResponse"
+        ],
+        "403": [
+          "ErrorResponse"
+        ],
+        "422": [
+          "ErrorResponse"
+        ],
+        "500": [
+          "ErrorResponse"
+        ],
+        "503": [
+          "ErrorResponse"
+        ]
+      }
+    },
+    "POST /v2/jobs/image_from_job": {
+      "request": [
+        "ImagingJobFlow2Params"
       ],
       "responses": {
         "200": [
@@ -4562,8 +4652,7 @@
     "POST /v2/jobs/preprocess": {
       "request": [
         "ConversionJobParams",
-        "ImagingJobFlow1Params",
-        "ImagingJobFlow2Params"
+        "ImagingJobFlow1Params"
       ],
       "responses": {
         "200": [
