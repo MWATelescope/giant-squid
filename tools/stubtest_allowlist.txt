@@ -36,8 +36,10 @@ mwa_giant_squid.JobType.Imaging
 mwa_giant_squid.JobType.Metadata
 mwa_giant_squid.JobType.Visibility
 mwa_giant_squid.JobType.Voltage
-mwa_giant_squid.OutputFormat.Ms
-mwa_giant_squid.OutputFormat.Uvfits
+mwa_giant_squid.Output.Ms
+mwa_giant_squid.Output.Uvfits
+mwa_giant_squid.DownloadType.Vis
+mwa_giant_squid.DownloadType.Meta
 mwa_giant_squid.ImageOutputMode.AllFiles
 mwa_giant_squid.ImageOutputMode.AllFits
 mwa_giant_squid.ImageOutputMode.Fits
@@ -72,10 +74,11 @@ mwa_giant_squid.ObsId.__ge__
 # functions, and declares `__version__` separately.
 mwa_giant_squid.__all__
 
-# `DownloadProgress`, `PreprocessJobParams` and `CsvJobParams` are the bases of their variant classes, and pyo3
+# `DownloadProgress`, `DownloadJobParams`, `PreprocessJobParams` and `CsvJobParams` are the bases of their variant classes, and pyo3
 # makes each a "disjoint base" (it has its own layout). stubtest in mypy 1.19 and later asks for
 # `@disjoint_base`, which pyo3-stub-gen does not write.
 mwa_giant_squid.CsvJobParams
+mwa_giant_squid.DownloadJobParams
 mwa_giant_squid.DownloadProgress
 mwa_giant_squid.PreprocessJobParams
 
@@ -84,7 +87,8 @@ mwa_giant_squid.PreprocessJobParams
 # writes only a literal default in a run-time signature, and `inspect.signature` accepts only literals: an enum
 # default is written as its quoted name (`'DeliveryDestination.Acacia'`), while the stub has the member (`DeliveryDestination.Acacia`).
 # tests/python/test_signatures.py checks the text signatures against the schema.
-mwa_giant_squid.DownloadJobParams.__new__
+mwa_giant_squid.VisibilityJobParams.__new__
+mwa_giant_squid.BeamformerJobParams.__new__
 mwa_giant_squid.ConversionJobParams.__new__
 mwa_giant_squid.ImagingJobFlow1Params.__new__
 mwa_giant_squid.ImagingJobFlow2Params.__new__

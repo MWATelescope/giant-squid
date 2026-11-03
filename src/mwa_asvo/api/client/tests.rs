@@ -21,11 +21,11 @@ use serde_json::json;
 
 #[cfg(feature = "bin")]
 use crate::cli::Args;
-use crate::mwa_asvo::api::job_params::PreprocessJobParams;
+use crate::mwa_asvo::api::job_params::{DownloadJobParams, PreprocessJobParams};
 use crate::mwa_asvo::api::openapi::ErrorResponse;
 use crate::mwa_asvo::api::openapi::Type as FileType;
 #[cfg(feature = "bin")]
-use crate::mwa_asvo::api::openapi::{DownloadJobParams, JobsByUserRequest};
+use crate::mwa_asvo::api::openapi::{JobsByUserRequest, VisibilityJobParams};
 use crate::mwa_asvo::client_config_from_env;
 use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoError, AsvoJobId, JobState, JobsFilter};
 use crate::test_common::*;
@@ -42,7 +42,7 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 /// Parse a CLI invocation and build the visibility download body it implies,
 /// so these tests exercise the same path a user's command line takes.
 #[cfg(feature = "bin")]
-fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
+fn vis_params_from_cli(args: &[&str]) -> VisibilityJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
         Args::SubmitVis { download, .. } => {
             download.to_vis_params(crate::test_config::test_obs_id())
@@ -489,6 +489,45 @@ fn mock_get_jobs_failure(env: &TestEnv, status: u16) -> httpmock::Mock<'_> {
     })
 }
 
+/// The MWA ASVO answers a job listing that no job matches with a 404 whose
+/// body is an `ErrorResponse`: that is an empty list, not an error.
+#[test]
+fn a_structured_404_from_the_job_list_is_an_empty_list() {
+    let env = TestEnv::with_session();
+    let list = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/list");
+        then.status(404)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_NOT_FOUND", "No jobs found"));
+    });
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("no jobs is not an error");
+
+    assert!(jobs.0.is_empty());
+    assert_eq!(list.calls(), 1);
+}
+
+/// A 404 from the job list that is not the MWA ASVO's `ErrorResponse` (for
+/// example from a wrong host) is still an error.
+#[test]
+fn another_404_from_the_job_list_is_an_error() {
+    let env = TestEnv::with_session();
+    mock_get_jobs_failure(&env, 404);
+    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("a 404 that is not an ErrorResponse is an error");
+
+    assert!(
+        matches!(err, AsvoApiError::BadStatus { status: 404, .. }),
+        "{err:?}"
+    );
+}
+
 #[test]
 fn a_job_list_that_fails_with_a_503_is_tried_again_until_it_works() {
     let env = TestEnv::with_session();
@@ -896,7 +935,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .submit_download_job(&params)
+        .submit_download_job(&params.into())
         .expect("submission should succeed");
 
     assert_eq!(submit.calls(), 1);
@@ -905,7 +944,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
 
 #[cfg(feature = "bin")]
 #[test]
-fn a_metadata_job_posts_to_the_download_endpoint_with_only_get_metadata() {
+fn a_metadata_job_posts_to_the_download_endpoint_with_download_type_meta() {
     let env = TestEnv::with_session();
     let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
@@ -919,28 +958,28 @@ fn a_metadata_job_posts_to_the_download_endpoint_with_only_get_metadata() {
     let submit = env.server.mock(|when, then| {
         when.method(POST)
             .path("/api/v2/jobs/download")
-            .json_body_includes(r#"{ "only_get_metadata": true }"#);
+            .json_body_includes(r#"{ "download_type": "meta" }"#);
         then.status(200).json_body(job_submitted_response(778));
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .submit_download_job(&params)
+        .submit_download_job(&params.into())
         .expect("submission should succeed");
 
     assert_eq!(submit.calls(), 1);
     assert_eq!(resp.job_id.get(), 778);
 }
 
-/// A visibility job sends `only_get_metadata` false, and none of the
-/// fields of a voltage job (they are null, so they are left out).
+/// A visibility job sends the `download_type` `vis`, and none of the fields
+/// of a voltage job (its body has none).
 #[cfg(feature = "bin")]
 #[test]
 fn a_visibility_job_sends_no_voltage_fields() {
     let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBS_ID]);
     let body = serde_json::to_value(&params).expect("params should serialise");
 
-    assert_eq!(body["only_get_metadata"], json!(false));
+    assert_eq!(body["download_type"], json!("vis"));
     for field in ["offset", "duration", "from_channel", "to_channel"] {
         assert!(body.get(field).is_none(), "{field} was sent: {body}");
     }
@@ -977,10 +1016,11 @@ fn a_conversion_job_posts_to_the_preprocess_endpoint() {
 /// endpoints (the method and the path). The endpoints for the MWA ASVO's own
 /// processors and scheduler (`/v2/job_staged`, `/v2/scheduler/*`,
 /// `/v2/calibration_ready`) are not here, and must not be.
-const END_USER_ENDPOINTS: [(&str, &str); 5] = [
+const END_USER_ENDPOINTS: [(&str, &str); 6] = [
     ("POST", "/api/v2/jobs/list"),
     ("POST", "/api/v2/jobs/download"),
     ("POST", "/api/v2/jobs/preprocess"),
+    ("POST", "/api/v2/jobs/image_from_job"),
     ("DELETE", "/api/v2/jobs/12345"),
     ("POST", "/api/v2/auth/api_login"),
 ];
@@ -990,14 +1030,14 @@ const END_USER_ENDPOINTS: [(&str, &str); 5] = [
 type RecordedRequest = (String, String, serde_json::Value);
 
 /// Make every call of the client that an end user can make (a login, a job
-/// listing, the seven job types on the two submit endpoints and a
+/// listing, the seven job types on the three submit endpoints and a
 /// cancellation) against a mock server,
 /// with the default options, and return the requests in the order they were
 /// made. The tests below check what the library sends and where.
 fn record_every_end_user_call() -> Vec<RecordedRequest> {
-    use crate::mwa_asvo::api::job_params::{metadata_params, voltage_params};
+    use crate::mwa_asvo::api::job_params::{beamformer_params, metadata_params, voltage_params};
     use crate::mwa_asvo::api::openapi::{
-        ConversionJobParams, DownloadJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
+        ConversionJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
     };
     use std::num::NonZeroU64;
     use std::sync::{Arc, Mutex};
@@ -1036,21 +1076,23 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
     let source_job_id = NonZeroU64::new(TEST_JOB_ID).unwrap();
 
     client.get_jobs(&JobsFilter::default()).expect("get_jobs");
-    // A visibility and a beamformer job have the same body.
     client
-        .submit_download_job(
-            &DownloadJobParams::builder()
+        .submit_download_job(&DownloadJobParams::Visibility(
+            VisibilityJobParams::builder()
                 .obs_id(obs_id)
                 .try_into()
                 .expect("the vis body should build"),
-        )
+        ))
         .expect("vis");
     client
-        .submit_download_job(&metadata_params(crate::test_config::test_obs_id()))
+        .submit_download_job(&metadata_params(crate::test_config::test_obs_id()).into())
         .expect("metadata");
     client
-        .submit_download_job(&voltage_params(crate::test_config::test_obs_id(), 0, 8))
+        .submit_download_job(&voltage_params(crate::test_config::test_obs_id(), 0, 8).into())
         .expect("voltage");
+    client
+        .submit_download_job(&beamformer_params(crate::test_config::test_obs_id()).into())
+        .expect("beamformer");
     client
         .submit_preprocess_job(&PreprocessJobParams::from(
             ConversionJobParams::try_from(ConversionJobParams::builder().obs_id(obs_id))
@@ -1064,19 +1106,19 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
         ))
         .expect("imaging");
     client
-        .submit_preprocess_job(&PreprocessJobParams::from(
-            ImagingJobFlow2Params::try_from(
+        .submit_image_from_job(
+            &ImagingJobFlow2Params::try_from(
                 ImagingJobFlow2Params::builder().source_job_id(source_job_id),
             )
             .expect("the image-from-job body should build"),
-        ))
+        )
         .expect("image from job");
     client
         .cancel_job(crate::test_config::TEST_ASVO_JOB_ID)
         .expect("cancel");
 
     let seen = seen.lock().unwrap().clone();
-    assert_eq!(seen.len(), 9, "one login and eight calls: {seen:?}");
+    assert_eq!(seen.len(), 10, "one login and nine calls: {seen:?}");
     seen
 }
 
@@ -1179,7 +1221,7 @@ fn every_field_of_every_request_body_is_in_the_schema() {
     for (method, path, body) in record_every_end_user_call() {
         // The schemas that the endpoint takes as its body: the `operations`
         // that `tools/generate_openapi.sh` keeps in the schema file. An
-        // endpoint with more than one (`/v2/jobs/preprocess` takes one of
+        // endpoint with more than one (`/v2/jobs/download` takes one of
         // three job types) takes any one of them.
         let schema_path = path
             .strip_prefix(super::API_PREFIX)
@@ -1292,13 +1334,13 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
     };
 
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/preprocess");
+        when.method(POST).path("/api/v2/jobs/image_from_job");
         then.status(200).json_body(job_submitted_response(780));
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .submit_preprocess_job(&PreprocessJobParams::from(params))
+        .submit_image_from_job(&params)
         .expect("submission should succeed");
 
     assert_eq!(submit.calls(), 1);
@@ -1338,19 +1380,18 @@ fn an_out_of_range_image_from_job_is_not_sent() {
     let env = TestEnv::with_session();
     let mut params: crate::mwa_asvo::api::openapi::ImagingJobFlow2Params =
         crate::mwa_asvo::api::openapi::ImagingJobFlow2Params::builder()
-            .obs_id(TEST_OBS_ID_I64)
             .source_job_id(std::num::NonZeroU64::new(12345).unwrap())
             .try_into()
             .expect("defaults build");
     params.pixel_scale = 5.0;
     let submit = env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/preprocess");
+        when.method(POST).path("/api/v2/jobs/image_from_job");
         then.status(200).json_body(job_submitted_response(1));
     });
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .submit_preprocess_job(&PreprocessJobParams::from(params))
+        .submit_image_from_job(&params)
         .expect_err("expected the submission to be refused");
 
     assert!(
@@ -1413,7 +1454,7 @@ fn an_out_of_range_voltage_job_is_not_sent() {
 
     let client = AsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .submit_download_job(&params)
+        .submit_download_job(&params.into())
         .expect_err("expected the submission to be refused");
 
     assert!(
@@ -1452,7 +1493,9 @@ fn a_voltage_body_sends_the_channels_and_no_channel_range() {
         });
 
         let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-        client.submit_download_job(&params).expect("submitted");
+        client
+            .submit_download_job(&params.into())
+            .expect("submitted");
 
         assert_eq!(submit.calls(), 1, "{from_channel:?} {to_channel:?}");
     }
@@ -1473,10 +1516,6 @@ fn set_delivery(
             p.delivery = delivery;
             p.delivery_format = delivery_format;
         }
-        PreprocessJobParams::ImageFromJob(p) => {
-            p.delivery = delivery;
-            p.delivery_format = delivery_format;
-        }
     }
 }
 
@@ -1486,7 +1525,8 @@ fn set_delivery(
 #[test]
 fn acacia_delivery_with_files_is_refused_before_any_request() {
     use crate::mwa_asvo::api::job_params::{
-        conversion_params, download_params, image_from_job_params, imaging_params,
+        beamformer_params, conversion_params, image_from_job_params, imaging_params,
+        visibility_params,
     };
     use crate::mwa_asvo::api::openapi::{
         DeliveryDestination, DeliveryFormat, JobSubmittedResponse,
@@ -1518,13 +1558,18 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
 
     // The schema's defaults are acacia and tar, so each body is acacia with
     // files once the format is set.
-    let mut download = download_params(obs_id);
-    download.delivery_format = DeliveryFormat::Files;
-    refused(client.submit_download_job(&download));
+    let mut visibility = visibility_params(obs_id);
+    visibility.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_download_job(&visibility.clone().into()));
+    let mut beamformer = beamformer_params(obs_id);
+    beamformer.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_download_job(&beamformer.clone().into()));
+    let mut image_from_job = image_from_job_params(source_job_id);
+    image_from_job.delivery_format = DeliveryFormat::Files;
+    refused(client.submit_image_from_job(&image_from_job));
     let mut conversion = PreprocessJobParams::from(conversion_params(obs_id));
     let mut imaging = PreprocessJobParams::from(imaging_params(obs_id));
-    let mut image_from_job = PreprocessJobParams::from(image_from_job_params(source_job_id));
-    for preprocess in [&mut conversion, &mut imaging, &mut image_from_job] {
+    for preprocess in [&mut conversion, &mut imaging] {
         set_delivery(
             preprocess,
             DeliveryDestination::Acacia,
@@ -1544,18 +1589,28 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
         (DeliveryDestination::Dug, DeliveryFormat::Files),
         (DeliveryDestination::Dug, DeliveryFormat::Tar),
     ] {
-        download.delivery = delivery;
-        download.delivery_format = delivery_format;
+        visibility.delivery = delivery;
+        visibility.delivery_format = delivery_format;
         client
-            .submit_download_job(&download)
+            .submit_download_job(&visibility.clone().into())
             .expect("a valid delivery");
-        for preprocess in [&mut conversion, &mut imaging, &mut image_from_job] {
+        beamformer.delivery = delivery;
+        beamformer.delivery_format = delivery_format;
+        client
+            .submit_download_job(&beamformer.clone().into())
+            .expect("a valid delivery");
+        image_from_job.delivery = delivery;
+        image_from_job.delivery_format = delivery_format;
+        client
+            .submit_image_from_job(&image_from_job)
+            .expect("a valid delivery");
+        for preprocess in [&mut conversion, &mut imaging] {
             set_delivery(preprocess, delivery, delivery_format);
             client
                 .submit_preprocess_job(preprocess)
                 .expect("a valid delivery");
         }
-        sent += 4;
+        sent += 5;
     }
     assert_eq!(submit.calls(), sent);
 }

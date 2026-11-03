@@ -159,6 +159,15 @@ Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, 
 - **Python:** the classes `DownloadJobParams`, `ConversionJobParams`, `ImagingJobFlow1Params` and `ImagingJobFlow2Params` are plain classes (read/write attributes, no checks until submit), and `AsvoClient` has `submit_download_job` and `submit_preprocess_job`. The seven per-type methods are gone.
 - **Tests:** `tests/live.rs` `live_submit_volt` passes `--delivery scratch --delivery-format files`. The live tests have not run against a server that has the new endpoints.
 
+### Done for the API 2.7.0 schema (`15a96db`; 3 Nov 2026, one diff)
+
+- **Endpoints:** `POST /v2/jobs/download` takes a `VisibilityJobParams`, `VoltageJobParams` or `BeamformerJobParams`; `POST /v2/jobs/preprocess` takes a conversion or flow 1 body; the new `POST /v2/jobs/image_from_job` takes the flow 2 body (`ENDPOINT_IMAGE_FROM_JOB`, `AsvoClient::submit_image_from_job`).
+- **Library:** the untagged enum `job_params::DownloadJobParams` (`Beamformer`/`Visibility`/`Voltage`, with `validate()`); `visibility_params`, `metadata_params` (`download_type: meta`), `voltage_params`, `beamformer_params`; `validate_visibility_params`, `validate_voltage_params` (`offset` only), `validate_beamformer_params`. `OutputFormat` is now the schema's `Output`.
+- **Voltage:** the body has no delivery. `submit-volt` has no `--delivery`/`--delivery-format`; a CSV voltage line accepts `delivery=scratch` and `delivery_format=files` only, and does not send them.
+- **Deprecated fields:** `clean_threshold` and `nwlayers` are gone from the CLI, Python and the CSV import. The library sends `clean_threshold` as `null`.
+- **Ignored schema fields (Greg: API developer mistakes):** Flow1 `output` (const `fits`) and Flow2 `centre`. The body carries their schema defaults.
+- **Job list:** a 404 whose body is an `ErrorResponse` is "no jobs match the filter", an empty list. Any other 404 is still an error. Greg is asking the API developer for the `error_code` of that reply.
+
 ## Waiting for the API developer
 
 - **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
@@ -192,9 +201,11 @@ Notes:
 - The `obs_id` minimum (888888889, but an Obs ID has 10 digits).
 - `clean_iterations` has no minimum.
 - `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
-- The voltage fields (`delivery`, `delivery_format`: shared enums, but only scratch and files work for a voltage job). The server tells the kinds of download apart from the observation: a refused body must be a 4xx with a specific code, not a 500 (the live tests fail on `INTERNAL_ERROR`).
-- `POST /v2/jobs/preprocess` takes one of three bodies and has no discriminator. The server tells a conversion body from an imaging flow 1 body by the imaging fields. Check with `tests/live.rs` that it does, and that a flow 2 body (with `source_job_id`) is told apart too.
-- Replace the draft `openapi-schema.json` with the real one (see "Done for the API 2.6.0 revamp") and check the names (`only_get_metadata`, the paths) against it.
+- A refused download body must be a 4xx with a specific code, not a 500 (the live tests fail on `INTERNAL_ERROR`).
+- `POST /v2/jobs/preprocess` and `POST /v2/jobs/download` take one of several bodies and have no discriminator. Check with `tests/live.rs` that the server tells a conversion body from a flow 1 body, and a beamformer body (no `download_type`) from a visibility body.
+- The `error_code` of the 404 "no jobs match the filter" reply of `POST /v2/jobs/list`.
+- Schema `15a96db` still has `info.version` 2.7.0, the same as `a530426`, so `--version` cannot tell the two apart.
+- Flow1 `output` (const `fits`) and Flow2 `centre` are to be removed (Greg told the API developer).
 - `JobFile.type` uses its own `Type` enum.
 - The meaning of `days: null` (A13).
 - New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.

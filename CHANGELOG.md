@@ -61,13 +61,13 @@ before you upgrade scripts.**
     (a `NonZeroU64`). `ObsId::MIN` and `ObsId::MAX` give the range of a valid Obs ID.
   * `AsvoClient::new` takes an `AsvoClientConfig`. `download_jobid` and `download_obsid` are `download_job` and
     `download_obs`, and return the `AsvoJob` that was downloaded (they returned `()`); `download_job_from` and
-    `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. There are two
+    `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. There are three
     submit methods, one for each submit endpoint of the API: `submit_download_job` (a `DownloadJobParams`: a
-    visibility, metadata, voltage or beamformer job) and `submit_preprocess_job` (a `PreprocessJobParams`: a
-    `ConversionJobParams`, an `ImagingJobFlow1Params` or an `ImagingJobFlow2Params`, which takes no Obs ID). Their
-    request bodies are made at the schema's defaults by `mwa_asvo::api::job_params`. A voltage job is a
-    `DownloadJobParams` with `offset` and `duration`: the library does not check its delivery, because the MWA ASVO
-    finds the kind of download from the observation and refuses a delivery that does not suit it.
+    `VisibilityJobParams` for a visibility or metadata job, a `VoltageJobParams` or a `BeamformerJobParams`),
+    `submit_preprocess_job` (a `PreprocessJobParams`: a `ConversionJobParams` or an `ImagingJobFlow1Params`) and
+    `submit_image_from_job` (an `ImagingJobFlow2Params`, which has no Obs ID). Their request bodies are made at the
+    schema's defaults by `mwa_asvo::api::job_params`. A `VoltageJobParams` has no delivery: the MWA ASVO always
+    delivers a voltage job to Scratch, as files.
   * The types of the OpenAPI schema replace the library's own: `AsvoJobState` is `JobState` (its `Error` member has
     no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (the schema's string enum, with `names()` and
     `parse_name()`), `AsvoFilesArray` and `AsvoJobProduct` are `JobFile` and `JobProduct`, and `Delivery` is the
@@ -88,9 +88,14 @@ before you upgrade scripts.**
   options are the API's, and a value outside a limit is refused before any request is sent. The defaults of
   conversion and imaging jobs changed: see the migration guide.
 * The default delivery format is now `tar` for every job, whatever the delivery. Use `--delivery-format files` for
-  individual files. This includes `submit-volt`, whose defaults are no longer Scratch and files: they are those of
-  every download job, and the MWA ASVO refuses them for a voltage job, so give `--delivery scratch
-  --delivery-format files`. The voltage lines of a manta-ray-client CSV file still default to Scratch and files.
+  individual files.
+* `submit-volt` has no `-d`/`--delivery` and no `-f`/`--delivery-format`, and `GIANT_SQUID_DELIVERY` and
+  `GIANT_SQUID_DELIVERY_FORMAT` do not apply to it: the MWA ASVO always delivers a voltage job to Scratch, as files.
+  A voltage line of a manta-ray-client CSV file can still give `delivery=scratch` and `delivery_format=files`, which
+  are not sent; any other delivery is an error.
+* `submit-image` and `submit-image-from-job`: `--clean-threshold` and `--nwlayers` are gone, also as keys of a
+  `submit-csv` imaging line, because the MWA ASVO API marks them as deprecated. Use `--abs-threshold` and
+  `--wstack-nwlayers`. The imaging request sends `clean_threshold` as `null`.
 * `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
   option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
   `--custom-ra`, `--custom-dec` and `--phase-center` still work.
@@ -167,14 +172,15 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
-* MWA ASVO API 2.6.0 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
-  `/v2/jobs/download`, and the conversion and imaging jobs (also an image from a conversion job) to
-  `/v2/jobs/preprocess`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not `id`) and a
-  typed `obs_id`, and `job_type` is a name (`visibility`), not a code. A download body has no `download_type`: a
-  metadata job sets `only_get_metadata`, and `submit-bf` sends the same body as `submit-vis`, so the beamformer
-  `mode` and `channel_range` are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not
-  sent. The voltage fields `offset`, `duration`, `from_channel` and `to_channel` are fields of the download body.
-  `submit-image-from-job` takes no Obs ID. `list --sort-by` takes `id`, `created` or `completed`.
+* MWA ASVO API 2.7.0 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
+  `/v2/jobs/download`, the conversion and imaging jobs to `/v2/jobs/preprocess`, and an image from a conversion job
+  to `/v2/jobs/image_from_job`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not
+  `id`) and a typed `obs_id`, and `job_type` is a name (`visibility`), not a code. The download endpoint takes one of
+  three bodies: a visibility body (its `download_type` is `vis` or `meta`), a voltage body (`offset`, `duration`,
+  `from_channel`, `to_channel`, and no delivery) and a beamformer body. The beamformer `mode` and `channel_range`
+  are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
+  `submit-image-from-job` takes no Obs ID. A 404 `ErrorResponse` from the job list is an empty list (no job matches
+  the filter). The conversion `OutputFormat` is the schema's `Output`. `list --sort-by` takes `id`, `created` or `completed`.
   `giant-squid` regenerates the library's types from the schema in `tools/generate_openapi.sh`, which now also
   keeps the request and response schemas of each operation.
 
@@ -239,13 +245,15 @@ before you upgrade scripts.**
   `download_dir` and keyword arguments, and the new `download_job_from(jobs, job_id, options)` and
   `download_obs_from(jobs, obs_id, options)` replace the `jobs=` argument. The `repr` of an `AsvoClientConfig` does
   not show the API key.
-* Python: the library's functions that make a request body: `download_params`, `metadata_params`, `voltage_params`,
-  `conversion_params`, `imaging_params` and `image_from_job_params`. `validate()` on `DownloadJobParams`,
-  `ConversionJobParams`, `ImagingJobFlow1Params` and `ImagingJobFlow2Params`. `PreprocessJobParams`, the enum of the
-  three preprocess bodies (`PreprocessJobParams.Conversion(params)` and so on), which `submit_preprocess_job` takes
-  (it still takes one of the three classes alone). **Changed:** the `obs_id` of a request body is an `ObsId`, checked
+* Python: the library's functions that make a request body: `visibility_params`, `metadata_params`,
+  `voltage_params`, `beamformer_params`, `conversion_params`, `imaging_params` and `image_from_job_params`.
+  `validate()` on `VisibilityJobParams`, `VoltageJobParams`, `BeamformerJobParams`, `ConversionJobParams`,
+  `ImagingJobFlow1Params` and `ImagingJobFlow2Params`. `DownloadJobParams` and `PreprocessJobParams`, the enums of the
+  download and preprocess bodies (`DownloadJobParams.Voltage(params)` and so on), which `submit_download_job` and
+  `submit_preprocess_job` take (they also take one of the classes alone). `submit_image_from_job` takes an
+  `ImagingJobFlow2Params`. The enums `DownloadType` and `Output`. **Changed:** the `obs_id` of a request body is an `ObsId`, checked
   when the class is made or the attribute is set (`ObsIdError`, before: `ValueError` when the job was submitted), and
-  `source_job_id` is checked when it is set. `ImagingJobFlow2Params` has an `obs_id` (`None`), as the schema's type does.
+  `source_job_id` is checked when it is set. `ImagingJobFlow2Params` has no `obs_id`, as the schema's type does not.
 * Python: the items of the import of a manta-ray-client CSV file, as in the Rust library: `CsvDefaults` (with
   `from_env()`), `CsvJob`, `CsvJobParams` (`Conversion`, `Imaging`, `Download`, `Voltage` and `Beamformer` variants,
   with `description()` and `validate()`), `CsvRowError`, `parse_manta_ray_csv`, `read_manta_ray_csv`,

@@ -67,6 +67,7 @@ __all__ = [
     "AsvoErrorTooManyObsIds",
     "AsvoJob",
     "AsvoJobVec",
+    "BeamformerJobParams",
     "ConversionJobParams",
     "CsvDefaults",
     "CsvError",
@@ -88,6 +89,7 @@ __all__ = [
     "DownloadOptions",
     "DownloadProgress",
     "DownloadSettings",
+    "DownloadType",
     "ImageOutputMode",
     "ImageWeighting",
     "ImagingJobFlow1Params",
@@ -104,7 +106,7 @@ __all__ = [
     "ObsIdError",
     "ObsIdErrorParse",
     "ObsIdErrorWrongNumDigits",
-    "OutputFormat",
+    "Output",
     "ParseError",
     "ParseErrorInsideFile",
     "ParseErrorInsideStdin",
@@ -122,11 +124,13 @@ __all__ = [
     "SortBy",
     "Status",
     "Type",
+    "VisibilityJobParams",
+    "VoltageJobParams",
+    "beamformer_params",
     "check_file_sha1_hash",
     "client_config_from_env",
     "conversion_params",
     "default_token_cache_path",
-    "download_params",
     "image_from_job_params",
     "imaging_params",
     "metadata_params",
@@ -138,6 +142,7 @@ __all__ = [
     "parse_utc_time",
     "read_manta_ray_csv",
     "reset_logging",
+    "visibility_params",
     "voltage_params",
 ]
 
@@ -277,19 +282,71 @@ class AsvoClient:
                 given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
             AsvoApiError: The request failed.
         """
-    def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
+    def submit_download_job(
+        self, params: DownloadJobParams | BeamformerJobParams | VisibilityJobParams | VoltageJobParams
+    ) -> JobSubmittedResponse:
         r"""
         Submit a download job: a visibility, metadata, voltage or
         beamformer job.
 
-        The request body does not say which kind of download it is. The MWA
-        ASVO finds that from the observation (and `only_get_metadata`), and
-        it refuses a body that does not suit the observation: for example a
-        delivery that the kind of observation does not allow, or `offset`,
-        `duration` and the channels for an observation that is not a
-        voltage observation. A voltage job is delivered to Scratch as
-        files, which is not the default: give `delivery` and
-        `delivery_format` in the `DownloadJobParams`.
+        The MWA ASVO finds the kind of job from the fields of the request
+        body: only a voltage body has `offset` and `duration`, and only a
+        visibility body has `download_type`. It refuses a body that does not
+        suit the observation (for example a voltage job for an observation
+        that has no voltages). A voltage job has no delivery: the MWA ASVO
+        always delivers it to Scratch, as files.
+
+        Args:
+            params: The request body: a `DownloadJobParams`, a
+                `BeamformerJobParams`, a `VisibilityJobParams` or a
+                `VoltageJobParams`.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            TypeError: `params` is not one of the four classes.
+            ValueError: The `offset` of a voltage job is not from 0 to 5400,
+                or `delivery` is `DeliveryDestination.Acacia` and
+                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+                tar only). Nothing is sent.
+            AsvoApiError: The request failed.
+        """
+    def submit_preprocess_job(
+        self, params: PreprocessJobParams | ConversionJobParams | ImagingJobFlow1Params
+    ) -> JobSubmittedResponse:
+        r"""
+        Submit a preprocessing job: a conversion job or an imaging job from
+        an Obs ID (flow 1). An imaging job from a conversion job (flow 2) is
+        `submit_image_from_job`.
+
+        The MWA ASVO finds the kind of job from the fields of the request
+        body: only an imaging body has the imaging fields.
+
+        Args:
+            params: The request body: a `PreprocessJobParams`, a
+                `ConversionJobParams` or an `ImagingJobFlow1Params`.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            TypeError: `params` is not one of the three classes.
+            ValueError: A number is outside what the MWA ASVO accepts (for
+                example `avg_freq_res` above 1280), `delivery` is
+                `DeliveryDestination.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only), or
+                `centre` is `PhaseCentre.Custom` without both
+                `custom_centre_ra` and `custom_centre_dec`, or either of them
+                is given with another `centre`. The message names the
+                argument and its limits. Nothing is sent.
+            AsvoApiError: The request failed.
+        """
+    def submit_image_from_job(self, params: ImagingJobFlow2Params) -> JobSubmittedResponse:
+        r"""
+        Submit an imaging job from a conversion job (flow 2): an image of
+        the conversion job `params.source_job_id`. The MWA ASVO takes the Obs
+        ID from the source job.
 
         Args:
             params: The request body.
@@ -298,41 +355,11 @@ class AsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ObsIdError: `params.obs_id` is not a valid Obs ID.
-            ValueError: `params.offset` is not from 0 to 5400, or `params.delivery` is
-                `DeliveryDestination.Acacia` and `params.delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
-                is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_preprocess_job(
-        self, params: PreprocessJobParams | ConversionJobParams | ImagingJobFlow1Params | ImagingJobFlow2Params
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit a preprocessing job: a conversion job, an imaging job from an
-        Obs ID (flow 1), or an imaging job from a conversion job (flow 2).
-
-        The MWA ASVO finds the kind of job from the fields of the request
-        body: only an imaging body has the imaging fields.
-
-        Args:
-            params: The request body: a `ConversionJobParams`, an
-                `ImagingJobFlow1Params` or an `ImagingJobFlow2Params`.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            TypeError: `params` is not one of the three classes.
-            ObsIdError: An Obs ID is not valid.
-            ValueError: A Job ID is not valid, a number is outside
-                what the MWA ASVO accepts (for example `avg_freq_res` above
-                1280), `delivery` is `DeliveryDestination.Acacia` and
+            ValueError: A number is outside what the MWA ASVO accepts, or
+                `delivery` is `DeliveryDestination.Acacia` and
                 `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-                tar only), or `centre` is `PhaseCentre.Custom` without both
-                `custom_centre_ra` and `custom_centre_dec`, or either of them
-                is given with another `centre`. The message names the
-                argument and its limits. Nothing is sent.
+                tar only). The message names the argument and its limits.
+                Nothing is sent.
             AsvoApiError: The request failed.
         """
     def submit_csv_file(
@@ -976,6 +1003,63 @@ class AsvoJobVec:
         """
 
 @typing.final
+class BeamformerJobParams:
+    r"""
+    The request body of a beamformer download job: the schema's `BeamformerJobParams`.
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
+    job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        delivery: Where the MWA ASVO delivers the data.
+        delivery_format: How the MWA ASVO packages the files. Must be
+            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+    """
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
+        (`ObsIdError` if it is not valid).
+        """
+    @obs_id.setter
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
+    def validate(self) -> None:
+        r"""
+        Check the values against the limits of the MWA ASVO, with the library's
+        `validate_beamformer_params`. The submit methods do this before they send a request.
+
+        Raises:
+            ValueError: A value is outside the limits (the first that is).
+        """
+    def __new__(
+        cls,
+        obs_id: builtins.int | ObsId,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
+    ) -> BeamformerJobParams: ...
+
+@typing.final
 class ConversionJobParams:
     r"""
     The request body of a conversion (preprocessing) job: the schema's `ConversionJobParams`.
@@ -1023,9 +1107,9 @@ class ConversionJobParams:
     @delivery_format.setter
     def delivery_format(self, value: DeliveryFormat) -> None: ...
     @property
-    def output(self) -> OutputFormat: ...
+    def output(self) -> Output: ...
     @output.setter
-    def output(self, value: OutputFormat) -> None: ...
+    def output(self, value: Output) -> None: ...
     @property
     def avg_freq_res(self) -> builtins.float | None: ...
     @avg_freq_res.setter
@@ -1108,7 +1192,7 @@ class ConversionJobParams:
         *,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        output: OutputFormat = OutputFormat.Ms,
+        output: Output = Output.Ms,
         avg_freq_res: builtins.float | None = 40.0,
         avg_time_res: builtins.float | None = 2.0,
         flag_edge_width: builtins.float = 80.0,
@@ -1295,8 +1379,9 @@ class CsvJobParams:
     `CsvJobParams.Conversion(params)` (`job_type=c`), `CsvJobParams.Imaging(params)`
     (`job_type=i`), `CsvJobParams.Download(params)` (`job_type=d`, a visibility
     or metadata download), `CsvJobParams.Voltage(params)` (`job_type=v`) and
-    `CsvJobParams.Beamformer(params)` (`job_type=b`) hold the request body.
-    `Voltage` and `Beamformer` hold a `DownloadJobParams`, as `Download` does.
+    `CsvJobParams.Beamformer(params)` (`job_type=b`) hold the request body:
+    a `VisibilityJobParams`, a `VoltageJobParams` and a `BeamformerJobParams`
+    for the download jobs.
     """
     def description(self) -> builtins.str:
         r"""
@@ -1350,41 +1435,39 @@ class CsvJobParams:
 
         __match_args__ = ("params",)
         @property
-        def params(self) -> DownloadJobParams:
+        def params(self) -> VisibilityJobParams:
             r"""
             The request body.
             """
-        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Download: ...
+        def __new__(cls, params: VisibilityJobParams) -> CsvJobParams.Download: ...
 
     @typing.final
     class Voltage(CsvJobParams):
         r"""
-        A voltage job (`job_type=v`): a download job with `offset` and
-        `duration`.
+        A voltage job (`job_type=v`).
         """
 
         __match_args__ = ("params",)
         @property
-        def params(self) -> DownloadJobParams:
+        def params(self) -> VoltageJobParams:
             r"""
             The request body.
             """
-        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Voltage: ...
+        def __new__(cls, params: VoltageJobParams) -> CsvJobParams.Voltage: ...
 
     @typing.final
     class Beamformer(CsvJobParams):
         r"""
-        A beamformer job (`job_type=b`): a download job. The MWA ASVO finds
-        the kind of download from the observation.
+        A beamformer job (`job_type=b`).
         """
 
         __match_args__ = ("params",)
         @property
-        def params(self) -> DownloadJobParams:
+        def params(self) -> BeamformerJobParams:
             r"""
             The request body.
             """
-        def __new__(cls, params: DownloadJobParams) -> CsvJobParams.Beamformer: ...
+        def __new__(cls, params: BeamformerJobParams) -> CsvJobParams.Beamformer: ...
 
 class CsvJobsFailed(builtins.Exception):
     r"""
@@ -1461,101 +1544,66 @@ class CsvSubmitErrorNoJobs(CsvSubmitError):
     The file has no job: it is empty, or has only blank lines and comments. Nothing was submitted (kind `NoJobs`). `path` is the file.
     """
 
-@typing.final
 class DownloadJobParams:
     r"""
-    The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
-    visibility, metadata, voltage or beamformer download job. The body does not say which: the
-    MWA ASVO finds that from the observation, and it refuses a body that does not suit it (for
-    example a voltage job's `offset` for a visibility observation, or a delivery that the kind
-    of observation does not allow).
+    The request body of a download job: the library's `DownloadJobParams`. It is one of the three
+    classes that the download endpoint takes. The MWA ASVO tells them apart by their fields, so the
+    body is sent as the class that it holds.
 
-    Every keyword argument has the MWA ASVO's default as its default value
-    (the type stubs show it). `None` is accepted by the arguments that the MWA
-    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
-    default". Each argument is also an attribute, which can be read and changed.
-    The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
-    job is submitted (see the submit method).
-
-    Args:
-        obs_id: The Obs ID.
-        delivery: Where the MWA ASVO delivers the data.
-        delivery_format: How the MWA ASVO packages the files. Must be
-            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-        allow_resubmit: Submit the job even if an identical one has
-            completed.
-        only_get_metadata: Download only the observation's metadata,
-            not its data.
-        offset: For a voltage observation, the offset in seconds from
-            the start GPS time of the observation, from 0 to 5400.
-        duration: For a voltage observation, the duration to download,
-            in seconds.
-        from_channel: For a voltage observation, the first receiver
-            channel number (0 to 255).
-        to_channel: For a voltage observation, the last receiver channel
-            number (0 to 255).
+    `DownloadJobParams.Beamformer(params)`, `DownloadJobParams.Visibility(params)` and
+    `DownloadJobParams.Voltage(params)` make one from a `BeamformerJobParams`, a
+    `VisibilityJobParams` and a `VoltageJobParams`. `submit_download_job` takes this class, or one of
+    the three classes (which it takes as the same variant).
     """
-    @property
-    def delivery(self) -> DeliveryDestination: ...
-    @delivery.setter
-    def delivery(self, value: DeliveryDestination) -> None: ...
-    @property
-    def delivery_format(self) -> DeliveryFormat: ...
-    @delivery_format.setter
-    def delivery_format(self, value: DeliveryFormat) -> None: ...
-    @property
-    def allow_resubmit(self) -> builtins.bool | None: ...
-    @allow_resubmit.setter
-    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
-    @property
-    def only_get_metadata(self) -> builtins.bool: ...
-    @only_get_metadata.setter
-    def only_get_metadata(self, value: builtins.bool) -> None: ...
-    @property
-    def offset(self) -> builtins.int | None: ...
-    @offset.setter
-    def offset(self, value: builtins.int | None) -> None: ...
-    @property
-    def duration(self) -> builtins.int | None: ...
-    @duration.setter
-    def duration(self, value: builtins.int | None) -> None: ...
-    @property
-    def from_channel(self) -> builtins.int | None: ...
-    @from_channel.setter
-    def from_channel(self, value: builtins.int | None) -> None: ...
-    @property
-    def to_channel(self) -> builtins.int | None: ...
-    @to_channel.setter
-    def to_channel(self, value: builtins.int | None) -> None: ...
-    @property
-    def obs_id(self) -> ObsId:
-        r"""
-        The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
-        (`ObsIdError` if it is not valid).
-        """
-    @obs_id.setter
-    def obs_id(self, value: builtins.int | ObsId) -> None: ...
     def validate(self) -> None:
         r"""
-        Check the values against the limits of the MWA ASVO, with the library's `validate_download_params`. The submit
-        methods do this before they send a request.
+        Check the values against the limits of the MWA ASVO, with the `validate_*_params` function of
+        the class that it holds. `submit_download_job` does this before it sends a request.
 
         Raises:
             ValueError: A value is outside the limits (the first that is).
         """
-    def __new__(
-        cls,
-        obs_id: builtins.int | ObsId,
-        *,
-        delivery: DeliveryDestination = DeliveryDestination.Acacia,
-        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        allow_resubmit: builtins.bool | None = False,
-        only_get_metadata: builtins.bool = False,
-        offset: builtins.int | None = None,
-        duration: builtins.int | None = None,
-        from_channel: builtins.int | None = None,
-        to_channel: builtins.int | None = None,
-    ) -> DownloadJobParams: ...
+    @typing.final
+    class Beamformer(DownloadJobParams):
+        r"""
+        A beamformer download job.
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> BeamformerJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: BeamformerJobParams) -> DownloadJobParams.Beamformer: ...
+
+    @typing.final
+    class Visibility(DownloadJobParams):
+        r"""
+        A visibility or metadata download job.
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> VisibilityJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: VisibilityJobParams) -> DownloadJobParams.Visibility: ...
+
+    @typing.final
+    class Voltage(DownloadJobParams):
+        r"""
+        A voltage download job.
+        """
+
+        __match_args__ = ("params",)
+        @property
+        def params(self) -> VoltageJobParams:
+            r"""
+            The request body.
+            """
+        def __new__(cls, params: VoltageJobParams) -> DownloadJobParams.Voltage: ...
 
 @typing.final
 class DownloadOptions:
@@ -1949,10 +1997,6 @@ class ImagingJobFlow1Params:
     @clean_iterations.setter
     def clean_iterations(self, value: builtins.int) -> None: ...
     @property
-    def clean_threshold(self) -> builtins.float | None: ...
-    @clean_threshold.setter
-    def clean_threshold(self, value: builtins.float | None) -> None: ...
-    @property
     def centre(self) -> PhaseCentre: ...
     @centre.setter
     def centre(self, value: PhaseCentre) -> None: ...
@@ -2021,10 +2065,6 @@ class ImagingJobFlow1Params:
     @no_rfi.setter
     def no_rfi(self, value: builtins.bool | None) -> None: ...
     @property
-    def nwlayers(self) -> builtins.int | None: ...
-    @nwlayers.setter
-    def nwlayers(self, value: builtins.int | None) -> None: ...
-    @property
     def output_mode(self) -> ImageOutputMode: ...
     @output_mode.setter
     def output_mode(self, value: ImageOutputMode) -> None: ...
@@ -2091,7 +2131,6 @@ class ImagingJobFlow1Params:
         avg_time_res: builtins.float | None = 2.0,
         channels_out: builtins.int = 4,
         clean_iterations: builtins.int = 100000,
-        clean_threshold: builtins.float | None = 0.001,
         centre: PhaseCentre = PhaseCentre.Phase,
         custom_centre_dec: builtins.float | None = None,
         custom_centre_ra: builtins.float | None = None,
@@ -2109,7 +2148,6 @@ class ImagingJobFlow1Params:
         no_passband_gains: builtins.bool | None = False,
         no_cable_delay: builtins.bool | None = False,
         no_rfi: builtins.bool | None = False,
-        nwlayers: builtins.int | None = None,
         output_mode: ImageOutputMode = ImageOutputMode.Fits,
         pixel_scale: builtins.float = 20.0,
         pol: Polarization = Polarization.Xxyy,
@@ -2125,21 +2163,18 @@ class ImagingJobFlow1Params:
 class ImagingJobFlow2Params:
     r"""
     The request body of an imaging job that starts from a conversion job (flow 2): the
-    schema's `ImagingJobFlow2Params`. Its `obs_id` is `None` by default: the MWA ASVO takes
-    the Obs ID from the source job, so it is left out of the request.
+    schema's `ImagingJobFlow2Params`. It has no Obs ID: the MWA ASVO takes the Obs ID from the
+    source job.
 
     Every keyword argument has the MWA ASVO's default as its default value
     (the type stubs show it). `None` is accepted by the arguments that the MWA
     ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
-    The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
-    job is submitted (see the submit method).
+    The values are checked by `validate()` and when the job is submitted (see the submit method).
 
     Args:
         source_job_id: The ID of the conversion job to image. Must be
             greater than zero (checked when it is set, `ValueError`).
-        obs_id: The Obs ID, or `None`, which leaves it out of the request:
-            the MWA ASVO takes it from the source job.
     """
     @property
     def delivery(self) -> DeliveryDestination: ...
@@ -2174,10 +2209,6 @@ class ImagingJobFlow2Params:
     @clean_iterations.setter
     def clean_iterations(self, value: builtins.int) -> None: ...
     @property
-    def clean_threshold(self) -> builtins.float | None: ...
-    @clean_threshold.setter
-    def clean_threshold(self, value: builtins.float | None) -> None: ...
-    @property
     def image_size(self) -> builtins.int: ...
     @image_size.setter
     def image_size(self, value: builtins.int) -> None: ...
@@ -2201,10 +2232,6 @@ class ImagingJobFlow2Params:
     def nmiter(self) -> builtins.int: ...
     @nmiter.setter
     def nmiter(self, value: builtins.int) -> None: ...
-    @property
-    def nwlayers(self) -> builtins.int | None: ...
-    @nwlayers.setter
-    def nwlayers(self, value: builtins.int | None) -> None: ...
     @property
     def output_mode(self) -> ImageOutputMode: ...
     @output_mode.setter
@@ -2248,14 +2275,6 @@ class ImagingJobFlow2Params:
         """
     @source_job_id.setter
     def source_job_id(self, value: builtins.int) -> None: ...
-    @property
-    def obs_id(self) -> ObsId | None:
-        r"""
-        The Obs ID, or `None`, which leaves it out of the request (the MWA ASVO takes it from the source
-        job). An `int` or an `ObsId` is accepted, and checked when it is set (`ObsIdError` if it is not valid).
-        """
-    @obs_id.setter
-    def obs_id(self, value: builtins.int | ObsId | None) -> None: ...
     def validate(self) -> None:
         r"""
         Check the values against the limits of the MWA ASVO, with the library's `validate_image_from_job_params`. The submit
@@ -2276,15 +2295,12 @@ class ImagingJobFlow2Params:
         abs_threshold: builtins.float | None = 0.001,
         channels_out: builtins.int = 4,
         clean_iterations: builtins.int = 100000,
-        clean_threshold: builtins.float | None = 0.001,
         image_size: builtins.int = 3072,
         join_channels: builtins.bool = True,
         join_polarizations: builtins.bool = False,
         mgain: builtins.float = 0.8,
         multiscale: builtins.bool = False,
         nmiter: builtins.int = 10,
-        nwlayers: builtins.int | None = None,
-        obs_id: builtins.int | ObsId | None = None,
         output_mode: ImageOutputMode = ImageOutputMode.Fits,
         pixel_scale: builtins.float = 20.0,
         pol: Polarization = Polarization.Xxyy,
@@ -2790,13 +2806,13 @@ class ParseErrorZeroJobId(ParseError):
 class PreprocessJobParams:
     r"""
     The request body of a preprocessing job: the library's `PreprocessJobParams`. It is one of the
-    three classes that the preprocess endpoint takes. The MWA ASVO tells them apart by their fields,
-    so the body is sent as the class that it holds.
+    two classes that the preprocess endpoint takes. The MWA ASVO tells them apart by their fields,
+    so the body is sent as the class that it holds. An imaging job from a conversion job (flow 2)
+    has its own endpoint: `submit_image_from_job`.
 
-    `PreprocessJobParams.Conversion(params)`, `PreprocessJobParams.Imaging(params)` and
-    `PreprocessJobParams.ImageFromJob(params)` make one from a `ConversionJobParams`, an
-    `ImagingJobFlow1Params` and an `ImagingJobFlow2Params`. `submit_preprocess_job` takes this class,
-    or one of the three classes (which it takes as the same variant).
+    `PreprocessJobParams.Conversion(params)` and `PreprocessJobParams.Imaging(params)` make one from
+    a `ConversionJobParams` and an `ImagingJobFlow1Params`. `submit_preprocess_job` takes this class,
+    or one of the two classes (which it takes as the same variant).
     """
     def validate(self) -> None:
         r"""
@@ -2834,19 +2850,140 @@ class PreprocessJobParams:
             """
         def __new__(cls, params: ImagingJobFlow1Params) -> PreprocessJobParams.Imaging: ...
 
-    @typing.final
-    class ImageFromJob(PreprocessJobParams):
-        r"""
-        An imaging job from a conversion job (flow 2).
-        """
+@typing.final
+class VisibilityJobParams:
+    r"""
+    The request body of a visibility or metadata download job: the schema's
+    `VisibilityJobParams`. `download_type` says which: `DownloadType.Vis` (the visibilities and
+    their metadata) or `DownloadType.Meta` (the metadata only).
 
-        __match_args__ = ("params",)
-        @property
-        def params(self) -> ImagingJobFlow2Params:
-            r"""
-            The request body.
-            """
-        def __new__(cls, params: ImagingJobFlow2Params) -> PreprocessJobParams.ImageFromJob: ...
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
+    job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        delivery: Where the MWA ASVO delivers the data.
+        delivery_format: How the MWA ASVO packages the files. Must be
+            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+        download_type: What to download: `DownloadType.Vis` or `DownloadType.Meta`.
+    """
+    @property
+    def delivery(self) -> DeliveryDestination: ...
+    @delivery.setter
+    def delivery(self, value: DeliveryDestination) -> None: ...
+    @property
+    def delivery_format(self) -> DeliveryFormat: ...
+    @delivery_format.setter
+    def delivery_format(self, value: DeliveryFormat) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    @property
+    def download_type(self) -> DownloadType: ...
+    @download_type.setter
+    def download_type(self, value: DownloadType) -> None: ...
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
+        (`ObsIdError` if it is not valid).
+        """
+    @obs_id.setter
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
+    def validate(self) -> None:
+        r"""
+        Check the values against the limits of the MWA ASVO, with the library's
+        `validate_visibility_params`. The submit methods do this before they send a request.
+
+        Raises:
+            ValueError: A value is outside the limits (the first that is).
+        """
+    def __new__(
+        cls,
+        obs_id: builtins.int | ObsId,
+        *,
+        delivery: DeliveryDestination = DeliveryDestination.Acacia,
+        delivery_format: DeliveryFormat = DeliveryFormat.Tar,
+        allow_resubmit: builtins.bool | None = False,
+        download_type: DownloadType = DownloadType.Vis,
+    ) -> VisibilityJobParams: ...
+
+@typing.final
+class VoltageJobParams:
+    r"""
+    The request body of a voltage download job: the schema's `VoltageJobParams`. It has no
+    delivery: the MWA ASVO always delivers a voltage job to Scratch, as files.
+
+    Every keyword argument has the MWA ASVO's default as its default value
+    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    default". Each argument is also an attribute, which can be read and changed.
+    The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
+    job is submitted (see the submit method).
+
+    Args:
+        obs_id: The Obs ID.
+        offset: The offset in seconds from the start GPS time of the
+            observation, from 0 to 5400.
+        duration: The duration to download, in seconds.
+        allow_resubmit: Submit the job even if an identical one has
+            completed.
+        from_channel: The first receiver channel number (0 to 255), or `None`.
+        to_channel: The last receiver channel number (0 to 255), or `None`.
+    """
+    @property
+    def offset(self) -> builtins.int: ...
+    @offset.setter
+    def offset(self, value: builtins.int) -> None: ...
+    @property
+    def duration(self) -> builtins.int: ...
+    @duration.setter
+    def duration(self, value: builtins.int) -> None: ...
+    @property
+    def allow_resubmit(self) -> builtins.bool | None: ...
+    @allow_resubmit.setter
+    def allow_resubmit(self, value: builtins.bool | None) -> None: ...
+    @property
+    def from_channel(self) -> builtins.int | None: ...
+    @from_channel.setter
+    def from_channel(self, value: builtins.int | None) -> None: ...
+    @property
+    def to_channel(self) -> builtins.int | None: ...
+    @to_channel.setter
+    def to_channel(self, value: builtins.int | None) -> None: ...
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
+        (`ObsIdError` if it is not valid).
+        """
+    @obs_id.setter
+    def obs_id(self, value: builtins.int | ObsId) -> None: ...
+    def validate(self) -> None:
+        r"""
+        Check the values against the limits of the MWA ASVO, with the library's
+        `validate_voltage_params`. The submit methods do this before they send a request.
+
+        Raises:
+            ValueError: A value is outside the limits (the first that is).
+        """
+    def __new__(
+        cls,
+        obs_id: builtins.int | ObsId,
+        offset: builtins.int,
+        duration: builtins.int,
+        *,
+        allow_resubmit: builtins.bool | None = False,
+        from_channel: builtins.int | None = None,
+        to_channel: builtins.int | None = None,
+    ) -> VoltageJobParams: ...
 
 @typing.final
 class DeliveryDestination(enum.Enum):
@@ -2869,6 +3006,17 @@ class DeliveryFormat(enum.Enum):
 
     Tar = ...
     Files = ...
+
+@typing.final
+class DownloadType(enum.Enum):
+    r"""
+    What a visibility download job downloads: the raw visibilities and
+    their metadata (`Vis`), or the metadata only (`Meta`). `str()` is the
+    API value.
+    """
+
+    Vis = ...
+    Meta = ...
 
 @typing.final
 class ImageOutputMode(enum.Enum):
@@ -2970,9 +3118,10 @@ class JobType(enum.Enum):
         """
 
 @typing.final
-class OutputFormat(enum.Enum):
+class Output(enum.Enum):
     r"""
-    The format of a conversion job's output. `str()` is the API value.
+    The format of a conversion job's output: the OpenAPI schema's `Output`.
+    `str()` is the API value.
     """
 
     Ms = ...
@@ -3062,6 +3211,21 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
             program does.
     """
 
+def beamformer_params(obs_id: builtins.int | ObsId) -> BeamformerJobParams:
+    r"""
+    The request body of a beamformer download job for `obs_id`, with the MWA ASVO's defaults: the
+    library's `beamformer_params`. It is `BeamformerJobParams(obs_id)`.
+
+    Args:
+        obs_id: The Obs ID.
+
+    Returns:
+        The request body.
+
+    Raises:
+        ObsIdError: `obs_id` is not a valid Obs ID.
+    """
+
 def check_file_sha1_hash(
     filename: builtins.str | os.PathLike | pathlib.Path, expected_hash: builtins.str, job_id: builtins.int
 ) -> None:
@@ -3130,27 +3294,11 @@ def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) ->
         The path of the token cache file.
     """
 
-def download_params(obs_id: builtins.int | ObsId) -> DownloadJobParams:
-    r"""
-    The request body of a visibility, metadata, voltage or beamformer download job for `obs_id`, with
-    the MWA ASVO's defaults: the library's `download_params`. It is `DownloadJobParams(obs_id)`.
-
-    Args:
-        obs_id: The Obs ID.
-
-    Returns:
-        The request body.
-
-    Raises:
-        ObsIdError: `obs_id` is not a valid Obs ID.
-    """
-
 def image_from_job_params(source_job_id: builtins.int) -> ImagingJobFlow2Params:
     r"""
     The request body of an imaging job (flow 2) for an image of the conversion job `source_job_id`,
     with the MWA ASVO's defaults: the library's `image_from_job_params`. It is
-    `ImagingJobFlow2Params(source_job_id)`. Its `obs_id` is `None`: the MWA ASVO takes it from the
-    source job.
+    `ImagingJobFlow2Params(source_job_id)`. The MWA ASVO takes the Obs ID from the source job.
 
     Args:
         source_job_id: The ID of the conversion job to image.
@@ -3177,10 +3325,10 @@ def imaging_params(obs_id: builtins.int | ObsId) -> ImagingJobFlow1Params:
         ObsIdError: `obs_id` is not a valid Obs ID.
     """
 
-def metadata_params(obs_id: builtins.int | ObsId) -> DownloadJobParams:
+def metadata_params(obs_id: builtins.int | ObsId) -> VisibilityJobParams:
     r"""
-    The request body of a metadata download job for `obs_id`: a download job with `only_get_metadata`
-    set (the library's `metadata_params`).
+    The request body of a metadata download job for `obs_id`: a visibility download job whose
+    `download_type` is `DownloadType.Meta` (the library's `metadata_params`).
 
     Args:
         obs_id: The Obs ID.
@@ -3355,12 +3503,26 @@ def reset_logging() -> None:
     then there is nothing to reset.
     """
 
-def voltage_params(obs_id: builtins.int | ObsId, offset: builtins.int, duration: builtins.int) -> DownloadJobParams:
+def visibility_params(obs_id: builtins.int | ObsId) -> VisibilityJobParams:
+    r"""
+    The request body of a visibility download job for `obs_id`, with the MWA ASVO's defaults: the
+    library's `visibility_params`. It is `VisibilityJobParams(obs_id)`.
+
+    Args:
+        obs_id: The Obs ID.
+
+    Returns:
+        The request body.
+
+    Raises:
+        ObsIdError: `obs_id` is not a valid Obs ID.
+    """
+
+def voltage_params(obs_id: builtins.int | ObsId, offset: builtins.int, duration: builtins.int) -> VoltageJobParams:
     r"""
     The request body of a voltage download job for `obs_id`, from `offset` seconds after the start of
-    the observation, for `duration` seconds (the library's `voltage_params`). The other values are the
-    defaults of every download job. The MWA ASVO refuses a voltage job whose delivery it does not allow
-    (it is delivered to Scratch as files).
+    the observation, for `duration` seconds (the library's `voltage_params`). It is
+    `VoltageJobParams(obs_id, offset, duration)`.
 
     Args:
         obs_id: The Obs ID.

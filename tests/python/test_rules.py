@@ -40,8 +40,11 @@ DAYS = 7
 
 # Each class that has a delivery and a format (a function that makes it), its endpoint and its positional arguments.
 DELIVERY_JOBS = [
-    pytest.param(gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), id="vis"),
-    pytest.param(partial(gs.DownloadJobParams, only_get_metadata=True), DOWNLOAD_PATH, (TEST_OBS_ID,), id="meta"),
+    pytest.param(gs.VisibilityJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), id="vis"),
+    pytest.param(
+        partial(gs.VisibilityJobParams, download_type=gs.DownloadType.Meta), DOWNLOAD_PATH, (TEST_OBS_ID,), id="meta"
+    ),
+    pytest.param(gs.BeamformerJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), id="beamformer"),
     pytest.param(gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), id="conversion"),
     pytest.param(gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), id="imaging"),
     pytest.param(gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), id="image_from_job"),

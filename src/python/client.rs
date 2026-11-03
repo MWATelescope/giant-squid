@@ -20,7 +20,7 @@ use super::csv::{
 use super::download::{run_download, PyDownloadOptions};
 use super::error::{api_error, asvo_error};
 use super::filter::PyJobsFilter;
-use super::job_params::{PreprocessParams, PyDownloadJobParams};
+use super::job_params::{DownloadParams, PreprocessParams, PyImagingJobFlow2Params};
 use super::obs_id::ObsIdArg;
 use super::typed::{JobId, ResultCallback};
 use super::types::{PyAsvoJob, PyAsvoJobVec, PyJobCancelledResponse, PyJobSubmittedResponse};
@@ -87,60 +87,59 @@ impl PyAsvoClient {
     /// Submit a download job: a visibility, metadata, voltage or
     /// beamformer job.
     ///
-    /// The request body does not say which kind of download it is. The MWA
-    /// ASVO finds that from the observation (and `only_get_metadata`), and
-    /// it refuses a body that does not suit the observation: for example a
-    /// delivery that the kind of observation does not allow, or `offset`,
-    /// `duration` and the channels for an observation that is not a
-    /// voltage observation. A voltage job is delivered to Scratch as
-    /// files, which is not the default: give `delivery` and
-    /// `delivery_format` in the `DownloadJobParams`.
+    /// The MWA ASVO finds the kind of job from the fields of the request
+    /// body: only a voltage body has `offset` and `duration`, and only a
+    /// visibility body has `download_type`. It refuses a body that does not
+    /// suit the observation (for example a voltage job for an observation
+    /// that has no voltages). A voltage job has no delivery: the MWA ASVO
+    /// always delivers it to Scratch, as files.
     ///
     /// Args:
-    ///     params: The request body.
+    ///     params: The request body: a `DownloadJobParams`, a
+    ///         `BeamformerJobParams`, a `VisibilityJobParams` or a
+    ///         `VoltageJobParams`.
     ///
     /// Returns:
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ObsIdError: `params.obs_id` is not a valid Obs ID.
-    ///     ValueError: `params.offset` is not from 0 to 5400, or `params.delivery` is
-    ///         `DeliveryDestination.Acacia` and `params.delivery_format` is
-    ///         `DeliveryFormat.Files` (Acacia delivers a tar only). Nothing
-    ///         is sent.
+    ///     TypeError: `params` is not one of the four classes.
+    ///     ValueError: The `offset` of a voltage job is not from 0 to 5400,
+    ///         or `delivery` is `DeliveryDestination.Acacia` and
+    ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+    ///         tar only). Nothing is sent.
     ///     AsvoApiError: The request failed.
     fn submit_download_job(
         &self,
         py: Python<'_>,
-        params: PyRef<'_, PyDownloadJobParams>,
+        params: DownloadParams,
     ) -> PyResult<PyJobSubmittedResponse> {
-        let params = params.to_schema();
-        py.detach(|| self.inner.submit_download_job(&params))
+        py.detach(|| self.inner.submit_download_job(&params.0))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }
 
-    /// Submit a preprocessing job: a conversion job, an imaging job from an
-    /// Obs ID (flow 1), or an imaging job from a conversion job (flow 2).
+    /// Submit a preprocessing job: a conversion job or an imaging job from
+    /// an Obs ID (flow 1). An imaging job from a conversion job (flow 2) is
+    /// `submit_image_from_job`.
     ///
     /// The MWA ASVO finds the kind of job from the fields of the request
     /// body: only an imaging body has the imaging fields.
     ///
     /// Args:
-    ///     params: The request body: a `ConversionJobParams`, an
-    ///         `ImagingJobFlow1Params` or an `ImagingJobFlow2Params`.
+    ///     params: The request body: a `PreprocessJobParams`, a
+    ///         `ConversionJobParams` or an `ImagingJobFlow1Params`.
     ///
     /// Returns:
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
     ///     TypeError: `params` is not one of the three classes.
-    ///     ObsIdError: An Obs ID is not valid.
-    ///     ValueError: A Job ID is not valid, a number is outside
-    ///         what the MWA ASVO accepts (for example `avg_freq_res` above
-    ///         1280), `delivery` is `DeliveryDestination.Acacia` and
-    ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-    ///         tar only), or `centre` is `PhaseCentre.Custom` without both
+    ///     ValueError: A number is outside what the MWA ASVO accepts (for
+    ///         example `avg_freq_res` above 1280), `delivery` is
+    ///         `DeliveryDestination.Acacia` and `delivery_format` is
+    ///         `DeliveryFormat.Files` (Acacia delivers a tar only), or
+    ///         `centre` is `PhaseCentre.Custom` without both
     ///         `custom_centre_ra` and `custom_centre_dec`, or either of them
     ///         is given with another `centre`. The message names the
     ///         argument and its limits. Nothing is sent.
@@ -151,6 +150,34 @@ impl PyAsvoClient {
         params: PreprocessParams,
     ) -> PyResult<PyJobSubmittedResponse> {
         py.detach(|| self.inner.submit_preprocess_job(&params.0))
+            .map(PyJobSubmittedResponse::from)
+            .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit an imaging job from a conversion job (flow 2): an image of
+    /// the conversion job `params.source_job_id`. The MWA ASVO takes the Obs
+    /// ID from the source job.
+    ///
+    /// Args:
+    ///     params: The request body.
+    ///
+    /// Returns:
+    ///     The server's reply, with the new job's ID.
+    ///
+    /// Raises:
+    ///     ValueError: A number is outside what the MWA ASVO accepts, or
+    ///         `delivery` is `DeliveryDestination.Acacia` and
+    ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+    ///         tar only). The message names the argument and its limits.
+    ///         Nothing is sent.
+    ///     AsvoApiError: The request failed.
+    fn submit_image_from_job(
+        &self,
+        py: Python<'_>,
+        params: PyRef<'_, PyImagingJobFlow2Params>,
+    ) -> PyResult<PyJobSubmittedResponse> {
+        let params = params.to_schema(py)?;
+        py.detach(|| self.inner.submit_image_from_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
     }

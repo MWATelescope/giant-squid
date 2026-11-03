@@ -44,14 +44,15 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
 
 
-# A voltage job is a download body with an offset and a duration.
-VOLTAGE_JOB = partial(gs.DownloadJobParams, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
-METADATA_JOB = partial(gs.DownloadJobParams, only_get_metadata=True)
+# A voltage job has an offset and a duration.
+VOLTAGE_JOB = partial(gs.VoltageJobParams, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
+METADATA_JOB = partial(gs.VisibilityJobParams, download_type=gs.DownloadType.Meta)
 
 # Each case: the class (or a function that makes it), its endpoint, its positional arguments, the argument that is set
 # to None, and the value that the argument has when it is left out (the schema's default).
 NULLABLE_WITH_DEFAULT = [
-    (gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (gs.VisibilityJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (gs.BeamformerJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (METADATA_JOB, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
@@ -61,11 +62,9 @@ NULLABLE_WITH_DEFAULT = [
     (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
     (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
-    (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "clean_threshold", 0.001),
     (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
     (gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
     (gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
-    (gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "clean_threshold", 0.001),
     (VOLTAGE_JOB, VOLTAGE_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
 ]
 

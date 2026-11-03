@@ -17,18 +17,24 @@ from .test_client import SCHEMA_PATH
 
 # Each request body class: the schema type, the positional arguments, and the schema fields that the class does not
 # take as an argument.
+# The schema marks clean_threshold and nwlayers as deprecated, so the imaging classes do not take them. The flow 1
+# `output` and the flow 2 `centre` are mistakes in the schema that the API developer will remove.
+DEPRECATED_IMAGING_FIELDS = {"clean_threshold", "nwlayers"}
 CLASSES = [
-    (gs.DownloadJobParams, "DownloadJobParams", ["obs_id"], set()),
+    (gs.VisibilityJobParams, "VisibilityJobParams", ["obs_id"], set()),
+    (gs.VoltageJobParams, "VoltageJobParams", ["obs_id", "offset", "duration"], set()),
+    (gs.BeamformerJobParams, "BeamformerJobParams", ["obs_id"], set()),
     (gs.ConversionJobParams, "ConversionJobParams", ["obs_id"], set()),
-    (gs.ImagingJobFlow1Params, "ImagingJobFlow1Params", ["obs_id"], set()),
-    (gs.ImagingJobFlow2Params, "ImagingJobFlow2Params", ["source_job_id"], set()),
+    (gs.ImagingJobFlow1Params, "ImagingJobFlow1Params", ["obs_id"], DEPRECATED_IMAGING_FIELDS | {"output"}),
+    (gs.ImagingJobFlow2Params, "ImagingJobFlow2Params", ["source_job_id"], DEPRECATED_IMAGING_FIELDS | {"centre"}),
 ]
 
 # The schema enums that the classes take, by the name that a default has in a signature.
 ENUMS = {
     "DeliveryDestination": gs.DeliveryDestination,
     "DeliveryFormat": gs.DeliveryFormat,
-    "OutputFormat": gs.OutputFormat,
+    "DownloadType": gs.DownloadType,
+    "Output": gs.Output,
     "PhaseCentre": gs.PhaseCentre,
     "ImageOutputMode": gs.ImageOutputMode,
     "Polarization": gs.Polarization,

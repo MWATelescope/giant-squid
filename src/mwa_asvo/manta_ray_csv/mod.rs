@@ -33,10 +33,17 @@
 //!   are removed.
 //! - `job_type=p` (an image of a conversion job) is an error: the format
 //!   has no key for the conversion job. Use `submit-image-from-job`.
+//! - `clean_threshold` and `nwlayers`, which the schema marks as
+//!   deprecated, are not keys of an imaging line: use `abs_threshold` and
+//!   `wstack_nwlayers`.
+//! - A voltage line can give `delivery` and `delivery_format` only as
+//!   `scratch` and `files`, which are not sent: the voltage request body
+//!   has no delivery.
 //!
 //! A key that a line does not give has the default of the schema. The
 //! exceptions are `delivery`, `delivery_format` and `allow_resubmit`,
-//! which [`CsvDefaults`] can set for every line that does not give them.
+//! which [`CsvDefaults`] can set for every line that does not give them
+//! (the delivery of a voltage line excepted).
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -50,17 +57,18 @@ use crate::helpers::BYTE_ORDER_MARK;
 use crate::mwa_asvo::api::client::{AsvoClient, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_PREPROCESS_JOB};
 use crate::mwa_asvo::api::error::AsvoApiError;
 use crate::mwa_asvo::api::job_params::{
-    conversion_params, download_params, imaging_params, metadata_params, voltage_params,
-    PreprocessJobParams,
+    beamformer_params, conversion_params, imaging_params, metadata_params, visibility_params,
+    voltage_params, DownloadJobParams, PreprocessJobParams,
 };
 use crate::mwa_asvo::api::openapi::{
-    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageOutputMode,
-    ImageWeighting, ImagingJobFlow1Params, JobSubmittedResponse, OutputFormat, PhaseCentre,
-    Polarization,
+    BeamformerJobParams, ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadType,
+    ImageOutputMode, ImageWeighting, ImagingJobFlow1Params, JobSubmittedResponse, Output,
+    PhaseCentre, Polarization, VisibilityJobParams, VoltageJobParams,
 };
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::api::validate::{
-    self, validate_conversion_params, validate_download_params, validate_imaging_params,
+    self, validate_beamformer_params, validate_conversion_params, validate_imaging_params,
+    validate_visibility_params, validate_voltage_params,
 };
 use crate::obs_id::ObsId;
 
@@ -86,10 +94,11 @@ const JOB_TYPE_IMAGING: &str = "i";
 /// cannot describe.
 const JOB_TYPE_IMAGING_FROM_JOB: &str = "p";
 
-/// The delivery and the delivery format of a voltage line that gives none.
-/// manta-ray-client files never gave them, because a voltage job was
-/// always delivered to Scratch as files. The schema's defaults (those of
-/// every download job) are not these, so the voltage lines have their own.
+/// The only delivery and delivery format that a voltage line can give. The
+/// voltage request body has no delivery, because the MWA ASVO always
+/// delivers a voltage job to Scratch as files; manta-ray-client files can
+/// still give it (`delivery=scratch`), so a voltage line may give these,
+/// which are not sent.
 const VOLTAGE_ROW_DELIVERY: DeliveryDestination = DeliveryDestination::Scratch;
 const VOLTAGE_ROW_DELIVERY_FORMAT: DeliveryFormat = DeliveryFormat::Files;
 
@@ -132,17 +141,11 @@ pub enum CsvJobParams {
     /// An imaging job from an Obs ID (`job_type=i`).
     Imaging(Box<ImagingJobFlow1Params>),
     /// A visibility or metadata download job (`job_type=d`).
-    Download(DownloadJobParams),
+    Download(VisibilityJobParams),
     /// A voltage job (`job_type=v`).
-    ///
-    /// A download job like [`Self::Download`], with `offset` and
-    /// `duration`.
-    Voltage(DownloadJobParams),
+    Voltage(VoltageJobParams),
     /// A beamformer job (`job_type=b`).
-    ///
-    /// A download job like [`Self::Download`]: the MWA ASVO finds the kind
-    /// of download from the observation.
-    Beamformer(DownloadJobParams),
+    Beamformer(BeamformerJobParams),
 }
 
 impl CsvJobParams {
@@ -159,7 +162,7 @@ impl CsvJobParams {
         match self {
             Self::Conversion(_) => "conversion",
             Self::Imaging(_) => "imaging",
-            Self::Download(p) if p.only_get_metadata => "metadata download",
+            Self::Download(p) if p.download_type == DownloadType::Meta => "metadata download",
             Self::Download(_) => "visibility download",
             Self::Voltage(_) => "voltage",
             Self::Beamformer(_) => "beamformer",
@@ -176,9 +179,9 @@ impl CsvJobParams {
         match self {
             Self::Conversion(p) => validate_conversion_params(p),
             Self::Imaging(p) => validate_imaging_params(p),
-            Self::Download(p) | Self::Voltage(p) | Self::Beamformer(p) => {
-                validate_download_params(p)
-            }
+            Self::Download(p) => validate_visibility_params(p),
+            Self::Voltage(p) => validate_voltage_params(p),
+            Self::Beamformer(p) => validate_beamformer_params(p),
         }
     }
 }
@@ -594,7 +597,7 @@ fn parse_conversion(
 ) -> Result<ConversionJobParams, String> {
     let mut params = conversion_params(obs_id);
     apply_delivery!(row, defaults, params);
-    if let Some(output) = row.named::<OutputFormat>("output")? {
+    if let Some(output) = row.named::<Output>("output")? {
         params.output = output;
     }
     apply_preprocessing!(row, params);
@@ -655,14 +658,8 @@ fn parse_imaging(
     if let Some(v) = row.integer::<i64>("channels_out")? {
         params.channels_out = v;
     }
-    if let Some(v) = row.float("clean_threshold")? {
-        params.clean_threshold = Some(v);
-    }
     if let Some(v) = row.float("auto_threshold")? {
         params.auto_threshold = v;
-    }
-    if let Some(v) = row.integer::<i64>("nwlayers")? {
-        params.nwlayers = Some(v);
     }
     if let Some(v) = row.integer::<i64>("wstack_nwlayers")? {
         params.wstack_nwlayers = Some(v);
@@ -688,12 +685,12 @@ fn parse_download(
     row: &mut Row,
     obs_id: ObsId,
     defaults: &CsvDefaults,
-) -> Result<DownloadJobParams, String> {
+) -> Result<VisibilityJobParams, String> {
     let download_type = required(row.text("download_type"), "download_type")?;
-    // The format's names are `vis` and `vis_meta`. The schema has no
-    // download type: a metadata download sets `only_get_metadata`.
+    // The format's names are `vis` and `vis_meta`; the schema's
+    // `download_type` values are `vis` and `meta`.
     let mut params = match download_type.to_lowercase().as_str() {
-        DOWNLOAD_TYPE_VIS => download_params(obs_id),
+        DOWNLOAD_TYPE_VIS => visibility_params(obs_id),
         DOWNLOAD_TYPE_META => metadata_params(obs_id),
         _ => {
             return Err(format!(
@@ -712,8 +709,8 @@ fn parse_beamformer(
     row: &mut Row,
     obs_id: ObsId,
     defaults: &CsvDefaults,
-) -> Result<DownloadJobParams, String> {
-    let mut params = download_params(obs_id);
+) -> Result<BeamformerJobParams, String> {
+    let mut params = beamformer_params(obs_id);
     apply_delivery!(row, defaults, params);
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("beamformer")?;
@@ -724,19 +721,30 @@ fn parse_voltage(
     row: &mut Row,
     obs_id: ObsId,
     defaults: &CsvDefaults,
-) -> Result<DownloadJobParams, String> {
+) -> Result<VoltageJobParams, String> {
     let offset = required(row.integer::<i64>("offset")?, "offset")?;
     let duration = required(row.integer::<u64>("duration")?, "duration")?;
     let mut params = voltage_params(obs_id, offset, duration);
-    // A voltage job is delivered to Scratch as files only, and
-    // manta-ray-client files do not give the format, so a line that gives
-    // no delivery gets Scratch and files (not the schema's defaults of a
-    // download job). The MWA ASVO refuses any other delivery.
-    params.delivery = row
-        .named::<DeliveryDestination>("delivery")?
-        .or(defaults.delivery)
-        .unwrap_or(VOLTAGE_ROW_DELIVERY);
-    params.delivery_format = VOLTAGE_ROW_DELIVERY_FORMAT;
+    // The voltage body has no delivery (see `VOLTAGE_ROW_DELIVERY`). A line
+    // may give the only one that the MWA ASVO allows; it is not sent. The
+    // `defaults` of the delivery (for example GIANT_SQUID_DELIVERY) do not
+    // apply to a voltage line.
+    if let Some(delivery) = row.named::<DeliveryDestination>("delivery")? {
+        if delivery != VOLTAGE_ROW_DELIVERY {
+            return Err(format!(
+                "delivery={delivery} is not allowed for a voltage job: the MWA ASVO always \
+                 delivers it to {VOLTAGE_ROW_DELIVERY}, as {VOLTAGE_ROW_DELIVERY_FORMAT}"
+            ));
+        }
+    }
+    if let Some(format) = row.named::<DeliveryFormat>("delivery_format")? {
+        if format != VOLTAGE_ROW_DELIVERY_FORMAT {
+            return Err(format!(
+                "delivery_format={format} is not allowed for a voltage job: the MWA ASVO always \
+                 delivers it to {VOLTAGE_ROW_DELIVERY}, as {VOLTAGE_ROW_DELIVERY_FORMAT}"
+            ));
+        }
+    }
     params.from_channel = row.integer::<u8>("from_channel")?;
     params.to_channel = row.integer::<u8>("to_channel")?;
     apply_resubmit!(row, defaults, params);
@@ -995,8 +1003,14 @@ impl AsvoClient {
             CsvJobParams::Imaging(p) => {
                 self.submit_preprocess_job(&PreprocessJobParams::Imaging(p.clone()))
             }
-            CsvJobParams::Download(p) | CsvJobParams::Voltage(p) | CsvJobParams::Beamformer(p) => {
-                self.submit_download_job(p)
+            CsvJobParams::Download(p) => {
+                self.submit_download_job(&DownloadJobParams::Visibility(p.clone()))
+            }
+            CsvJobParams::Voltage(p) => {
+                self.submit_download_job(&DownloadJobParams::Voltage(p.clone()))
+            }
+            CsvJobParams::Beamformer(p) => {
+                self.submit_download_job(&DownloadJobParams::Beamformer(p.clone()))
             }
         }
     }

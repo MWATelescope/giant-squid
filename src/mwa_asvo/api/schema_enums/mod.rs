@@ -16,8 +16,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use super::openapi::{
-    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobState, JobType,
-    OutputFormat, PhaseCentre, Polarization, SortBy, Status, Type,
+    DeliveryDestination, DeliveryFormat, DownloadType, ImageOutputMode, ImageWeighting, JobState,
+    JobType, Output, PhaseCentre, Polarization, SortBy, Status, Type,
 };
 
 /// An enum of the OpenAPI schema, with the list of all its values.
@@ -86,10 +86,20 @@ macro_rules! for_each_schema_enum {
             [Tar, Files]
         );
         $callback!(
-            OutputFormat,
-            PyOutputFormat,
-            "OutputFormat",
-            "The format of a conversion job's output. `str()` is the API value.",
+            DownloadType,
+            PyDownloadType,
+            "DownloadType",
+            "What a visibility download job downloads: the raw visibilities and\n\
+             their metadata (`Vis`), or the metadata only (`Meta`). `str()` is the\n\
+             API value.",
+            [Vis, Meta]
+        );
+        $callback!(
+            Output,
+            PyOutput,
+            "Output",
+            "The format of a conversion job's output: the OpenAPI schema's `Output`.\n\
+             `str()` is the API value.",
             [Ms, Uvfits]
         );
         $callback!(

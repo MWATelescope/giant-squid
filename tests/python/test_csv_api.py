@@ -118,8 +118,9 @@ def test_the_bodies_are_the_classes_of_the_submit_methods() -> None:
 
     assert isinstance(body(jobs["Conversion"]), gs.ConversionJobParams)
     assert isinstance(body(jobs["Imaging"]), gs.ImagingJobFlow1Params)
-    for name in ("Download", "Voltage", "Beamformer"):
-        assert isinstance(body(jobs[name]), gs.DownloadJobParams)
+    assert isinstance(body(jobs["Download"]), gs.VisibilityJobParams)
+    assert isinstance(body(jobs["Voltage"]), gs.VoltageJobParams)
+    assert isinstance(body(jobs["Beamformer"]), gs.BeamformerJobParams)
     assert body(jobs["Voltage"]).duration == 8
 
 
@@ -131,7 +132,7 @@ def test_the_keys_of_a_line_are_in_the_body() -> None:
     (job,) = gs.parse_manta_ray_csv(f"{line}\n", defaults)
     second = gs.parse_manta_ray_csv(f"obs_id={SECOND_OBS_ID}, job_type=d, download_type=vis\n", defaults)[0]
 
-    assert body(job.params).only_get_metadata is True
+    assert body(job.params).download_type == gs.DownloadType.Meta
     assert body(job.params).delivery == gs.DeliveryDestination.Dug
     assert body(second.params).delivery == gs.DeliveryDestination.Scratch
     assert body(second.params).allow_resubmit is True
@@ -155,7 +156,7 @@ def test_the_description_names_the_kind_of_job(variant: str, description: str) -
 
 
 def test_the_description_of_a_metadata_download() -> None:
-    """A download job with `only_get_metadata` is a metadata download."""
+    """A download job with the `download_type` `meta` is a metadata download."""
     (job,) = gs.parse_manta_ray_csv(f"obs_id={FIRST_OBS_ID}, job_type=d, download_type=vis_meta")
 
     assert job.params.description() == "metadata download"
@@ -190,7 +191,7 @@ def test_a_variant_can_be_matched() -> None:
 
     match job.params:
         case gs.CsvJobParams.Beamformer(params=body):
-            assert isinstance(body, gs.DownloadJobParams)
+            assert isinstance(body, gs.BeamformerJobParams)
         case _:
             pytest.fail("the variant was not matched")
 

@@ -36,10 +36,13 @@ giant-squid, the API and its documentation use the same names everywhere.
    or `wait`**, change it: see [Short flags](#short-flags).
 9. If a script expects the files of **`download`** in the download directory
    itself, change it: see [Downloading](#downloading-download).
-10. If a script runs **`submit-volt`** without `--delivery scratch
-    --delivery-format files` (or `GIANT_SQUID_DELIVERY` and
-    `GIANT_SQUID_DELIVERY_FORMAT`), add them: see
+10. If a script gives **`submit-volt`** `-d`/`--delivery` or
+    `-f`/`--delivery-format`, remove them: see
     [Other submit commands](#other-submit-commands).
+11. If a script gives **`--clean-threshold`** or **`--nwlayers`** to
+    `submit-image` or `submit-image-from-job`, use `--abs-threshold` and
+    `--wstack-nwlayers`: see
+    [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
 
 Your API key and environment variables need no change.
 
@@ -140,7 +143,12 @@ auto threshold 0.5, clean threshold 0.001, primary beam applied, output
 | Option | 2.x default | 3.0.0 default |
 |---|---|---|
 | Multiscale cleaning | on | off: give `--multiscale` to turn it on |
-| w-layers | 128 | not set, so the MWA ASVO decides: give `--wstack-nwlayers 128` for the 2.x value (`--nwlayers` also works, but the API calls it deprecated) |
+| w-layers | 128 | not set, so the MWA ASVO decides: give `--wstack-nwlayers 128` for the 2.x value |
+
+The MWA ASVO API marks `clean_threshold` and `nwlayers` as deprecated, so
+`--clean-threshold` and `--nwlayers` are gone (also as keys of a
+`submit-csv` imaging line). Use `--abs-threshold` and `--wstack-nwlayers`.
+giant-squid sends `clean_threshold` as `null`.
 
 So to image as 2.x did by default:
 
@@ -155,24 +163,21 @@ see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
 
 ## Other submit commands
 
-`submit-vis`, `submit-meta`, `submit-volt` and `submit-bf` take the same
-options as in 2.x. The default delivery format is now `tar` for every job,
+`submit-vis`, `submit-meta` and `submit-bf` take the same options as in
+2.x. The default delivery format is now `tar` for every job,
 whatever the delivery: in 2.x a Scratch or DUG delivery
 gave individual files unless you asked for `tar`. Add `--delivery-format files`
 to get the individual files. `submit-volt --offset` must now be from 0 to 5400, and a
 negative value (`--offset -1`) is rejected with that range.
 
-**`submit-volt` no longer defaults to Scratch and files.** Its defaults are
-those of every download job (`acacia` and `tar`), and the MWA ASVO refuses
-them for a voltage job. Give `--delivery scratch --delivery-format files`, or
-set `GIANT_SQUID_DELIVERY=scratch` and `GIANT_SQUID_DELIVERY_FORMAT=files`.
-giant-squid does not check this itself: the MWA ASVO finds the kind of
-download from the observation, and its error is shown as it is. The voltage
-lines of a manta-ray-client CSV file still default to Scratch and files, so
-`submit-csv` needs no change. `submit-volt` also takes `-f` for
-`--delivery-format`, as the other submit commands do. `submit-bf` sends the
-same kind of body as `submit-vis` (the MWA ASVO finds the beamformer data from
-the observation), so it has no beamformer `mode`.
+**`submit-volt` has no delivery options.** The MWA ASVO always delivers a
+voltage job to Scratch, as files, and the voltage request has no delivery, so
+`-d`/`--delivery` and `-f`/`--delivery-format` are gone from `submit-volt`
+(clap refuses them), and `GIANT_SQUID_DELIVERY` and
+`GIANT_SQUID_DELIVERY_FORMAT` do not apply to it. A voltage line of a
+manta-ray-client CSV file can still give `delivery=scratch` (and
+`delivery_format=files`), which is not sent, so `submit-csv` needs no change.
+`submit-bf` has no beamformer `mode`.
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
@@ -428,7 +433,8 @@ command where it is used for these two options:
 | `submit-volt -t N` | `submit-volt --to-channel N` |
 | `list -n`, `wait -n` | `list --no-colour`, `wait --no-colour` |
 
-`-f` is now only `--delivery-format`, and `-n` is now only `--dry-run`. The
+`-f` is now only `--delivery-format` (which `submit-volt` does not have), and
+`-n` is now only `--dry-run`. The
 other short flags did not change. `-d`, `-o` and `-r` still mean more than
 one thing, as in 2.x, so use the long names in scripts.
 

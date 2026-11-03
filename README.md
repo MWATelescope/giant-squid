@@ -189,8 +189,8 @@ each Obs ID and carries on if one fails. It ends with a summary and a non-zero e
 
 | Option | Meaning |
 |---|---|
-| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). The MWA ASVO delivers a voltage job (`submit-volt`) to `scratch` only |
-| `-f`, `--delivery-format` | `tar` (the default) or `files`. The MWA ASVO delivers a voltage job (`submit-volt`) as `files` only |
+| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). `submit-volt` does not have this option: the MWA ASVO always delivers a voltage job to `scratch` |
+| `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have this option: the MWA ASVO always delivers a voltage job as `files` |
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed (`-r` alone is true; the value can be true, false or null): see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
@@ -231,8 +231,8 @@ $ giant-squid submit-vis 1065880128 --dry-run
   "allow_resubmit": false,
   "delivery": "acacia",
   "delivery_format": "tar",
-  "obs_id": 1065880128,
-  "only_get_metadata": false
+  "download_type": "vis",
+  "obs_id": 1065880128
 }
 13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/download. Nothing was sent.
 ```
@@ -447,8 +447,6 @@ Options:
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
-      --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy), or null [default: 0.001]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -461,8 +459,6 @@ Options:
           Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
-      --nwlayers <NWLAYERS>
-          Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
           The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
@@ -518,7 +514,6 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
 | `--channels-out` | Number of output channel groups | any whole number | 4 |
 | `--clean-iterations` | Maximum number of clean iterations to perform | at most 1000000 | 100000 |
-| `--clean-threshold` | Absolute stopping clean thresholding in Jy | 0 to 10, or null | 0.001 |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
@@ -528,7 +523,6 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--mgain` | WSClean -mgain value | 0.1 to 1 | 0.8 |
 | `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag, or `true` or `false` | false |
 | `--nmiter` | WSClean -nmiter value (max major cleaning iterations) | 1 to 500 | 10 |
-| `--nwlayers` | Number of w-layers to use | 32 to 512 | none |
 | `-o`, `--output-mode` | The output mode / product to request | one of `fits`, `all_fits`, `all_files` | fits |
 | `--centre` | Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec | one of `phase`, `pointing`, `custom` | phase |
 | `--pixel-scale` | Number of arcsecs per pixel | 10 to 120 | 20 |
@@ -583,8 +577,6 @@ Options:
           Number of output channel groups [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
-      --clean-threshold <CLEAN_THRESHOLD>
-          WSClean cleaning threshold (Jy), or null [default: 0.001]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels [default: 3072]
       --join-channels[=<JOIN_CHANNELS>]
@@ -597,8 +589,6 @@ Options:
           Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
-      --nwlayers <NWLAYERS>
-          Number of w-projection layers. Leave unset to let the server decide
   -o, --output-mode <OUTPUT_MODE>
           The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
@@ -775,10 +765,6 @@ Arguments:
   [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
 
 Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -o, --offset <OFFSET>
           The offset in seconds from the start GPS time of the observation
   -u, --duration <DURATION>
@@ -806,7 +792,7 @@ Options:
 To submit a voltage download job for the Obs ID 1065880128:
 
 ```bash
-giant-squid submit-volt --delivery scratch --delivery-format files --offset 0 --duration 8 1065880128
+giant-squid submit-volt --offset 0 --duration 8 1065880128
 ```
 
 Text files containing Obs IDs may be used too.
@@ -816,14 +802,10 @@ only the receiver coarse channel range specified (inclusive). MWA receiver chann
 will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
 
 Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
-download or DUG's filesystem, as the data is generally too large. If you are in the `mwaops` or `mwavcs` Pawsey groups and you have asked an MWA ASVO admin to
-set the pawsey group in your MWA ASVO profile, you can request that the files be left on Pawsey's /scratch filesystem. To submit
-a job with the /scratch option, set the environment variables `GIANT_SQUID_DELIVERY=scratch` and
-`GIANT_SQUID_DELIVERY_FORMAT=files`, or pass `--delivery scratch --delivery-format files`.
-
-The default delivery of `submit-volt` is the same as for every other download job (`acacia` as a `tar`), and the MWA ASVO refuses
-it for a voltage job: giant-squid does not check this, because a voltage job is a download job whose kind the MWA ASVO finds
-from the observation. Always give the delivery and the format.
+download or DUG's filesystem, as the data is generally too large. The MWA ASVO always leaves the files of a voltage job on
+Pawsey's /scratch filesystem, so `submit-volt` has no `--delivery` or `--delivery-format` option, and it does not use
+`GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT`. You must be in the `mwaops` or `mwavcs` Pawsey groups, and an MWA ASVO
+admin must set the pawsey group in your MWA ASVO profile.
 
 #### Jobs from a manta-ray-client CSV file
 
@@ -854,8 +836,8 @@ as in the manta-ray-client README (and the other fields of the request body of t
 | `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `no_apply_amps`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
 | `b` | `delivery`, `delivery_format`, `allow_resubmit` |
-| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `delivery`, `allow_resubmit` |
-| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `clean_threshold`, `abs_threshold`, `auto_threshold`, `nwlayers`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
+| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `allow_resubmit`, and `delivery` and `delivery_format` only as `scratch` and `files` (they are not sent: a voltage job has no delivery) |
+| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
 
@@ -865,7 +847,7 @@ How `submit-csv` works:
   other submit commands.
 - A key that a line does not give has the default of the MWA ASVO. Only `delivery` and `delivery_format` differ:
   if `GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT` is set, it is the default of the lines that do not
-  give that key. A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
+  give that key (except a voltage line, which has no delivery). A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
   not give it.
 - A submission that fails does not stop the others. Each failure is reported with its line number (with `--json`,
   in the key `line` of its error line), and the command ends with a summary and a non-zero exit code. `--wait`, `--json` and `--dry-run` work as for the other submit
@@ -874,6 +856,8 @@ How `submit-csv` works:
 It differs from manta-ray-client where that client sends a mistake to the server without a word:
 
 - A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen).
+  `clean_threshold` and `nwlayers`, which the MWA ASVO API marks as deprecated, are not keys of an imaging line: use
+  `abs_threshold` and `wstack_nwlayers`.
 - A key that a line gives twice, and a line that makes the same job as an earlier line, are warnings. As in
   manta-ray-client, the last value of a key is used.
 - A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.
@@ -1489,7 +1473,7 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
+use mwa_giant_squid::mwa_asvo::api::job_params::visibility_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
@@ -1514,11 +1498,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{} {} {}", job.job_id(), job.obs_id(), job.job_state);
     }
 
-    // Submit a download job (here for visibilities: the MWA ASVO finds the
-    // kind of download from the observation). `download_params` has the
-    // MWA ASVO API's own defaults for every other field.
-    let params = download_params(ObsId::validate(1090008640)?);
-    let resp = client.submit_download_job(&params)?;
+    // Submit a visibility download job. `visibility_params` has the MWA
+    // ASVO API's own defaults for every other field. The download endpoint
+    // takes a `DownloadJobParams`: a visibility, voltage or beamformer body.
+    let params = visibility_params(ObsId::validate(1090008640)?);
+    let resp = client.submit_download_job(&params.into())?;
     let job_id = resp.job_id;
 
     // Wait for it: the library checks once, the caller loops and sleeps.
@@ -1610,8 +1594,8 @@ reads no environment variables (see
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
-| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
-| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used for a voltage job, which has no delivery. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used for a voltage job, which has no delivery. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |

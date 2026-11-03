@@ -141,9 +141,10 @@ mod module {
     use super::filter::PyJobsFilter;
     #[pymodule_export]
     use super::job_params::{
-        conversion_params, download_params, image_from_job_params, imaging_params, metadata_params,
-        voltage_params, PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
-        PyImagingJobFlow2Params, PyPreprocessJobParams,
+        beamformer_params, conversion_params, image_from_job_params, imaging_params,
+        metadata_params, visibility_params, voltage_params, PyBeamformerJobParams,
+        PyConversionJobParams, PyDownloadJobParams, PyImagingJobFlow1Params,
+        PyImagingJobFlow2Params, PyPreprocessJobParams, PyVisibilityJobParams, PyVoltageJobParams,
     };
     #[pymodule_export]
     use super::obs_id::PyObsId;
@@ -155,9 +156,9 @@ mod module {
     #[pymodule_export]
     use super::types::{
         PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress,
-        PyImageOutputMode, PyImageWeighting, PyJobCancelledResponse, PyJobDetailResponse,
-        PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse, PyJobType, PyOutputFormat,
-        PyPhaseCentre, PyPolarization, PySortBy, PyStatus, PyType,
+        PyDownloadType, PyImageOutputMode, PyImageWeighting, PyJobCancelledResponse,
+        PyJobDetailResponse, PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse,
+        PyJobType, PyOutput, PyPhaseCentre, PyPolarization, PySortBy, PyStatus, PyType,
     };
 
     /// Make Python see changes to its logging configuration.

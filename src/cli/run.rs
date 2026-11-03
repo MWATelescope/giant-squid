@@ -25,15 +25,15 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::mwa_asvo::api::job_params::PreprocessJobParams;
+use crate::mwa_asvo::api::job_params::{DownloadJobParams, PreprocessJobParams};
 use crate::mwa_asvo::api::openapi::{
     ImagingJobFlow2Params, JobSubmittedResponse, Status, Type as FileType,
 };
-use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
+use crate::mwa_asvo::api::validate::validate_image_from_job_params;
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
     DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
-    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
+    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -442,7 +442,7 @@ fn run_submit_image_from_job(
         if submit.json {
             return print_json_line(
                 &DryRunImageFromJob {
-                    endpoint: ENDPOINT_PREPROCESS_JOB,
+                    endpoint: ENDPOINT_IMAGE_FROM_JOB,
                     params,
                 },
                 true,
@@ -450,7 +450,7 @@ fn run_submit_image_from_job(
         }
         let body = serde_json::to_string_pretty(params)?;
         info!(
-            "[dry run] Would POST {ENDPOINT_PREPROCESS_JOB} for an image of Job ID {}:\n{body}",
+            "[dry run] Would POST {ENDPOINT_IMAGE_FROM_JOB} for an image of Job ID {}:\n{body}",
             params.source_job_id
         );
         info!("[dry run] Nothing was sent.");
@@ -458,7 +458,7 @@ fn run_submit_image_from_job(
     }
 
     let client = connect()?;
-    let resp = client.submit_preprocess_job(&PreprocessJobParams::from(params.clone()))?;
+    let resp = client.submit_image_from_job(params)?;
     print_json_line(&StatusFirst(&resp), submit.json)?;
     let job_id = resp.job_id;
     info!(
@@ -1123,8 +1123,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "visibility download"),
-                |obs_id| download.to_vis_params(obs_id),
-                validate_download_params,
+                |obs_id| DownloadJobParams::from(download.to_vis_params(obs_id)),
+                DownloadJobParams::validate,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1173,8 +1173,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "metadata download"),
-                |obs_id| download.to_meta_params(obs_id),
-                validate_download_params,
+                |obs_id| DownloadJobParams::from(download.to_meta_params(obs_id)),
+                DownloadJobParams::validate,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1188,8 +1188,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "voltage download"),
-                |obs_id| volt.to_params(obs_id),
-                validate_download_params,
+                |obs_id| DownloadJobParams::from(volt.to_params(obs_id)),
+                DownloadJobParams::validate,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1203,8 +1203,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "beamformer download"),
-                |obs_id| bf.to_params(obs_id),
-                validate_download_params,
+                |obs_id| DownloadJobParams::from(bf.to_params(obs_id)),
+                DownloadJobParams::validate,
                 AsvoClient::submit_download_job,
             )?;
         }

@@ -230,7 +230,7 @@ uv run pytest
 | `test_job_types.py` | `JobDetailResponse` and `AsvoJob.detail`, `JobFile.size_bytes`, `AsvoJobVec.json`, and `names` and `parse_name` of `JobType` and `JobState` |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
 | `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
-| `test_params.py` | The request-body classes: the checked Obs ID and source Job ID, `validate()`, the helper functions (`download_params` and so on), and `PreprocessJobParams` |
+| `test_params.py` | The request-body classes: the checked Obs ID and source Job ID, `validate()`, the helper functions (`visibility_params` and so on), and `DownloadJobParams` and `PreprocessJobParams` |
 | `test_null.py` | `None` is sent as `null`, and a default argument is the schema's default |
 | `test_rules.py` | The two rules of the MWA ASVO that the module refuses before a request: `days` with a date, and Acacia with `files` |
 | `test_signatures.py` | The run-time signature of each request body class has the schema's defaults |

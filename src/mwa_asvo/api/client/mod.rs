@@ -33,13 +33,13 @@ use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
-use super::job_params::PreprocessJobParams;
+use super::job_params::{DownloadJobParams, PreprocessJobParams};
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, JobCancelledResponse,
+    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobFlow2Params, JobCancelledResponse,
     JobDetailResponse, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy,
     TokenResponse, UserResponse,
 };
-use super::validate::{self, validate_download_params};
+use super::validate::{self, validate_image_from_job_params};
 
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
@@ -88,11 +88,17 @@ const ENDPOINT_LIST_JOBS: &str = api_path!("/v2/jobs/list");
 // endpoint that a `--dry-run` submission or cancellation would go to,
 // without a copy of the path.
 pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
-// The two endpoints that create a job: one for the download jobs
-// (visibility, metadata, voltage and beamformer) and one for the
-// preprocessing jobs (conversion, imaging, imaging from a job).
+// The three endpoints that create a job: one for the download jobs
+// (visibility, metadata, voltage and beamformer), one for the
+// preprocessing jobs (conversion, imaging from an Obs ID) and one for an
+// imaging job from a conversion job.
 pub const ENDPOINT_DOWNLOAD_JOB: &str = api_path!("/v2/jobs/download");
 pub const ENDPOINT_PREPROCESS_JOB: &str = api_path!("/v2/jobs/preprocess");
+pub const ENDPOINT_IMAGE_FROM_JOB: &str = api_path!("/v2/jobs/image_from_job");
+
+/// The HTTP status of the job list's reply when no job matches the filter
+/// that the request sends. It is not an error: the list is empty.
+const NO_JOBS_STATUS: reqwest::StatusCode = reqwest::StatusCode::NOT_FOUND;
 
 /// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
 ///
@@ -798,11 +804,22 @@ impl AsvoClient {
 
             // The job list is a POST to /api/v2/jobs/list.
             let host = &self.config.host;
-            let body = self.send_authed(|client| {
+            let body = match self.send_authed(|client| {
                 client
                     .post(format!("{host}{ENDPOINT_LIST_JOBS}"))
                     .json(&request)
-            })?;
+            }) {
+                Ok(body) => body,
+                // The MWA ASVO's structured reply for "no job matches the
+                // filter" (see `NO_JOBS_STATUS`): there are no more jobs.
+                // Any other 404 (one that is not an `ErrorResponse`, for
+                // example from a wrong host) is still an error.
+                Err(AsvoApiError::ApiError { status, .. }) if status == NO_JOBS_STATUS.as_u16() => {
+                    debug!("No job matches the filter (HTTP {status})");
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
             // Not parsed as `JobsByUserResponse` at once: since schema
             // v1.11 its `jobs` are typed, and `normalize_job_value` must
             // patch two server quirks into each job first. The page shape
@@ -887,28 +904,28 @@ impl AsvoClient {
     }
 
     /// Submit a download job: a visibility, metadata, voltage or beamformer
-    /// job. The MWA ASVO finds the kind of download from the observation
-    /// (and `only_get_metadata`). Like the other submit endpoint, a success
-    /// returns a `JobSubmittedResponse` carrying the new job's ID.
+    /// job. Like the other submit endpoints, a success returns a
+    /// `JobSubmittedResponse` carrying the new job's ID.
     ///
-    /// The delivery and its format, and the `offset` limits, are checked
-    /// first ([`validate_download_params`]); nothing is sent if one is
+    /// The body is checked against the schema's limits first
+    /// ([`DownloadJobParams::validate`]); nothing is sent if a value is
     /// wrong, and the error is [`AsvoApiError::InvalidParameter`]. The
-    /// request body does not say which kind of download it is, so the
-    /// rules of each kind (for example, those of a voltage job) are the MWA
-    /// ASVO's: it refuses a body that does not suit its observation.
+    /// rules of each kind of job (for example, that the observation has
+    /// voltages) are the MWA ASVO's: it refuses a body that does not suit
+    /// its observation.
     pub fn submit_download_job(
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        validate_download_params(params)?;
+        params.validate()?;
         debug!("Submitting a download job to MWA ASVO");
 
         self.submit(ENDPOINT_DOWNLOAD_JOB, params)
     }
 
-    /// Submit a preprocessing job: a conversion job, an imaging job from an
-    /// Obs ID (flow 1) or an imaging job from a conversion job (flow 2).
+    /// Submit a preprocessing job: a conversion job or an imaging job from
+    /// an Obs ID (flow 1). An imaging job from a conversion job (flow 2) is
+    /// [`Self::submit_image_from_job`].
     ///
     /// The body is checked against the schema's limits first
     /// ([`PreprocessJobParams::validate`]); nothing is sent if a value is
@@ -921,6 +938,22 @@ impl AsvoClient {
         debug!("Submitting a preprocess job to MWA ASVO");
 
         self.submit(ENDPOINT_PREPROCESS_JOB, params)
+    }
+
+    /// Submit an imaging job from a conversion job (flow 2): an image of
+    /// the conversion job `params.source_job_id`.
+    ///
+    /// The body is checked against the schema's limits first
+    /// ([`validate_image_from_job_params`]); nothing is sent if a value is
+    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
+    pub fn submit_image_from_job(
+        &self,
+        params: &ImagingJobFlow2Params,
+    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+        validate_image_from_job_params(params)?;
+        debug!("Submitting an image from job to MWA ASVO");
+
+        self.submit(ENDPOINT_IMAGE_FROM_JOB, params)
     }
 
     /// POST the job submission `params` to `endpoint`, and parse the reply.

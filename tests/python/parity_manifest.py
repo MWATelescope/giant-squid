@@ -17,7 +17,7 @@ The status of an entry:
     Not decided yet. ``note`` says what the question is.
 
 A Rust path is ``crate::Name`` for an item that ``src/lib.rs`` re-exports at the crate root, ``crate::Type::member``
-for a member of such an item, and the module path (``mwa_asvo::api::job_params::download_params``) for any other item.
+for a member of such an item, and the module path (``mwa_asvo::api::job_params::visibility_params``) for any other item.
 """
 
 from dataclasses import dataclass
@@ -187,10 +187,11 @@ ENV_CONSTANTS = [
 ]
 
 SCHEMA_TYPES = [
+    "BeamformerJobParams",
     "ConversionJobParams",
     "DeliveryDestination",
     "DeliveryFormat",
-    "DownloadJobParams",
+    "DownloadType",
     "ImageOutputMode",
     "ImageWeighting",
     "ImagingJobFlow1Params",
@@ -201,12 +202,14 @@ SCHEMA_TYPES = [
     "JobState",
     "JobSubmittedResponse",
     "JobType",
-    "OutputFormat",
+    "Output",
     "PhaseCentre",
     "Polarization",
     "SortBy",
     "Status",
     "Type",
+    "VisibilityJobParams",
+    "VoltageJobParams",
 ]
 
 ASVO_JOB_MEMBERS = [
@@ -243,6 +246,7 @@ MANIFEST: list[Entry] = [
     done("crate::AsvoClient::get_jobs", "AsvoClient.get_jobs"),
     done("crate::AsvoClient::submit_download_job", "AsvoClient.submit_download_job"),
     done("crate::AsvoClient::submit_preprocess_job", "AsvoClient.submit_preprocess_job"),
+    done("crate::AsvoClient::submit_image_from_job", "AsvoClient.submit_image_from_job"),
     done("crate::AsvoClient::submit_csv_file", "AsvoClient.submit_csv_file"),
     done("crate::AsvoClient::cancel_job", "AsvoClient.cancel_job"),
     done("crate::AsvoClient::download_job", "AsvoClient.download_job"),
@@ -263,6 +267,7 @@ MANIFEST: list[Entry] = [
     excluded("crate::ENDPOINT_JOBS", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_DOWNLOAD_JOB", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_PREPROCESS_JOB", "An internal detail of the HTTP client."),
+    excluded("crate::ENDPOINT_IMAGE_FROM_JOB", "An internal detail of the HTTP client."),
     done("crate::DEFAULT_ASVO_HOST", "DEFAULT_ASVO_HOST"),
     done("crate::DEFAULT_API_TIMEOUT", "DEFAULT_API_TIMEOUT"),  # Seconds, as a float (a Rust `Duration`).
     # --- Downloads ---
@@ -304,15 +309,20 @@ MANIFEST: list[Entry] = [
     # --- The schema types, which the Python module already has ---
     *[done(f"mwa_asvo::api::openapi::{name}", name) for name in SCHEMA_TYPES],
     # --- Request bodies ---
+    done("mwa_asvo::api::job_params::DownloadJobParams", "DownloadJobParams"),
+    done("mwa_asvo::api::job_params::DownloadJobParams::validate", "DownloadJobParams.validate"),
     done("mwa_asvo::api::job_params::PreprocessJobParams", "PreprocessJobParams"),
     done("mwa_asvo::api::job_params::PreprocessJobParams::validate", "PreprocessJobParams.validate"),
-    done("mwa_asvo::api::job_params::download_params", "download_params"),
+    done("mwa_asvo::api::job_params::visibility_params", "visibility_params"),
     done("mwa_asvo::api::job_params::metadata_params", "metadata_params"),
     done("mwa_asvo::api::job_params::voltage_params", "voltage_params"),
+    done("mwa_asvo::api::job_params::beamformer_params", "beamformer_params"),
     done("mwa_asvo::api::job_params::conversion_params", "conversion_params"),
     done("mwa_asvo::api::job_params::imaging_params", "imaging_params"),
     done("mwa_asvo::api::job_params::image_from_job_params", "image_from_job_params"),
-    done("mwa_asvo::api::validate::validate_download_params", "DownloadJobParams.validate"),
+    done("mwa_asvo::api::validate::validate_visibility_params", "VisibilityJobParams.validate"),
+    done("mwa_asvo::api::validate::validate_voltage_params", "VoltageJobParams.validate"),
+    done("mwa_asvo::api::validate::validate_beamformer_params", "BeamformerJobParams.validate"),
     done("mwa_asvo::api::validate::validate_conversion_params", "ConversionJobParams.validate"),
     done("mwa_asvo::api::validate::validate_imaging_params", "ImagingJobFlow1Params.validate"),
     done("mwa_asvo::api::validate::validate_image_from_job_params", "ImagingJobFlow2Params.validate"),

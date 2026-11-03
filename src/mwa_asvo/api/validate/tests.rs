@@ -21,12 +21,18 @@ const SCHEMA: &str = include_str!("../openapi-schema.json");
 const CONVERSION: &str = "ConversionJobParams";
 const FLOW1: &str = "ImagingJobFlow1Params";
 const FLOW2: &str = "ImagingJobFlow2Params";
-/// The download body, which voltage jobs use too.
-const DOWNLOAD: &str = "DownloadJobParams";
+/// The download bodies.
+const VISIBILITY: &str = "VisibilityJobParams";
+const VOLTAGE: &str = "VoltageJobParams";
+const BEAMFORMER: &str = "BeamformerJobParams";
 
 /// Every job request body in the schema. The completeness test looks for
 /// limits in all of them, so a limit added to any body is noticed.
-const JOB_BODIES: [&str; 4] = [DOWNLOAD, CONVERSION, FLOW1, FLOW2];
+const JOB_BODIES: [&str; 6] = [VISIBILITY, VOLTAGE, BEAMFORMER, CONVERSION, FLOW1, FLOW2];
+
+/// The job request bodies that have an `obs_id`. The image-from-job body
+/// (flow 2) has none: the MWA ASVO takes it from the source job.
+const OBS_ID_BODIES: [&str; 5] = [VISIBILITY, VOLTAGE, BEAMFORMER, CONVERSION, FLOW1];
 
 /// The limits of the fields both imaging request bodies have.
 const SHARED_LIMITS: [(&str, Bounds); 13] = [
@@ -55,21 +61,22 @@ const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("flag_edge_width", FLAG_EDGE_WIDTH),
 ];
 
-/// The limits of the download body that this module checks.
-const DOWNLOAD_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
+/// The limits of the voltage body that this module checks.
+const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
 
 /// Schema limits that the Rust type enforces, so this module has no check
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
-const TYPE_ENFORCED: [(&str, &str, &str); 8] = [
-    (DOWNLOAD, "obs_id", "ObsId::validate is stricter"),
+const TYPE_ENFORCED: [(&str, &str, &str); 9] = [
+    (VISIBILITY, "obs_id", "ObsId::validate is stricter"),
+    (VOLTAGE, "obs_id", "ObsId::validate is stricter"),
+    (BEAMFORMER, "obs_id", "ObsId::validate is stricter"),
     (CONVERSION, "obs_id", "ObsId::validate is stricter"),
     (FLOW1, "obs_id", "ObsId::validate is stricter"),
-    (FLOW2, "obs_id", "ObsId::validate is stricter"),
     (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
-    (DOWNLOAD, "duration", "u64 has minimum 0"),
-    (DOWNLOAD, "from_channel", "u8 has the range 0 to 255"),
-    (DOWNLOAD, "to_channel", "u8 has the range 0 to 255"),
+    (VOLTAGE, "duration", "u64 has minimum 0"),
+    (VOLTAGE, "from_channel", "u8 has the range 0 to 255"),
+    (VOLTAGE, "to_channel", "u8 has the range 0 to 255"),
 ];
 
 /// The fields whose values are integers in the request body.
@@ -100,19 +107,18 @@ fn conversion_defaults() -> ConversionJobParams {
         .expect("defaults build")
 }
 
-/// A voltage job: a download body with an offset and a duration.
-fn voltage_defaults() -> DownloadJobParams {
-    DownloadJobParams::builder()
+/// A voltage job, with an offset and a duration.
+fn voltage_defaults() -> VoltageJobParams {
+    VoltageJobParams::builder()
         .obs_id(1_065_880_128_i64)
-        .offset(Some(0_i64))
-        .duration(Some(8_u64))
+        .offset(0_i64)
+        .duration(8_u64)
         .try_into()
         .expect("defaults build")
 }
 
 fn flow2_defaults() -> ImagingJobFlow2Params {
     ImagingJobFlow2Params::builder()
-        .obs_id(1_065_880_128_i64)
         .source_job_id(NonZeroU64::new(1).unwrap())
         .try_into()
         .expect("defaults build")
@@ -206,7 +212,7 @@ fn the_schema_defaults_are_within_the_limits() {
     validate_imaging_params(&flow1_defaults()).expect("flow 1 defaults are valid");
     validate_image_from_job_params(&flow2_defaults()).expect("flow 2 defaults are valid");
     validate_conversion_params(&conversion_defaults()).expect("conversion defaults are valid");
-    validate_download_params(&voltage_defaults()).expect("voltage defaults are valid");
+    validate_voltage_params(&voltage_defaults()).expect("voltage defaults are valid");
 }
 
 /// Check both ends of each of `limits` with `validate`, starting from
@@ -266,11 +272,11 @@ fn every_limit_is_enforced_on_both_ends_for_the_conversion_body() {
 }
 
 #[test]
-fn every_limit_is_enforced_on_both_ends_for_the_download_body() {
+fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
     assert_limits_enforced(
         &voltage_defaults(),
-        &DOWNLOAD_LIMITS,
-        validate_download_params,
+        &VOLTAGE_LIMITS,
+        validate_voltage_params,
     );
 }
 
@@ -445,7 +451,7 @@ fn limit_tables() -> Vec<(&'static str, &'static [(&'static str, Bounds)])> {
         (FLOW2, &SHARED_LIMITS),
         (FLOW1, &CONVERSION_LIMITS),
         (CONVERSION, &CONVERSION_LIMITS),
-        (DOWNLOAD, &DOWNLOAD_LIMITS),
+        (VOLTAGE, &VOLTAGE_LIMITS),
     ]
 }
 
@@ -498,7 +504,7 @@ fn every_schema_limit_on_a_job_body_is_checked() {
 
 #[test]
 fn the_type_enforced_limits_are_still_the_schema_limits() {
-    for body in JOB_BODIES {
+    for body in OBS_ID_BODIES {
         let obs_id_min = schema_limit(&schema_properties(body)["obs_id"], "minimum")
             .unwrap_or_else(|| panic!("{body}.obs_id has no minimum"));
         assert!(
@@ -506,7 +512,7 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
             "{body}.obs_id: the schema minimum is above what Obsid accepts"
         );
     }
-    let voltage = schema_properties(DOWNLOAD);
+    let voltage = schema_properties(VOLTAGE);
     assert_eq!(schema_limit(&voltage["duration"], "minimum"), Some(0.0));
     assert_eq!(schema_limit(&voltage["duration"], "maximum"), None);
     for channel in ["from_channel", "to_channel"] {
@@ -617,23 +623,30 @@ fn only_acacia_delivery_with_files_is_refused() {
 /// Every request body that has a delivery and a format is checked.
 #[test]
 fn every_body_with_a_delivery_is_checked() {
-    use crate::mwa_asvo::api::openapi::{DeliveryFormat, DownloadJobParams};
+    use crate::mwa_asvo::api::openapi::DeliveryFormat;
 
-    let mut download: DownloadJobParams = DownloadJobParams::builder()
+    let mut visibility: VisibilityJobParams = VisibilityJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build");
+    let mut beamformer: BeamformerJobParams = BeamformerJobParams::builder()
         .obs_id(1_065_880_128_i64)
         .try_into()
         .expect("defaults build");
     let mut conversion = conversion_defaults();
     let mut flow1 = flow1_defaults();
     let mut flow2 = flow2_defaults();
-    validate_download_params(&download).expect("the defaults are valid");
+    validate_visibility_params(&visibility).expect("the defaults are valid");
+    validate_beamformer_params(&beamformer).expect("the defaults are valid");
 
-    download.delivery_format = DeliveryFormat::Files;
+    visibility.delivery_format = DeliveryFormat::Files;
+    beamformer.delivery_format = DeliveryFormat::Files;
     conversion.delivery_format = DeliveryFormat::Files;
     flow1.delivery_format = DeliveryFormat::Files;
     flow2.delivery_format = DeliveryFormat::Files;
     for result in [
-        validate_download_params(&download),
+        validate_visibility_params(&visibility),
+        validate_beamformer_params(&beamformer),
         validate_conversion_params(&conversion),
         validate_imaging_params(&flow1),
         validate_image_from_job_params(&flow2),

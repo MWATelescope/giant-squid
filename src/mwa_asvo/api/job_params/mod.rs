@@ -30,10 +30,12 @@ use serde::Serialize;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    ConversionJobParams, DownloadJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
+    BeamformerJobParams, ConversionJobParams, DownloadType, ImagingJobFlow1Params,
+    ImagingJobFlow2Params, VisibilityJobParams, VoltageJobParams,
 };
 use super::validate::{
-    validate_conversion_params, validate_image_from_job_params, validate_imaging_params,
+    validate_beamformer_params, validate_conversion_params, validate_imaging_params,
+    validate_visibility_params, validate_voltage_params,
 };
 use crate::obs_id::ObsId;
 
@@ -48,52 +50,87 @@ macro_rules! schema_defaults {
     };
 }
 
-/// A [`DownloadJobParams`] at the schema's defaults. `obs_id` is required
+/// A [`VisibilityJobParams`] at the schema's defaults. `obs_id` is required
 /// by the schema, so it is a placeholder (0), not a valid Obs ID: it is for
-/// code that needs only the defaults. [`download_params`] sets it.
-pub(crate) fn download_defaults() -> DownloadJobParams {
-    schema_defaults!(DownloadJobParams { obs_id: 0_i64 })
+/// code that needs only the defaults. [`visibility_params`] sets it.
+pub(crate) fn visibility_defaults() -> VisibilityJobParams {
+    schema_defaults!(VisibilityJobParams { obs_id: 0_i64 })
+}
+
+/// A [`VoltageJobParams`] at the schema's defaults. `obs_id`, `offset` and
+/// `duration` are required by the schema, so they are placeholders (0); see
+/// [`visibility_defaults`].
+pub(crate) fn voltage_defaults() -> VoltageJobParams {
+    schema_defaults!(VoltageJobParams {
+        obs_id: 0_i64,
+        offset: 0_i64,
+        duration: 0_u64,
+    })
+}
+
+/// A [`BeamformerJobParams`] at the schema's defaults. `obs_id` is a
+/// placeholder (0); see [`visibility_defaults`].
+pub(crate) fn beamformer_defaults() -> BeamformerJobParams {
+    schema_defaults!(BeamformerJobParams { obs_id: 0_i64 })
 }
 
 /// A [`ConversionJobParams`] at the schema's defaults. `obs_id` is a
-/// placeholder (0); see [`download_defaults`].
+/// placeholder (0); see [`visibility_defaults`].
 pub(crate) fn conversion_defaults() -> ConversionJobParams {
     schema_defaults!(ConversionJobParams { obs_id: 0_i64 })
 }
 
 /// An [`ImagingJobFlow1Params`] at the schema's defaults. `obs_id` is a
-/// placeholder (0); see [`download_defaults`].
+/// placeholder (0); see [`visibility_defaults`].
 pub(crate) fn imaging_defaults() -> ImagingJobFlow1Params {
     schema_defaults!(ImagingJobFlow1Params { obs_id: 0_i64 })
 }
 
 /// An [`ImagingJobFlow2Params`] at the schema's defaults. `source_job_id` is
-/// a placeholder (1); see [`download_defaults`]. `obs_id` is `None`: the
-/// schema allows it to be `null`, and the MWA ASVO takes the Obs ID from the
-/// source job.
+/// a placeholder (1); see [`visibility_defaults`].
 pub(crate) fn image_from_job_defaults() -> ImagingJobFlow2Params {
     schema_defaults!(ImagingJobFlow2Params {
         source_job_id: NonZeroU64::MIN,
     })
 }
 
-/// The request body of a visibility or beamformer download job for
-/// `obs_id`. The MWA ASVO finds the kind of download from the observation.
-/// The voltage fields (`offset`, `duration`, `from_channel`, `to_channel`)
-/// are `None`.
-pub fn download_params(obs_id: ObsId) -> DownloadJobParams {
-    DownloadJobParams {
+/// The request body of a raw visibility download job for `obs_id`
+/// (`download_type` is `vis`).
+pub fn visibility_params(obs_id: ObsId) -> VisibilityJobParams {
+    VisibilityJobParams {
         obs_id: i64::from(obs_id),
-        ..download_defaults()
+        download_type: DownloadType::Vis,
+        ..visibility_defaults()
     }
 }
 
-/// The request body of a metadata download job for `obs_id`: a download job
-/// with `only_get_metadata` set.
-pub fn metadata_params(obs_id: ObsId) -> DownloadJobParams {
-    DownloadJobParams {
-        only_get_metadata: true,
-        ..download_params(obs_id)
+/// The request body of a metadata download job for `obs_id`: a visibility
+/// download body whose `download_type` is `meta`.
+pub fn metadata_params(obs_id: ObsId) -> VisibilityJobParams {
+    VisibilityJobParams {
+        download_type: DownloadType::Meta,
+        ..visibility_params(obs_id)
+    }
+}
+
+/// The request body of a voltage download job for `obs_id`, from `offset`
+/// seconds after the start of the observation, for `duration` seconds. The
+/// body has no delivery: the MWA ASVO always delivers a voltage job to
+/// Scratch, as files.
+pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> VoltageJobParams {
+    VoltageJobParams {
+        obs_id: i64::from(obs_id),
+        offset,
+        duration,
+        ..voltage_defaults()
+    }
+}
+
+/// The request body of a beamformer download job for `obs_id`.
+pub fn beamformer_params(obs_id: ObsId) -> BeamformerJobParams {
+    BeamformerJobParams {
+        obs_id: i64::from(obs_id),
+        ..beamformer_defaults()
     }
 }
 
@@ -106,33 +143,79 @@ pub fn conversion_params(obs_id: ObsId) -> ConversionJobParams {
 }
 
 /// The request body of an imaging job (flow 1: from an Obs ID) for `obs_id`.
+///
+/// `clean_threshold` is `None` (sent as `null`), not the schema's default:
+/// the schema marks it as deprecated (use `abs_threshold`), so the library
+/// does not send a value for it.
 pub fn imaging_params(obs_id: ObsId) -> ImagingJobFlow1Params {
     ImagingJobFlow1Params {
         obs_id: i64::from(obs_id),
+        clean_threshold: None,
         ..imaging_defaults()
     }
 }
 
 /// The request body of an imaging job (flow 2) for an image of the
-/// conversion job `source_job_id`. `obs_id` is `None`, which leaves it out of
-/// the body (the same as `null`): the MWA ASVO takes it from the source job.
+/// conversion job `source_job_id`. The MWA ASVO takes the Obs ID from the
+/// source job.
+///
+/// `clean_threshold` is `None` (sent as `null`); see [`imaging_params`].
 pub fn image_from_job_params(source_job_id: NonZeroU64) -> ImagingJobFlow2Params {
     ImagingJobFlow2Params {
         source_job_id,
+        clean_threshold: None,
         ..image_from_job_defaults()
     }
 }
 
-/// The request body of a voltage download job for `obs_id`, from `offset`
-/// seconds after the start of the observation, for `duration` seconds. The
-/// other fields are at the schema's defaults, which are those of every
-/// download job. The MWA ASVO refuses a voltage job whose delivery it does
-/// not allow (it is delivered to Scratch as files).
-pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> DownloadJobParams {
-    DownloadJobParams {
-        offset: Some(offset),
-        duration: Some(duration),
-        ..download_params(obs_id)
+/// The request body of a download job: one of the schema types that the
+/// download endpoint takes. The body has no field that names its type: the
+/// MWA ASVO tells them apart by their fields (only a voltage body has
+/// `offset` and `duration`, and only a visibility body has
+/// `download_type`), so the body is serialised as the type it holds.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum DownloadJobParams {
+    /// A beamformer download job.
+    Beamformer(BeamformerJobParams),
+    /// A visibility or metadata download job.
+    Visibility(VisibilityJobParams),
+    /// A voltage download job.
+    Voltage(VoltageJobParams),
+}
+
+impl DownloadJobParams {
+    /// Check the body against the limits of the schema, with the
+    /// `validate_*_params` function of its type.
+    ///
+    /// # Errors
+    ///
+    /// [`AsvoApiError::InvalidParameter`] for the first value that is not
+    /// allowed.
+    pub fn validate(&self) -> Result<(), AsvoApiError> {
+        match self {
+            Self::Beamformer(p) => validate_beamformer_params(p),
+            Self::Visibility(p) => validate_visibility_params(p),
+            Self::Voltage(p) => validate_voltage_params(p),
+        }
+    }
+}
+
+impl From<BeamformerJobParams> for DownloadJobParams {
+    fn from(params: BeamformerJobParams) -> Self {
+        Self::Beamformer(params)
+    }
+}
+
+impl From<VisibilityJobParams> for DownloadJobParams {
+    fn from(params: VisibilityJobParams) -> Self {
+        Self::Visibility(params)
+    }
+}
+
+impl From<VoltageJobParams> for DownloadJobParams {
+    fn from(params: VoltageJobParams) -> Self {
+        Self::Voltage(params)
     }
 }
 
@@ -140,7 +223,8 @@ pub fn voltage_params(obs_id: ObsId, offset: i64, duration: u64) -> DownloadJobP
 /// the preprocess endpoint takes. The body has no field that names its
 /// type: the MWA ASVO tells them apart by their fields (for example, only
 /// an imaging body has the imaging fields), so the body is serialised as
-/// the type it holds.
+/// the type it holds. An imaging job from a conversion job (flow 2) has its
+/// own endpoint ([`super::client::AsvoClient::submit_image_from_job`]).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum PreprocessJobParams {
@@ -148,8 +232,6 @@ pub enum PreprocessJobParams {
     Conversion(Box<ConversionJobParams>),
     /// An imaging job from an Obs ID (flow 1).
     Imaging(Box<ImagingJobFlow1Params>),
-    /// An imaging job from a conversion job (flow 2).
-    ImageFromJob(Box<ImagingJobFlow2Params>),
 }
 
 impl PreprocessJobParams {
@@ -164,7 +246,6 @@ impl PreprocessJobParams {
         match self {
             Self::Conversion(p) => validate_conversion_params(p),
             Self::Imaging(p) => validate_imaging_params(p),
-            Self::ImageFromJob(p) => validate_image_from_job_params(p),
         }
     }
 }
@@ -178,12 +259,6 @@ impl From<ConversionJobParams> for PreprocessJobParams {
 impl From<ImagingJobFlow1Params> for PreprocessJobParams {
     fn from(params: ImagingJobFlow1Params) -> Self {
         Self::Imaging(Box::new(params))
-    }
-}
-
-impl From<ImagingJobFlow2Params> for PreprocessJobParams {
-    fn from(params: ImagingJobFlow2Params) -> Self {
-        Self::ImageFromJob(Box::new(params))
     }
 }
 

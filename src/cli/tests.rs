@@ -20,7 +20,8 @@ use super::params::{
 };
 use super::Args;
 use crate::mwa_asvo::api::job_params::{
-    conversion_defaults, download_defaults, image_from_job_defaults, imaging_defaults,
+    beamformer_defaults, conversion_defaults, image_from_job_defaults, imaging_defaults,
+    visibility_defaults,
 };
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::parse_many_job_ids_or_obs_ids;
@@ -228,10 +229,10 @@ fn a_job_id_is_distinguished_from_an_obs_id() {
 #[test]
 fn submit_vis_defaults_come_from_the_schema() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
+    assert_eq!(args.delivery_args.delivery, visibility_defaults().delivery);
     assert_eq!(
         args.delivery_args.delivery_format,
-        download_defaults().delivery_format
+        visibility_defaults().delivery_format
     );
     assert_eq!(args.resubmit.allow_resubmit, Nullable(Some(false)));
 }
@@ -243,7 +244,7 @@ fn submit_vis_builds_a_vis_download_body() {
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["only_get_metadata"], false);
+    assert_eq!(json["download_type"], "vis");
     assert_eq!(json["allow_resubmit"], false);
 }
 
@@ -251,7 +252,7 @@ fn submit_vis_builds_a_vis_download_body() {
 fn submit_meta_builds_a_meta_download_body() {
     let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBS_ID]);
     let params = args.to_meta_params(crate::test_config::test_obs_id());
-    assert_eq!(json_of(&params)["only_get_metadata"], true);
+    assert_eq!(json_of(&params)["download_type"], "meta");
 }
 
 #[test]
@@ -572,7 +573,6 @@ fn submit_image_rejects_out_of_range_values() {
         vec!["--robust", "-2.5"],
         vec!["--pixel-scale", "9"],
         vec!["--custom-dec", "-91"],
-        vec!["--nwlayers", "16"],
     ] {
         let mut argv = vec!["giant-squid", "submit-image"];
         argv.extend_from_slice(&bad);
@@ -582,6 +582,33 @@ fn submit_image_rejects_out_of_range_values() {
             err.kind(),
             clap::error::ErrorKind::ValueValidation,
             "expected {bad:?} to be rejected"
+        );
+    }
+}
+
+/// The options of the fields that the schema marks as deprecated are not
+/// there: use `--abs-threshold` and `--wstack-nwlayers`.
+#[test]
+fn the_deprecated_imaging_options_are_refused() {
+    for option in ["--clean-threshold", "--nwlayers"] {
+        let err = parse_err(&["giant-squid", "submit-image", option, "1", TEST_OBS_ID]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::UnknownArgument,
+            "{option}"
+        );
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-image-from-job",
+            "--source-job-id",
+            TEST_JOB_ID,
+            option,
+            "1",
+        ]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::UnknownArgument,
+            "{option}"
         );
     }
 }
@@ -631,15 +658,11 @@ fn submit_image_from_job_builds_a_flow2_body() {
 
     let json = json_of(&args.to_params());
     assert_eq!(json["source_job_id"], 4242);
-    // The job has no Obs ID: the body leaves it out (`null`), and the MWA ASVO
-    // takes it from the source job.
+    // The body has no Obs ID: the MWA ASVO takes it from the source job.
     assert!(json.get("obs_id").is_none());
-    // Since schema v1.11 clean_threshold has a default here, as in the flow
-    // 1 imaging job, and the CLI sends it.
-    assert_eq!(
-        json["clean_threshold"],
-        image_from_job_defaults().clean_threshold.unwrap()
-    );
+    // The deprecated clean_threshold is sent as null, as in the flow 1
+    // imaging job.
+    assert_eq!(json["clean_threshold"], Value::Null);
 }
 
 #[test]
@@ -663,11 +686,33 @@ fn submit_volt_requires_offset_and_duration() {
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
 }
 
-/// A voltage job uses the download body, so its delivery defaults are those
-/// of every download job (which the library refuses for a voltage job: the
-/// user gives Scratch and files).
+/// A voltage job has no delivery options: the MWA ASVO always delivers it
+/// to Scratch, as files, and its body has no delivery.
 #[test]
-fn submit_volt_delivery_default_comes_from_the_schema() {
+fn submit_volt_has_no_delivery_options() {
+    for delivery in [
+        ["--delivery", "scratch"],
+        ["-d", "scratch"],
+        ["--delivery-format", "files"],
+    ] {
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-volt",
+            "--offset",
+            "0",
+            "--duration",
+            "8",
+            delivery[0],
+            delivery[1],
+            TEST_OBS_ID,
+        ]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::UnknownArgument,
+            "{delivery:?}"
+        );
+    }
+
     let (args, _) = volt_args(&[
         "giant-squid",
         "submit-volt",
@@ -677,11 +722,9 @@ fn submit_volt_delivery_default_comes_from_the_schema() {
         "8",
         TEST_OBS_ID,
     ]);
-    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
-    assert_eq!(
-        args.delivery_args.delivery_format,
-        download_defaults().delivery_format
-    );
+    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    assert!(json.get("delivery").is_none());
+    assert!(json.get("delivery_format").is_none());
 }
 
 #[test]
@@ -740,15 +783,17 @@ fn submit_volt_rejects_a_channel_above_the_receiver_range() {
 #[test]
 fn submit_bf_builds_a_beamformer_body() {
     let (args, _) = bf_args(&["giant-squid", "submit-bf", TEST_OBS_ID]);
-    assert_eq!(args.delivery_args.delivery, download_defaults().delivery);
+    assert_eq!(args.delivery_args.delivery, beamformer_defaults().delivery);
     assert_eq!(
         args.delivery_args.delivery_format,
-        download_defaults().delivery_format
+        beamformer_defaults().delivery_format
     );
 
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["only_get_metadata"], false);
+    // A beamformer body has no download_type: that is how the MWA ASVO tells
+    // it from a visibility body.
+    assert!(json.get("download_type").is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -957,7 +1002,6 @@ fn submit_image_from_job_rejects_out_of_range_values() {
         vec!["--nmiter", "501"],
         vec!["--robust", "-2.5"],
         vec!["--pixel-scale", "9"],
-        vec!["--nwlayers", "16"],
         vec!["--uvw-max", "0.5"],
         vec!["--image-size", "1000"],
     ] {
@@ -1666,7 +1710,8 @@ fn the_help_has_colours() {
 #[test]
 fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     use crate::mwa_asvo::api::openapi::{
-        ConversionJobParams, DownloadJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
+        BeamformerJobParams, ConversionJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
+        VisibilityJobParams,
     };
 
     let obs_id: crate::obs_id::ObsId = TEST_OBS_ID.parse().expect("a valid Obs ID");
@@ -1685,10 +1730,12 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         Args::SubmitImage { image, .. } => image.to_params(obs_id),
         other => panic!("expected SubmitImage, got {other:?}"),
     };
-    let expected: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
+    let mut expected: ImagingJobFlow1Params = ImagingJobFlow1Params::builder()
         .obs_id(TEST_OBS_ID_I64)
         .try_into()
         .expect("defaults build");
+    // The deprecated clean_threshold is sent as null, not at its default.
+    expected.clean_threshold = None;
     assert!(
         expected.apply_di_cal,
         "the test needs imaging's default to differ"
@@ -1704,17 +1751,18 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         Args::SubmitImageFromJob { image, .. } => image.to_params(),
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     };
-    let expected: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
+    let mut expected: ImagingJobFlow2Params = ImagingJobFlow2Params::builder()
         .source_job_id(std::num::NonZeroU64::new(5).expect("not zero"))
         .try_into()
         .expect("defaults build");
+    expected.clean_threshold = None;
     assert_eq!(body_json(&from_job), body_json(&expected));
 
     let vis = match parse(&["giant-squid", "submit-vis", TEST_OBS_ID]) {
         Args::SubmitVis { download, .. } => download.to_vis_params(obs_id),
         other => panic!("expected SubmitVis, got {other:?}"),
     };
-    let expected: DownloadJobParams = DownloadJobParams::builder()
+    let expected: VisibilityJobParams = VisibilityJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
         .try_into()
         .expect("defaults build");
@@ -1724,7 +1772,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         Args::SubmitBf { bf, .. } => bf.to_params(obs_id),
         other => panic!("expected SubmitBf, got {other:?}"),
     };
-    let expected: DownloadJobParams = DownloadJobParams::builder()
+    let expected: BeamformerJobParams = BeamformerJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
         .try_into()
         .expect("defaults build");
@@ -1801,10 +1849,7 @@ fn a_threshold_takes_null_and_a_bad_value_is_refused() {
     ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     assert_eq!(json["abs_threshold"], Value::Null);
-    assert_eq!(
-        json["clean_threshold"],
-        imaging_defaults().clean_threshold.expect("default")
-    );
+    assert_eq!(json["clean_threshold"], Value::Null);
 
     let err = parse_err(&[
         "giant-squid",

@@ -149,7 +149,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
         when.method(POST)
             .path("/api/v2/jobs/download")
             .json_body_includes(
-                json!({"obs_id": 1349904184_u64, "only_get_metadata": false}).to_string(),
+                json!({"obs_id": 1349904184_u64, "download_type": "vis"}).to_string(),
             );
         then.status(200)
             .header("content-type", "application/json")
@@ -159,7 +159,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
         when.method(POST)
             .path("/api/v2/jobs/download")
             .json_body_includes(
-                json!({"obs_id": 1349904185_u64, "only_get_metadata": true}).to_string(),
+                json!({"obs_id": 1349904185_u64, "download_type": "meta"}).to_string(),
             );
         then.status(200)
             .header("content-type", "application/json")
@@ -608,6 +608,7 @@ fn the_other_fields_of_the_schema_are_accepted_as_keys() {
     assert_eq!(lines[0]["params"]["pol"], "XXYY");
     assert_eq!(lines[0]["params"]["wstack_nwlayers"], 64);
     assert_eq!(lines[1]["params"]["no_apply_amps"], true);
-    assert_eq!(lines[2]["params"]["only_get_metadata"], false);
+    // A beamformer body has no download_type.
+    assert!(lines[2]["params"].get("download_type").is_none());
     assert_eq!(lines[2]["endpoint"], "/api/v2/jobs/download");
 }

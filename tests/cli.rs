@@ -265,7 +265,7 @@ fn json_prints_one_submitted_response_per_obs_id() {
 fn json_works_for_image_from_job_submissions() {
     let env = CliEnv::with_session();
     env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/preprocess");
+        when.method(POST).path("/api/v2/jobs/image_from_job");
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(4322));

@@ -12,8 +12,8 @@
 //! early), the Python module, and any Rust program that uses the library.
 //! The client's submit methods check their request body with the
 //! `validate_*_params` function for that body, so an out-of-range value is
-//! never sent. In the download body, only `offset` has limits that its
-//! type does not give.
+//! never sent. In the download bodies, only the voltage `offset` has
+//! limits that its type does not give.
 //!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
@@ -26,8 +26,9 @@ use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageSizes,
-    ImagingJobFlow1Params, ImagingJobFlow2Params, PhaseCentre,
+    BeamformerJobParams, ConversionJobParams, DeliveryDestination, DeliveryFormat, ImageSizes,
+    ImagingJobFlow1Params, ImagingJobFlow2Params, PhaseCentre, VisibilityJobParams,
+    VoltageJobParams,
 };
 
 #[cfg(test)]
@@ -288,28 +289,40 @@ pub fn check_centre(
     Ok(())
 }
 
-/// Check a download request body (a visibility, metadata, voltage or
-/// beamformer job): its delivery ([`check_delivery_format`]), and its
-/// `offset` (if it is given) against the schema's limits. `duration`,
-/// `from_channel` and `to_channel` need no check: the schema's limits for
-/// them are the limits of their types (`u64`, `u8`).
-///
-/// The body does not say which kind of download it is: the MWA ASVO finds
-/// that from the observation. So this function does not check that a field
-/// suits the kind of job (for example a voltage job's delivery, or an
-/// `offset` for a visibility job). The MWA ASVO refuses a body that does
-/// not suit its observation.
+/// Check a visibility or metadata download request body: its delivery
+/// ([`check_delivery_format`]).
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree, or if the `offset` is out of range.
-pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)?;
-    match params.offset {
-        Some(offset) => VOLTAGE_OFFSET.check("offset", offset as f64),
-        None => Ok(()),
-    }
+/// agree.
+pub fn validate_visibility_params(params: &VisibilityJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)
+}
+
+/// Check a beamformer download request body: its delivery
+/// ([`check_delivery_format`]).
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
+/// agree.
+pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)
+}
+
+/// Check a voltage download request body: its `offset` against the
+/// schema's limits. `duration`, `from_channel` and `to_channel` need no
+/// check: the schema's limits for them are the limits of their types
+/// (`u64`, `u8`). The body has no delivery: the MWA ASVO always delivers a
+/// voltage job to Scratch, as files. The other rules of a voltage job (for
+/// example that the observation has voltages) are the MWA ASVO's.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if the `offset` is out of range.
+pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiError> {
+    VOLTAGE_OFFSET.check("offset", params.offset as f64)
 }
 
 /// Check a conversion request body: its delivery ([`check_delivery_format`]),

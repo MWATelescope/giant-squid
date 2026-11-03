@@ -62,30 +62,34 @@ release tag or by hand),
   and the CLI and Python set fields on it. A field that the schema allows to be
   `null` is an `Option`, and `None` is sent as `null`; it never means "use the
   API's default". In Python the default value of each argument of a request
-  body class (`DownloadJobParams`, `ConversionJobParams`,
-  `ImagingJobFlow1Params`, `ImagingJobFlow2Params`) is made from the schema
+  body class (`VisibilityJobParams`, `VoltageJobParams`,
+  `BeamformerJobParams`, `ConversionJobParams`, `ImagingJobFlow1Params`,
+  `ImagingJobFlow2Params`) is made from the schema
   when the class is made, so it cannot drift. Each class also has a
   hand-written `text_signature`, because pyo3 writes only literal defaults in
   a run-time signature and `help()` must show the defaults. Python accepts
   only literals there, so an enum default is its quoted name
   (`'DeliveryDestination.Acacia'`). `tests/python/test_signatures.py` checks
-  the text signatures against the schema, and the four classes are in
+  the text signatures against the schema, and the five classes with an enum
+  default are in
   `tools/stubtest_allowlist.txt` (the stub has the member, the run-time
   signature the name).
-- **Two submit methods, plain request body classes.** `AsvoClient` has one
-  method for each MWA ASVO submit endpoint: `submit_download_job` and
-  `submit_preprocess_job`. Each request body is a plain, mutable Python class
+- **Three submit methods, plain request body classes.** `AsvoClient` has one
+  method for each MWA ASVO submit endpoint: `submit_download_job`,
+  `submit_preprocess_job` and `submit_image_from_job`. Each request body is a plain, mutable Python class
   (`src/python/job_params.rs`) that holds Python values. It checks the values
   whose Rust type cannot hold a wrong one when they are set (an Obs ID is an
   `ObsId`, and `source_job_id` is not 0), as the library's helper functions
-  (`download_params(ObsId)` and so on) do. `validate()` and the submit method
+  (`visibility_params(ObsId)` and so on) do. `validate()` and the submit method
   turn it into the library's request body, which checks the rest, so the
   checks and their messages are the library's. The helper functions of the
-  library (`download_params`, `metadata_params`, `voltage_params`,
-  `conversion_params`, `imaging_params`, `image_from_job_params`) are in the
-  module, and make their class from the library's body. The body of a voltage job
-  is a `DownloadJobParams`: the MWA ASVO finds the kind of download from the
-  observation, and the module has no check of its own for it.
+  library (`visibility_params`, `metadata_params`, `voltage_params`,
+  `beamformer_params`, `conversion_params`, `imaging_params`,
+  `image_from_job_params`) are in the module, and make their class from the
+  library's body. `DownloadJobParams` and `PreprocessJobParams` are the
+  library's enums of the bodies of the download and preprocess endpoints.
+  The imaging classes have no `clean_threshold` and no `nwlayers`, which the
+  schema marks as deprecated; the library sends `clean_threshold` as `null`.
 - **The OpenAPI schema dictates the library.** Defaults, names, limits and
   types come from the schema. Where a schema type exists, the library uses
   it instead of a copy of its own (`JobState`, `JobType`, `JobDetailResponse`
@@ -218,10 +222,9 @@ Sent by the user (October 2026), not fixed yet:
 - Schema 2.5.0 removed `channel_range`, made `job_id` and `obs_id` typed
   fields of `JobDetailResponse` and made `ImagingJobFlow2Params.obs_id`
   optional (the library leaves it out). Still open:
-- Voltage jobs: `delivery` (always scratch) and `delivery_format` (always
-  files) are the shared `DeliveryDestination` and `DeliveryFormat` enums, so
-  the schema does not show that only one value works. The library does not
-  check it: the MWA ASVO refuses any other value for a voltage job.
+- Schema 2.7.0 (`15a96db`): Flow1 `output` (const `fits`) and Flow2 `centre`
+  are mistakes, to be removed; the Python classes do not have them. The
+  `error_code` of the 404 "no jobs" reply of the job list is not known yet.
 - `CancelJobParams` should not be a body type of `POST /v2/jobs/create`:
   cancelling is the separate `DELETE /v2/jobs/{job_id}` call (the user told
   the API developer). The client never sends it. No schema sets

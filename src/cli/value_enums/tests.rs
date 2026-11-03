@@ -13,8 +13,8 @@ use clap::{CommandFactory, Parser};
 use super::*;
 use crate::cli::Args;
 use crate::mwa_asvo::api::openapi::{
-    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, OutputFormat,
-    PhaseCentre, Polarization,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, Output, PhaseCentre,
+    Polarization,
 };
 
 // The values in the schema's order, which `--help` and the messages use.
@@ -95,7 +95,7 @@ fn every_schema_enum_is_listed_once_and_in_order() {
     check_enum::<PhaseCentre>();
     check_enum::<DeliveryDestination>();
     check_enum::<DeliveryFormat>();
-    check_enum::<OutputFormat>();
+    check_enum::<Output>();
     check_enum::<ImageOutputMode>();
     check_enum::<Polarization>();
     check_enum::<ImageWeighting>();

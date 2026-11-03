@@ -146,7 +146,7 @@ fn the_metadata_file_has_two_metadata_downloads() {
         assert_eq!(job.params.description(), "metadata download");
         assert_has(
             &body(job),
-            json!({"only_get_metadata": true, "delivery": "acacia"}),
+            json!({"download_type": "meta", "delivery": "acacia"}),
         );
     }
 }
@@ -160,7 +160,7 @@ fn the_visibility_file_has_two_visibility_downloads() {
         assert_eq!(job.params.description(), "visibility download");
         assert_has(
             &body(job),
-            json!({"only_get_metadata": false, "delivery_format": "tar"}),
+            json!({"download_type": "vis", "delivery_format": "tar"}),
         );
     }
 }
@@ -172,8 +172,14 @@ fn the_voltage_file_has_two_voltage_jobs() {
     assert_eq!(jobs.len(), 2);
     assert_has(
         &body(&jobs[0]),
-        json!({"obs_id": 1323577520_u64, "offset": 0, "duration": 16, "delivery": "scratch"}),
+        json!({"obs_id": 1323577520_u64, "offset": 0, "duration": 16}),
     );
+    // The file gives `delivery=scratch`, which is not sent: the voltage body
+    // has no delivery.
+    for job in &jobs {
+        assert!(body(job).get("delivery").is_none());
+        assert!(body(job).get("delivery_format").is_none());
+    }
     // `channel_range` is not in the schema any more: it is not sent.
     assert!(body(&jobs[0]).get("channel_range").is_none());
     assert_has(
@@ -289,10 +295,45 @@ fn the_defaults_of_the_file_fill_the_keys_that_a_line_leaves_out() {
         &body(&jobs[1]),
         json!({"delivery": "dug", "delivery_format": "tar", "allow_resubmit": false}),
     );
-    assert_has(
-        &body(&jobs[2]),
-        json!({"delivery": "scratch", "allow_resubmit": true}),
+    // A voltage line has no delivery, so the defaults of the delivery do not
+    // apply to it; the default of allow_resubmit does.
+    assert_has(&body(&jobs[2]), json!({"allow_resubmit": true}));
+    assert!(body(&jobs[2]).get("delivery").is_none());
+}
+
+/// A voltage line can give only the delivery that the MWA ASVO always uses
+/// for a voltage job (Scratch, as files). It is not sent.
+#[test]
+fn a_voltage_line_accepts_only_scratch_and_files() {
+    let jobs = parse(
+        "obs_id=1323577520,job_type=v,offset=0,duration=16,delivery=scratch,delivery_format=files\n",
     );
+    assert!(body(&jobs[0]).get("delivery").is_none());
+    assert!(body(&jobs[0]).get("delivery_format").is_none());
+
+    for (cell, key) in [
+        ("delivery=acacia", "delivery=acacia"),
+        ("delivery=dug", "delivery=dug"),
+        ("delivery_format=tar", "delivery_format=tar"),
+    ] {
+        let problems = problems(&format!(
+            "obs_id=1323577520,job_type=v,offset=0,duration=16,{cell}\n"
+        ));
+        assert!(
+            problems[0].contains(&format!("{key} is not allowed for a voltage job")),
+            "{problems:?}"
+        );
+    }
+}
+
+/// The keys of the fields that the schema marks as deprecated are not keys
+/// of an imaging line.
+#[test]
+fn the_deprecated_imaging_keys_are_unknown() {
+    for key in ["clean_threshold=0.5", "nwlayers=64"] {
+        let problems = problems(&format!("obs_id=1349904240,job_type=i,{key}\n"));
+        assert!(problems[0].contains("unknown key"), "{key}: {problems:?}");
+    }
 }
 
 #[test]
@@ -625,7 +666,7 @@ fn no_apply_amps_is_a_key_of_a_conversion_job() {
     assert_has(&body(&jobs[0]), json!({"no_apply_amps": true}));
 }
 
-/// The schema's beamformer job (a download job) has no `mode`, so the key is an error like any other unknown key.
+/// The schema's beamformer job has no `mode`, so the key is an error like any other unknown key.
 #[test]
 fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
     let problems = problems("obs_id=1457858440,job_type=b,mode=mwax_corr_bf\n");
@@ -636,14 +677,14 @@ fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
     );
 }
 
-/// A beamformer job is a download job of the schema, which goes to the
-/// download endpoint: the MWA ASVO finds the kind of download from the
-/// observation.
+/// A beamformer job is a download job, which goes to the download endpoint.
+/// Its body has no `download_type`: that is how the MWA ASVO tells it from
+/// a visibility body.
 #[test]
 fn a_beamformer_job_is_a_download() {
     let jobs = parse("obs_id=1457858440,job_type=b\n");
 
-    assert_has(&body(&jobs[0]), json!({"only_get_metadata": false}));
+    assert!(body(&jobs[0]).get("download_type").is_none());
     assert_eq!(jobs[0].params.endpoint(), crate::ENDPOINT_DOWNLOAD_JOB);
 }
 
