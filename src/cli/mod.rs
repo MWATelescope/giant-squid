@@ -32,8 +32,8 @@ use jiff::Timestamp;
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::mwa_asvo::{JobState, JobType, SortBy};
 use params::{
-    list_days_default, parse_days, parse_utc_time, BeamformerJobArgs, ConversionJobArgs,
-    DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, VoltageJobArgs,
+    list_days_default, parse_days, parse_utc_time, ConversionJobArgs, DownloadJobArgs,
+    ImagingFromJobArgs, ImagingJobArgs, SubmitDownloadArgs, VoltageJobArgs,
 };
 use value_enums::SchemaEnumParser;
 
@@ -63,6 +63,82 @@ fn version_text() -> String {
     format!(
         "{}\nMWA ASVO API {MWA_ASVO_API_VERSION}\nOpenAPI {OPENAPI_VERSION}",
         env!("CARGO_PKG_VERSION")
+    )
+}
+
+/// A deprecated command: it still works, but it is hidden from the help,
+/// and it logs a warning (no warning with `--json`, which logs nothing).
+pub struct DeprecatedCommand {
+    /// The name of the command, for example `submit-vis`.
+    pub name: &'static str,
+    /// What to use instead, for example `submit-download`.
+    pub replacement: &'static str,
+}
+
+/// The name of the deprecated `submit-vis` command.
+pub const COMMAND_SUBMIT_VIS: &str = "submit-vis";
+/// The name of the deprecated `submit-meta` command.
+pub const COMMAND_SUBMIT_META: &str = "submit-meta";
+/// The name of the deprecated `submit-volt` command.
+pub const COMMAND_SUBMIT_VOLT: &str = "submit-volt";
+/// The name of the deprecated `submit-bf` command.
+pub const COMMAND_SUBMIT_BF: &str = "submit-bf";
+
+/// The deprecated commands, in the order of the help.
+pub const DEPRECATED_COMMANDS: [DeprecatedCommand; 4] = [
+    DeprecatedCommand {
+        name: COMMAND_SUBMIT_VIS,
+        replacement: "submit-download",
+    },
+    DeprecatedCommand {
+        name: COMMAND_SUBMIT_META,
+        replacement: "submit-download --only-metadata",
+    },
+    DeprecatedCommand {
+        name: COMMAND_SUBMIT_VOLT,
+        replacement: "submit-download with --offset and --duration",
+    },
+    DeprecatedCommand {
+        name: COMMAND_SUBMIT_BF,
+        replacement: "submit-download",
+    },
+];
+
+/// The deprecated command `name`.
+///
+/// # Panics
+///
+/// If `name` is not in [`DEPRECATED_COMMANDS`]: a bug.
+pub fn deprecated_command(name: &str) -> &'static DeprecatedCommand {
+    DEPRECATED_COMMANDS
+        .iter()
+        .find(|command| command.name == name)
+        .unwrap_or_else(|| panic!("BUG: {name} is not a deprecated command"))
+}
+
+/// The warning that a deprecated command logs when it runs.
+pub fn deprecated_command_warning(command: &DeprecatedCommand) -> String {
+    format!(
+        "{} is deprecated and will be removed in a later release. Use {}.",
+        command.name, command.replacement
+    )
+}
+
+/// The end of the main help: the deprecated commands, which the list of
+/// commands does not show, with what to use instead.
+fn deprecated_commands_help() -> String {
+    let width = DEPRECATED_COMMANDS
+        .iter()
+        .map(|command| command.name.len())
+        .max()
+        .unwrap_or(0);
+    let lines: Vec<String> = DEPRECATED_COMMANDS
+        .iter()
+        .map(|command| format!("  {:width$}  Use {}", command.name, command.replacement))
+        .collect();
+    format!(
+        "Deprecated commands (they still work, and have their own --help):\n{}",
+        lines.join("\n")
     )
 }
 
@@ -110,7 +186,7 @@ pub struct SubmitOptions {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = PROGRAM_NAME, author, about = ABOUT, version = version_text(), color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true)]
+#[command(name = PROGRAM_NAME, author, about = ABOUT, version = version_text(), color = clap::ColorChoice::Auto, styles = HELP_STYLES, propagate_version = true, after_help = deprecated_commands_help())]
 pub enum Args {
     /// List your current and recent MWA ASVO jobs
     #[command(alias = "l")]
@@ -245,8 +321,29 @@ pub enum Args {
         job_ids_or_obs_ids: Vec<String>,
     },
 
-    /// Submit MWA ASVO jobs to download MWA raw visibilities
-    #[command(alias = "sv")]
+    /// Submit MWA ASVO jobs to download MWA data
+    ///
+    /// The data can be raw visibilities, metadata, voltages or beamformer
+    /// files. The MWA ASVO finds the kind of data from the observation.
+    // Without this, clap reads "--offset -1" as an unknown "-1" flag, not
+    // as a value, and the offset's range check is never reached.
+    #[command(alias = "sd", allow_negative_numbers = true)]
+    SubmitDownload {
+        #[command(flatten)]
+        download: SubmitDownloadArgs,
+
+        #[command(flatten)]
+        submit: SubmitOptions,
+
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
+        /// accepted.
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
+    },
+
+    /// Submit MWA ASVO jobs to download MWA raw visibilities. Deprecated: use
+    /// submit-download.
+    #[command(alias = "sv", hide = true)]
     SubmitVis {
         #[command(flatten)]
         download: DownloadJobArgs,
@@ -308,8 +405,9 @@ pub enum Args {
     },
 
     /// Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs
-    /// for each tile) and RFI flags (if available)
-    #[command(alias = "sm")]
+    /// for each tile) and RFI flags (if available). Deprecated: use
+    /// submit-download --only-metadata.
+    #[command(alias = "sm", hide = true)]
     SubmitMeta {
         #[command(flatten)]
         download: DownloadJobArgs,
@@ -323,10 +421,10 @@ pub enum Args {
         obs_ids: Vec<String>,
     },
 
-    /// Submit MWA ASVO jobs to download MWA voltages
-    // Without this, clap reads "--offset -1" as an unknown "-1" flag, not
-    // as a value, and the offset's range check is never reached.
-    #[command(alias = "st", allow_negative_numbers = true)]
+    /// Submit MWA ASVO jobs to download MWA voltages. Deprecated: use
+    /// submit-download with --offset and --duration.
+    // Negative numbers are allowed, as for `SubmitDownload`.
+    #[command(alias = "st", allow_negative_numbers = true, hide = true)]
     SubmitVolt {
         #[command(flatten)]
         volt: VoltageJobArgs,
@@ -340,11 +438,12 @@ pub enum Args {
         obs_ids: Vec<String>,
     },
 
-    /// Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
-    #[command(alias = "sb")]
+    /// Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil).
+    /// Deprecated: use submit-download.
+    #[command(alias = "sb", hide = true)]
     SubmitBf {
         #[command(flatten)]
-        bf: BeamformerJobArgs,
+        bf: DownloadJobArgs,
 
         #[command(flatten)]
         submit: SubmitOptions,

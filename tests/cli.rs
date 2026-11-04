@@ -150,6 +150,51 @@ fn a_dry_run_prints_one_body_per_obs_id() {
     );
 }
 
+/// A deprecated command logs a warning that names what to use instead, and
+/// still runs; with `--json` it prints nothing but the JSON.
+#[test]
+fn a_deprecated_command_warns_and_still_runs() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    for (args, replacement) in [
+        (vec!["submit-vis"], "Use submit-download."),
+        (vec!["submit-meta"], "Use submit-download --only-metadata."),
+        (
+            vec!["submit-volt", "--offset", "0", "--duration", "8"],
+            "Use submit-download with --offset and --duration.",
+        ),
+        (vec!["submit-bf"], "Use submit-download."),
+    ] {
+        let mut cmd = env.command();
+        cmd.args(&args).args(["--dry-run", TEST_OBS_ID]);
+        let result = run(cmd);
+        assert!(result.success, "output: {}", result.combined());
+        assert!(
+            result
+                .stderr
+                .contains(&format!("{} is deprecated", args[0]))
+                && result.stderr.contains(replacement),
+            "{args:?}: {}",
+            result.stderr
+        );
+
+        let mut cmd = env.command();
+        cmd.args(&args).args(["--dry-run", "--json", TEST_OBS_ID]);
+        let result = run(cmd);
+        assert!(result.success, "output: {}", result.combined());
+        assert_eq!(result.stderr, "", "{args:?}");
+        assert_eq!(result.stdout_json_lines().len(), 1, "{args:?}");
+    }
+    assert_eq!(requests.calls(), 0);
+
+    let mut cmd = env.command();
+    cmd.args(["submit-download", "--dry-run", TEST_OBS_ID]);
+    let result = run(cmd);
+    assert!(result.success, "output: {}", result.combined());
+    assert!(!result.stderr.contains("deprecated"), "{}", result.stderr);
+}
+
 #[test]
 fn a_dry_run_cancellation_names_the_job_resource() {
     let env = CliEnv::with_session();

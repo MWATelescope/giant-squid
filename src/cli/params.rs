@@ -349,6 +349,19 @@ pub struct DeliveryArgs<P: DeliveryFields> {
     schema: PhantomData<fn() -> P>,
 }
 
+impl<P: DeliveryFields> DeliveryArgs<P> {
+    /// The delivery and its format at the defaults of the schema type `P`,
+    /// for a command that has no delivery options.
+    pub fn schema_defaults() -> Self {
+        let defaults = P::schema_defaults();
+        Self {
+            delivery: defaults.delivery(),
+            delivery_format: defaults.delivery_format(),
+            schema: PhantomData,
+        }
+    }
+}
+
 impl<P: DeliveryFields> clap::Args for DeliveryArgs<P> {
     fn augment_args(cmd: clap::Command) -> clap::Command {
         <RawDeliveryArgs<P> as clap::Args>::augment_args(cmd)
@@ -713,9 +726,92 @@ impl_apply_to!(WscleanArgs for [ImagingJobParams, ImageFromJobParams] {
     clone: [image_size],
 });
 
-/// Arguments shared by the visibility and metadata download jobs, which use
-/// the same request body and the same endpoint; a metadata job has
-/// `only_metadata` set.
+/// Arguments for a download job (`submit-download`): the schema's
+/// `DownloadJobParams`. The body does not say what kind of data to download:
+/// the MWA ASVO finds it from the observation, and refuses the voltage
+/// options for an observation that has no voltages. The deprecated download
+/// commands make one of these from their own arguments
+/// ([`DownloadJobArgs::to_vis_download`], [`DownloadJobArgs::to_meta_download`],
+/// [`VoltageJobArgs::to_download`]).
+#[derive(clap::Args, Debug, Clone)]
+pub struct SubmitDownloadArgs {
+    #[command(flatten)]
+    pub delivery_args: DeliveryArgs<DownloadJobParams>,
+
+    /// Download the metadata only: metafits (with PPDs for each tile) and RFI
+    /// flags (if available). Takes true, false or null.
+    #[arg(
+        long,
+        default_value = nullable_default(download_defaults().only_metadata, "only_metadata"),
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+        action = ArgAction::Set,
+        value_parser = parse_nullable_bool,
+    )]
+    pub only_metadata: Nullable<bool>,
+
+    /// Voltage observations only: the offset in seconds from the start GPS
+    /// time of the observation (0-5400).
+    #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
+    pub offset: Option<i64>,
+
+    /// Voltage observations only: the duration (in seconds) to download.
+    #[arg(short = 'u', long)]
+    pub duration: Option<u64>,
+
+    /// Voltage observations only: the 'from' receiver channel number (0-255).
+    #[arg(long)]
+    pub from_channel: Option<u8>,
+
+    /// Voltage observations only: the 'to' receiver channel number (0-255).
+    #[arg(long)]
+    pub to_channel: Option<u8>,
+
+    #[command(flatten)]
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
+}
+
+impl SubmitDownloadArgs {
+    /// The request body for a download job for a single Obs ID. The CLI has a
+    /// value for every option (its defaults are the schema's), so each field
+    /// that the options cover is set.
+    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        let mut params = DownloadJobParams {
+            only_metadata: self.only_metadata.0,
+            offset: self.offset,
+            duration: self.duration,
+            from_channel: self.from_channel,
+            to_channel: self.to_channel,
+            ..download_params(obs_id)
+        };
+        self.delivery_args.apply_to(&mut params);
+        self.resubmit.apply_to(&mut params);
+        params
+    }
+
+    /// The arguments with the delivery and `resubmit` given, `only_metadata`
+    /// as given, and no voltage option.
+    fn without_voltage(
+        delivery_args: DeliveryArgs<DownloadJobParams>,
+        only_metadata: Nullable<bool>,
+        resubmit: ResubmitArgs<DownloadJobParams>,
+    ) -> Self {
+        Self {
+            delivery_args,
+            only_metadata,
+            offset: None,
+            duration: None,
+            from_channel: None,
+            to_channel: None,
+            resubmit,
+        }
+    }
+}
+
+/// The arguments of the deprecated `submit-vis`, `submit-meta` and
+/// `submit-bf`, which are those of `submit-download` without
+/// `--only-metadata` and the voltage options.
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
     #[command(flatten)]
@@ -726,26 +822,24 @@ pub struct DownloadJobArgs {
 }
 
 impl DownloadJobArgs {
-    /// The request body for a raw visibility download job.
-    pub fn to_vis_params(&self, obs_id: ObsId) -> DownloadJobParams {
-        self.apply_to(download_params(obs_id))
+    /// The `submit-download` arguments of `submit-vis` and `submit-bf`:
+    /// `only_metadata` at the schema's default.
+    pub fn to_vis_download(&self) -> SubmitDownloadArgs {
+        SubmitDownloadArgs::without_voltage(
+            self.delivery_args.clone(),
+            Nullable(download_defaults().only_metadata),
+            self.resubmit.clone(),
+        )
     }
 
-    /// The request body for a metadata download job.
-    pub fn to_meta_params(&self, obs_id: ObsId) -> DownloadJobParams {
-        self.apply_to(DownloadJobParams {
-            only_metadata: Some(true),
-            ..download_params(obs_id)
-        })
-    }
-
-    /// `params` with the options set. The CLI has a value for every option
-    /// (its defaults are the schema's), so each field that the options cover
-    /// is set.
-    fn apply_to(&self, mut params: DownloadJobParams) -> DownloadJobParams {
-        self.delivery_args.apply_to(&mut params);
-        self.resubmit.apply_to(&mut params);
-        params
+    /// The `submit-download` arguments of `submit-meta`: `only_metadata`
+    /// true.
+    pub fn to_meta_download(&self) -> SubmitDownloadArgs {
+        SubmitDownloadArgs::without_voltage(
+            self.delivery_args.clone(),
+            Nullable(Some(true)),
+            self.resubmit.clone(),
+        )
     }
 }
 
@@ -841,9 +935,9 @@ impl ImagingFromJobArgs {
     }
 }
 
-/// Arguments for a voltage download job. A voltage job has no delivery
-/// options: the body has the schema's delivery defaults, and the MWA ASVO
-/// decides where a voltage job is delivered.
+/// The arguments of the deprecated `submit-volt`. A voltage job has no
+/// delivery options: the body has the schema's delivery defaults, and the
+/// MWA ASVO decides where a voltage job is delivered.
 #[derive(clap::Args, Debug, Clone)]
 pub struct VoltageJobArgs {
     /// The offset in seconds from the start GPS time of the observation.
@@ -867,37 +961,20 @@ pub struct VoltageJobArgs {
 }
 
 impl VoltageJobArgs {
-    /// The request body for a voltage job.
-    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
-        let mut params = DownloadJobParams {
+    /// The `submit-download` arguments of `submit-volt`: the voltage
+    /// options, and the schema's defaults for the delivery and
+    /// `only_metadata`.
+    pub fn to_download(&self) -> SubmitDownloadArgs {
+        SubmitDownloadArgs {
             offset: Some(self.offset),
             duration: Some(self.duration),
             from_channel: self.from_channel,
             to_channel: self.to_channel,
-            ..download_params(obs_id)
-        };
-        self.resubmit.apply_to(&mut params);
-        params
-    }
-}
-
-/// Arguments for a beamformer download job.
-#[derive(clap::Args, Debug, Clone)]
-pub struct BeamformerJobArgs {
-    #[command(flatten)]
-    pub delivery_args: DeliveryArgs<DownloadJobParams>,
-
-    #[command(flatten)]
-    pub resubmit: ResubmitArgs<DownloadJobParams>,
-}
-
-impl BeamformerJobArgs {
-    /// The request body for a beamformer job: a download job body, from
-    /// which the MWA ASVO tells the beamformer data by the observation.
-    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
-        let mut params = download_params(obs_id);
-        self.delivery_args.apply_to(&mut params);
-        self.resubmit.apply_to(&mut params);
-        params
+            ..SubmitDownloadArgs::without_voltage(
+                DeliveryArgs::schema_defaults(),
+                Nullable(download_defaults().only_metadata),
+                self.resubmit.clone(),
+            )
+        }
     }
 }

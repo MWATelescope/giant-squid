@@ -43,9 +43,14 @@ use crate::{
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
+use super::params::SubmitDownloadArgs;
 use super::stdin_ids::resolve_ids;
 use super::table::{job_files, job_size_text, print_jobs_table};
-use super::{Args, SubmitOptions, WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION};
+use super::{
+    deprecated_command, deprecated_command_warning, Args, SubmitOptions, COMMAND_SUBMIT_BF,
+    COMMAND_SUBMIT_META, COMMAND_SUBMIT_VIS, COMMAND_SUBMIT_VOLT, WAIT_INITIAL_DELAY,
+    WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION,
+};
 use crate::helpers::READ_STDIN_HINT;
 
 fn create_progress_bar(multi_progress_bar: &MultiProgress) -> ProgressBar {
@@ -426,6 +431,31 @@ where
     } else {
         outcome
     }
+}
+
+/// Run `submit-download`, which the deprecated download commands also run
+/// with the arguments that they make. `description` is the kind of job, for
+/// the messages (for example `visibility download`).
+fn run_submit_download(
+    download: &SubmitDownloadArgs,
+    submit: &SubmitOptions,
+    obs_ids: &[String],
+    description: &str,
+) -> anyhow::Result<()> {
+    let obs_ids = obs_ids_only(obs_ids, None)?;
+    run_submit(
+        &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, description),
+        |obs_id| download.to_params(obs_id),
+        validate_download_params,
+        AsvoClient::submit_download_job,
+    )
+}
+
+/// Log the warning of the deprecated command `name`. With `--json` the
+/// logger is off, so nothing is printed.
+fn warn_deprecated(name: &str) {
+    let warning = deprecated_command_warning(deprecated_command(name));
+    warn!("{warning}");
 }
 
 /// Run `submit-image-from-job`: one job, which has no Obs ID (the MWA ASVO
@@ -1114,18 +1144,27 @@ fn run(args: Args) -> anyhow::Result<()> {
             }
         }
 
+        Args::SubmitDownload {
+            download,
+            submit,
+            obs_ids,
+        } => {
+            init_logger(submit.verbosity, submit.json);
+            run_submit_download(&download, &submit, &obs_ids, "download")?;
+        }
+
         Args::SubmitVis {
             download,
             submit,
             obs_ids,
         } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, None)?;
-            run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "visibility download"),
-                |obs_id| download.to_vis_params(obs_id),
-                validate_download_params,
-                AsvoClient::submit_download_job,
+            warn_deprecated(COMMAND_SUBMIT_VIS);
+            run_submit_download(
+                &download.to_vis_download(),
+                &submit,
+                &obs_ids,
+                "visibility download",
             )?;
         }
 
@@ -1170,12 +1209,12 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, None)?;
-            run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "metadata download"),
-                |obs_id| download.to_meta_params(obs_id),
-                validate_download_params,
-                AsvoClient::submit_download_job,
+            warn_deprecated(COMMAND_SUBMIT_META);
+            run_submit_download(
+                &download.to_meta_download(),
+                &submit,
+                &obs_ids,
+                "metadata download",
             )?;
         }
 
@@ -1185,13 +1224,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, None)?;
-            run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "voltage download"),
-                |obs_id| volt.to_params(obs_id),
-                validate_download_params,
-                AsvoClient::submit_download_job,
-            )?;
+            warn_deprecated(COMMAND_SUBMIT_VOLT);
+            run_submit_download(&volt.to_download(), &submit, &obs_ids, "voltage download")?;
         }
 
         Args::SubmitBf {
@@ -1200,12 +1234,12 @@ fn run(args: Args) -> anyhow::Result<()> {
             obs_ids,
         } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, None)?;
-            run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "beamformer download"),
-                |obs_id| bf.to_params(obs_id),
-                validate_download_params,
-                AsvoClient::submit_download_job,
+            warn_deprecated(COMMAND_SUBMIT_BF);
+            run_submit_download(
+                &bf.to_vis_download(),
+                &submit,
+                &obs_ids,
+                "beamformer download",
             )?;
         }
 
@@ -1411,7 +1445,8 @@ impl Args {
             | Args::Download { json, .. }
             | Args::Wait { json, .. }
             | Args::Cancel { json, .. } => *json,
-            Args::SubmitVis { submit, .. }
+            Args::SubmitDownload { submit, .. }
+            | Args::SubmitVis { submit, .. }
             | Args::SubmitConv { submit, .. }
             | Args::SubmitImage { submit, .. }
             | Args::SubmitImageFromJob { submit, .. }

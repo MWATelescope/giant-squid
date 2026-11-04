@@ -15,8 +15,8 @@ use serde_json::Value;
 use tempfile::NamedTempFile;
 
 use super::params::{
-    BeamformerJobArgs, ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs,
-    Nullable, VoltageJobArgs,
+    ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, Nullable,
+    SubmitDownloadArgs, VoltageJobArgs,
 };
 use super::Args;
 use crate::mwa_asvo::api::job_params::{
@@ -87,7 +87,7 @@ fn volt_args(args: &[&str]) -> (VoltageJobArgs, Vec<String>) {
     }
 }
 
-fn bf_args(args: &[&str]) -> (BeamformerJobArgs, Vec<String>) {
+fn bf_args(args: &[&str]) -> (DownloadJobArgs, Vec<String>) {
     match parse(args) {
         Args::SubmitBf { bf, obs_ids, .. } => (bf, obs_ids),
         other => panic!("expected SubmitBf, got {other:?}"),
@@ -239,7 +239,9 @@ fn submit_vis_defaults_come_from_the_schema() {
 #[test]
 fn submit_vis_builds_a_vis_download_body() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    let params = args.to_vis_params(crate::test_config::test_obs_id());
+    let params = args
+        .to_vis_download()
+        .to_params(crate::test_config::test_obs_id());
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
@@ -250,7 +252,9 @@ fn submit_vis_builds_a_vis_download_body() {
 #[test]
 fn submit_meta_builds_a_meta_download_body() {
     let (args, _) = meta_args(&["giant-squid", "submit-meta", TEST_OBS_ID]);
-    let params = args.to_meta_params(crate::test_config::test_obs_id());
+    let params = args
+        .to_meta_download()
+        .to_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["only_metadata"], true);
 }
 
@@ -265,7 +269,9 @@ fn delivery_and_format_can_be_overridden() {
         "tar",
         TEST_OBS_ID,
     ]);
-    let params = args.to_vis_params(crate::test_config::test_obs_id());
+    let params = args
+        .to_vis_download()
+        .to_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["delivery"], "scratch");
 }
 
@@ -273,7 +279,9 @@ fn delivery_and_format_can_be_overridden() {
 fn allow_resubmit_reaches_the_request_body() {
     let (args, _) = vis_args(&["giant-squid", "submit-vis", "-r", TEST_OBS_ID]);
     assert_eq!(args.resubmit.allow_resubmit, Nullable(Some(true)));
-    let params = args.to_vis_params(crate::test_config::test_obs_id());
+    let params = args
+        .to_vis_download()
+        .to_params(crate::test_config::test_obs_id());
     assert_eq!(json_of(&params)["allow_resubmit"], true);
 }
 
@@ -676,6 +684,226 @@ fn submit_image_from_job_rejects_a_zero_source_job_id() {
 }
 
 // ---------------------------------------------------------------------------
+// submit-download, and the deprecated download commands
+// ---------------------------------------------------------------------------
+
+fn download_args(args: &[&str]) -> SubmitDownloadArgs {
+    match parse(args) {
+        Args::SubmitDownload { download, .. } => download,
+        other => panic!("expected SubmitDownload, got {other:?}"),
+    }
+}
+
+/// The request body of a download command line: `submit-download` or one
+/// of the deprecated download commands.
+fn download_body(args: &[&str]) -> Value {
+    let obs_id = crate::test_config::test_obs_id();
+    let download = match parse(args) {
+        Args::SubmitDownload { download, .. } => download,
+        Args::SubmitVis { download, .. } => download.to_vis_download(),
+        Args::SubmitMeta { download, .. } => download.to_meta_download(),
+        Args::SubmitVolt { volt, .. } => volt.to_download(),
+        Args::SubmitBf { bf, .. } => bf.to_vis_download(),
+        other => panic!("expected a download command, got {other:?}"),
+    };
+    json_of(&download.to_params(obs_id))
+}
+
+#[test]
+fn submit_download_sends_the_schema_defaults() {
+    use crate::mwa_asvo::api::openapi::DownloadJobParams;
+
+    let expected: DownloadJobParams = DownloadJobParams::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(
+        download_body(&["giant-squid", "submit-download", TEST_OBS_ID]),
+        json_of(&expected)
+    );
+    assert!(matches!(
+        parse(&["giant-squid", "sd", TEST_OBS_ID]),
+        Args::SubmitDownload { .. }
+    ));
+}
+
+#[test]
+fn submit_download_sends_the_voltage_options_that_are_given() {
+    let json = download_body(&[
+        "giant-squid",
+        "submit-download",
+        "-o",
+        "16",
+        "-u",
+        "8",
+        "--from-channel",
+        "109",
+        "--to-channel",
+        "132",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(json["offset"], 16);
+    assert_eq!(json["duration"], 8);
+    assert_eq!(json["from_channel"], 109);
+    assert_eq!(json["to_channel"], 132);
+
+    let json = download_body(&[
+        "giant-squid",
+        "submit-download",
+        "--offset",
+        "0",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(json["offset"], 0);
+    for field in ["duration", "from_channel", "to_channel"] {
+        assert!(json.get(field).is_none(), "{field} was sent");
+    }
+}
+
+#[test]
+fn submit_download_refuses_an_offset_or_a_channel_out_of_range() {
+    for (option, value) in [
+        ("--offset", "-1"),
+        ("--offset", "5401"),
+        ("--from-channel", "256"),
+        ("--duration", "-1"),
+    ] {
+        let err = parse_err(&["giant-squid", "submit-download", option, value, TEST_OBS_ID]);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ValueValidation,
+            "{option} {value}"
+        );
+    }
+}
+
+#[test]
+fn submit_download_only_metadata_takes_true_false_or_null() {
+    let only_metadata = |args: &[&str]| download_args(args).only_metadata;
+
+    assert_eq!(
+        only_metadata(&["giant-squid", "submit-download", TEST_OBS_ID]),
+        Nullable(Some(false))
+    );
+    assert_eq!(
+        only_metadata(&[
+            "giant-squid",
+            "submit-download",
+            "--only-metadata",
+            TEST_OBS_ID
+        ]),
+        Nullable(Some(true))
+    );
+    assert_eq!(
+        only_metadata(&[
+            "giant-squid",
+            "submit-download",
+            "--only-metadata=false",
+            TEST_OBS_ID
+        ]),
+        Nullable(Some(false))
+    );
+    let json = download_body(&[
+        "giant-squid",
+        "submit-download",
+        "--only-metadata=null",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(json.get("only_metadata"), Some(&Value::Null));
+}
+
+/// Each deprecated download command sends the body of the `submit-download`
+/// command line that replaces it.
+#[test]
+fn each_deprecated_download_command_sends_the_body_of_submit_download() {
+    let cases: [(&[&str], &[&str]); 5] = [
+        (
+            &["submit-vis", "-d", "scratch", "-f", "files", "-r"],
+            &["submit-download", "-d", "scratch", "-f", "files", "-r"],
+        ),
+        (
+            &["submit-meta", "-d", "dug"],
+            &["submit-download", "-d", "dug", "--only-metadata"],
+        ),
+        (
+            &[
+                "submit-volt",
+                "-o",
+                "16",
+                "-u",
+                "8",
+                "--to-channel",
+                "3",
+                "-r",
+            ],
+            &[
+                "submit-download",
+                "-o",
+                "16",
+                "-u",
+                "8",
+                "--to-channel",
+                "3",
+                "-r",
+            ],
+        ),
+        (&["submit-bf", "-r"], &["submit-download", "-r"]),
+        (&["submit-bf"], &["submit-vis"]),
+    ];
+    for (deprecated, replacement) in cases {
+        let line = |args: &[&str]| {
+            let mut line = vec!["giant-squid"];
+            line.extend_from_slice(args);
+            line.push(TEST_OBS_ID);
+            download_body(&line)
+        };
+        assert_eq!(line(deprecated), line(replacement), "{deprecated:?}");
+    }
+}
+
+/// The deprecated commands are hidden from the list of commands, and the
+/// end of the main help lists each with what to use instead. Every hidden
+/// command is in the list.
+#[test]
+fn the_deprecated_commands_are_hidden_and_listed_at_the_end_of_the_help() {
+    use clap::CommandFactory;
+
+    use super::{deprecated_command_warning, DEPRECATED_COMMANDS};
+
+    let mut command = Args::command();
+    let hidden: Vec<String> = command
+        .get_subcommands()
+        .filter(|sub| sub.is_hide_set())
+        .map(|sub| sub.get_name().to_string())
+        .collect();
+    let listed: Vec<String> = DEPRECATED_COMMANDS
+        .iter()
+        .map(|deprecated| deprecated.name.to_string())
+        .collect();
+    assert_eq!(hidden, listed);
+
+    let help = command.render_help().to_string();
+    let commands = help
+        .split("Options:")
+        .next()
+        .expect("the help has a list of commands");
+    for deprecated in &DEPRECATED_COMMANDS {
+        assert!(
+            !commands.contains(deprecated.name),
+            "{} is in the list of commands",
+            deprecated.name
+        );
+        assert!(
+            help.contains(&format!("Use {}", deprecated.replacement)),
+            "{help}"
+        );
+        let warning = deprecated_command_warning(deprecated);
+        assert!(warning.starts_with(deprecated.name), "{warning}");
+        assert!(warning.contains(deprecated.replacement), "{warning}");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // submit-volt
 // ---------------------------------------------------------------------------
 
@@ -721,7 +949,9 @@ fn submit_volt_has_no_delivery_options() {
         "8",
         TEST_OBS_ID,
     ]);
-    let params = args.to_params(crate::test_config::test_obs_id());
+    let params = args
+        .to_download()
+        .to_params(crate::test_config::test_obs_id());
     assert_eq!(params.delivery, download_defaults().delivery);
     assert_eq!(params.delivery_format, download_defaults().delivery_format);
 }
@@ -737,7 +967,11 @@ fn submit_volt_sends_the_channel_bounds_and_no_channel_range() {
         "8",
         TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    let json = json_of(
+        &args
+            .to_download()
+            .to_params(crate::test_config::test_obs_id()),
+    );
     assert!(json.get("channel_range").is_none());
     assert_eq!(json["offset"], 16);
     assert_eq!(json["duration"], 8);
@@ -753,7 +987,11 @@ fn submit_volt_sends_the_channel_bounds_and_no_channel_range() {
         "109",
         TEST_OBS_ID,
     ]);
-    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    let json = json_of(
+        &args
+            .to_download()
+            .to_params(crate::test_config::test_obs_id()),
+    );
     assert!(json.get("channel_range").is_none());
     assert_eq!(json["from_channel"], 109);
     assert!(json.get("to_channel").is_none());
@@ -788,7 +1026,11 @@ fn submit_bf_builds_a_beamformer_body() {
         download_defaults().delivery_format
     );
 
-    let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
+    let json = json_of(
+        &args
+            .to_vis_download()
+            .to_params(crate::test_config::test_obs_id()),
+    );
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     // A beamformer body is a download body: the MWA ASVO finds the kind of
     // data from the observation. It has no voltage fields.
@@ -1760,7 +2002,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     assert_eq!(body_json(&from_job), body_json(&expected));
 
     let vis = match parse(&["giant-squid", "submit-vis", TEST_OBS_ID]) {
-        Args::SubmitVis { download, .. } => download.to_vis_params(obs_id),
+        Args::SubmitVis { download, .. } => download.to_vis_download().to_params(obs_id),
         other => panic!("expected SubmitVis, got {other:?}"),
     };
     let expected: DownloadJobParams = DownloadJobParams::builder()
@@ -1770,7 +2012,7 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     assert_eq!(body_json(&vis), body_json(&expected));
 
     let bf = match parse(&["giant-squid", "submit-bf", TEST_OBS_ID]) {
-        Args::SubmitBf { bf, .. } => bf.to_params(obs_id),
+        Args::SubmitBf { bf, .. } => bf.to_vis_download().to_params(obs_id),
         other => panic!("expected SubmitBf, got {other:?}"),
     };
     let expected: DownloadJobParams = DownloadJobParams::builder()

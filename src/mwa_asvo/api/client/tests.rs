@@ -44,9 +44,9 @@ fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
 #[cfg(feature = "bin")]
 fn vis_params_from_cli(args: &[&str]) -> DownloadJobParams {
     match Args::try_parse_from(args).expect("arguments should parse") {
-        Args::SubmitVis { download, .. } => {
-            download.to_vis_params(crate::test_config::test_obs_id())
-        }
+        Args::SubmitVis { download, .. } => download
+            .to_vis_download()
+            .to_params(crate::test_config::test_obs_id()),
         _ => panic!("expected submit-vis"),
     }
 }
@@ -949,9 +949,9 @@ fn a_metadata_job_posts_to_the_download_endpoint_with_only_metadata() {
     let params = match Args::try_parse_from(["giant-squid", "submit-meta", TEST_OBS_ID])
         .expect("arguments should parse")
     {
-        Args::SubmitMeta { download, .. } => {
-            download.to_meta_params(crate::test_config::test_obs_id())
-        }
+        Args::SubmitMeta { download, .. } => download
+            .to_meta_download()
+            .to_params(crate::test_config::test_obs_id()),
         _ => panic!("expected submit-meta"),
     };
 

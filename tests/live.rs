@@ -544,6 +544,42 @@ fn live_list_forms() {
 // Submission, one test per command
 // ---------------------------------------------------------------------------
 
+/// `submit-download` (and its alias) for each kind of download: the MWA ASVO
+/// finds the kind of data from the observation and the options.
+#[test]
+#[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
+fn live_submit_download() {
+    let env = LiveEnv::new();
+    let mut guard = JobGuard::new(&env);
+    let voltage = [
+        "--offset",
+        LIVE_VOLTAGE_OFFSET_SECS,
+        "--duration",
+        LIVE_VOLTAGE_DURATION_SECS,
+    ];
+
+    for command in ["submit-download", "sd"] {
+        let cases: [(Vec<&str>, &str, &str); 4] = [
+            (vec![], LIVE_TEST_OBS_ID, TYPE_DOWNLOAD_VIS),
+            (
+                vec!["--only-metadata"],
+                LIVE_TEST_OBS_ID,
+                TYPE_DOWNLOAD_META,
+            ),
+            (voltage.to_vec(), LIVE_VOLTAGE_OBS_ID, TYPE_DOWNLOAD_VOLTAGE),
+            (vec![], LIVE_BEAMFORMER_OBS_ID, TYPE_DOWNLOAD_BEAMFORMER),
+        ];
+        for (options, obs_id, job_type) in cases {
+            let mut args = vec![command, "-r"];
+            args.extend(options);
+            args.push(obs_id);
+            for id in env.submit(&mut guard, &args) {
+                env.assert_submitted(id, obs_id, job_type);
+            }
+        }
+    }
+}
+
 #[test]
 #[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
 fn live_submit_vis() {
