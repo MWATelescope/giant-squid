@@ -19,20 +19,18 @@ const SCHEMA: &str = include_str!("../openapi-schema.json");
 
 /// The request bodies that have numeric limits, by their schema names.
 const CONVERSION: &str = "ConversionJobParams";
-const FLOW1: &str = "ImagingJobFlow1Params";
-const FLOW2: &str = "ImagingJobFlow2Params";
-/// The download bodies.
-const VISIBILITY: &str = "VisibilityJobParams";
-const VOLTAGE: &str = "VoltageJobParams";
-const BEAMFORMER: &str = "BeamformerJobParams";
+const IMAGING: &str = "ImagingJobParams";
+const IMAGE_FROM_JOB: &str = "ImageFromJobParams";
+/// The download body (visibility, metadata, voltage and beamformer jobs).
+const DOWNLOAD: &str = "DownloadJobParams";
 
 /// Every job request body in the schema. The completeness test looks for
 /// limits in all of them, so a limit added to any body is noticed.
-const JOB_BODIES: [&str; 6] = [VISIBILITY, VOLTAGE, BEAMFORMER, CONVERSION, FLOW1, FLOW2];
+const JOB_BODIES: [&str; 4] = [DOWNLOAD, CONVERSION, IMAGING, IMAGE_FROM_JOB];
 
 /// The job request bodies that have an `obs_id`. The image-from-job body
-/// (flow 2) has none: the MWA ASVO takes it from the source job.
-const OBS_ID_BODIES: [&str; 5] = [VISIBILITY, VOLTAGE, BEAMFORMER, CONVERSION, FLOW1];
+/// has none: the MWA ASVO takes it from the source job.
+const OBS_ID_BODIES: [&str; 3] = [DOWNLOAD, CONVERSION, IMAGING];
 
 /// The limits of the fields both imaging request bodies have.
 const SHARED_LIMITS: [(&str, Bounds); 13] = [
@@ -51,8 +49,8 @@ const SHARED_LIMITS: [(&str, Bounds); 13] = [
     ("wstack_nwlayers", WSTACK_NWLAYERS),
 ];
 
-/// The limits of the fields that the imaging (flow 1) and the conversion
-/// request bodies have, and the image-from-job (flow 2) body does not.
+/// The limits of the fields that the imaging and the conversion request
+/// bodies have, and the image-from-job body does not.
 const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("avg_freq_res", AVG_FREQ_RES),
     ("avg_time_res", AVG_TIME_RES),
@@ -61,22 +59,24 @@ const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
     ("flag_edge_width", FLAG_EDGE_WIDTH),
 ];
 
-/// The limits of the voltage body that this module checks.
-const VOLTAGE_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
+/// The limits of the download body that this module checks.
+const DOWNLOAD_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
 
 /// Schema limits that the Rust type enforces, so this module has no check
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
-const TYPE_ENFORCED: [(&str, &str, &str); 9] = [
-    (VISIBILITY, "obs_id", "ObsId::validate is stricter"),
-    (VOLTAGE, "obs_id", "ObsId::validate is stricter"),
-    (BEAMFORMER, "obs_id", "ObsId::validate is stricter"),
+const TYPE_ENFORCED: [(&str, &str, &str); 7] = [
+    (DOWNLOAD, "obs_id", "ObsId::validate is stricter"),
     (CONVERSION, "obs_id", "ObsId::validate is stricter"),
-    (FLOW1, "obs_id", "ObsId::validate is stricter"),
-    (FLOW2, "source_job_id", "NonZeroU64 (see source_job_id())"),
-    (VOLTAGE, "duration", "u64 has minimum 0"),
-    (VOLTAGE, "from_channel", "u8 has the range 0 to 255"),
-    (VOLTAGE, "to_channel", "u8 has the range 0 to 255"),
+    (IMAGING, "obs_id", "ObsId::validate is stricter"),
+    (
+        IMAGE_FROM_JOB,
+        "source_job_id",
+        "NonZeroU64 (see source_job_id())",
+    ),
+    (DOWNLOAD, "duration", "u64 has minimum 0"),
+    (DOWNLOAD, "from_channel", "u8 has the range 0 to 255"),
+    (DOWNLOAD, "to_channel", "u8 has the range 0 to 255"),
 ];
 
 /// The fields whose values are integers in the request body.
@@ -93,8 +93,8 @@ const INTEGER_FIELDS: [&str; 6] = [
 /// accepts. The schema's own minimum must not be above it.
 const SMALLEST_VALID_OBS_ID: f64 = crate::obs_id::ObsId::MIN as f64;
 
-fn flow1_defaults() -> ImagingJobFlow1Params {
-    ImagingJobFlow1Params::builder()
+fn imaging_defaults() -> ImagingJobParams {
+    ImagingJobParams::builder()
         .obs_id(1_065_880_128_i64)
         .try_into()
         .expect("defaults build")
@@ -107,18 +107,18 @@ fn conversion_defaults() -> ConversionJobParams {
         .expect("defaults build")
 }
 
-/// A voltage job, with an offset and a duration.
-fn voltage_defaults() -> VoltageJobParams {
-    VoltageJobParams::builder()
+/// A voltage job: a download body with an offset and a duration.
+fn voltage_defaults() -> DownloadJobParams {
+    DownloadJobParams::builder()
         .obs_id(1_065_880_128_i64)
-        .offset(0_i64)
-        .duration(8_u64)
+        .offset(Some(0_i64))
+        .duration(Some(8_u64))
         .try_into()
         .expect("defaults build")
 }
 
-fn flow2_defaults() -> ImagingJobFlow2Params {
-    ImagingJobFlow2Params::builder()
+fn image_from_job_defaults() -> ImageFromJobParams {
+    ImageFromJobParams::builder()
         .source_job_id(NonZeroU64::new(1).unwrap())
         .try_into()
         .expect("defaults build")
@@ -209,10 +209,11 @@ fn check_names_the_argument() {
 
 #[test]
 fn the_schema_defaults_are_within_the_limits() {
-    validate_imaging_params(&flow1_defaults()).expect("flow 1 defaults are valid");
-    validate_image_from_job_params(&flow2_defaults()).expect("flow 2 defaults are valid");
+    validate_imaging_params(&imaging_defaults()).expect("imaging defaults are valid");
+    validate_image_from_job_params(&image_from_job_defaults())
+        .expect("image-from-job defaults are valid");
     validate_conversion_params(&conversion_defaults()).expect("conversion defaults are valid");
-    validate_voltage_params(&voltage_defaults()).expect("voltage defaults are valid");
+    validate_download_params(&voltage_defaults()).expect("voltage defaults are valid");
 }
 
 /// Check both ends of each of `limits` with `validate`, starting from
@@ -253,12 +254,12 @@ fn conversion_with_custom_centre() -> ConversionJobParams {
     }
 }
 
-fn imaging_with_custom_centre() -> ImagingJobFlow1Params {
-    ImagingJobFlow1Params {
+fn imaging_with_custom_centre() -> ImagingJobParams {
+    ImagingJobParams {
         centre: PhaseCentre::Custom,
         custom_centre_ra: Some(CUSTOM_CENTRE_TEST_RA),
         custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
-        ..flow1_defaults()
+        ..imaging_defaults()
     }
 }
 
@@ -272,11 +273,11 @@ fn every_limit_is_enforced_on_both_ends_for_the_conversion_body() {
 }
 
 #[test]
-fn every_limit_is_enforced_on_both_ends_for_the_voltage_body() {
+fn every_limit_is_enforced_on_both_ends_for_the_download_body() {
     assert_limits_enforced(
         &voltage_defaults(),
-        &VOLTAGE_LIMITS,
-        validate_voltage_params,
+        &DOWNLOAD_LIMITS,
+        validate_download_params,
     );
 }
 
@@ -330,7 +331,11 @@ fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
 fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
     for (field, bounds) in SHARED_LIMITS.iter() {
         if let Some(max) = bounds.max {
-            let params = with_field(&flow2_defaults(), field, field_value(field, max + 1.0));
+            let params = with_field(
+                &image_from_job_defaults(),
+                field,
+                field_value(field, max + 1.0),
+            );
             assert_eq!(
                 invalid_name(validate_image_from_job_params(&params)),
                 *field,
@@ -338,7 +343,11 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
             );
         }
         if let Some(min) = bounds.min.filter(|_| *field != "nmiter") {
-            let params = with_field(&flow2_defaults(), field, field_value(field, min - 1.0));
+            let params = with_field(
+                &image_from_job_defaults(),
+                field,
+                field_value(field, min - 1.0),
+            );
             assert_eq!(
                 invalid_name(validate_image_from_job_params(&params)),
                 *field,
@@ -350,7 +359,7 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
 
 #[test]
 fn an_absent_optional_field_is_not_checked() {
-    let params = flow1_defaults();
+    let params = imaging_defaults();
 
     assert!(params.uvw_max.is_none() && params.nwlayers.is_none());
     validate_imaging_params(&params).expect("absent optional fields are valid");
@@ -447,11 +456,11 @@ fn assert_matches_schema(schema_type: &str, field: &str, bounds: Bounds) {
 /// Every table of limits, with the bodies it applies to.
 fn limit_tables() -> Vec<(&'static str, &'static [(&'static str, Bounds)])> {
     vec![
-        (FLOW1, &SHARED_LIMITS),
-        (FLOW2, &SHARED_LIMITS),
-        (FLOW1, &CONVERSION_LIMITS),
+        (IMAGING, &SHARED_LIMITS),
+        (IMAGE_FROM_JOB, &SHARED_LIMITS),
+        (IMAGING, &CONVERSION_LIMITS),
         (CONVERSION, &CONVERSION_LIMITS),
-        (VOLTAGE, &VOLTAGE_LIMITS),
+        (DOWNLOAD, &DOWNLOAD_LIMITS),
     ]
 }
 
@@ -512,7 +521,7 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
             "{body}.obs_id: the schema minimum is above what Obsid accepts"
         );
     }
-    let voltage = schema_properties(VOLTAGE);
+    let voltage = schema_properties(DOWNLOAD);
     assert_eq!(schema_limit(&voltage["duration"], "minimum"), Some(0.0));
     assert_eq!(schema_limit(&voltage["duration"], "maximum"), None);
     for channel in ["from_channel", "to_channel"] {
@@ -536,7 +545,7 @@ fn the_image_sizes_are_the_schema_sizes() {
 
     assert_eq!(sizes, IMAGE_SIZES);
     // Both request bodies use that definition.
-    for schema_type in [FLOW1, FLOW2] {
+    for schema_type in [IMAGING, IMAGE_FROM_JOB] {
         assert_eq!(
             schema_properties(schema_type)["image_size"]["$ref"],
             "#/definitions/ImageSizes",
@@ -547,7 +556,7 @@ fn the_image_sizes_are_the_schema_sizes() {
 
 #[test]
 fn the_source_job_id_minimum_is_the_schema_minimum() {
-    let properties = schema_properties(FLOW2);
+    let properties = schema_properties(IMAGE_FROM_JOB);
 
     assert_eq!(
         schema_limit(&properties["source_job_id"], "minimum"),
@@ -625,31 +634,20 @@ fn only_acacia_delivery_with_files_is_refused() {
 fn every_body_with_a_delivery_is_checked() {
     use crate::mwa_asvo::api::openapi::DeliveryFormat;
 
-    let mut visibility: VisibilityJobParams = VisibilityJobParams::builder()
-        .obs_id(1_065_880_128_i64)
-        .try_into()
-        .expect("defaults build");
-    let mut beamformer: BeamformerJobParams = BeamformerJobParams::builder()
-        .obs_id(1_065_880_128_i64)
-        .try_into()
-        .expect("defaults build");
+    let mut download = voltage_defaults();
     let mut conversion = conversion_defaults();
-    let mut flow1 = flow1_defaults();
-    let mut flow2 = flow2_defaults();
-    validate_visibility_params(&visibility).expect("the defaults are valid");
-    validate_beamformer_params(&beamformer).expect("the defaults are valid");
+    let mut imaging = imaging_defaults();
+    let mut image_from_job = image_from_job_defaults();
 
-    visibility.delivery_format = DeliveryFormat::Files;
-    beamformer.delivery_format = DeliveryFormat::Files;
+    download.delivery_format = DeliveryFormat::Files;
     conversion.delivery_format = DeliveryFormat::Files;
-    flow1.delivery_format = DeliveryFormat::Files;
-    flow2.delivery_format = DeliveryFormat::Files;
+    imaging.delivery_format = DeliveryFormat::Files;
+    image_from_job.delivery_format = DeliveryFormat::Files;
     for result in [
-        validate_visibility_params(&visibility),
-        validate_beamformer_params(&beamformer),
+        validate_download_params(&download),
         validate_conversion_params(&conversion),
-        validate_imaging_params(&flow1),
-        validate_image_from_job_params(&flow2),
+        validate_imaging_params(&imaging),
+        validate_image_from_job_params(&image_from_job),
     ] {
         let err = result.expect_err("acacia with files is refused");
         assert!(
@@ -727,9 +725,9 @@ fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refuse
         invalid_name(validate_conversion_params(&conversion)),
         "custom_centre_ra"
     );
-    let imaging = ImagingJobFlow1Params {
+    let imaging = ImagingJobParams {
         custom_centre_dec: Some(CUSTOM_CENTRE_TEST_DEC),
-        ..flow1_defaults()
+        ..imaging_defaults()
     };
     assert_eq!(
         invalid_name(validate_imaging_params(&imaging)),

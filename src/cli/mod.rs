@@ -363,8 +363,6 @@ pub enum Args {
     /// nothing. A key that a line does not give has the default of the
     /// MWA ASVO. A line that gives no delivery or delivery format uses
     /// GIANT_SQUID_DELIVERY and GIANT_SQUID_DELIVERY_FORMAT, if they are set.
-    /// A voltage line has no delivery: the MWA ASVO always delivers a voltage
-    /// job to Scratch, as files.
     // Negative numbers are allowed, as for `SubmitConv`.
     #[command(alias = "scsv", allow_negative_numbers = true)]
     SubmitCsv {

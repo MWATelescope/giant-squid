@@ -26,7 +26,7 @@ OFFSET_TOO_LARGE = 6000
 INVALID_IMAGE_SIZE = 100
 
 # The classes that are made from an Obs ID.
-OBS_ID_CLASSES = [gs.VisibilityJobParams, gs.BeamformerJobParams, gs.ConversionJobParams, gs.ImagingJobFlow1Params]
+OBS_ID_CLASSES = [gs.DownloadJobParams, gs.ConversionJobParams, gs.ImagingJobParams]
 
 
 def attributes(params: object) -> dict[str, Any]:
@@ -67,10 +67,10 @@ def test_the_obs_id_is_checked_when_it_is_set(cls: Any) -> None:
 
 def test_the_source_job_id_is_not_zero() -> None:
     """The library's field is a `NonZeroU64`, so 0 raises when the value is made or set."""
-    params = gs.ImagingJobFlow2Params(SOURCE_JOB_ID)
+    params = gs.ImageFromJobParams(SOURCE_JOB_ID)
 
     with pytest.raises(ValueError, match="0 is not a Job ID"):
-        gs.ImagingJobFlow2Params(0)
+        gs.ImageFromJobParams(0)
     with pytest.raises(ValueError, match="0 is not a Job ID"):
         params.source_job_id = 0
 
@@ -79,43 +79,42 @@ def test_the_source_job_id_is_not_zero() -> None:
 
 def test_an_image_from_a_job_has_no_obs_id() -> None:
     """The MWA ASVO takes the Obs ID from the source job, so the class has none."""
-    params = gs.ImagingJobFlow2Params(SOURCE_JOB_ID)
+    params = gs.ImageFromJobParams(SOURCE_JOB_ID)
 
     assert not hasattr(params, "obs_id")
     with pytest.raises(TypeError, match="obs_id"):
-        gs.ImagingJobFlow2Params(SOURCE_JOB_ID, obs_id=TEST_OBS_ID)  # ty: ignore[unknown-argument]
+        gs.ImageFromJobParams(SOURCE_JOB_ID, obs_id=TEST_OBS_ID)  # ty: ignore[unknown-argument]
 
 
 def test_validate_accepts_the_defaults() -> None:
     """A body that has only what it needs is valid."""
-    gs.VisibilityJobParams(TEST_OBS_ID).validate()
-    gs.VoltageJobParams(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION).validate()
-    gs.BeamformerJobParams(TEST_OBS_ID).validate()
+    gs.DownloadJobParams(TEST_OBS_ID).validate()
+    gs.DownloadJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION).validate()
     gs.ConversionJobParams(TEST_OBS_ID).validate()
-    gs.ImagingJobFlow1Params(TEST_OBS_ID).validate()
-    gs.ImagingJobFlow2Params(SOURCE_JOB_ID).validate()
+    gs.ImagingJobParams(TEST_OBS_ID).validate()
+    gs.ImageFromJobParams(SOURCE_JOB_ID).validate()
 
 
 def test_validate_refuses_an_offset_outside_the_limits() -> None:
     """The limit is the library's, and it names the value."""
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
-        gs.VoltageJobParams(TEST_OBS_ID, offset=OFFSET_TOO_LARGE, duration=VOLTAGE_DURATION).validate()
+        gs.DownloadJobParams(TEST_OBS_ID, offset=OFFSET_TOO_LARGE, duration=VOLTAGE_DURATION).validate()
 
 
 def test_validate_refuses_a_delivery_that_the_format_does_not_suit() -> None:
     """Acacia delivers a tar file only."""
-    params = gs.VisibilityJobParams(TEST_OBS_ID, delivery_format=gs.DeliveryFormat.Files)
+    params = gs.DownloadJobParams(TEST_OBS_ID, delivery_format=gs.DeliveryFormat.Files)
 
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="delivery_format"):
         params.validate()
 
 
 def test_validate_refuses_an_image_size_that_is_not_allowed() -> None:
-    """The size must be one of the sizes that the MWA ASVO allows, in both imaging flows."""
+    """The size must be one of the sizes that the MWA ASVO allows, in both imaging bodies."""
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
-        gs.ImagingJobFlow1Params(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
+        gs.ImagingJobParams(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
-        gs.ImagingJobFlow2Params(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
+        gs.ImageFromJobParams(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
 
 
 def test_validate_refuses_a_custom_centre_without_a_position() -> None:
@@ -128,7 +127,7 @@ def test_validate_refuses_a_custom_centre_without_a_position() -> None:
 
 def test_validate_checks_the_values_as_they_are_now() -> None:
     """A body that was valid, then changed, is checked again."""
-    params = gs.VoltageJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
+    params = gs.DownloadJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
     params.validate()
 
     params.offset = OFFSET_TOO_LARGE
@@ -137,31 +136,14 @@ def test_validate_checks_the_values_as_they_are_now() -> None:
         params.validate()
 
 
-def test_visibility_params_is_the_class_with_its_defaults() -> None:
-    """`visibility_params(obs_id)` is `VisibilityJobParams(obs_id)`."""
-    made = gs.visibility_params(TEST_OBS_ID)
+def test_download_params_is_the_class_with_its_defaults() -> None:
+    """`download_params(obs_id)` is `DownloadJobParams(obs_id)`, with no voltage fields."""
+    made = gs.download_params(TEST_OBS_ID)
 
-    assert isinstance(made, gs.VisibilityJobParams)
-    assert attributes(made) == attributes(gs.VisibilityJobParams(TEST_OBS_ID))
-
-
-def test_metadata_params_asks_for_the_metadata_only() -> None:
-    """The only difference from a visibility download is `download_type`."""
-    made = gs.metadata_params(TEST_OBS_ID)
-
-    assert made.download_type == gs.DownloadType.Meta
-    assert attributes(made) == attributes(gs.VisibilityJobParams(TEST_OBS_ID, download_type=gs.DownloadType.Meta))
-
-
-def test_voltage_params_has_the_offset_and_the_duration() -> None:
-    """`voltage_params(obs_id, offset, duration)` is `VoltageJobParams(obs_id, offset, duration)`."""
-    made = gs.voltage_params(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION)
-
-    assert made.offset == VOLTAGE_OFFSET
-    assert made.duration == VOLTAGE_DURATION
-    assert attributes(made) == attributes(
-        gs.VoltageJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
-    )
+    assert isinstance(made, gs.DownloadJobParams)
+    assert attributes(made) == attributes(gs.DownloadJobParams(TEST_OBS_ID))
+    assert made.only_metadata is False
+    assert (made.offset, made.duration, made.from_channel, made.to_channel) == (None, None, None, None)
 
 
 def test_conversion_params_is_the_class_with_its_defaults() -> None:
@@ -173,31 +155,29 @@ def test_conversion_params_is_the_class_with_its_defaults() -> None:
 
 
 def test_imaging_params_is_the_class_with_its_defaults() -> None:
-    """`imaging_params(obs_id)` is `ImagingJobFlow1Params(obs_id)`."""
+    """`imaging_params(obs_id)` is `ImagingJobParams(obs_id)`."""
     made = gs.imaging_params(TEST_OBS_ID)
 
-    assert isinstance(made, gs.ImagingJobFlow1Params)
-    assert attributes(made) == attributes(gs.ImagingJobFlow1Params(TEST_OBS_ID))
+    assert isinstance(made, gs.ImagingJobParams)
+    assert attributes(made) == attributes(gs.ImagingJobParams(TEST_OBS_ID))
 
 
 def test_image_from_job_params_is_the_class_with_its_defaults() -> None:
-    """`image_from_job_params(source_job_id)` is `ImagingJobFlow2Params(source_job_id)`."""
+    """`image_from_job_params(source_job_id)` is `ImageFromJobParams(source_job_id)`."""
     made = gs.image_from_job_params(SOURCE_JOB_ID)
 
-    assert isinstance(made, gs.ImagingJobFlow2Params)
-    assert attributes(made) == attributes(gs.ImagingJobFlow2Params(SOURCE_JOB_ID))
+    assert isinstance(made, gs.ImageFromJobParams)
+    assert attributes(made) == attributes(gs.ImageFromJobParams(SOURCE_JOB_ID))
 
 
 @pytest.mark.parametrize(
     "make",
-    [gs.visibility_params, gs.metadata_params, gs.beamformer_params, gs.conversion_params, gs.imaging_params],
+    [gs.download_params, gs.conversion_params, gs.imaging_params],
 )
 def test_a_helper_refuses_an_invalid_obs_id(make: Callable[[int], Any]) -> None:
     """The helpers take an `ObsId`, so a number is checked."""
     with pytest.raises(gs.ObsIdErrorWrongNumDigits):
         make(INVALID_OBS_ID)
-    with pytest.raises(gs.ObsIdErrorWrongNumDigits):
-        gs.voltage_params(INVALID_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION)
 
 
 def test_a_helper_refuses_job_id_zero() -> None:
@@ -208,49 +188,26 @@ def test_a_helper_refuses_job_id_zero() -> None:
 
 def test_a_helper_takes_an_obs_id() -> None:
     """An `ObsId` is accepted, as everywhere."""
-    assert gs.visibility_params(gs.ObsId(TEST_OBS_ID)).obs_id == TEST_OBS_ID
+    assert gs.download_params(gs.ObsId(TEST_OBS_ID)).obs_id == TEST_OBS_ID
 
 
 def test_a_preprocess_job_params_holds_its_class() -> None:
     """Each variant has the class that it was made from."""
     conversion = gs.ConversionJobParams(TEST_OBS_ID)
-    imaging = gs.ImagingJobFlow1Params(TEST_OBS_ID)
+    imaging = gs.ImagingJobParams(TEST_OBS_ID)
 
     assert gs.PreprocessJobParams.Conversion(conversion).params is conversion
     assert gs.PreprocessJobParams.Imaging(imaging).params is imaging
     assert not hasattr(gs.PreprocessJobParams, "ImageFromJob")
 
 
-def test_a_download_job_params_holds_its_class() -> None:
-    """Each variant has the class that it was made from, and validates it."""
-    visibility = gs.VisibilityJobParams(TEST_OBS_ID)
-    voltage = gs.VoltageJobParams(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION)
-    beamformer = gs.BeamformerJobParams(TEST_OBS_ID)
-
-    assert gs.DownloadJobParams.Visibility(visibility).params is visibility
-    assert gs.DownloadJobParams.Voltage(voltage).params is voltage
-    assert gs.DownloadJobParams.Beamformer(beamformer).params is beamformer
-    gs.DownloadJobParams.Voltage(voltage).validate()
-    voltage.offset = OFFSET_TOO_LARGE
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
-        gs.DownloadJobParams.Voltage(voltage).validate()
-
-
-def test_beamformer_params_is_the_class_with_its_defaults() -> None:
-    """`beamformer_params(obs_id)` is `BeamformerJobParams(obs_id)`."""
-    made = gs.beamformer_params(TEST_OBS_ID)
-
-    assert isinstance(made, gs.BeamformerJobParams)
-    assert attributes(made) == attributes(gs.BeamformerJobParams(TEST_OBS_ID))
-
-
 def test_a_preprocess_job_params_can_be_matched() -> None:
     """The variants are classes, so `match` works as it does for a Rust enum."""
-    params = gs.PreprocessJobParams.Imaging(gs.ImagingJobFlow1Params(TEST_OBS_ID))
+    params = gs.PreprocessJobParams.Imaging(gs.ImagingJobParams(TEST_OBS_ID))
 
     match params:
         case gs.PreprocessJobParams.Imaging(params=inner):
-            assert isinstance(inner, gs.ImagingJobFlow1Params)
+            assert isinstance(inner, gs.ImagingJobParams)
         case _:
             pytest.fail("the variant was not matched")
 
@@ -258,7 +215,7 @@ def test_a_preprocess_job_params_can_be_matched() -> None:
 def test_a_preprocess_job_params_validates_what_it_holds() -> None:
     """`validate` uses the `validate_*_params` function of the class that it holds."""
     gs.PreprocessJobParams.Conversion(gs.ConversionJobParams(TEST_OBS_ID)).validate()
-    bad = gs.PreprocessJobParams.Imaging(gs.ImagingJobFlow1Params(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
+    bad = gs.PreprocessJobParams.Imaging(gs.ImagingJobParams(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         bad.validate()
@@ -289,14 +246,17 @@ def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.AsvoClie
 def test_submit_preprocess_job_refuses_another_type(client: gs.AsvoClient) -> None:
     """A download body is not a preprocess body."""
     with pytest.raises(TypeError, match="PreprocessJobParams"):
-        client.submit_preprocess_job(gs.VisibilityJobParams(TEST_OBS_ID))  # ty: ignore[invalid-argument-type]
+        client.submit_preprocess_job(gs.DownloadJobParams(TEST_OBS_ID))  # ty: ignore[invalid-argument-type]
 
 
 def test_submit_download_job_sends_a_helper_body(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
     """A body from a helper is submitted as any other."""
     submitted(httpserver, DOWNLOAD_PATH)
 
-    client.submit_download_job(gs.voltage_params(TEST_OBS_ID, VOLTAGE_OFFSET, VOLTAGE_DURATION))
+    params = gs.download_params(TEST_OBS_ID)
+    params.offset = VOLTAGE_OFFSET
+    params.duration = VOLTAGE_DURATION
+    client.submit_download_job(params)
 
     body = body_sent_to(httpserver, DOWNLOAD_PATH)
     assert body["obs_id"] == TEST_OBS_ID

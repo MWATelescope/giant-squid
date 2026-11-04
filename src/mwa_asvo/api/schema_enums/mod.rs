@@ -16,8 +16,8 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use super::openapi::{
-    DeliveryDestination, DeliveryFormat, DownloadType, ImageOutputMode, ImageWeighting, JobState,
-    JobType, Output, PhaseCentre, Polarization, SortBy, Status, Type,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobState, JobType,
+    Output, PhaseCentre, Polarization, SortBy, Status, Type,
 };
 
 /// An enum of the OpenAPI schema, with the list of all its values.
@@ -84,15 +84,6 @@ macro_rules! for_each_schema_enum {
             "How the MWA ASVO packages a job's files: one tar file, or separate\n\
              files. `str()` is the API value.",
             [Tar, Files]
-        );
-        $callback!(
-            DownloadType,
-            PyDownloadType,
-            "DownloadType",
-            "What a visibility download job downloads: the raw visibilities and\n\
-             their metadata (`Vis`), or the metadata only (`Meta`). `str()` is the\n\
-             API value.",
-            [Vis, Meta]
         );
         $callback!(
             Output,

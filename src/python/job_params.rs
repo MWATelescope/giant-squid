@@ -5,8 +5,8 @@
 //! The request bodies of the submit methods, as Python classes.
 //!
 //! Each class is the schema type of one job request body
-//! (`VisibilityJobParams`, `VoltageJobParams`, `BeamformerJobParams`,
-//! `ConversionJobParams`, `ImagingJobFlow1Params`, `ImagingJobFlow2Params`),
+//! (`DownloadJobParams`, `ConversionJobParams`, `ImagingJobParams`,
+//! `ImageFromJobParams`),
 //! with its name and field names. The arguments
 //! of the constructor have the defaults that the library's `job_params`
 //! gives from the OpenAPI schema, and each argument is a plain attribute
@@ -20,12 +20,10 @@
 //! a value that the schema does not allow raises `ValueError` (see
 //! `super::error::api_error`) before anything is sent.
 //!
-//! The functions `visibility_params`, `metadata_params`, `voltage_params`,
-//! `beamformer_params`, `conversion_params`, `imaging_params` and
-//! `image_from_job_params` are the library's functions of the same names:
-//! they make the class for the body that the library makes.
-//! [`PyDownloadJobParams`] and [`PyPreprocessJobParams`] are the library's
-//! `DownloadJobParams` and `PreprocessJobParams`.
+//! The functions `download_params`, `conversion_params`, `imaging_params`
+//! and `image_from_job_params` are the library's functions of the same
+//! names: they make the class for the body that the library makes.
+//! [`PyPreprocessJobParams`] is the library's `PreprocessJobParams`.
 //!
 //! The schema marks `clean_threshold` and `nwlayers` of the imaging bodies as
 //! deprecated, so the imaging classes do not have them: the library sends
@@ -40,20 +38,21 @@ use super::error::api_error;
 use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::JobId;
 use super::types::{
-    PyDeliveryDestination, PyDeliveryFormat, PyDownloadType, PyImageOutputMode, PyImageWeighting,
-    PyOutput, PyPhaseCentre, PyPolarization,
+    PyDeliveryDestination, PyDeliveryFormat, PyImageOutputMode, PyImageWeighting, PyOutput,
+    PyPhaseCentre, PyPolarization,
 };
-use crate::mwa_asvo::api::job_params::{self as schema, DownloadJobParams, PreprocessJobParams};
+use crate::mwa_asvo::api::job_params::{self as schema, PreprocessJobParams};
 use crate::mwa_asvo::api::openapi::{
-    BeamformerJobParams, ConversionJobParams, ImagingJobFlow1Params, ImagingJobFlow2Params,
-    VisibilityJobParams, VoltageJobParams,
+    ConversionJobParams, DownloadJobParams, ImageFromJobParams, ImagingJobParams,
 };
 use crate::mwa_asvo::api::validate;
 use crate::obs_id::ObsId;
 
-/// The request body of a visibility or metadata download job: the schema's
-/// `VisibilityJobParams`. `download_type` says which: `DownloadType.Vis` (the visibilities and
-/// their metadata) or `DownloadType.Meta` (the metadata only).
+/// The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
+/// visibility, metadata, voltage or beamformer job: the MWA ASVO finds the kind of data from the
+/// observation. Set `only_metadata` for a metadata job, and `offset`, `duration`, `from_channel`
+/// and `to_channel` for a voltage job; the MWA ASVO refuses the voltage fields for an observation
+/// that has no voltages.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
@@ -69,10 +68,15 @@ use crate::obs_id::ObsId;
 ///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
 ///     allow_resubmit: Submit the job even if an identical one has
 ///         completed.
-///     download_type: What to download: `DownloadType.Vis` or `DownloadType.Meta`.
+///     only_metadata: Download the metadata only.
+///     offset: Voltage jobs: the offset in seconds from the start GPS time of the
+///         observation, from 0 to 5400, or `None`.
+///     duration: Voltage jobs: the duration to download, in seconds, or `None`.
+///     from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
+///     to_channel: Voltage jobs: the last receiver channel number (0 to 255), or `None`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "VisibilityJobParams", module = "mwa_giant_squid")]
-pub struct PyVisibilityJobParams {
+#[pyclass(name = "DownloadJobParams", module = "mwa_giant_squid")]
+pub struct PyDownloadJobParams {
     pub obs_id: ObsId,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
@@ -81,115 +85,11 @@ pub struct PyVisibilityJobParams {
     #[pyo3(get, set)]
     pub allow_resubmit: Option<bool>,
     #[pyo3(get, set)]
-    pub download_type: PyDownloadType,
-}
-
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyVisibilityJobParams {
-    /// The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
-    /// (`ObsIdError` if it is not valid).
-    #[getter]
-    fn obs_id(&self) -> PyObsId {
-        PyObsId(self.obs_id)
-    }
-
-    #[setter]
-    fn set_obs_id(&mut self, obs_id: ObsIdArg) {
-        self.obs_id = obs_id.0;
-    }
-
-    /// Check the values against the limits of the MWA ASVO, with the library's
-    /// `validate_visibility_params`. The submit methods do this before they send a request.
-    ///
-    /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
-    fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        validate::validate_visibility_params(&self.to_schema()).map_err(|e| api_error(py, e))
-    }
-
-    #[new]
-    #[pyo3(
-        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', allow_resubmit=False, download_type='DownloadType.Vis')"
-    )]
-    #[pyo3(signature = (
-        obs_id,
-        *,
-        delivery = PyDeliveryDestination::from(schema::visibility_defaults().delivery),
-        delivery_format = PyDeliveryFormat::from(schema::visibility_defaults().delivery_format),
-        allow_resubmit = schema::visibility_defaults().allow_resubmit,
-        download_type = PyDownloadType::from(schema::visibility_defaults().download_type),
-    ))]
-    fn new(
-        obs_id: ObsIdArg,
-        delivery: PyDeliveryDestination,
-        delivery_format: PyDeliveryFormat,
-        allow_resubmit: Option<bool>,
-        download_type: PyDownloadType,
-    ) -> Self {
-        Self {
-            obs_id: obs_id.0,
-            delivery,
-            delivery_format,
-            allow_resubmit,
-            download_type,
-        }
-    }
-}
-
-impl PyVisibilityJobParams {
-    /// The library's request body for these values.
-    pub(super) fn to_schema(&self) -> VisibilityJobParams {
-        VisibilityJobParams {
-            delivery: self.delivery.into(),
-            delivery_format: self.delivery_format.into(),
-            allow_resubmit: self.allow_resubmit,
-            download_type: self.download_type.into(),
-            ..schema::visibility_params(self.obs_id)
-        }
-    }
-
-    /// The class for the library's request body `params`, which is for `obs_id`.
-    pub(super) fn from_schema(obs_id: ObsId, params: VisibilityJobParams) -> Self {
-        Self {
-            obs_id,
-            delivery: params.delivery.into(),
-            delivery_format: params.delivery_format.into(),
-            allow_resubmit: params.allow_resubmit,
-            download_type: params.download_type.into(),
-        }
-    }
-}
-
-/// The request body of a voltage download job: the schema's `VoltageJobParams`. It has no
-/// delivery: the MWA ASVO always delivers a voltage job to Scratch, as files.
-///
-/// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
-/// default". Each argument is also an attribute, which can be read and changed.
-/// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
-/// job is submitted (see the submit method).
-///
-/// Args:
-///     obs_id: The Obs ID.
-///     offset: The offset in seconds from the start GPS time of the
-///         observation, from 0 to 5400.
-///     duration: The duration to download, in seconds.
-///     allow_resubmit: Submit the job even if an identical one has
-///         completed.
-///     from_channel: The first receiver channel number (0 to 255), or `None`.
-///     to_channel: The last receiver channel number (0 to 255), or `None`.
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "VoltageJobParams", module = "mwa_giant_squid")]
-pub struct PyVoltageJobParams {
-    pub obs_id: ObsId,
+    pub only_metadata: Option<bool>,
     #[pyo3(get, set)]
-    pub offset: i64,
+    pub offset: Option<i64>,
     #[pyo3(get, set)]
-    pub duration: u64,
-    #[pyo3(get, set)]
-    pub allow_resubmit: Option<bool>,
+    pub duration: Option<u64>,
     #[pyo3(get, set)]
     pub from_channel: Option<u8>,
     #[pyo3(get, set)]
@@ -198,7 +98,7 @@ pub struct PyVoltageJobParams {
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyVoltageJobParams {
+impl PyDownloadJobParams {
     /// The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
     /// (`ObsIdError` if it is not valid).
     #[getter]
@@ -212,166 +112,84 @@ impl PyVoltageJobParams {
     }
 
     /// Check the values against the limits of the MWA ASVO, with the library's
-    /// `validate_voltage_params`. The submit methods do this before they send a request.
+    /// `validate_download_params`. The submit methods do this before they send a request.
     ///
     /// Raises:
     ///     ValueError: A value is outside the limits (the first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        validate::validate_voltage_params(&self.to_schema()).map_err(|e| api_error(py, e))
+        validate::validate_download_params(&self.to_schema()).map_err(|e| api_error(py, e))
     }
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, offset, duration, *, allow_resubmit=False, from_channel=None, to_channel=None)"
-    )]
-    #[pyo3(signature = (
-        obs_id,
-        offset,
-        duration,
-        *,
-        allow_resubmit = schema::voltage_defaults().allow_resubmit,
-        from_channel = schema::voltage_defaults().from_channel,
-        to_channel = schema::voltage_defaults().to_channel,
-    ))]
-    fn new(
-        obs_id: ObsIdArg,
-        offset: i64,
-        duration: u64,
-        allow_resubmit: Option<bool>,
-        from_channel: Option<u8>,
-        to_channel: Option<u8>,
-    ) -> Self {
-        Self {
-            obs_id: obs_id.0,
-            offset,
-            duration,
-            allow_resubmit,
-            from_channel,
-            to_channel,
-        }
-    }
-}
-
-impl PyVoltageJobParams {
-    /// The library's request body for these values.
-    pub(super) fn to_schema(&self) -> VoltageJobParams {
-        VoltageJobParams {
-            allow_resubmit: self.allow_resubmit,
-            from_channel: self.from_channel,
-            to_channel: self.to_channel,
-            ..schema::voltage_params(self.obs_id, self.offset, self.duration)
-        }
-    }
-
-    /// The class for the library's request body `params`, which is for `obs_id`.
-    pub(super) fn from_schema(obs_id: ObsId, params: VoltageJobParams) -> Self {
-        Self {
-            obs_id,
-            offset: params.offset,
-            duration: params.duration,
-            allow_resubmit: params.allow_resubmit,
-            from_channel: params.from_channel,
-            to_channel: params.to_channel,
-        }
-    }
-}
-
-/// The request body of a beamformer download job: the schema's `BeamformerJobParams`.
-///
-/// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
-/// default". Each argument is also an attribute, which can be read and changed.
-/// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
-/// job is submitted (see the submit method).
-///
-/// Args:
-///     obs_id: The Obs ID.
-///     delivery: Where the MWA ASVO delivers the data.
-///     delivery_format: How the MWA ASVO packages the files. Must be
-///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-///     allow_resubmit: Submit the job even if an identical one has
-///         completed.
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "BeamformerJobParams", module = "mwa_giant_squid")]
-pub struct PyBeamformerJobParams {
-    pub obs_id: ObsId,
-    #[pyo3(get, set)]
-    pub delivery: PyDeliveryDestination,
-    #[pyo3(get, set)]
-    pub delivery_format: PyDeliveryFormat,
-    #[pyo3(get, set)]
-    pub allow_resubmit: Option<bool>,
-}
-
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyBeamformerJobParams {
-    /// The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
-    /// (`ObsIdError` if it is not valid).
-    #[getter]
-    fn obs_id(&self) -> PyObsId {
-        PyObsId(self.obs_id)
-    }
-
-    #[setter]
-    fn set_obs_id(&mut self, obs_id: ObsIdArg) {
-        self.obs_id = obs_id.0;
-    }
-
-    /// Check the values against the limits of the MWA ASVO, with the library's
-    /// `validate_beamformer_params`. The submit methods do this before they send a request.
-    ///
-    /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
-    fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        validate::validate_beamformer_params(&self.to_schema()).map_err(|e| api_error(py, e))
-    }
-
-    #[new]
-    #[pyo3(
-        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', allow_resubmit=False)"
+        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', allow_resubmit=False, only_metadata=False, offset=None, duration=None, from_channel=None, to_channel=None)"
     )]
     #[pyo3(signature = (
         obs_id,
         *,
-        delivery = PyDeliveryDestination::from(schema::beamformer_defaults().delivery),
-        delivery_format = PyDeliveryFormat::from(schema::beamformer_defaults().delivery_format),
-        allow_resubmit = schema::beamformer_defaults().allow_resubmit,
+        delivery = PyDeliveryDestination::from(schema::download_defaults().delivery),
+        delivery_format = PyDeliveryFormat::from(schema::download_defaults().delivery_format),
+        allow_resubmit = schema::download_defaults().allow_resubmit,
+        only_metadata = schema::download_defaults().only_metadata,
+        offset = schema::download_defaults().offset,
+        duration = schema::download_defaults().duration,
+        from_channel = schema::download_defaults().from_channel,
+        to_channel = schema::download_defaults().to_channel,
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
         obs_id: ObsIdArg,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         allow_resubmit: Option<bool>,
+        only_metadata: Option<bool>,
+        offset: Option<i64>,
+        duration: Option<u64>,
+        from_channel: Option<u8>,
+        to_channel: Option<u8>,
     ) -> Self {
         Self {
             obs_id: obs_id.0,
             delivery,
             delivery_format,
             allow_resubmit,
+            only_metadata,
+            offset,
+            duration,
+            from_channel,
+            to_channel,
         }
     }
 }
 
-impl PyBeamformerJobParams {
+impl PyDownloadJobParams {
     /// The library's request body for these values.
-    pub(super) fn to_schema(&self) -> BeamformerJobParams {
-        BeamformerJobParams {
+    pub(super) fn to_schema(&self) -> DownloadJobParams {
+        DownloadJobParams {
             delivery: self.delivery.into(),
             delivery_format: self.delivery_format.into(),
             allow_resubmit: self.allow_resubmit,
-            ..schema::beamformer_params(self.obs_id)
+            only_metadata: self.only_metadata,
+            offset: self.offset,
+            duration: self.duration,
+            from_channel: self.from_channel,
+            to_channel: self.to_channel,
+            ..schema::download_params(self.obs_id)
         }
     }
 
     /// The class for the library's request body `params`, which is for `obs_id`.
-    pub(super) fn from_schema(obs_id: ObsId, params: BeamformerJobParams) -> Self {
+    pub(super) fn from_schema(obs_id: ObsId, params: DownloadJobParams) -> Self {
         Self {
             obs_id,
             delivery: params.delivery.into(),
             delivery_format: params.delivery_format.into(),
             allow_resubmit: params.allow_resubmit,
+            only_metadata: params.only_metadata,
+            offset: params.offset,
+            duration: params.duration,
+            from_channel: params.from_channel,
+            to_channel: params.to_channel,
         }
     }
 }
@@ -580,8 +398,8 @@ impl PyConversionJobParams {
     }
 }
 
-/// The request body of an imaging job that starts from an Obs ID (flow 1): the schema's
-/// `ImagingJobFlow1Params`.
+/// The request body of an imaging job that starts from an Obs ID: the schema's
+/// `ImagingJobParams`.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
@@ -643,8 +461,8 @@ impl PyConversionJobParams {
 ///     allow_resubmit: Submit the job even if an identical one has
 ///         completed.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "ImagingJobFlow1Params", module = "mwa_giant_squid")]
-pub struct PyImagingJobFlow1Params {
+#[pyclass(name = "ImagingJobParams", module = "mwa_giant_squid")]
+pub struct PyImagingJobParams {
     pub obs_id: ObsId,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
@@ -724,7 +542,7 @@ pub struct PyImagingJobFlow1Params {
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyImagingJobFlow1Params {
+impl PyImagingJobParams {
     /// The Obs ID. An `int` or an `ObsId` is accepted, and checked when it is set
     /// (`ObsIdError` if it is not valid).
     #[getter]
@@ -875,14 +693,14 @@ impl PyImagingJobFlow1Params {
     }
 }
 
-impl PyImagingJobFlow1Params {
+impl PyImagingJobParams {
     /// The library's request body for these values.
     ///
     /// # Errors
     ///
     /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
     /// valid.
-    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobFlow1Params> {
+    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobParams> {
         let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
         let mut params = schema::imaging_params(self.obs_id);
@@ -927,8 +745,8 @@ impl PyImagingJobFlow1Params {
     }
 }
 
-/// The request body of an imaging job that starts from a conversion job (flow 2): the
-/// schema's `ImagingJobFlow2Params`. It has no Obs ID: the MWA ASVO takes the Obs ID from the
+/// The request body of an imaging job that starts from a conversion job: the
+/// schema's `ImageFromJobParams`. It has no Obs ID: the MWA ASVO takes the Obs ID from the
 /// source job.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
@@ -941,8 +759,8 @@ impl PyImagingJobFlow1Params {
 ///     source_job_id: The ID of the conversion job to image. Must be
 ///         greater than zero (checked when it is set, `ValueError`).
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "ImagingJobFlow2Params", module = "mwa_giant_squid")]
-pub struct PyImagingJobFlow2Params {
+#[pyclass(name = "ImageFromJobParams", module = "mwa_giant_squid")]
+pub struct PyImageFromJobParams {
     pub source_job_id: NonZeroU64,
     #[pyo3(get, set)]
     pub delivery: PyDeliveryDestination,
@@ -994,7 +812,7 @@ pub struct PyImagingJobFlow2Params {
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyImagingJobFlow2Params {
+impl PyImageFromJobParams {
     /// The ID of the conversion job to image. Not 0 (`ValueError` when it is set).
     #[getter]
     fn source_job_id(&self) -> JobId {
@@ -1102,14 +920,14 @@ impl PyImagingJobFlow2Params {
     }
 }
 
-impl PyImagingJobFlow2Params {
+impl PyImageFromJobParams {
     /// The library's request body for these values.
     ///
     /// # Errors
     ///
     /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
     /// valid.
-    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobFlow2Params> {
+    pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImageFromJobParams> {
         let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
         let mut params = schema::image_from_job_params(self.source_job_id);
@@ -1167,9 +985,9 @@ impl PyConversionJobParams {
     }
 }
 
-impl PyImagingJobFlow1Params {
+impl PyImagingJobParams {
     /// The class for the library's request body `params`, which is for `obs_id`.
-    pub(super) fn from_schema(obs_id: ObsId, params: ImagingJobFlow1Params) -> Self {
+    pub(super) fn from_schema(obs_id: ObsId, params: ImagingJobParams) -> Self {
         Self {
             obs_id,
             delivery: params.delivery.into(),
@@ -1213,9 +1031,9 @@ impl PyImagingJobFlow1Params {
     }
 }
 
-impl PyImagingJobFlow2Params {
+impl PyImageFromJobParams {
     /// The class for the library's request body `params`.
-    pub(super) fn from_schema(params: ImagingJobFlow2Params) -> Self {
+    pub(super) fn from_schema(params: ImageFromJobParams) -> Self {
         Self {
             source_job_id: params.source_job_id,
             delivery: params.delivery.into(),
@@ -1245,73 +1063,13 @@ impl PyImagingJobFlow2Params {
     }
 }
 
-/// The request body of a download job: the library's `DownloadJobParams`. It is one of the three
-/// classes that the download endpoint takes. The MWA ASVO tells them apart by their fields, so the
-/// body is sent as the class that it holds.
-///
-/// `DownloadJobParams.Beamformer(params)`, `DownloadJobParams.Visibility(params)` and
-/// `DownloadJobParams.Voltage(params)` make one from a `BeamformerJobParams`, a
-/// `VisibilityJobParams` and a `VoltageJobParams`. `submit_download_job` takes this class, or one of
-/// the three classes (which it takes as the same variant).
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
-)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "DownloadJobParams",
-    module = "mwa_giant_squid"
-)]
-pub enum PyDownloadJobParams {
-    /// A beamformer download job.
-    Beamformer {
-        /// The request body.
-        params: Py<PyBeamformerJobParams>,
-    },
-    /// A visibility or metadata download job.
-    Visibility {
-        /// The request body.
-        params: Py<PyVisibilityJobParams>,
-    },
-    /// A voltage download job.
-    Voltage {
-        /// The request body.
-        params: Py<PyVoltageJobParams>,
-    },
-}
-
-#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
-#[pymethods]
-impl PyDownloadJobParams {
-    /// Check the values against the limits of the MWA ASVO, with the `validate_*_params` function of
-    /// the class that it holds. `submit_download_job` does this before it sends a request.
-    ///
-    /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
-    fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        self.to_schema(py).validate().map_err(|e| api_error(py, e))
-    }
-}
-
-impl PyDownloadJobParams {
-    /// The library's request body for these values.
-    pub(super) fn to_schema(&self, py: Python<'_>) -> DownloadJobParams {
-        match self {
-            Self::Beamformer { params } => params.borrow(py).to_schema().into(),
-            Self::Visibility { params } => params.borrow(py).to_schema().into(),
-            Self::Voltage { params } => params.borrow(py).to_schema().into(),
-        }
-    }
-}
-
 /// The request body of a preprocessing job: the library's `PreprocessJobParams`. It is one of the
 /// two classes that the preprocess endpoint takes. The MWA ASVO tells them apart by their fields,
-/// so the body is sent as the class that it holds. An imaging job from a conversion job (flow 2)
+/// so the body is sent as the class that it holds. An imaging job from a conversion job
 /// has its own endpoint: `submit_image_from_job`.
 ///
 /// `PreprocessJobParams.Conversion(params)` and `PreprocessJobParams.Imaging(params)` make one from
-/// a `ConversionJobParams` and an `ImagingJobFlow1Params`. `submit_preprocess_job` takes this class,
+/// a `ConversionJobParams` and an `ImagingJobParams`. `submit_preprocess_job` takes this class,
 /// or one of the two classes (which it takes as the same variant).
 #[cfg_attr(
     feature = "python-stubgen",
@@ -1329,10 +1087,10 @@ pub enum PyPreprocessJobParams {
         /// The request body.
         params: Py<PyConversionJobParams>,
     },
-    /// An imaging job from an Obs ID (flow 1).
+    /// An imaging job from an Obs ID.
     Imaging {
         /// The request body.
-        params: Py<PyImagingJobFlow1Params>,
+        params: Py<PyImagingJobParams>,
     },
 }
 
@@ -1363,8 +1121,8 @@ impl PyPreprocessJobParams {
     }
 }
 
-/// The request body of a visibility download job for `obs_id`, with the MWA ASVO's defaults: the
-/// library's `visibility_params`. It is `VisibilityJobParams(obs_id)`.
+/// The request body of a download job for `obs_id`, with the MWA ASVO's defaults: the library's
+/// `download_params`. It is `DownloadJobParams(obs_id)`.
 ///
 /// Args:
 ///     obs_id: The Obs ID.
@@ -1379,72 +1137,8 @@ impl PyPreprocessJobParams {
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn visibility_params(obs_id: ObsIdArg) -> PyVisibilityJobParams {
-    PyVisibilityJobParams::from_schema(obs_id.0, schema::visibility_params(obs_id.0))
-}
-
-/// The request body of a metadata download job for `obs_id`: a visibility download job whose
-/// `download_type` is `DownloadType.Meta` (the library's `metadata_params`).
-///
-/// Args:
-///     obs_id: The Obs ID.
-///
-/// Returns:
-///     The request body.
-///
-/// Raises:
-///     ObsIdError: `obs_id` is not a valid Obs ID.
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
-)]
-#[pyfunction]
-pub(super) fn metadata_params(obs_id: ObsIdArg) -> PyVisibilityJobParams {
-    PyVisibilityJobParams::from_schema(obs_id.0, schema::metadata_params(obs_id.0))
-}
-
-/// The request body of a voltage download job for `obs_id`, from `offset` seconds after the start of
-/// the observation, for `duration` seconds (the library's `voltage_params`). It is
-/// `VoltageJobParams(obs_id, offset, duration)`.
-///
-/// Args:
-///     obs_id: The Obs ID.
-///     offset: The offset in seconds from the start GPS time of the observation, from 0 to 5400. It is
-///         checked by `validate()` and when the job is submitted.
-///     duration: The duration to download, in seconds.
-///
-/// Returns:
-///     The request body.
-///
-/// Raises:
-///     ObsIdError: `obs_id` is not a valid Obs ID.
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
-)]
-#[pyfunction]
-pub(super) fn voltage_params(obs_id: ObsIdArg, offset: i64, duration: u64) -> PyVoltageJobParams {
-    PyVoltageJobParams::from_schema(obs_id.0, schema::voltage_params(obs_id.0, offset, duration))
-}
-
-/// The request body of a beamformer download job for `obs_id`, with the MWA ASVO's defaults: the
-/// library's `beamformer_params`. It is `BeamformerJobParams(obs_id)`.
-///
-/// Args:
-///     obs_id: The Obs ID.
-///
-/// Returns:
-///     The request body.
-///
-/// Raises:
-///     ObsIdError: `obs_id` is not a valid Obs ID.
-#[cfg_attr(
-    feature = "python-stubgen",
-    pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
-)]
-#[pyfunction]
-pub(super) fn beamformer_params(obs_id: ObsIdArg) -> PyBeamformerJobParams {
-    PyBeamformerJobParams::from_schema(obs_id.0, schema::beamformer_params(obs_id.0))
+pub(super) fn download_params(obs_id: ObsIdArg) -> PyDownloadJobParams {
+    PyDownloadJobParams::from_schema(obs_id.0, schema::download_params(obs_id.0))
 }
 
 /// The request body of a conversion job for `obs_id`, with the MWA ASVO's defaults: the library's
@@ -1467,8 +1161,8 @@ pub(super) fn conversion_params(obs_id: ObsIdArg) -> PyConversionJobParams {
     PyConversionJobParams::from_schema(obs_id.0, schema::conversion_params(obs_id.0))
 }
 
-/// The request body of an imaging job from an Obs ID (flow 1) for `obs_id`, with the MWA ASVO's
-/// defaults: the library's `imaging_params`. It is `ImagingJobFlow1Params(obs_id)`.
+/// The request body of an imaging job from an Obs ID for `obs_id`, with the MWA ASVO's
+/// defaults: the library's `imaging_params`. It is `ImagingJobParams(obs_id)`.
 ///
 /// Args:
 ///     obs_id: The Obs ID.
@@ -1483,13 +1177,13 @@ pub(super) fn conversion_params(obs_id: ObsIdArg) -> PyConversionJobParams {
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn imaging_params(obs_id: ObsIdArg) -> PyImagingJobFlow1Params {
-    PyImagingJobFlow1Params::from_schema(obs_id.0, schema::imaging_params(obs_id.0))
+pub(super) fn imaging_params(obs_id: ObsIdArg) -> PyImagingJobParams {
+    PyImagingJobParams::from_schema(obs_id.0, schema::imaging_params(obs_id.0))
 }
 
-/// The request body of an imaging job (flow 2) for an image of the conversion job `source_job_id`,
+/// The request body of an imaging job from a job: an image of the conversion job `source_job_id`,
 /// with the MWA ASVO's defaults: the library's `image_from_job_params`. It is
-/// `ImagingJobFlow2Params(source_job_id)`. The MWA ASVO takes the Obs ID from the source job.
+/// `ImageFromJobParams(source_job_id)`. The MWA ASVO takes the Obs ID from the source job.
 ///
 /// Args:
 ///     source_job_id: The ID of the conversion job to image.
@@ -1504,51 +1198,8 @@ pub(super) fn imaging_params(obs_id: ObsIdArg) -> PyImagingJobFlow1Params {
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn image_from_job_params(source_job_id: JobId) -> PyImagingJobFlow2Params {
-    PyImagingJobFlow2Params::from_schema(schema::image_from_job_params(source_job_id.0))
-}
-
-/// The `params` argument of `submit_download_job`: a `DownloadJobParams`, or one of the three
-/// classes that it holds, turned into the library's request body.
-pub struct DownloadParams(pub DownloadJobParams);
-
-impl<'a, 'py> FromPyObject<'a, 'py> for DownloadParams {
-    type Error = PyErr;
-
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
-        let py = obj.py();
-        if let Ok(params) = obj.cast::<PyDownloadJobParams>() {
-            return Ok(Self(params.get().to_schema(py)));
-        }
-        if let Ok(params) = obj.cast::<PyBeamformerJobParams>() {
-            return Ok(Self(params.borrow().to_schema().into()));
-        }
-        if let Ok(params) = obj.cast::<PyVisibilityJobParams>() {
-            return Ok(Self(params.borrow().to_schema().into()));
-        }
-        if let Ok(params) = obj.cast::<PyVoltageJobParams>() {
-            return Ok(Self(params.borrow().to_schema().into()));
-        }
-        Err(PyTypeError::new_err(format!(
-            "expected a DownloadJobParams, a BeamformerJobParams, a VisibilityJobParams or a \
-             VoltageJobParams, not {}",
-            obj.get_type().name()?
-        )))
-    }
-}
-
-#[cfg(feature = "python-stubgen")]
-impl pyo3_stub_gen::PyStubType for DownloadParams {
-    fn type_output() -> pyo3_stub_gen::TypeInfo {
-        pyo3_stub_gen::TypeInfo {
-            name:
-                "DownloadJobParams | BeamformerJobParams | VisibilityJobParams | VoltageJobParams"
-                    .to_string(),
-            source_module: None,
-            import: Default::default(),
-            type_refs: std::collections::HashMap::new(),
-        }
-    }
+pub(super) fn image_from_job_params(source_job_id: JobId) -> PyImageFromJobParams {
+    PyImageFromJobParams::from_schema(schema::image_from_job_params(source_job_id.0))
 }
 
 /// The `params` argument of `submit_preprocess_job`: a `PreprocessJobParams`, or one of the two
@@ -1566,11 +1217,11 @@ impl<'a, 'py> FromPyObject<'a, 'py> for PreprocessParams {
         if let Ok(params) = obj.cast::<PyConversionJobParams>() {
             return Ok(Self(params.borrow().to_schema().into()));
         }
-        if let Ok(params) = obj.cast::<PyImagingJobFlow1Params>() {
+        if let Ok(params) = obj.cast::<PyImagingJobParams>() {
             return Ok(Self(params.borrow().to_schema(py)?.into()));
         }
         Err(PyTypeError::new_err(format!(
-            "expected a PreprocessJobParams, a ConversionJobParams or an ImagingJobFlow1Params, \
+            "expected a PreprocessJobParams, a ConversionJobParams or an ImagingJobParams, \
              not {}",
             obj.get_type().name()?
         )))
@@ -1581,7 +1232,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for PreprocessParams {
 impl pyo3_stub_gen::PyStubType for PreprocessParams {
     fn type_output() -> pyo3_stub_gen::TypeInfo {
         pyo3_stub_gen::TypeInfo {
-            name: "PreprocessJobParams | ConversionJobParams | ImagingJobFlow1Params".to_string(),
+            name: "PreprocessJobParams | ConversionJobParams | ImagingJobParams".to_string(),
             source_module: None,
             import: Default::default(),
             type_refs: std::collections::HashMap::new(),

@@ -629,8 +629,8 @@ fn live_submit_image() {
 fn live_submit_volt() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);
-    // A voltage job has no delivery options: the MWA ASVO always delivers
-    // it to Scratch, as files.
+    // A voltage job has no delivery options: the body has the schema's
+    // delivery defaults, and the MWA ASVO decides where it is delivered.
     let range = [
         "--offset",
         LIVE_VOLTAGE_OFFSET_SECS,

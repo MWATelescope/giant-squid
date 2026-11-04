@@ -149,7 +149,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
         when.method(POST)
             .path("/api/v2/jobs/download")
             .json_body_includes(
-                json!({"obs_id": 1349904184_u64, "download_type": "vis"}).to_string(),
+                json!({"obs_id": 1349904184_u64, "only_metadata": false}).to_string(),
             );
         then.status(200)
             .header("content-type", "application/json")
@@ -159,7 +159,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
         when.method(POST)
             .path("/api/v2/jobs/download")
             .json_body_includes(
-                json!({"obs_id": 1349904185_u64, "download_type": "meta"}).to_string(),
+                json!({"obs_id": 1349904185_u64, "only_metadata": true}).to_string(),
             );
         then.status(200)
             .header("content-type", "application/json")

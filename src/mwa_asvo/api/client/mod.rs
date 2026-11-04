@@ -33,13 +33,13 @@ use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions
 use crate::obs_id::ObsId;
 
 use super::error::AsvoApiError;
-use super::job_params::{DownloadJobParams, PreprocessJobParams};
+use super::job_params::PreprocessJobParams;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, ErrorResponse, ImagingJobFlow2Params, JobCancelledResponse,
-    JobDetailResponse, JobState, JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy,
-    TokenResponse, UserResponse,
+    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, ImageFromJobParams,
+    JobCancelledResponse, JobDetailResponse, JobState, JobSubmittedResponse, JobType,
+    JobsByUserRequest, Login, SortBy, TokenResponse, UserResponse,
 };
-use super::validate::{self, validate_image_from_job_params};
+use super::validate::{self, validate_download_params, validate_image_from_job_params};
 
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
@@ -908,7 +908,7 @@ impl AsvoClient {
     /// `JobSubmittedResponse` carrying the new job's ID.
     ///
     /// The body is checked against the schema's limits first
-    /// ([`DownloadJobParams::validate`]); nothing is sent if a value is
+    /// ([`validate_download_params`]); nothing is sent if a value is
     /// wrong, and the error is [`AsvoApiError::InvalidParameter`]. The
     /// rules of each kind of job (for example, that the observation has
     /// voltages) are the MWA ASVO's: it refuses a body that does not suit
@@ -917,14 +917,14 @@ impl AsvoClient {
         &self,
         params: &DownloadJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
-        params.validate()?;
+        validate_download_params(params)?;
         debug!("Submitting a download job to MWA ASVO");
 
         self.submit(ENDPOINT_DOWNLOAD_JOB, params)
     }
 
     /// Submit a preprocessing job: a conversion job or an imaging job from
-    /// an Obs ID (flow 1). An imaging job from a conversion job (flow 2) is
+    /// an Obs ID. An imaging job from a conversion job is
     /// [`Self::submit_image_from_job`].
     ///
     /// The body is checked against the schema's limits first
@@ -940,7 +940,7 @@ impl AsvoClient {
         self.submit(ENDPOINT_PREPROCESS_JOB, params)
     }
 
-    /// Submit an imaging job from a conversion job (flow 2): an image of
+    /// Submit an imaging job from a conversion job: an image of
     /// the conversion job `params.source_job_id`.
     ///
     /// The body is checked against the schema's limits first
@@ -948,7 +948,7 @@ impl AsvoClient {
     /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
     pub fn submit_image_from_job(
         &self,
-        params: &ImagingJobFlow2Params,
+        params: &ImageFromJobParams,
     ) -> Result<JobSubmittedResponse, AsvoApiError> {
         validate_image_from_job_params(params)?;
         debug!("Submitting an image from job to MWA ASVO");

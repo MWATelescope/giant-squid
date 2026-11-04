@@ -45,26 +45,26 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
 
 
 # A voltage job has an offset and a duration.
-VOLTAGE_JOB = partial(gs.VoltageJobParams, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
-METADATA_JOB = partial(gs.VisibilityJobParams, download_type=gs.DownloadType.Meta)
+VOLTAGE_JOB = partial(gs.DownloadJobParams, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)
+METADATA_JOB = partial(gs.DownloadJobParams, only_metadata=True)
 
 # Each case: the class (or a function that makes it), its endpoint, its positional arguments, the argument that is set
 # to None, and the value that the argument has when it is left out (the schema's default).
 NULLABLE_WITH_DEFAULT = [
-    (gs.VisibilityJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
-    (gs.BeamformerJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "only_metadata", False),
     (METADATA_JOB, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "avg_time_res", 2.0),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "no_rfi", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "no_geometric_delay", False),
-    (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
-    (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
-    (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
-    (gs.ImagingJobFlow1Params, IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
-    (gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
-    (gs.ImagingJobFlow2Params, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
+    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
+    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
+    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
+    (gs.ImageFromJobParams, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
+    (gs.ImageFromJobParams, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
     (VOLTAGE_JOB, VOLTAGE_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
 ]
 

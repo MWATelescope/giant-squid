@@ -12,8 +12,8 @@
 //! early), the Python module, and any Rust program that uses the library.
 //! The client's submit methods check their request body with the
 //! `validate_*_params` function for that body, so an out-of-range value is
-//! never sent. In the download bodies, only the voltage `offset` has
-//! limits that its type does not give.
+//! never sent. In the download body, only the voltage `offset` has limits
+//! that its type does not give.
 //!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
@@ -26,9 +26,8 @@ use std::num::NonZeroU64;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    BeamformerJobParams, ConversionJobParams, DeliveryDestination, DeliveryFormat, ImageSizes,
-    ImagingJobFlow1Params, ImagingJobFlow2Params, PhaseCentre, VisibilityJobParams,
-    VoltageJobParams,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
+    ImageFromJobParams, ImageSizes, ImagingJobParams, PhaseCentre,
 };
 
 #[cfg(test)]
@@ -156,7 +155,7 @@ pub const UVW_MAX: Bounds = Bounds::between(1.0, 5000.0);
 /// `uvw_min`: the minimum uv distance to image (wavelengths).
 pub const UVW_MIN: Bounds = Bounds::at_most(100.0);
 /// `wstack_nwlayers`: the number of w-stacking layers. (Both imaging bodies
-/// since schema v1.11; before, only the imaging (flow 1) body.)
+/// since schema v1.11; before, only the imaging body from an Obs ID.)
 pub const WSTACK_NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
 /// `offset` of a voltage job: seconds from the start of the observation.
 pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 5400.0);
@@ -207,8 +206,8 @@ macro_rules! shared_imaging_checks {
     };
 }
 
-/// The checks of the preprocessing fields that conversion and imaging
-/// (flow 1) request bodies both have: the numbers against the schema's
+/// The checks of the preprocessing fields that the conversion and imaging
+/// request bodies both have: the numbers against the schema's
 /// limits, and the phase centre ([`check_centre`]).
 fn check_preprocessing(
     avg_freq_res: Option<f64>,
@@ -289,40 +288,24 @@ pub fn check_centre(
     Ok(())
 }
 
-/// Check a visibility or metadata download request body: its delivery
-/// ([`check_delivery_format`]).
+/// Check a download request body: its delivery ([`check_delivery_format`])
+/// and its `offset` against the schema's limits. `duration`,
+/// `from_channel` and `to_channel` need no check: the schema's limits for
+/// them are the limits of their types (`u64`, `u8`). The other rules of a
+/// download job (for example that only an observation with voltages takes
+/// `offset` and `duration`) are the MWA ASVO's.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree.
-pub fn validate_visibility_params(params: &VisibilityJobParams) -> Result<(), AsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)
-}
-
-/// Check a beamformer download request body: its delivery
-/// ([`check_delivery_format`]).
-///
-/// # Errors
-///
-/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree.
-pub fn validate_beamformer_params(params: &BeamformerJobParams) -> Result<(), AsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)
-}
-
-/// Check a voltage download request body: its `offset` against the
-/// schema's limits. `duration`, `from_channel` and `to_channel` need no
-/// check: the schema's limits for them are the limits of their types
-/// (`u64`, `u8`). The body has no delivery: the MWA ASVO always delivers a
-/// voltage job to Scratch, as files. The other rules of a voltage job (for
-/// example that the observation has voltages) are the MWA ASVO's.
-///
-/// # Errors
-///
-/// [`AsvoApiError::InvalidParameter`] if the `offset` is out of range.
-pub fn validate_voltage_params(params: &VoltageJobParams) -> Result<(), AsvoApiError> {
-    VOLTAGE_OFFSET.check("offset", params.offset as f64)
+/// agree, or the `offset` is out of range.
+pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
+    check_delivery_format(params.delivery, params.delivery_format)?;
+    check_all(&[(
+        "offset",
+        VOLTAGE_OFFSET,
+        params.offset.map(|offset| offset as f64),
+    )])
 }
 
 /// Check a conversion request body: its delivery ([`check_delivery_format`]),
@@ -345,7 +328,7 @@ pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), As
     )
 }
 
-/// Check an imaging (flow 1) request body: its delivery
+/// Check an imaging request body (from an Obs ID): its delivery
 /// ([`check_delivery_format`]), its numbers against the schema's limits, and
 /// its phase centre ([`check_centre`]).
 ///
@@ -353,7 +336,7 @@ pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), As
 ///
 /// [`AsvoApiError::InvalidParameter`], for the first argument that is out
 /// of range or the delivery and its format that do not agree.
-pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), AsvoApiError> {
+pub fn validate_imaging_params(params: &ImagingJobParams) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))?;
     check_preprocessing(
@@ -366,14 +349,14 @@ pub fn validate_imaging_params(params: &ImagingJobFlow1Params) -> Result<(), Asv
     )
 }
 
-/// Check an image-from-job (flow 2) request body: its delivery
+/// Check an image-from-job request body: its delivery
 /// ([`check_delivery_format`]) and its numbers against the schema's limits.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`], for the first argument that is out
 /// of range or the delivery and its format that do not agree.
-pub fn validate_image_from_job_params(params: &ImagingJobFlow2Params) -> Result<(), AsvoApiError> {
+pub fn validate_image_from_job_params(params: &ImageFromJobParams) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))
 }

@@ -17,14 +17,13 @@ use std::num::NonZeroU64;
 use clap::ArgAction;
 
 use crate::mwa_asvo::api::job_params::{
-    beamformer_defaults, beamformer_params, conversion_defaults, conversion_params,
+    conversion_defaults, conversion_params, download_defaults, download_params,
     image_from_job_defaults, image_from_job_params, imaging_defaults, imaging_params,
-    metadata_params, visibility_defaults, visibility_params, voltage_defaults, voltage_params,
 };
 use crate::mwa_asvo::api::openapi::{
-    BeamformerJobParams, ConversionJobParams, DeliveryDestination, DeliveryFormat, ImageOutputMode,
-    ImageSizes, ImageWeighting, ImagingJobFlow1Params, ImagingJobFlow2Params, JobsByUserRequest,
-    Output, PhaseCentre, Polarization, VisibilityJobParams, VoltageJobParams,
+    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
+    ImageFromJobParams, ImageOutputMode, ImageSizes, ImageWeighting, ImagingJobParams,
+    JobsByUserRequest, Output, PhaseCentre, Polarization,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
 use crate::mwa_asvo::{ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
@@ -151,12 +150,10 @@ macro_rules! impl_schema_defaults {
 }
 
 impl_schema_defaults!(
-    VisibilityJobParams => visibility_defaults,
-    VoltageJobParams => voltage_defaults,
-    BeamformerJobParams => beamformer_defaults,
+    DownloadJobParams => download_defaults,
     ConversionJobParams => conversion_defaults,
-    ImagingJobFlow1Params => imaging_defaults,
-    ImagingJobFlow2Params => image_from_job_defaults,
+    ImagingJobParams => imaging_defaults,
+    ImageFromJobParams => image_from_job_defaults,
 );
 
 /// Implement an accessor trait: each method returns that field of the
@@ -183,11 +180,10 @@ pub trait DeliveryFields: SchemaDefaults {
 }
 
 impl_fields!(DeliveryFields for [
-    VisibilityJobParams,
-    BeamformerJobParams,
+    DownloadJobParams,
     ConversionJobParams,
-    ImagingJobFlow1Params,
-    ImagingJobFlow2Params,
+    ImagingJobParams,
+    ImageFromJobParams,
 ] {
     delivery: DeliveryDestination,
     delivery_format: DeliveryFormat,
@@ -205,7 +201,8 @@ fn nullable_default<T: ToString>(default: Option<T>, name: &str) -> String {
         .to_string()
 }
 
-/// The preprocessing fields of a schema type (conversion and imaging flow 1).
+/// The preprocessing fields of a schema type (conversion, and imaging from an
+/// Obs ID).
 pub trait PreprocessingFields: SchemaDefaults {
     fn avg_freq_res(&self) -> Option<f64>;
     fn avg_time_res(&self) -> Option<f64>;
@@ -221,7 +218,7 @@ pub trait PreprocessingFields: SchemaDefaults {
     fn no_rfi(&self) -> Option<bool>;
 }
 
-impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params] {
+impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobParams] {
     avg_freq_res: Option<f64>,
     avg_time_res: Option<f64>,
     flag_edge_width: f64,
@@ -236,7 +233,7 @@ impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobFlow1Params
     no_rfi: Option<bool>,
 });
 
-/// The WSClean fields of a schema type (both imaging flows).
+/// The WSClean fields of a schema type (both imaging bodies).
 pub trait WscleanFields: SchemaDefaults {
     fn apply_primary_beam(&self) -> bool;
     fn auto_mask(&self) -> i64;
@@ -258,7 +255,7 @@ pub trait WscleanFields: SchemaDefaults {
     fn weighting(&self) -> ImageWeighting;
 }
 
-impl_fields!(WscleanFields for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
+impl_fields!(WscleanFields for [ImagingJobParams, ImageFromJobParams] {
     apply_primary_beam: bool,
     auto_mask: i64,
     auto_threshold: f64,
@@ -309,12 +306,10 @@ pub trait ResubmitField: SchemaDefaults {
 }
 
 impl_fields!(ResubmitField for [
-    VisibilityJobParams,
-    VoltageJobParams,
-    BeamformerJobParams,
+    DownloadJobParams,
     ConversionJobParams,
-    ImagingJobFlow1Params,
-    ImagingJobFlow2Params,
+    ImagingJobParams,
+    ImageFromJobParams,
 ] {
     allow_resubmit: Option<bool>,
 });
@@ -382,7 +377,7 @@ impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
     }
 }
 
-/// The preprocessing arguments of the conversion and imaging (flow 1) jobs.
+/// The preprocessing arguments of the conversion and imaging (from an Obs ID) jobs.
 /// The defaults are those of the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct PreprocessingArgs<P: PreprocessingFields> {
@@ -650,11 +645,10 @@ pub struct ResubmitArgs<P: ResubmitField> {
 }
 
 impl_apply_to!(DeliveryArgs for [
-    VisibilityJobParams,
-    BeamformerJobParams,
+    DownloadJobParams,
     ConversionJobParams,
-    ImagingJobFlow1Params,
-    ImagingJobFlow2Params,
+    ImagingJobParams,
+    ImageFromJobParams,
 ] {
     copy: [delivery, delivery_format],
     nullable: [],
@@ -662,19 +656,17 @@ impl_apply_to!(DeliveryArgs for [
 });
 
 impl_apply_to!(ResubmitArgs for [
-    VisibilityJobParams,
-    VoltageJobParams,
-    BeamformerJobParams,
+    DownloadJobParams,
     ConversionJobParams,
-    ImagingJobFlow1Params,
-    ImagingJobFlow2Params,
+    ImagingJobParams,
+    ImageFromJobParams,
 ] {
     copy: [],
     nullable: [allow_resubmit],
     clone: [],
 });
 
-impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobFlow1Params] {
+impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobParams] {
     copy: [
         flag_edge_width,
         apply_di_cal,
@@ -696,7 +688,7 @@ impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobFlow1Params
     clone: [],
 });
 
-impl_apply_to!(WscleanArgs for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
+impl_apply_to!(WscleanArgs for [ImagingJobParams, ImageFromJobParams] {
     copy: [
         apply_primary_beam,
         auto_mask,
@@ -722,32 +714,35 @@ impl_apply_to!(WscleanArgs for [ImagingJobFlow1Params, ImagingJobFlow2Params] {
 });
 
 /// Arguments shared by the visibility and metadata download jobs, which use
-/// the same request body and the same endpoint; a metadata job has the
-/// `download_type` `meta`.
+/// the same request body and the same endpoint; a metadata job has
+/// `only_metadata` set.
 #[derive(clap::Args, Debug, Clone)]
 pub struct DownloadJobArgs {
     #[command(flatten)]
-    pub delivery_args: DeliveryArgs<VisibilityJobParams>,
+    pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<VisibilityJobParams>,
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
 }
 
 impl DownloadJobArgs {
     /// The request body for a raw visibility download job.
-    pub fn to_vis_params(&self, obs_id: ObsId) -> VisibilityJobParams {
-        self.apply_to(visibility_params(obs_id))
+    pub fn to_vis_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        self.apply_to(download_params(obs_id))
     }
 
     /// The request body for a metadata download job.
-    pub fn to_meta_params(&self, obs_id: ObsId) -> VisibilityJobParams {
-        self.apply_to(metadata_params(obs_id))
+    pub fn to_meta_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        self.apply_to(DownloadJobParams {
+            only_metadata: Some(true),
+            ..download_params(obs_id)
+        })
     }
 
     /// `params` with the options set. The CLI has a value for every option
     /// (its defaults are the schema's), so each field that the options cover
     /// is set.
-    fn apply_to(&self, mut params: VisibilityJobParams) -> VisibilityJobParams {
+    fn apply_to(&self, mut params: DownloadJobParams) -> DownloadJobParams {
         self.delivery_args.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
         params
@@ -785,27 +780,27 @@ impl ConversionJobArgs {
     }
 }
 
-/// Arguments for an imaging job that starts from raw visibilities (flow 1).
+/// Arguments for an imaging job that starts from raw visibilities.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingJobArgs {
     #[command(flatten)]
-    pub delivery_args: DeliveryArgs<ImagingJobFlow1Params>,
+    pub delivery_args: DeliveryArgs<ImagingJobParams>,
 
     #[command(flatten)]
-    pub preprocessing: PreprocessingArgs<ImagingJobFlow1Params>,
+    pub preprocessing: PreprocessingArgs<ImagingJobParams>,
 
     #[command(flatten)]
-    pub wsclean: WscleanArgs<ImagingJobFlow1Params>,
+    pub wsclean: WscleanArgs<ImagingJobParams>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<ImagingJobFlow1Params>,
+    pub resubmit: ResubmitArgs<ImagingJobParams>,
 }
 
 impl ImagingJobArgs {
     /// The request body for an imaging job for a single Obs ID. The CLI has a
     /// value for every option (its defaults are the schema's), so each field
     /// that the options cover is set.
-    pub fn to_params(&self, obs_id: ObsId) -> ImagingJobFlow1Params {
+    pub fn to_params(&self, obs_id: ObsId) -> ImagingJobParams {
         let mut params = imaging_params(obs_id);
         self.delivery_args.apply_to(&mut params);
         self.preprocessing.apply_to(&mut params);
@@ -815,8 +810,7 @@ impl ImagingJobArgs {
     }
 }
 
-/// Arguments for an imaging job that starts from an existing conversion job
-/// (flow 2).
+/// Arguments for an imaging job that starts from an existing conversion job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingFromJobArgs {
     /// The MWA ASVO conversion Job ID to image from. Required.
@@ -824,13 +818,13 @@ pub struct ImagingFromJobArgs {
     pub source_job_id: NonZeroU64,
 
     #[command(flatten)]
-    pub delivery_args: DeliveryArgs<ImagingJobFlow2Params>,
+    pub delivery_args: DeliveryArgs<ImageFromJobParams>,
 
     #[command(flatten)]
-    pub wsclean: WscleanArgs<ImagingJobFlow2Params>,
+    pub wsclean: WscleanArgs<ImageFromJobParams>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<ImagingJobFlow2Params>,
+    pub resubmit: ResubmitArgs<ImageFromJobParams>,
 }
 
 impl ImagingFromJobArgs {
@@ -838,7 +832,7 @@ impl ImagingFromJobArgs {
     /// `--source-job-id`. The CLI has a value for every option (its defaults
     /// are the schema's), so each field that the options cover is set.
     /// The MWA ASVO takes the Obs ID from the source job.
-    pub fn to_params(&self) -> ImagingJobFlow2Params {
+    pub fn to_params(&self) -> ImageFromJobParams {
         let mut params = image_from_job_params(self.source_job_id);
         self.delivery_args.apply_to(&mut params);
         self.wsclean.apply_to(&mut params);
@@ -848,8 +842,8 @@ impl ImagingFromJobArgs {
 }
 
 /// Arguments for a voltage download job. A voltage job has no delivery
-/// options: the MWA ASVO always delivers it to Scratch, as files. Scratch
-/// requires the "mwavcs" Pawsey Group on your MWA ASVO profile.
+/// options: the body has the schema's delivery defaults, and the MWA ASVO
+/// decides where a voltage job is delivered.
 #[derive(clap::Args, Debug, Clone)]
 pub struct VoltageJobArgs {
     /// The offset in seconds from the start GPS time of the observation.
@@ -869,16 +863,18 @@ pub struct VoltageJobArgs {
     pub to_channel: Option<u8>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<VoltageJobParams>,
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
 }
 
 impl VoltageJobArgs {
     /// The request body for a voltage job.
-    pub fn to_params(&self, obs_id: ObsId) -> VoltageJobParams {
-        let mut params = VoltageJobParams {
+    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        let mut params = DownloadJobParams {
+            offset: Some(self.offset),
+            duration: Some(self.duration),
             from_channel: self.from_channel,
             to_channel: self.to_channel,
-            ..voltage_params(obs_id, self.offset, self.duration)
+            ..download_params(obs_id)
         };
         self.resubmit.apply_to(&mut params);
         params
@@ -889,16 +885,17 @@ impl VoltageJobArgs {
 #[derive(clap::Args, Debug, Clone)]
 pub struct BeamformerJobArgs {
     #[command(flatten)]
-    pub delivery_args: DeliveryArgs<BeamformerJobParams>,
+    pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     #[command(flatten)]
-    pub resubmit: ResubmitArgs<BeamformerJobParams>,
+    pub resubmit: ResubmitArgs<DownloadJobParams>,
 }
 
 impl BeamformerJobArgs {
-    /// The request body for a beamformer job.
-    pub fn to_params(&self, obs_id: ObsId) -> BeamformerJobParams {
-        let mut params = beamformer_params(obs_id);
+    /// The request body for a beamformer job: a download job body, from
+    /// which the MWA ASVO tells the beamformer data by the observation.
+    pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
+        let mut params = download_params(obs_id);
         self.delivery_args.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
         params

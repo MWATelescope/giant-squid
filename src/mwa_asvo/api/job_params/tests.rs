@@ -48,12 +48,10 @@ fn assert_defaults_are_the_schemas(schema_name: &str, body: &impl serde::Seriali
 
 #[test]
 fn the_defaults_are_the_schemas() {
-    assert_defaults_are_the_schemas("VisibilityJobParams", &visibility_defaults());
-    assert_defaults_are_the_schemas("VoltageJobParams", &voltage_defaults());
-    assert_defaults_are_the_schemas("BeamformerJobParams", &beamformer_defaults());
+    assert_defaults_are_the_schemas("DownloadJobParams", &download_defaults());
     assert_defaults_are_the_schemas("ConversionJobParams", &conversion_defaults());
-    assert_defaults_are_the_schemas("ImagingJobFlow1Params", &imaging_defaults());
-    assert_defaults_are_the_schemas("ImagingJobFlow2Params", &image_from_job_defaults());
+    assert_defaults_are_the_schemas("ImagingJobParams", &imaging_defaults());
+    assert_defaults_are_the_schemas("ImageFromJobParams", &image_from_job_defaults());
 }
 
 /// `None` in a field that the schema allows to be `null`, and whose default
@@ -93,51 +91,15 @@ fn none_in_a_field_whose_default_is_null_is_left_out() {
 fn the_constructors_set_the_required_fields() {
     let obs_id = test_obs_id();
 
-    let visibility = visibility_params(obs_id);
+    let download = download_params(obs_id);
     assert_eq!(
-        VisibilityJobParams {
+        DownloadJobParams {
             obs_id: 0,
-            ..visibility.clone()
+            ..download.clone()
         },
-        visibility_defaults()
+        download_defaults()
     );
-    assert_eq!(visibility.obs_id, i64::from(obs_id));
-    assert_eq!(visibility.download_type, DownloadType::Vis);
-
-    let metadata = metadata_params(obs_id);
-    assert_eq!(
-        VisibilityJobParams {
-            download_type: DownloadType::Vis,
-            ..metadata.clone()
-        },
-        visibility
-    );
-    assert_eq!(metadata.download_type, DownloadType::Meta);
-
-    let voltage = voltage_params(obs_id, 5, 8);
-    assert_eq!(
-        VoltageJobParams {
-            obs_id: 0,
-            offset: 0,
-            duration: 0,
-            ..voltage.clone()
-        },
-        voltage_defaults()
-    );
-    assert_eq!(
-        (voltage.obs_id, voltage.offset, voltage.duration),
-        (i64::from(obs_id), 5, 8)
-    );
-
-    let beamformer = beamformer_params(obs_id);
-    assert_eq!(
-        BeamformerJobParams {
-            obs_id: 0,
-            ..beamformer.clone()
-        },
-        beamformer_defaults()
-    );
-    assert_eq!(beamformer.obs_id, i64::from(obs_id));
+    assert_eq!(download.obs_id, i64::from(obs_id));
 
     let source_job_id = NonZeroU64::new(77).expect("not zero");
     let image = image_from_job_params(source_job_id);
@@ -196,59 +158,37 @@ fn a_preprocess_body_is_checked_as_the_body_it_holds() {
     ));
 }
 
-/// A download body is sent as the body that it holds, with no tag. Only a
-/// visibility body has `download_type`, and only a voltage body has
-/// `offset` and `duration`: that is how the MWA ASVO tells them apart.
+/// A download body leaves out the voltage fields that are not set (their
+/// default is null), and has `only_metadata` and the delivery at their
+/// defaults. A voltage job sets the voltage fields.
 #[test]
-fn a_download_body_is_sent_as_the_body_it_holds() {
+fn a_download_body_has_the_voltage_fields_only_when_set() {
+    const VOLTAGE_FIELDS: [&str; 4] = ["offset", "duration", "from_channel", "to_channel"];
     let obs_id = test_obs_id();
-    let cases = [
-        (
-            DownloadJobParams::from(visibility_params(obs_id)),
-            serde_json::to_value(visibility_params(obs_id)),
-        ),
-        (
-            DownloadJobParams::from(voltage_params(obs_id, 1, 2)),
-            serde_json::to_value(voltage_params(obs_id, 1, 2)),
-        ),
-        (
-            DownloadJobParams::from(beamformer_params(obs_id)),
-            serde_json::to_value(beamformer_params(obs_id)),
-        ),
-    ];
-    for (params, expected) in cases {
-        assert_eq!(
-            serde_json::to_value(&params).expect("JSON"),
-            expected.expect("JSON")
-        );
-    }
-
-    let keys = |params: DownloadJobParams| {
-        let json = serde_json::to_value(params).expect("JSON");
-        let object = json.as_object().expect("an object").clone();
-        (
-            object.contains_key("download_type"),
-            object.contains_key("offset") && object.contains_key("duration"),
-            object.contains_key("delivery"),
-        )
+    let object = |params: &DownloadJobParams| {
+        serde_json::to_value(params)
+            .expect("JSON")
+            .as_object()
+            .expect("an object")
+            .clone()
     };
-    assert_eq!(keys(visibility_params(obs_id).into()), (true, false, true));
-    assert_eq!(
-        keys(voltage_params(obs_id, 1, 2).into()),
-        (false, true, false)
-    );
-    assert_eq!(keys(beamformer_params(obs_id).into()), (false, false, true));
-}
 
-/// A download body is checked with the check of the body that it holds.
-#[test]
-fn a_download_body_is_checked_as_the_body_it_holds() {
-    let obs_id = test_obs_id();
-    assert!(DownloadJobParams::from(voltage_params(obs_id, 0, 8))
-        .validate()
-        .is_ok());
-    assert!(matches!(
-        DownloadJobParams::from(voltage_params(obs_id, -1, 8)).validate(),
-        Err(AsvoApiError::InvalidParameter { name: "offset", .. })
-    ));
+    let download = object(&download_params(obs_id));
+    for field in VOLTAGE_FIELDS {
+        assert!(!download.contains_key(field), "{field} is in the body");
+    }
+    assert_eq!(download.get("only_metadata"), Some(&Value::Bool(false)));
+    assert!(download.contains_key("delivery"));
+    assert!(download.contains_key("delivery_format"));
+
+    let voltage = object(&DownloadJobParams {
+        offset: Some(1),
+        duration: Some(2),
+        from_channel: Some(3),
+        to_channel: Some(4),
+        ..download_params(obs_id)
+    });
+    for field in VOLTAGE_FIELDS {
+        assert!(voltage.contains_key(field), "{field} is not in the body");
+    }
 }

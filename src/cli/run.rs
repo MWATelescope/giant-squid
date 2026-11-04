@@ -25,11 +25,11 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::mwa_asvo::api::job_params::{DownloadJobParams, PreprocessJobParams};
+use crate::mwa_asvo::api::job_params::PreprocessJobParams;
 use crate::mwa_asvo::api::openapi::{
-    ImagingJobFlow2Params, JobSubmittedResponse, Status, Type as FileType,
+    ImageFromJobParams, JobSubmittedResponse, Status, Type as FileType,
 };
-use crate::mwa_asvo::api::validate::validate_image_from_job_params;
+use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
 use crate::mwa_asvo::{
     client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
     DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
@@ -434,7 +434,7 @@ where
 /// before any login, also with `--dry-run`. An error is returned as it is: no
 /// other job needs to be attempted, and the caller reports it.
 fn run_submit_image_from_job(
-    params: &ImagingJobFlow2Params,
+    params: &ImageFromJobParams,
     submit: &SubmitOptions,
 ) -> anyhow::Result<()> {
     validate_image_from_job_params(params)?;
@@ -1123,8 +1123,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "visibility download"),
-                |obs_id| DownloadJobParams::from(download.to_vis_params(obs_id)),
-                DownloadJobParams::validate,
+                |obs_id| download.to_vis_params(obs_id),
+                validate_download_params,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1173,8 +1173,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "metadata download"),
-                |obs_id| DownloadJobParams::from(download.to_meta_params(obs_id)),
-                DownloadJobParams::validate,
+                |obs_id| download.to_meta_params(obs_id),
+                validate_download_params,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1188,8 +1188,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "voltage download"),
-                |obs_id| DownloadJobParams::from(volt.to_params(obs_id)),
-                DownloadJobParams::validate,
+                |obs_id| volt.to_params(obs_id),
+                validate_download_params,
                 AsvoClient::submit_download_job,
             )?;
         }
@@ -1203,8 +1203,8 @@ fn run(args: Args) -> anyhow::Result<()> {
             let obs_ids = obs_ids_only(&obs_ids, None)?;
             run_submit(
                 &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, "beamformer download"),
-                |obs_id| DownloadJobParams::from(bf.to_params(obs_id)),
-                DownloadJobParams::validate,
+                |obs_id| bf.to_params(obs_id),
+                validate_download_params,
                 AsvoClient::submit_download_job,
             )?;
         }

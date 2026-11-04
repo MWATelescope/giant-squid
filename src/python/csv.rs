@@ -28,10 +28,7 @@ use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 
 use super::error::{api_error, api_error_ref, os_error, variant_exceptions, KIND};
-use super::job_params::{
-    PyBeamformerJobParams, PyConversionJobParams, PyImagingJobFlow1Params, PyVisibilityJobParams,
-    PyVoltageJobParams,
-};
+use super::job_params::{PyConversionJobParams, PyDownloadJobParams, PyImagingJobParams};
 use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::ExceptionObject;
 use super::types::{PyDeliveryDestination, PyDeliveryFormat, PyJobSubmittedResponse};
@@ -415,8 +412,8 @@ impl PyCsvDefaults {
 /// (`job_type=i`), `CsvJobParams.Download(params)` (`job_type=d`, a visibility
 /// or metadata download), `CsvJobParams.Voltage(params)` (`job_type=v`) and
 /// `CsvJobParams.Beamformer(params)` (`job_type=b`) hold the request body:
-/// a `VisibilityJobParams`, a `VoltageJobParams` and a `BeamformerJobParams`
-/// for the download jobs.
+/// a `DownloadJobParams` for each of the download jobs. The variant keeps
+/// the job type of the line.
 #[cfg_attr(
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
@@ -436,22 +433,22 @@ pub enum PyCsvJobParams {
     /// An imaging job from an Obs ID (`job_type=i`).
     Imaging {
         /// The request body.
-        params: Py<PyImagingJobFlow1Params>,
+        params: Py<PyImagingJobParams>,
     },
     /// A visibility or metadata download job (`job_type=d`).
     Download {
         /// The request body.
-        params: Py<PyVisibilityJobParams>,
+        params: Py<PyDownloadJobParams>,
     },
     /// A voltage job (`job_type=v`).
     Voltage {
         /// The request body.
-        params: Py<PyVoltageJobParams>,
+        params: Py<PyDownloadJobParams>,
     },
     /// A beamformer job (`job_type=b`).
     Beamformer {
         /// The request body.
-        params: Py<PyBeamformerJobParams>,
+        params: Py<PyDownloadJobParams>,
     },
 }
 
@@ -506,16 +503,16 @@ impl PyCsvJobParams {
                 params: Py::new(py, PyConversionJobParams::from_schema(obs_id, *p))?,
             },
             LibCsvJobParams::Imaging(p) => Self::Imaging {
-                params: Py::new(py, PyImagingJobFlow1Params::from_schema(obs_id, *p))?,
+                params: Py::new(py, PyImagingJobParams::from_schema(obs_id, *p))?,
             },
             LibCsvJobParams::Download(p) => Self::Download {
-                params: Py::new(py, PyVisibilityJobParams::from_schema(obs_id, p))?,
+                params: Py::new(py, PyDownloadJobParams::from_schema(obs_id, p))?,
             },
             LibCsvJobParams::Voltage(p) => Self::Voltage {
-                params: Py::new(py, PyVoltageJobParams::from_schema(obs_id, p))?,
+                params: Py::new(py, PyDownloadJobParams::from_schema(obs_id, p))?,
             },
             LibCsvJobParams::Beamformer(p) => Self::Beamformer {
-                params: Py::new(py, PyBeamformerJobParams::from_schema(obs_id, p))?,
+                params: Py::new(py, PyDownloadJobParams::from_schema(obs_id, p))?,
             },
         })
     }

@@ -17,9 +17,9 @@ use super::error::asvo_error;
 use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
-    DeliveryDestination, DeliveryFormat, DownloadType, ImageOutputMode, ImageWeighting,
-    JobCancelledResponse, JobDetailResponse, JobSubmittedResponse, JobType, Output, PhaseCentre,
-    Polarization, SortBy, Status, Type,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
+    JobDetailResponse, JobSubmittedResponse, JobType, Output, PhaseCentre, Polarization, SortBy,
+    Status, Type,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{

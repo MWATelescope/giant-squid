@@ -17,7 +17,7 @@ The status of an entry:
     Not decided yet. ``note`` says what the question is.
 
 A Rust path is ``crate::Name`` for an item that ``src/lib.rs`` re-exports at the crate root, ``crate::Type::member``
-for a member of such an item, and the module path (``mwa_asvo::api::job_params::visibility_params``) for any other item.
+for a member of such an item, and the module path (``mwa_asvo::api::job_params::download_params``) for any other item.
 """
 
 from dataclasses import dataclass
@@ -187,15 +187,14 @@ ENV_CONSTANTS = [
 ]
 
 SCHEMA_TYPES = [
-    "BeamformerJobParams",
     "ConversionJobParams",
     "DeliveryDestination",
     "DeliveryFormat",
-    "DownloadType",
+    "DownloadJobParams",
+    "ImageFromJobParams",
     "ImageOutputMode",
     "ImageWeighting",
-    "ImagingJobFlow1Params",
-    "ImagingJobFlow2Params",
+    "ImagingJobParams",
     "JobCancelledResponse",
     "JobFile",
     "JobProduct",
@@ -208,8 +207,6 @@ SCHEMA_TYPES = [
     "SortBy",
     "Status",
     "Type",
-    "VisibilityJobParams",
-    "VoltageJobParams",
 ]
 
 ASVO_JOB_MEMBERS = [
@@ -309,23 +306,16 @@ MANIFEST: list[Entry] = [
     # --- The schema types, which the Python module already has ---
     *[done(f"mwa_asvo::api::openapi::{name}", name) for name in SCHEMA_TYPES],
     # --- Request bodies ---
-    done("mwa_asvo::api::job_params::DownloadJobParams", "DownloadJobParams"),
-    done("mwa_asvo::api::job_params::DownloadJobParams::validate", "DownloadJobParams.validate"),
     done("mwa_asvo::api::job_params::PreprocessJobParams", "PreprocessJobParams"),
     done("mwa_asvo::api::job_params::PreprocessJobParams::validate", "PreprocessJobParams.validate"),
-    done("mwa_asvo::api::job_params::visibility_params", "visibility_params"),
-    done("mwa_asvo::api::job_params::metadata_params", "metadata_params"),
-    done("mwa_asvo::api::job_params::voltage_params", "voltage_params"),
-    done("mwa_asvo::api::job_params::beamformer_params", "beamformer_params"),
+    done("mwa_asvo::api::job_params::download_params", "download_params"),
     done("mwa_asvo::api::job_params::conversion_params", "conversion_params"),
     done("mwa_asvo::api::job_params::imaging_params", "imaging_params"),
     done("mwa_asvo::api::job_params::image_from_job_params", "image_from_job_params"),
-    done("mwa_asvo::api::validate::validate_visibility_params", "VisibilityJobParams.validate"),
-    done("mwa_asvo::api::validate::validate_voltage_params", "VoltageJobParams.validate"),
-    done("mwa_asvo::api::validate::validate_beamformer_params", "BeamformerJobParams.validate"),
+    done("mwa_asvo::api::validate::validate_download_params", "DownloadJobParams.validate"),
     done("mwa_asvo::api::validate::validate_conversion_params", "ConversionJobParams.validate"),
-    done("mwa_asvo::api::validate::validate_imaging_params", "ImagingJobFlow1Params.validate"),
-    done("mwa_asvo::api::validate::validate_image_from_job_params", "ImagingJobFlow2Params.validate"),
+    done("mwa_asvo::api::validate::validate_imaging_params", "ImagingJobParams.validate"),
+    done("mwa_asvo::api::validate::validate_image_from_job_params", "ImageFromJobParams.validate"),
     excluded("mwa_asvo::api::validate::image_size", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::nmiter", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::days", VALIDATION_NOTE),
