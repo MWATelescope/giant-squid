@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.7.0";
+pub const MWA_ASVO_API_VERSION: &str = "2.8.0";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -59,23 +59,6 @@ pub struct AuthStatusResponse {
 }
 impl AuthStatusResponse {
     pub fn builder() -> builder::AuthStatusResponse {
-        Default::default()
-    }
-}
-///Parameters and hidden fields for beamformer job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct BeamformerJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::beamformer_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::beamformer_job_params_delivery")]
-    pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::beamformer_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    pub obs_id: i64,
-}
-impl BeamformerJobParams {
-    pub fn builder() -> builder::BeamformerJobParams {
         Default::default()
     }
 }
@@ -285,59 +268,31 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
         value.parse()
     }
 }
-///`DownloadType`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum DownloadType {
-    #[serde(rename = "vis")]
-    Vis,
-    #[serde(rename = "meta")]
-    Meta,
+///`DownloadJobParams`
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct DownloadJobParams {
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::download_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::download_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::download_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub duration: ::std::option::Option<u64>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub from_channel: ::std::option::Option<u8>,
+    pub obs_id: i64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub offset: ::std::option::Option<i64>,
+    #[serde(default = "defaults::download_job_params_only_metadata")]
+    pub only_metadata: ::std::option::Option<bool>,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub to_channel: ::std::option::Option<u8>,
 }
-impl ::std::fmt::Display for DownloadType {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Vis => f.write_str("vis"),
-            Self::Meta => f.write_str("meta"),
-        }
-    }
-}
-impl ::std::str::FromStr for DownloadType {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "vis" => Ok(Self::Vis),
-            "meta" => Ok(Self::Meta),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for DownloadType {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for DownloadType {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
+impl DownloadJobParams {
+    pub fn builder() -> builder::DownloadJobParams {
+        Default::default()
     }
 }
 ///Standard error response structure for all ASVO API endpoints
@@ -388,6 +343,69 @@ pub struct HealthResponse {
 }
 impl HealthResponse {
     pub fn builder() -> builder::HealthResponse {
+        Default::default()
+    }
+}
+///Parameters for image job submission
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ImageFromJobParams {
+    #[serde(default = "defaults::image_from_job_params_abs_threshold")]
+    pub abs_threshold: ::std::option::Option<f64>,
+    ///allows user to resubmit a job despite it being completed
+    #[serde(default = "defaults::image_from_job_params_allow_resubmit")]
+    pub allow_resubmit: ::std::option::Option<bool>,
+    #[serde(default = "defaults::default_bool::<true>")]
+    pub apply_primary_beam: bool,
+    #[serde(default = "defaults::default_u64::<i64, 3>")]
+    pub auto_mask: i64,
+    #[serde(default = "defaults::image_from_job_params_auto_threshold")]
+    pub auto_threshold: f64,
+    #[serde(default = "defaults::default_u64::<i64, 4>")]
+    pub channels_out: i64,
+    #[serde(default = "defaults::default_u64::<i64, 100000>")]
+    pub clean_iterations: i64,
+    ///deprecated. use abs_threshold instead
+    #[serde(default = "defaults::image_from_job_params_clean_threshold")]
+    pub clean_threshold: ::std::option::Option<f64>,
+    #[serde(default = "defaults::image_from_job_params_delivery")]
+    pub delivery: DeliveryDestination,
+    #[serde(default = "defaults::image_from_job_params_delivery_format")]
+    pub delivery_format: DeliveryFormat,
+    #[serde(default = "defaults::image_from_job_params_image_size")]
+    pub image_size: ImageSizes,
+    #[serde(default = "defaults::default_bool::<true>")]
+    pub join_channels: bool,
+    #[serde(default)]
+    pub join_polarizations: bool,
+    #[serde(default = "defaults::image_from_job_params_mgain")]
+    pub mgain: f64,
+    #[serde(default)]
+    pub multiscale: bool,
+    #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
+    pub nmiter: ::std::num::NonZeroU64,
+    ///deprecated. use wstack_nwlayers instead
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub nwlayers: ::std::option::Option<i64>,
+    #[serde(default = "defaults::image_from_job_params_output_mode")]
+    pub output_mode: ImageOutputMode,
+    #[serde(default = "defaults::image_from_job_params_pixel_scale")]
+    pub pixel_scale: f64,
+    #[serde(default = "defaults::image_from_job_params_pol")]
+    pub pol: Polarization,
+    #[serde(default = "defaults::image_from_job_params_robust")]
+    pub robust: f64,
+    pub source_job_id: ::std::num::NonZeroU64,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub uvw_max: ::std::option::Option<f64>,
+    #[serde(default = "defaults::image_from_job_params_uvw_min")]
+    pub uvw_min: f64,
+    #[serde(default = "defaults::image_from_job_params_weighting")]
+    pub weighting: ImageWeighting,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub wstack_nwlayers: ::std::option::Option<i64>,
+}
+impl ImageFromJobParams {
+    pub fn builder() -> builder::ImageFromJobParams {
         Default::default()
     }
 }
@@ -548,11 +566,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ImageWeighting {
 }
 ///Parameters for image job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct ImagingJobFlow1Params {
-    #[serde(default = "defaults::imaging_job_flow1_params_abs_threshold")]
+pub struct ImagingJobParams {
+    #[serde(default = "defaults::imaging_job_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
     ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::imaging_job_flow1_params_allow_resubmit")]
+    #[serde(default = "defaults::imaging_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_di_cal: bool,
@@ -560,38 +578,38 @@ pub struct ImagingJobFlow1Params {
     pub apply_primary_beam: bool,
     #[serde(default = "defaults::default_u64::<i64, 3>")]
     pub auto_mask: i64,
-    #[serde(default = "defaults::imaging_job_flow1_params_auto_threshold")]
+    #[serde(default = "defaults::imaging_job_params_auto_threshold")]
     pub auto_threshold: f64,
-    #[serde(default = "defaults::imaging_job_flow1_params_avg_freq_res")]
+    #[serde(default = "defaults::imaging_job_params_avg_freq_res")]
     pub avg_freq_res: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow1_params_avg_time_res")]
+    #[serde(default = "defaults::imaging_job_params_avg_time_res")]
     pub avg_time_res: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow1_params_centre")]
+    #[serde(default = "defaults::imaging_job_params_centre")]
     pub centre: PhaseCentre,
     #[serde(default = "defaults::default_u64::<i64, 4>")]
     pub channels_out: i64,
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
     ///deprecated. use abs_threshold instead
-    #[serde(default = "defaults::imaging_job_flow1_params_clean_threshold")]
+    #[serde(default = "defaults::imaging_job_params_clean_threshold")]
     pub clean_threshold: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_dec: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow1_params_delivery")]
+    #[serde(default = "defaults::imaging_job_params_delivery")]
     pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::imaging_job_flow1_params_delivery_format")]
+    #[serde(default = "defaults::imaging_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::imaging_job_flow1_params_flag_edge_width")]
+    #[serde(default = "defaults::imaging_job_params_flag_edge_width")]
     pub flag_edge_width: f64,
-    #[serde(default = "defaults::imaging_job_flow1_params_image_size")]
+    #[serde(default = "defaults::imaging_job_params_image_size")]
     pub image_size: ImageSizes,
     #[serde(default = "defaults::default_bool::<true>")]
     pub join_channels: bool,
     #[serde(default)]
     pub join_polarizations: bool,
-    #[serde(default = "defaults::imaging_job_flow1_params_mgain")]
+    #[serde(default = "defaults::imaging_job_params_mgain")]
     pub mgain: f64,
     #[serde(default)]
     pub multiscale: bool,
@@ -599,109 +617,44 @@ pub struct ImagingJobFlow1Params {
     pub nmiter: ::std::num::NonZeroU64,
     #[serde(default)]
     pub no_apply_amps: bool,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_cable_delay")]
+    #[serde(default = "defaults::imaging_job_params_no_cable_delay")]
     pub no_cable_delay: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_digital_gains")]
+    #[serde(default = "defaults::imaging_job_params_no_digital_gains")]
     pub no_digital_gains: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_flag_dc")]
+    #[serde(default = "defaults::imaging_job_params_no_flag_dc")]
     pub no_flag_dc: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_geometric_delay")]
+    #[serde(default = "defaults::imaging_job_params_no_geometric_delay")]
     pub no_geometric_delay: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_passband_gains")]
+    #[serde(default = "defaults::imaging_job_params_no_passband_gains")]
     pub no_passband_gains: ::std::option::Option<bool>,
-    #[serde(default = "defaults::imaging_job_flow1_params_no_rfi")]
+    #[serde(default = "defaults::imaging_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
     ///deprecated. use wstack_nwlayers instead
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
     ///Imaging job output is fixed to fits and cannot be changed
-    #[serde(default = "defaults::imaging_job_flow1_params_output")]
+    #[serde(default = "defaults::imaging_job_params_output")]
     pub output: ::std::string::String,
-    #[serde(default = "defaults::imaging_job_flow1_params_output_mode")]
+    #[serde(default = "defaults::imaging_job_params_output_mode")]
     pub output_mode: ImageOutputMode,
-    #[serde(default = "defaults::imaging_job_flow1_params_pixel_scale")]
+    #[serde(default = "defaults::imaging_job_params_pixel_scale")]
     pub pixel_scale: f64,
-    #[serde(default = "defaults::imaging_job_flow1_params_pol")]
+    #[serde(default = "defaults::imaging_job_params_pol")]
     pub pol: Polarization,
-    #[serde(default = "defaults::imaging_job_flow1_params_robust")]
+    #[serde(default = "defaults::imaging_job_params_robust")]
     pub robust: f64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow1_params_uvw_min")]
+    #[serde(default = "defaults::imaging_job_params_uvw_min")]
     pub uvw_min: f64,
-    #[serde(default = "defaults::imaging_job_flow1_params_weighting")]
+    #[serde(default = "defaults::imaging_job_params_weighting")]
     pub weighting: ImageWeighting,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
-impl ImagingJobFlow1Params {
-    pub fn builder() -> builder::ImagingJobFlow1Params {
-        Default::default()
-    }
-}
-///Parameters for image job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct ImagingJobFlow2Params {
-    #[serde(default = "defaults::imaging_job_flow2_params_abs_threshold")]
-    pub abs_threshold: ::std::option::Option<f64>,
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::imaging_job_flow2_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::default_bool::<true>")]
-    pub apply_primary_beam: bool,
-    #[serde(default = "defaults::default_u64::<i64, 3>")]
-    pub auto_mask: i64,
-    #[serde(default = "defaults::imaging_job_flow2_params_auto_threshold")]
-    pub auto_threshold: f64,
-    #[serde(default = "defaults::imaging_job_flow2_params_centre")]
-    pub centre: PhaseCentre,
-    #[serde(default = "defaults::default_u64::<i64, 4>")]
-    pub channels_out: i64,
-    #[serde(default = "defaults::default_u64::<i64, 100000>")]
-    pub clean_iterations: i64,
-    ///deprecated. use abs_threshold instead
-    #[serde(default = "defaults::imaging_job_flow2_params_clean_threshold")]
-    pub clean_threshold: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow2_params_delivery")]
-    pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::imaging_job_flow2_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::imaging_job_flow2_params_image_size")]
-    pub image_size: ImageSizes,
-    #[serde(default = "defaults::default_bool::<true>")]
-    pub join_channels: bool,
-    #[serde(default)]
-    pub join_polarizations: bool,
-    #[serde(default = "defaults::imaging_job_flow2_params_mgain")]
-    pub mgain: f64,
-    #[serde(default)]
-    pub multiscale: bool,
-    #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
-    pub nmiter: ::std::num::NonZeroU64,
-    ///deprecated. use wstack_nwlayers instead
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub nwlayers: ::std::option::Option<i64>,
-    #[serde(default = "defaults::imaging_job_flow2_params_output_mode")]
-    pub output_mode: ImageOutputMode,
-    #[serde(default = "defaults::imaging_job_flow2_params_pixel_scale")]
-    pub pixel_scale: f64,
-    #[serde(default = "defaults::imaging_job_flow2_params_pol")]
-    pub pol: Polarization,
-    #[serde(default = "defaults::imaging_job_flow2_params_robust")]
-    pub robust: f64,
-    pub source_job_id: ::std::num::NonZeroU64,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub uvw_max: ::std::option::Option<f64>,
-    #[serde(default = "defaults::imaging_job_flow2_params_uvw_min")]
-    pub uvw_min: f64,
-    #[serde(default = "defaults::imaging_job_flow2_params_weighting")]
-    pub weighting: ImageWeighting,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub wstack_nwlayers: ::std::option::Option<i64>,
-}
-impl ImagingJobFlow2Params {
-    pub fn builder() -> builder::ImagingJobFlow2Params {
+impl ImagingJobParams {
+    pub fn builder() -> builder::ImagingJobParams {
         Default::default()
     }
 }
@@ -2573,44 +2526,6 @@ impl<'de> ::serde::Deserialize<'de> for Username {
             })
     }
 }
-///Parameters for visibility job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct VisibilityJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::visibility_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    #[serde(default = "defaults::visibility_job_params_delivery")]
-    pub delivery: DeliveryDestination,
-    #[serde(default = "defaults::visibility_job_params_delivery_format")]
-    pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::visibility_job_params_download_type")]
-    pub download_type: DownloadType,
-    pub obs_id: i64,
-}
-impl VisibilityJobParams {
-    pub fn builder() -> builder::VisibilityJobParams {
-        Default::default()
-    }
-}
-///Parameters for voltage job submission
-#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
-pub struct VoltageJobParams {
-    ///allows user to resubmit a job despite it being completed
-    #[serde(default = "defaults::voltage_job_params_allow_resubmit")]
-    pub allow_resubmit: ::std::option::Option<bool>,
-    pub duration: u64,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub from_channel: ::std::option::Option<u8>,
-    pub obs_id: i64,
-    pub offset: i64,
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub to_channel: ::std::option::Option<u8>,
-}
-impl VoltageJobParams {
-    pub fn builder() -> builder::VoltageJobParams {
-        Default::default()
-    }
-}
 ///Response model for token-issuing endpoint (/v2/ws/jobs)
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct WebSocketTokenResponse {
@@ -2871,107 +2786,6 @@ pub mod builder {
         fn from(value: super::AuthStatusResponse) -> Self {
             Self {
                 authenticated: Ok(value.authenticated),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
-    pub struct BeamformerJobParams {
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        delivery: ::std::result::Result<
-            super::DeliveryDestination,
-            ::std::string::String,
-        >,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-    }
-    impl ::std::default::Default for BeamformerJobParams {
-        fn default() -> Self {
-            Self {
-                allow_resubmit: Ok(
-                    super::defaults::beamformer_job_params_allow_resubmit(),
-                ),
-                delivery: Ok(super::defaults::beamformer_job_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::beamformer_job_params_delivery_format(),
-                ),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-            }
-        }
-    }
-    impl BeamformerJobParams {
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryDestination>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
-                });
-            self
-        }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<BeamformerJobParams> for super::BeamformerJobParams {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: BeamformerJobParams,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                allow_resubmit: value.allow_resubmit?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
-                obs_id: value.obs_id?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::BeamformerJobParams> for BeamformerJobParams {
-        fn from(value: super::BeamformerJobParams) -> Self {
-            Self {
-                allow_resubmit: Ok(value.allow_resubmit),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
-                obs_id: Ok(value.obs_id),
             }
         }
     }
@@ -3586,6 +3400,197 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
+    pub struct DownloadJobParams {
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        duration: ::std::result::Result<
+            ::std::option::Option<u64>,
+            ::std::string::String,
+        >,
+        from_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
+        obs_id: ::std::result::Result<i64, ::std::string::String>,
+        offset: ::std::result::Result<::std::option::Option<i64>, ::std::string::String>,
+        only_metadata: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        to_channel: ::std::result::Result<
+            ::std::option::Option<u8>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for DownloadJobParams {
+        fn default() -> Self {
+            Self {
+                allow_resubmit: Ok(
+                    super::defaults::download_job_params_allow_resubmit(),
+                ),
+                delivery: Ok(super::defaults::download_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::download_job_params_delivery_format(),
+                ),
+                duration: Ok(Default::default()),
+                from_channel: Ok(Default::default()),
+                obs_id: Err("no value supplied for obs_id".to_string()),
+                offset: Ok(Default::default()),
+                only_metadata: Ok(super::defaults::download_job_params_only_metadata()),
+                to_channel: Ok(Default::default()),
+            }
+        }
+    }
+    impl DownloadJobParams {
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn duration<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<u64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.duration = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for duration: {e}")
+                });
+            self
+        }
+        pub fn from_channel<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<u8>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.from_channel = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for from_channel: {e}")
+                });
+            self
+        }
+        pub fn obs_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.obs_id = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
+            self
+        }
+        pub fn offset<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.offset = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for offset: {e}"));
+            self
+        }
+        pub fn only_metadata<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.only_metadata = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for only_metadata: {e}")
+                });
+            self
+        }
+        pub fn to_channel<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<u8>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.to_channel = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for to_channel: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<DownloadJobParams> for super::DownloadJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: DownloadJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                allow_resubmit: value.allow_resubmit?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                duration: value.duration?,
+                from_channel: value.from_channel?,
+                obs_id: value.obs_id?,
+                offset: value.offset?,
+                only_metadata: value.only_metadata?,
+                to_channel: value.to_channel?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::DownloadJobParams> for DownloadJobParams {
+        fn from(value: super::DownloadJobParams) -> Self {
+            Self {
+                allow_resubmit: Ok(value.allow_resubmit),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                duration: Ok(value.duration),
+                from_channel: Ok(value.from_channel),
+                obs_id: Ok(value.obs_id),
+                offset: Ok(value.offset),
+                only_metadata: Ok(value.only_metadata),
+                to_channel: Ok(value.to_channel),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
     pub struct ErrorResponse {
         detail: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
@@ -3864,7 +3869,487 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct ImagingJobFlow1Params {
+    pub struct ImageFromJobParams {
+        abs_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        allow_resubmit: ::std::result::Result<
+            ::std::option::Option<bool>,
+            ::std::string::String,
+        >,
+        apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
+        auto_mask: ::std::result::Result<i64, ::std::string::String>,
+        auto_threshold: ::std::result::Result<f64, ::std::string::String>,
+        channels_out: ::std::result::Result<i64, ::std::string::String>,
+        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
+        clean_threshold: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        delivery: ::std::result::Result<
+            super::DeliveryDestination,
+            ::std::string::String,
+        >,
+        delivery_format: ::std::result::Result<
+            super::DeliveryFormat,
+            ::std::string::String,
+        >,
+        image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
+        join_channels: ::std::result::Result<bool, ::std::string::String>,
+        join_polarizations: ::std::result::Result<bool, ::std::string::String>,
+        mgain: ::std::result::Result<f64, ::std::string::String>,
+        multiscale: ::std::result::Result<bool, ::std::string::String>,
+        nmiter: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
+        nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+        output_mode: ::std::result::Result<
+            super::ImageOutputMode,
+            ::std::string::String,
+        >,
+        pixel_scale: ::std::result::Result<f64, ::std::string::String>,
+        pol: ::std::result::Result<super::Polarization, ::std::string::String>,
+        robust: ::std::result::Result<f64, ::std::string::String>,
+        source_job_id: ::std::result::Result<
+            ::std::num::NonZeroU64,
+            ::std::string::String,
+        >,
+        uvw_max: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        uvw_min: ::std::result::Result<f64, ::std::string::String>,
+        weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
+        wstack_nwlayers: ::std::result::Result<
+            ::std::option::Option<i64>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for ImageFromJobParams {
+        fn default() -> Self {
+            Self {
+                abs_threshold: Ok(
+                    super::defaults::image_from_job_params_abs_threshold(),
+                ),
+                allow_resubmit: Ok(
+                    super::defaults::image_from_job_params_allow_resubmit(),
+                ),
+                apply_primary_beam: Ok(super::defaults::default_bool::<true>()),
+                auto_mask: Ok(super::defaults::default_u64::<i64, 3>()),
+                auto_threshold: Ok(
+                    super::defaults::image_from_job_params_auto_threshold(),
+                ),
+                channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
+                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
+                clean_threshold: Ok(
+                    super::defaults::image_from_job_params_clean_threshold(),
+                ),
+                delivery: Ok(super::defaults::image_from_job_params_delivery()),
+                delivery_format: Ok(
+                    super::defaults::image_from_job_params_delivery_format(),
+                ),
+                image_size: Ok(super::defaults::image_from_job_params_image_size()),
+                join_channels: Ok(super::defaults::default_bool::<true>()),
+                join_polarizations: Ok(Default::default()),
+                mgain: Ok(super::defaults::image_from_job_params_mgain()),
+                multiscale: Ok(Default::default()),
+                nmiter: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
+                ),
+                nwlayers: Ok(Default::default()),
+                output_mode: Ok(super::defaults::image_from_job_params_output_mode()),
+                pixel_scale: Ok(super::defaults::image_from_job_params_pixel_scale()),
+                pol: Ok(super::defaults::image_from_job_params_pol()),
+                robust: Ok(super::defaults::image_from_job_params_robust()),
+                source_job_id: Err("no value supplied for source_job_id".to_string()),
+                uvw_max: Ok(Default::default()),
+                uvw_min: Ok(super::defaults::image_from_job_params_uvw_min()),
+                weighting: Ok(super::defaults::image_from_job_params_weighting()),
+                wstack_nwlayers: Ok(Default::default()),
+            }
+        }
+    }
+    impl ImageFromJobParams {
+        pub fn abs_threshold<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.abs_threshold = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for abs_threshold: {e}")
+                });
+            self
+        }
+        pub fn allow_resubmit<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<bool>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.allow_resubmit = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for allow_resubmit: {e}")
+                });
+            self
+        }
+        pub fn apply_primary_beam<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<bool>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.apply_primary_beam = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for apply_primary_beam: {e}"
+                    )
+                });
+            self
+        }
+        pub fn auto_mask<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.auto_mask = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_mask: {e}")
+                });
+            self
+        }
+        pub fn auto_threshold<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<f64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.auto_threshold = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for auto_threshold: {e}")
+                });
+            self
+        }
+        pub fn channels_out<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.channels_out = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for channels_out: {e}")
+                });
+            self
+        }
+        pub fn clean_iterations<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<i64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.clean_iterations = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_iterations: {e}")
+                });
+            self
+        }
+        pub fn clean_threshold<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.clean_threshold = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for clean_threshold: {e}")
+                });
+            self
+        }
+        pub fn delivery<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery: {e}")
+                });
+            self
+        }
+        pub fn delivery_format<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::DeliveryFormat>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.delivery_format = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for delivery_format: {e}")
+                });
+            self
+        }
+        pub fn image_size<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::ImageSizes>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.image_size = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for image_size: {e}")
+                });
+            self
+        }
+        pub fn join_channels<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<bool>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.join_channels = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for join_channels: {e}")
+                });
+            self
+        }
+        pub fn join_polarizations<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<bool>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.join_polarizations = value
+                .try_into()
+                .map_err(|e| {
+                    format!(
+                        "error converting supplied value for join_polarizations: {e}"
+                    )
+                });
+            self
+        }
+        pub fn mgain<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<f64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.mgain = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for mgain: {e}"));
+            self
+        }
+        pub fn multiscale<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<bool>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.multiscale = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for multiscale: {e}")
+                });
+            self
+        }
+        pub fn nmiter<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.nmiter = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for nmiter: {e}"));
+            self
+        }
+        pub fn nwlayers<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.nwlayers = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for nwlayers: {e}")
+                });
+            self
+        }
+        pub fn output_mode<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::ImageOutputMode>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.output_mode = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for output_mode: {e}")
+                });
+            self
+        }
+        pub fn pixel_scale<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<f64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.pixel_scale = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for pixel_scale: {e}")
+                });
+            self
+        }
+        pub fn pol<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::Polarization>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.pol = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for pol: {e}"));
+            self
+        }
+        pub fn robust<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<f64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.robust = value
+                .try_into()
+                .map_err(|e| format!("error converting supplied value for robust: {e}"));
+            self
+        }
+        pub fn source_job_id<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.source_job_id = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for source_job_id: {e}")
+                });
+            self
+        }
+        pub fn uvw_max<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.uvw_max = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_max: {e}")
+                });
+            self
+        }
+        pub fn uvw_min<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<f64>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.uvw_min = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for uvw_min: {e}")
+                });
+            self
+        }
+        pub fn weighting<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<super::ImageWeighting>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.weighting = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for weighting: {e}")
+                });
+            self
+        }
+        pub fn wstack_nwlayers<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.wstack_nwlayers = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for wstack_nwlayers: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<ImageFromJobParams> for super::ImageFromJobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: ImageFromJobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                abs_threshold: value.abs_threshold?,
+                allow_resubmit: value.allow_resubmit?,
+                apply_primary_beam: value.apply_primary_beam?,
+                auto_mask: value.auto_mask?,
+                auto_threshold: value.auto_threshold?,
+                channels_out: value.channels_out?,
+                clean_iterations: value.clean_iterations?,
+                clean_threshold: value.clean_threshold?,
+                delivery: value.delivery?,
+                delivery_format: value.delivery_format?,
+                image_size: value.image_size?,
+                join_channels: value.join_channels?,
+                join_polarizations: value.join_polarizations?,
+                mgain: value.mgain?,
+                multiscale: value.multiscale?,
+                nmiter: value.nmiter?,
+                nwlayers: value.nwlayers?,
+                output_mode: value.output_mode?,
+                pixel_scale: value.pixel_scale?,
+                pol: value.pol?,
+                robust: value.robust?,
+                source_job_id: value.source_job_id?,
+                uvw_max: value.uvw_max?,
+                uvw_min: value.uvw_min?,
+                weighting: value.weighting?,
+                wstack_nwlayers: value.wstack_nwlayers?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::ImageFromJobParams> for ImageFromJobParams {
+        fn from(value: super::ImageFromJobParams) -> Self {
+            Self {
+                abs_threshold: Ok(value.abs_threshold),
+                allow_resubmit: Ok(value.allow_resubmit),
+                apply_primary_beam: Ok(value.apply_primary_beam),
+                auto_mask: Ok(value.auto_mask),
+                auto_threshold: Ok(value.auto_threshold),
+                channels_out: Ok(value.channels_out),
+                clean_iterations: Ok(value.clean_iterations),
+                clean_threshold: Ok(value.clean_threshold),
+                delivery: Ok(value.delivery),
+                delivery_format: Ok(value.delivery_format),
+                image_size: Ok(value.image_size),
+                join_channels: Ok(value.join_channels),
+                join_polarizations: Ok(value.join_polarizations),
+                mgain: Ok(value.mgain),
+                multiscale: Ok(value.multiscale),
+                nmiter: Ok(value.nmiter),
+                nwlayers: Ok(value.nwlayers),
+                output_mode: Ok(value.output_mode),
+                pixel_scale: Ok(value.pixel_scale),
+                pol: Ok(value.pol),
+                robust: Ok(value.robust),
+                source_job_id: Ok(value.source_job_id),
+                uvw_max: Ok(value.uvw_max),
+                uvw_min: Ok(value.uvw_min),
+                weighting: Ok(value.weighting),
+                wstack_nwlayers: Ok(value.wstack_nwlayers),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct ImagingJobParams {
         abs_threshold: ::std::result::Result<
             ::std::option::Option<f64>,
             ::std::string::String,
@@ -3964,80 +4449,68 @@ pub mod builder {
             ::std::string::String,
         >,
     }
-    impl ::std::default::Default for ImagingJobFlow1Params {
+    impl ::std::default::Default for ImagingJobParams {
         fn default() -> Self {
             Self {
-                abs_threshold: Ok(
-                    super::defaults::imaging_job_flow1_params_abs_threshold(),
-                ),
-                allow_resubmit: Ok(
-                    super::defaults::imaging_job_flow1_params_allow_resubmit(),
-                ),
+                abs_threshold: Ok(super::defaults::imaging_job_params_abs_threshold()),
+                allow_resubmit: Ok(super::defaults::imaging_job_params_allow_resubmit()),
                 apply_di_cal: Ok(super::defaults::default_bool::<true>()),
                 apply_primary_beam: Ok(super::defaults::default_bool::<true>()),
                 auto_mask: Ok(super::defaults::default_u64::<i64, 3>()),
-                auto_threshold: Ok(
-                    super::defaults::imaging_job_flow1_params_auto_threshold(),
-                ),
-                avg_freq_res: Ok(
-                    super::defaults::imaging_job_flow1_params_avg_freq_res(),
-                ),
-                avg_time_res: Ok(
-                    super::defaults::imaging_job_flow1_params_avg_time_res(),
-                ),
-                centre: Ok(super::defaults::imaging_job_flow1_params_centre()),
+                auto_threshold: Ok(super::defaults::imaging_job_params_auto_threshold()),
+                avg_freq_res: Ok(super::defaults::imaging_job_params_avg_freq_res()),
+                avg_time_res: Ok(super::defaults::imaging_job_params_avg_time_res()),
+                centre: Ok(super::defaults::imaging_job_params_centre()),
                 channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
                 clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
                 clean_threshold: Ok(
-                    super::defaults::imaging_job_flow1_params_clean_threshold(),
+                    super::defaults::imaging_job_params_clean_threshold(),
                 ),
                 custom_centre_dec: Ok(Default::default()),
                 custom_centre_ra: Ok(Default::default()),
-                delivery: Ok(super::defaults::imaging_job_flow1_params_delivery()),
+                delivery: Ok(super::defaults::imaging_job_params_delivery()),
                 delivery_format: Ok(
-                    super::defaults::imaging_job_flow1_params_delivery_format(),
+                    super::defaults::imaging_job_params_delivery_format(),
                 ),
                 flag_edge_width: Ok(
-                    super::defaults::imaging_job_flow1_params_flag_edge_width(),
+                    super::defaults::imaging_job_params_flag_edge_width(),
                 ),
-                image_size: Ok(super::defaults::imaging_job_flow1_params_image_size()),
+                image_size: Ok(super::defaults::imaging_job_params_image_size()),
                 join_channels: Ok(super::defaults::default_bool::<true>()),
                 join_polarizations: Ok(Default::default()),
-                mgain: Ok(super::defaults::imaging_job_flow1_params_mgain()),
+                mgain: Ok(super::defaults::imaging_job_params_mgain()),
                 multiscale: Ok(Default::default()),
                 nmiter: Ok(
                     super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
                 ),
                 no_apply_amps: Ok(Default::default()),
-                no_cable_delay: Ok(
-                    super::defaults::imaging_job_flow1_params_no_cable_delay(),
-                ),
+                no_cable_delay: Ok(super::defaults::imaging_job_params_no_cable_delay()),
                 no_digital_gains: Ok(
-                    super::defaults::imaging_job_flow1_params_no_digital_gains(),
+                    super::defaults::imaging_job_params_no_digital_gains(),
                 ),
-                no_flag_dc: Ok(super::defaults::imaging_job_flow1_params_no_flag_dc()),
+                no_flag_dc: Ok(super::defaults::imaging_job_params_no_flag_dc()),
                 no_geometric_delay: Ok(
-                    super::defaults::imaging_job_flow1_params_no_geometric_delay(),
+                    super::defaults::imaging_job_params_no_geometric_delay(),
                 ),
                 no_passband_gains: Ok(
-                    super::defaults::imaging_job_flow1_params_no_passband_gains(),
+                    super::defaults::imaging_job_params_no_passband_gains(),
                 ),
-                no_rfi: Ok(super::defaults::imaging_job_flow1_params_no_rfi()),
+                no_rfi: Ok(super::defaults::imaging_job_params_no_rfi()),
                 nwlayers: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
-                output: Ok(super::defaults::imaging_job_flow1_params_output()),
-                output_mode: Ok(super::defaults::imaging_job_flow1_params_output_mode()),
-                pixel_scale: Ok(super::defaults::imaging_job_flow1_params_pixel_scale()),
-                pol: Ok(super::defaults::imaging_job_flow1_params_pol()),
-                robust: Ok(super::defaults::imaging_job_flow1_params_robust()),
+                output: Ok(super::defaults::imaging_job_params_output()),
+                output_mode: Ok(super::defaults::imaging_job_params_output_mode()),
+                pixel_scale: Ok(super::defaults::imaging_job_params_pixel_scale()),
+                pol: Ok(super::defaults::imaging_job_params_pol()),
+                robust: Ok(super::defaults::imaging_job_params_robust()),
                 uvw_max: Ok(Default::default()),
-                uvw_min: Ok(super::defaults::imaging_job_flow1_params_uvw_min()),
-                weighting: Ok(super::defaults::imaging_job_flow1_params_weighting()),
+                uvw_min: Ok(super::defaults::imaging_job_params_uvw_min()),
+                weighting: Ok(super::defaults::imaging_job_params_weighting()),
                 wstack_nwlayers: Ok(Default::default()),
             }
         }
     }
-    impl ImagingJobFlow1Params {
+    impl ImagingJobParams {
         pub fn abs_threshold<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<f64>>,
@@ -4521,11 +4994,10 @@ pub mod builder {
             self
         }
     }
-    impl ::std::convert::TryFrom<ImagingJobFlow1Params>
-    for super::ImagingJobFlow1Params {
+    impl ::std::convert::TryFrom<ImagingJobParams> for super::ImagingJobParams {
         type Error = super::error::ConversionError;
         fn try_from(
-            value: ImagingJobFlow1Params,
+            value: ImagingJobParams,
         ) -> ::std::result::Result<Self, super::error::ConversionError> {
             Ok(Self {
                 abs_threshold: value.abs_threshold?,
@@ -4572,8 +5044,8 @@ pub mod builder {
             })
         }
     }
-    impl ::std::convert::From<super::ImagingJobFlow1Params> for ImagingJobFlow1Params {
-        fn from(value: super::ImagingJobFlow1Params) -> Self {
+    impl ::std::convert::From<super::ImagingJobParams> for ImagingJobParams {
+        fn from(value: super::ImagingJobParams) -> Self {
             Self {
                 abs_threshold: Ok(value.abs_threshold),
                 allow_resubmit: Ok(value.allow_resubmit),
@@ -4612,501 +5084,6 @@ pub mod builder {
                 pixel_scale: Ok(value.pixel_scale),
                 pol: Ok(value.pol),
                 robust: Ok(value.robust),
-                uvw_max: Ok(value.uvw_max),
-                uvw_min: Ok(value.uvw_min),
-                weighting: Ok(value.weighting),
-                wstack_nwlayers: Ok(value.wstack_nwlayers),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
-    pub struct ImagingJobFlow2Params {
-        abs_threshold: ::std::result::Result<
-            ::std::option::Option<f64>,
-            ::std::string::String,
-        >,
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
-        auto_mask: ::std::result::Result<i64, ::std::string::String>,
-        auto_threshold: ::std::result::Result<f64, ::std::string::String>,
-        centre: ::std::result::Result<super::PhaseCentre, ::std::string::String>,
-        channels_out: ::std::result::Result<i64, ::std::string::String>,
-        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
-        clean_threshold: ::std::result::Result<
-            ::std::option::Option<f64>,
-            ::std::string::String,
-        >,
-        delivery: ::std::result::Result<
-            super::DeliveryDestination,
-            ::std::string::String,
-        >,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
-        image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
-        join_channels: ::std::result::Result<bool, ::std::string::String>,
-        join_polarizations: ::std::result::Result<bool, ::std::string::String>,
-        mgain: ::std::result::Result<f64, ::std::string::String>,
-        multiscale: ::std::result::Result<bool, ::std::string::String>,
-        nmiter: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        nwlayers: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
-        output_mode: ::std::result::Result<
-            super::ImageOutputMode,
-            ::std::string::String,
-        >,
-        pixel_scale: ::std::result::Result<f64, ::std::string::String>,
-        pol: ::std::result::Result<super::Polarization, ::std::string::String>,
-        robust: ::std::result::Result<f64, ::std::string::String>,
-        source_job_id: ::std::result::Result<
-            ::std::num::NonZeroU64,
-            ::std::string::String,
-        >,
-        uvw_max: ::std::result::Result<
-            ::std::option::Option<f64>,
-            ::std::string::String,
-        >,
-        uvw_min: ::std::result::Result<f64, ::std::string::String>,
-        weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
-        wstack_nwlayers: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
-    }
-    impl ::std::default::Default for ImagingJobFlow2Params {
-        fn default() -> Self {
-            Self {
-                abs_threshold: Ok(
-                    super::defaults::imaging_job_flow2_params_abs_threshold(),
-                ),
-                allow_resubmit: Ok(
-                    super::defaults::imaging_job_flow2_params_allow_resubmit(),
-                ),
-                apply_primary_beam: Ok(super::defaults::default_bool::<true>()),
-                auto_mask: Ok(super::defaults::default_u64::<i64, 3>()),
-                auto_threshold: Ok(
-                    super::defaults::imaging_job_flow2_params_auto_threshold(),
-                ),
-                centre: Ok(super::defaults::imaging_job_flow2_params_centre()),
-                channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
-                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
-                clean_threshold: Ok(
-                    super::defaults::imaging_job_flow2_params_clean_threshold(),
-                ),
-                delivery: Ok(super::defaults::imaging_job_flow2_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::imaging_job_flow2_params_delivery_format(),
-                ),
-                image_size: Ok(super::defaults::imaging_job_flow2_params_image_size()),
-                join_channels: Ok(super::defaults::default_bool::<true>()),
-                join_polarizations: Ok(Default::default()),
-                mgain: Ok(super::defaults::imaging_job_flow2_params_mgain()),
-                multiscale: Ok(Default::default()),
-                nmiter: Ok(
-                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
-                ),
-                nwlayers: Ok(Default::default()),
-                output_mode: Ok(super::defaults::imaging_job_flow2_params_output_mode()),
-                pixel_scale: Ok(super::defaults::imaging_job_flow2_params_pixel_scale()),
-                pol: Ok(super::defaults::imaging_job_flow2_params_pol()),
-                robust: Ok(super::defaults::imaging_job_flow2_params_robust()),
-                source_job_id: Err("no value supplied for source_job_id".to_string()),
-                uvw_max: Ok(Default::default()),
-                uvw_min: Ok(super::defaults::imaging_job_flow2_params_uvw_min()),
-                weighting: Ok(super::defaults::imaging_job_flow2_params_weighting()),
-                wstack_nwlayers: Ok(Default::default()),
-            }
-        }
-    }
-    impl ImagingJobFlow2Params {
-        pub fn abs_threshold<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.abs_threshold = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for abs_threshold: {e}")
-                });
-            self
-        }
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn apply_primary_beam<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<bool>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.apply_primary_beam = value
-                .try_into()
-                .map_err(|e| {
-                    format!(
-                        "error converting supplied value for apply_primary_beam: {e}"
-                    )
-                });
-            self
-        }
-        pub fn auto_mask<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.auto_mask = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for auto_mask: {e}")
-                });
-            self
-        }
-        pub fn auto_threshold<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<f64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.auto_threshold = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for auto_threshold: {e}")
-                });
-            self
-        }
-        pub fn centre<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::PhaseCentre>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.centre = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for centre: {e}"));
-            self
-        }
-        pub fn channels_out<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.channels_out = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for channels_out: {e}")
-                });
-            self
-        }
-        pub fn clean_iterations<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.clean_iterations = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for clean_iterations: {e}")
-                });
-            self
-        }
-        pub fn clean_threshold<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.clean_threshold = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for clean_threshold: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryDestination>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
-                });
-            self
-        }
-        pub fn image_size<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::ImageSizes>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.image_size = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for image_size: {e}")
-                });
-            self
-        }
-        pub fn join_channels<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<bool>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.join_channels = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for join_channels: {e}")
-                });
-            self
-        }
-        pub fn join_polarizations<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<bool>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.join_polarizations = value
-                .try_into()
-                .map_err(|e| {
-                    format!(
-                        "error converting supplied value for join_polarizations: {e}"
-                    )
-                });
-            self
-        }
-        pub fn mgain<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<f64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.mgain = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for mgain: {e}"));
-            self
-        }
-        pub fn multiscale<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<bool>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.multiscale = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for multiscale: {e}")
-                });
-            self
-        }
-        pub fn nmiter<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.nmiter = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for nmiter: {e}"));
-            self
-        }
-        pub fn nwlayers<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.nwlayers = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for nwlayers: {e}")
-                });
-            self
-        }
-        pub fn output_mode<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::ImageOutputMode>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.output_mode = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for output_mode: {e}")
-                });
-            self
-        }
-        pub fn pixel_scale<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<f64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.pixel_scale = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for pixel_scale: {e}")
-                });
-            self
-        }
-        pub fn pol<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::Polarization>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.pol = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for pol: {e}"));
-            self
-        }
-        pub fn robust<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<f64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.robust = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for robust: {e}"));
-            self
-        }
-        pub fn source_job_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.source_job_id = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for source_job_id: {e}")
-                });
-            self
-        }
-        pub fn uvw_max<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.uvw_max = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_max: {e}")
-                });
-            self
-        }
-        pub fn uvw_min<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<f64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.uvw_min = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_min: {e}")
-                });
-            self
-        }
-        pub fn weighting<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::ImageWeighting>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.weighting = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for weighting: {e}")
-                });
-            self
-        }
-        pub fn wstack_nwlayers<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.wstack_nwlayers = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for wstack_nwlayers: {e}")
-                });
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<ImagingJobFlow2Params>
-    for super::ImagingJobFlow2Params {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: ImagingJobFlow2Params,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                abs_threshold: value.abs_threshold?,
-                allow_resubmit: value.allow_resubmit?,
-                apply_primary_beam: value.apply_primary_beam?,
-                auto_mask: value.auto_mask?,
-                auto_threshold: value.auto_threshold?,
-                centre: value.centre?,
-                channels_out: value.channels_out?,
-                clean_iterations: value.clean_iterations?,
-                clean_threshold: value.clean_threshold?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
-                image_size: value.image_size?,
-                join_channels: value.join_channels?,
-                join_polarizations: value.join_polarizations?,
-                mgain: value.mgain?,
-                multiscale: value.multiscale?,
-                nmiter: value.nmiter?,
-                nwlayers: value.nwlayers?,
-                output_mode: value.output_mode?,
-                pixel_scale: value.pixel_scale?,
-                pol: value.pol?,
-                robust: value.robust?,
-                source_job_id: value.source_job_id?,
-                uvw_max: value.uvw_max?,
-                uvw_min: value.uvw_min?,
-                weighting: value.weighting?,
-                wstack_nwlayers: value.wstack_nwlayers?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::ImagingJobFlow2Params> for ImagingJobFlow2Params {
-        fn from(value: super::ImagingJobFlow2Params) -> Self {
-            Self {
-                abs_threshold: Ok(value.abs_threshold),
-                allow_resubmit: Ok(value.allow_resubmit),
-                apply_primary_beam: Ok(value.apply_primary_beam),
-                auto_mask: Ok(value.auto_mask),
-                auto_threshold: Ok(value.auto_threshold),
-                centre: Ok(value.centre),
-                channels_out: Ok(value.channels_out),
-                clean_iterations: Ok(value.clean_iterations),
-                clean_threshold: Ok(value.clean_threshold),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
-                image_size: Ok(value.image_size),
-                join_channels: Ok(value.join_channels),
-                join_polarizations: Ok(value.join_polarizations),
-                mgain: Ok(value.mgain),
-                multiscale: Ok(value.multiscale),
-                nmiter: Ok(value.nmiter),
-                nwlayers: Ok(value.nwlayers),
-                output_mode: Ok(value.output_mode),
-                pixel_scale: Ok(value.pixel_scale),
-                pol: Ok(value.pol),
-                robust: Ok(value.robust),
-                source_job_id: Ok(value.source_job_id),
                 uvw_max: Ok(value.uvw_max),
                 uvw_min: Ok(value.uvw_min),
                 weighting: Ok(value.weighting),
@@ -10798,252 +10775,6 @@ pub mod builder {
         }
     }
     #[derive(Clone, Debug)]
-    pub struct VisibilityJobParams {
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        delivery: ::std::result::Result<
-            super::DeliveryDestination,
-            ::std::string::String,
-        >,
-        delivery_format: ::std::result::Result<
-            super::DeliveryFormat,
-            ::std::string::String,
-        >,
-        download_type: ::std::result::Result<super::DownloadType, ::std::string::String>,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-    }
-    impl ::std::default::Default for VisibilityJobParams {
-        fn default() -> Self {
-            Self {
-                allow_resubmit: Ok(
-                    super::defaults::visibility_job_params_allow_resubmit(),
-                ),
-                delivery: Ok(super::defaults::visibility_job_params_delivery()),
-                delivery_format: Ok(
-                    super::defaults::visibility_job_params_delivery_format(),
-                ),
-                download_type: Ok(
-                    super::defaults::visibility_job_params_download_type(),
-                ),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-            }
-        }
-    }
-    impl VisibilityJobParams {
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn delivery<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryDestination>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery: {e}")
-                });
-            self
-        }
-        pub fn delivery_format<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DeliveryFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.delivery_format = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for delivery_format: {e}")
-                });
-            self
-        }
-        pub fn download_type<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::DownloadType>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.download_type = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for download_type: {e}")
-                });
-            self
-        }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<VisibilityJobParams> for super::VisibilityJobParams {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: VisibilityJobParams,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                allow_resubmit: value.allow_resubmit?,
-                delivery: value.delivery?,
-                delivery_format: value.delivery_format?,
-                download_type: value.download_type?,
-                obs_id: value.obs_id?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::VisibilityJobParams> for VisibilityJobParams {
-        fn from(value: super::VisibilityJobParams) -> Self {
-            Self {
-                allow_resubmit: Ok(value.allow_resubmit),
-                delivery: Ok(value.delivery),
-                delivery_format: Ok(value.delivery_format),
-                download_type: Ok(value.download_type),
-                obs_id: Ok(value.obs_id),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
-    pub struct VoltageJobParams {
-        allow_resubmit: ::std::result::Result<
-            ::std::option::Option<bool>,
-            ::std::string::String,
-        >,
-        duration: ::std::result::Result<u64, ::std::string::String>,
-        from_channel: ::std::result::Result<
-            ::std::option::Option<u8>,
-            ::std::string::String,
-        >,
-        obs_id: ::std::result::Result<i64, ::std::string::String>,
-        offset: ::std::result::Result<i64, ::std::string::String>,
-        to_channel: ::std::result::Result<
-            ::std::option::Option<u8>,
-            ::std::string::String,
-        >,
-    }
-    impl ::std::default::Default for VoltageJobParams {
-        fn default() -> Self {
-            Self {
-                allow_resubmit: Ok(super::defaults::voltage_job_params_allow_resubmit()),
-                duration: Err("no value supplied for duration".to_string()),
-                from_channel: Ok(Default::default()),
-                obs_id: Err("no value supplied for obs_id".to_string()),
-                offset: Err("no value supplied for offset".to_string()),
-                to_channel: Ok(Default::default()),
-            }
-        }
-    }
-    impl VoltageJobParams {
-        pub fn allow_resubmit<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<bool>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.allow_resubmit = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for allow_resubmit: {e}")
-                });
-            self
-        }
-        pub fn duration<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<u64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.duration = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for duration: {e}")
-                });
-            self
-        }
-        pub fn from_channel<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<u8>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.from_channel = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for from_channel: {e}")
-                });
-            self
-        }
-        pub fn obs_id<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.obs_id = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
-            self
-        }
-        pub fn offset<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<i64>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.offset = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for offset: {e}"));
-            self
-        }
-        pub fn to_channel<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<u8>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.to_channel = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for to_channel: {e}")
-                });
-            self
-        }
-    }
-    impl ::std::convert::TryFrom<VoltageJobParams> for super::VoltageJobParams {
-        type Error = super::error::ConversionError;
-        fn try_from(
-            value: VoltageJobParams,
-        ) -> ::std::result::Result<Self, super::error::ConversionError> {
-            Ok(Self {
-                allow_resubmit: value.allow_resubmit?,
-                duration: value.duration?,
-                from_channel: value.from_channel?,
-                obs_id: value.obs_id?,
-                offset: value.offset?,
-                to_channel: value.to_channel?,
-            })
-        }
-    }
-    impl ::std::convert::From<super::VoltageJobParams> for VoltageJobParams {
-        fn from(value: super::VoltageJobParams) -> Self {
-            Self {
-                allow_resubmit: Ok(value.allow_resubmit),
-                duration: Ok(value.duration),
-                from_channel: Ok(value.from_channel),
-                obs_id: Ok(value.obs_id),
-                offset: Ok(value.offset),
-                to_channel: Ok(value.to_channel),
-            }
-        }
-    }
-    #[derive(Clone, Debug)]
     pub struct WebSocketTokenResponse {
         token: ::std::result::Result<::std::string::String, ::std::string::String>,
     }
@@ -11110,15 +10841,6 @@ pub mod defaults {
     pub(super) fn api_login_response_token_type() -> ::std::string::String {
         "bearer".to_string()
     }
-    pub(super) fn beamformer_job_params_allow_resubmit() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn beamformer_job_params_delivery() -> super::DeliveryDestination {
-        super::DeliveryDestination::Acacia
-    }
-    pub(super) fn beamformer_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Tar
-    }
     pub(super) fn conversion_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
@@ -11167,144 +10889,135 @@ pub mod defaults {
     pub(super) fn conversion_job_params_output() -> super::Output {
         super::Output::Ms
     }
-    pub(super) fn imaging_job_flow1_params_abs_threshold() -> ::std::option::Option<
-        f64,
-    > {
-        ::std::option::Option::Some(0.001_f64)
-    }
-    pub(super) fn imaging_job_flow1_params_allow_resubmit() -> ::std::option::Option<
-        bool,
-    > {
+    pub(super) fn download_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow1_params_auto_threshold() -> f64 {
-        0.5_f64
-    }
-    pub(super) fn imaging_job_flow1_params_avg_freq_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(40.0_f64)
-    }
-    pub(super) fn imaging_job_flow1_params_avg_time_res() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(2.0_f64)
-    }
-    pub(super) fn imaging_job_flow1_params_centre() -> super::PhaseCentre {
-        super::PhaseCentre::Phase
-    }
-    pub(super) fn imaging_job_flow1_params_clean_threshold() -> ::std::option::Option<
-        f64,
-    > {
-        ::std::option::Option::Some(0.001_f64)
-    }
-    pub(super) fn imaging_job_flow1_params_delivery() -> super::DeliveryDestination {
+    pub(super) fn download_job_params_delivery() -> super::DeliveryDestination {
         super::DeliveryDestination::Acacia
     }
-    pub(super) fn imaging_job_flow1_params_delivery_format() -> super::DeliveryFormat {
+    pub(super) fn download_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
     }
-    pub(super) fn imaging_job_flow1_params_flag_edge_width() -> f64 {
-        80.0_f64
+    pub(super) fn download_job_params_only_metadata() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow1_params_image_size() -> super::ImageSizes {
+    pub(super) fn image_from_job_params_abs_threshold() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(0.001_f64)
+    }
+    pub(super) fn image_from_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn image_from_job_params_auto_threshold() -> f64 {
+        0.5_f64
+    }
+    pub(super) fn image_from_job_params_clean_threshold() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(0.001_f64)
+    }
+    pub(super) fn image_from_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
+    }
+    pub(super) fn image_from_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Tar
+    }
+    pub(super) fn image_from_job_params_image_size() -> super::ImageSizes {
         super::ImageSizes(3072_i64)
     }
-    pub(super) fn imaging_job_flow1_params_mgain() -> f64 {
+    pub(super) fn image_from_job_params_mgain() -> f64 {
         0.8_f64
     }
-    pub(super) fn imaging_job_flow1_params_no_cable_delay() -> ::std::option::Option<
-        bool,
-    > {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_no_digital_gains() -> ::std::option::Option<
-        bool,
-    > {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_no_flag_dc() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_no_geometric_delay() -> ::std::option::Option<
-        bool,
-    > {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_no_passband_gains() -> ::std::option::Option<
-        bool,
-    > {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_no_rfi() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn imaging_job_flow1_params_output() -> ::std::string::String {
-        "fits".to_string()
-    }
-    pub(super) fn imaging_job_flow1_params_output_mode() -> super::ImageOutputMode {
+    pub(super) fn image_from_job_params_output_mode() -> super::ImageOutputMode {
         super::ImageOutputMode::Fits
     }
-    pub(super) fn imaging_job_flow1_params_pixel_scale() -> f64 {
+    pub(super) fn image_from_job_params_pixel_scale() -> f64 {
         20_f64
     }
-    pub(super) fn imaging_job_flow1_params_pol() -> super::Polarization {
+    pub(super) fn image_from_job_params_pol() -> super::Polarization {
         super::Polarization::Xxyy
     }
-    pub(super) fn imaging_job_flow1_params_robust() -> f64 {
+    pub(super) fn image_from_job_params_robust() -> f64 {
         -0.5_f64
     }
-    pub(super) fn imaging_job_flow1_params_uvw_min() -> f64 {
+    pub(super) fn image_from_job_params_uvw_min() -> f64 {
         75_f64
     }
-    pub(super) fn imaging_job_flow1_params_weighting() -> super::ImageWeighting {
+    pub(super) fn image_from_job_params_weighting() -> super::ImageWeighting {
         super::ImageWeighting::Briggs
     }
-    pub(super) fn imaging_job_flow2_params_abs_threshold() -> ::std::option::Option<
-        f64,
-    > {
+    pub(super) fn imaging_job_params_abs_threshold() -> ::std::option::Option<f64> {
         ::std::option::Option::Some(0.001_f64)
     }
-    pub(super) fn imaging_job_flow2_params_allow_resubmit() -> ::std::option::Option<
+    pub(super) fn imaging_job_params_allow_resubmit() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn imaging_job_params_auto_threshold() -> f64 {
+        0.5_f64
+    }
+    pub(super) fn imaging_job_params_avg_freq_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(40.0_f64)
+    }
+    pub(super) fn imaging_job_params_avg_time_res() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(2.0_f64)
+    }
+    pub(super) fn imaging_job_params_centre() -> super::PhaseCentre {
+        super::PhaseCentre::Phase
+    }
+    pub(super) fn imaging_job_params_clean_threshold() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(0.001_f64)
+    }
+    pub(super) fn imaging_job_params_delivery() -> super::DeliveryDestination {
+        super::DeliveryDestination::Acacia
+    }
+    pub(super) fn imaging_job_params_delivery_format() -> super::DeliveryFormat {
+        super::DeliveryFormat::Tar
+    }
+    pub(super) fn imaging_job_params_flag_edge_width() -> f64 {
+        80.0_f64
+    }
+    pub(super) fn imaging_job_params_image_size() -> super::ImageSizes {
+        super::ImageSizes(3072_i64)
+    }
+    pub(super) fn imaging_job_params_mgain() -> f64 {
+        0.8_f64
+    }
+    pub(super) fn imaging_job_params_no_cable_delay() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn imaging_job_params_no_digital_gains() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn imaging_job_params_no_flag_dc() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
+    }
+    pub(super) fn imaging_job_params_no_geometric_delay() -> ::std::option::Option<
         bool,
     > {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow2_params_auto_threshold() -> f64 {
-        0.5_f64
+    pub(super) fn imaging_job_params_no_passband_gains() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow2_params_centre() -> super::PhaseCentre {
-        super::PhaseCentre::Phase
+    pub(super) fn imaging_job_params_no_rfi() -> ::std::option::Option<bool> {
+        ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_flow2_params_clean_threshold() -> ::std::option::Option<
-        f64,
-    > {
-        ::std::option::Option::Some(0.001_f64)
+    pub(super) fn imaging_job_params_output() -> ::std::string::String {
+        "fits".to_string()
     }
-    pub(super) fn imaging_job_flow2_params_delivery() -> super::DeliveryDestination {
-        super::DeliveryDestination::Acacia
-    }
-    pub(super) fn imaging_job_flow2_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Tar
-    }
-    pub(super) fn imaging_job_flow2_params_image_size() -> super::ImageSizes {
-        super::ImageSizes(3072_i64)
-    }
-    pub(super) fn imaging_job_flow2_params_mgain() -> f64 {
-        0.8_f64
-    }
-    pub(super) fn imaging_job_flow2_params_output_mode() -> super::ImageOutputMode {
+    pub(super) fn imaging_job_params_output_mode() -> super::ImageOutputMode {
         super::ImageOutputMode::Fits
     }
-    pub(super) fn imaging_job_flow2_params_pixel_scale() -> f64 {
+    pub(super) fn imaging_job_params_pixel_scale() -> f64 {
         20_f64
     }
-    pub(super) fn imaging_job_flow2_params_pol() -> super::Polarization {
+    pub(super) fn imaging_job_params_pol() -> super::Polarization {
         super::Polarization::Xxyy
     }
-    pub(super) fn imaging_job_flow2_params_robust() -> f64 {
+    pub(super) fn imaging_job_params_robust() -> f64 {
         -0.5_f64
     }
-    pub(super) fn imaging_job_flow2_params_uvw_min() -> f64 {
+    pub(super) fn imaging_job_params_uvw_min() -> f64 {
         75_f64
     }
-    pub(super) fn imaging_job_flow2_params_weighting() -> super::ImageWeighting {
+    pub(super) fn imaging_job_params_weighting() -> super::ImageWeighting {
         super::ImageWeighting::Briggs
     }
     pub(super) fn job_cancelled_response_status() -> super::Status {
@@ -11332,21 +11045,6 @@ pub mod defaults {
     }
     pub(super) fn user_logout_response_message() -> ::std::string::String {
         "Logged out successfully".to_string()
-    }
-    pub(super) fn visibility_job_params_allow_resubmit() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
-    pub(super) fn visibility_job_params_delivery() -> super::DeliveryDestination {
-        super::DeliveryDestination::Acacia
-    }
-    pub(super) fn visibility_job_params_delivery_format() -> super::DeliveryFormat {
-        super::DeliveryFormat::Tar
-    }
-    pub(super) fn visibility_job_params_download_type() -> super::DownloadType {
-        super::DownloadType::Vis
-    }
-    pub(super) fn voltage_job_params_allow_resubmit() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
     }
 }
 /// Error types.

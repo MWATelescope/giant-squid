@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.7.0"
+    "version": "2.8.0"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -100,42 +100,6 @@
         "authenticated"
       ],
       "title": "AuthStatusResponse"
-    },
-    "BeamformerJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id"
-      ],
-      "title": "BeamformerJobParams",
-      "description": "Parameters and hidden fields for beamformer job submission"
     },
     "CalibrationReadyCallback": {
       "properties": {
@@ -455,13 +419,103 @@
       ],
       "title": "DeliveryFormat"
     },
-    "DownloadType": {
-      "type": "string",
-      "enum": [
-        "vis",
-        "meta"
+    "DownloadJobParams": {
+      "properties": {
+        "obs_id": {
+          "type": "integer",
+          "minimum": 888888889.0,
+          "title": "Obs Id"
+        },
+        "delivery": {
+          "$ref": "#/definitions/DeliveryDestination",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "$ref": "#/definitions/DeliveryFormat",
+          "default": "tar"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "only_metadata": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Only Metadata",
+          "default": false
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 5400.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Offset"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration"
+        },
+        "from_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "From Channel"
+        },
+        "to_channel": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 255.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "To Channel"
+        }
+      },
+      "type": "object",
+      "required": [
+        "obs_id"
       ],
-      "title": "DownloadType"
+      "title": "DownloadJobParams"
     },
     "ErrorResponse": {
       "properties": {
@@ -627,6 +681,206 @@
         }
       ]
     },
+    "ImageFromJobParams": {
+      "properties": {
+        "delivery": {
+          "$ref": "#/definitions/DeliveryDestination",
+          "default": "acacia"
+        },
+        "delivery_format": {
+          "$ref": "#/definitions/DeliveryFormat",
+          "default": "tar"
+        },
+        "allow_resubmit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Allow Resubmit",
+          "description": "allows user to resubmit a job despite it being completed",
+          "default": false
+        },
+        "image_size": {
+          "$ref": "#/definitions/ImageSizes",
+          "default": 3072
+        },
+        "pixel_scale": {
+          "type": "number",
+          "maximum": 120.0,
+          "minimum": 10.0,
+          "title": "Pixel Scale",
+          "default": 20
+        },
+        "weighting": {
+          "$ref": "#/definitions/ImageWeighting",
+          "default": "briggs"
+        },
+        "robust": {
+          "type": "number",
+          "maximum": 2.0,
+          "minimum": -2.0,
+          "title": "Robust",
+          "default": -0.5
+        },
+        "clean_iterations": {
+          "type": "integer",
+          "maximum": 1000000.0,
+          "title": "Clean Iterations",
+          "default": 100000
+        },
+        "abs_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Abs Threshold",
+          "default": 0.001
+        },
+        "clean_threshold": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 10.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Clean Threshold",
+          "description": "deprecated. use abs_threshold instead",
+          "default": 0.001
+        },
+        "auto_threshold": {
+          "type": "number",
+          "maximum": 5.0,
+          "minimum": 0.1,
+          "title": "Auto Threshold",
+          "default": 0.5
+        },
+        "nmiter": {
+          "type": "integer",
+          "maximum": 500.0,
+          "minimum": 1.0,
+          "title": "Nmiter",
+          "default": 10
+        },
+        "mgain": {
+          "type": "number",
+          "maximum": 1.0,
+          "minimum": 0.1,
+          "title": "Mgain",
+          "default": 0.8
+        },
+        "auto_mask": {
+          "type": "integer",
+          "maximum": 512.0,
+          "minimum": 2.0,
+          "title": "Auto Mask",
+          "default": 3
+        },
+        "apply_primary_beam": {
+          "type": "boolean",
+          "title": "Apply Primary Beam",
+          "default": true
+        },
+        "nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Nwlayers",
+          "description": "deprecated. use wstack_nwlayers instead"
+        },
+        "wstack_nwlayers": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "maximum": 512.0,
+              "minimum": 32.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Wstack Nwlayers"
+        },
+        "multiscale": {
+          "type": "boolean",
+          "title": "Multiscale",
+          "default": false
+        },
+        "uvw_min": {
+          "type": "number",
+          "maximum": 100.0,
+          "title": "Uvw Min",
+          "default": 75
+        },
+        "uvw_max": {
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 5000.0,
+              "minimum": 1.0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Uvw Max"
+        },
+        "join_polarizations": {
+          "type": "boolean",
+          "title": "Join Polarizations",
+          "default": false
+        },
+        "channels_out": {
+          "type": "integer",
+          "title": "Channels Out",
+          "default": 4
+        },
+        "join_channels": {
+          "type": "boolean",
+          "title": "Join Channels",
+          "default": true
+        },
+        "pol": {
+          "$ref": "#/definitions/Polarization",
+          "default": "XXYY"
+        },
+        "output_mode": {
+          "$ref": "#/definitions/ImageOutputMode",
+          "default": "fits"
+        },
+        "source_job_id": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Source Job Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "source_job_id"
+      ],
+      "title": "ImageFromJobParams",
+      "description": "Parameters for image job submission"
+    },
     "ImageOutputMode": {
       "type": "string",
       "enum": [
@@ -657,7 +911,7 @@
       ],
       "title": "ImageWeighting"
     },
-    "ImagingJobFlow1Params": {
+    "ImagingJobParams": {
       "properties": {
         "obs_id": {
           "type": "integer",
@@ -684,10 +938,6 @@
           "title": "Allow Resubmit",
           "description": "allows user to resubmit a job despite it being completed",
           "default": false
-        },
-        "centre": {
-          "$ref": "#/definitions/PhaseCentre",
-          "default": "phase"
         },
         "image_size": {
           "$ref": "#/definitions/ImageSizes",
@@ -894,6 +1144,10 @@
           "title": "Flag Edge Width",
           "default": 80.0
         },
+        "centre": {
+          "$ref": "#/definitions/PhaseCentre",
+          "default": "phase"
+        },
         "custom_centre_ra": {
           "anyOf": [
             {
@@ -1007,211 +1261,7 @@
       "required": [
         "obs_id"
       ],
-      "title": "ImagingJobFlow1Params",
-      "description": "Parameters for image job submission"
-    },
-    "ImagingJobFlow2Params": {
-      "properties": {
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        },
-        "centre": {
-          "$ref": "#/definitions/PhaseCentre",
-          "default": "phase"
-        },
-        "image_size": {
-          "$ref": "#/definitions/ImageSizes",
-          "default": 3072
-        },
-        "pixel_scale": {
-          "type": "number",
-          "maximum": 120.0,
-          "minimum": 10.0,
-          "title": "Pixel Scale",
-          "default": 20
-        },
-        "weighting": {
-          "$ref": "#/definitions/ImageWeighting",
-          "default": "briggs"
-        },
-        "robust": {
-          "type": "number",
-          "maximum": 2.0,
-          "minimum": -2.0,
-          "title": "Robust",
-          "default": -0.5
-        },
-        "clean_iterations": {
-          "type": "integer",
-          "maximum": 1000000.0,
-          "title": "Clean Iterations",
-          "default": 100000
-        },
-        "abs_threshold": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 10.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Abs Threshold",
-          "default": 0.001
-        },
-        "clean_threshold": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 10.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Clean Threshold",
-          "description": "deprecated. use abs_threshold instead",
-          "default": 0.001
-        },
-        "auto_threshold": {
-          "type": "number",
-          "maximum": 5.0,
-          "minimum": 0.1,
-          "title": "Auto Threshold",
-          "default": 0.5
-        },
-        "nmiter": {
-          "type": "integer",
-          "maximum": 500.0,
-          "minimum": 1.0,
-          "title": "Nmiter",
-          "default": 10
-        },
-        "mgain": {
-          "type": "number",
-          "maximum": 1.0,
-          "minimum": 0.1,
-          "title": "Mgain",
-          "default": 0.8
-        },
-        "auto_mask": {
-          "type": "integer",
-          "maximum": 512.0,
-          "minimum": 2.0,
-          "title": "Auto Mask",
-          "default": 3
-        },
-        "apply_primary_beam": {
-          "type": "boolean",
-          "title": "Apply Primary Beam",
-          "default": true
-        },
-        "nwlayers": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 512.0,
-              "minimum": 32.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Nwlayers",
-          "description": "deprecated. use wstack_nwlayers instead"
-        },
-        "wstack_nwlayers": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 512.0,
-              "minimum": 32.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Wstack Nwlayers"
-        },
-        "multiscale": {
-          "type": "boolean",
-          "title": "Multiscale",
-          "default": false
-        },
-        "uvw_min": {
-          "type": "number",
-          "maximum": 100.0,
-          "title": "Uvw Min",
-          "default": 75
-        },
-        "uvw_max": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 5000.0,
-              "minimum": 1.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Uvw Max"
-        },
-        "join_polarizations": {
-          "type": "boolean",
-          "title": "Join Polarizations",
-          "default": false
-        },
-        "channels_out": {
-          "type": "integer",
-          "title": "Channels Out",
-          "default": 4
-        },
-        "join_channels": {
-          "type": "boolean",
-          "title": "Join Channels",
-          "default": true
-        },
-        "pol": {
-          "$ref": "#/definitions/Polarization",
-          "default": "XXYY"
-        },
-        "output_mode": {
-          "$ref": "#/definitions/ImageOutputMode",
-          "default": "fits"
-        },
-        "source_job_id": {
-          "type": "integer",
-          "minimum": 1.0,
-          "title": "Source Job Id"
-        }
-      },
-      "type": "object",
-      "required": [
-        "source_job_id"
-      ],
-      "title": "ImagingJobFlow2Params",
+      "title": "ImagingJobParams",
       "description": "Parameters for image job submission"
     },
     "JobCancelledResponse": {
@@ -4084,113 +4134,6 @@
       "title": "UserUpdateProfileRequest",
       "description": "Request model for updating a user's profile"
     },
-    "VisibilityJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "delivery": {
-          "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
-        },
-        "delivery_format": {
-          "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        },
-        "download_type": {
-          "$ref": "#/definitions/DownloadType",
-          "default": "vis"
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id"
-      ],
-      "title": "VisibilityJobParams",
-      "description": "Parameters for visibility job submission"
-    },
-    "VoltageJobParams": {
-      "properties": {
-        "obs_id": {
-          "type": "integer",
-          "minimum": 888888889.0,
-          "title": "Obs Id"
-        },
-        "allow_resubmit": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
-        },
-        "offset": {
-          "type": "integer",
-          "maximum": 5400.0,
-          "minimum": 0.0,
-          "title": "Offset"
-        },
-        "duration": {
-          "type": "integer",
-          "minimum": 0.0,
-          "title": "Duration"
-        },
-        "from_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "From Channel"
-        },
-        "to_channel": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 255.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "To Channel"
-        }
-      },
-      "type": "object",
-      "required": [
-        "obs_id",
-        "offset",
-        "duration"
-      ],
-      "title": "VoltageJobParams",
-      "description": "Parameters for voltage job submission"
-    },
     "WebSocketTokenResponse": {
       "properties": {
         "token": {
@@ -4547,9 +4490,7 @@
     },
     "POST /v2/jobs/download": {
       "request": [
-        "BeamformerJobParams",
-        "VisibilityJobParams",
-        "VoltageJobParams"
+        "DownloadJobParams"
       ],
       "responses": {
         "200": [
@@ -4574,7 +4515,7 @@
     },
     "POST /v2/jobs/image_from_job": {
       "request": [
-        "ImagingJobFlow2Params"
+        "ImageFromJobParams"
       ],
       "responses": {
         "200": [
@@ -4656,7 +4597,7 @@
     "POST /v2/jobs/preprocess": {
       "request": [
         "ConversionJobParams",
-        "ImagingJobFlow1Params"
+        "ImagingJobParams"
       ],
       "responses": {
         "200": [
