@@ -229,8 +229,8 @@ uv run pytest
 | `test_client.py` | `AsvoClient`: login, `get_jobs` (every filter, the schema defaults, the days limits), the job types and states, errors (with the server's detail and suggestion), threads |
 | `test_job_types.py` | `JobDetailResponse` and `AsvoJob.detail`, `JobFile.size_bytes`, `AsvoJobVec.json`, and `names` and `parse_name` of `JobType` and `JobState` |
 | `test_native_cli.py` | The `giant-squid` command (the Rust program run in the module), started as a process: the installed script and entry point, help, version, exit codes 0, 1 and 2, the command's own logger, `list` against the mock, and SIGINT ending the process. The behaviour of each sub-command is tested by the Rust CLI tests (Layer 3), which run the same code |
-| `test_submit.py` | The seven submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
-| `test_params.py` | The request-body classes: the checked Obs ID and source Job ID, `validate()`, the helper functions (`visibility_params` and so on), and `DownloadJobParams` and `PreprocessJobParams` |
+| `test_submit.py` | The three submit methods and `cancel_job`: the body each sends, as the mock receives it; arguments checked before any request; every field of a body is in the schema |
+| `test_params.py` | The request-body classes: the checked Obs ID and source Job ID, `validate()`, the helper functions (`download_params` and so on), and `PreprocessJobParams` |
 | `test_null.py` | `None` is sent as `null`, and a default argument is the schema's default |
 | `test_rules.py` | The two rules of the MWA ASVO that the module refuses before a request: `days` with a date, and Acacia with `files` |
 | `test_signatures.py` | The run-time signature of each request body class has the schema's defaults |
@@ -371,6 +371,14 @@ Per submit command (`submit-vis`, `submit-meta`, `submit-conv`,
 | Request body sent to the server | 2 |
 | `--wait` polling until ready | 2 |
 | Server error responses | 2 |
+
+`submit-download` and `submit-preprocess` run the same code as the deprecated
+commands (`run_submit_download` and `run_submit_preprocess` in
+`src/cli/run.rs`). Layer 1 tests check their schema defaults, their options,
+their aliases (`sd`, `sp`), and that each deprecated command sends the body of
+the command line that replaces it. Layer 1 also checks that the deprecated
+commands are hidden and listed at the end of the main help, and Layer 2b
+checks the deprecation warning (and that `--json` has none).
 
 Plus `list` (filters by state, type, Job ID, Obs ID, `--days`, `--json`),
 `wait`, `cancel`, and `download` (Job ID, Obs ID, `--keep-tar`, `--no-resume`,

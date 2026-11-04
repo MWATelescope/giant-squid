@@ -13,7 +13,7 @@ giant-squid, the API and its documentation use the same names everywhere.
 
 1. If you submit **conversion or imaging jobs**, check the new defaults
    (output format, averaging, multiscale, w-layers): see
-   [Conversion jobs](#conversion-jobs-submit-conv) and
+   [Conversion jobs](#conversion-jobs-submit-preprocess) and
    [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
 2. If you use **`-p` / `--parameters`**, replace it with one option for each
    key: see [No more `--parameters`](#no-more--p----parameters).
@@ -43,6 +43,10 @@ giant-squid, the API and its documentation use the same names everywhere.
     `submit-image` or `submit-image-from-job`, use `--abs-threshold` and
     `--wstack-nwlayers`: see
     [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
+12. If a script uses **`submit-vis`, `submit-meta`, `submit-volt`, `submit-bf`
+    or `submit-conv`**, plan to change it to `submit-download` or
+    `submit-preprocess`. The old commands still work, but they are deprecated
+    and log a warning: see [Deprecated submit commands](#deprecated-submit-commands).
 
 Your API key and environment variables need no change.
 
@@ -61,13 +65,13 @@ name. Write the key with `--` in front, and `-` in place of `_`:
 
 ```bash
 # 3.0.0
-giant-squid submit-conv 1065880128 --avg-time-res 0.5 --avg-freq-res 10
+giant-squid submit-preprocess 1065880128 --avg-time-res 0.5 --avg-freq-res 10
 ```
 
 A value that is out of range is now rejected before anything is sent, with
 a message that gives the range (for example
 `--mgain: must be between 0.1 and 1 (got 1.5)`). Run
-`giant-squid submit-conv --help` (or any other command) to see every option
+`giant-squid submit-preprocess --help` (or any other command) to see every option
 and its default.
 
 Keys whose names changed:
@@ -82,12 +86,16 @@ A flag that was `key=true` in 2.x is an option with no value in 3.0.0 (for
 example `no_rfi=true` is `--no-rfi`). The imaging options that default to
 true (`--apply-di-cal`, `--apply-primary-beam`, `--join-channels`) take an
 optional value, so you can turn them off with `--apply-primary-beam=false`.
-`--apply-di-cal` of `submit-conv` takes the same optional value (its default is
+`--apply-di-cal` of `submit-preprocess` takes the same optional value (its default is
 false). The aliases `--phase-centre-ra`, `--phase-centre-dec`, `--custom-ra`,
-`--custom-dec` and `--phase-center` work on both `submit-conv` and
+`--custom-dec` and `--phase-center` work on both `submit-preprocess` and
 `submit-image`.
 
-## Conversion jobs (`submit-conv`)
+## Conversion jobs (`submit-preprocess`)
+
+A conversion job is now submitted with `submit-preprocess` (short name
+`sp`). It has the same options as `submit-conv`, which still works but is
+deprecated (see [Deprecated submit commands](#deprecated-submit-commands)).
 
 The defaults changed. In 2.x, giant-squid set its own
 defaults for a conversion job. In 3.0.0 the defaults are the MWA ASVO API's:
@@ -105,7 +113,7 @@ the 2.x result, give the options:
 
 ```bash
 # 3.0.0, the same output as `giant-squid submit-conv 1065880128` in 2.x
-giant-squid submit-conv 1065880128 --output uvfits --avg-freq-res 80
+giant-squid submit-preprocess 1065880128 --output uvfits --avg-freq-res 80
 ```
 
 There is no option for "no time averaging" in 3.0.0: give `--avg-time-res`
@@ -163,21 +171,58 @@ see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
 
 ## Other submit commands
 
-`submit-vis`, `submit-meta` and `submit-bf` take the same options as in
-2.x. The default delivery format is now `tar` for every job,
-whatever the delivery: in 2.x a Scratch or DUG delivery
-gave individual files unless you asked for `tar`. Add `--delivery-format files`
-to get the individual files. `submit-volt --offset` must now be from 0 to 5400, and a
+**`submit-download` replaces `submit-vis`, `submit-meta`, `submit-volt` and
+`submit-bf`.** The MWA ASVO API has one endpoint for every download job, and
+it finds the kind of data from the observation, so one command submits them
+all:
+
+| Job | 2.x | 3.0.0 |
+|---|---|---|
+| Raw visibilities | `submit-vis` | `submit-download` |
+| Metadata | `submit-meta` | `submit-download --only-metadata` |
+| Voltages | `submit-volt --offset N --duration N` | `submit-download --offset N --duration N` |
+| Beamformer files | `submit-bf` | `submit-download` |
+
+The voltage options (`--offset`, `--duration`, `--from-channel`,
+`--to-channel`) are for a voltage observation: the MWA ASVO refuses them for
+an observation that has no voltages. `--offset` must be from 0 to 5400, and a
 negative value (`--offset -1`) is rejected with that range.
 
-**`submit-volt` has no delivery options.** The MWA ASVO always delivers a
-voltage job to Scratch, as files, and the voltage request has no delivery, so
-`-d`/`--delivery` and `-f`/`--delivery-format` are gone from `submit-volt`
-(clap refuses them), and `GIANT_SQUID_DELIVERY` and
-`GIANT_SQUID_DELIVERY_FORMAT` do not apply to it. A voltage line of a
-manta-ray-client CSV file can still give `delivery=scratch` (and
-`delivery_format=files`), which is not sent, so `submit-csv` needs no change.
-`submit-bf` has no beamformer `mode`.
+The default delivery format is now `tar` for every job, whatever the
+delivery: in 2.x a Scratch or DUG delivery gave individual files unless you
+asked for `tar`. Add `--delivery-format files` to get the individual files.
+
+**`submit-volt` has no delivery options.** `-d`/`--delivery` and
+`-f`/`--delivery-format` are gone from `submit-volt` (clap refuses them), and
+`GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT` do not apply to it:
+it sends the MWA ASVO's default delivery (`acacia`, `tar`), and the MWA ASVO
+decides where a voltage job is delivered. `submit-download` takes the
+delivery options for a voltage job too. A voltage line of a manta-ray-client
+CSV file gives `delivery` and `delivery_format` as the other download lines
+do, and the defaults of the file apply to it.
+A beamformer job has no `mode`.
+
+### Deprecated submit commands
+
+The submit commands of 2.x still work in 3.0.0, with the same options and
+short names, but they will be removed in a later release. `giant-squid
+--help` does not list them with the other commands (the end of the help
+lists them), and each one logs a warning on standard error when it runs, for
+example:
+
+```text
+[WARN] submit-vis is deprecated and will be removed in a later release. Use submit-download.
+```
+
+With `--json` there is no warning, because `--json` logs nothing.
+
+| Deprecated command | Short name | Use instead |
+|---|---|---|
+| `submit-vis` | `sv` | `submit-download` |
+| `submit-meta` | `sm` | `submit-download --only-metadata` |
+| `submit-volt` | `st` | `submit-download` with `--offset` and `--duration` |
+| `submit-bf` | `sb` | `submit-download` |
+| `submit-conv` | `sc` | `submit-preprocess` |
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
@@ -203,7 +248,7 @@ If a script read a log line to get a Job ID, change it to read `--json`:
 giant-squid submit-vis 1065880128 | grep "as MWA ASVO job ID"
 
 # 3.0.0: read it from the JSON reply
-giant-squid submit-vis --json 1065880128 | jq -r .job_id
+giant-squid submit-download --json 1065880128 | jq -r .job_id
 ```
 
 To keep the log lines in a file, redirect standard error:
@@ -218,7 +263,7 @@ JSON in the form of the MWA ASVO's error response (`error_code`, `message`, and
 `obs_id` or `job_id` it is about. A line with an `error_code` key is an error:
 
 ```bash
-giant-squid submit-vis --json 1065880128 | jq -r 'select(.error_code) | .message'
+giant-squid submit-download --json 1065880128 | jq -r 'select(.error_code) | .message'
 ```
 
 `-v` cannot be used with `--json` (or with `--legacy-json`). With `--json`, `--dry-run` prints each
@@ -429,11 +474,11 @@ command where it is used for these two options:
 
 | 2.x | 3.0.0 |
 |---|---|
-| `submit-volt -f N` | `submit-volt --from-channel N` |
-| `submit-volt -t N` | `submit-volt --to-channel N` |
+| `submit-volt -f N` | `submit-download --from-channel N` |
+| `submit-volt -t N` | `submit-download --to-channel N` |
 | `list -n`, `wait -n` | `list --no-colour`, `wait --no-colour` |
 
-`-f` is now only `--delivery-format` (which `submit-volt` does not have), and
+`-f` is now only `--delivery-format` (which the deprecated `submit-volt` does not have), and
 `-n` is now only `--dry-run`. The
 other short flags did not change. `-d`, `-o` and `-r` still mean more than
 one thing, as in 2.x, so use the long names in scripts.
@@ -444,12 +489,14 @@ one thing, as in 2.x, so use the long names in scripts.
 |---|---|---|
 | `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused; `-n` removed |
 | `download` | `d` | None |
-| `submit-vis` | `sv` | `--json` added |
-| `submit-meta` | `sm` | `--json` added |
-| `submit-conv` | `sc` | `-p` replaced by options; **new defaults** |
+| `submit-download` | `sd` | New: every download job (replaces `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf`) |
+| `submit-preprocess` | `sp` | New: a conversion job (replaces `submit-conv`); **new defaults** |
 | `submit-image` | `si` | `-p` replaced by options; Obs IDs only; **new defaults** |
 | `submit-image-from-job` | `sifj` | New: images a completed conversion job |
-| `submit-volt` | `st` | `--json` added; `--offset` range checked; `-f` and `-t` removed |
-| `submit-bf` | `sb` | `--json` added |
+| `submit-vis` | `sv` | **Deprecated**: use `submit-download`; `--json` added |
+| `submit-meta` | `sm` | **Deprecated**: use `submit-download --only-metadata`; `--json` added |
+| `submit-conv` | `sc` | **Deprecated**: use `submit-preprocess`; `-p` replaced by options; **new defaults** |
+| `submit-volt` | `st` | **Deprecated**: use `submit-download`; `--json` added; `--offset` range checked; `-f`, `-t` and the delivery options removed |
+| `submit-bf` | `sb` | **Deprecated**: use `submit-download`; `--json` added |
 | `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); Obs IDs refused; `-n` removed |
 | `cancel` | `c` | New log lines; Obs IDs refused; exit code 1 when a request is refused |

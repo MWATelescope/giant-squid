@@ -70,14 +70,16 @@ suit users for a few reasons:
   - [Submit MWA ASVO jobs](#submit-mwa-asvo-jobs)
     - [A Note On Delivery Options](#a-note-on-delivery-options)    
     - [Options that every submit command has](#options-that-every-submit-command-has)
+    - [Download jobs](#download-jobs)
+      - [Visibility downloads](#visibility-downloads)
+      - [Metadata downloads](#metadata-downloads)
+      - [Voltage downloads](#voltage-downloads)
+      - [Beamformer downloads](#beamformer-downloads)
     - [Conversion downloads](#conversion-downloads)
     - [Imaging downloads](#imaging-downloads)
     - [Imaging from a conversion job](#imaging-from-a-conversion-job)
-    - [Metadata downloads](#metadata-downloads)
-    - [Visibility downloads](#visibility-downloads)
-    - [Beamformer downloads](#beamformer-downloads)
-    - [Voltage downloads](#voltage-downloads)    
     - [Jobs from a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file)
+    - [Deprecated submit commands](#deprecated-submit-commands)
     - [Resubmitting jobs](#resubmitting-jobs)
   - [List MWA ASVO jobs](#list-mwa-asvo-jobs)
   - [List MWA ASVO jobs in JSON](#list-mwa-asvo-jobs-in-json)
@@ -169,18 +171,18 @@ A Rust program can read them as `mwa_giant_squid::mwa_asvo::api::openapi::MWA_AS
 
 If you upgrade from giant-squid 2.x, the job options changed: see the [3.0 migration guide](docs/V3_MIGRATION.md).
 
-Each kind of job has its own command, and each command has a short name:
+Each submit endpoint of the MWA ASVO API has its own command, and each command has a short name:
 
 | Command | Short name | Job |
 |---|---|---|
-| `submit-vis` | `sv` | [Visibility download](#visibility-downloads) |
-| `submit-meta` | `sm` | [Metadata download](#metadata-downloads) |
-| `submit-conv` | `sc` | [Conversion](#conversion-downloads) |
+| `submit-download` | `sd` | [A download](#download-jobs): raw visibilities, metadata, voltages or beamformer files |
+| `submit-preprocess` | `sp` | [Conversion](#conversion-downloads) |
 | `submit-image` | `si` | [Imaging](#imaging-downloads) |
 | `submit-image-from-job` | `sifj` | [Imaging from a conversion job](#imaging-from-a-conversion-job) |
-| `submit-bf` | `sb` | [Beamformer download](#beamformer-downloads) |
-| `submit-volt` | `st` | [Voltage download](#voltage-downloads) |
 | `submit-csv` | `scsv` | [The jobs of a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file) |
+
+The submit commands of giant-squid 2.x (`submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and `submit-conv`)
+still work, but they are deprecated: see [Deprecated submit commands](#deprecated-submit-commands).
 
 Every submit command except `submit-csv` takes one or more Obs IDs, or text files that hold Obs IDs. It submits one job for
 each Obs ID and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
@@ -189,8 +191,8 @@ each Obs ID and carries on if one fails. It ends with a summary and a non-zero e
 
 | Option | Meaning |
 |---|---|
-| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). `submit-volt` does not have this option: the MWA ASVO always delivers a voltage job to `scratch` |
-| `-f`, `--delivery-format` | `tar` (the default) or `files`. `submit-volt` does not have this option: the MWA ASVO always delivers a voltage job as `files` |
+| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). The deprecated `submit-volt` does not have this option |
+| `-f`, `--delivery-format` | `tar` (the default) or `files`. The deprecated `submit-volt` does not have this option |
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed (`-r` alone is true; the value can be true, false or null): see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
@@ -220,19 +222,21 @@ error code, for example `HTTP_503` (an HTTP error, with the body of the reply as
 `INVALID_ARGUMENT` or `JOB_NOT_FOUND`:
 
 ```bash
-$ giant-squid submit-vis 1065880128 --json
+$ giant-squid submit-download 1065880128 --json
 {"status":"failed","error_code":"HTTP_503","message":"Service Unavailable","detail":"<html>...</html>\n","obs_id":1065880128}
-``` To check that your command works without submitting anything, use `--dry-run`:
+```
+
+To check that your command works without submitting anything, use `--dry-run`:
 
 ```bash
-$ giant-squid submit-vis 1065880128 --dry-run
+$ giant-squid submit-download 1065880128 --dry-run
 13:10:06 [INFO] [dry run] Would POST /api/v2/jobs/download for Obs ID 1065880128:
 {
   "allow_resubmit": false,
   "delivery": "acacia",
   "delivery_format": "tar",
-  "download_type": "vis",
-  "obs_id": 1065880128
+  "obs_id": 1065880128,
+  "only_metadata": false
 }
 13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/download. Nothing was sent.
 ```
@@ -275,6 +279,128 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 - You can set the environment variable `GIANT_SQUID_DELIVERY` to `acacia`, `scratch` or `dug` if you don't want to keep specifying the delivery option on the command line.
 - In the same way, `GIANT_SQUID_DELIVERY_FORMAT` (`tar` or `files`) sets the default delivery format.
 
+#### Download jobs
+
+`submit-download` submits a job that downloads the data of an observation: raw visibilities, metadata, voltages or
+beamformer files. The request does not say which: the MWA ASVO finds the kind of data from the observation.
+`--only-metadata` asks for the metadata only, and the voltage options (`--offset`, `--duration`, `--from-channel`
+and `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for an observation that has no
+voltages.
+
+```text
+Submit MWA ASVO jobs to download MWA data
+
+The data can be raw visibilities, metadata, voltages or beamformer files. The MWA ASVO finds the kind of data from the observation.
+
+Usage: giant-squid submit-download [OPTIONS] [OBS_ID]...
+
+Arguments:
+  [OBS_ID]...
+          The Obs IDs to be submitted. Files containing Obs IDs are also accepted
+
+Options:
+  -d, --delivery <DELIVERY>
+          Tell MWA ASVO where to deliver the data
+          
+          [env: GIANT_SQUID_DELIVERY=]
+          [default: acacia]
+          [possible values: acacia, scratch, dug]
+
+  -f, --delivery-format <DELIVERY_FORMAT>
+          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
+          
+          [env: GIANT_SQUID_DELIVERY_FORMAT=]
+          [default: tar]
+          [possible values: tar, files]
+
+      --only-metadata[=<ONLY_METADATA>]
+          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true, false or null
+          
+          [default: false]
+
+  -o, --offset <OFFSET>
+          Voltage observations only: the offset in seconds from the start GPS time of the observation (0-5400)
+
+  -u, --duration <DURATION>
+          Voltage observations only: the duration (in seconds) to download
+
+      --from-channel <FROM_CHANNEL>
+          Voltage observations only: the 'from' receiver channel number (0-255)
+
+      --to-channel <TO_CHANNEL>
+          Voltage observations only: the 'to' receiver channel number (0-255)
+
+  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
+          Allow resubmitting a job even if an identical one has completed. Takes true, false or null
+          
+          [default: false]
+
+  -w, --wait
+          Do not exit giant-squid until the specified Obs IDs are ready for download
+
+  -n, --dry-run
+          Don't actually submit; print information on what would've happened instead
+
+  -j, --json
+          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
+
+  -v, --verbosity...
+          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
+
+Text files containing Obs IDs may be used too.
+
+##### Visibility downloads
+
+A visibility download job gives a tar containing the raw visibility files, a metafits file and flags for a single
+Obs ID. This type of job is suited to advanced users who want to do their own preprocessing.
+
+```bash
+giant-squid submit-download 1065880128
+```
+
+##### Metadata downloads
+
+A metadata download job gives a tar containing a metafits file and RFI flags (if available) for a single Obs ID.
+
+```bash
+giant-squid submit-download --only-metadata 1065880128
+```
+
+##### Voltage downloads
+
+A voltage download job gives the raw voltages of an observation. `--offset` is the offset in seconds from the start
+GPS time of the observation (0 to 5400), and `--duration` is the number of seconds to download:
+
+```bash
+giant-squid submit-download --offset 0 --duration 8 1065880128
+```
+
+For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` and `--to-channel` to
+restrict the job to only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range
+from 0-255, and multiplying by 1.28 will result in the center frequency (in MHz) of that channel. Each MWA
+observation nominally has 24 coarse channels.
+
+The data of a voltage job is generally too large for Acacia or DUG. The MWA ASVO decides where a voltage job is
+delivered; `submit-download` sends the delivery options as for any download. To receive voltage data on Pawsey's
+/scratch filesystem you must be in the `mwaops` or `mwavcs` Pawsey groups, and an MWA ASVO admin must set the Pawsey
+group in your MWA ASVO profile.
+
+##### Beamformer downloads
+
+A beamformer download job gives a tar containing beamformer files (generally VDIF and HDR for coherent beams and
+SIGPROC Filterbank for incoherent beams) for a single Obs ID.
+
+```bash
+giant-squid submit-download 1455599472
+```
+
 #### Conversion downloads
 
 Conversion jobs refer to jobs which convert raw visibilities into either CASA measurement set or UVFITS format while optionally RFI flagging, averaging, correcting and applying calibration solutions to the converted data.
@@ -284,7 +410,7 @@ Conversion jobs use the Birli software package to preprocess MWA raw visibilitie
 ```text
 Submit MWA ASVO preprocessing/conversion jobs
 
-Usage: giant-squid submit-conv [OPTIONS] [OBS_ID]...
+Usage: giant-squid submit-preprocess [OPTIONS] [OBS_ID]...
 
 Arguments:
   [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
@@ -343,7 +469,7 @@ Options:
 To submit a conversion job for Obs ID 1065880128:
 
 ```bash
-giant-squid submit-conv 1065880128
+giant-squid submit-preprocess 1065880128
 ```
 
 Text files containing Obs IDs may be used too.
@@ -352,13 +478,13 @@ To change the conversion options, give them as options. For example, to average 
 UVFITS file:
 
 ```bash
-giant-squid submit-conv 1065880128 --output uvfits --avg-time-res 0.5 --avg-freq-res 10
+giant-squid submit-preprocess 1065880128 --output uvfits --avg-time-res 0.5 --avg-freq-res 10
 ```
 
 To use a custom phase centre:
 
 ```bash
-giant-squid submit-conv 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
+giant-squid submit-preprocess 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
 ```
 
 The two coordinates go together with `--centre custom`: `giant-squid` refuses one of them without the other, and
@@ -627,186 +753,6 @@ Some notes about imaging a conversion job:
 * only conversion jobs which output a CASA measurement set are able to be imaged.
 * only conversion jobs where the data was delivered to Acacia or Scratch are able to be imaged.
 
-#### Metadata downloads
-
-A "metadata download job" refers to a job which provides a tar containing a
-metafits file and cotter flags for a single Obs ID.
-
-```text
-Submit MWA ASVO jobs to download MWA metadata — metafits (with PPDs for each tile) and RFI flags (if available)
-
-Usage: giant-squid submit-meta [OPTIONS] [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
-
-To submit a metadata download job for the Obs ID 1065880128:
-
-```bash
-giant-squid submit-meta 1065880128
-```
-
-Text files containing Obs IDs may be used too.
-
-#### Visibility downloads
-
-A "visibility download job" refers to a job which provides a tar containing
-raw visibility files, a metafits file and flags for a single Obs ID. This type of job is suited to advanced users who want to do their own preprocessing.
-
-```text
-Submit MWA ASVO jobs to download MWA raw visibilities
-
-Usage: giant-squid submit-vis [OPTIONS] [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
-
-To submit a visibility download job for the Obs ID 1065880128:
-
-```bash
-giant-squid submit-vis 1065880128
-```
-
-Text files containing Obs IDs may be used too.
-
-#### Beamformer downloads
-
-A "beamformer download job" refers to a job which provides a tar containing beamformer files (generally VDIF and HDR for coherent beams and SIGPROC Filterbank for incoherent beams) for a single Obs ID.
-
-```text
-Submit MWA ASVO jobs to download MWA beamformer files (vdif,hdr,fil)
-
-Usage: giant-squid submit-bf [OPTIONS] [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
-
-To submit a beamformer download job for the Obs ID 1065880128:
-
-```bash
-giant-squid submit-bf 1065880128
-```
-
-Text files containing Obs IDs may be used too.
-
-#### Voltage downloads
-
-A "voltage download job" refers to a job which provides the raw voltages for one or more Obs IDs.
-
-```text
-Submit MWA ASVO jobs to download MWA voltages
-
-Usage: giant-squid submit-volt [OPTIONS] --offset <OFFSET> --duration <DURATION> [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -o, --offset <OFFSET>
-          The offset in seconds from the start GPS time of the observation
-  -u, --duration <DURATION>
-          The duration (in seconds) to download
-      --from-channel <FROM_CHANNEL>
-          The 'from' receiver channel number (0-255)
-      --to-channel <TO_CHANNEL>
-          The 'to' receiver channel number (0-255)
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
-
-To submit a voltage download job for the Obs ID 1065880128:
-
-```bash
-giant-squid submit-volt --offset 0 --duration 8 1065880128
-```
-
-Text files containing Obs IDs may be used too.
-
-For MWAX_VCS or MWAX_BUFFER voltage observations you can optionally pass `--from-channel` and `--to-channel` to restrict the job to
-only the receiver coarse channel range specified (inclusive). MWA receiver channel numbers range from 0-255, and multiplying by 1.28
-will result in the center frequency (in MHz) of that channel. Each MWA observation nominally has 24 coarse channels.
-
-Unlike other jobs, you cannot choose to have your files tarred up and uploaded to Pawsey's Acacia for remote
-download or DUG's filesystem, as the data is generally too large. The MWA ASVO always leaves the files of a voltage job on
-Pawsey's /scratch filesystem, so `submit-volt` has no `--delivery` or `--delivery-format` option, and it does not use
-`GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT`. You must be in the `mwaops` or `mwavcs` Pawsey groups, and an MWA ASVO
-admin must set the pawsey group in your MWA ASVO profile.
-
 #### Jobs from a manta-ray-client CSV file
 
 `submit-csv` submits the jobs of a CSV file that [manta-ray-client](https://github.com/MWATelescope/manta-ray-client)
@@ -836,7 +782,7 @@ as in the manta-ray-client README (and the other fields of the request body of t
 | `c` | `output`, `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `no_rfi`, `no_geometric_delay`, `no_cable_delay`, `no_digital_gains`, `no_passband_gains`, `no_flag_dc`, `no_apply_amps`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
 | `b` | `delivery`, `delivery_format`, `allow_resubmit` |
-| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `allow_resubmit`, and `delivery` and `delivery_format` only as `scratch` and `files` (they are not sent: a voltage job has no delivery) |
+| `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `delivery`, `delivery_format`, `allow_resubmit` |
 | `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
@@ -847,7 +793,7 @@ How `submit-csv` works:
   other submit commands.
 - A key that a line does not give has the default of the MWA ASVO. Only `delivery` and `delivery_format` differ:
   if `GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT` is set, it is the default of the lines that do not
-  give that key (except a voltage line, which has no delivery). A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
+  give that key. A line that gives the key wins. `--allow-resubmit` sets `allow_resubmit=true` for the lines that do
   not give it.
 - A submission that fails does not stop the others. Each failure is reported with its line number (with `--json`,
   in the key `line` of its error line), and the command ends with a summary and a non-zero exit code. `--wait`, `--json` and `--dry-run` work as for the other submit
@@ -863,6 +809,24 @@ It differs from manta-ray-client where that client sends a mistake to the server
 - A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.
 - A value cannot be in quotes.
 - `job_type=p` (an image of a conversion job) is an error. Use `submit-image-from-job`.
+
+#### Deprecated submit commands
+
+The submit commands of giant-squid 2.x still work, with the same options and short names, but they will be removed
+in a later release. The list of commands in `giant-squid --help` does not show them (the end of the help lists
+them), and each one logs a warning when it runs. With `--json` there is no warning, because `--json` logs nothing.
+Each one submits the same job as the command that replaces it:
+
+| Deprecated command | Short name | Use instead |
+|---|---|---|
+| `submit-vis` | `sv` | `submit-download` |
+| `submit-meta` | `sm` | `submit-download --only-metadata` |
+| `submit-volt` | `st` | `submit-download` with `--offset` and `--duration` |
+| `submit-bf` | `sb` | `submit-download` |
+| `submit-conv` | `sc` | `submit-preprocess` |
+
+`submit-volt` has no delivery options: it sends the MWA ASVO's default delivery (`acacia`, `tar`), and does not use
+`GIANT_SQUID_DELIVERY` or `GIANT_SQUID_DELIVERY_FORMAT`. Use `submit-download` to choose the delivery of a voltage job.
 
 #### Resubmitting jobs
 
@@ -1473,7 +1437,7 @@ use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
-use mwa_giant_squid::mwa_asvo::api::job_params::visibility_params;
+use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
@@ -1498,11 +1462,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("{} {} {}", job.job_id(), job.obs_id(), job.job_state);
     }
 
-    // Submit a visibility download job. `visibility_params` has the MWA
-    // ASVO API's own defaults for every other field. The download endpoint
-    // takes a `DownloadJobParams`: a visibility, voltage or beamformer body.
-    let params = visibility_params(ObsId::validate(1090008640)?);
-    let resp = client.submit_download_job(&params.into())?;
+    // Submit a download job. `download_params` has the MWA ASVO API's own
+    // defaults for every other field. The download endpoint takes one
+    // `DownloadJobParams` for every kind of download: the MWA ASVO finds the
+    // kind of data from the observation. Set `only_metadata` for a metadata
+    // job, or `offset` and `duration` for a voltage job.
+    let params = download_params(ObsId::validate(1090008640)?);
+    let resp = client.submit_download_job(&params)?;
     let job_id = resp.job_id;
 
     // Wait for it: the library checks once, the caller loops and sleeps.
@@ -1594,8 +1560,8 @@ reads no environment variables (see
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
-| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used for a voltage job, which has no delivery. | The schema's default for each job type |
-| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used for a voltage job, which has no delivery. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |

@@ -41,7 +41,7 @@ uv run giant-squid --version
 ```bash
 export MWA_ASVO_API_KEY="your-api-key-here"
 giant-squid list
-giant-squid submit-vis 1065880128
+giant-squid submit-download 1065880128
 giant-squid wait 12345
 giant-squid download 12345
 giant-squid list --job-states completed --ids | giant-squid download  # IDs on standard input
@@ -52,9 +52,11 @@ in it, and the `giant-squid` script that the install makes runs that code. So th
 options, defaults, environment variables, help, messages, colours and exit codes are those of the Rust
 program. For what each one does, see the
 [README](https://github.com/MWATelescope/giant-squid/blob/main/README.md) or run `giant-squid --help` and
-`giant-squid <command> --help`. The commands are `list` (`l`), `download` (`d`), `submit-vis` (`sv`),
-`submit-conv` (`sc`), `submit-image` (`si`), `submit-image-from-job` (`sifj`), `submit-meta` (`sm`),
-`submit-volt` (`st`), `submit-bf` (`sb`), `submit-csv` (`scsv`), `wait` (`w`) and `cancel` (`c`). `download`,
+`giant-squid <command> --help`. The commands are `list` (`l`), `download` (`d`), `submit-download` (`sd`),
+`submit-preprocess` (`sp`), `submit-image` (`si`), `submit-image-from-job` (`sifj`), `submit-csv` (`scsv`),
+`wait` (`w`) and `cancel` (`c`). The deprecated `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and
+`submit-conv` still work (see the
+[README](https://github.com/MWATelescope/giant-squid/blob/main/README.md#deprecated-submit-commands)). `download`,
 `cancel` and `wait` read their IDs from standard input when you give them none (see the
 [README](https://github.com/MWATelescope/giant-squid/blob/main/README.md#use-the-output-of-list-as-the-input-of-other-commands)).
 
@@ -207,17 +209,16 @@ There are three submit methods, one for each MWA ASVO submit endpoint, and each 
 
 | Method | Request body | `giant-squid` command |
 |---|---|---|
-| `submit_download_job(params)` | `VisibilityJobParams(obs_id, ...)` | `submit-vis`, `submit-meta` (`download_type=DownloadType.Meta`) |
-| `submit_download_job(params)` | `VoltageJobParams(obs_id, offset, duration, ...)` | `submit-volt` |
-| `submit_download_job(params)` | `BeamformerJobParams(obs_id, ...)` | `submit-bf` |
-| `submit_preprocess_job(params)` | `ConversionJobParams(obs_id, ...)` | `submit-conv` |
-| `submit_preprocess_job(params)` | `ImagingJobFlow1Params(obs_id, ...)` | `submit-image` |
-| `submit_image_from_job(params)` | `ImagingJobFlow2Params(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
+| `submit_download_job(params)` | `DownloadJobParams(obs_id, ...)` | `submit-download` |
+| `submit_preprocess_job(params)` | `ConversionJobParams(obs_id, ...)` | `submit-preprocess` |
+| `submit_preprocess_job(params)` | `ImagingJobParams(obs_id, ...)` | `submit-image` |
+| `submit_image_from_job(params)` | `ImageFromJobParams(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
 | `cancel_job(job_id)` | | `cancel` |
 
-A `VisibilityJobParams` is the body of a visibility or metadata job: `download_type=DownloadType.Meta` asks for the
-metadata only. A `VoltageJobParams` has no delivery: the MWA ASVO always delivers a voltage job to Scratch, as files.
-The MWA ASVO tells the three download bodies apart by their fields. The imaging classes have no `clean_threshold` and
+A `DownloadJobParams` is the body of every download job: raw visibilities, metadata, voltages or beamformer files. The
+MWA ASVO finds the kind of data from the observation. `only_metadata=True` asks for the metadata only, and `offset`,
+`duration`, `from_channel` and `to_channel` are for a voltage observation: the MWA ASVO refuses them for an observation
+that has no voltages. The imaging classes have no `clean_threshold` and
 no `nwlayers`, which the MWA ASVO API marks as deprecated: use `abs_threshold` and `wstack_nwlayers`. The library sends
 `clean_threshold` as `null`.
 
@@ -232,7 +233,7 @@ accepts `None`, and `None` is sent as `null`. For example, `avg_freq_res=None` s
 MWA ASVO schema does not say what the MWA ASVO does with a `null` for each argument.
 
 The keyword names are the MWA ASVO API field names, for example `avg_freq_res`. Where an argument has a
-fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `DownloadType`, `Output`, `PhaseCentre`,
+fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `Output`, `PhaseCentre`,
 `ImageOutputMode`, `Polarization`, `ImageWeighting`, and `JobState`, `JobType` and `SortBy` for job lists). The
 docstring of each class gives the limits of each number.
 
@@ -242,11 +243,10 @@ an Obs ID is an `ObsId` (`obs_id` returns an `ObsId`, and a number that is not v
 is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`, as for every Job ID). The limits of the other values are checked by
 `validate()` and when the job is submitted.
 
-The library's functions that make a body are in the module with the same names: `visibility_params(obs_id)`,
-`metadata_params(obs_id)`, `voltage_params(obs_id, offset, duration)`, `beamformer_params(obs_id)`,
+The library's functions that make a body are in the module with the same names: `download_params(obs_id)`,
 `conversion_params(obs_id)`, `imaging_params(obs_id)` and `image_from_job_params(source_job_id)`. Each gives the class
-for the body that the library makes, which has the MWA ASVO's defaults (`visibility_params(obs_id)` is
-`VisibilityJobParams(obs_id)`). `metadata_params` sets `download_type` to `DownloadType.Meta`.
+for the body that the library makes, which has the MWA ASVO's defaults (`download_params(obs_id)` is
+`DownloadJobParams(obs_id)`).
 
 ```python
 from mwa_giant_squid import ConversionJobParams, DeliveryDestination, DeliveryFormat, Output
@@ -370,8 +370,8 @@ except CsvJobsFailed as e:
 lines. `read_manta_ray_csv(path, defaults=None)` reads a file, and raises `CsvFileErrorInvalid`,
 `CsvFileErrorNoJobs` or `OSError`. A `CsvJob` has `line`, `obs_id` and `params`, a `CsvJobParams`:
 `CsvJobParams.Conversion`, `Imaging`, `Download`, `Voltage` or `Beamformer`, each of which holds the request body
-(`params`), the class that the matching submit method takes (a `VisibilityJobParams`, `VoltageJobParams` or
-`BeamformerJobParams` for the download jobs).
+(`params`), the class that the matching submit method takes (a `DownloadJobParams` for each of the download jobs: the
+variant keeps the job type of the line).
 `CsvJobParams.description()` and `validate()` are the library's. `client.submit_csv_job(job.params)` submits one job.
 If the function that you give `submit_csv_jobs` raises, the other jobs are still submitted (the library's loop cannot
 be stopped), it is not called again, and its first exception is raised when the jobs are done.

@@ -168,6 +168,15 @@ Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, 
 - **Ignored schema fields (Greg: API developer mistakes):** Flow1 `output` (const `fits`) and Flow2 `centre`. The body carries their schema defaults.
 - **Job list:** a 404 whose body is an `ErrorResponse` is "no jobs match the filter", an empty list. Any other 404 is still an error. Greg is asking the API developer for the `error_code` of that reply.
 
+### Done for the API 2.8.0 schema (`e911c97`; 4 Nov 2026, four diffs)
+
+- **Endpoints:** `POST /v2/jobs/download` takes one flat `DownloadJobParams` (`only_metadata`, and the nullable `offset`, `duration`, `from_channel` and `to_channel`); `POST /v2/jobs/preprocess` takes a `ConversionJobParams` or an `ImagingJobParams` (was Flow1); `POST /v2/jobs/image_from_job` takes an `ImageFromJobParams` (was Flow2, now without `centre`). `DownloadType` is gone.
+- **Library (`02d16e4`):** the schema's `DownloadJobParams` replaces the library's enum; `download_params` replaces `visibility_params`, `metadata_params`, `voltage_params` and `beamformer_params`; `validate_download_params` replaces the three download checks (delivery format and `offset` only).
+- **Voltage (Greg):** a voltage body has the schema's delivery defaults (`acacia`/`tar`), and the server decides. A CSV voltage line reads and sends `delivery`/`delivery_format` like the other download lines, and the environment defaults apply to it. `CsvJobParams` keeps its `Download`/`Voltage`/`Beamformer` variants (the CSV import is for manta-ray-client compatibility).
+- **CLI (`f9e461b`, `19fa798`):** new `submit-download` (`sd`) and `submit-preprocess` (`sp`, conversion only). `submit-image` stays a full command. `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and `submit-conv` keep their arguments, but are hidden (`hide = true`), listed at the end of the main help (`DEPRECATED_COMMANDS` in `src/cli/mod.rs`), log a warning when they run (none with `--json`), and run the new command's code.
+- **Python:** one `DownloadJobParams` class and `download_params()`; `ImagingJobParams` and `ImageFromJobParams`. The Python CLI is the Rust CLI, so it needed no change.
+- **Ignored schema field:** `ImagingJobParams.output` (const `fits`) is not an argument; the body sends `fits`.
+
 ## Waiting for the API developer
 
 - **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
@@ -202,10 +211,10 @@ Notes:
 - `clean_iterations` has no minimum.
 - `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
 - A refused download body must be a 4xx with a specific code, not a 500 (the live tests fail on `INTERNAL_ERROR`).
-- `POST /v2/jobs/preprocess` and `POST /v2/jobs/download` take one of several bodies and have no discriminator. Check with `tests/live.rs` that the server tells a conversion body from a flow 1 body, and a beamformer body (no `download_type`) from a visibility body.
+- `POST /v2/jobs/preprocess` takes one of two bodies and has no discriminator. Check with `tests/live.rs` that the server tells a conversion body from an imaging body.
+- A voltage job sends the schema's delivery defaults (`acacia`/`tar`). Check with `live_submit_download` and `live_submit_volt` that the server accepts them, or ask what it wants.
 - The `error_code` of the 404 "no jobs match the filter" reply of `POST /v2/jobs/list`.
 - Schema `15a96db` still has `info.version` 2.7.0, the same as `a530426`, so `--version` cannot tell the two apart.
-- Flow1 `output` (const `fits`) and Flow2 `centre` are to be removed (Greg told the API developer).
 - `JobFile.type` uses its own `Type` enum.
 - The meaning of `days: null` (A13).
 - New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.
