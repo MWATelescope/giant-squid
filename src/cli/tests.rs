@@ -861,6 +861,66 @@ fn each_deprecated_download_command_sends_the_body_of_submit_download() {
     }
 }
 
+/// The conversion request body of a `submit-preprocess` or `submit-conv`
+/// command line.
+fn preprocess_body(args: &[&str]) -> Value {
+    let conv = match parse(args) {
+        Args::SubmitPreprocess { conv, .. } | Args::SubmitConv { conv, .. } => conv,
+        other => panic!("expected a preprocess command, got {other:?}"),
+    };
+    json_of(&conv.to_params(crate::test_config::test_obs_id()))
+}
+
+/// `submit-preprocess` sends the conversion defaults, and the deprecated
+/// `submit-conv` sends the body of the same `submit-preprocess` command
+/// line.
+#[test]
+fn submit_conv_sends_the_body_of_submit_preprocess() {
+    use crate::mwa_asvo::api::openapi::ConversionJobParams;
+
+    let expected: ConversionJobParams = ConversionJobParams::builder()
+        .obs_id(TEST_OBS_ID_I64)
+        .try_into()
+        .expect("defaults build");
+    assert_eq!(
+        preprocess_body(&["giant-squid", "submit-preprocess", TEST_OBS_ID]),
+        json_of(&expected)
+    );
+    assert!(matches!(
+        parse(&["giant-squid", "sp", TEST_OBS_ID]),
+        Args::SubmitPreprocess { .. }
+    ));
+
+    let options = [
+        "-d",
+        "scratch",
+        "-f",
+        "files",
+        "-r",
+        "-o",
+        "uvfits",
+        "--avg-freq-res",
+        "80",
+        "--centre",
+        "custom",
+        "--custom-centre-ra",
+        "10.5",
+        "--custom-centre-dec",
+        "-26.7",
+        "--no-rfi",
+        TEST_OBS_ID,
+    ];
+    let line = |command: &'static str| {
+        let mut line = vec!["giant-squid", command];
+        line.extend_from_slice(&options);
+        preprocess_body(&line)
+    };
+    let body = line("submit-preprocess");
+    assert_eq!(body, line("submit-conv"));
+    assert_eq!(body["output"], "uvfits");
+    assert_eq!(body["custom_centre_dec"], -26.7);
+}
+
 /// The deprecated commands are hidden from the list of commands, and the
 /// end of the main help lists each with what to use instead. Every hidden
 /// command is in the list.

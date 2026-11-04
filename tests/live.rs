@@ -616,6 +616,22 @@ fn live_submit_meta() {
 
 #[test]
 #[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
+fn live_submit_preprocess() {
+    let env = LiveEnv::new();
+    let mut guard = JobGuard::new(&env);
+
+    for args in [
+        vec!["submit-preprocess", "-r", LIVE_TEST_OBS_ID],
+        vec!["sp", "-r", "--output", "uvfits", LIVE_TEST_OBS_ID],
+    ] {
+        for id in env.submit(&mut guard, &args) {
+            env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_CONVERSION);
+        }
+    }
+}
+
+#[test]
+#[ignore = "talks to a live MWA ASVO; run by hand, see the module docs"]
 fn live_submit_conv() {
     let env = LiveEnv::new();
     let mut guard = JobGuard::new(&env);

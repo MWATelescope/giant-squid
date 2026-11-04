@@ -77,6 +77,8 @@ pub struct DeprecatedCommand {
 
 /// The name of the deprecated `submit-vis` command.
 pub const COMMAND_SUBMIT_VIS: &str = "submit-vis";
+/// The name of the deprecated `submit-conv` command.
+pub const COMMAND_SUBMIT_CONV: &str = "submit-conv";
 /// The name of the deprecated `submit-meta` command.
 pub const COMMAND_SUBMIT_META: &str = "submit-meta";
 /// The name of the deprecated `submit-volt` command.
@@ -85,10 +87,14 @@ pub const COMMAND_SUBMIT_VOLT: &str = "submit-volt";
 pub const COMMAND_SUBMIT_BF: &str = "submit-bf";
 
 /// The deprecated commands, in the order of the help.
-pub const DEPRECATED_COMMANDS: [DeprecatedCommand; 4] = [
+pub const DEPRECATED_COMMANDS: [DeprecatedCommand; 5] = [
     DeprecatedCommand {
         name: COMMAND_SUBMIT_VIS,
         replacement: "submit-download",
+    },
+    DeprecatedCommand {
+        name: COMMAND_SUBMIT_CONV,
+        replacement: "submit-preprocess",
     },
     DeprecatedCommand {
         name: COMMAND_SUBMIT_META,
@@ -360,7 +366,24 @@ pub enum Args {
     /// Submit MWA ASVO preprocessing/conversion jobs
     // Declination and robustness are legitimately negative, and without
     // this clap reads "--custom-centre-dec -26.7" as an unknown "-2" flag.
-    #[command(alias = "sc", allow_negative_numbers = true)]
+    #[command(alias = "sp", allow_negative_numbers = true)]
+    SubmitPreprocess {
+        #[command(flatten)]
+        conv: ConversionJobArgs,
+
+        #[command(flatten)]
+        submit: SubmitOptions,
+
+        /// The Obs IDs to be submitted. Files containing Obs IDs are also
+        /// accepted.
+        #[arg(id = "OBS_ID")]
+        obs_ids: Vec<String>,
+    },
+
+    /// Submit MWA ASVO preprocessing/conversion jobs. Deprecated: use
+    /// submit-preprocess.
+    // Negative numbers are allowed, as for `SubmitPreprocess`.
+    #[command(alias = "sc", allow_negative_numbers = true, hide = true)]
     SubmitConv {
         #[command(flatten)]
         conv: ConversionJobArgs,
@@ -375,7 +398,7 @@ pub enum Args {
     },
 
     /// Submit MWA ASVO imaging jobs
-    // Negative numbers are allowed, as for `SubmitConv`.
+    // Negative numbers are allowed, as for `SubmitPreprocess`.
     #[command(alias = "si", allow_negative_numbers = true)]
     SubmitImage {
         #[command(flatten)]
@@ -394,7 +417,7 @@ pub enum Args {
     /// Submit MWA ASVO imaging jobs from an existing conversion job.
     /// Unlike submit-image, this skips the conversion step and images
     /// directly from the output of a previous conversion job.
-    // Negative numbers are allowed, as for `SubmitConv`.
+    // Negative numbers are allowed, as for `SubmitPreprocess`.
     #[command(alias = "sifj", allow_negative_numbers = true)]
     SubmitImageFromJob {
         #[command(flatten)]
@@ -462,7 +485,7 @@ pub enum Args {
     /// nothing. A key that a line does not give has the default of the
     /// MWA ASVO. A line that gives no delivery or delivery format uses
     /// GIANT_SQUID_DELIVERY and GIANT_SQUID_DELIVERY_FORMAT, if they are set.
-    // Negative numbers are allowed, as for `SubmitConv`.
+    // Negative numbers are allowed, as for `SubmitPreprocess`.
     #[command(alias = "scsv", allow_negative_numbers = true)]
     SubmitCsv {
         #[command(flatten)]

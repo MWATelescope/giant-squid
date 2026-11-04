@@ -165,6 +165,7 @@ fn a_deprecated_command_warns_and_still_runs() {
             "Use submit-download with --offset and --duration.",
         ),
         (vec!["submit-bf"], "Use submit-download."),
+        (vec!["submit-conv"], "Use submit-preprocess."),
     ] {
         let mut cmd = env.command();
         cmd.args(&args).args(["--dry-run", TEST_OBS_ID]);
@@ -188,11 +189,13 @@ fn a_deprecated_command_warns_and_still_runs() {
     }
     assert_eq!(requests.calls(), 0);
 
-    let mut cmd = env.command();
-    cmd.args(["submit-download", "--dry-run", TEST_OBS_ID]);
-    let result = run(cmd);
-    assert!(result.success, "output: {}", result.combined());
-    assert!(!result.stderr.contains("deprecated"), "{}", result.stderr);
+    for command in ["submit-download", "submit-preprocess"] {
+        let mut cmd = env.command();
+        cmd.args([command, "--dry-run", TEST_OBS_ID]);
+        let result = run(cmd);
+        assert!(result.success, "output: {}", result.combined());
+        assert!(!result.stderr.contains("deprecated"), "{}", result.stderr);
+    }
 }
 
 #[test]

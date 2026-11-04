@@ -43,13 +43,13 @@ use crate::{
 
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
-use super::params::SubmitDownloadArgs;
+use super::params::{ConversionJobArgs, SubmitDownloadArgs};
 use super::stdin_ids::resolve_ids;
 use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{
     deprecated_command, deprecated_command_warning, Args, SubmitOptions, COMMAND_SUBMIT_BF,
-    COMMAND_SUBMIT_META, COMMAND_SUBMIT_VIS, COMMAND_SUBMIT_VOLT, WAIT_INITIAL_DELAY,
-    WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION,
+    COMMAND_SUBMIT_CONV, COMMAND_SUBMIT_META, COMMAND_SUBMIT_VIS, COMMAND_SUBMIT_VOLT,
+    WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION,
 };
 use crate::helpers::READ_STDIN_HINT;
 
@@ -448,6 +448,22 @@ fn run_submit_download(
         |obs_id| download.to_params(obs_id),
         validate_download_params,
         AsvoClient::submit_download_job,
+    )
+}
+
+/// Run `submit-preprocess`, which the deprecated `submit-conv` also runs:
+/// one conversion job for each Obs ID.
+fn run_submit_preprocess(
+    conv: &ConversionJobArgs,
+    submit: &SubmitOptions,
+    obs_ids: &[String],
+) -> anyhow::Result<()> {
+    let obs_ids = obs_ids_only(obs_ids, None)?;
+    run_submit(
+        &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "conversion"),
+        |obs_id| PreprocessJobParams::from(conv.to_params(obs_id)),
+        PreprocessJobParams::validate,
+        AsvoClient::submit_preprocess_job,
     )
 }
 
@@ -1168,19 +1184,23 @@ fn run(args: Args) -> anyhow::Result<()> {
             )?;
         }
 
+        Args::SubmitPreprocess {
+            conv,
+            submit,
+            obs_ids,
+        } => {
+            init_logger(submit.verbosity, submit.json);
+            run_submit_preprocess(&conv, &submit, &obs_ids)?;
+        }
+
         Args::SubmitConv {
             conv,
             submit,
             obs_ids,
         } => {
             init_logger(submit.verbosity, submit.json);
-            let obs_ids = obs_ids_only(&obs_ids, None)?;
-            run_submit(
-                &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "conversion"),
-                |obs_id| PreprocessJobParams::from(conv.to_params(obs_id)),
-                PreprocessJobParams::validate,
-                AsvoClient::submit_preprocess_job,
-            )?;
+            warn_deprecated(COMMAND_SUBMIT_CONV);
+            run_submit_preprocess(&conv, &submit, &obs_ids)?;
         }
 
         Args::SubmitImage {
@@ -1447,6 +1467,7 @@ impl Args {
             | Args::Cancel { json, .. } => *json,
             Args::SubmitDownload { submit, .. }
             | Args::SubmitVis { submit, .. }
+            | Args::SubmitPreprocess { submit, .. }
             | Args::SubmitConv { submit, .. }
             | Args::SubmitImage { submit, .. }
             | Args::SubmitImageFromJob { submit, .. }
