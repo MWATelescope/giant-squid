@@ -32,12 +32,7 @@ use crate::obs_id::ObsId;
 /// Every argument of this module that is an Obs ID takes an `int` or an
 /// `ObsId`. An Obs ID that is not valid raises `ObsIdError`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "ObsId",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "ObsId", module = "mwa_giant_squid")]
 #[derive(Clone, Copy)]
 pub struct PyObsId(pub ObsId);
 

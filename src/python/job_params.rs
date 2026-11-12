@@ -1075,12 +1075,7 @@ impl PyImageFromJobParams {
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
 )]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "PreprocessJobParams",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "PreprocessJobParams", module = "mwa_giant_squid")]
 pub enum PyPreprocessJobParams {
     /// A conversion job.
     Conversion {

@@ -139,12 +139,7 @@ for_each_schema_enum!(py_enum);
 
 /// One file of a job's product: the OpenAPI schema's `JobFile`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "JobFile",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "JobFile", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyJobFile(JobFile);
 
@@ -210,12 +205,7 @@ impl PyJobFile {
 /// The product of a completed job, its files: the OpenAPI schema's
 /// `JobProduct`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "JobProduct",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "JobProduct", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyJobProduct(JobProduct);
 
@@ -236,12 +226,7 @@ impl PyJobProduct {
 
 /// An MWA ASVO job.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "AsvoJob",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "AsvoJob", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyAsvoJob(AsvoJob);
 
@@ -415,12 +400,7 @@ detail_pymethods!(PyAsvoJob, {
 /// attributes as `AsvoJob`, except that `obs_id` is the `int` that the API
 /// gave, not a checked `ObsId`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "JobDetailResponse",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "JobDetailResponse", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyJobDetailResponse(JobDetailResponse);
 
@@ -458,12 +438,7 @@ detail_pymethods!(PyJobDetailResponse, {
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
 )]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "DownloadProgress",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "DownloadProgress", module = "mwa_giant_squid")]
 #[derive(Clone, Debug, PartialEq)]
 pub enum PyDownloadProgress {
     /// A file download starts, or starts again.
@@ -535,7 +510,7 @@ macro_rules! py_job_response {
     ($(#[$doc:meta])* $py:ident, $name:literal, $lib:ident) => {
         $(#[$doc])*
         #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-        #[pyclass(frozen, skip_from_py_object, name = $name, module = "mwa_giant_squid")]
+        #[pyclass(frozen, name = $name, module = "mwa_giant_squid")]
         #[derive(Clone)]
         pub struct $py($lib);
 

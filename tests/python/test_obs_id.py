@@ -154,4 +154,4 @@ def test_an_obs_id_is_copied_and_pickled() -> None:
 def test_an_obs_id_cannot_be_changed() -> None:
     """The class is frozen, as the Rust type is."""
     with pytest.raises(AttributeError):
-        gs.ObsId(OBS_ID).value = 1  # ty: ignore[unresolved-attribute]
+        gs.ObsId(OBS_ID).value = 1  # ty: ignore[missing-attribute]

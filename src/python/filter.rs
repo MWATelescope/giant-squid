@@ -48,7 +48,7 @@ use crate::mwa_asvo::JobsFilter;
 ///     ValueError: A Job ID is 0, or `days` is outside the limits of the API.
 ///     TypeError: `date_from` or `date_to` has no time zone.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(skip_from_py_object, name = "JobsFilter", module = "mwa_giant_squid")]
+#[pyclass(name = "JobsFilter", module = "mwa_giant_squid")]
 #[derive(Clone, Default)]
 pub struct PyJobsFilter(pub JobsFilter);
 

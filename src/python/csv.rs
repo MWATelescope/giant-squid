@@ -191,12 +191,7 @@ mod stub_attributes {
 
 /// What is wrong with one line of a CSV file.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "CsvRowError",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "CsvRowError", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyCsvRowError {
     line: usize,
@@ -241,12 +236,7 @@ impl PyCsvRowError {
 
 /// A job of a CSV file that was not submitted.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "CsvJobFailure",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "CsvJobFailure", module = "mwa_giant_squid")]
 pub struct PyCsvJobFailure {
     line: usize,
     obs_id: PyObsId,
@@ -312,7 +302,7 @@ impl PyCsvJobFailure {
 ///     allow_resubmit: The `allow_resubmit` of a line that has none. `None`
 ///         leaves the default of the MWA ASVO.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(skip_from_py_object, name = "CsvDefaults", module = "mwa_giant_squid")]
+#[pyclass(name = "CsvDefaults", module = "mwa_giant_squid")]
 #[derive(Clone)]
 pub struct PyCsvDefaults {
     /// The `delivery` of a line that has none.
@@ -418,12 +408,7 @@ impl PyCsvDefaults {
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyclass_complex_enum
 )]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "CsvJobParams",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "CsvJobParams", module = "mwa_giant_squid")]
 pub enum PyCsvJobParams {
     /// A conversion job (`job_type=c`).
     Conversion {
@@ -525,12 +510,7 @@ impl PyCsvJobParams {
 ///     obs_id: The Obs ID of the job.
 ///     params: The request body.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(
-    frozen,
-    skip_from_py_object,
-    name = "CsvJob",
-    module = "mwa_giant_squid"
-)]
+#[pyclass(frozen, name = "CsvJob", module = "mwa_giant_squid")]
 pub struct PyCsvJob {
     line: usize,
     obs_id: ObsId,
