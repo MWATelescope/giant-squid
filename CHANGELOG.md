@@ -50,7 +50,7 @@ before you upgrade scripts.**
 * A value of `MWA_ASVO_API_TIMEOUT` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number is an error
   (`INVALID_ENVIRONMENT` in `--json`), as it already was for `GIANT_SQUID_BUF_SIZE`. In 2.5.1, giant-squid warned
   about `MWA_ASVO_API_TIMEOUT` and used the default.
-* Every option that takes a named value (`--delivery`, `--centre`, `--pol`, `--job-states`, `--job-types` and so on)
+* Every option that takes a named value (`--delivery`, `--centre`, `--polarization`, `--job-states`, `--job-types` and so on)
   parses it in the same way: the case, spaces, hyphens and underscores do not matter (for example `--delivery ACACIA`,
   `--job-states WAIT-CAL`). The help (`[possible values: ...]`) and the message for a bad value list the values in the
   schema's order.
@@ -100,8 +100,13 @@ before you upgrade scripts.**
   A voltage line of a manta-ray-client CSV file takes `delivery` and `delivery_format` as the other download lines
   do, and the defaults of the file (`GIANT_SQUID_DELIVERY`, `GIANT_SQUID_DELIVERY_FORMAT`) apply to it.
 * `submit-image` and `submit-image-from-job`: `--clean-threshold` and `--nwlayers` are gone, also as keys of a
-  `submit-csv` imaging line, because the MWA ASVO API marks them as deprecated. Use `--abs-threshold` and
-  `--wstack-nwlayers`. The imaging request sends `clean_threshold` as `null`.
+  `submit-csv` imaging line, because the MWA ASVO API no longer has them. Use `--abs-threshold` and
+  `--wstack-nwlayers`.
+* `submit-image` and `submit-image-from-job`: `-o`/`--output-mode` is required, because the MWA ASVO API gives
+  `output_mode` no default (it was `fits`). `--image-size` and `--pixel-scale` have no default: if you do not give
+  them, the MWA ASVO calculates them (they were `3072` and `20`). `--polarization` (the API's name) selects the
+  polarisation: `xx`, `yy`, `xy`, `yx`, `xx,yy`, `i` or `iquv`, default `xx,yy`. A `submit-csv` imaging line must
+  give `output_mode`, and gives the polarisation as `polarization=xxyy` for `xx,yy` (a cell cannot hold a comma).
 * `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
   option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
   `--custom-ra`, `--custom-dec` and `--phase-center` still work.
@@ -170,7 +175,7 @@ before you upgrade scripts.**
   and `-n` is only `--dry-run` (`list --no-colour` and `wait --no-colour` lost `-n`). The other short flags did not
   change. See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md#short-flags).
 * `--help` lists the allowed values of `--delivery`, `--delivery-format`, `--output`, `--centre`,
-  `--output-mode`, `--pol` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
+  `--output-mode`, `--polarization` and `--weighting`, and the help of `list --job-states` and `--job-types` lists the
   names that the options accept (it listed `retrieving`, which is not a state).
 * `list` command now shows completed date time.
 * `-v` now shows all API requests and responses. `-vv` shows the full payload of requests and responses.
@@ -178,15 +183,22 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
-* MWA ASVO API 2.8.0 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
-  `/v2/jobs/download`, the conversion and imaging jobs to `/v2/jobs/preprocess`, and an image from a conversion job
-  to `/v2/jobs/image_from_job`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not
+* MWA ASVO API 2.8.1 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
+  `/api/v2/jobs/download`, the conversion and imaging jobs to `/api/v2/jobs/preprocess`, and an image from a
+  conversion job to `/api/v2/jobs/image_from_job`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not
   `id`) and a typed `obs_id`, and `job_type` is a name (`visibility`), not a code. The download endpoint takes one
   body for every download job: a metadata job sets `only_metadata`, and a voltage job sets `offset`, `duration`,
   `from_channel` and `to_channel`. The MWA ASVO finds the kind of data from the observation. The beamformer `mode`
   and `channel_range` are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
   `submit-image-from-job` takes no Obs ID. A 404 `ErrorResponse` from the job list is an empty list (no job matches
   the filter). The conversion `OutputFormat` is the schema's `Output`. `list --sort-by` takes `id`, `created` or `completed`.
+  `JobFile.type` is a `DeliveryDestination` (the enum `Type` is gone). A download job that does not give
+  `--only-metadata` leaves `only_metadata` out of the request (the API gives it no default). The voltage
+  `--duration` is limited to 0 to 7200 seconds, `--channels-out` to 1 or more, `--clean-iterations` to 0 to 1000000,
+  and `--uvw-min` to 1 to 100.
+* The smallest Obs ID is the API's minimum, 1056643216 (`ObsId::MIN`). A number with 10 digits is still read as an
+  Obs ID, so a 10-digit number below the minimum is an error (`ParseError::InvalidObsId`; Python
+  `ParseErrorInvalidObsId`), not a Job ID.
   `giant-squid` regenerates the library's types from the schema in `tools/generate_openapi.sh`, which now also
   keeps the request and response schemas of each operation.
 

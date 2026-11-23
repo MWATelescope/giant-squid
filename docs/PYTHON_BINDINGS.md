@@ -88,11 +88,12 @@ release tag or by hand),
   the preprocess endpoint; the download endpoint has one body,
   `DownloadJobParams`.
   The imaging classes have no `clean_threshold` and no `nwlayers`, which the
-  schema marks as deprecated; the library sends `clean_threshold` as `null`.
+  schema no longer has. `output_mode` of the imaging classes is a required
+  keyword argument (the schema gives it no default).
 - **The OpenAPI schema dictates the library.** Defaults, names, limits and
   types come from the schema. Where a schema type exists, the library uses
   it instead of a copy of its own (`JobState`, `JobType`, `JobDetailResponse`
-  inside `AsvoJob`, `JobFile`, `JobProduct`, `DeliveryDestination`, `Type`,
+  inside `AsvoJob`, `JobFile`, `JobProduct`, `DeliveryDestination`,
   `JobSubmittedResponse`, `JobCancelledResponse`, `Status`). A wrong schema is
   fixed in the API, not worked around in giant-squid. The library may do
   more than the API (for example the downloads).
@@ -102,7 +103,7 @@ release tag or by hand),
   a change that would rewrite one is the user's decision.
 - **Python is a wrapper of the Rust library.** Python class names are the
   schema's (`JobState`, `JobType`, `JobFile`, `JobProduct`,
-  `JobCancelledResponse`, `Status`, `Type`) or the library's (`AsvoClient`,
+  `JobCancelledResponse`, `Status`) or the library's (`AsvoClient`,
   `AsvoJob`, `AsvoJobVec`). The Python enums are made from the library's list
   (`for_each_schema_enum!`). An argument outside the schema's limits raises
   `AsvoApiErrorInvalidParameter`, the library's `AsvoApiError::InvalidParameter`.
@@ -166,7 +167,7 @@ exception; `ObsId` is a Python class that acts as an `int` where a number is nee
 
 **Items that Python does not have** (`excluded` in the manifest):
 
-- The paths of the endpoints (`ENDPOINT_*`, `API_PREFIX`), `StoredTokens`, the `jiff` re-export, and the
+- The paths of the endpoints (`ENDPOINT_*`), `StoredTokens`, the `jiff` re-export, and the
   `validate` helpers that make a schema value from a number (the bindings use them inside).
 - `DownloadOptions::should_stop`: a download stops at Ctrl-C (`KeyboardInterrupt`).
 - `AsvoJob::is_expired_at`, `display_state_at`, `AsvoJobVec::all_ready_at` (clock helpers for tests) and `retain` (a
@@ -216,15 +217,17 @@ exception; `ObsId` is a Python class that acts as an `int` where a number is nee
 
 Sent by the user (October 2026), not fixed yet:
 
-- `JobFile.type` uses its own enum `Type`; it should use `DeliveryDestination` (the
-  members are the same). Python has `mwa_giant_squid.Type` until then.
 - Schema 2.5.0 removed `channel_range`, made `job_id` and `obs_id` typed
   fields of `JobDetailResponse` and made the image-from-job `obs_id`
   optional (the library leaves it out). Still open:
-- Schema 2.8.0 (`e911c97`) removed the image-from-job `centre`. The
-  `ImagingJobParams.output` (const `fits`) is not an argument of the Python
-  class. The `error_code` of the 404 "no jobs" reply of the job list is not
-  known yet.
+- Schema 2.8.0 (`e911c97`) removed the image-from-job `centre`. Schema 2.8.1
+  (`2f71238`) fixed `JobFile.type` (now `DeliveryDestination`; `Type` is
+  gone), the `obs_id` minimum (1056643216, now `ObsId::MIN`), the
+  `clean_iterations` minimum and the `/api` prefix of the paths. The
+  `ImagingJobParams.output` (`ms`/`uvfits`, default `ms`) is not an argument
+  of the Python class until the API developer says what it does. The
+  `error_code` of the 404 "no jobs" reply of the job list is not known yet.
+  See `docs/CLEANUP.md` for the questions on 2.8.1.
 - `CancelJobParams` should not be a body type of `POST /v2/jobs/create`:
   cancelling is the separate `DELETE /v2/jobs/{job_id}` call (the user told
   the API developer). The client never sends it. No schema sets
@@ -235,20 +238,11 @@ Sent by the user (October 2026), not fixed yet:
 
 Not yet raised:
 
-- The schema's paths have no `/api` prefix (for example `/v2/jobs/list`), but
-  the API is served at `/api/v2/...`. FastAPI's `root_path` would put the
-  prefix in the schema's `servers`; until then the client has it as
-  `API_PREFIX`.
 - A listed job sometimes has no `modified` key (rather than `null`), and the
   timestamps have no time zone (`2026-09-08T05:41:54.757232`).
   `normalize_job_value` in `src/mwa_asvo/api/client/mod.rs` patches both;
   remove it when the API sends `null` and RFC 3339.
 - What do the `error_code` values mean? They are undocumented.
-- The `obs_id` minimum of the job bodies is 888888889, but an Obs ID has 10
-  digits (giant-squid's `ObsId::MIN` is 1000000000). Should the schema
-  minimum be 1000000000?
-- `clean_iterations` has a maximum (1000000) but no minimum. giant-squid no
-  longer adds a minimum of its own, so a negative value goes to the API.
 - Queued jobs have `started` set a few milliseconds after `created`, but the
   field is documented as "when the job began processing".
 - The `job_params` of a listed conversion job has `flags: []`, which is not

@@ -48,8 +48,9 @@ suit users for a few reasons:
 
 4. For any commands that accept Obs IDs or Job IDs, it is possible use text files
    instead. These files are unpacked as if you had typed them out manually, and
-   each entry of the text file(s) are checked for validity (all ints and all
-   10-digits long); any exceptions are reported and the command fails.
+   each entry of the text file(s) are checked for validity (all ints; a
+   10-digit number is an Obs ID, and must be at least 1056643216); any
+   exceptions are reported and the command fails.
 
 5. One can ask `giant-squid` to print your MWA ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
@@ -235,8 +236,7 @@ $ giant-squid submit-download 1065880128 --dry-run
   "allow_resubmit": false,
   "delivery": "acacia",
   "delivery_format": "tar",
-  "obs_id": 1065880128,
-  "only_metadata": false
+  "obs_id": 1065880128
 }
 13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/download. Nothing was sent.
 ```
@@ -314,15 +314,15 @@ Options:
           [possible values: tar, files]
 
       --only-metadata[=<ONLY_METADATA>]
-          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true, false or null
+          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default)
           
-          [default: false]
+          [possible values: true, false]
 
   -o, --offset <OFFSET>
           Voltage observations only: the offset in seconds from the start GPS time of the observation (0-5400)
 
   -u, --duration <DURATION>
-          Voltage observations only: the duration (in seconds) to download
+          Voltage observations only: the duration (in seconds) to download (0-7200)
 
       --from-channel <FROM_CHANNEL>
           Voltage observations only: the 'from' receiver channel number (0-255)
@@ -376,7 +376,7 @@ giant-squid submit-download --only-metadata 1065880128
 ##### Voltage downloads
 
 A voltage download job gives the raw voltages of an observation. `--offset` is the offset in seconds from the start
-GPS time of the observation (0 to 5400), and `--duration` is the number of seconds to download:
+GPS time of the observation (0 to 5400), and `--duration` is the number of seconds to download (0 to 7200):
 
 ```bash
 giant-squid submit-download --offset 0 --duration 8 1065880128
@@ -520,10 +520,13 @@ An "imaging download job" takes the raw visibilities of an Obs ID and produces a
 
 The MWA ASVO imaging features uses the WSClean software by André Offringa to generated images from CASA measurement sets. For comprehensive documentation about WSClean, please see: [WSClean readthedocs](https://wsclean.readthedocs.io/).
 
+`-o`/`--output-mode` is required: the MWA ASVO API gives it no default. If you do not give `--image-size` or
+`--pixel-scale`, the MWA ASVO calculates them.
+
 ```text
 Submit MWA ASVO imaging jobs
 
-Usage: giant-squid submit-image [OPTIONS] [OBS_ID]...
+Usage: giant-squid submit-image [OPTIONS] --output-mode <OUTPUT_MODE> [OBS_ID]...
 
 Arguments:
   [OBS_ID]...  The Obs IDs to submit for imaging. Files containing Obs IDs are also accepted. All Obs IDs in one invocation share the same parameters above
@@ -574,7 +577,7 @@ Options:
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --image-size <IMAGE_SIZE>
-          WSClean image size in pixels [default: 3072]
+          WSClean image size in pixels. Leave unset to let the server calculate it
       --join-channels[=<JOIN_CHANNELS>]
           Join output channel groups for cleaning [default: true] [possible values: true, false]
       --join-polarizations[=<JOIN_POLARIZATIONS>]
@@ -586,11 +589,11 @@ Options:
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
   -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
+          The output mode / product to request. Required [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel) [default: 20]
-      --pol <POL>
-          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, YY, XXYY]
+          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+      --polarization <POLARIZATION>
+          Polarisation to image [default: xx,yy] [possible values: xx, yy, xy, yx, xx,yy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -620,7 +623,7 @@ Options:
 To submit an imaging job for the Obs ID 1065880128, give any conversion options as well as imaging options:
 
 ```bash
-giant-squid submit-image 1065880128 --avg-time-res 0.5 --avg-freq-res 10 --image-size 2048 --multiscale
+giant-squid submit-image 1065880128 -o fits --avg-time-res 0.5 --avg-freq-res 10 --image-size 2048 --multiscale
 ```
 
 Imaging jobs can be delivered to Acacia, Scratch or DUG.
@@ -638,24 +641,24 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--abs-threshold` | Absolute cleaning threshold (Jy) | 0 to 10, or null | 0.001 |
 | `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280, or null | 40 |
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
-| `--channels-out` | Number of output channel groups | any whole number | 4 |
-| `--clean-iterations` | Maximum number of clean iterations to perform | at most 1000000 | 100000 |
+| `--channels-out` | Number of output channel groups | 1 or more | 4 |
+| `--clean-iterations` | Maximum number of clean iterations to perform | 0 to 1000000 | 100000 |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
-| `--image-size` | width and height in pixels of output image | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | 3072 |
+| `--image-size` | width and height in pixels of output image. Leave unset to let the server calculate it | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | none |
 | `--join-channels` | Join output channel groups for cleaning | `true` or `false`, given as `--join-channels=false` | true |
 | `--join-polarizations` | Join polarisations for cleaning | flag, or `true` or `false` | false |
 | `--mgain` | WSClean -mgain value | 0.1 to 1 | 0.8 |
 | `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag, or `true` or `false` | false |
 | `--nmiter` | WSClean -nmiter value (max major cleaning iterations) | 1 to 500 | 10 |
-| `-o`, `--output-mode` | The output mode / product to request | one of `fits`, `all_fits`, `all_files` | fits |
+| `-o`, `--output-mode` | The output mode / product to request. Required | one of `fits`, `all_fits`, `all_files` | none (required) |
 | `--centre` | Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec | one of `phase`, `pointing`, `custom` | phase |
-| `--pixel-scale` | Number of arcsecs per pixel | 10 to 120 | 20 |
-| `--pol` | Polarisation to image: XX, YY or XXYY | one of `XX`, `YY`, `XXYY` | XXYY |
+| `--pixel-scale` | Number of arcsecs per pixel. Leave unset to let the server calculate it | 10 to 120 | none |
+| `--polarization` | Polarisation to image | one of `xx`, `yy`, `xy`, `yx`, `xx,yy`, `i`, `iquv` | xx,yy |
 | `--robust` | Robustness parameter- only used if `weighting=briggs` | -2 to 2 | -0.5 |
 | `--uvw-max` | Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) | 1 to 5000 | none |
-| `--uvw-min` | Minimum uv distance to image, in wavelengths | up to 100 | 75 |
+| `--uvw-min` | Minimum uv distance to image, in wavelengths | 1 to 100 | 75 |
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag, or `true` or `false` | false |
@@ -676,13 +679,13 @@ step, so it takes none of the conversion options. It needs only the ID of the co
 `--source-job-id`, and no Obs ID (the MWA ASVO takes the Obs ID from the conversion job):
 
 ```bash
-giant-squid submit-image-from-job --source-job-id 12345 --image-size 2048 --multiscale
+giant-squid submit-image-from-job --source-job-id 12345 -o fits --image-size 2048 --multiscale
 ```
 
 ```text
 Submit MWA ASVO imaging jobs from an existing conversion job. Unlike submit-image, this skips the conversion step and images directly from the output of a previous conversion job
 
-Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID>
+Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID> --output-mode <OUTPUT_MODE>
 
 Options:
       --source-job-id <SOURCE_JOB_ID>
@@ -704,7 +707,7 @@ Options:
       --clean-iterations <CLEAN_ITERATIONS>
           WSClean -niter value (max clean iterations) [default: 100000]
       --image-size <IMAGE_SIZE>
-          WSClean image size in pixels [default: 3072]
+          WSClean image size in pixels. Leave unset to let the server calculate it
       --join-channels[=<JOIN_CHANNELS>]
           Join output channel groups for cleaning [default: true] [possible values: true, false]
       --join-polarizations[=<JOIN_POLARIZATIONS>]
@@ -716,11 +719,11 @@ Options:
       --nmiter <NMITER>
           WSClean -nmiter value (max major cleaning iterations) [default: 10]
   -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request [default: fits] [possible values: fits, all_fits, all_files]
+          The output mode / product to request. Required [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel) [default: 20]
-      --pol <POL>
-          Polarisation to image: XX, YY or XXYY [default: XXYY] [possible values: XX, YY, XXYY]
+          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+      --polarization <POLARIZATION>
+          Polarisation to image [default: xx,yy] [possible values: xx, yy, xy, yx, xx,yy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -783,7 +786,7 @@ as in the manta-ray-client README (and the other fields of the request body of t
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
 | `b` | `delivery`, `delivery_format`, `allow_resubmit` |
 | `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `delivery`, `delivery_format`, `allow_resubmit` |
-| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `pol`, `output_mode`, `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
+| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `polarization`, `output_mode` (required), `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
 
@@ -802,8 +805,9 @@ How `submit-csv` works:
 It differs from manta-ray-client where that client sends a mistake to the server without a word:
 
 - A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen).
-  `clean_threshold` and `nwlayers`, which the MWA ASVO API marks as deprecated, are not keys of an imaging line: use
+  `clean_threshold` and `nwlayers`, which the MWA ASVO API no longer has, are not keys of an imaging line: use
   `abs_threshold` and `wstack_nwlayers`.
+- A cell cannot hold a comma, so an imaging line gives the polarization `xx,yy` as `polarization=xxyy`.
 - A key that a line gives twice, and a line that makes the same job as an earlier line, are warnings. As in
   manta-ray-client, the last value of a key is used.
 - A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.
@@ -1123,7 +1127,8 @@ giant-squid download 1065880128
 ```
 
 (`giant-squid` differentiates between Job IDs and Obs IDs by the length of the
-number specified; 10-digit numbers are treated as Obs IDs.)
+number specified; 10-digit numbers are treated as Obs IDs. A 10-digit number below
+1056643216, the smallest Obs ID that the MWA ASVO accepts, is an error.)
 
 Text files containing Job IDs or Obs IDs may be used too.
 

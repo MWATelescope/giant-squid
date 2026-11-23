@@ -39,8 +39,9 @@ giant-squid, the API and its documentation use the same names everywhere.
 10. If a script gives **`submit-volt`** `-d`/`--delivery` or
     `-f`/`--delivery-format`, remove them: see
     [Other submit commands](#other-submit-commands).
-11. If a script gives **`--clean-threshold`** or **`--nwlayers`** to
-    `submit-image` or `submit-image-from-job`, use `--abs-threshold` and
+11. If a script uses **`submit-image`** or **`submit-image-from-job`**, add
+    `-o`/`--output-mode` (it is required now), and change
+    **`--clean-threshold`** or **`--nwlayers`** to `--abs-threshold` and
     `--wstack-nwlayers`: see
     [Imaging jobs](#imaging-jobs-submit-image-and-submit-image-from-job).
 12. If a script uses **`submit-vis`, `submit-meta`, `submit-volt`, `submit-bf`
@@ -134,8 +135,8 @@ giant-squid submit-image 1065880128 --parameters=image_size=2048,multiscale=true
 giant-squid submit-image 12345 --parameters=image_size=2048,multiscale=true
 
 # 3.0.0
-giant-squid submit-image 1065880128 --image-size 2048 --multiscale
-giant-squid submit-image-from-job --source-job-id 12345 --image-size 2048 --multiscale
+giant-squid submit-image 1065880128 -o fits --image-size 2048 --multiscale
+giant-squid submit-image-from-job --source-job-id 12345 -o fits --image-size 2048 --multiscale
 ```
 
 `submit-image-from-job` (alias `sifj`) needs only the conversion job's Job ID,
@@ -143,31 +144,36 @@ as `--source-job-id`: it takes no Obs ID, because the MWA ASVO takes the Obs ID
 from the conversion job. As in 2.x, the conversion job must have made a CASA
 measurement set, delivered to Acacia or Scratch.
 
-The imaging defaults are now the API's. Most are as in
-2.x (image size 3072, pixel scale 20, `briggs` weighting with robust -0.5,
-auto threshold 0.5, clean threshold 0.001, primary beam applied, output
-`fits`), but two changed:
+The imaging defaults are now the API's. Some are as in 2.x (`briggs`
+weighting with robust -0.5, auto threshold 0.5, clean threshold 0.001,
+primary beam applied), but these changed:
 
 | Option | 2.x default | 3.0.0 default |
 |---|---|---|
+| Output mode | `fits` | none: `-o`/`--output-mode` is required (`fits`, `all_fits` or `all_files`) |
+| Image size | 3072 | not set, so the MWA ASVO calculates it: give `--image-size 3072` for the 2.x value |
+| Pixel scale | 20 | not set, so the MWA ASVO calculates it: give `--pixel-scale 20` for the 2.x value |
 | Multiscale cleaning | on | off: give `--multiscale` to turn it on |
 | w-layers | 128 | not set, so the MWA ASVO decides: give `--wstack-nwlayers 128` for the 2.x value |
 
-The MWA ASVO API marks `clean_threshold` and `nwlayers` as deprecated, so
+The MWA ASVO API no longer has `clean_threshold` and `nwlayers`, so
 `--clean-threshold` and `--nwlayers` are gone (also as keys of a
 `submit-csv` imaging line). Use `--abs-threshold` and `--wstack-nwlayers`.
-giant-squid sends `clean_threshold` as `null`.
 
 So to image as 2.x did by default:
 
 ```bash
 # 3.0.0, the same imaging options as 2.x's defaults
-giant-squid submit-image 1065880128 --multiscale --wstack-nwlayers 128
+giant-squid submit-image 1065880128 -o fits --image-size 3072 --pixel-scale 20 \
+    --multiscale --wstack-nwlayers 128
 ```
 
 For an Obs ID, the conversion part of an imaging job also has the new
 conversion defaults (see above). Run `giant-squid submit-image --help` to
-see every default. `--pol` (`XX`, `YY` or `XXYY`, default `XXYY`) is new.
+see every default. `--polarization` (`xx`, `yy`, `xy`, `yx`, `xx,yy`, `i`
+or `iquv`, default `xx,yy`) is new. In a `submit-csv` imaging line, give
+`output_mode`, and give `xx,yy` as `polarization=xxyy`: a cell cannot hold
+a comma.
 
 ## Other submit commands
 
@@ -491,8 +497,8 @@ one thing, as in 2.x, so use the long names in scripts.
 | `download` | `d` | None |
 | `submit-download` | `sd` | New: every download job (replaces `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf`) |
 | `submit-preprocess` | `sp` | New: a conversion job (replaces `submit-conv`); **new defaults** |
-| `submit-image` | `si` | `-p` replaced by options; Obs IDs only; **new defaults** |
-| `submit-image-from-job` | `sifj` | New: images a completed conversion job |
+| `submit-image` | `si` | `-p` replaced by options; Obs IDs only; `-o`/`--output-mode` required; **new defaults** |
+| `submit-image-from-job` | `sifj` | New: images a completed conversion job; `-o`/`--output-mode` required |
 | `submit-vis` | `sv` | **Deprecated**: use `submit-download`; `--json` added |
 | `submit-meta` | `sm` | **Deprecated**: use `submit-download --only-metadata`; `--json` added |
 | `submit-conv` | `sc` | **Deprecated**: use `submit-preprocess`; `-p` replaced by options; **new defaults** |

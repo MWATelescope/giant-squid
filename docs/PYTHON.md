@@ -156,8 +156,10 @@ when you set it, as the Rust type is: an Obs ID that is not valid raises `ObsIdE
 
 ### Obs IDs
 
-An Obs ID argument takes an `int` or an `ObsId`. `ObsId` is the library's checked Obs ID (10 digits). An `int` that
-is not a valid Obs ID raises `ObsIdError`. `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
+An Obs ID argument takes an `int` or an `ObsId`. `ObsId` is the library's checked Obs ID (`ObsId.MIN`, the MWA ASVO's
+minimum 1056643216, to `ObsId.MAX`). An `int` that is not a valid Obs ID raises `ObsIdError`. The `parse_*`
+functions read a number with 10 digits as an Obs ID, so a 10-digit number below `ObsId.MIN` raises
+`ParseErrorInvalidObsId`, not a Job ID. `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
 `ObsId`. An `ObsId` is not an `int`, but it acts as one where a number is needed: it is equal to the `int` of the
 same value, has its hash, is ordered with it, and has `__int__` and `__index__`. `json.dumps` does not know it:
 use `int(obs_id)`.
@@ -201,7 +203,7 @@ Notes:
 - Times (`created`, `started`, `completed`, `modified`) are `datetime.datetime` objects with a time zone.
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
 - The files of a ready job are in `job.product.files` (a `JobProduct`). Each `JobFile` has `type` (a
-  `Type`: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and `format`.
+  `DeliveryDestination`: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and `format`.
 
 ## Submit jobs
 
@@ -211,16 +213,18 @@ There are three submit methods, one for each MWA ASVO submit endpoint, and each 
 |---|---|---|
 | `submit_download_job(params)` | `DownloadJobParams(obs_id, ...)` | `submit-download` |
 | `submit_preprocess_job(params)` | `ConversionJobParams(obs_id, ...)` | `submit-preprocess` |
-| `submit_preprocess_job(params)` | `ImagingJobParams(obs_id, ...)` | `submit-image` |
-| `submit_image_from_job(params)` | `ImageFromJobParams(source_job_id, ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
+| `submit_preprocess_job(params)` | `ImagingJobParams(obs_id, output_mode=..., ...)` | `submit-image` |
+| `submit_image_from_job(params)` | `ImageFromJobParams(source_job_id, output_mode=..., ...)` | `submit-image-from-job` (no Obs ID: the MWA ASVO takes it from the job) |
 | `cancel_job(job_id)` | | `cancel` |
 
 A `DownloadJobParams` is the body of every download job: raw visibilities, metadata, voltages or beamformer files. The
 MWA ASVO finds the kind of data from the observation. `only_metadata=True` asks for the metadata only, and `offset`,
 `duration`, `from_channel` and `to_channel` are for a voltage observation: the MWA ASVO refuses them for an observation
-that has no voltages. The imaging classes have no `clean_threshold` and
-no `nwlayers`, which the MWA ASVO API marks as deprecated: use `abs_threshold` and `wstack_nwlayers`. The library sends
-`clean_threshold` as `null`.
+that has no voltages. `only_metadata`, `image_size` and `pixel_scale` default to `None`: the MWA ASVO API gives them no
+default, so the body leaves them out (the MWA ASVO calculates the image size and the pixel scale). `output_mode` of the
+imaging classes is a required keyword argument, because the API gives it no default. The polarisation is
+`polarization` (the API's name). The imaging classes have no `clean_threshold` and no `nwlayers`, which the MWA ASVO
+API no longer has: use `abs_threshold` and `wstack_nwlayers`.
 
 Every keyword argument of a class has the MWA ASVO's default as its default value. The type stub
 (`mwa_giant_squid.pyi`) shows it, for example `avg_freq_res: float | None = 40.0`, and so does `help()`. In
@@ -244,7 +248,7 @@ is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`, as for 
 `validate()` and when the job is submitted.
 
 The library's functions that make a body are in the module with the same names: `download_params(obs_id)`,
-`conversion_params(obs_id)`, `imaging_params(obs_id)` and `image_from_job_params(source_job_id)`. Each gives the class
+`conversion_params(obs_id)`, `imaging_params(obs_id, output_mode)` and `image_from_job_params(source_job_id, output_mode)`. Each gives the class
 for the body that the library makes, which has the MWA ASVO's defaults (`download_params(obs_id)` is
 `DownloadJobParams(obs_id)`).
 

@@ -177,9 +177,20 @@ Step C proposed a Windows CI job (C10). Greg abandoned Windows support for now, 
 - **Python:** one `DownloadJobParams` class and `download_params()`; `ImagingJobParams` and `ImageFromJobParams`. The Python CLI is the Rust CLI, so it needed no change.
 - **Ignored schema field:** `ImagingJobParams.output` (const `fits`) is not an argument; the body sends `fits`.
 
+### Done for the API 2.8.1 schema (`2f71238`; 24 Nov 2026, two diffs)
+
+- **Endpoints:** the schema's paths now have the `/api` prefix (`/api/v2/jobs/list`). `API_PREFIX` and `api_path!` are gone; the `ENDPOINT_*` constants are the schema's paths.
+- **Fixed in the schema:** the `obs_id` minimum (now 1056643216); `clean_iterations` minimum 0; every job body uses `DeliveryDestination`, so `dug` is in the schema for conversion and imaging (O1/O7); `JobFile.type` is a `DeliveryDestination` (the enum `Type` is gone, also in Python); `info.version` is 2.8.1; `staging_count` is gone; `clean_threshold` and `nwlayers` are gone.
+- **`pol` is `polarization` (Greg):** `--polarization` with no alias, also in Python and as the CSV key. The values are `xx`, `yy`, `xy`, `yx`, `xx,yy`, `i` and `iquv`. A CSV cell cannot hold a comma, so a CSV imaging line gives `xx,yy` as `polarization=xxyy` (`CSV_POLARIZATION_XX_YY`; a CSV-only exception).
+- **`output_mode` is required (Greg: follow the schema):** a required `-o`/`--output-mode` on `submit-image` and `submit-image-from-job`, an argument of `imaging_params` and `image_from_job_params`, a required Python keyword, and a required key of a CSV imaging line.
+- **No default now:** `image_size` and `pixel_scale` (the server calculates them), and `only_metadata` (left out of the body when it is not given; Greg: follow the schema, and ask the API developer).
+- **Limits:** `duration` 0 to 7200 (`VOLTAGE_DURATION`, now checked by `validate_download_params`), `channels_out` 1 or more (`CHANNELS_OUT`, `NonZeroU64`), `uvw_min` 1 to 100.
+- **`ObsId::MIN` is the schema minimum (Greg: option A):** a number with 10 digits is still read as an Obs ID, so a 10-digit number below the minimum is the new `ParseError::InvalidObsId` (Python `ParseErrorInvalidObsId`), not a Job ID.
+- **Ignored schema field:** `ImagingJobParams.output` is now `OutputFormat` (`ms`/`uvfits`, default `ms`). It is still not an argument (Greg: until the API developer says what it means); the body sends `ms`.
+- **Cargo.toml:** `homepage` is removed (Greg: Cargo 1.100 warns that it is the same as `repository`).
+
 ## Waiting for the API developer
 
-- **O1/O7:** typify merges the two inline enums titled `Delivery`, so `dug` is accepted for conversion and imaging (Greg: wait for the API fix).
 - **A13 (`days: null`)** and the questions below.
 
 ### A13 — `days: null` (waits for the API developer)
@@ -207,16 +218,18 @@ Notes:
 
 ## Questions still with the API developer
 
-- The `obs_id` minimum (888888889, but an Obs ID has 10 digits).
-- `clean_iterations` has no minimum.
-- `dug` delivery for conversion and imaging (still refused by schema 2.3.4).
+- `dug` delivery for conversion and imaging is in the schema now (2.8.1). Check with `tests/live.rs` that the server accepts it.
 - A refused download body must be a 4xx with a specific code, not a 500 (the live tests fail on `INTERNAL_ERROR`).
 - `POST /v2/jobs/preprocess` takes one of two bodies and has no discriminator. Check with `tests/live.rs` that the server tells a conversion body from an imaging body.
 - A voltage job sends the schema's delivery defaults (`acacia`/`tar`). Check with `live_submit_download` and `live_submit_volt` that the server accepts them, or ask what it wants.
 - The `error_code` of the 404 "no jobs match the filter" reply of `POST /v2/jobs/list`.
-- Schema `15a96db` still has `info.version` 2.7.0, the same as `a530426`, so `--version` cannot tell the two apart.
-- `JobFile.type` uses its own `Type` enum.
 - The meaning of `days: null` (A13).
+- `only_metadata` has no default since 2.8.1. Does a body without it (or with `null`) mean `false`, or will the default `false` come back? giant-squid leaves it out when it is not given.
+- What `ImagingJobParams.output` (`ms`/`uvfits`, default `ms`) does for an imaging job. giant-squid does not take it as an argument and sends `ms`.
+- The polarization `xx,yy` has a comma, so a manta-ray-client CSV line cannot give it. Can the value be one without a comma (for example `xxyy`)? giant-squid reads `polarization=xxyy` in a CSV line until then.
+- `ConversionJobParams.output` is an inline enum and `ImagingJobParams.output` is `$ref OutputFormat`, so typify makes two equal enums (`Output` and `OutputFormat`). Can both use `$ref OutputFormat`?
+- `JobDetailResponse.job_type` is no longer nullable, but it is not in `required`, so typify still makes it an `Option`.
+- Small schema errors: the `x-cmd-flag` of `robust` is `robust` (no `-`); the `weighting` description starts with a space; the `error_code` examples are `(TODO)`; the `auto_mask` description has LaTeX (`$\sigma$`).
 - New: a voltage job with `--offset 0` on obs 1360706032 (MWAX_VCS) is refused with "the requested offset must be a multiple of 8". 0 is a multiple of 8. This fails `live_submit_volt`.
 - Server-side, not a question: test-asvo sometimes returns `EXT_TAP_SERVICE_ERROR` (TAP connection reset). This made `live_cancel` fail once.
 

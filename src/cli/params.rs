@@ -743,8 +743,8 @@ pub struct SubmitDownloadArgs {
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     /// Download the metadata only: metafits (with PPDs for each tile) and RFI
-    /// flags (if available). Takes true or false. Leave unset to send null
-    /// (the schema has no default).
+    /// flags (if available). Takes true or false. Leave unset to leave it out
+    /// of the request (the schema gives it no default).
     #[arg(
         long,
         default_missing_value = "true",

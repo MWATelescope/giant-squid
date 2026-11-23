@@ -496,7 +496,8 @@ already accepts both.
 - The schema was inconsistent between the two imaging endpoints: `pol` was
   the `Polarization` enum on `imaging_job` but a free-form string (default
   `XX,YY`) on `image_from_job`. Schema 1.11 made both the enum, so both
-  commands validate `--pol` and default it to `XXYY`.
+  commands validate `--pol` and default it to `XXYY`. Schema 2.8.1 renamed
+  the field `polarization` (`--polarization`, default `xx,yy`).
 
 ## Code coverage
 
