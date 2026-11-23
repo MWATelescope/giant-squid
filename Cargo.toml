@@ -13,7 +13,6 @@ license = "MPL-2.0"
 readme = "README.md"
 description = "MWA ASVO command line client and library"
 repository = "https://github.com/MWATelescope/giant-squid"
-homepage = "https://github.com/MWATelescope/giant-squid"
 # Files that only the Python package (mwa-giant-squid, built by maturin) uses. The Rust sources of the
 # `python` and `python-stubgen` features (src/python, src/bin/stub_gen.rs) stay: the manifest needs them.
 exclude = [

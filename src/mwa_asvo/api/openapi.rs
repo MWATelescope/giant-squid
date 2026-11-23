@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.8.0";
+pub const MWA_ASVO_API_VERSION: &str = "2.8.1";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -279,13 +279,13 @@ pub struct DownloadJobParams {
     #[serde(default = "defaults::download_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub duration: ::std::option::Option<u64>,
+    pub duration: ::std::option::Option<i64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub from_channel: ::std::option::Option<u8>,
     pub obs_id: i64,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub offset: ::std::option::Option<i64>,
-    #[serde(default = "defaults::download_job_params_only_metadata")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub only_metadata: ::std::option::Option<bool>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub to_channel: ::std::option::Option<u8>,
@@ -323,7 +323,7 @@ impl ErrorResponse {
 ///Field-specific validation error
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct FieldError {
-    ///Field name that failed valiation
+    ///Field name that failed validation
     pub field: ::std::string::String,
     ///Error message for this field
     pub message: ::std::string::String,
@@ -349,58 +349,70 @@ impl HealthResponse {
 ///Parameters for image job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ImageFromJobParams {
+    ///Absolute flux threshold (in Janskys) at which the clean stops entirely.
     #[serde(default = "defaults::image_from_job_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
     ///allows user to resubmit a job despite it being completed
     #[serde(default = "defaults::image_from_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
+    ///Correct the final images post-deconvolution using a Mueller matrix
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_primary_beam: bool,
+    ///Noise threshold ($\sigma$) above which a clean mask is automatically made.
     #[serde(default = "defaults::default_u64::<i64, 3>")]
     pub auto_mask: i64,
+    ///Automated stopping criteria based on residual noise level (sigma). Highly recommended.
     #[serde(default = "defaults::image_from_job_params_auto_threshold")]
     pub auto_threshold: f64,
-    #[serde(default = "defaults::default_u64::<i64, 4>")]
-    pub channels_out: i64,
+    ///Number of frequency chunks to split the band into for an image cube.
+    #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 4>")]
+    pub channels_out: ::std::num::NonZeroU64,
+    ///Maximum number of clean iterations
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    ///deprecated. use abs_threshold instead
-    #[serde(default = "defaults::image_from_job_params_clean_threshold")]
-    pub clean_threshold: ::std::option::Option<f64>,
     #[serde(default = "defaults::image_from_job_params_delivery")]
     pub delivery: DeliveryDestination,
     #[serde(default = "defaults::image_from_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
-    #[serde(default = "defaults::image_from_job_params_image_size")]
-    pub image_size: ImageSizes,
+    ///Image size (pixels). When None is provided, the value will be calculated automatically
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub image_size: ::std::option::Option<ImageSizes>,
+    ///Only applies if channels_out > 1
     #[serde(default = "defaults::default_bool::<true>")]
     pub join_channels: bool,
+    ///Joint deconvolution across multiple polarization products
     #[serde(default)]
     pub join_polarizations: bool,
+    ///Fraction of flux subtracted per major loop cycle.
     #[serde(default = "defaults::image_from_job_params_mgain")]
     pub mgain: f64,
+    ///Enables multi-scale cleaning to better model extended sources.
     #[serde(default)]
     pub multiscale: bool,
+    ///Maximum number of major iterations (re-gridding loops).
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
-    ///deprecated. use wstack_nwlayers instead
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub nwlayers: ::std::option::Option<i64>,
-    #[serde(default = "defaults::image_from_job_params_output_mode")]
     pub output_mode: ImageOutputMode,
-    #[serde(default = "defaults::image_from_job_params_pixel_scale")]
-    pub pixel_scale: f64,
-    #[serde(default = "defaults::image_from_job_params_pol")]
-    pub pol: Polarization,
+    ///Pixel scale. If none is provided, this value will be calculated automatically
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub pixel_scale: ::std::option::Option<f64>,
+    ///Polarization
+    #[serde(default = "defaults::image_from_job_params_polarization")]
+    pub polarization: Polarization,
+    ///The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).
     #[serde(default = "defaults::image_from_job_params_robust")]
     pub robust: f64,
     pub source_job_id: ::std::num::NonZeroU64,
+    ///Filters out long baselines. Leave blank to use the array's full resolution.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
+    ///Filters out very short baselines (useful to suppress massive diffuse noise).
     #[serde(default = "defaults::image_from_job_params_uvw_min")]
     pub uvw_min: f64,
+    /// Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::image_from_job_params_weighting")]
     pub weighting: ImageWeighting,
+    ///Number of w-layers for w-stacking.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
@@ -567,6 +579,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ImageWeighting {
 ///Parameters for image job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ImagingJobParams {
+    ///Absolute flux threshold (in Janskys) at which the clean stops entirely.
     #[serde(default = "defaults::imaging_job_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
     ///allows user to resubmit a job despite it being completed
@@ -574,10 +587,13 @@ pub struct ImagingJobParams {
     pub allow_resubmit: ::std::option::Option<bool>,
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_di_cal: bool,
+    ///Correct the final images post-deconvolution using a Mueller matrix
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_primary_beam: bool,
+    ///Noise threshold ($\sigma$) above which a clean mask is automatically made.
     #[serde(default = "defaults::default_u64::<i64, 3>")]
     pub auto_mask: i64,
+    ///Automated stopping criteria based on residual noise level (sigma). Highly recommended.
     #[serde(default = "defaults::imaging_job_params_auto_threshold")]
     pub auto_threshold: f64,
     #[serde(default = "defaults::imaging_job_params_avg_freq_res")]
@@ -586,13 +602,12 @@ pub struct ImagingJobParams {
     pub avg_time_res: ::std::option::Option<f64>,
     #[serde(default = "defaults::imaging_job_params_centre")]
     pub centre: PhaseCentre,
-    #[serde(default = "defaults::default_u64::<i64, 4>")]
-    pub channels_out: i64,
+    ///Number of frequency chunks to split the band into for an image cube.
+    #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 4>")]
+    pub channels_out: ::std::num::NonZeroU64,
+    ///Maximum number of clean iterations
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    ///deprecated. use abs_threshold instead
-    #[serde(default = "defaults::imaging_job_params_clean_threshold")]
-    pub clean_threshold: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_dec: ::std::option::Option<f64>,
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -603,16 +618,22 @@ pub struct ImagingJobParams {
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::imaging_job_params_flag_edge_width")]
     pub flag_edge_width: f64,
-    #[serde(default = "defaults::imaging_job_params_image_size")]
-    pub image_size: ImageSizes,
+    ///Image size (pixels). When None is provided, the value will be calculated automatically
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub image_size: ::std::option::Option<ImageSizes>,
+    ///Only applies if channels_out > 1
     #[serde(default = "defaults::default_bool::<true>")]
     pub join_channels: bool,
+    ///Joint deconvolution across multiple polarization products
     #[serde(default)]
     pub join_polarizations: bool,
+    ///Fraction of flux subtracted per major loop cycle.
     #[serde(default = "defaults::imaging_job_params_mgain")]
     pub mgain: f64,
+    ///Enables multi-scale cleaning to better model extended sources.
     #[serde(default)]
     pub multiscale: bool,
+    ///Maximum number of major iterations (re-gridding loops).
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
     #[serde(default)]
@@ -629,27 +650,29 @@ pub struct ImagingJobParams {
     pub no_passband_gains: ::std::option::Option<bool>,
     #[serde(default = "defaults::imaging_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
-    ///deprecated. use wstack_nwlayers instead
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub nwlayers: ::std::option::Option<i64>,
     pub obs_id: i64,
-    ///Imaging job output is fixed to fits and cannot be changed
     #[serde(default = "defaults::imaging_job_params_output")]
-    pub output: ::std::string::String,
-    #[serde(default = "defaults::imaging_job_params_output_mode")]
+    pub output: OutputFormat,
     pub output_mode: ImageOutputMode,
-    #[serde(default = "defaults::imaging_job_params_pixel_scale")]
-    pub pixel_scale: f64,
-    #[serde(default = "defaults::imaging_job_params_pol")]
-    pub pol: Polarization,
+    ///Pixel scale. If none is provided, this value will be calculated automatically
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub pixel_scale: ::std::option::Option<f64>,
+    ///Polarization
+    #[serde(default = "defaults::imaging_job_params_polarization")]
+    pub polarization: Polarization,
+    ///The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).
     #[serde(default = "defaults::imaging_job_params_robust")]
     pub robust: f64,
+    ///Filters out long baselines. Leave blank to use the array's full resolution.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub uvw_max: ::std::option::Option<f64>,
+    ///Filters out very short baselines (useful to suppress massive diffuse noise).
     #[serde(default = "defaults::imaging_job_params_uvw_min")]
     pub uvw_min: f64,
+    /// Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::imaging_job_params_weighting")]
     pub weighting: ImageWeighting,
+    ///Number of w-layers for w-stacking.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub wstack_nwlayers: ::std::option::Option<i64>,
 }
@@ -693,7 +716,7 @@ pub struct JobDetailResponse {
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
     ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
     pub job_state: JobState,
-    ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
+    ///Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<JobType>,
     ///Last name of user who submitted the job
@@ -729,7 +752,7 @@ pub struct JobFile {
     pub sha1: ::std::option::Option<::std::string::String>,
     pub size: i64,
     #[serde(rename = "type")]
-    pub type_: Type,
+    pub type_: DeliveryDestination,
     ///acacia signed url
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub url: ::std::option::Option<::std::string::String>,
@@ -745,7 +768,7 @@ pub struct JobListRequest {
     ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_state: ::std::option::Option<JobState>,
-    ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
+    ///Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<JobType>,
     ///maximum number of records to return
@@ -1069,10 +1092,10 @@ pub struct JobsByUserRequest {
     ///return the past x number of days when querying db
     #[serde(default = "defaults::jobs_by_user_request_days")]
     pub days: ::std::option::Option<::std::num::NonZeroU64>,
-    ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
+    ///Current job state: 'preparing' | 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'imaging' | 'delivering' | 'completed' | 'error' | 'cancelled'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_state: ::std::option::Option<JobState>,
-    ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
+    ///Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<JobType>,
     ///maximum number of records to return
@@ -1659,6 +1682,61 @@ impl ::std::default::Default for Output {
         Output::Ms
     }
 }
+///`OutputFormat`
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum OutputFormat {
+    #[serde(rename = "ms")]
+    Ms,
+    #[serde(rename = "uvfits")]
+    Uvfits,
+}
+impl ::std::fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Ms => f.write_str("ms"),
+            Self::Uvfits => f.write_str("uvfits"),
+        }
+    }
+}
+impl ::std::str::FromStr for OutputFormat {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "ms" => Ok(Self::Ms),
+            "uvfits" => Ok(Self::Uvfits),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for OutputFormat {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for OutputFormat {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 /**Pagination metadata for job lists
 Used in JobListResponse to help clients navigate through large result sets*/
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -1821,19 +1899,31 @@ impl PiProjectDetails {
     PartialOrd
 )]
 pub enum Polarization {
-    #[serde(rename = "XX")]
+    #[serde(rename = "xx")]
     Xx,
-    #[serde(rename = "YY")]
+    #[serde(rename = "yy")]
     Yy,
-    #[serde(rename = "XXYY")]
-    Xxyy,
+    #[serde(rename = "xy")]
+    Xy,
+    #[serde(rename = "yx")]
+    Yx,
+    #[serde(rename = "xx,yy")]
+    XxYy,
+    #[serde(rename = "i")]
+    I,
+    #[serde(rename = "iquv")]
+    Iquv,
 }
 impl ::std::fmt::Display for Polarization {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::Xx => f.write_str("XX"),
-            Self::Yy => f.write_str("YY"),
-            Self::Xxyy => f.write_str("XXYY"),
+            Self::Xx => f.write_str("xx"),
+            Self::Yy => f.write_str("yy"),
+            Self::Xy => f.write_str("xy"),
+            Self::Yx => f.write_str("yx"),
+            Self::XxYy => f.write_str("xx,yy"),
+            Self::I => f.write_str("i"),
+            Self::Iquv => f.write_str("iquv"),
         }
     }
 }
@@ -1843,9 +1933,13 @@ impl ::std::str::FromStr for Polarization {
         value: &str,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "XX" => Ok(Self::Xx),
-            "YY" => Ok(Self::Yy),
-            "XXYY" => Ok(Self::Xxyy),
+            "xx" => Ok(Self::Xx),
+            "yy" => Ok(Self::Yy),
+            "xy" => Ok(Self::Xy),
+            "yx" => Ok(Self::Yx),
+            "xx,yy" => Ok(Self::XxYy),
+            "i" => Ok(Self::I),
+            "iquv" => Ok(Self::Iquv),
             _ => Err("invalid value".into()),
         }
     }
@@ -1897,7 +1991,7 @@ pub struct QueuedJob {
     pub job_id: ::std::num::NonZeroU64,
     ///Job parameters as JSON object (obs_id, delivery, processing options)
     pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-    ///Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging
+    ///Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub job_type: ::std::option::Option<JobType>,
     pub obs_id: i64,
@@ -2196,65 +2290,6 @@ pub struct TokenResponse {
 impl TokenResponse {
     pub fn builder() -> builder::TokenResponse {
         Default::default()
-    }
-}
-///`Type`
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum Type {
-    #[serde(rename = "acacia")]
-    Acacia,
-    #[serde(rename = "scratch")]
-    Scratch,
-    #[serde(rename = "dug")]
-    Dug,
-}
-impl ::std::fmt::Display for Type {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Acacia => f.write_str("acacia"),
-            Self::Scratch => f.write_str("scratch"),
-            Self::Dug => f.write_str("dug"),
-        }
-    }
-}
-impl ::std::str::FromStr for Type {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "acacia" => Ok(Self::Acacia),
-            "scratch" => Ok(Self::Scratch),
-            "dug" => Ok(Self::Dug),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for Type {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for Type {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
     }
 }
 ///State update for a job
@@ -3414,7 +3449,7 @@ pub mod builder {
             ::std::string::String,
         >,
         duration: ::std::result::Result<
-            ::std::option::Option<u64>,
+            ::std::option::Option<i64>,
             ::std::string::String,
         >,
         from_channel: ::std::result::Result<
@@ -3446,7 +3481,7 @@ pub mod builder {
                 from_channel: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 offset: Ok(Default::default()),
-                only_metadata: Ok(super::defaults::download_job_params_only_metadata()),
+                only_metadata: Ok(Default::default()),
                 to_channel: Ok(Default::default()),
             }
         }
@@ -3490,7 +3525,7 @@ pub mod builder {
         }
         pub fn duration<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<u64>>,
+            T: ::std::convert::TryInto<::std::option::Option<i64>>,
             T::Error: ::std::fmt::Display,
         {
             self.duration = value
@@ -3881,12 +3916,11 @@ pub mod builder {
         apply_primary_beam: ::std::result::Result<bool, ::std::string::String>,
         auto_mask: ::std::result::Result<i64, ::std::string::String>,
         auto_threshold: ::std::result::Result<f64, ::std::string::String>,
-        channels_out: ::std::result::Result<i64, ::std::string::String>,
-        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
-        clean_threshold: ::std::result::Result<
-            ::std::option::Option<f64>,
+        channels_out: ::std::result::Result<
+            ::std::num::NonZeroU64,
             ::std::string::String,
         >,
+        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
         delivery: ::std::result::Result<
             super::DeliveryDestination,
             ::std::string::String,
@@ -3895,22 +3929,24 @@ pub mod builder {
             super::DeliveryFormat,
             ::std::string::String,
         >,
-        image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
+        image_size: ::std::result::Result<
+            ::std::option::Option<super::ImageSizes>,
+            ::std::string::String,
+        >,
         join_channels: ::std::result::Result<bool, ::std::string::String>,
         join_polarizations: ::std::result::Result<bool, ::std::string::String>,
         mgain: ::std::result::Result<f64, ::std::string::String>,
         multiscale: ::std::result::Result<bool, ::std::string::String>,
         nmiter: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        nwlayers: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
         output_mode: ::std::result::Result<
             super::ImageOutputMode,
             ::std::string::String,
         >,
-        pixel_scale: ::std::result::Result<f64, ::std::string::String>,
-        pol: ::std::result::Result<super::Polarization, ::std::string::String>,
+        pixel_scale: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        polarization: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
         source_job_id: ::std::result::Result<
             ::std::num::NonZeroU64,
@@ -3941,16 +3977,15 @@ pub mod builder {
                 auto_threshold: Ok(
                     super::defaults::image_from_job_params_auto_threshold(),
                 ),
-                channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
-                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
-                clean_threshold: Ok(
-                    super::defaults::image_from_job_params_clean_threshold(),
+                channels_out: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 4>(),
                 ),
+                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
                 delivery: Ok(super::defaults::image_from_job_params_delivery()),
                 delivery_format: Ok(
                     super::defaults::image_from_job_params_delivery_format(),
                 ),
-                image_size: Ok(super::defaults::image_from_job_params_image_size()),
+                image_size: Ok(Default::default()),
                 join_channels: Ok(super::defaults::default_bool::<true>()),
                 join_polarizations: Ok(Default::default()),
                 mgain: Ok(super::defaults::image_from_job_params_mgain()),
@@ -3958,10 +3993,9 @@ pub mod builder {
                 nmiter: Ok(
                     super::defaults::default_nzu64::<::std::num::NonZeroU64, 10>(),
                 ),
-                nwlayers: Ok(Default::default()),
-                output_mode: Ok(super::defaults::image_from_job_params_output_mode()),
-                pixel_scale: Ok(super::defaults::image_from_job_params_pixel_scale()),
-                pol: Ok(super::defaults::image_from_job_params_pol()),
+                output_mode: Err("no value supplied for output_mode".to_string()),
+                pixel_scale: Ok(Default::default()),
+                polarization: Ok(super::defaults::image_from_job_params_polarization()),
                 robust: Ok(super::defaults::image_from_job_params_robust()),
                 source_job_id: Err("no value supplied for source_job_id".to_string()),
                 uvw_max: Ok(Default::default()),
@@ -4036,7 +4070,7 @@ pub mod builder {
         }
         pub fn channels_out<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<i64>,
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
             T::Error: ::std::fmt::Display,
         {
             self.channels_out = value
@@ -4055,18 +4089,6 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for clean_iterations: {e}")
-                });
-            self
-        }
-        pub fn clean_threshold<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.clean_threshold = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for clean_threshold: {e}")
                 });
             self
         }
@@ -4096,7 +4118,7 @@ pub mod builder {
         }
         pub fn image_size<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::ImageSizes>,
+            T: ::std::convert::TryInto<::std::option::Option<super::ImageSizes>>,
             T::Error: ::std::fmt::Display,
         {
             self.image_size = value
@@ -4164,18 +4186,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for nmiter: {e}"));
             self
         }
-        pub fn nwlayers<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.nwlayers = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for nwlayers: {e}")
-                });
-            self
-        }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::ImageOutputMode>,
@@ -4190,7 +4200,7 @@ pub mod builder {
         }
         pub fn pixel_scale<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.pixel_scale = value
@@ -4200,14 +4210,16 @@ pub mod builder {
                 });
             self
         }
-        pub fn pol<T>(mut self, value: T) -> Self
+        pub fn polarization<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::Polarization>,
             T::Error: ::std::fmt::Display,
         {
-            self.pol = value
+            self.polarization = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pol: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for polarization: {e}")
+                });
             self
         }
         pub fn robust<T>(mut self, value: T) -> Self
@@ -4294,7 +4306,6 @@ pub mod builder {
                 auto_threshold: value.auto_threshold?,
                 channels_out: value.channels_out?,
                 clean_iterations: value.clean_iterations?,
-                clean_threshold: value.clean_threshold?,
                 delivery: value.delivery?,
                 delivery_format: value.delivery_format?,
                 image_size: value.image_size?,
@@ -4303,10 +4314,9 @@ pub mod builder {
                 mgain: value.mgain?,
                 multiscale: value.multiscale?,
                 nmiter: value.nmiter?,
-                nwlayers: value.nwlayers?,
                 output_mode: value.output_mode?,
                 pixel_scale: value.pixel_scale?,
-                pol: value.pol?,
+                polarization: value.polarization?,
                 robust: value.robust?,
                 source_job_id: value.source_job_id?,
                 uvw_max: value.uvw_max?,
@@ -4326,7 +4336,6 @@ pub mod builder {
                 auto_threshold: Ok(value.auto_threshold),
                 channels_out: Ok(value.channels_out),
                 clean_iterations: Ok(value.clean_iterations),
-                clean_threshold: Ok(value.clean_threshold),
                 delivery: Ok(value.delivery),
                 delivery_format: Ok(value.delivery_format),
                 image_size: Ok(value.image_size),
@@ -4335,10 +4344,9 @@ pub mod builder {
                 mgain: Ok(value.mgain),
                 multiscale: Ok(value.multiscale),
                 nmiter: Ok(value.nmiter),
-                nwlayers: Ok(value.nwlayers),
                 output_mode: Ok(value.output_mode),
                 pixel_scale: Ok(value.pixel_scale),
-                pol: Ok(value.pol),
+                polarization: Ok(value.polarization),
                 robust: Ok(value.robust),
                 source_job_id: Ok(value.source_job_id),
                 uvw_max: Ok(value.uvw_max),
@@ -4371,12 +4379,11 @@ pub mod builder {
             ::std::string::String,
         >,
         centre: ::std::result::Result<super::PhaseCentre, ::std::string::String>,
-        channels_out: ::std::result::Result<i64, ::std::string::String>,
-        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
-        clean_threshold: ::std::result::Result<
-            ::std::option::Option<f64>,
+        channels_out: ::std::result::Result<
+            ::std::num::NonZeroU64,
             ::std::string::String,
         >,
+        clean_iterations: ::std::result::Result<i64, ::std::string::String>,
         custom_centre_dec: ::std::result::Result<
             ::std::option::Option<f64>,
             ::std::string::String,
@@ -4394,7 +4401,10 @@ pub mod builder {
             ::std::string::String,
         >,
         flag_edge_width: ::std::result::Result<f64, ::std::string::String>,
-        image_size: ::std::result::Result<super::ImageSizes, ::std::string::String>,
+        image_size: ::std::result::Result<
+            ::std::option::Option<super::ImageSizes>,
+            ::std::string::String,
+        >,
         join_channels: ::std::result::Result<bool, ::std::string::String>,
         join_polarizations: ::std::result::Result<bool, ::std::string::String>,
         mgain: ::std::result::Result<f64, ::std::string::String>,
@@ -4425,18 +4435,17 @@ pub mod builder {
             ::std::option::Option<bool>,
             ::std::string::String,
         >,
-        nwlayers: ::std::result::Result<
-            ::std::option::Option<i64>,
-            ::std::string::String,
-        >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output: ::std::result::Result<::std::string::String, ::std::string::String>,
+        output: ::std::result::Result<super::OutputFormat, ::std::string::String>,
         output_mode: ::std::result::Result<
             super::ImageOutputMode,
             ::std::string::String,
         >,
-        pixel_scale: ::std::result::Result<f64, ::std::string::String>,
-        pol: ::std::result::Result<super::Polarization, ::std::string::String>,
+        pixel_scale: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
+        polarization: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
         uvw_max: ::std::result::Result<
             ::std::option::Option<f64>,
@@ -4461,11 +4470,10 @@ pub mod builder {
                 avg_freq_res: Ok(super::defaults::imaging_job_params_avg_freq_res()),
                 avg_time_res: Ok(super::defaults::imaging_job_params_avg_time_res()),
                 centre: Ok(super::defaults::imaging_job_params_centre()),
-                channels_out: Ok(super::defaults::default_u64::<i64, 4>()),
-                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
-                clean_threshold: Ok(
-                    super::defaults::imaging_job_params_clean_threshold(),
+                channels_out: Ok(
+                    super::defaults::default_nzu64::<::std::num::NonZeroU64, 4>(),
                 ),
+                clean_iterations: Ok(super::defaults::default_u64::<i64, 100000>()),
                 custom_centre_dec: Ok(Default::default()),
                 custom_centre_ra: Ok(Default::default()),
                 delivery: Ok(super::defaults::imaging_job_params_delivery()),
@@ -4475,7 +4483,7 @@ pub mod builder {
                 flag_edge_width: Ok(
                     super::defaults::imaging_job_params_flag_edge_width(),
                 ),
-                image_size: Ok(super::defaults::imaging_job_params_image_size()),
+                image_size: Ok(Default::default()),
                 join_channels: Ok(super::defaults::default_bool::<true>()),
                 join_polarizations: Ok(Default::default()),
                 mgain: Ok(super::defaults::imaging_job_params_mgain()),
@@ -4496,12 +4504,11 @@ pub mod builder {
                     super::defaults::imaging_job_params_no_passband_gains(),
                 ),
                 no_rfi: Ok(super::defaults::imaging_job_params_no_rfi()),
-                nwlayers: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
                 output: Ok(super::defaults::imaging_job_params_output()),
-                output_mode: Ok(super::defaults::imaging_job_params_output_mode()),
-                pixel_scale: Ok(super::defaults::imaging_job_params_pixel_scale()),
-                pol: Ok(super::defaults::imaging_job_params_pol()),
+                output_mode: Err("no value supplied for output_mode".to_string()),
+                pixel_scale: Ok(Default::default()),
+                polarization: Ok(super::defaults::imaging_job_params_polarization()),
                 robust: Ok(super::defaults::imaging_job_params_robust()),
                 uvw_max: Ok(Default::default()),
                 uvw_min: Ok(super::defaults::imaging_job_params_uvw_min()),
@@ -4621,7 +4628,7 @@ pub mod builder {
         }
         pub fn channels_out<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<i64>,
+            T: ::std::convert::TryInto<::std::num::NonZeroU64>,
             T::Error: ::std::fmt::Display,
         {
             self.channels_out = value
@@ -4640,18 +4647,6 @@ pub mod builder {
                 .try_into()
                 .map_err(|e| {
                     format!("error converting supplied value for clean_iterations: {e}")
-                });
-            self
-        }
-        pub fn clean_threshold<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<f64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.clean_threshold = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for clean_threshold: {e}")
                 });
             self
         }
@@ -4717,7 +4712,7 @@ pub mod builder {
         }
         pub fn image_size<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::ImageSizes>,
+            T: ::std::convert::TryInto<::std::option::Option<super::ImageSizes>>,
             T::Error: ::std::fmt::Display,
         {
             self.image_size = value
@@ -4869,18 +4864,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for no_rfi: {e}"));
             self
         }
-        pub fn nwlayers<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<::std::option::Option<i64>>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.nwlayers = value
-                .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for nwlayers: {e}")
-                });
-            self
-        }
         pub fn obs_id<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<i64>,
@@ -4893,7 +4876,7 @@ pub mod builder {
         }
         pub fn output<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::OutputFormat>,
             T::Error: ::std::fmt::Display,
         {
             self.output = value
@@ -4915,7 +4898,7 @@ pub mod builder {
         }
         pub fn pixel_scale<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.pixel_scale = value
@@ -4925,14 +4908,16 @@ pub mod builder {
                 });
             self
         }
-        pub fn pol<T>(mut self, value: T) -> Self
+        pub fn polarization<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::Polarization>,
             T::Error: ::std::fmt::Display,
         {
-            self.pol = value
+            self.polarization = value
                 .try_into()
-                .map_err(|e| format!("error converting supplied value for pol: {e}"));
+                .map_err(|e| {
+                    format!("error converting supplied value for polarization: {e}")
+                });
             self
         }
         pub fn robust<T>(mut self, value: T) -> Self
@@ -5011,7 +4996,6 @@ pub mod builder {
                 centre: value.centre?,
                 channels_out: value.channels_out?,
                 clean_iterations: value.clean_iterations?,
-                clean_threshold: value.clean_threshold?,
                 custom_centre_dec: value.custom_centre_dec?,
                 custom_centre_ra: value.custom_centre_ra?,
                 delivery: value.delivery?,
@@ -5030,12 +5014,11 @@ pub mod builder {
                 no_geometric_delay: value.no_geometric_delay?,
                 no_passband_gains: value.no_passband_gains?,
                 no_rfi: value.no_rfi?,
-                nwlayers: value.nwlayers?,
                 obs_id: value.obs_id?,
                 output: value.output?,
                 output_mode: value.output_mode?,
                 pixel_scale: value.pixel_scale?,
-                pol: value.pol?,
+                polarization: value.polarization?,
                 robust: value.robust?,
                 uvw_max: value.uvw_max?,
                 uvw_min: value.uvw_min?,
@@ -5058,7 +5041,6 @@ pub mod builder {
                 centre: Ok(value.centre),
                 channels_out: Ok(value.channels_out),
                 clean_iterations: Ok(value.clean_iterations),
-                clean_threshold: Ok(value.clean_threshold),
                 custom_centre_dec: Ok(value.custom_centre_dec),
                 custom_centre_ra: Ok(value.custom_centre_ra),
                 delivery: Ok(value.delivery),
@@ -5077,12 +5059,11 @@ pub mod builder {
                 no_geometric_delay: Ok(value.no_geometric_delay),
                 no_passband_gains: Ok(value.no_passband_gains),
                 no_rfi: Ok(value.no_rfi),
-                nwlayers: Ok(value.nwlayers),
                 obs_id: Ok(value.obs_id),
                 output: Ok(value.output),
                 output_mode: Ok(value.output_mode),
                 pixel_scale: Ok(value.pixel_scale),
-                pol: Ok(value.pol),
+                polarization: Ok(value.polarization),
                 robust: Ok(value.robust),
                 uvw_max: Ok(value.uvw_max),
                 uvw_min: Ok(value.uvw_min),
@@ -5464,7 +5445,7 @@ pub mod builder {
             ::std::string::String,
         >,
         size: ::std::result::Result<i64, ::std::string::String>,
-        type_: ::std::result::Result<super::Type, ::std::string::String>,
+        type_: ::std::result::Result<super::DeliveryDestination, ::std::string::String>,
         url: ::std::result::Result<
             ::std::option::Option<::std::string::String>,
             ::std::string::String,
@@ -5525,7 +5506,7 @@ pub mod builder {
         }
         pub fn type_<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Type>,
+            T: ::std::convert::TryInto<super::DeliveryDestination>,
             T::Error: ::std::fmt::Display,
         {
             self.type_ = value
@@ -10898,9 +10879,6 @@ pub mod defaults {
     pub(super) fn download_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
     }
-    pub(super) fn download_job_params_only_metadata() -> ::std::option::Option<bool> {
-        ::std::option::Option::Some(false)
-    }
     pub(super) fn image_from_job_params_abs_threshold() -> ::std::option::Option<f64> {
         ::std::option::Option::Some(0.001_f64)
     }
@@ -10910,35 +10888,23 @@ pub mod defaults {
     pub(super) fn image_from_job_params_auto_threshold() -> f64 {
         0.5_f64
     }
-    pub(super) fn image_from_job_params_clean_threshold() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(0.001_f64)
-    }
     pub(super) fn image_from_job_params_delivery() -> super::DeliveryDestination {
         super::DeliveryDestination::Acacia
     }
     pub(super) fn image_from_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
     }
-    pub(super) fn image_from_job_params_image_size() -> super::ImageSizes {
-        super::ImageSizes(3072_i64)
-    }
     pub(super) fn image_from_job_params_mgain() -> f64 {
         0.8_f64
     }
-    pub(super) fn image_from_job_params_output_mode() -> super::ImageOutputMode {
-        super::ImageOutputMode::Fits
-    }
-    pub(super) fn image_from_job_params_pixel_scale() -> f64 {
-        20_f64
-    }
-    pub(super) fn image_from_job_params_pol() -> super::Polarization {
-        super::Polarization::Xxyy
+    pub(super) fn image_from_job_params_polarization() -> super::Polarization {
+        super::Polarization::XxYy
     }
     pub(super) fn image_from_job_params_robust() -> f64 {
         -0.5_f64
     }
     pub(super) fn image_from_job_params_uvw_min() -> f64 {
-        75_f64
+        75.0_f64
     }
     pub(super) fn image_from_job_params_weighting() -> super::ImageWeighting {
         super::ImageWeighting::Briggs
@@ -10961,9 +10927,6 @@ pub mod defaults {
     pub(super) fn imaging_job_params_centre() -> super::PhaseCentre {
         super::PhaseCentre::Phase
     }
-    pub(super) fn imaging_job_params_clean_threshold() -> ::std::option::Option<f64> {
-        ::std::option::Option::Some(0.001_f64)
-    }
     pub(super) fn imaging_job_params_delivery() -> super::DeliveryDestination {
         super::DeliveryDestination::Acacia
     }
@@ -10972,9 +10935,6 @@ pub mod defaults {
     }
     pub(super) fn imaging_job_params_flag_edge_width() -> f64 {
         80.0_f64
-    }
-    pub(super) fn imaging_job_params_image_size() -> super::ImageSizes {
-        super::ImageSizes(3072_i64)
     }
     pub(super) fn imaging_job_params_mgain() -> f64 {
         0.8_f64
@@ -10999,23 +10959,17 @@ pub mod defaults {
     pub(super) fn imaging_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_params_output() -> ::std::string::String {
-        "fits".to_string()
+    pub(super) fn imaging_job_params_output() -> super::OutputFormat {
+        super::OutputFormat::Ms
     }
-    pub(super) fn imaging_job_params_output_mode() -> super::ImageOutputMode {
-        super::ImageOutputMode::Fits
-    }
-    pub(super) fn imaging_job_params_pixel_scale() -> f64 {
-        20_f64
-    }
-    pub(super) fn imaging_job_params_pol() -> super::Polarization {
-        super::Polarization::Xxyy
+    pub(super) fn imaging_job_params_polarization() -> super::Polarization {
+        super::Polarization::XxYy
     }
     pub(super) fn imaging_job_params_robust() -> f64 {
         -0.5_f64
     }
     pub(super) fn imaging_job_params_uvw_min() -> f64 {
-        75_f64
+        75.0_f64
     }
     pub(super) fn imaging_job_params_weighting() -> super::ImageWeighting {
         super::ImageWeighting::Briggs

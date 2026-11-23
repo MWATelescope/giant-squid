@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.8.0"
+    "version": "2.8.1"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -122,7 +122,7 @@
         },
         "target_obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Target Obs Id"
         },
         "finished_datetime": {
@@ -214,7 +214,7 @@
       "properties": {
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "delivery": {
@@ -423,7 +423,7 @@
       "properties": {
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "delivery": {
@@ -456,8 +456,7 @@
               "type": "null"
             }
           ],
-          "title": "Only Metadata",
-          "default": false
+          "title": "Only Metadata"
         },
         "offset": {
           "anyOf": [
@@ -476,6 +475,7 @@
           "anyOf": [
             {
               "type": "integer",
+              "maximum": 7200.0,
               "minimum": 0.0
             },
             {
@@ -624,7 +624,7 @@
         "field": {
           "type": "string",
           "title": "Field",
-          "description": "Field name that failed valiation"
+          "description": "Field name that failed validation"
         },
         "message": {
           "type": "string",
@@ -705,32 +705,55 @@
           "default": false
         },
         "image_size": {
-          "$ref": "#/definitions/ImageSizes",
-          "default": 3072
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ImageSizes"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Image size (pixels). When None is provided, the value will be calculated automatically",
+          "x-cmd-flag": "-size"
         },
         "pixel_scale": {
-          "type": "number",
-          "maximum": 120.0,
-          "minimum": 10.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 120.0,
+              "minimum": 10.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Pixel Scale",
-          "default": 20
+          "description": "Pixel scale. If none is provided, this value will be calculated automatically",
+          "x-cmd-flag": "-scale"
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
-          "default": "briggs"
+          "description": " Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
+          "default": "briggs",
+          "x-cmd-flag": "-weight"
         },
         "robust": {
           "type": "number",
           "maximum": 2.0,
           "minimum": -2.0,
           "title": "Robust",
-          "default": -0.5
+          "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
+          "default": -0.5,
+          "x-cmd-flag": "robust"
         },
         "clean_iterations": {
           "type": "integer",
           "maximum": 1000000.0,
+          "minimum": 0.0,
           "title": "Clean Iterations",
-          "default": 100000
+          "description": "Maximum number of clean iterations",
+          "default": 100000,
+          "x-cmd-flag": "-niter"
         },
         "abs_threshold": {
           "anyOf": [
@@ -744,69 +767,52 @@
             }
           ],
           "title": "Abs Threshold",
-          "default": 0.001
-        },
-        "clean_threshold": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 10.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Clean Threshold",
-          "description": "deprecated. use abs_threshold instead",
-          "default": 0.001
+          "description": "Absolute flux threshold (in Janskys) at which the clean stops entirely.",
+          "default": 0.001,
+          "x-cmd-flag": "-abs-threshold"
         },
         "auto_threshold": {
           "type": "number",
           "maximum": 5.0,
           "minimum": 0.1,
           "title": "Auto Threshold",
-          "default": 0.5
+          "description": "Automated stopping criteria based on residual noise level (sigma). Highly recommended.",
+          "default": 0.5,
+          "x-cmd-flag": "-auto-threshold"
         },
         "nmiter": {
           "type": "integer",
           "maximum": 500.0,
           "minimum": 1.0,
           "title": "Nmiter",
-          "default": 10
+          "description": "Maximum number of major iterations (re-gridding loops).",
+          "default": 10,
+          "x-cmd-flag": "-nmiter"
         },
         "mgain": {
           "type": "number",
           "maximum": 1.0,
           "minimum": 0.1,
           "title": "Mgain",
-          "default": 0.8
+          "description": "Fraction of flux subtracted per major loop cycle.",
+          "default": 0.8,
+          "x-cmd-flag": "-mgain"
         },
         "auto_mask": {
           "type": "integer",
           "maximum": 512.0,
           "minimum": 2.0,
           "title": "Auto Mask",
-          "default": 3
+          "description": "Noise threshold ($\\sigma$) above which a clean mask is automatically made.",
+          "default": 3,
+          "x-cmd-flag": "-auto-mask"
         },
         "apply_primary_beam": {
           "type": "boolean",
           "title": "Apply Primary Beam",
-          "default": true
-        },
-        "nwlayers": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 512.0,
-              "minimum": 32.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Nwlayers",
-          "description": "deprecated. use wstack_nwlayers instead"
+          "description": "Correct the final images post-deconvolution using a Mueller matrix",
+          "default": true,
+          "x-cmd-flag": "-apply-primary-beam"
         },
         "wstack_nwlayers": {
           "anyOf": [
@@ -819,18 +825,25 @@
               "type": "null"
             }
           ],
-          "title": "Wstack Nwlayers"
+          "title": "Wstack Nwlayers",
+          "description": "Number of w-layers for w-stacking.",
+          "x-cmd-flag": "-wstack-layers"
         },
         "multiscale": {
           "type": "boolean",
           "title": "Multiscale",
-          "default": false
+          "description": "Enables multi-scale cleaning to better model extended sources.",
+          "default": false,
+          "x-cmd-flag": "-multiscale"
         },
         "uvw_min": {
           "type": "number",
           "maximum": 100.0,
+          "minimum": 1.0,
           "title": "Uvw Min",
-          "default": 75
+          "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
+          "default": 75.0,
+          "x-cmd-flag": "-minuv-l"
         },
         "uvw_max": {
           "anyOf": [
@@ -843,30 +856,40 @@
               "type": "null"
             }
           ],
-          "title": "Uvw Max"
+          "title": "Uvw Max",
+          "description": "Filters out long baselines. Leave blank to use the array's full resolution.",
+          "x-cmd-flag": "-maxuv-l"
         },
         "join_polarizations": {
           "type": "boolean",
           "title": "Join Polarizations",
-          "default": false
+          "description": "Joint deconvolution across multiple polarization products",
+          "default": false,
+          "x-cmd-flag": "-join-polarizations"
         },
         "channels_out": {
           "type": "integer",
+          "minimum": 1.0,
           "title": "Channels Out",
-          "default": 4
+          "description": "Number of frequency chunks to split the band into for an image cube.",
+          "default": 4,
+          "x-cmd-flag": "-channels-out"
         },
         "join_channels": {
           "type": "boolean",
           "title": "Join Channels",
-          "default": true
+          "description": "Only applies if channels_out > 1",
+          "default": true,
+          "x-cmd-flag": "-join-channels"
         },
-        "pol": {
+        "polarization": {
           "$ref": "#/definitions/Polarization",
-          "default": "XXYY"
+          "description": "Polarization",
+          "default": "xx,yy",
+          "x-cmd-flag": "-pol"
         },
         "output_mode": {
-          "$ref": "#/definitions/ImageOutputMode",
-          "default": "fits"
+          "$ref": "#/definitions/ImageOutputMode"
         },
         "source_job_id": {
           "type": "integer",
@@ -876,6 +899,7 @@
       },
       "type": "object",
       "required": [
+        "output_mode",
         "source_job_id"
       ],
       "title": "ImageFromJobParams",
@@ -915,7 +939,7 @@
       "properties": {
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "delivery": {
@@ -940,32 +964,55 @@
           "default": false
         },
         "image_size": {
-          "$ref": "#/definitions/ImageSizes",
-          "default": 3072
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ImageSizes"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Image size (pixels). When None is provided, the value will be calculated automatically",
+          "x-cmd-flag": "-size"
         },
         "pixel_scale": {
-          "type": "number",
-          "maximum": 120.0,
-          "minimum": 10.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 120.0,
+              "minimum": 10.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Pixel Scale",
-          "default": 20
+          "description": "Pixel scale. If none is provided, this value will be calculated automatically",
+          "x-cmd-flag": "-scale"
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
-          "default": "briggs"
+          "description": " Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
+          "default": "briggs",
+          "x-cmd-flag": "-weight"
         },
         "robust": {
           "type": "number",
           "maximum": 2.0,
           "minimum": -2.0,
           "title": "Robust",
-          "default": -0.5
+          "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
+          "default": -0.5,
+          "x-cmd-flag": "robust"
         },
         "clean_iterations": {
           "type": "integer",
           "maximum": 1000000.0,
+          "minimum": 0.0,
           "title": "Clean Iterations",
-          "default": 100000
+          "description": "Maximum number of clean iterations",
+          "default": 100000,
+          "x-cmd-flag": "-niter"
         },
         "abs_threshold": {
           "anyOf": [
@@ -979,69 +1026,52 @@
             }
           ],
           "title": "Abs Threshold",
-          "default": 0.001
-        },
-        "clean_threshold": {
-          "anyOf": [
-            {
-              "type": "number",
-              "maximum": 10.0,
-              "minimum": 0.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Clean Threshold",
-          "description": "deprecated. use abs_threshold instead",
-          "default": 0.001
+          "description": "Absolute flux threshold (in Janskys) at which the clean stops entirely.",
+          "default": 0.001,
+          "x-cmd-flag": "-abs-threshold"
         },
         "auto_threshold": {
           "type": "number",
           "maximum": 5.0,
           "minimum": 0.1,
           "title": "Auto Threshold",
-          "default": 0.5
+          "description": "Automated stopping criteria based on residual noise level (sigma). Highly recommended.",
+          "default": 0.5,
+          "x-cmd-flag": "-auto-threshold"
         },
         "nmiter": {
           "type": "integer",
           "maximum": 500.0,
           "minimum": 1.0,
           "title": "Nmiter",
-          "default": 10
+          "description": "Maximum number of major iterations (re-gridding loops).",
+          "default": 10,
+          "x-cmd-flag": "-nmiter"
         },
         "mgain": {
           "type": "number",
           "maximum": 1.0,
           "minimum": 0.1,
           "title": "Mgain",
-          "default": 0.8
+          "description": "Fraction of flux subtracted per major loop cycle.",
+          "default": 0.8,
+          "x-cmd-flag": "-mgain"
         },
         "auto_mask": {
           "type": "integer",
           "maximum": 512.0,
           "minimum": 2.0,
           "title": "Auto Mask",
-          "default": 3
+          "description": "Noise threshold ($\\sigma$) above which a clean mask is automatically made.",
+          "default": 3,
+          "x-cmd-flag": "-auto-mask"
         },
         "apply_primary_beam": {
           "type": "boolean",
           "title": "Apply Primary Beam",
-          "default": true
-        },
-        "nwlayers": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "maximum": 512.0,
-              "minimum": 32.0
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Nwlayers",
-          "description": "deprecated. use wstack_nwlayers instead"
+          "description": "Correct the final images post-deconvolution using a Mueller matrix",
+          "default": true,
+          "x-cmd-flag": "-apply-primary-beam"
         },
         "wstack_nwlayers": {
           "anyOf": [
@@ -1054,18 +1084,25 @@
               "type": "null"
             }
           ],
-          "title": "Wstack Nwlayers"
+          "title": "Wstack Nwlayers",
+          "description": "Number of w-layers for w-stacking.",
+          "x-cmd-flag": "-wstack-layers"
         },
         "multiscale": {
           "type": "boolean",
           "title": "Multiscale",
-          "default": false
+          "description": "Enables multi-scale cleaning to better model extended sources.",
+          "default": false,
+          "x-cmd-flag": "-multiscale"
         },
         "uvw_min": {
           "type": "number",
           "maximum": 100.0,
+          "minimum": 1.0,
           "title": "Uvw Min",
-          "default": 75
+          "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
+          "default": 75.0,
+          "x-cmd-flag": "-minuv-l"
         },
         "uvw_max": {
           "anyOf": [
@@ -1078,37 +1115,44 @@
               "type": "null"
             }
           ],
-          "title": "Uvw Max"
+          "title": "Uvw Max",
+          "description": "Filters out long baselines. Leave blank to use the array's full resolution.",
+          "x-cmd-flag": "-maxuv-l"
         },
         "join_polarizations": {
           "type": "boolean",
           "title": "Join Polarizations",
-          "default": false
+          "description": "Joint deconvolution across multiple polarization products",
+          "default": false,
+          "x-cmd-flag": "-join-polarizations"
         },
         "channels_out": {
           "type": "integer",
+          "minimum": 1.0,
           "title": "Channels Out",
-          "default": 4
+          "description": "Number of frequency chunks to split the band into for an image cube.",
+          "default": 4,
+          "x-cmd-flag": "-channels-out"
         },
         "join_channels": {
           "type": "boolean",
           "title": "Join Channels",
-          "default": true
+          "description": "Only applies if channels_out > 1",
+          "default": true,
+          "x-cmd-flag": "-join-channels"
         },
-        "pol": {
+        "polarization": {
           "$ref": "#/definitions/Polarization",
-          "default": "XXYY"
+          "description": "Polarization",
+          "default": "xx,yy",
+          "x-cmd-flag": "-pol"
         },
         "output_mode": {
-          "$ref": "#/definitions/ImageOutputMode",
-          "default": "fits"
+          "$ref": "#/definitions/ImageOutputMode"
         },
         "output": {
-          "type": "string",
-          "const": "fits",
-          "title": "Output",
-          "description": "Imaging job output is fixed to fits and cannot be changed",
-          "default": "fits"
+          "$ref": "#/definitions/OutputFormat",
+          "default": "ms"
         },
         "avg_time_res": {
           "anyOf": [
@@ -1259,7 +1303,8 @@
       },
       "type": "object",
       "required": [
-        "obs_id"
+        "obs_id",
+        "output_mode"
       ],
       "title": "ImagingJobParams",
       "description": "Parameters for image job submission"
@@ -1302,7 +1347,7 @@
         },
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "user_id": {
@@ -1311,15 +1356,8 @@
           "description": "ID of user who submitted the job"
         },
         "job_type": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/JobType"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
+          "$ref": "#/definitions/JobType",
+          "description": "Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'"
         },
         "job_state": {
           "$ref": "#/definitions/JobState",
@@ -1397,7 +1435,24 @@
             }
           ],
           "title": "Error Code",
-          "description": "Error code"
+          "description": "Error code",
+          "examples": [
+            {
+              "0": "(TODO)"
+            },
+            {
+              "1": "(TODO)"
+            },
+            {
+              "429": "Hit restage job count limit"
+            },
+            {
+              "499": "User cancelled job. Waiting for processor to cleanup"
+            },
+            {
+              "500": "Unexpected error"
+            }
+          ]
         },
         "error_text": {
           "anyOf": [
@@ -1439,13 +1494,7 @@
     "JobFile": {
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "acacia",
-            "scratch",
-            "dug"
-          ],
-          "title": "Type"
+          "$ref": "#/definitions/DeliveryDestination"
         },
         "size": {
           "type": "integer",
@@ -1543,7 +1592,7 @@
               "type": "null"
             }
           ],
-          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
+          "description": "Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'"
         },
         "user_id": {
           "anyOf": [
@@ -1842,7 +1891,7 @@
               "type": "null"
             }
           ],
-          "description": "Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'"
+          "description": "Current job state: 'preparing' | 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'imaging' | 'delivering' | 'completed' | 'error' | 'cancelled'"
         },
         "job_type": {
           "anyOf": [
@@ -1853,7 +1902,7 @@
               "type": "null"
             }
           ],
-          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
+          "description": "Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'"
         },
         "date_from": {
           "anyOf": [
@@ -1997,7 +2046,7 @@
       "properties": {
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs ID",
           "description": "observation id"
         },
@@ -3374,6 +3423,14 @@
       ],
       "title": "ObservationSizeResponse"
     },
+    "OutputFormat": {
+      "type": "string",
+      "enum": [
+        "ms",
+        "uvfits"
+      ],
+      "title": "OutputFormat"
+    },
     "PaginationMetadata": {
       "properties": {
         "total_count": {
@@ -3448,9 +3505,13 @@
     "Polarization": {
       "type": "string",
       "enum": [
-        "XX",
-        "YY",
-        "XXYY"
+        "xx",
+        "yy",
+        "xy",
+        "yx",
+        "xx,yy",
+        "i",
+        "iquv"
       ],
       "title": "Polarization"
     },
@@ -3505,7 +3566,7 @@
         },
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "user_id": {
@@ -3545,7 +3606,7 @@
               "type": "null"
             }
           ],
-          "description": "Job type: 0=conversion, 1=visibility, 2=metadata, 3=voltage, 4=cancel, 5=beamformer, 6=imaging"
+          "description": "Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'"
         },
         "job_params": {
           "additionalProperties": true,
@@ -3648,7 +3709,7 @@
       "properties": {
         "obs_id": {
           "type": "integer",
-          "minimum": 888888889.0,
+          "minimum": 1056643216.0,
           "title": "Obs Id"
         },
         "job_id": {
@@ -4154,119 +4215,119 @@
     }
   },
   "paths": {
-    "/health": [
+    "/api/health": [
       "get"
     ],
-    "/v2/admin/jobs": [
+    "/api/v2/admin/jobs": [
       "post"
     ],
-    "/v2/auth/api_login": [
+    "/api/v2/auth/api_login": [
       "post"
     ],
-    "/v2/auth/login": [
+    "/api/v2/auth/login": [
       "post"
     ],
-    "/v2/auth/logout": [
+    "/api/v2/auth/logout": [
       "post"
     ],
-    "/v2/auth/refresh": [
+    "/api/v2/auth/refresh": [
       "post"
     ],
-    "/v2/auth/socket_token": [
+    "/api/v2/auth/socket_token": [
       "get"
     ],
-    "/v2/auth/status": [
+    "/api/v2/auth/status": [
       "get"
     ],
-    "/v2/health": [
+    "/api/v2/health": [
       "get"
     ],
-    "/v2/jobs/calibration_ready": [
+    "/api/v2/jobs/calibration_ready": [
       "post"
     ],
-    "/v2/jobs/download": [
+    "/api/v2/jobs/download": [
       "post"
     ],
-    "/v2/jobs/image_from_job": [
+    "/api/v2/jobs/image_from_job": [
       "post"
     ],
-    "/v2/jobs/job_staged": [
+    "/api/v2/jobs/job_staged": [
       "post"
     ],
-    "/v2/jobs/list": [
+    "/api/v2/jobs/list": [
       "post"
     ],
-    "/v2/jobs/preprocess": [
+    "/api/v2/jobs/preprocess": [
       "post"
     ],
-    "/v2/jobs/{job_id}": [
+    "/api/v2/jobs/{job_id}": [
       "delete",
       "get"
     ],
-    "/v2/observations/export": [
+    "/api/v2/observations/export": [
       "post"
     ],
-    "/v2/observations/projects": [
+    "/api/v2/observations/projects": [
       "post"
     ],
-    "/v2/observations/search": [
+    "/api/v2/observations/search": [
       "get"
     ],
-    "/v2/observations/search/{obs_id}": [
+    "/api/v2/observations/search/{obs_id}": [
       "get"
     ],
-    "/v2/observations/size": [
+    "/api/v2/observations/size": [
       "post"
     ],
-    "/v2/projects/permissions": [
+    "/api/v2/projects/permissions": [
       "get"
     ],
-    "/v2/projects/pi": [
+    "/api/v2/projects/pi": [
       "get"
     ],
-    "/v2/scheduler/cancel_jobs": [
+    "/api/v2/scheduler/cancel_jobs": [
       "post"
     ],
-    "/v2/scheduler/error_job": [
+    "/api/v2/scheduler/error_job": [
       "post"
     ],
-    "/v2/scheduler/job/{job_id}": [
+    "/api/v2/scheduler/job/{job_id}": [
       "delete",
       "get"
     ],
-    "/v2/scheduler/jobs_to_cancel": [
+    "/api/v2/scheduler/jobs_to_cancel": [
       "post"
     ],
-    "/v2/scheduler/queued_jobs": [
+    "/api/v2/scheduler/queued_jobs": [
       "post"
     ],
-    "/v2/scheduler/restage_job": [
+    "/api/v2/scheduler/restage_job": [
       "post"
     ],
-    "/v2/scheduler/update_job_queue_positions": [
+    "/api/v2/scheduler/update_job_queue_positions": [
       "get"
     ],
-    "/v2/scheduler/update_job_state": [
+    "/api/v2/scheduler/update_job_state": [
       "post"
     ],
-    "/v2/scheduler/update_priorities": [
+    "/api/v2/scheduler/update_priorities": [
       "post"
     ],
-    "/v2/scheduler/user_job_count/{user_id}": [
+    "/api/v2/scheduler/user_job_count/{user_id}": [
       "get"
     ],
-    "/v2/user": [
+    "/api/v2/user": [
       "get"
     ],
-    "/v2/user/new_api_key": [
+    "/api/v2/user/new_api_key": [
       "get"
     ],
-    "/v2/user/update_profile": [
+    "/api/v2/user/update_profile": [
       "post"
     ]
   },
   "operations": {
-    "GET /health": {
+    "GET /api/health": {
       "request": [],
       "responses": {
         "200": [],
@@ -4284,7 +4345,7 @@
         ]
       }
     },
-    "POST /v2/admin/jobs": {
+    "POST /api/v2/admin/jobs": {
       "request": [
         "JobListRequest"
       ],
@@ -4312,7 +4373,7 @@
         ]
       }
     },
-    "POST /v2/auth/api_login": {
+    "POST /api/v2/auth/api_login": {
       "request": [
         "ApiLoginRequest"
       ],
@@ -4337,7 +4398,7 @@
         ]
       }
     },
-    "POST /v2/auth/login": {
+    "POST /api/v2/auth/login": {
       "request": [
         "UserLoginRequest"
       ],
@@ -4362,7 +4423,7 @@
         ]
       }
     },
-    "POST /v2/auth/logout": {
+    "POST /api/v2/auth/logout": {
       "request": [],
       "responses": {
         "200": [
@@ -4382,7 +4443,7 @@
         ]
       }
     },
-    "POST /v2/auth/refresh": {
+    "POST /api/v2/auth/refresh": {
       "request": [],
       "responses": {
         "200": [
@@ -4402,7 +4463,7 @@
         ]
       }
     },
-    "GET /v2/auth/socket_token": {
+    "GET /api/v2/auth/socket_token": {
       "request": [],
       "responses": {
         "200": [
@@ -4422,7 +4483,7 @@
         ]
       }
     },
-    "GET /v2/auth/status": {
+    "GET /api/v2/auth/status": {
       "request": [],
       "responses": {
         "200": [
@@ -4442,7 +4503,7 @@
         ]
       }
     },
-    "GET /v2/health": {
+    "GET /api/v2/health": {
       "request": [],
       "responses": {
         "200": [
@@ -4460,7 +4521,7 @@
         "503": []
       }
     },
-    "POST /v2/jobs/calibration_ready": {
+    "POST /api/v2/jobs/calibration_ready": {
       "request": [
         "CalibrationReadyCallback"
       ],
@@ -4488,7 +4549,7 @@
         ]
       }
     },
-    "POST /v2/jobs/download": {
+    "POST /api/v2/jobs/download": {
       "request": [
         "DownloadJobParams"
       ],
@@ -4513,7 +4574,7 @@
         ]
       }
     },
-    "POST /v2/jobs/image_from_job": {
+    "POST /api/v2/jobs/image_from_job": {
       "request": [
         "ImageFromJobParams"
       ],
@@ -4538,7 +4599,7 @@
         ]
       }
     },
-    "POST /v2/jobs/job_staged": {
+    "POST /api/v2/jobs/job_staged": {
       "request": [
         "StagingCallback"
       ],
@@ -4566,7 +4627,7 @@
         ]
       }
     },
-    "POST /v2/jobs/list": {
+    "POST /api/v2/jobs/list": {
       "request": [
         "JobsByUserRequest"
       ],
@@ -4594,7 +4655,7 @@
         ]
       }
     },
-    "POST /v2/jobs/preprocess": {
+    "POST /api/v2/jobs/preprocess": {
       "request": [
         "ConversionJobParams",
         "ImagingJobParams"
@@ -4620,7 +4681,7 @@
         ]
       }
     },
-    "DELETE /v2/jobs/{job_id}": {
+    "DELETE /api/v2/jobs/{job_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -4646,7 +4707,7 @@
         ]
       }
     },
-    "GET /v2/jobs/{job_id}": {
+    "GET /api/v2/jobs/{job_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -4672,7 +4733,7 @@
         ]
       }
     },
-    "POST /v2/observations/export": {
+    "POST /api/v2/observations/export": {
       "request": [
         "ObservationExportRequest"
       ],
@@ -4698,7 +4759,7 @@
         ]
       }
     },
-    "POST /v2/observations/projects": {
+    "POST /api/v2/observations/projects": {
       "request": [
         "ObservationListRequest"
       ],
@@ -4726,7 +4787,7 @@
         ]
       }
     },
-    "GET /v2/observations/search": {
+    "GET /api/v2/observations/search": {
       "request": [],
       "responses": {
         "200": [
@@ -4752,7 +4813,7 @@
         ]
       }
     },
-    "GET /v2/observations/search/{obs_id}": {
+    "GET /api/v2/observations/search/{obs_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -4778,7 +4839,7 @@
         ]
       }
     },
-    "POST /v2/observations/size": {
+    "POST /api/v2/observations/size": {
       "request": [
         "ObservationListRequest"
       ],
@@ -4806,7 +4867,7 @@
         ]
       }
     },
-    "GET /v2/projects/permissions": {
+    "GET /api/v2/projects/permissions": {
       "request": [],
       "responses": {
         "200": [
@@ -4826,7 +4887,7 @@
         ]
       }
     },
-    "GET /v2/projects/pi": {
+    "GET /api/v2/projects/pi": {
       "request": [],
       "responses": {
         "200": [
@@ -4846,7 +4907,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/cancel_jobs": {
+    "POST /api/v2/scheduler/cancel_jobs": {
       "request": [
         "JobsToCancelRequest"
       ],
@@ -4869,7 +4930,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/error_job": {
+    "POST /api/v2/scheduler/error_job": {
       "request": [
         "MarkAsErrorRequest"
       ],
@@ -4895,7 +4956,7 @@
         ]
       }
     },
-    "DELETE /v2/scheduler/job/{job_id}": {
+    "DELETE /api/v2/scheduler/job/{job_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -4921,7 +4982,7 @@
         ]
       }
     },
-    "GET /v2/scheduler/job/{job_id}": {
+    "GET /api/v2/scheduler/job/{job_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -4947,7 +5008,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/jobs_to_cancel": {
+    "POST /api/v2/scheduler/jobs_to_cancel": {
       "request": [
         "CancelledJobsRequest"
       ],
@@ -4975,7 +5036,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/queued_jobs": {
+    "POST /api/v2/scheduler/queued_jobs": {
       "request": [
         "QueuedJobsRequest"
       ],
@@ -5003,7 +5064,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/restage_job": {
+    "POST /api/v2/scheduler/restage_job": {
       "request": [
         "RestageRequest"
       ],
@@ -5029,7 +5090,7 @@
         ]
       }
     },
-    "GET /v2/scheduler/update_job_queue_positions": {
+    "GET /api/v2/scheduler/update_job_queue_positions": {
       "request": [],
       "responses": {
         "200": [],
@@ -5047,7 +5108,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/update_job_state": {
+    "POST /api/v2/scheduler/update_job_state": {
       "request": [
         "UpdateStateRequest"
       ],
@@ -5075,7 +5136,7 @@
         ]
       }
     },
-    "POST /v2/scheduler/update_priorities": {
+    "POST /api/v2/scheduler/update_priorities": {
       "request": [
         "JobPriorityUpdate"
       ],
@@ -5098,7 +5159,7 @@
         ]
       }
     },
-    "GET /v2/scheduler/user_job_count/{user_id}": {
+    "GET /api/v2/scheduler/user_job_count/{user_id}": {
       "request": [],
       "responses": {
         "200": [
@@ -5121,7 +5182,7 @@
         ]
       }
     },
-    "GET /v2/user": {
+    "GET /api/v2/user": {
       "request": [],
       "responses": {
         "200": [
@@ -5141,7 +5202,7 @@
         ]
       }
     },
-    "GET /v2/user/new_api_key": {
+    "GET /api/v2/user/new_api_key": {
       "request": [],
       "responses": {
         "200": [
@@ -5161,7 +5222,7 @@
         ]
       }
     },
-    "POST /v2/user/update_profile": {
+    "POST /api/v2/user/update_profile": {
       "request": [
         "UserUpdateProfileRequest"
       ],
