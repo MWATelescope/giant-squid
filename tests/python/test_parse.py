@@ -11,6 +11,8 @@ OBS_ID = 1065880128
 OTHER_OBS_ID = 1065880248
 JOB_ID = 12345
 OTHER_JOB_ID = 678
+# A number with 10 digits that is below ObsId.MIN: not a valid Obs ID, and not a Job ID.
+TEN_DIGITS_BELOW_MIN = 1_000_000_001
 
 
 def write_ids(tmp_path: pathlib.Path, text: str) -> str:
@@ -32,6 +34,7 @@ def test_the_parse_errors_are_not_value_errors() -> None:
         "JobIdsGiven",
         "ObsIdsGiven",
         "ZeroJobId",
+        "InvalidObsId",
         "NoObsIds",
         "NoJobIds",
         "InvalidTime",
@@ -106,6 +109,20 @@ def test_parse_many_refuses_zero() -> None:
     with pytest.raises(gs.ParseErrorZeroJobId) as excinfo:
         gs.parse_many_job_ids_or_obs_ids(["0"])
     assert excinfo.value.kind == "ZeroJobId"
+
+
+def test_a_10_digit_number_below_the_minimum_is_not_a_job_id(tmp_path: pathlib.Path) -> None:
+    """A number with 10 digits is read as an Obs ID, so one below `ObsId.MIN` is an error, not a Job ID."""
+    path = write_ids(tmp_path, f"{TEN_DIGITS_BELOW_MIN}\n")
+    for parse in (
+        lambda: gs.parse_many_job_ids_or_obs_ids([str(TEN_DIGITS_BELOW_MIN)]),
+        lambda: gs.parse_job_ids_only([str(TEN_DIGITS_BELOW_MIN)]),
+        lambda: gs.parse_job_ids_and_obs_ids_from_file(path),
+    ):
+        with pytest.raises(gs.ParseErrorInvalidObsId) as excinfo:
+            parse()
+        assert excinfo.value.kind == "InvalidObsId"
+        assert excinfo.value.value == TEN_DIGITS_BELOW_MIN
 
 
 def test_parse_many_reports_the_word_that_is_not_a_number(tmp_path: pathlib.Path) -> None:

@@ -19,7 +19,8 @@ use super::typed::JobId;
 ///
 /// Each string is an Obs ID, or the name of a file of IDs that spaces or
 /// lines separate. Read a number that has 10 digits as an Obs ID, and any
-/// other number as a Job ID.
+/// other number as a Job ID. A 10-digit number below `ObsId.MIN` is not a
+/// valid Obs ID (`ParseError` of kind `InvalidObsId`).
 ///
 /// Args:
 ///     strings: Obs IDs, and files of them.
@@ -30,8 +31,8 @@ use super::typed::JobId;
 /// Raises:
 ///     ParseError: A Job ID is given anywhere, even with Obs IDs (kind
 ///         `JobIdsGiven`), no Obs ID is given (kind `NoObsIds`), a word is
-///         not a number (kind `InsideFile`), or an ID is 0 (kind
-///         `ZeroJobId`).
+///         not a number (kind `InsideFile`), an ID is 0 (kind `ZeroJobId`),
+///         or a 10-digit number is below `ObsId.MIN` (kind `InvalidObsId`).
 ///     OSError: A file cannot be read.
 #[cfg_attr(
     feature = "python-stubgen",
@@ -58,8 +59,8 @@ pub(super) fn parse_obs_ids_only(py: Python<'_>, strings: Vec<String>) -> PyResu
 /// Raises:
 ///     ParseError: An Obs ID is given anywhere, even with Job IDs (kind
 ///         `ObsIdsGiven`), no Job ID is given (kind `NoJobIds`), a word is
-///         not a number (kind `InsideFile`), or an ID is 0 (kind
-///         `ZeroJobId`).
+///         not a number (kind `InsideFile`), an ID is 0 (kind `ZeroJobId`),
+///         or a 10-digit number is below `ObsId.MIN` (kind `InvalidObsId`).
 ///     OSError: A file cannot be read.
 #[cfg_attr(
     feature = "python-stubgen",
@@ -75,7 +76,8 @@ pub(super) fn parse_job_ids_only(py: Python<'_>, strings: Vec<String>) -> PyResu
 /// Read Job IDs, Obs IDs, and files of them.
 ///
 /// A number that has 10 digits is an Obs ID, and any other number is a Job
-/// ID. A string that is not a number is the name of a file of IDs that
+/// ID. A 10-digit number below `ObsId.MIN` is not a valid Obs ID (`ParseError`
+/// of kind `InvalidObsId`). A string that is not a number is the name of a file of IDs that
 /// spaces or lines separate.
 ///
 /// Args:
@@ -85,8 +87,9 @@ pub(super) fn parse_job_ids_only(py: Python<'_>, strings: Vec<String>) -> PyResu
 ///     The Job IDs and the Obs IDs, each in order.
 ///
 /// Raises:
-///     ParseError: A word in a file is not a number (kind `InsideFile`),
-///         or an ID is 0 (kind `ZeroJobId`).
+///     ParseError: A word in a file is not a number (kind `InsideFile`), an
+///         ID is 0 (kind `ZeroJobId`), or a 10-digit number is below
+///         `ObsId.MIN` (kind `InvalidObsId`).
 ///     OSError: A file cannot be read.
 #[cfg_attr(
     feature = "python-stubgen",
@@ -110,7 +113,8 @@ pub(super) fn parse_many_job_ids_or_obs_ids(
 /// Read the Job IDs and the Obs IDs of a file.
 ///
 /// The IDs are separated by spaces or lines. A number that has 10 digits is
-/// an Obs ID, and any other number is a Job ID.
+/// an Obs ID, and any other number is a Job ID. A 10-digit number below
+/// `ObsId.MIN` is not a valid Obs ID (`ParseError` of kind `InvalidObsId`).
 ///
 /// Args:
 ///     f: The file.
@@ -120,7 +124,8 @@ pub(super) fn parse_many_job_ids_or_obs_ids(
 ///
 /// Raises:
 ///     ParseError: A word in the file is not a number (kind `InsideFile`),
-///         or an ID is 0 (kind `ZeroJobId`).
+///         an ID is 0 (kind `ZeroJobId`), or a 10-digit number is below
+///         `ObsId.MIN` (kind `InvalidObsId`).
 ///     OSError: The file cannot be read.
 #[cfg_attr(
     feature = "python-stubgen",

@@ -5,6 +5,7 @@ import json
 import pathlib
 import time
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import pytest
@@ -20,6 +21,12 @@ TEST_USER_EMAIL = "test_user@example.org"
 
 # An obsid used across the tests.
 TEST_OBS_ID = 1065880128
+
+# The output mode of the imaging jobs that the tests make: the schema requires it and gives it no default.
+TEST_OUTPUT_MODE = gs.ImageOutputMode.Fits
+# The imaging request bodies, with the required output mode.
+IMAGING_JOB = partial(gs.ImagingJobParams, output_mode=TEST_OUTPUT_MODE)
+IMAGE_FROM_JOB = partial(gs.ImageFromJobParams, output_mode=TEST_OUTPUT_MODE)
 
 # The MWA ASVO endpoints the mock serves.
 LOGIN_PATH = "/api/v2/auth/api_login"

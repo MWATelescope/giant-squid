@@ -15,16 +15,16 @@ import mwa_giant_squid as gs
 
 from .test_client import SCHEMA_PATH
 
-# Each request body class: the schema type, the positional arguments, and the schema fields that the class does not
-# take as an argument.
-# The schema marks clean_threshold and nwlayers as deprecated, so the imaging classes do not take them. The imaging
-# `output` is fixed to fits in the schema, so the class does not take it.
-DEPRECATED_IMAGING_FIELDS = {"clean_threshold", "nwlayers"}
+# Each request body class: the schema type, the arguments that have no default (the positional one and, for the
+# imaging classes, `output_mode`, which the schema requires and gives no default), and the schema fields that the
+# class does not take as an argument.
+# The imaging `output` is not an argument: what it means is a question for the API developer, so the body sends the
+# schema default.
 CLASSES = [
     (gs.DownloadJobParams, "DownloadJobParams", ["obs_id"], set()),
     (gs.ConversionJobParams, "ConversionJobParams", ["obs_id"], set()),
-    (gs.ImagingJobParams, "ImagingJobParams", ["obs_id"], DEPRECATED_IMAGING_FIELDS | {"output"}),
-    (gs.ImageFromJobParams, "ImageFromJobParams", ["source_job_id"], DEPRECATED_IMAGING_FIELDS),
+    (gs.ImagingJobParams, "ImagingJobParams", ["obs_id", "output_mode"], {"output"}),
+    (gs.ImageFromJobParams, "ImageFromJobParams", ["source_job_id", "output_mode"], set()),
 ]
 
 # The schema enums that the classes take, by the name that a default has in a signature.
@@ -68,7 +68,7 @@ def test_the_signature_has_the_schema_defaults(
     Args:
         job: The request body class.
         schema_name: Its schema type.
-        positional: The positional arguments of the class.
+        positional: The arguments of the class that have no default.
         not_arguments: The fields of the schema type that are not arguments.
     """
     properties = json.loads(SCHEMA_PATH.read_text())["definitions"][schema_name]["properties"]

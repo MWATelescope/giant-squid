@@ -33,9 +33,13 @@
 //!   are removed.
 //! - `job_type=p` (an image of a conversion job) is an error: the format
 //!   has no key for the conversion job. Use `submit-image-from-job`.
-//! - `clean_threshold` and `nwlayers`, which the schema marks as
-//!   deprecated, are not keys of an imaging line: use `abs_threshold` and
-//!   `wstack_nwlayers`.
+//! - `clean_threshold` and `nwlayers`, which the schema no longer has, are
+//!   not keys of an imaging line: use `abs_threshold` and `wstack_nwlayers`.
+//! - An imaging line must give `output_mode`: the schema requires it and
+//!   gives it no default.
+//! - The schema's polarization `xx,yy` has a comma, which separates the
+//!   cells, so an imaging line gives it as `polarization=xxyy`
+//!   ([`CSV_POLARIZATION_XX_YY`]).
 //!
 //! A key that a line does not give has the default of the schema. The
 //! exceptions are `delivery`, `delivery_format` and `allow_resubmit`,
@@ -59,7 +63,7 @@ use crate::mwa_asvo::api::openapi::{
     ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageOutputMode,
     ImageWeighting, ImagingJobParams, JobSubmittedResponse, Output, PhaseCentre, Polarization,
 };
-use crate::mwa_asvo::api::schema_enums::SchemaEnum;
+use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
 use crate::mwa_asvo::api::validate::{
     self, validate_conversion_params, validate_download_params, validate_imaging_params,
 };
@@ -91,6 +95,13 @@ const JOB_TYPE_IMAGING_FROM_JOB: &str = "p";
 const DOWNLOAD_TYPE_VIS: &str = "vis";
 /// The `download_type` of a metadata download.
 const DOWNLOAD_TYPE_META: &str = "vis_meta";
+
+/// The key of the polarization of an imaging line.
+const KEY_POLARIZATION: &str = "polarization";
+/// The value of [`KEY_POLARIZATION`] for the schema's [`Polarization::XxYy`]
+/// (`xx,yy`): a cell cannot have a comma, because a comma separates the
+/// cells.
+pub const CSV_POLARIZATION_XX_YY: &str = "xxyy";
 
 /// The character that starts a comment line.
 const COMMENT_CHAR: char = '#';
@@ -446,6 +457,31 @@ macro_rules! impl_whole_number {
 
 impl_whole_number!(u8, u64, i64);
 
+/// The [`KEY_POLARIZATION`] cell of an imaging line: a schema value, as
+/// [`Row::named`] reads it, or [`CSV_POLARIZATION_XX_YY`] for
+/// [`Polarization::XxYy`].
+fn csv_polarization(row: &mut Row) -> Result<Option<Polarization>, String> {
+    let Some(value) = row.text(KEY_POLARIZATION) else {
+        return Ok(None);
+    };
+    if sanitize_identifier(&value) == CSV_POLARIZATION_XX_YY {
+        return Ok(Some(Polarization::XxYy));
+    }
+    Polarization::from_name(&value).map(Some).ok_or_else(|| {
+        let names: Vec<String> = Polarization::VARIANTS
+            .iter()
+            .map(|p| match p {
+                Polarization::XxYy => CSV_POLARIZATION_XX_YY.to_string(),
+                other => other.to_string(),
+            })
+            .collect();
+        format!(
+            "{KEY_POLARIZATION}: `{value}` is not one of {}",
+            names.join(", ")
+        )
+    })
+}
+
 /// A value that the job type requires.
 fn required<T>(value: Option<T>, key: &str) -> Result<T, String> {
     value.ok_or_else(|| format!("{key} is required"))
@@ -599,15 +635,16 @@ fn parse_imaging(
     obs_id: ObsId,
     defaults: &CsvDefaults,
 ) -> Result<ImagingJobParams, String> {
-    let mut params = imaging_params(obs_id);
+    let output_mode = required(row.named::<ImageOutputMode>("output_mode")?, "output_mode")?;
+    let mut params = imaging_params(obs_id, output_mode);
     apply_delivery!(row, defaults, params);
     apply_preprocessing!(row, params);
     apply_birli_flags!(row, params);
     if let Some(v) = row.integer::<i64>("image_size")? {
-        params.image_size = validate::image_size(v).map_err(|e| e.to_string())?;
+        params.image_size = Some(validate::image_size(v).map_err(|e| e.to_string())?);
     }
     if let Some(v) = row.float("pixel_scale")? {
-        params.pixel_scale = v;
+        params.pixel_scale = Some(v);
     }
     if let Some(v) = row.named::<ImageWeighting>("weighting")? {
         params.weighting = v;
@@ -642,8 +679,8 @@ fn parse_imaging(
     if let Some(v) = row.boolean("multiscale")? {
         params.multiscale = v;
     }
-    if let Some(v) = row.integer::<i64>("channels_out")? {
-        params.channels_out = v;
+    if let Some(v) = row.integer::<u64>("channels_out")? {
+        params.channels_out = validate::channels_out(v).map_err(|e| e.to_string())?;
     }
     if let Some(v) = row.float("auto_threshold")? {
         params.auto_threshold = v;
@@ -657,11 +694,8 @@ fn parse_imaging(
     if let Some(v) = row.boolean("join_channels")? {
         params.join_channels = v;
     }
-    if let Some(v) = row.named::<Polarization>("pol")? {
-        params.pol = v;
-    }
-    if let Some(v) = row.named::<ImageOutputMode>("output_mode")? {
-        params.output_mode = v;
+    if let Some(v) = csv_polarization(row)? {
+        params.polarization = v;
     }
     apply_resubmit!(row, defaults, params);
     std::mem::take(row).finish("imaging")?;
@@ -715,7 +749,7 @@ fn parse_voltage(
     // A manta-ray-client voltage line must give the offset and the
     // duration, although the schema allows them to be null.
     let offset = required(row.integer::<i64>("offset")?, "offset")?;
-    let duration = required(row.integer::<u64>("duration")?, "duration")?;
+    let duration = required(row.integer::<i64>("duration")?, "duration")?;
     let mut params = DownloadJobParams {
         offset: Some(offset),
         duration: Some(duration),

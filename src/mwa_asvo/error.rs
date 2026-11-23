@@ -6,7 +6,7 @@
 
 use thiserror::Error;
 
-use super::api::openapi::Type as FileType;
+use super::api::openapi::DeliveryDestination;
 use super::{AsvoApiError, AsvoJobId, JobState};
 use crate::obs_id::ObsId;
 
@@ -129,7 +129,7 @@ pub enum AsvoError {
     #[error("{text}", text = files_not_reachable_message(*.job_id, *.delivery, .path.as_deref()))]
     FilesNotReachable {
         job_id: AsvoJobId,
-        delivery: FileType,
+        delivery: DeliveryDestination,
         path: Option<String>,
     },
 
@@ -208,13 +208,13 @@ fn error_code_suffix(error_code: &Option<i64>) -> String {
 /// The message of [`AsvoError::FilesNotReachable`].
 fn files_not_reachable_message(
     job_id: AsvoJobId,
-    delivery: FileType,
+    delivery: DeliveryDestination,
     path: Option<&str>,
 ) -> String {
     let place = match delivery {
-        FileType::Dug => "the DUG file system".to_string(),
-        FileType::Scratch => "the Pawsey scratch file system".to_string(),
-        FileType::Acacia => "Acacia".to_string(),
+        DeliveryDestination::Dug => "the DUG file system".to_string(),
+        DeliveryDestination::Scratch => "the Pawsey scratch file system".to_string(),
+        DeliveryDestination::Acacia => "Acacia".to_string(),
     };
     let at = path.map(|p| format!(" at {p}")).unwrap_or_default();
     format!("MWA ASVO Job ID {job_id}: the files are on {place}{at}, which this host cannot reach.")

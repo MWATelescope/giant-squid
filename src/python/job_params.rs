@@ -25,9 +25,9 @@
 //! names: they make the class for the body that the library makes.
 //! [`PyPreprocessJobParams`] is the library's `PreprocessJobParams`.
 //!
-//! The schema marks `clean_threshold` and `nwlayers` of the imaging bodies as
-//! deprecated, so the imaging classes do not have them: the library sends
-//! `clean_threshold` as `null` and leaves `nwlayers` out.
+//! `output_mode` of the imaging bodies is required (the schema gives it no
+//! default), so it is a required keyword argument of the imaging classes
+//! and an argument of `imaging_params` and `image_from_job_params`.
 
 use std::num::NonZeroU64;
 
@@ -68,10 +68,12 @@ use crate::obs_id::ObsId;
 ///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
 ///     allow_resubmit: Submit the job even if an identical one has
 ///         completed.
-///     only_metadata: Download the metadata only.
+///     only_metadata: Download the metadata only, or `None` (the schema gives it no
+///         default).
 ///     offset: Voltage jobs: the offset in seconds from the start GPS time of the
 ///         observation, from 0 to 5400, or `None`.
-///     duration: Voltage jobs: the duration to download, in seconds, or `None`.
+///     duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
+///         `None`.
 ///     from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
 ///     to_channel: Voltage jobs: the last receiver channel number (0 to 255), or `None`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
@@ -89,7 +91,7 @@ pub struct PyDownloadJobParams {
     #[pyo3(get, set)]
     pub offset: Option<i64>,
     #[pyo3(get, set)]
-    pub duration: Option<u64>,
+    pub duration: Option<i64>,
     #[pyo3(get, set)]
     pub from_channel: Option<u8>,
     #[pyo3(get, set)]
@@ -122,7 +124,7 @@ impl PyDownloadJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', allow_resubmit=False, only_metadata=False, offset=None, duration=None, from_channel=None, to_channel=None)"
+        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', allow_resubmit=False, only_metadata=None, offset=None, duration=None, from_channel=None, to_channel=None)"
     )]
     #[pyo3(signature = (
         obs_id,
@@ -144,7 +146,7 @@ impl PyDownloadJobParams {
         allow_resubmit: Option<bool>,
         only_metadata: Option<bool>,
         offset: Option<i64>,
-        duration: Option<u64>,
+        duration: Option<i64>,
         from_channel: Option<u8>,
         to_channel: Option<u8>,
     ) -> Self {
@@ -424,8 +426,6 @@ impl PyConversionJobParams {
 ///         (s).
 ///     channels_out: The number of output channel groups.
 ///     clean_iterations: The WSClean -niter value.
-///     clean_threshold: The WSClean cleaning threshold (Jy). This
-///         field is deprecated in the API: use `abs_threshold`.
 ///     centre: Where to centre the image. `PhaseCentre.Custom` needs
 ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
 ///         allowed with it.
@@ -435,7 +435,8 @@ impl PyConversionJobParams {
 ///         (degrees).
 ///     flag_edge_width: The width of the frequency edge flagging (kHz).
 ///     image_size: The WSClean image size in pixels. Only the sizes
-///         that the MWA ASVO accepts are valid.
+///         that the MWA ASVO accepts are valid. `None` (the default) lets the
+///         MWA ASVO calculate it.
 ///     join_channels: Join the output channel groups for cleaning.
 ///     join_polarizations: Join the polarisations for cleaning.
 ///     mgain: The WSClean -mgain value.
@@ -448,11 +449,11 @@ impl PyConversionJobParams {
 ///     no_passband_gains: Do not apply the passband gain corrections.
 ///     no_cable_delay: Do not apply the cable delay corrections.
 ///     no_rfi: Do not flag RFI.
-///     nwlayers: The number of w-projection layers. This field is
-///         deprecated in the API: use `wstack_nwlayers`.
-///     output_mode: The products to return.
-///     pixel_scale: The pixel scale (arcsec per pixel).
-///     pol: The polarisation to image.
+///     output_mode: The products to return. Required: the schema gives it no
+///         default.
+///     pixel_scale: The pixel scale (arcsec per pixel). `None` (the default) lets
+///         the MWA ASVO calculate it.
+///     polarization: The polarisation to image.
 ///     robust: The WSClean -robust value.
 ///     uvw_max: The maximum uv distance to image (wavelengths).
 ///     uvw_min: The minimum uv distance to image (wavelengths).
@@ -483,7 +484,7 @@ pub struct PyImagingJobParams {
     #[pyo3(get, set)]
     pub avg_time_res: Option<f64>,
     #[pyo3(get, set)]
-    pub channels_out: i64,
+    pub channels_out: u64,
     #[pyo3(get, set)]
     pub clean_iterations: i64,
     #[pyo3(get, set)]
@@ -495,7 +496,7 @@ pub struct PyImagingJobParams {
     #[pyo3(get, set)]
     pub flag_edge_width: f64,
     #[pyo3(get, set)]
-    pub image_size: i64,
+    pub image_size: Option<i64>,
     #[pyo3(get, set)]
     pub join_channels: bool,
     #[pyo3(get, set)]
@@ -523,9 +524,9 @@ pub struct PyImagingJobParams {
     #[pyo3(get, set)]
     pub output_mode: PyImageOutputMode,
     #[pyo3(get, set)]
-    pub pixel_scale: f64,
+    pub pixel_scale: Option<f64>,
     #[pyo3(get, set)]
-    pub pol: PyPolarization,
+    pub polarization: PyPolarization,
     #[pyo3(get, set)]
     pub robust: f64,
     #[pyo3(get, set)]
@@ -566,11 +567,12 @@ impl PyImagingJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=3072, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, output_mode='ImageOutputMode.Fits', pixel_scale=20.0, pol='Polarization.Xxyy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(obs_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, pixel_scale=None, polarization='Polarization.XxYy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         obs_id,
         *,
+        output_mode,
         delivery = PyDeliveryDestination::from(schema::imaging_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::imaging_defaults().delivery_format),
         apply_di_cal = schema::imaging_defaults().apply_di_cal,
@@ -580,13 +582,13 @@ impl PyImagingJobParams {
         abs_threshold = schema::imaging_defaults().abs_threshold,
         avg_freq_res = schema::imaging_defaults().avg_freq_res,
         avg_time_res = schema::imaging_defaults().avg_time_res,
-        channels_out = schema::imaging_defaults().channels_out,
+        channels_out = schema::imaging_defaults().channels_out.get(),
         clean_iterations = schema::imaging_defaults().clean_iterations,
         centre = PyPhaseCentre::from(schema::imaging_defaults().centre),
         custom_centre_dec = schema::imaging_defaults().custom_centre_dec,
         custom_centre_ra = schema::imaging_defaults().custom_centre_ra,
         flag_edge_width = schema::imaging_defaults().flag_edge_width,
-        image_size = i64::from(schema::imaging_defaults().image_size),
+        image_size = schema::imaging_defaults().image_size.map(i64::from),
         join_channels = schema::imaging_defaults().join_channels,
         join_polarizations = schema::imaging_defaults().join_polarizations,
         mgain = schema::imaging_defaults().mgain,
@@ -599,9 +601,8 @@ impl PyImagingJobParams {
         no_passband_gains = schema::imaging_defaults().no_passband_gains,
         no_cable_delay = schema::imaging_defaults().no_cable_delay,
         no_rfi = schema::imaging_defaults().no_rfi,
-        output_mode = PyImageOutputMode::from(schema::imaging_defaults().output_mode),
         pixel_scale = schema::imaging_defaults().pixel_scale,
-        pol = PyPolarization::from(schema::imaging_defaults().pol),
+        polarization = PyPolarization::from(schema::imaging_defaults().polarization),
         robust = schema::imaging_defaults().robust,
         uvw_max = schema::imaging_defaults().uvw_max,
         uvw_min = schema::imaging_defaults().uvw_min,
@@ -612,6 +613,7 @@ impl PyImagingJobParams {
     #[allow(clippy::too_many_arguments)]
     fn new(
         obs_id: ObsIdArg,
+        output_mode: PyImageOutputMode,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         apply_di_cal: bool,
@@ -621,13 +623,13 @@ impl PyImagingJobParams {
         abs_threshold: Option<f64>,
         avg_freq_res: Option<f64>,
         avg_time_res: Option<f64>,
-        channels_out: i64,
+        channels_out: u64,
         clean_iterations: i64,
         centre: PyPhaseCentre,
         custom_centre_dec: Option<f64>,
         custom_centre_ra: Option<f64>,
         flag_edge_width: f64,
-        image_size: i64,
+        image_size: Option<i64>,
         join_channels: bool,
         join_polarizations: bool,
         mgain: f64,
@@ -640,9 +642,8 @@ impl PyImagingJobParams {
         no_passband_gains: Option<bool>,
         no_cable_delay: Option<bool>,
         no_rfi: Option<bool>,
-        output_mode: PyImageOutputMode,
-        pixel_scale: f64,
-        pol: PyPolarization,
+        pixel_scale: Option<f64>,
+        polarization: PyPolarization,
         robust: f64,
         uvw_max: Option<f64>,
         uvw_min: f64,
@@ -682,7 +683,7 @@ impl PyImagingJobParams {
             no_rfi,
             output_mode,
             pixel_scale,
-            pol,
+            polarization,
             robust,
             uvw_max,
             uvw_min,
@@ -698,12 +699,18 @@ impl PyImagingJobParams {
     ///
     /// # Errors
     ///
-    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
-    /// valid.
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size, `nmiter` or
+    /// `channels_out` is not valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobParams> {
-        let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
+        let image_size = self
+            .image_size
+            .map(validate::image_size)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
-        let mut params = schema::imaging_params(self.obs_id);
+        let channels_out =
+            validate::channels_out(self.channels_out).map_err(|e| api_error(py, e))?;
+        let mut params = schema::imaging_params(self.obs_id, self.output_mode.into());
         params.delivery = self.delivery.into();
         params.delivery_format = self.delivery_format.into();
         params.apply_di_cal = self.apply_di_cal;
@@ -713,7 +720,7 @@ impl PyImagingJobParams {
         params.abs_threshold = self.abs_threshold;
         params.avg_freq_res = self.avg_freq_res;
         params.avg_time_res = self.avg_time_res;
-        params.channels_out = self.channels_out;
+        params.channels_out = channels_out;
         params.clean_iterations = self.clean_iterations;
         params.centre = self.centre.into();
         params.custom_centre_dec = self.custom_centre_dec;
@@ -732,9 +739,8 @@ impl PyImagingJobParams {
         params.no_passband_gains = self.no_passband_gains;
         params.no_cable_delay = self.no_cable_delay;
         params.no_rfi = self.no_rfi;
-        params.output_mode = self.output_mode.into();
         params.pixel_scale = self.pixel_scale;
-        params.pol = self.pol.into();
+        params.polarization = self.polarization.into();
         params.robust = self.robust;
         params.uvw_max = self.uvw_max;
         params.uvw_min = self.uvw_min;
@@ -775,11 +781,11 @@ pub struct PyImageFromJobParams {
     #[pyo3(get, set)]
     pub abs_threshold: Option<f64>,
     #[pyo3(get, set)]
-    pub channels_out: i64,
+    pub channels_out: u64,
     #[pyo3(get, set)]
     pub clean_iterations: i64,
     #[pyo3(get, set)]
-    pub image_size: i64,
+    pub image_size: Option<i64>,
     #[pyo3(get, set)]
     pub join_channels: bool,
     #[pyo3(get, set)]
@@ -793,9 +799,9 @@ pub struct PyImageFromJobParams {
     #[pyo3(get, set)]
     pub output_mode: PyImageOutputMode,
     #[pyo3(get, set)]
-    pub pixel_scale: f64,
+    pub pixel_scale: Option<f64>,
     #[pyo3(get, set)]
-    pub pol: PyPolarization,
+    pub polarization: PyPolarization,
     #[pyo3(get, set)]
     pub robust: f64,
     #[pyo3(get, set)]
@@ -835,28 +841,28 @@ impl PyImageFromJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(source_job_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=3072, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, output_mode='ImageOutputMode.Fits', pixel_scale=20.0, pol='Polarization.Xxyy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(source_job_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, pixel_scale=None, polarization='Polarization.XxYy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         source_job_id,
         *,
+        output_mode,
         delivery = PyDeliveryDestination::from(schema::image_from_job_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::image_from_job_defaults().delivery_format),
         apply_primary_beam = schema::image_from_job_defaults().apply_primary_beam,
         auto_mask = schema::image_from_job_defaults().auto_mask,
         auto_threshold = schema::image_from_job_defaults().auto_threshold,
         abs_threshold = schema::image_from_job_defaults().abs_threshold,
-        channels_out = schema::image_from_job_defaults().channels_out,
+        channels_out = schema::image_from_job_defaults().channels_out.get(),
         clean_iterations = schema::image_from_job_defaults().clean_iterations,
-        image_size = i64::from(schema::image_from_job_defaults().image_size),
+        image_size = schema::image_from_job_defaults().image_size.map(i64::from),
         join_channels = schema::image_from_job_defaults().join_channels,
         join_polarizations = schema::image_from_job_defaults().join_polarizations,
         mgain = schema::image_from_job_defaults().mgain,
         multiscale = schema::image_from_job_defaults().multiscale,
         nmiter = schema::image_from_job_defaults().nmiter.get(),
-        output_mode = PyImageOutputMode::from(schema::image_from_job_defaults().output_mode),
         pixel_scale = schema::image_from_job_defaults().pixel_scale,
-        pol = PyPolarization::from(schema::image_from_job_defaults().pol),
+        polarization = PyPolarization::from(schema::image_from_job_defaults().polarization),
         robust = schema::image_from_job_defaults().robust,
         uvw_max = schema::image_from_job_defaults().uvw_max,
         uvw_min = schema::image_from_job_defaults().uvw_min,
@@ -867,23 +873,23 @@ impl PyImageFromJobParams {
     #[allow(clippy::too_many_arguments)]
     fn new(
         source_job_id: JobId,
+        output_mode: PyImageOutputMode,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
         apply_primary_beam: bool,
         auto_mask: i64,
         auto_threshold: f64,
         abs_threshold: Option<f64>,
-        channels_out: i64,
+        channels_out: u64,
         clean_iterations: i64,
-        image_size: i64,
+        image_size: Option<i64>,
         join_channels: bool,
         join_polarizations: bool,
         mgain: f64,
         multiscale: bool,
         nmiter: u64,
-        output_mode: PyImageOutputMode,
-        pixel_scale: f64,
-        pol: PyPolarization,
+        pixel_scale: Option<f64>,
+        polarization: PyPolarization,
         robust: f64,
         uvw_max: Option<f64>,
         uvw_min: f64,
@@ -909,7 +915,7 @@ impl PyImageFromJobParams {
             nmiter,
             output_mode,
             pixel_scale,
-            pol,
+            polarization,
             robust,
             uvw_max,
             uvw_min,
@@ -925,19 +931,25 @@ impl PyImageFromJobParams {
     ///
     /// # Errors
     ///
-    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
-    /// valid.
+    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size, `nmiter` or
+    /// `channels_out` is not valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImageFromJobParams> {
-        let image_size = validate::image_size(self.image_size).map_err(|e| api_error(py, e))?;
+        let image_size = self
+            .image_size
+            .map(validate::image_size)
+            .transpose()
+            .map_err(|e| api_error(py, e))?;
         let nmiter = validate::nmiter(self.nmiter).map_err(|e| api_error(py, e))?;
-        let mut params = schema::image_from_job_params(self.source_job_id);
+        let channels_out =
+            validate::channels_out(self.channels_out).map_err(|e| api_error(py, e))?;
+        let mut params = schema::image_from_job_params(self.source_job_id, self.output_mode.into());
         params.delivery = self.delivery.into();
         params.delivery_format = self.delivery_format.into();
         params.apply_primary_beam = self.apply_primary_beam;
         params.auto_mask = self.auto_mask;
         params.auto_threshold = self.auto_threshold;
         params.abs_threshold = self.abs_threshold;
-        params.channels_out = self.channels_out;
+        params.channels_out = channels_out;
         params.clean_iterations = self.clean_iterations;
         params.image_size = image_size;
         params.join_channels = self.join_channels;
@@ -945,9 +957,8 @@ impl PyImageFromJobParams {
         params.mgain = self.mgain;
         params.multiscale = self.multiscale;
         params.nmiter = nmiter;
-        params.output_mode = self.output_mode.into();
         params.pixel_scale = self.pixel_scale;
-        params.pol = self.pol.into();
+        params.polarization = self.polarization.into();
         params.robust = self.robust;
         params.uvw_max = self.uvw_max;
         params.uvw_min = self.uvw_min;
@@ -999,13 +1010,13 @@ impl PyImagingJobParams {
             abs_threshold: params.abs_threshold,
             avg_freq_res: params.avg_freq_res,
             avg_time_res: params.avg_time_res,
-            channels_out: params.channels_out,
+            channels_out: params.channels_out.get(),
             clean_iterations: params.clean_iterations,
             centre: params.centre.into(),
             custom_centre_dec: params.custom_centre_dec,
             custom_centre_ra: params.custom_centre_ra,
             flag_edge_width: params.flag_edge_width,
-            image_size: i64::from(params.image_size),
+            image_size: params.image_size.map(i64::from),
             join_channels: params.join_channels,
             join_polarizations: params.join_polarizations,
             mgain: params.mgain,
@@ -1020,7 +1031,7 @@ impl PyImagingJobParams {
             no_rfi: params.no_rfi,
             output_mode: params.output_mode.into(),
             pixel_scale: params.pixel_scale,
-            pol: params.pol.into(),
+            polarization: params.polarization.into(),
             robust: params.robust,
             uvw_max: params.uvw_max,
             uvw_min: params.uvw_min,
@@ -1042,9 +1053,9 @@ impl PyImageFromJobParams {
             auto_mask: params.auto_mask,
             auto_threshold: params.auto_threshold,
             abs_threshold: params.abs_threshold,
-            channels_out: params.channels_out,
+            channels_out: params.channels_out.get(),
             clean_iterations: params.clean_iterations,
-            image_size: i64::from(params.image_size),
+            image_size: params.image_size.map(i64::from),
             join_channels: params.join_channels,
             join_polarizations: params.join_polarizations,
             mgain: params.mgain,
@@ -1052,7 +1063,7 @@ impl PyImageFromJobParams {
             nmiter: params.nmiter.get(),
             output_mode: params.output_mode.into(),
             pixel_scale: params.pixel_scale,
-            pol: params.pol.into(),
+            polarization: params.polarization.into(),
             robust: params.robust,
             uvw_max: params.uvw_max,
             uvw_min: params.uvw_min,
@@ -1157,10 +1168,12 @@ pub(super) fn conversion_params(obs_id: ObsIdArg) -> PyConversionJobParams {
 }
 
 /// The request body of an imaging job from an Obs ID for `obs_id`, with the MWA ASVO's
-/// defaults: the library's `imaging_params`. It is `ImagingJobParams(obs_id)`.
+/// defaults: the library's `imaging_params`. It is
+/// `ImagingJobParams(obs_id, output_mode=output_mode)`.
 ///
 /// Args:
 ///     obs_id: The Obs ID.
+///     output_mode: The products to return (the schema gives it no default).
 ///
 /// Returns:
 ///     The request body.
@@ -1172,16 +1185,24 @@ pub(super) fn conversion_params(obs_id: ObsIdArg) -> PyConversionJobParams {
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn imaging_params(obs_id: ObsIdArg) -> PyImagingJobParams {
-    PyImagingJobParams::from_schema(obs_id.0, schema::imaging_params(obs_id.0))
+pub(super) fn imaging_params(
+    obs_id: ObsIdArg,
+    output_mode: PyImageOutputMode,
+) -> PyImagingJobParams {
+    PyImagingJobParams::from_schema(
+        obs_id.0,
+        schema::imaging_params(obs_id.0, output_mode.into()),
+    )
 }
 
 /// The request body of an imaging job from a job: an image of the conversion job `source_job_id`,
 /// with the MWA ASVO's defaults: the library's `image_from_job_params`. It is
-/// `ImageFromJobParams(source_job_id)`. The MWA ASVO takes the Obs ID from the source job.
+/// `ImageFromJobParams(source_job_id, output_mode=output_mode)`. The MWA ASVO takes the Obs ID
+/// from the source job.
 ///
 /// Args:
 ///     source_job_id: The ID of the conversion job to image.
+///     output_mode: The products to return (the schema gives it no default).
 ///
 /// Returns:
 ///     The request body.
@@ -1193,8 +1214,14 @@ pub(super) fn imaging_params(obs_id: ObsIdArg) -> PyImagingJobParams {
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn image_from_job_params(source_job_id: JobId) -> PyImageFromJobParams {
-    PyImageFromJobParams::from_schema(schema::image_from_job_params(source_job_id.0))
+pub(super) fn image_from_job_params(
+    source_job_id: JobId,
+    output_mode: PyImageOutputMode,
+) -> PyImageFromJobParams {
+    PyImageFromJobParams::from_schema(schema::image_from_job_params(
+        source_job_id.0,
+        output_mode.into(),
+    ))
 }
 
 /// The `params` argument of `submit_preprocess_job`: a `PreprocessJobParams`, or one of the two

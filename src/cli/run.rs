@@ -27,7 +27,7 @@ use indicatif_log_bridge::LogWrapper;
 
 use crate::mwa_asvo::api::job_params::PreprocessJobParams;
 use crate::mwa_asvo::api::openapi::{
-    ImageFromJobParams, JobSubmittedResponse, Status, Type as FileType,
+    DeliveryDestination, ImageFromJobParams, JobSubmittedResponse, Status,
 };
 use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
 use crate::mwa_asvo::{
@@ -241,7 +241,7 @@ fn downloaded_message(job: &AsvoJob, download_dir: &str, job_subdir: bool) -> St
         // directory. (One that it cannot reach, or a DUG job, is an error.)
         // It is not put in a directory for the job: it is a folder of the
         // job already.
-        Some(file) if file.type_ == FileType::Scratch => {
+        Some(file) if file.type_ == DeliveryDestination::Scratch => {
             let path = file.path.as_deref().unwrap_or_default();
             format!("Moved {path} to {download_dir}")
         }

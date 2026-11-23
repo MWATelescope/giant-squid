@@ -5,7 +5,7 @@
 //! The Python class `ObsId`, and the arguments that take an Obs ID.
 //!
 //! `ObsId` wraps the library's [`ObsId`]: an MWA observation ID that is known
-//! to be valid (10 digits). PyO3 cannot make a class that extends `int`, so it
+//! to be valid (`MIN` to `MAX`). PyO3 cannot make a class that extends `int`, so it
 //! is not an `int`, but it acts as one where Python needs a number: it has
 //! `__int__` and `__index__`, it has the hash of the `int`, and it compares
 //! with other `ObsId` and with `int`.
@@ -52,7 +52,7 @@ impl PyObsId {
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyObsId {
-    /// The smallest valid Obs ID: the smallest 10-digit number.
+    /// The smallest valid Obs ID: the MWA ASVO schema's `obs_id` minimum.
     #[classattr]
     const MIN: u64 = ObsId::MIN;
 
@@ -60,7 +60,7 @@ impl PyObsId {
     #[classattr]
     const MAX: u64 = ObsId::MAX;
 
-    /// Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+    /// Make an `ObsId` from a number, if it is valid: if it is from `MIN` to `MAX`.
     ///
     /// Args:
     ///     value: The Obs ID.
@@ -74,7 +74,7 @@ impl PyObsId {
         Self(value.0)
     }
 
-    /// Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+    /// Make an `ObsId` from a number, if it is valid: if it is from `MIN` to `MAX`.
     ///
     /// Args:
     ///     o: The Obs ID.

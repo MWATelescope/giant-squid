@@ -16,17 +16,27 @@ use thiserror::Error;
 pub struct ObsId(u64);
 
 impl ObsId {
-    /// The smallest valid Obs ID: the smallest 10-digit number.
-    ///
-    /// The MWA ASVO schema's `obs_id` minimum is lower (888888889). A test
-    /// checks that the schema's minimum is not above this one.
-    pub const MIN: u64 = 1_000_000_000;
+    /// The smallest valid Obs ID: the MWA ASVO schema's `obs_id` minimum. A
+    /// test checks that it is the schema's.
+    pub const MIN: u64 = 1_056_643_216;
 
     /// The largest valid Obs ID: the largest 10-digit number.
     pub const MAX: u64 = 9_999_999_999;
 
-    /// Given a [u64], return it as an MWA [`ObsId`] if it is valid: if it has
-    /// 10 digits ([`ObsId::MIN`] to [`ObsId::MAX`]).
+    /// The smallest number that has 10 digits. A number with 10 digits is
+    /// read as an Obs ID, and any other number as a Job ID
+    /// ([`ObsId::has_obs_id_digits`]), so a 10-digit number below
+    /// [`ObsId::MIN`] is an Obs ID that is not valid, not a Job ID.
+    const SMALLEST_TEN_DIGITS: u64 = 1_000_000_000;
+
+    /// Whether `o` has 10 digits, which is the form of an Obs ID. It is not
+    /// valid if it is below [`ObsId::MIN`] ([`ObsId::validate`]).
+    pub(crate) fn has_obs_id_digits(o: u64) -> bool {
+        (Self::SMALLEST_TEN_DIGITS..=Self::MAX).contains(&o)
+    }
+
+    /// Given a [u64], return it as an MWA [`ObsId`] if it is valid: if it is
+    /// from [`ObsId::MIN`] to [`ObsId::MAX`].
     pub fn validate(o: u64) -> Result<ObsId, ObsIdError> {
         if (Self::MIN..=Self::MAX).contains(&o) {
             Ok(ObsId(o))
@@ -78,8 +88,14 @@ impl std::fmt::Debug for ObsId {
 
 #[derive(Error, Debug)]
 pub enum ObsIdError {
-    /// If an int doesn't have 10 digits, it's not a valid Obs ID.
-    #[error("'{0}' doesn't have 10 digits and cannot be used as an MWA Obs ID")]
+    /// The number is outside [`ObsId::MIN`] to [`ObsId::MAX`], so it is not a
+    /// valid Obs ID. (The name is from when the range was all the 10-digit
+    /// numbers.)
+    #[error(
+        "'{0}' is not a valid MWA Obs ID: it must be from {min} to {max}",
+        min = ObsId::MIN,
+        max = ObsId::MAX
+    )]
     WrongNumDigits(u64),
 
     /// An error associated with string parsing.

@@ -667,8 +667,14 @@ fn live_submit_image() {
     let mut guard = JobGuard::new(&env);
 
     for args in [
-        vec!["submit-image", "-r", LIVE_TEST_OBS_ID],
-        vec!["si", "-r", LIVE_TEST_OBS_ID],
+        vec![
+            "submit-image",
+            "-r",
+            "--output-mode",
+            "fits",
+            LIVE_TEST_OBS_ID,
+        ],
+        vec!["si", "-r", "-o", "fits", LIVE_TEST_OBS_ID],
     ] {
         for id in env.submit(&mut guard, &args) {
             env.assert_submitted(id, LIVE_TEST_OBS_ID, TYPE_IMAGING);
@@ -778,7 +784,14 @@ fn live_image_from_an_unfinished_conversion_is_rejected() {
     .to_string();
     env.submit_expecting_rejection(
         &mut guard,
-        &["submit-image-from-job", "-r", "--source-job-id", &conv_id],
+        &[
+            "submit-image-from-job",
+            "-r",
+            "--output-mode",
+            "fits",
+            "--source-job-id",
+            &conv_id,
+        ],
     );
 }
 
@@ -790,7 +803,14 @@ fn live_image_from_an_unknown_job_is_rejected() {
 
     env.submit_expecting_rejection(
         &mut guard,
-        &["sifj", "-r", "--source-job-id", LIVE_UNKNOWN_JOB_ID],
+        &[
+            "sifj",
+            "-r",
+            "-o",
+            "fits",
+            "--source-job-id",
+            LIVE_UNKNOWN_JOB_ID,
+        ],
     );
 }
 

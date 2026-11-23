@@ -13,7 +13,7 @@ use crate::check_file_sha1_hash;
 use crate::helpers::{check_sha1_hash, hash_reader};
 use crate::obs_id::ObsId;
 
-use super::api::openapi::Type as FileType;
+use super::api::openapi::DeliveryDestination;
 use super::redact::{redact_url, redact_urls_in_text};
 use super::retry::{sleep_unless_stopped, Backoff};
 use super::types::signed_url_expiry;
@@ -294,7 +294,7 @@ fn download_job(
 
     for f in files {
         match f.type_ {
-            FileType::Acacia => {
+            DeliveryDestination::Acacia => {
                 let start_time = Instant::now();
                 let no_url = || AsvoError::NoUrl { job_id };
                 let url = f.url.as_deref().ok_or_else(no_url)?;
@@ -388,14 +388,14 @@ fn download_job(
                     info!("{log_prefix} {text}");
                 }
             }
-            FileType::Dug => {
+            DeliveryDestination::Dug => {
                 return Err(AsvoError::FilesNotReachable {
                     job_id,
                     delivery: f.type_,
                     path: f.path.clone(),
                 });
             }
-            FileType::Scratch => {
+            DeliveryDestination::Scratch => {
                 let no_path = || AsvoError::NoPath { job_id };
                 let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);

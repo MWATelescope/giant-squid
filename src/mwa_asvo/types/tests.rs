@@ -5,7 +5,7 @@
 //! Tests for [`super`] ASVO data types.
 
 use super::*;
-use crate::mwa_asvo::api::openapi::{JobProduct, Type as FileType};
+use crate::mwa_asvo::api::openapi::{DeliveryDestination, JobProduct};
 use crate::test_config::job_type;
 
 /// An obsid used by these tests.
@@ -394,7 +394,7 @@ fn the_json_output_keys_are_the_openapi_names() {
     let mut ready = job(JOB_ID_A, JobState::Completed);
     ready.detail_mut().product = Some(JobProduct {
         files: vec![JobFile {
-            type_: FileType::Acacia,
+            type_: DeliveryDestination::Acacia,
             url: Some("https://example.org/f.tar".to_string()),
             path: None,
             size: 1,
@@ -457,7 +457,7 @@ fn time(text: &str) -> jiff::Timestamp {
 }
 
 /// A completed job with the given files: each is a delivery type and a URL.
-fn completed_job_with(files: &[(FileType, Option<&str>)]) -> AsvoJob {
+fn completed_job_with(files: &[(DeliveryDestination, Option<&str>)]) -> AsvoJob {
     let mut job = job(JOB_ID_A, JobState::Completed);
     job.detail_mut().product = Some(JobProduct {
         files: files
@@ -508,11 +508,11 @@ fn the_expiry_of_a_job_is_the_earliest_of_its_acacia_urls() {
     let later = "https://example.org/b.tar?Expires=1792380172";
     let earlier = "https://example.org/a.tar?Expires=1792300000";
     let job = completed_job_with(&[
-        (FileType::Acacia, Some(later)),
-        (FileType::Acacia, Some(earlier)),
+        (DeliveryDestination::Acacia, Some(later)),
+        (DeliveryDestination::Acacia, Some(earlier)),
         // Only the files of an Acacia job have a signed URL.
         (
-            FileType::Scratch,
+            DeliveryDestination::Scratch,
             Some("https://example.org/c.tar?Expires=1"),
         ),
     ]);
@@ -522,8 +522,8 @@ fn the_expiry_of_a_job_is_the_earliest_of_its_acacia_urls() {
 
 #[test]
 fn a_job_with_no_acacia_url_has_no_expiry() {
-    let no_url = completed_job_with(&[(FileType::Acacia, None)]);
-    let scratch = completed_job_with(&[(FileType::Scratch, None)]);
+    let no_url = completed_job_with(&[(DeliveryDestination::Acacia, None)]);
+    let scratch = completed_job_with(&[(DeliveryDestination::Scratch, None)]);
     let no_product = job(JOB_ID_A, JobState::Completed);
 
     for job in [no_url, scratch, no_product] {
@@ -538,7 +538,7 @@ fn a_job_with_no_acacia_url_has_no_expiry() {
 
 #[test]
 fn a_job_is_expired_from_the_time_in_expires() {
-    let job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+    let job = completed_job_with(&[(DeliveryDestination::Acacia, Some(SIGNED_URL))]);
 
     assert!(!job.is_expired_at(time("2026-10-19T03:22:51Z")));
     assert!(job.is_expired_at(time(SIGNED_URL_EXPIRES)));
@@ -551,7 +551,7 @@ fn a_job_is_expired_from_the_time_in_expires() {
 #[test]
 fn only_a_completed_job_is_expired() {
     for state in [JobState::Queued, JobState::Error, JobState::Cancelled] {
-        let mut job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+        let mut job = completed_job_with(&[(DeliveryDestination::Acacia, Some(SIGNED_URL))]);
         job.detail_mut().job_state = state;
 
         assert!(!job.is_expired_at(time("2100-01-01T00:00:00Z")), "{state}");
@@ -564,7 +564,7 @@ fn only_a_completed_job_is_expired() {
 
 #[test]
 fn the_display_state_of_a_completed_job_says_ready_or_expired() {
-    let job = completed_job_with(&[(FileType::Acacia, Some(SIGNED_URL))]);
+    let job = completed_job_with(&[(DeliveryDestination::Acacia, Some(SIGNED_URL))]);
 
     assert_eq!(
         job.display_state_at(time("2026-10-12T00:00:00Z")),
@@ -581,7 +581,7 @@ fn the_display_state_of_a_completed_job_says_ready_or_expired() {
 #[test]
 fn all_ready_reports_a_completed_job_whose_download_links_have_expired() {
     let jobs = AsvoJobVec(vec![completed_job_with(&[(
-        FileType::Acacia,
+        DeliveryDestination::Acacia,
         Some(SIGNED_URL),
     )])]);
 

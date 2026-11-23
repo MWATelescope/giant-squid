@@ -13,6 +13,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::*;
+use crate::mwa_asvo::api::openapi::ImageOutputMode;
 
 /// The schema this crate's request types were generated from.
 const SCHEMA: &str = include_str!("../openapi-schema.json");
@@ -33,15 +34,14 @@ const JOB_BODIES: [&str; 4] = [DOWNLOAD, CONVERSION, IMAGING, IMAGE_FROM_JOB];
 const OBS_ID_BODIES: [&str; 3] = [DOWNLOAD, CONVERSION, IMAGING];
 
 /// The limits of the fields both imaging request bodies have.
-const SHARED_LIMITS: [(&str, Bounds); 13] = [
+const SHARED_LIMITS: [(&str, Bounds); 12] = [
     ("abs_threshold", ABS_THRESHOLD),
     ("auto_mask", AUTO_MASK),
     ("auto_threshold", AUTO_THRESHOLD),
+    ("channels_out", CHANNELS_OUT),
     ("clean_iterations", CLEAN_ITERATIONS),
-    ("clean_threshold", CLEAN_THRESHOLD),
     ("mgain", MGAIN),
     ("nmiter", NMITER),
-    ("nwlayers", NWLAYERS),
     ("pixel_scale", PIXEL_SCALE),
     ("robust", ROBUST),
     ("uvw_max", UVW_MAX),
@@ -60,42 +60,48 @@ const CONVERSION_LIMITS: [(&str, Bounds); 5] = [
 ];
 
 /// The limits of the download body that this module checks.
-const DOWNLOAD_LIMITS: [(&str, Bounds); 1] = [("offset", VOLTAGE_OFFSET)];
+const DOWNLOAD_LIMITS: [(&str, Bounds); 2] =
+    [("offset", VOLTAGE_OFFSET), ("duration", VOLTAGE_DURATION)];
+
+/// The fields whose lower limit is 1 and whose type (`NonZeroU64`) refuses
+/// zero, so a value below the minimum cannot be built to test the check.
+const NON_ZERO_FIELDS: [&str; 2] = ["channels_out", "nmiter"];
 
 /// Schema limits that the Rust type enforces, so this module has no check
 /// for them: `(body, field, why)`. The completeness test fails for any
 /// schema limit that is in neither this list nor a table above.
-const TYPE_ENFORCED: [(&str, &str, &str); 7] = [
-    (DOWNLOAD, "obs_id", "ObsId::validate is stricter"),
-    (CONVERSION, "obs_id", "ObsId::validate is stricter"),
-    (IMAGING, "obs_id", "ObsId::validate is stricter"),
+const TYPE_ENFORCED: [(&str, &str, &str); 6] = [
+    (DOWNLOAD, "obs_id", "ObsId::validate has the same minimum"),
+    (CONVERSION, "obs_id", "ObsId::validate has the same minimum"),
+    (IMAGING, "obs_id", "ObsId::validate has the same minimum"),
     (
         IMAGE_FROM_JOB,
         "source_job_id",
         "NonZeroU64 (see source_job_id())",
     ),
-    (DOWNLOAD, "duration", "u64 has minimum 0"),
     (DOWNLOAD, "from_channel", "u8 has the range 0 to 255"),
     (DOWNLOAD, "to_channel", "u8 has the range 0 to 255"),
 ];
 
 /// The fields whose values are integers in the request body.
-const INTEGER_FIELDS: [&str; 6] = [
+const INTEGER_FIELDS: [&str; 7] = [
     "auto_mask",
+    "channels_out",
     "clean_iterations",
     "nmiter",
-    "nwlayers",
     "wstack_nwlayers",
     "offset",
+    "duration",
 ];
 
 /// The smallest Obs ID that [`ObsId::validate`](crate::obs_id::ObsId::validate)
-/// accepts. The schema's own minimum must not be above it.
+/// accepts. It must be the schema's own minimum.
 const SMALLEST_VALID_OBS_ID: f64 = crate::obs_id::ObsId::MIN as f64;
 
 fn imaging_defaults() -> ImagingJobParams {
     ImagingJobParams::builder()
         .obs_id(1_065_880_128_i64)
+        .output_mode(ImageOutputMode::Fits)
         .try_into()
         .expect("defaults build")
 }
@@ -112,7 +118,7 @@ fn voltage_defaults() -> DownloadJobParams {
     DownloadJobParams::builder()
         .obs_id(1_065_880_128_i64)
         .offset(Some(0_i64))
-        .duration(Some(8_u64))
+        .duration(Some(8_i64))
         .try_into()
         .expect("defaults build")
 }
@@ -120,6 +126,7 @@ fn voltage_defaults() -> DownloadJobParams {
 fn image_from_job_defaults() -> ImageFromJobParams {
     ImageFromJobParams::builder()
         .source_job_id(NonZeroU64::new(1).unwrap())
+        .output_mode(ImageOutputMode::Fits)
         .try_into()
         .expect("defaults build")
 }
@@ -185,7 +192,10 @@ fn the_message_says_what_the_limit_is() {
         "must be between 0.1 and 1 (got 1.5)".to_string()
     );
     assert_eq!(AVG_TIME_RES.describe(-1.0), "must be at least 0 (got -1)");
-    assert_eq!(UVW_MIN.describe(101.0), "must be at most 100 (got 101)");
+    assert_eq!(
+        Bounds::at_most(100.0).describe(101.0),
+        "must be at most 100 (got 101)"
+    );
 }
 
 #[test]
@@ -303,8 +313,8 @@ fn every_limit_is_enforced_on_both_ends_for_the_imaging_body() {
                 "{field} above its maximum"
             );
         }
-        // A zero nmiter cannot be built: the type refuses it.
-        if let Some(min) = bounds.min.filter(|_| *field != "nmiter") {
+        // A zero nmiter or channels_out cannot be built: the type refuses it.
+        if let Some(min) = bounds.min.filter(|_| !NON_ZERO_FIELDS.contains(field)) {
             let params = with_field(
                 &imaging_with_custom_centre(),
                 field,
@@ -342,7 +352,7 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
                 "{field} above its maximum"
             );
         }
-        if let Some(min) = bounds.min.filter(|_| *field != "nmiter") {
+        if let Some(min) = bounds.min.filter(|_| !NON_ZERO_FIELDS.contains(field)) {
             let params = with_field(
                 &image_from_job_defaults(),
                 field,
@@ -361,7 +371,7 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
 fn an_absent_optional_field_is_not_checked() {
     let params = imaging_defaults();
 
-    assert!(params.uvw_max.is_none() && params.nwlayers.is_none());
+    assert!(params.uvw_max.is_none() && params.pixel_scale.is_none());
     validate_imaging_params(&params).expect("absent optional fields are valid");
 }
 
@@ -398,6 +408,13 @@ fn nmiter_is_limited_to_the_schema_range() {
     assert_eq!(nmiter(500).unwrap().get(), 500);
     assert_eq!(invalid_name(nmiter(0).map(|_| ())), "nmiter");
     assert_eq!(invalid_name(nmiter(501).map(|_| ())), "nmiter");
+}
+
+#[test]
+fn channels_out_is_limited_to_the_schema_range() {
+    assert_eq!(channels_out(1).unwrap().get(), 1);
+    assert_eq!(channels_out(u64::MAX).unwrap().get(), u64::MAX);
+    assert_eq!(invalid_name(channels_out(0).map(|_| ())), "channels_out");
 }
 
 #[test]
@@ -516,14 +533,12 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
     for body in OBS_ID_BODIES {
         let obs_id_min = schema_limit(&schema_properties(body)["obs_id"], "minimum")
             .unwrap_or_else(|| panic!("{body}.obs_id has no minimum"));
-        assert!(
-            obs_id_min <= SMALLEST_VALID_OBS_ID,
-            "{body}.obs_id: the schema minimum is above what Obsid accepts"
+        assert_eq!(
+            obs_id_min, SMALLEST_VALID_OBS_ID,
+            "{body}.obs_id: the schema minimum is not what ObsId accepts"
         );
     }
     let voltage = schema_properties(DOWNLOAD);
-    assert_eq!(schema_limit(&voltage["duration"], "minimum"), Some(0.0));
-    assert_eq!(schema_limit(&voltage["duration"], "maximum"), None);
     for channel in ["from_channel", "to_channel"] {
         assert_eq!(schema_limit(&voltage[channel], "minimum"), Some(0.0));
         assert_eq!(
@@ -544,11 +559,13 @@ fn the_image_sizes_are_the_schema_sizes() {
         .collect();
 
     assert_eq!(sizes, IMAGE_SIZES);
-    // Both request bodies use that definition.
+    // Both request bodies use that definition (or null).
     for schema_type in [IMAGING, IMAGE_FROM_JOB] {
-        assert_eq!(
-            schema_properties(schema_type)["image_size"]["$ref"],
-            "#/definitions/ImageSizes",
+        let alternatives = schema_properties(schema_type)["image_size"]["anyOf"].clone();
+        assert!(
+            alternatives
+                .as_array()
+                .is_some_and(|a| a.iter().any(|a| a["$ref"] == "#/definitions/ImageSizes")),
             "{schema_type}.image_size"
         );
     }

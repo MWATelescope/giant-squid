@@ -87,6 +87,9 @@ pub(super) fn parse_ids_from_text(text: &str) -> Result<TextIds, ParseError> {
             Some(ObsIdOrJobId::O(obs_id)) => ids.obs_ids.push(obs_id),
             Some(ObsIdOrJobId::J(job_id)) => ids.job_ids.push(job_id),
             Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
+            Some(ObsIdOrJobId::InvalidObsId(value)) => {
+                return Err(ParseError::InvalidObsId { value })
+            }
             None => {
                 return Err(ParseError::InsideStdin {
                     text: word.to_string(),

@@ -65,36 +65,23 @@ const CLIENT_VERSION: &str = concat!("giant-squidv", env!("CARGO_PKG_VERSION"));
 /// JWTs with different secrets), so the other environment rejects it.
 const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
 
-/// A path of the schema under [`API_PREFIX`]: the prefix is written only
-/// here.
-macro_rules! api_path {
-    ($path:literal) => {
-        concat!("/api", $path)
-    };
-}
-
-/// Where the MWA ASVO serves its API: the schema's paths (for example
-/// `/v2/jobs/list`) are under this prefix, which the schema does not give
-/// (the API is mounted there behind the web server).
-pub const API_PREFIX: &str = api_path!("");
-
-// The MWA ASVO API endpoints this client uses: the schema's paths, under
-// `API_PREFIX`. The login, refresh and job list endpoints are used only
-// here.
-const ENDPOINT_API_LOGIN: &str = api_path!("/v2/auth/api_login");
-const ENDPOINT_REFRESH: &str = api_path!("/v2/auth/refresh");
-const ENDPOINT_LIST_JOBS: &str = api_path!("/v2/jobs/list");
+// The MWA ASVO API endpoints this client uses: the schema's paths. The
+// login, refresh and job list endpoints are used only here.
+const ENDPOINT_API_LOGIN: &str = "/api/v2/auth/api_login";
+const ENDPOINT_REFRESH: &str = "/api/v2/auth/refresh";
+const ENDPOINT_LIST_JOBS: &str = "/api/v2/jobs/list";
 // The job and submission endpoints are public, so that the CLI can name the
 // endpoint that a `--dry-run` submission or cancellation would go to,
-// without a copy of the path.
-pub const ENDPOINT_JOBS: &str = api_path!("/v2/jobs");
+// without a copy of the path. `ENDPOINT_JOBS` is the schema's
+// `/api/v2/jobs/{job_id}` without the Job ID.
+pub const ENDPOINT_JOBS: &str = "/api/v2/jobs";
 // The three endpoints that create a job: one for the download jobs
 // (visibility, metadata, voltage and beamformer), one for the
 // preprocessing jobs (conversion, imaging from an Obs ID) and one for an
 // imaging job from a conversion job.
-pub const ENDPOINT_DOWNLOAD_JOB: &str = api_path!("/v2/jobs/download");
-pub const ENDPOINT_PREPROCESS_JOB: &str = api_path!("/v2/jobs/preprocess");
-pub const ENDPOINT_IMAGE_FROM_JOB: &str = api_path!("/v2/jobs/image_from_job");
+pub const ENDPOINT_DOWNLOAD_JOB: &str = "/api/v2/jobs/download";
+pub const ENDPOINT_PREPROCESS_JOB: &str = "/api/v2/jobs/preprocess";
+pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/jobs/image_from_job";
 
 /// The HTTP status of the job list's reply when no job matches the filter
 /// that the request sends. It is not an error: the list is empty.

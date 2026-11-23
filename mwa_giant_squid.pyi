@@ -108,6 +108,7 @@ __all__ = [
     "ParseError",
     "ParseErrorInsideFile",
     "ParseErrorInsideStdin",
+    "ParseErrorInvalidObsId",
     "ParseErrorInvalidTime",
     "ParseErrorJobIdsGiven",
     "ParseErrorNoJobIds",
@@ -121,7 +122,6 @@ __all__ = [
     "PreprocessJobParams",
     "SortBy",
     "Status",
-    "Type",
     "check_file_sha1_hash",
     "client_config_from_env",
     "conversion_params",
@@ -655,7 +655,7 @@ class AsvoError(builtins.Exception):
     r"""
     NotReady: the job's state.
     """
-    delivery: Type
+    delivery: DeliveryDestination
     r"""
     FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch).
     """
@@ -1495,10 +1495,12 @@ class DownloadJobParams:
             `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
         allow_resubmit: Submit the job even if an identical one has
             completed.
-        only_metadata: Download the metadata only.
+        only_metadata: Download the metadata only, or `None` (the schema gives it no
+            default).
         offset: Voltage jobs: the offset in seconds from the start GPS time of the
             observation, from 0 to 5400, or `None`.
-        duration: Voltage jobs: the duration to download, in seconds, or `None`.
+        duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
+            `None`.
         from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
         to_channel: Voltage jobs: the last receiver channel number (0 to 255), or `None`.
     """
@@ -1557,7 +1559,7 @@ class DownloadJobParams:
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         allow_resubmit: builtins.bool | None = False,
-        only_metadata: builtins.bool | None = False,
+        only_metadata: builtins.bool | None = None,
         offset: builtins.int | None = None,
         duration: builtins.int | None = None,
         from_channel: builtins.int | None = None,
@@ -1895,9 +1897,9 @@ class ImageFromJobParams:
     @clean_iterations.setter
     def clean_iterations(self, value: builtins.int) -> None: ...
     @property
-    def image_size(self) -> builtins.int: ...
+    def image_size(self) -> builtins.int | None: ...
     @image_size.setter
-    def image_size(self, value: builtins.int) -> None: ...
+    def image_size(self, value: builtins.int | None) -> None: ...
     @property
     def join_channels(self) -> builtins.bool: ...
     @join_channels.setter
@@ -1923,13 +1925,13 @@ class ImageFromJobParams:
     @output_mode.setter
     def output_mode(self, value: ImageOutputMode) -> None: ...
     @property
-    def pixel_scale(self) -> builtins.float: ...
+    def pixel_scale(self) -> builtins.float | None: ...
     @pixel_scale.setter
-    def pixel_scale(self, value: builtins.float) -> None: ...
+    def pixel_scale(self, value: builtins.float | None) -> None: ...
     @property
-    def pol(self) -> Polarization: ...
-    @pol.setter
-    def pol(self, value: Polarization) -> None: ...
+    def polarization(self) -> Polarization: ...
+    @polarization.setter
+    def polarization(self, value: Polarization) -> None: ...
     @property
     def robust(self) -> builtins.float: ...
     @robust.setter
@@ -1973,6 +1975,7 @@ class ImageFromJobParams:
         cls,
         source_job_id: builtins.int,
         *,
+        output_mode: ImageOutputMode,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         apply_primary_beam: builtins.bool = True,
@@ -1981,15 +1984,14 @@ class ImageFromJobParams:
         abs_threshold: builtins.float | None = 0.001,
         channels_out: builtins.int = 4,
         clean_iterations: builtins.int = 100000,
-        image_size: builtins.int = 3072,
+        image_size: builtins.int | None = None,
         join_channels: builtins.bool = True,
         join_polarizations: builtins.bool = False,
         mgain: builtins.float = 0.8,
         multiscale: builtins.bool = False,
         nmiter: builtins.int = 10,
-        output_mode: ImageOutputMode = ImageOutputMode.Fits,
-        pixel_scale: builtins.float = 20.0,
-        pol: Polarization = Polarization.Xxyy,
+        pixel_scale: builtins.float | None = None,
+        polarization: Polarization = Polarization.XxYy,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
@@ -2027,8 +2029,6 @@ class ImagingJobParams:
             (s).
         channels_out: The number of output channel groups.
         clean_iterations: The WSClean -niter value.
-        clean_threshold: The WSClean cleaning threshold (Jy). This
-            field is deprecated in the API: use `abs_threshold`.
         centre: Where to centre the image. `PhaseCentre.Custom` needs
             `custom_centre_ra` and `custom_centre_dec`, and they are only
             allowed with it.
@@ -2038,7 +2038,8 @@ class ImagingJobParams:
             (degrees).
         flag_edge_width: The width of the frequency edge flagging (kHz).
         image_size: The WSClean image size in pixels. Only the sizes
-            that the MWA ASVO accepts are valid.
+            that the MWA ASVO accepts are valid. `None` (the default) lets the
+            MWA ASVO calculate it.
         join_channels: Join the output channel groups for cleaning.
         join_polarizations: Join the polarisations for cleaning.
         mgain: The WSClean -mgain value.
@@ -2051,11 +2052,11 @@ class ImagingJobParams:
         no_passband_gains: Do not apply the passband gain corrections.
         no_cable_delay: Do not apply the cable delay corrections.
         no_rfi: Do not flag RFI.
-        nwlayers: The number of w-projection layers. This field is
-            deprecated in the API: use `wstack_nwlayers`.
-        output_mode: The products to return.
-        pixel_scale: The pixel scale (arcsec per pixel).
-        pol: The polarisation to image.
+        output_mode: The products to return. Required: the schema gives it no
+            default.
+        pixel_scale: The pixel scale (arcsec per pixel). `None` (the default) lets
+            the MWA ASVO calculate it.
+        polarization: The polarisation to image.
         robust: The WSClean -robust value.
         uvw_max: The maximum uv distance to image (wavelengths).
         uvw_min: The minimum uv distance to image (wavelengths).
@@ -2125,9 +2126,9 @@ class ImagingJobParams:
     @flag_edge_width.setter
     def flag_edge_width(self, value: builtins.float) -> None: ...
     @property
-    def image_size(self) -> builtins.int: ...
+    def image_size(self) -> builtins.int | None: ...
     @image_size.setter
-    def image_size(self, value: builtins.int) -> None: ...
+    def image_size(self, value: builtins.int | None) -> None: ...
     @property
     def join_channels(self) -> builtins.bool: ...
     @join_channels.setter
@@ -2181,13 +2182,13 @@ class ImagingJobParams:
     @output_mode.setter
     def output_mode(self, value: ImageOutputMode) -> None: ...
     @property
-    def pixel_scale(self) -> builtins.float: ...
+    def pixel_scale(self) -> builtins.float | None: ...
     @pixel_scale.setter
-    def pixel_scale(self, value: builtins.float) -> None: ...
+    def pixel_scale(self, value: builtins.float | None) -> None: ...
     @property
-    def pol(self) -> Polarization: ...
-    @pol.setter
-    def pol(self, value: Polarization) -> None: ...
+    def polarization(self) -> Polarization: ...
+    @polarization.setter
+    def polarization(self, value: Polarization) -> None: ...
     @property
     def robust(self) -> builtins.float: ...
     @robust.setter
@@ -2232,6 +2233,7 @@ class ImagingJobParams:
         cls,
         obs_id: builtins.int | ObsId,
         *,
+        output_mode: ImageOutputMode,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
         apply_di_cal: builtins.bool = True,
@@ -2247,7 +2249,7 @@ class ImagingJobParams:
         custom_centre_dec: builtins.float | None = None,
         custom_centre_ra: builtins.float | None = None,
         flag_edge_width: builtins.float = 80.0,
-        image_size: builtins.int = 3072,
+        image_size: builtins.int | None = None,
         join_channels: builtins.bool = True,
         join_polarizations: builtins.bool = False,
         mgain: builtins.float = 0.8,
@@ -2260,9 +2262,8 @@ class ImagingJobParams:
         no_passband_gains: builtins.bool | None = False,
         no_cable_delay: builtins.bool | None = False,
         no_rfi: builtins.bool | None = False,
-        output_mode: ImageOutputMode = ImageOutputMode.Fits,
-        pixel_scale: builtins.float = 20.0,
-        pol: Polarization = Polarization.Xxyy,
+        pixel_scale: builtins.float | None = None,
+        polarization: Polarization = Polarization.XxYy,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
@@ -2389,7 +2390,7 @@ class JobFile:
     One file of a job's product: the OpenAPI schema's `JobFile`.
     """
     @property
-    def type(self) -> Type:
+    def type(self) -> DeliveryDestination:
         r"""
         Where the file is delivered.
         """
@@ -2584,9 +2585,9 @@ class ObsId:
     `ObsId`. An Obs ID that is not valid raises `ObsIdError`.
     """
 
-    MIN: builtins.int = 1000000000
+    MIN: builtins.int = 1056643216
     r"""
-    The smallest valid Obs ID: the smallest 10-digit number.
+    The smallest valid Obs ID: the MWA ASVO schema's `obs_id` minimum.
     """
     MAX: builtins.int = 9999999999
     r"""
@@ -2594,7 +2595,7 @@ class ObsId:
     """
     def __new__(cls, value: builtins.int | ObsId) -> ObsId:
         r"""
-        Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+        Make an `ObsId` from a number, if it is valid: if it is from `MIN` to `MAX`.
 
         Args:
             value: The Obs ID.
@@ -2607,7 +2608,7 @@ class ObsId:
     @staticmethod
     def validate(o: builtins.int | ObsId) -> ObsId:
         r"""
-        Make an `ObsId` from a number, if it is valid: if it has 10 digits.
+        Make an `ObsId` from a number, if it is valid: if it is from `MIN` to `MAX`.
 
         Args:
             o: The Obs ID.
@@ -2673,7 +2674,7 @@ class ObsIdErrorParse(ObsIdError):
 
 class ObsIdErrorWrongNumDigits(ObsIdError):
     r"""
-    The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.
+    The number is outside `ObsId.MIN` to `ObsId.MAX` (kind `WrongNumDigits`). `value` is the number.
     """
 
 class ParseError(builtins.Exception):
@@ -2711,6 +2712,10 @@ class ParseError(builtins.Exception):
     r"""
     ObsIdsGiven: the Obs IDs.
     """
+    value: builtins.int
+    r"""
+    InvalidObsId: the number.
+    """
 
 class ParseErrorInsideFile(ParseError):
     r"""
@@ -2720,6 +2725,11 @@ class ParseErrorInsideFile(ParseError):
 class ParseErrorInsideStdin(ParseError):
     r"""
     A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.
+    """
+
+class ParseErrorInvalidObsId(ParseError):
+    r"""
+    A number has 10 digits, so it is read as an Obs ID, but it is below `ObsId.MIN` (kind `InvalidObsId`). `value` is the number.
     """
 
 class ParseErrorInvalidTime(ParseError):
@@ -2813,8 +2823,8 @@ class PreprocessJobParams:
 class DeliveryDestination(enum.Enum):
     r"""
     Where the MWA ASVO delivers a job's files: the OpenAPI schema's
-    `DeliveryDestination`, the `delivery` argument of the submit methods.
-    `str()` is the API value.
+    `DeliveryDestination`, the `delivery` argument of the submit methods
+    and the type of `JobFile.type`. `str()` is the API value.
     """
 
     Acacia = ...
@@ -2959,7 +2969,11 @@ class Polarization(enum.Enum):
 
     Xx = ...
     Yy = ...
-    Xxyy = ...
+    Xy = ...
+    Yx = ...
+    XxYy = ...
+    I = ...
+    Iquv = ...
 
 @typing.final
 class SortBy(enum.Enum):
@@ -2984,17 +2998,6 @@ class Status(enum.Enum):
 
     Success = ...
     Failed = ...
-
-@typing.final
-class Type(enum.Enum):
-    r"""
-    Where a job's file is delivered: the OpenAPI schema's `Type`, the type
-    of `JobFile.type`. `str()` is the API value.
-    """
-
-    Acacia = ...
-    Scratch = ...
-    Dug = ...
 
 def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
     r"""
@@ -3107,14 +3110,16 @@ def download_params(obs_id: builtins.int | ObsId) -> DownloadJobParams:
         ObsIdError: `obs_id` is not a valid Obs ID.
     """
 
-def image_from_job_params(source_job_id: builtins.int) -> ImageFromJobParams:
+def image_from_job_params(source_job_id: builtins.int, output_mode: ImageOutputMode) -> ImageFromJobParams:
     r"""
     The request body of an imaging job from a job: an image of the conversion job `source_job_id`,
     with the MWA ASVO's defaults: the library's `image_from_job_params`. It is
-    `ImageFromJobParams(source_job_id)`. The MWA ASVO takes the Obs ID from the source job.
+    `ImageFromJobParams(source_job_id, output_mode=output_mode)`. The MWA ASVO takes the Obs ID
+    from the source job.
 
     Args:
         source_job_id: The ID of the conversion job to image.
+        output_mode: The products to return (the schema gives it no default).
 
     Returns:
         The request body.
@@ -3123,13 +3128,15 @@ def image_from_job_params(source_job_id: builtins.int) -> ImageFromJobParams:
         ValueError: `source_job_id` is 0.
     """
 
-def imaging_params(obs_id: builtins.int | ObsId) -> ImagingJobParams:
+def imaging_params(obs_id: builtins.int | ObsId, output_mode: ImageOutputMode) -> ImagingJobParams:
     r"""
     The request body of an imaging job from an Obs ID for `obs_id`, with the MWA ASVO's
-    defaults: the library's `imaging_params`. It is `ImagingJobParams(obs_id)`.
+    defaults: the library's `imaging_params`. It is
+    `ImagingJobParams(obs_id, output_mode=output_mode)`.
 
     Args:
         obs_id: The Obs ID.
+        output_mode: The products to return (the schema gives it no default).
 
     Returns:
         The request body.
@@ -3145,7 +3152,8 @@ def parse_job_ids_and_obs_ids_from_file(
     Read the Job IDs and the Obs IDs of a file.
 
     The IDs are separated by spaces or lines. A number that has 10 digits is
-    an Obs ID, and any other number is a Job ID.
+    an Obs ID, and any other number is a Job ID. A 10-digit number below
+    `ObsId.MIN` is not a valid Obs ID (`ParseError` of kind `InvalidObsId`).
 
     Args:
         f: The file.
@@ -3155,7 +3163,8 @@ def parse_job_ids_and_obs_ids_from_file(
 
     Raises:
         ParseError: A word in the file is not a number (kind `InsideFile`),
-            or an ID is 0 (kind `ZeroJobId`).
+            an ID is 0 (kind `ZeroJobId`), or a 10-digit number is below
+            `ObsId.MIN` (kind `InvalidObsId`).
         OSError: The file cannot be read.
     """
 
@@ -3175,8 +3184,8 @@ def parse_job_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[
     Raises:
         ParseError: An Obs ID is given anywhere, even with Job IDs (kind
             `ObsIdsGiven`), no Job ID is given (kind `NoJobIds`), a word is
-            not a number (kind `InsideFile`), or an ID is 0 (kind
-            `ZeroJobId`).
+            not a number (kind `InsideFile`), an ID is 0 (kind `ZeroJobId`),
+            or a 10-digit number is below `ObsId.MIN` (kind `InvalidObsId`).
         OSError: A file cannot be read.
     """
 
@@ -3211,7 +3220,8 @@ def parse_many_job_ids_or_obs_ids(
     Read Job IDs, Obs IDs, and files of them.
 
     A number that has 10 digits is an Obs ID, and any other number is a Job
-    ID. A string that is not a number is the name of a file of IDs that
+    ID. A 10-digit number below `ObsId.MIN` is not a valid Obs ID (`ParseError`
+    of kind `InvalidObsId`). A string that is not a number is the name of a file of IDs that
     spaces or lines separate.
 
     Args:
@@ -3221,8 +3231,9 @@ def parse_many_job_ids_or_obs_ids(
         The Job IDs and the Obs IDs, each in order.
 
     Raises:
-        ParseError: A word in a file is not a number (kind `InsideFile`),
-            or an ID is 0 (kind `ZeroJobId`).
+        ParseError: A word in a file is not a number (kind `InsideFile`), an
+            ID is 0 (kind `ZeroJobId`), or a 10-digit number is below
+            `ObsId.MIN` (kind `InvalidObsId`).
         OSError: A file cannot be read.
     """
 
@@ -3232,7 +3243,8 @@ def parse_obs_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[
 
     Each string is an Obs ID, or the name of a file of IDs that spaces or
     lines separate. Read a number that has 10 digits as an Obs ID, and any
-    other number as a Job ID.
+    other number as a Job ID. A 10-digit number below `ObsId.MIN` is not a
+    valid Obs ID (`ParseError` of kind `InvalidObsId`).
 
     Args:
         strings: Obs IDs, and files of them.
@@ -3243,8 +3255,8 @@ def parse_obs_ids_only(strings: typing.Sequence[builtins.str]) -> builtins.list[
     Raises:
         ParseError: A Job ID is given anywhere, even with Obs IDs (kind
             `JobIdsGiven`), no Obs ID is given (kind `NoObsIds`), a word is
-            not a number (kind `InsideFile`), or an ID is 0 (kind
-            `ZeroJobId`).
+            not a number (kind `InsideFile`), an ID is 0 (kind `ZeroJobId`),
+            or a 10-digit number is below `ObsId.MIN` (kind `InvalidObsId`).
         OSError: A file cannot be read.
     """
 

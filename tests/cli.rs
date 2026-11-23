@@ -323,6 +323,8 @@ fn json_works_for_image_from_job_submissions() {
     cmd.args([
         "submit-image-from-job",
         "--json",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         "12345",
     ]);
@@ -1152,7 +1154,14 @@ fn submit_image_from_job_refuses_an_argument() {
     let requests = catch_all(&env);
 
     let mut cmd = env.command();
-    cmd.args(["submit-image-from-job", "--source-job-id", "5", "12345"]);
+    cmd.args([
+        "submit-image-from-job",
+        "--output-mode",
+        "fits",
+        "--source-job-id",
+        "5",
+        "12345",
+    ]);
     let result = run(cmd);
 
     assert!(!result.success, "output: {}", result.combined());

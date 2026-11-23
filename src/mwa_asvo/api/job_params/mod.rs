@@ -30,7 +30,7 @@ use serde::Serialize;
 
 use super::error::AsvoApiError;
 use super::openapi::{
-    ConversionJobParams, DownloadJobParams, ImageFromJobParams, ImagingJobParams,
+    ConversionJobParams, DownloadJobParams, ImageFromJobParams, ImageOutputMode, ImagingJobParams,
 };
 use super::validate::{validate_conversion_params, validate_imaging_params};
 use crate::obs_id::ObsId;
@@ -59,17 +59,30 @@ pub(crate) fn conversion_defaults() -> ConversionJobParams {
     schema_defaults!(ConversionJobParams { obs_id: 0_i64 })
 }
 
+/// The placeholder for the required `output_mode` of the imaging bodies in
+/// [`imaging_defaults`] and [`image_from_job_defaults`]. The schema gives
+/// `output_mode` no default, so it is not a default: [`imaging_params`] and
+/// [`image_from_job_params`] set the caller's value.
+const OUTPUT_MODE_PLACEHOLDER: ImageOutputMode = ImageOutputMode::Fits;
+
 /// An [`ImagingJobParams`] at the schema's defaults. `obs_id` is a
-/// placeholder (0); see [`download_defaults`].
+/// placeholder (0); see [`download_defaults`]. `output_mode` is required
+/// and has no default, so it is a placeholder too
+/// ([`OUTPUT_MODE_PLACEHOLDER`]).
 pub(crate) fn imaging_defaults() -> ImagingJobParams {
-    schema_defaults!(ImagingJobParams { obs_id: 0_i64 })
+    schema_defaults!(ImagingJobParams {
+        obs_id: 0_i64,
+        output_mode: OUTPUT_MODE_PLACEHOLDER,
+    })
 }
 
 /// An [`ImageFromJobParams`] at the schema's defaults. `source_job_id` is
-/// a placeholder (1); see [`download_defaults`].
+/// a placeholder (1) and `output_mode` is a placeholder
+/// ([`OUTPUT_MODE_PLACEHOLDER`]); see [`imaging_defaults`].
 pub(crate) fn image_from_job_defaults() -> ImageFromJobParams {
     schema_defaults!(ImageFromJobParams {
         source_job_id: NonZeroU64::MIN,
+        output_mode: OUTPUT_MODE_PLACEHOLDER,
     })
 }
 
@@ -94,28 +107,27 @@ pub fn conversion_params(obs_id: ObsId) -> ConversionJobParams {
     }
 }
 
-/// The request body of an imaging job (from an Obs ID) for `obs_id`.
-///
-/// `clean_threshold` is `None` (sent as `null`), not the schema's default:
-/// the schema marks it as deprecated (use `abs_threshold`), so the library
-/// does not send a value for it.
-pub fn imaging_params(obs_id: ObsId) -> ImagingJobParams {
+/// The request body of an imaging job (from an Obs ID) for `obs_id`, with
+/// the output mode `output_mode` (required by the schema, with no default).
+pub fn imaging_params(obs_id: ObsId, output_mode: ImageOutputMode) -> ImagingJobParams {
     ImagingJobParams {
         obs_id: i64::from(obs_id),
-        clean_threshold: None,
+        output_mode,
         ..imaging_defaults()
     }
 }
 
 /// The request body of an imaging job from a job: an image of the
-/// conversion job `source_job_id`. The MWA ASVO takes the Obs ID from the
-/// source job.
-///
-/// `clean_threshold` is `None` (sent as `null`); see [`imaging_params`].
-pub fn image_from_job_params(source_job_id: NonZeroU64) -> ImageFromJobParams {
+/// conversion job `source_job_id`, with the output mode `output_mode`
+/// (required by the schema, with no default). The MWA ASVO takes the Obs ID
+/// from the source job.
+pub fn image_from_job_params(
+    source_job_id: NonZeroU64,
+    output_mode: ImageOutputMode,
+) -> ImageFromJobParams {
     ImageFromJobParams {
         source_job_id,
-        clean_threshold: None,
+        output_mode,
         ..image_from_job_defaults()
     }
 }

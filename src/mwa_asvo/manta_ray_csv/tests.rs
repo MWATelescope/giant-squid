@@ -6,7 +6,10 @@
 
 use serde_json::{json, Value};
 
-use super::{parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams};
+use super::{
+    parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams,
+    CSV_POLARIZATION_XX_YY,
+};
 use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 
 const BEAMFORMER_FILE: &str =
@@ -158,10 +161,9 @@ fn the_visibility_file_has_two_visibility_downloads() {
     assert_eq!(jobs.len(), 2);
     for job in &jobs {
         assert_eq!(job.params.description(), "visibility download");
-        assert_has(
-            &body(job),
-            json!({"only_metadata": false, "delivery_format": "tar"}),
-        );
+        assert_has(&body(job), json!({"delivery_format": "tar"}));
+        // The schema gives `only_metadata` no default, so it is left out.
+        assert!(body(job).get("only_metadata").is_none());
     }
 }
 
@@ -334,7 +336,9 @@ fn a_voltage_line_sends_its_delivery() {
 #[test]
 fn the_deprecated_imaging_keys_are_unknown() {
     for key in ["clean_threshold=0.5", "nwlayers=64"] {
-        let problems = problems(&format!("obs_id=1349904240,job_type=i,{key}\n"));
+        let problems = problems(&format!(
+            "obs_id=1349904240,job_type=i,output_mode=fits,{key}\n"
+        ));
         assert!(problems[0].contains("unknown key"), "{key}: {problems:?}");
     }
 }
@@ -530,14 +534,17 @@ fn a_value_outside_the_limits_of_the_schema_is_refused_at_its_line() {
             "flag_edge_width",
         ),
         (
-            "obs_id=1349904240,job_type=i,pixel_scale=1\n",
+            "obs_id=1349904240,job_type=i,output_mode=fits,pixel_scale=1\n",
             "pixel_scale",
         ),
         (
-            "obs_id=1349904240,job_type=i,image_size=1000\n",
+            "obs_id=1349904240,job_type=i,output_mode=fits,image_size=1000\n",
             "image_size",
         ),
-        ("obs_id=1349904240,job_type=i,nmiter=0\n", "nmiter"),
+        (
+            "obs_id=1349904240,job_type=i,output_mode=fits,nmiter=0\n",
+            "nmiter",
+        ),
         (
             "obs_id=1323577520,job_type=v,offset=99999,duration=16\n",
             "offset",
@@ -643,15 +650,17 @@ fn the_six_files_make_no_warning() {
 
 #[test]
 fn the_other_fields_of_the_schema_are_keys_of_an_imaging_job() {
-    let text = "obs_id=1349904240, job_type=i, pol=xx_yy, join_channels=true, abs_threshold=0.5, \
-                wstack_nwlayers=64, no_apply_amps=true, no_rfi=true, no_flag_dc=false\n";
+    let text = "obs_id=1349904240, job_type=i, output_mode=all_fits, polarization=xx_yy, \
+                join_channels=true, abs_threshold=0.5, wstack_nwlayers=64, no_apply_amps=true, \
+                no_rfi=true, no_flag_dc=false\n";
 
     let jobs = parse(text);
 
     assert_has(
         &body(&jobs[0]),
         json!({
-            "pol": "XXYY",
+            "output_mode": "all_fits",
+            "polarization": "xx,yy",
             "join_channels": true,
             "abs_threshold": 0.5,
             "wstack_nwlayers": 64,
@@ -660,6 +669,46 @@ fn the_other_fields_of_the_schema_are_keys_of_an_imaging_job() {
             "no_flag_dc": false,
         }),
     );
+}
+
+/// An imaging line must give `output_mode`: the schema requires it and gives
+/// it no default.
+#[test]
+fn an_imaging_line_without_an_output_mode_is_refused() {
+    let problems = problems("obs_id=1349904240,job_type=i\n");
+
+    assert_eq!(problems, ["line 1: output_mode is required"]);
+}
+
+/// The schema's polarization `xx,yy` has a comma, which separates the cells,
+/// so a line gives it as `xxyy`. The other values are the schema's.
+#[test]
+fn the_polarization_xx_yy_is_given_as_xxyy() {
+    for (value, expected) in [
+        (CSV_POLARIZATION_XX_YY, "xx,yy"),
+        ("XXYY", "xx,yy"),
+        ("xx", "xx"),
+        ("IQUV", "iquv"),
+    ] {
+        let jobs = parse(&format!(
+            "obs_id=1349904240,job_type=i,output_mode=fits,polarization={value}\n"
+        ));
+        assert_has(&body(&jobs[0]), json!({"polarization": expected}));
+    }
+
+    let problems = problems("obs_id=1349904240,job_type=i,output_mode=fits,polarization=q\n");
+    assert_eq!(
+        problems,
+        ["line 1: polarization: `q` is not one of xx, yy, xy, yx, xxyy, i, iquv"]
+    );
+}
+
+/// `pol` is not a key: the schema's name is `polarization`.
+#[test]
+fn pol_is_an_unknown_key() {
+    let problems = problems("obs_id=1349904240,job_type=i,output_mode=fits,pol=xx\n");
+
+    assert!(problems[0].contains("unknown key `pol`"), "{problems:?}");
 }
 
 #[test]
@@ -687,7 +736,7 @@ fn the_mode_of_a_beamformer_job_is_an_unknown_key() {
 fn a_beamformer_job_is_a_download() {
     let jobs = parse("obs_id=1457858440,job_type=b\n");
 
-    assert_has(&body(&jobs[0]), json!({"only_metadata": false}));
+    assert!(body(&jobs[0]).get("only_metadata").is_none());
     assert!(body(&jobs[0]).get("offset").is_none());
     assert_eq!(jobs[0].params.endpoint(), crate::ENDPOINT_DOWNLOAD_JOB);
 }
@@ -720,7 +769,7 @@ fn each_job_type_goes_to_the_endpoint_of_its_kind() {
 
 #[test]
 fn a_key_that_no_job_type_has_is_still_an_error() {
-    let problems = problems("obs_id=1349904240,job_type=i,source_job_id=5\n");
+    let problems = problems("obs_id=1349904240,job_type=i,output_mode=fits,source_job_id=5\n");
 
     assert!(
         problems[0].contains("unknown key `source_job_id` for a imaging job"),

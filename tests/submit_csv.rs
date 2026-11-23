@@ -148,9 +148,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
     let visibility = env.server.mock(|when, then| {
         when.method(POST)
             .path("/api/v2/jobs/download")
-            .json_body_includes(
-                json!({"obs_id": 1349904184_u64, "only_metadata": false}).to_string(),
-            );
+            .json_body_includes(json!({"obs_id": 1349904184_u64}).to_string());
         then.status(200)
             .header("content-type", "application/json")
             .json_body(job_submitted_response(102));
@@ -188,7 +186,7 @@ fn the_jobs_of_a_file_are_submitted_to_their_own_endpoints() {
          obs_id=1349904184, job_type=d, download_type=vis\n\
          obs_id=1349904185, job_type=d, download_type=vis_meta\n\
          obs_id=1323507256, job_type=v, offset=0, duration=16, from_channel=185, to_channel=185\n\
-         obs_id=1349904240, job_type=i, image_size=3072\n\
+         obs_id=1349904240, job_type=i, output_mode=fits, image_size=3072\n\
          obs_id=1457858440, job_type=b\n",
     );
 
@@ -594,7 +592,7 @@ fn a_warning_is_shown_without_json() {
 fn the_other_fields_of_the_schema_are_accepted_as_keys() {
     let env = CliEnv::with_session();
     let file = CsvFile::new(
-        "obs_id=1349904240, job_type=i, pol=xx_yy, join_channels=true, abs_threshold=0.5, wstack_nwlayers=64, no_rfi=true\n\
+        "obs_id=1349904240, job_type=i, output_mode=fits, polarization=xx_yy, join_channels=true, abs_threshold=0.5, wstack_nwlayers=64, no_rfi=true\n\
          obs_id=1349904240, job_type=c, no_apply_amps=true\n\
          obs_id=1457858440, job_type=b, allow_resubmit=true\n",
     );
@@ -605,7 +603,7 @@ fn the_other_fields_of_the_schema_are_accepted_as_keys() {
 
     assert!(result.success, "{}", result.combined());
     let lines = result.stdout_json_lines();
-    assert_eq!(lines[0]["params"]["pol"], "XXYY");
+    assert_eq!(lines[0]["params"]["polarization"], "xx,yy");
     assert_eq!(lines[0]["params"]["wstack_nwlayers"], 64);
     assert_eq!(lines[1]["params"]["no_apply_amps"], true);
     // A beamformer body has no download_type.

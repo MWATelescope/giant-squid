@@ -145,6 +145,16 @@ fn the_table_of_list_is_an_error_that_names_the_options_to_use() {
 }
 
 #[test]
+fn a_10_digit_number_below_the_minimum_is_not_a_job_id() {
+    assert!(matches!(
+        parse_ids_from_text("5\n1000000000\n"),
+        Err(ParseError::InvalidObsId {
+            value: 1_000_000_000
+        })
+    ));
+}
+
+#[test]
 fn a_zero_is_not_a_job_id() {
     assert!(matches!(
         parse_ids_from_text("5\n0\n"),

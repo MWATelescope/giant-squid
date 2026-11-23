@@ -101,7 +101,7 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
     assert ready.completed == COMPLETED_UTC
     assert ready.product is not None
     (file,) = ready.product.files
-    assert file.type == gs.Type.Acacia
+    assert file.type == gs.DeliveryDestination.Acacia
     assert file.url == FILE_URL
     assert file.size == FILE_SIZE
     assert file.sha1 == FILE_SHA1
@@ -137,7 +137,7 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
     assert len(jobs.filter(job_types=[gs.JobType.Conversion])) == 0
     errors_and_ready = jobs.filter(job_states=[gs.JobState.Error, gs.JobState.Completed])
     assert [j.job_id for j in errors_and_ready] == [JOB_ID_READY, JOB_ID_FAILED]
-    with pytest.raises(gs.ObsIdError, match="10 digits"):
+    with pytest.raises(gs.ObsIdError, match="not a valid MWA Obs ID"):
         jobs.filter(obs_ids=[1])
 
 

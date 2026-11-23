@@ -1,6 +1,7 @@
 """Tests for the request-body classes: their checked IDs, `validate()`, the helper functions and `PreprocessJobParams`."""
 
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import pytest
@@ -8,7 +9,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import TEST_API_KEY, TEST_OBS_ID
+from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID, TEST_OUTPUT_MODE
 from .test_submit import (
     CONVERSION_PATH,
     DOWNLOAD_PATH,
@@ -26,7 +27,7 @@ OFFSET_TOO_LARGE = 6000
 INVALID_IMAGE_SIZE = 100
 
 # The classes that are made from an Obs ID.
-OBS_ID_CLASSES = [gs.DownloadJobParams, gs.ConversionJobParams, gs.ImagingJobParams]
+OBS_ID_CLASSES = [gs.DownloadJobParams, gs.ConversionJobParams, IMAGING_JOB]
 
 
 def attributes(params: object) -> dict[str, Any]:
@@ -67,10 +68,10 @@ def test_the_obs_id_is_checked_when_it_is_set(cls: Any) -> None:
 
 def test_the_source_job_id_is_not_zero() -> None:
     """The library's field is a `NonZeroU64`, so 0 raises when the value is made or set."""
-    params = gs.ImageFromJobParams(SOURCE_JOB_ID)
+    params = IMAGE_FROM_JOB(SOURCE_JOB_ID)
 
     with pytest.raises(ValueError, match="0 is not a Job ID"):
-        gs.ImageFromJobParams(0)
+        IMAGE_FROM_JOB(0)
     with pytest.raises(ValueError, match="0 is not a Job ID"):
         params.source_job_id = 0
 
@@ -79,11 +80,15 @@ def test_the_source_job_id_is_not_zero() -> None:
 
 def test_an_image_from_a_job_has_no_obs_id() -> None:
     """The MWA ASVO takes the Obs ID from the source job, so the class has none."""
-    params = gs.ImageFromJobParams(SOURCE_JOB_ID)
+    params = IMAGE_FROM_JOB(SOURCE_JOB_ID)
 
     assert not hasattr(params, "obs_id")
     with pytest.raises(TypeError, match="obs_id"):
-        gs.ImageFromJobParams(SOURCE_JOB_ID, obs_id=TEST_OBS_ID)  # ty: ignore[unknown-argument]
+        gs.ImageFromJobParams(
+            SOURCE_JOB_ID,
+            output_mode=TEST_OUTPUT_MODE,
+            obs_id=TEST_OBS_ID,  # ty: ignore[unknown-argument]
+        )
 
 
 def test_validate_accepts_the_defaults() -> None:
@@ -91,8 +96,8 @@ def test_validate_accepts_the_defaults() -> None:
     gs.DownloadJobParams(TEST_OBS_ID).validate()
     gs.DownloadJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION).validate()
     gs.ConversionJobParams(TEST_OBS_ID).validate()
-    gs.ImagingJobParams(TEST_OBS_ID).validate()
-    gs.ImageFromJobParams(SOURCE_JOB_ID).validate()
+    IMAGING_JOB(TEST_OBS_ID).validate()
+    IMAGE_FROM_JOB(SOURCE_JOB_ID).validate()
 
 
 def test_validate_refuses_an_offset_outside_the_limits() -> None:
@@ -112,9 +117,9 @@ def test_validate_refuses_a_delivery_that_the_format_does_not_suit() -> None:
 def test_validate_refuses_an_image_size_that_is_not_allowed() -> None:
     """The size must be one of the sizes that the MWA ASVO allows, in both imaging bodies."""
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
-        gs.ImagingJobParams(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
+        IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
-        gs.ImageFromJobParams(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
+        IMAGE_FROM_JOB(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
 
 
 def test_validate_refuses_a_custom_centre_without_a_position() -> None:
@@ -142,7 +147,7 @@ def test_download_params_is_the_class_with_its_defaults() -> None:
 
     assert isinstance(made, gs.DownloadJobParams)
     assert attributes(made) == attributes(gs.DownloadJobParams(TEST_OBS_ID))
-    assert made.only_metadata is False
+    assert made.only_metadata is None
     assert (made.offset, made.duration, made.from_channel, made.to_channel) == (None, None, None, None)
 
 
@@ -156,23 +161,23 @@ def test_conversion_params_is_the_class_with_its_defaults() -> None:
 
 def test_imaging_params_is_the_class_with_its_defaults() -> None:
     """`imaging_params(obs_id)` is `ImagingJobParams(obs_id)`."""
-    made = gs.imaging_params(TEST_OBS_ID)
+    made = gs.imaging_params(TEST_OBS_ID, TEST_OUTPUT_MODE)
 
     assert isinstance(made, gs.ImagingJobParams)
-    assert attributes(made) == attributes(gs.ImagingJobParams(TEST_OBS_ID))
+    assert attributes(made) == attributes(IMAGING_JOB(TEST_OBS_ID))
 
 
 def test_image_from_job_params_is_the_class_with_its_defaults() -> None:
     """`image_from_job_params(source_job_id)` is `ImageFromJobParams(source_job_id)`."""
-    made = gs.image_from_job_params(SOURCE_JOB_ID)
+    made = gs.image_from_job_params(SOURCE_JOB_ID, TEST_OUTPUT_MODE)
 
     assert isinstance(made, gs.ImageFromJobParams)
-    assert attributes(made) == attributes(gs.ImageFromJobParams(SOURCE_JOB_ID))
+    assert attributes(made) == attributes(IMAGE_FROM_JOB(SOURCE_JOB_ID))
 
 
 @pytest.mark.parametrize(
     "make",
-    [gs.download_params, gs.conversion_params, gs.imaging_params],
+    [gs.download_params, gs.conversion_params, partial(gs.imaging_params, output_mode=TEST_OUTPUT_MODE)],
 )
 def test_a_helper_refuses_an_invalid_obs_id(make: Callable[[int], Any]) -> None:
     """The helpers take an `ObsId`, so a number is checked."""
@@ -183,7 +188,7 @@ def test_a_helper_refuses_an_invalid_obs_id(make: Callable[[int], Any]) -> None:
 def test_a_helper_refuses_job_id_zero() -> None:
     """`image_from_job_params` takes a Job ID."""
     with pytest.raises(ValueError, match="0 is not a Job ID"):
-        gs.image_from_job_params(0)
+        gs.image_from_job_params(0, TEST_OUTPUT_MODE)
 
 
 def test_a_helper_takes_an_obs_id() -> None:
@@ -194,7 +199,7 @@ def test_a_helper_takes_an_obs_id() -> None:
 def test_a_preprocess_job_params_holds_its_class() -> None:
     """Each variant has the class that it was made from."""
     conversion = gs.ConversionJobParams(TEST_OBS_ID)
-    imaging = gs.ImagingJobParams(TEST_OBS_ID)
+    imaging = IMAGING_JOB(TEST_OBS_ID)
 
     assert gs.PreprocessJobParams.Conversion(conversion).params is conversion
     assert gs.PreprocessJobParams.Imaging(imaging).params is imaging
@@ -203,7 +208,7 @@ def test_a_preprocess_job_params_holds_its_class() -> None:
 
 def test_a_preprocess_job_params_can_be_matched() -> None:
     """The variants are classes, so `match` works as it does for a Rust enum."""
-    params = gs.PreprocessJobParams.Imaging(gs.ImagingJobParams(TEST_OBS_ID))
+    params = gs.PreprocessJobParams.Imaging(IMAGING_JOB(TEST_OBS_ID))
 
     match params:
         case gs.PreprocessJobParams.Imaging(params=inner):
@@ -215,7 +220,7 @@ def test_a_preprocess_job_params_can_be_matched() -> None:
 def test_a_preprocess_job_params_validates_what_it_holds() -> None:
     """`validate` uses the `validate_*_params` function of the class that it holds."""
     gs.PreprocessJobParams.Conversion(gs.ConversionJobParams(TEST_OBS_ID)).validate()
-    bad = gs.PreprocessJobParams.Imaging(gs.ImagingJobParams(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
+    bad = gs.PreprocessJobParams.Imaging(IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
     with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
         bad.validate()

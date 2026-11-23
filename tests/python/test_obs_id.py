@@ -11,11 +11,14 @@ import mwa_giant_squid as gs
 
 OBS_ID = 1065880128
 LATER_OBS_ID = 1065880248
-SMALLEST = 1_000_000_000
+# The MWA ASVO schema's `obs_id` minimum.
+SMALLEST = 1_056_643_216
 LARGEST = 9_999_999_999
+# The smallest number with 10 digits: below SMALLEST, so not a valid Obs ID.
+SMALLEST_TEN_DIGITS = 1_000_000_000
 
 
-def test_the_limits_are_the_smallest_and_largest_10_digit_numbers() -> None:
+def test_the_limits_are_the_schema_minimum_and_the_largest_10_digit_number() -> None:
     """MIN and MAX are the class attributes of the library's limits."""
     assert gs.ObsId.MIN == SMALLEST
     assert gs.ObsId.MAX == LARGEST
@@ -23,7 +26,7 @@ def test_the_limits_are_the_smallest_and_largest_10_digit_numbers() -> None:
 
 @pytest.mark.parametrize("value", [SMALLEST, OBS_ID, LARGEST])
 def test_a_valid_obs_id_is_made(value: int) -> None:
-    """Both constructors accept every 10-digit number."""
+    """Both constructors accept every number from MIN to MAX."""
     assert int(gs.ObsId(value)) == value
     assert gs.ObsId.validate(value).get() == value
 
@@ -33,11 +36,11 @@ def test_an_obs_id_is_made_from_another_obs_id() -> None:
     assert gs.ObsId(gs.ObsId(OBS_ID)) == OBS_ID
 
 
-@pytest.mark.parametrize("value", [0, 1, SMALLEST - 1, LARGEST + 1])
-def test_a_number_without_10_digits_raises_obs_id_error(value: int) -> None:
+@pytest.mark.parametrize("value", [0, 1, SMALLEST_TEN_DIGITS, SMALLEST - 1, LARGEST + 1])
+def test_a_number_outside_the_limits_raises_obs_id_error(value: int) -> None:
     """The error is the class of its variant, has the number, and is an ObsIdError."""
     for make in (gs.ObsId, gs.ObsId.validate):
-        with pytest.raises(gs.ObsIdErrorWrongNumDigits, match="10 digits") as excinfo:
+        with pytest.raises(gs.ObsIdErrorWrongNumDigits, match="not a valid MWA Obs ID") as excinfo:
             make(value)
         error = excinfo.value
         assert isinstance(error, gs.ObsIdError)

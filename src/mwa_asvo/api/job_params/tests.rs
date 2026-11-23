@@ -102,21 +102,31 @@ fn the_constructors_set_the_required_fields() {
     assert_eq!(download.obs_id, i64::from(obs_id));
 
     let source_job_id = NonZeroU64::new(77).expect("not zero");
-    let image = image_from_job_params(source_job_id);
+    let image = image_from_job_params(source_job_id, ImageOutputMode::AllFits);
     assert_eq!(image.source_job_id, source_job_id);
+    assert_eq!(image.output_mode, ImageOutputMode::AllFits);
+    assert_eq!(
+        ImageFromJobParams {
+            source_job_id: NonZeroU64::MIN,
+            output_mode: OUTPUT_MODE_PLACEHOLDER,
+            ..image
+        },
+        image_from_job_defaults()
+    );
 
-    // The deprecated `clean_threshold` is sent as null; `nwlayers` is left
-    // out (its default is null).
-    let imaging = serde_json::to_value(imaging_params(obs_id)).expect("JSON");
-    let image = serde_json::to_value(image).expect("JSON");
-    for body in [&imaging, &image] {
-        let object = body.as_object().expect("an object");
-        assert_eq!(object.get("clean_threshold"), Some(&Value::Null));
-        assert!(!object.contains_key("nwlayers"));
-    }
+    let imaging = imaging_params(obs_id, ImageOutputMode::AllFiles);
+    assert_eq!(imaging.output_mode, ImageOutputMode::AllFiles);
+    assert_eq!(
+        ImagingJobParams {
+            obs_id: 0,
+            output_mode: OUTPUT_MODE_PLACEHOLDER,
+            ..imaging.clone()
+        },
+        imaging_defaults()
+    );
 
     assert_eq!(conversion_params(obs_id).obs_id, i64::from(obs_id));
-    assert_eq!(imaging_params(obs_id).obs_id, i64::from(obs_id));
+    assert_eq!(imaging.obs_id, i64::from(obs_id));
 }
 
 /// A preprocess body is sent as the body that it holds, with no tag.
@@ -129,8 +139,8 @@ fn a_preprocess_body_is_sent_as_the_body_it_holds() {
             serde_json::to_value(conversion_params(obs_id)),
         ),
         (
-            PreprocessJobParams::from(imaging_params(obs_id)),
-            serde_json::to_value(imaging_params(obs_id)),
+            PreprocessJobParams::from(imaging_params(obs_id, ImageOutputMode::Fits)),
+            serde_json::to_value(imaging_params(obs_id, ImageOutputMode::Fits)),
         ),
     ];
     for (params, expected) in cases {
@@ -158,9 +168,9 @@ fn a_preprocess_body_is_checked_as_the_body_it_holds() {
     ));
 }
 
-/// A download body leaves out the voltage fields that are not set (their
-/// default is null), and has `only_metadata` and the delivery at their
-/// defaults. A voltage job sets the voltage fields.
+/// A download body leaves out the voltage fields and `only_metadata` when
+/// they are not set (they have no default, so they are null), and has the
+/// delivery at its defaults. A voltage job sets the voltage fields.
 #[test]
 fn a_download_body_has_the_voltage_fields_only_when_set() {
     const VOLTAGE_FIELDS: [&str; 4] = ["offset", "duration", "from_channel", "to_channel"];
@@ -177,7 +187,7 @@ fn a_download_body_has_the_voltage_fields_only_when_set() {
     for field in VOLTAGE_FIELDS {
         assert!(!download.contains_key(field), "{field} is in the body");
     }
-    assert_eq!(download.get("only_metadata"), Some(&Value::Bool(false)));
+    assert!(!download.contains_key("only_metadata"));
     assert!(download.contains_key("delivery"));
     assert!(download.contains_key("delivery_format"));
 

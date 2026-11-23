@@ -23,7 +23,7 @@ const DELIVERY_FORMAT: &[&str] = &["tar", "files"];
 const OUTPUT: &[&str] = &["ms", "uvfits"];
 const CENTRE: &[&str] = &["phase", "pointing", "custom"];
 const OUTPUT_MODE: &[&str] = &["fits", "all_fits", "all_files"];
-const POLARIZATION: &[&str] = &["XX", "YY", "XXYY"];
+const POLARIZATION: &[&str] = &["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"];
 const WEIGHTING: &[&str] = &["briggs", "uniform", "natural"];
 
 /// Every option that takes a schema enum: the command, the option and the
@@ -45,12 +45,12 @@ const OPTIONS: &[(&str, &str, &[&str])] = &[
     ("submit-image", "delivery-format", DELIVERY_FORMAT),
     ("submit-image", "centre", CENTRE),
     ("submit-image", "output-mode", OUTPUT_MODE),
-    ("submit-image", "pol", POLARIZATION),
+    ("submit-image", "polarization", POLARIZATION),
     ("submit-image", "weighting", WEIGHTING),
     ("submit-image-from-job", "delivery", DELIVERY),
     ("submit-image-from-job", "delivery-format", DELIVERY_FORMAT),
     ("submit-image-from-job", "output-mode", OUTPUT_MODE),
-    ("submit-image-from-job", "pol", POLARIZATION),
+    ("submit-image-from-job", "polarization", POLARIZATION),
     ("submit-image-from-job", "weighting", WEIGHTING),
 ];
 
@@ -157,10 +157,20 @@ fn a_value_that_is_not_allowed_names_the_allowed_values() {
 /// The polarisation stays the text that the request body carries.
 #[test]
 fn the_polarisation_option_gives_the_api_text() {
-    let args = Args::try_parse_from(["giant-squid", "submit-image", "--pol", "XXYY", "1065880128"])
-        .expect("XXYY is a polarisation");
+    let args = Args::try_parse_from([
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        "--polarization",
+        "xx,yy",
+        "1065880128",
+    ])
+    .expect("xx,yy is a polarisation");
     match args {
-        Args::SubmitImage { image, .. } => assert_eq!(image.wsclean.pol.to_string(), "XXYY"),
+        Args::SubmitImage { image, .. } => {
+            assert_eq!(image.wsclean.polarization.to_string(), "xx,yy")
+        }
         other => panic!("expected SubmitImage, got {other:?}"),
     }
 }
@@ -176,8 +186,8 @@ fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
         "ACACIA",
         "--output-mode",
         "All-Fits",
-        "--pol",
-        "xxyy",
+        "--polarization",
+        "XX,YY",
         "1065880128",
     ])
     .expect("the values parse");
@@ -185,7 +195,7 @@ fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
         Args::SubmitImage { image, .. } => {
             assert_eq!(image.delivery_args.delivery, DeliveryDestination::Acacia);
             assert_eq!(image.wsclean.output_mode, ImageOutputMode::AllFits);
-            assert_eq!(image.wsclean.pol, Polarization::Xxyy);
+            assert_eq!(image.wsclean.polarization, Polarization::XxYy);
         }
         other => panic!("expected SubmitImage, got {other:?}"),
     }

@@ -14,7 +14,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import TEST_API_KEY, TEST_OBS_ID
+from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID
 from .test_submit import (
     CONVERSION_PATH,
     DOWNLOAD_PATH,
@@ -52,19 +52,18 @@ METADATA_JOB = partial(gs.DownloadJobParams, only_metadata=True)
 # to None, and the value that the argument has when it is left out (the schema's default).
 NULLABLE_WITH_DEFAULT = [
     (gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
-    (gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), "only_metadata", False),
     (METADATA_JOB, DOWNLOAD_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "avg_time_res", 2.0),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "no_rfi", False),
     (gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), "no_geometric_delay", False),
-    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
-    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
-    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
-    (gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
-    (gs.ImageFromJobParams, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
-    (gs.ImageFromJobParams, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
+    (IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
+    (IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), "avg_freq_res", 40.0),
+    (IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), "abs_threshold", 0.001),
+    (IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), "no_flag_dc", False),
+    (IMAGE_FROM_JOB, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "allow_resubmit", False),
+    (IMAGE_FROM_JOB, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), "abs_threshold", 0.001),
     (VOLTAGE_JOB, VOLTAGE_PATH, (TEST_OBS_ID,), "allow_resubmit", False),
 ]
 

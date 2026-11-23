@@ -133,9 +133,9 @@ mod module {
         AsvoErrorNoHash, AsvoErrorNoJobReadyForObsId, AsvoErrorNoObsId, AsvoErrorNoPath,
         AsvoErrorNoUrl, AsvoErrorNotReady, AsvoErrorSymlinkInDownloadDir, AsvoErrorTooManyObsIds,
         ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError, ParseErrorInsideFile,
-        ParseErrorInsideStdin, ParseErrorInvalidTime, ParseErrorJobIdsGiven, ParseErrorNoJobIds,
-        ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError, ParseErrorStdinJson,
-        ParseErrorZeroJobId,
+        ParseErrorInsideStdin, ParseErrorInvalidObsId, ParseErrorInvalidTime,
+        ParseErrorJobIdsGiven, ParseErrorNoJobIds, ParseErrorNoObsIds, ParseErrorObsIdsGiven,
+        ParseErrorStdinError, ParseErrorStdinJson, ParseErrorZeroJobId,
     };
     #[pymodule_export]
     use super::filter::PyJobsFilter;
@@ -157,7 +157,7 @@ mod module {
         PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress,
         PyImageOutputMode, PyImageWeighting, PyJobCancelledResponse, PyJobDetailResponse,
         PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput,
-        PyPhaseCentre, PyPolarization, PySortBy, PyStatus, PyType,
+        PyPhaseCentre, PyPolarization, PySortBy, PyStatus,
     };
 
     /// Make Python see changes to its logging configuration.

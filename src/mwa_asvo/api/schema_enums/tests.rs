@@ -19,7 +19,10 @@ fn each_list_is_in_the_schema_order_and_parses_back() {
         values::<DeliveryDestination>(),
         ["acacia", "scratch", "dug"]
     );
-    assert_eq!(values::<Polarization>(), ["XX", "YY", "XXYY"]);
+    assert_eq!(
+        values::<Polarization>(),
+        ["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"]
+    );
     assert_eq!(
         values::<JobState>().first().map(String::as_str),
         Some("preparing")

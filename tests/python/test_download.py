@@ -428,7 +428,7 @@ def test_a_dug_job_raises_files_not_reachable(
 
     assert err.value.kind == "FilesNotReachable"
     assert err.value.job_id == JOB_ID
-    assert err.value.delivery == gs.Type.Dug
+    assert err.value.delivery == gs.DeliveryDestination.Dug
     assert err.value.path == "/dug/asvo/12345"
 
 
@@ -463,7 +463,7 @@ def test_an_invalid_obs_id_is_rejected_before_any_request(
     """download_obs checks the obsid first."""
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.ObsIdError, match="10 digits"):
+    with pytest.raises(gs.ObsIdError, match="not a valid MWA Obs ID"):
         client.download_obs(1, gs.DownloadOptions(tmp_path))
 
     assert len(httpserver.log) == requests_before

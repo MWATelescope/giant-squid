@@ -1063,7 +1063,7 @@ mod retries {
     use tempfile::TempDir;
 
     use super::{options, sha1_hex};
-    use crate::mwa_asvo::api::openapi::{JobDetailResponse, Type as FileType};
+    use crate::mwa_asvo::api::openapi::{DeliveryDestination, JobDetailResponse};
     use crate::mwa_asvo::download::{
         create_file, is_network_read_error, network_error, resume_point, retry_class, try_download,
         try_download_untar, untar_stream, NetworkReader, ResumePoint, Retry, RetryState,
@@ -1184,7 +1184,7 @@ mod retries {
     /// The file entry for `archive`, served from `url`.
     fn file_info(url: &str, archive: &[u8], sha1: &str) -> JobFile {
         JobFile {
-            type_: FileType::Acacia,
+            type_: DeliveryDestination::Acacia,
             url: Some(url.to_string()),
             path: None,
             size: archive.len() as i64,
@@ -2529,7 +2529,7 @@ fn download_fails(env: &TestEnv) -> AsvoError {
 /// fails rather than reporting a success.
 #[test]
 fn a_dug_job_is_reported_as_not_reachable() {
-    use crate::mwa_asvo::api::openapi::Type as FileType;
+    use crate::mwa_asvo::api::openapi::DeliveryDestination;
 
     let env = TestEnv::with_session();
     env.mock_get_jobs(vec![ready_job_with_file(
@@ -2543,7 +2543,7 @@ fn a_dug_job_is_reported_as_not_reachable() {
             path,
         } => {
             assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID);
-            assert_eq!(delivery, FileType::Dug);
+            assert_eq!(delivery, DeliveryDestination::Dug);
             assert_eq!(path.as_deref(), Some("/dug/asvo/12345"));
         }
         other => panic!("expected FilesNotReachable, got {other:?}"),
@@ -2553,7 +2553,7 @@ fn a_dug_job_is_reported_as_not_reachable() {
 /// A Scratch job whose path this host cannot reach fails the download.
 #[test]
 fn a_scratch_job_that_this_host_cannot_reach_is_reported() {
-    use crate::mwa_asvo::api::openapi::Type as FileType;
+    use crate::mwa_asvo::api::openapi::DeliveryDestination;
 
     let unreachable = TempDir::new().expect("could not create a directory");
     let path = unreachable.path().join("not-here").display().to_string();
@@ -2568,7 +2568,7 @@ fn a_scratch_job_that_this_host_cannot_reach_is_reported() {
             path: reported,
             ..
         } => {
-            assert_eq!(delivery, FileType::Scratch);
+            assert_eq!(delivery, DeliveryDestination::Scratch);
             assert_eq!(reported.as_deref(), Some(path.as_str()));
         }
         other => panic!("expected FilesNotReachable, got {other:?}"),

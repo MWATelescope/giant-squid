@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::mwa_asvo::api::openapi::Type as FileType;
+use crate::mwa_asvo::api::openapi::DeliveryDestination;
 use crate::mwa_asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
 use crate::obs_id::ObsId;
 
@@ -117,9 +117,9 @@ impl<'a> From<&'a JobFile> for LegacyFile<'a> {
         Self {
             // The old format wrote the delivery in CamelCase.
             delivery: match file.type_ {
-                FileType::Acacia => "Acacia",
-                FileType::Dug => "Dug",
-                FileType::Scratch => "Scratch",
+                DeliveryDestination::Acacia => "Acacia",
+                DeliveryDestination::Dug => "Dug",
+                DeliveryDestination::Scratch => "Scratch",
             },
             url: &file.url,
             path: &file.path,

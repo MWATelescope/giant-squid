@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
 use super::obs_id::PyObsId;
-use super::types::{PyJobState, PyType};
+use super::types::{PyDeliveryDestination, PyJobState};
 // The library's error enums have the same names as the Python exceptions,
 // so they are used through this path.
 use crate::mwa_asvo as lib;
@@ -148,7 +148,7 @@ variant_exceptions! {
 
 variant_exceptions! {
     ObsIdError:
-    ObsIdErrorWrongNumDigits => "The number does not have 10 digits (kind `WrongNumDigits`). `value` is the number.",
+    ObsIdErrorWrongNumDigits => "The number is outside `ObsId.MIN` to `ObsId.MAX` (kind `WrongNumDigits`). `value` is the number.",
     ObsIdErrorParse => "The text is not a number (kind `Parse`).",
 }
 
@@ -161,6 +161,7 @@ variant_exceptions! {
     ParseErrorJobIdsGiven => "Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.",
     ParseErrorObsIdsGiven => "Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.",
     ParseErrorZeroJobId => "0 is not a Job ID or an Obs ID (kind `ZeroJobId`).",
+    ParseErrorInvalidObsId => "A number has 10 digits, so it is read as an Obs ID, but it is below `ObsId.MIN` (kind `InvalidObsId`). `value` is the number.",
     ParseErrorNoObsIds => "No Obs IDs were given (kind `NoObsIds`).",
     ParseErrorNoJobIds => "No Job IDs were given (kind `NoJobIds`).",
     ParseErrorInvalidTime => "The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).",
@@ -176,7 +177,7 @@ mod stub_attributes {
     use pyo3_stub_gen::PyStubType;
 
     use super::super::obs_id::PyObsId;
-    use super::super::types::{PyJobState, PyType};
+    use super::super::types::{PyDeliveryDestination, PyJobState};
     use super::{AsvoApiError, AsvoError, ObsIdError, ParseError};
 
     /// The type of an `AsvoApiError` object, for the stub of `source`.
@@ -238,7 +239,7 @@ mod stub_attributes {
                 attr!("error", String, "JobFailed: the job's error message."),
                 attr!("error_code", Option<i64>, "JobFailed: the job's error code, or None."),
                 attr!("job_state", PyJobState, "NotReady: the job's state."),
-                attr!("delivery", PyType, "FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch)."),
+                attr!("delivery", PyDeliveryDestination, "FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch)."),
                 attr!("path", Option<String>, "FilesNotReachable: the path of the files, if the MWA ASVO gave one."),
                 attr!("file", String, "HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there."),
                 attr!("calculated_hash", String, "HashMismatch."),
@@ -288,6 +289,7 @@ mod stub_attributes {
                 attr!("problem", String, "StdinJson: what is wrong."),
                 attr!("job_ids", Vec<u64>, "JobIdsGiven: the Job IDs."),
                 attr!("obs_ids", Vec<PyObsId>, "ObsIdsGiven: the Obs IDs."),
+                attr!("value", u64, "InvalidObsId: the number."),
             ],
             getters: &[],
             setters: &[],
@@ -315,8 +317,8 @@ enum Field {
     ObsIds(Vec<ObsId>),
     OptInt(Option<i64>),
     State(PyJobState),
-    /// A delivery type (`Type`), or `None`.
-    Delivery(PyType),
+    /// A delivery (`DeliveryDestination`), or `None`.
+    Delivery(PyDeliveryDestination),
     /// A list of `{"field": ..., "message": ...}` dicts.
     ErrorDicts(Vec<lib::api::openapi::FieldError>),
     /// A time (a `datetime`), or `None`.
@@ -654,7 +656,10 @@ pub(crate) fn asvo_error(py: Python<'_>, e: lib::AsvoError) -> PyErr {
             "FilesNotReachable",
             vec![
                 job_id(id),
-                ("delivery", Field::Delivery(PyType::from(delivery))),
+                (
+                    "delivery",
+                    Field::Delivery(PyDeliveryDestination::from(delivery))
+                ),
                 ("path", Field::OptStr(path)),
             ]
         ),
@@ -756,6 +761,11 @@ pub(crate) fn parse_error(py: Python<'_>, e: LibParseError) -> PyErr {
             vec![("obs_ids", Field::ObsIds(obs_ids))]
         ),
         LibParseError::ZeroJobId => raise!(ParseErrorZeroJobId, "ZeroJobId", vec![]),
+        LibParseError::InvalidObsId { value } => raise!(
+            ParseErrorInvalidObsId,
+            "InvalidObsId",
+            vec![("value", Field::Int(value))]
+        ),
         LibParseError::NoObsIds => raise!(ParseErrorNoObsIds, "NoObsIds", vec![]),
         LibParseError::NoJobIds => raise!(ParseErrorNoJobIds, "NoJobIds", vec![]),
         LibParseError::InvalidTime => raise!(ParseErrorInvalidTime, "InvalidTime", vec![]),

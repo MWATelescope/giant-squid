@@ -35,7 +35,7 @@ pub use helpers::{
 /// the `created` field of a job), so that a program uses the same jiff version.
 pub use jiff;
 pub use mwa_asvo::api::client::{
-    AsvoClient, AsvoClientConfig, JobsFilter, API_PREFIX, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
+    AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
     ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 pub use mwa_asvo::api::error::AsvoApiError;

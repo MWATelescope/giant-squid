@@ -9,7 +9,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 
 use crate::mwa_asvo::api::openapi::{
-    JobDetailResponse, JobFile, JobState, JobType, Type as FileType,
+    DeliveryDestination, JobDetailResponse, JobFile, JobState, JobType,
 };
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::{obs_id::ObsId, AsvoError};
@@ -145,7 +145,7 @@ impl AsvoJob {
             .as_ref()?
             .files
             .iter()
-            .filter(|file| file.type_ == FileType::Acacia)
+            .filter(|file| file.type_ == DeliveryDestination::Acacia)
             .filter_map(|file| file.url.as_deref().and_then(signed_url_expiry))
             .min()
     }

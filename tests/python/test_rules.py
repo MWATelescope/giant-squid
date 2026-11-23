@@ -16,7 +16,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import GET_JOBS_PATH, TEST_API_KEY, TEST_OBS_ID
+from .conftest import GET_JOBS_PATH, IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID
 from .test_client import SCHEMA_PATH
 from .test_submit import (
     CONVERSION_PATH,
@@ -43,8 +43,8 @@ DELIVERY_JOBS = [
     pytest.param(gs.DownloadJobParams, DOWNLOAD_PATH, (TEST_OBS_ID,), id="download"),
     pytest.param(partial(gs.DownloadJobParams, only_metadata=True), DOWNLOAD_PATH, (TEST_OBS_ID,), id="meta"),
     pytest.param(gs.ConversionJobParams, CONVERSION_PATH, (TEST_OBS_ID,), id="conversion"),
-    pytest.param(gs.ImagingJobParams, IMAGING_PATH, (TEST_OBS_ID,), id="imaging"),
-    pytest.param(gs.ImageFromJobParams, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), id="image_from_job"),
+    pytest.param(IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), id="imaging"),
+    pytest.param(IMAGE_FROM_JOB, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), id="image_from_job"),
 ]
 
 

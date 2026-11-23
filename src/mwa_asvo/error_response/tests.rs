@@ -253,11 +253,11 @@ fn a_download_error_without_a_hash_has_its_own_code() {
 
 #[test]
 fn files_that_cannot_be_reached_have_their_own_code() {
-    use crate::mwa_asvo::api::openapi::Type as FileType;
+    use crate::mwa_asvo::api::openapi::DeliveryDestination;
 
     let error = AsvoError::FilesNotReachable {
         job_id: job_id(5),
-        delivery: FileType::Dug,
+        delivery: DeliveryDestination::Dug,
         path: None,
     };
 

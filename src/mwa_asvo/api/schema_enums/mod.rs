@@ -17,7 +17,7 @@ use std::str::FromStr;
 
 use super::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobState, JobType,
-    Output, PhaseCentre, Polarization, SortBy, Status, Type,
+    Output, PhaseCentre, Polarization, SortBy, Status,
 };
 
 /// An enum of the OpenAPI schema, with the list of all its values.
@@ -65,16 +65,8 @@ macro_rules! for_each_schema_enum {
             PyDeliveryDestination,
             "DeliveryDestination",
             "Where the MWA ASVO delivers a job's files: the OpenAPI schema's\n\
-             `DeliveryDestination`, the `delivery` argument of the submit methods.\n\
-             `str()` is the API value.",
-            [Acacia, Scratch, Dug]
-        );
-        $callback!(
-            Type,
-            PyType,
-            "Type",
-            "Where a job's file is delivered: the OpenAPI schema's `Type`, the type\n\
-             of `JobFile.type`. `str()` is the API value.",
+             `DeliveryDestination`, the `delivery` argument of the submit methods\n\
+             and the type of `JobFile.type`. `str()` is the API value.",
             [Acacia, Scratch, Dug]
         );
         $callback!(
@@ -121,7 +113,7 @@ macro_rules! for_each_schema_enum {
             PyPolarization,
             "Polarization",
             "The polarisation an imaging job images. `str()` is the API value.",
-            [Xx, Yy, Xxyy]
+            [Xx, Yy, Xy, Yx, XxYy, I, Iquv]
         );
         $callback!(
             JobState,

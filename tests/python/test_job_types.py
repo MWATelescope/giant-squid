@@ -210,6 +210,6 @@ def test_an_unknown_job_state_raises_asvo_error() -> None:
 
 def test_only_job_type_and_job_state_have_names() -> None:
     """As in the library: the other schema enums have no `names` or `parse_name`."""
-    for enum in (gs.DeliveryDestination, gs.DeliveryFormat, gs.SortBy, gs.Status, gs.Type):
+    for enum in (gs.DeliveryDestination, gs.DeliveryFormat, gs.SortBy, gs.Status):
         assert not hasattr(enum, "names"), enum
         assert not hasattr(enum, "parse_name"), enum

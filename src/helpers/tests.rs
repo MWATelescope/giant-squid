@@ -259,3 +259,36 @@ fn zero_is_not_a_job_id() {
     assert!(matches!(err, ParseError::ZeroJobId), "{err:?}");
     assert_eq!(err.to_string(), "0 is not a Job ID or an Obs ID");
 }
+
+/// A number with 10 digits is read as an Obs ID, so one below `ObsId::MIN` is
+/// an error, as an argument or in a file. It is not read as a Job ID.
+#[test]
+fn a_10_digit_number_below_the_minimum_is_not_a_job_id() {
+    let below = crate::obs_id::ObsId::MIN - 1;
+    let err = parse_many_job_ids_or_obs_ids(&[below.to_string()]).expect_err("not a valid Obs ID");
+    assert!(
+        matches!(err, ParseError::InvalidObsId { value } if value == below),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.to_string(),
+        format!(
+            "'{below}' has 10 digits, so it is read as an Obs ID, but it is not a valid MWA \
+             Obs ID: it must be from 1056643216 to 9999999999"
+        )
+    );
+
+    let mut file = NamedTempFile::new().expect("a temporary file");
+    writeln!(file, "31 1000000000").expect("the file is written");
+    let path = file.path().display().to_string();
+    let err = parse_many_job_ids_or_obs_ids(&[path]).expect_err("not a valid Obs ID");
+    assert!(
+        matches!(
+            err,
+            ParseError::InvalidObsId {
+                value: 1_000_000_000
+            }
+        ),
+        "{err:?}"
+    );
+}

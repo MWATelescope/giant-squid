@@ -119,6 +119,14 @@ pub fn parse_image_size(s: &str) -> Result<ImageSizes, String> {
     validate::image_size(v).map_err(|e| e.to_string())
 }
 
+/// The clap value parser of `--channels-out`: an integer within
+/// [`validate::CHANNELS_OUT`], as the schema's type.
+pub fn parse_channels_out(s: &str) -> Result<NonZeroU64, String> {
+    let v = parse_i64_bounds(validate::CHANNELS_OUT)(s)?;
+    // The bounds start at 1, so `v` is positive.
+    validate::channels_out(v.unsigned_abs()).map_err(|e| e.to_string())
+}
+
 /// The clap value parser of `--nmiter`: an integer within
 /// [`validate::NMITER`], as the schema's type.
 pub fn parse_nmiter(s: &str) -> Result<NonZeroU64, String> {
@@ -239,17 +247,14 @@ pub trait WscleanFields: SchemaDefaults {
     fn auto_mask(&self) -> i64;
     fn auto_threshold(&self) -> f64;
     fn abs_threshold(&self) -> Option<f64>;
-    fn channels_out(&self) -> i64;
+    fn channels_out(&self) -> NonZeroU64;
     fn clean_iterations(&self) -> i64;
-    fn image_size(&self) -> ImageSizes;
     fn join_channels(&self) -> bool;
     fn join_polarizations(&self) -> bool;
     fn mgain(&self) -> f64;
     fn multiscale(&self) -> bool;
     fn nmiter(&self) -> NonZeroU64;
-    fn output_mode(&self) -> ImageOutputMode;
-    fn pixel_scale(&self) -> f64;
-    fn pol(&self) -> Polarization;
+    fn polarization(&self) -> Polarization;
     fn robust(&self) -> f64;
     fn uvw_min(&self) -> f64;
     fn weighting(&self) -> ImageWeighting;
@@ -260,17 +265,14 @@ impl_fields!(WscleanFields for [ImagingJobParams, ImageFromJobParams] {
     auto_mask: i64,
     auto_threshold: f64,
     abs_threshold: Option<f64>,
-    channels_out: i64,
+    channels_out: NonZeroU64,
     clean_iterations: i64,
-    image_size: ImageSizes,
     join_channels: bool,
     join_polarizations: bool,
     mgain: f64,
     multiscale: bool,
     nmiter: NonZeroU64,
-    output_mode: ImageOutputMode,
-    pixel_scale: f64,
-    pol: Polarization,
+    polarization: Polarization,
     robust: f64,
     uvw_min: f64,
     weighting: ImageWeighting,
@@ -545,16 +547,17 @@ pub struct WscleanArgs<P: WscleanFields> {
     pub abs_threshold: Nullable<f64>,
 
     /// Number of output channel groups.
-    #[arg(long, default_value = P::schema_defaults().channels_out().to_string())]
-    pub channels_out: i64,
+    #[arg(long, default_value = P::schema_defaults().channels_out().get().to_string(), value_parser = parse_channels_out)]
+    pub channels_out: NonZeroU64,
 
     /// WSClean -niter value (max clean iterations).
     #[arg(long, default_value = P::schema_defaults().clean_iterations().to_string(), value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
-    /// WSClean image size in pixels.
-    #[arg(long, default_value = (*P::schema_defaults().image_size()).to_string(), value_parser = parse_image_size)]
-    pub image_size: ImageSizes,
+    /// WSClean image size in pixels. Leave unset to let the server
+    /// calculate it.
+    #[arg(long, value_parser = parse_image_size)]
+    pub image_size: Option<ImageSizes>,
 
     /// Join output channel groups for cleaning.
     #[arg(
@@ -597,17 +600,18 @@ pub struct WscleanArgs<P: WscleanFields> {
     #[arg(long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_nmiter)]
     pub nmiter: NonZeroU64,
 
-    /// The output mode / product to request.
-    #[arg(short = 'o', long, default_value = P::schema_defaults().output_mode().to_string(), value_parser = SchemaEnumParser::<ImageOutputMode>::new())]
+    /// The output mode / product to request. Required.
+    #[arg(short = 'o', long, value_parser = SchemaEnumParser::<ImageOutputMode>::new())]
     pub output_mode: ImageOutputMode,
 
-    /// Pixel scale (arcsec/pixel).
-    #[arg(long, default_value = P::schema_defaults().pixel_scale().to_string(), value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
-    pub pixel_scale: f64,
+    /// Pixel scale (arcsec/pixel). Leave unset to let the server calculate
+    /// it.
+    #[arg(long, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
+    pub pixel_scale: Option<f64>,
 
-    /// Polarisation to image: XX, YY or XXYY.
-    #[arg(long, default_value = P::schema_defaults().pol().to_string(), value_parser = SchemaEnumParser::<Polarization>::new())]
-    pub pol: Polarization,
+    /// Polarisation to image.
+    #[arg(long, default_value = P::schema_defaults().polarization().to_string(), value_parser = SchemaEnumParser::<Polarization>::new())]
+    pub polarization: Polarization,
 
     /// WSClean -robust (Briggs robustness) value.
     #[arg(long, default_value = P::schema_defaults().robust().to_string(), value_parser = parse_f64_bounds(validate::ROBUST))]
@@ -715,7 +719,7 @@ impl_apply_to!(WscleanArgs for [ImagingJobParams, ImageFromJobParams] {
         nmiter,
         output_mode,
         pixel_scale,
-        pol,
+        polarization,
         robust,
         uvw_max,
         uvw_min,
@@ -739,26 +743,26 @@ pub struct SubmitDownloadArgs {
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
     /// Download the metadata only: metafits (with PPDs for each tile) and RFI
-    /// flags (if available). Takes true, false or null.
+    /// flags (if available). Takes true or false. Leave unset to send null
+    /// (the schema has no default).
     #[arg(
         long,
-        default_value = nullable_default(download_defaults().only_metadata, "only_metadata"),
         default_missing_value = "true",
         num_args = 0..=1,
         require_equals = true,
         action = ArgAction::Set,
-        value_parser = parse_nullable_bool,
     )]
-    pub only_metadata: Nullable<bool>,
+    pub only_metadata: Option<bool>,
 
     /// Voltage observations only: the offset in seconds from the start GPS
     /// time of the observation (0-5400).
     #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: Option<i64>,
 
-    /// Voltage observations only: the duration (in seconds) to download.
-    #[arg(short = 'u', long)]
-    pub duration: Option<u64>,
+    /// Voltage observations only: the duration (in seconds) to download
+    /// (0-7200).
+    #[arg(short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
+    pub duration: Option<i64>,
 
     /// Voltage observations only: the 'from' receiver channel number (0-255).
     #[arg(long)]
@@ -778,7 +782,7 @@ impl SubmitDownloadArgs {
     /// that the options cover is set.
     pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
         let mut params = DownloadJobParams {
-            only_metadata: self.only_metadata.0,
+            only_metadata: self.only_metadata,
             offset: self.offset,
             duration: self.duration,
             from_channel: self.from_channel,
@@ -794,7 +798,7 @@ impl SubmitDownloadArgs {
     /// as given, and no voltage option.
     fn without_voltage(
         delivery_args: DeliveryArgs<DownloadJobParams>,
-        only_metadata: Nullable<bool>,
+        only_metadata: Option<bool>,
         resubmit: ResubmitArgs<DownloadJobParams>,
     ) -> Self {
         Self {
@@ -827,7 +831,7 @@ impl DownloadJobArgs {
     pub fn to_vis_download(&self) -> SubmitDownloadArgs {
         SubmitDownloadArgs::without_voltage(
             self.delivery_args.clone(),
-            Nullable(download_defaults().only_metadata),
+            download_defaults().only_metadata,
             self.resubmit.clone(),
         )
     }
@@ -837,7 +841,7 @@ impl DownloadJobArgs {
     pub fn to_meta_download(&self) -> SubmitDownloadArgs {
         SubmitDownloadArgs::without_voltage(
             self.delivery_args.clone(),
-            Nullable(Some(true)),
+            Some(true),
             self.resubmit.clone(),
         )
     }
@@ -895,7 +899,7 @@ impl ImagingJobArgs {
     /// value for every option (its defaults are the schema's), so each field
     /// that the options cover is set.
     pub fn to_params(&self, obs_id: ObsId) -> ImagingJobParams {
-        let mut params = imaging_params(obs_id);
+        let mut params = imaging_params(obs_id, self.wsclean.output_mode);
         self.delivery_args.apply_to(&mut params);
         self.preprocessing.apply_to(&mut params);
         self.wsclean.apply_to(&mut params);
@@ -927,7 +931,7 @@ impl ImagingFromJobArgs {
     /// are the schema's), so each field that the options cover is set.
     /// The MWA ASVO takes the Obs ID from the source job.
     pub fn to_params(&self) -> ImageFromJobParams {
-        let mut params = image_from_job_params(self.source_job_id);
+        let mut params = image_from_job_params(self.source_job_id, self.wsclean.output_mode);
         self.delivery_args.apply_to(&mut params);
         self.wsclean.apply_to(&mut params);
         self.resubmit.apply_to(&mut params);
@@ -945,8 +949,8 @@ pub struct VoltageJobArgs {
     pub offset: i64,
 
     /// The duration (in seconds) to download.
-    #[arg(short = 'u', long)]
-    pub duration: u64,
+    #[arg(short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
+    pub duration: i64,
 
     /// The 'from' receiver channel number (0-255).
     #[arg(long)]
@@ -972,7 +976,7 @@ impl VoltageJobArgs {
             to_channel: self.to_channel,
             ..SubmitDownloadArgs::without_voltage(
                 DeliveryArgs::schema_defaults(),
-                Nullable(download_defaults().only_metadata),
+                download_defaults().only_metadata,
                 self.resubmit.clone(),
             )
         }

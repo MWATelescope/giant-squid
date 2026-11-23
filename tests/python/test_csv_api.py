@@ -21,7 +21,7 @@ from .test_csv import (
 # One line of each job type that the file format has.
 LINE_BY_TYPE = {
     "Conversion": f"obs_id={FIRST_OBS_ID}, job_type=c",
-    "Imaging": f"obs_id={FIRST_OBS_ID}, job_type=i",
+    "Imaging": f"obs_id={FIRST_OBS_ID}, job_type=i, output_mode=fits",
     "Download": f"obs_id={FIRST_OBS_ID}, job_type=d, download_type=vis",
     "Voltage": f"obs_id={FIRST_OBS_ID}, job_type=v, offset=0, duration=8",
     "Beamformer": f"obs_id={FIRST_OBS_ID}, job_type=b",

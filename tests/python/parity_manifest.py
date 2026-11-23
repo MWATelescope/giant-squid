@@ -94,6 +94,7 @@ PARSE_ERROR_VARIANTS = [
     "JobIdsGiven",
     "ObsIdsGiven",
     "ZeroJobId",
+    "InvalidObsId",
     "NoObsIds",
     "NoJobIds",
     "InvalidTime",
@@ -206,7 +207,6 @@ SCHEMA_TYPES = [
     "Polarization",
     "SortBy",
     "Status",
-    "Type",
 ]
 
 ASVO_JOB_MEMBERS = [
@@ -260,7 +260,6 @@ MANIFEST: list[Entry] = [
         "crate::DownloadOptions::should_stop",
         "Python stops a download with Ctrl-C (KeyboardInterrupt). The library reads no signals.",
     ),
-    excluded("crate::API_PREFIX", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_JOBS", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_DOWNLOAD_JOB", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_PREPROCESS_JOB", "An internal detail of the HTTP client."),

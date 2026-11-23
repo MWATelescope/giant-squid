@@ -22,7 +22,7 @@ use super::Args;
 use crate::mwa_asvo::api::job_params::{
     conversion_defaults, download_defaults, image_from_job_defaults, imaging_defaults,
 };
-use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
+use crate::mwa_asvo::api::openapi::{ImageOutputMode, MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::parse_many_job_ids_or_obs_ids;
 
 /// An obsid used throughout these tests, and its `i64` form as the request
@@ -118,11 +118,18 @@ fn every_command_alias_resolves_to_its_command() {
         Args::SubmitConv { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "si", TEST_OBS_ID]),
+        parse(&["giant-squid", "si", "--output-mode", "fits", TEST_OBS_ID]),
         Args::SubmitImage { .. }
     ));
     assert!(matches!(
-        parse(&["giant-squid", "sifj", "--source-job-id", TEST_JOB_ID]),
+        parse(&[
+            "giant-squid",
+            "sifj",
+            "--output-mode",
+            "fits",
+            "--source-job-id",
+            TEST_JOB_ID
+        ]),
         Args::SubmitImageFromJob { .. }
     ));
     assert!(matches!(
@@ -245,7 +252,8 @@ fn submit_vis_builds_a_vis_download_body() {
     let json = json_of(&params);
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["only_metadata"], false);
+    // The schema gives `only_metadata` no default, so it is left out.
+    assert!(json.get("only_metadata").is_none());
     assert_eq!(json["allow_resubmit"], false);
 }
 
@@ -372,57 +380,131 @@ fn submit_conv_output_can_be_overridden() {
 
 #[test]
 fn submit_image_defaults_come_from_the_schema() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]);
     assert_eq!(args.wsclean.image_size, imaging_defaults().image_size);
+    assert_eq!(args.wsclean.pixel_scale, imaging_defaults().pixel_scale);
     assert_eq!(args.wsclean.weighting, imaging_defaults().weighting);
-    assert_eq!(args.wsclean.output_mode, imaging_defaults().output_mode);
     assert_eq!(args.wsclean.auto_mask, imaging_defaults().auto_mask);
     assert_eq!(args.wsclean.nmiter, imaging_defaults().nmiter);
+    assert_eq!(args.wsclean.channels_out, imaging_defaults().channels_out);
 }
 
 #[test]
 fn submit_image_builds_an_imaging_body() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(json["image_size"], *imaging_defaults().image_size);
-    assert_eq!(json["pol"], imaging_defaults().pol.to_string());
+    assert_eq!(json["output_mode"], "fits");
+    assert_eq!(
+        json["polarization"],
+        imaging_defaults().polarization.to_string()
+    );
+    // The schema gives `image_size` and `pixel_scale` no default: the server
+    // calculates them, so the body leaves them out.
+    let object = json.as_object().expect("an object");
+    assert!(!object.contains_key("image_size"));
+    assert!(!object.contains_key("pixel_scale"));
 }
 
-/// `--pol` is sourced from the schema, which accepts only XX, YY or XXYY on
-/// this endpoint. A hardcoded default of "XX,YY" previously made every
-/// submit-image run fail when the request body was built.
+/// `--output-mode` is required: the schema gives `output_mode` no default.
 #[test]
-fn submit_image_default_pol_comes_from_the_schema() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
-    assert_eq!(args.wsclean.pol, imaging_defaults().pol);
+fn submit_image_requires_an_output_mode() {
+    for argv in [
+        &["giant-squid", "submit-image", TEST_OBS_ID][..],
+        &[
+            "giant-squid",
+            "submit-image-from-job",
+            "--source-job-id",
+            "5",
+        ][..],
+    ] {
+        let err = parse_err(argv);
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument,
+            "{argv:?}"
+        );
+        assert!(err.to_string().contains("--output-mode"), "{err}");
+    }
+}
+
+#[test]
+fn submit_image_default_polarization_comes_from_the_schema() {
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(args.wsclean.polarization, imaging_defaults().polarization);
     assert_eq!(
-        args.to_params(crate::test_config::test_obs_id()).pol,
-        imaging_defaults().pol
+        args.to_params(crate::test_config::test_obs_id())
+            .polarization,
+        imaging_defaults().polarization
     );
 }
 
 #[test]
-fn submit_image_accepts_each_supported_polarisation() {
-    for pol in ["XX", "YY", "XXYY"] {
-        let (args, _) = image_args(&["giant-squid", "submit-image", "--pol", pol, TEST_OBS_ID]);
+fn submit_image_accepts_each_supported_polarization() {
+    for polarization in ["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"] {
+        let (args, _) = image_args(&[
+            "giant-squid",
+            "submit-image",
+            "--output-mode",
+            "fits",
+            "--polarization",
+            polarization,
+            TEST_OBS_ID,
+        ]);
         let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
-        assert_eq!(json["pol"], pol);
+        assert_eq!(json["polarization"], polarization);
     }
 }
 
 #[test]
-fn submit_image_rejects_an_unsupported_polarisation() {
-    // `xx` is `XX`: the case does not matter.
-    for bad in ["XX,YY", "X", "Q"] {
-        let err = parse_err(&["giant-squid", "submit-image", "--pol", bad, TEST_OBS_ID]);
+fn submit_image_rejects_an_unsupported_polarization() {
+    // `XX` is `xx`: the case does not matter. `xxyy` is accepted only in a
+    // manta-ray-client CSV file. `--pol` is not an alias.
+    for bad in ["xxyy", "X", "Q"] {
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-image",
+            "--output-mode",
+            "fits",
+            "--polarization",
+            bad,
+            TEST_OBS_ID,
+        ]);
         assert_eq!(
             err.kind(),
             clap::error::ErrorKind::ValueValidation,
-            "expected --pol {bad} to be rejected"
+            "expected --polarization {bad} to be rejected"
         );
     }
+    let err = parse_err(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        "--pol",
+        "xx",
+        TEST_OBS_ID,
+    ]);
+    assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
 }
 
 #[test]
@@ -430,6 +512,8 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--phase-center",
         "custom",
         "--custom-ra",
@@ -456,6 +540,8 @@ fn negative_values_are_accepted_in_either_form() {
         vec![
             "giant-squid",
             "submit-image",
+            "--output-mode",
+            "fits",
             "--custom-dec",
             "-26.7",
             "--robust",
@@ -465,6 +551,8 @@ fn negative_values_are_accepted_in_either_form() {
         vec![
             "giant-squid",
             "submit-image",
+            "--output-mode",
+            "fits",
             "--custom-dec=-26.7",
             "--robust=-1.5",
             TEST_OBS_ID,
@@ -505,7 +593,15 @@ fn negative_values_are_accepted_in_either_form() {
 /// those same commands.
 #[test]
 fn allowing_negative_numbers_does_not_break_short_flags() {
-    match parse(&["giant-squid", "submit-image", "-n", "-vv", TEST_OBS_ID]) {
+    match parse(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        "-n",
+        "-vv",
+        TEST_OBS_ID,
+    ]) {
         Args::SubmitImage { submit, .. } => {
             assert!(submit.dry_run);
             assert_eq!(submit.verbosity, 2);
@@ -517,7 +613,13 @@ fn allowing_negative_numbers_does_not_break_short_flags() {
 
 #[test]
 fn submit_image_optional_fields_are_omitted_when_unset() {
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert!(json.get("nwlayers").is_none());
@@ -530,6 +632,8 @@ fn submit_image_boolean_flags_require_equals() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--apply-di-cal=false",
         "--join-channels=false",
         TEST_OBS_ID,
@@ -538,7 +642,14 @@ fn submit_image_boolean_flags_require_equals() {
     assert!(!args.wsclean.join_channels);
 
     // Given without a value, the flag takes its default_missing_value.
-    let (args, _) = image_args(&["giant-squid", "submit-image", "--apply-di-cal", TEST_OBS_ID]);
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        "--apply-di-cal",
+        TEST_OBS_ID,
+    ]);
     assert!(args.preprocessing.apply_di_cal);
 }
 
@@ -547,6 +658,8 @@ fn submit_image_rejects_an_unsupported_image_size() {
     let err = parse_err(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--image-size",
         "1000",
         TEST_OBS_ID,
@@ -560,11 +673,16 @@ fn submit_image_accepts_every_supported_image_size() {
         let (args, _) = image_args(&[
             "giant-squid",
             "submit-image",
+            "--output-mode",
+            "fits",
             "--image-size",
             size,
             TEST_OBS_ID,
         ]);
-        assert_eq!(args.wsclean.image_size.to_string(), size);
+        assert_eq!(
+            args.wsclean.image_size.map(|s| s.to_string()).as_deref(),
+            Some(size)
+        );
     }
 }
 
@@ -581,7 +699,7 @@ fn submit_image_rejects_out_of_range_values() {
         vec!["--pixel-scale", "9"],
         vec!["--custom-dec", "-91"],
     ] {
-        let mut argv = vec!["giant-squid", "submit-image"];
+        let mut argv = vec!["giant-squid", "submit-image", "--output-mode", "fits"];
         argv.extend_from_slice(&bad);
         argv.push(TEST_OBS_ID);
         let err = parse_err(&argv);
@@ -598,7 +716,15 @@ fn submit_image_rejects_out_of_range_values() {
 #[test]
 fn the_deprecated_imaging_options_are_refused() {
     for option in ["--clean-threshold", "--nwlayers"] {
-        let err = parse_err(&["giant-squid", "submit-image", option, "1", TEST_OBS_ID]);
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-image",
+            "--output-mode",
+            "fits",
+            option,
+            "1",
+            TEST_OBS_ID,
+        ]);
         assert_eq!(
             err.kind(),
             clap::error::ErrorKind::UnknownArgument,
@@ -607,6 +733,8 @@ fn the_deprecated_imaging_options_are_refused() {
         let err = parse_err(&[
             "giant-squid",
             "submit-image-from-job",
+            "--output-mode",
+            "fits",
             "--source-job-id",
             TEST_JOB_ID,
             option,
@@ -626,7 +754,7 @@ fn the_deprecated_imaging_options_are_refused() {
 fn submit_image_range_errors_carry_the_librarys_message() {
     for (flag, value, expected) in [
         ("--mgain", "1.5", "must be between 0.1 and 1 (got 1.5)"),
-        ("--uvw-min", "101", "must be at most 100 (got 101)"),
+        ("--uvw-min", "101", "must be between 1 and 100 (got 101)"),
         ("--avg-time-res", "-1", "must be at least 0 (got -1)"),
         (
             "--image-size",
@@ -634,7 +762,15 @@ fn submit_image_range_errors_carry_the_librarys_message() {
             "must be one of 512, 1024, 2048, 3072, 4096, 8192",
         ),
     ] {
-        let err = parse_err(&["giant-squid", "submit-image", flag, value, TEST_OBS_ID]);
+        let err = parse_err(&[
+            "giant-squid",
+            "submit-image",
+            "--output-mode",
+            "fits",
+            flag,
+            value,
+            TEST_OBS_ID,
+        ]);
         assert!(
             err.to_string().contains(expected),
             "{flag} {value}: expected {expected:?} in {err}"
@@ -657,19 +793,22 @@ fn submit_image_from_job_builds_an_image_from_job_body() {
     let args = image_from_job_args(&[
         "giant-squid",
         "submit-image-from-job",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         "4242",
     ]);
     assert_eq!(args.source_job_id.get(), 4242);
-    assert_eq!(args.wsclean.pol, image_from_job_defaults().pol);
+    assert_eq!(
+        args.wsclean.polarization,
+        image_from_job_defaults().polarization
+    );
 
     let json = json_of(&args.to_params());
     assert_eq!(json["source_job_id"], 4242);
+    assert_eq!(json["output_mode"], "fits");
     // The body has no Obs ID: the MWA ASVO takes it from the source job.
     assert!(json.get("obs_id").is_none());
-    // The deprecated clean_threshold is sent as null, as in the imaging
-    // job from an Obs ID.
-    assert_eq!(json["clean_threshold"], Value::Null);
 }
 
 #[test]
@@ -677,6 +816,8 @@ fn submit_image_from_job_rejects_a_zero_source_job_id() {
     let err = parse_err(&[
         "giant-squid",
         "submit-image-from-job",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         "0",
     ]);
@@ -778,12 +919,14 @@ fn submit_download_refuses_an_offset_or_a_channel_out_of_range() {
 }
 
 #[test]
-fn submit_download_only_metadata_takes_true_false_or_null() {
+fn submit_download_only_metadata_takes_true_or_false() {
     let only_metadata = |args: &[&str]| download_args(args).only_metadata;
 
+    // The schema gives `only_metadata` no default, so it is null when it is
+    // not given.
     assert_eq!(
         only_metadata(&["giant-squid", "submit-download", TEST_OBS_ID]),
-        Nullable(Some(false))
+        None
     );
     assert_eq!(
         only_metadata(&[
@@ -792,7 +935,7 @@ fn submit_download_only_metadata_takes_true_false_or_null() {
             "--only-metadata",
             TEST_OBS_ID
         ]),
-        Nullable(Some(true))
+        Some(true)
     );
     assert_eq!(
         only_metadata(&[
@@ -801,15 +944,17 @@ fn submit_download_only_metadata_takes_true_false_or_null() {
             "--only-metadata=false",
             TEST_OBS_ID
         ]),
-        Nullable(Some(false))
+        Some(false)
     );
-    let json = download_body(&[
+    let json = download_body(&["giant-squid", "submit-download", TEST_OBS_ID]);
+    assert!(json.get("only_metadata").is_none());
+    let err = parse_err(&[
         "giant-squid",
         "submit-download",
         "--only-metadata=null",
         TEST_OBS_ID,
     ]);
-    assert_eq!(json.get("only_metadata"), Some(&Value::Null));
+    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidValue);
 }
 
 /// Each deprecated download command sends the body of the `submit-download`
@@ -1093,9 +1238,15 @@ fn submit_bf_builds_a_beamformer_body() {
     );
     assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
     // A beamformer body is a download body: the MWA ASVO finds the kind of
-    // data from the observation. It has no voltage fields.
-    assert_eq!(json["only_metadata"], false);
-    for field in ["offset", "duration", "from_channel", "to_channel"] {
+    // data from the observation. It has no voltage fields, and no
+    // `only_metadata` (the schema gives it no default).
+    for field in [
+        "only_metadata",
+        "offset",
+        "duration",
+        "from_channel",
+        "to_channel",
+    ] {
         assert!(json.get(field).is_none(), "{field} was sent");
     }
 }
@@ -1312,6 +1463,8 @@ fn submit_image_from_job_rejects_out_of_range_values() {
         let mut argv = vec![
             "giant-squid",
             "submit-image-from-job",
+            "--output-mode",
+            "fits",
             "--source-job-id",
             TEST_JOB_ID,
         ];
@@ -1372,6 +1525,8 @@ fn submit_image_rejects_an_out_of_range_wstack_nwlayers() {
     let err = parse_err(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--wstack-nwlayers",
         "16",
         TEST_OBS_ID,
@@ -1385,6 +1540,8 @@ fn submit_image_from_job_rejects_an_out_of_range_wstack_nwlayers() {
     let err = parse_err(&[
         "giant-squid",
         "submit-image-from-job",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         TEST_JOB_ID,
         "--wstack-nwlayers",
@@ -1443,6 +1600,8 @@ fn submit_image_takes_the_schema_names_for_the_centre() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--centre",
         "custom",
         "--custom-centre-ra",
@@ -1556,7 +1715,7 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
 fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
-    use crate::mwa_asvo::api::openapi::{JobDetailResponse, JobProduct, Type as FileType};
+    use crate::mwa_asvo::api::openapi::{DeliveryDestination, JobDetailResponse, JobProduct};
     use crate::mwa_asvo::{AsvoJobVec, JobFile, JobState};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
@@ -1575,7 +1734,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
                 product: Some(JobProduct {
                     files: vec![
                         JobFile {
-                            type_: FileType::Acacia,
+                            type_: DeliveryDestination::Acacia,
                             url: Some("https://example.org/a.tar".to_string()),
                             path: None,
                             size: 1234,
@@ -1583,7 +1742,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
                             format: None,
                         },
                         JobFile {
-                            type_: FileType::Scratch,
+                            type_: DeliveryDestination::Scratch,
                             url: None,
                             path: Some("/scratch/mwa/x".to_string()),
                             size: 5,
@@ -1774,7 +1933,13 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
         "no_rfi",
     ];
 
-    let (args, _) = image_args(&["giant-squid", "submit-image", TEST_OBS_ID]);
+    let (args, _) = image_args(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]);
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
     for name in SWITCHES {
         assert_eq!(json[name], false, "{name} is off by default");
@@ -1783,6 +1948,8 @@ fn submit_image_sends_the_six_correction_and_flagging_switches() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--no-digital-gains",
         "--no-flag-dc",
         "--no-geometric-delay",
@@ -1805,6 +1972,8 @@ fn submit_image_from_job_does_not_take_the_conversion_switches() {
         let result = Args::try_parse_from([
             "giant-squid",
             "submit-image-from-job",
+            "--output-mode",
+            "fits",
             "--source-job-id",
             "5",
             flag,
@@ -2029,16 +2198,21 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
         .expect("defaults build");
     assert_eq!(body_json(&conv), body_json(&expected));
 
-    let image = match parse(&["giant-squid", "submit-image", TEST_OBS_ID]) {
+    let image = match parse(&[
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ]) {
         Args::SubmitImage { image, .. } => image.to_params(obs_id),
         other => panic!("expected SubmitImage, got {other:?}"),
     };
-    let mut expected: ImagingJobParams = ImagingJobParams::builder()
+    let expected: ImagingJobParams = ImagingJobParams::builder()
         .obs_id(TEST_OBS_ID_I64)
+        .output_mode(ImageOutputMode::Fits)
         .try_into()
         .expect("defaults build");
-    // The deprecated clean_threshold is sent as null, not at its default.
-    expected.clean_threshold = None;
     assert!(
         expected.apply_di_cal,
         "the test needs imaging's default to differ"
@@ -2048,17 +2222,19 @@ fn each_submit_command_sends_the_defaults_of_its_own_schema_type() {
     let from_job = match parse(&[
         "giant-squid",
         "submit-image-from-job",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         "5",
     ]) {
         Args::SubmitImageFromJob { image, .. } => image.to_params(),
         other => panic!("expected SubmitImageFromJob, got {other:?}"),
     };
-    let mut expected: ImageFromJobParams = ImageFromJobParams::builder()
+    let expected: ImageFromJobParams = ImageFromJobParams::builder()
         .source_job_id(std::num::NonZeroU64::new(5).expect("not zero"))
+        .output_mode(ImageOutputMode::Fits)
         .try_into()
         .expect("defaults build");
-    expected.clean_threshold = None;
     assert_eq!(body_json(&from_job), body_json(&expected));
 
     let vis = match parse(&["giant-squid", "submit-vis", TEST_OBS_ID]) {
@@ -2146,6 +2322,8 @@ fn a_threshold_takes_null_and_a_bad_value_is_refused() {
     let (args, _) = image_args(&[
         "giant-squid",
         "submit-image",
+        "--output-mode",
+        "fits",
         "--abs-threshold",
         "null",
         TEST_OBS_ID,
@@ -2184,7 +2362,7 @@ fn the_amps_polarization_and_multiscale_switches_take_true_or_false() {
         )
     };
     let image = |extra: &[&str]| {
-        let mut argv = vec!["giant-squid", "submit-image"];
+        let mut argv = vec!["giant-squid", "submit-image", "--output-mode", "fits"];
         argv.extend_from_slice(extra);
         argv.push(TEST_OBS_ID);
         json_of(
@@ -2229,6 +2407,8 @@ fn the_amps_polarization_and_multiscale_switches_take_true_or_false() {
             let mut argv = vec![
                 "giant-squid",
                 "submit-image-from-job",
+                "--output-mode",
+                "fits",
                 "--source-job-id",
                 "1",
             ];
@@ -2351,8 +2531,14 @@ fn acacia_with_files_is_a_usage_error_for_every_submit_command() {
         &["submit-vis"],
         &["submit-meta"],
         &["submit-conv"],
-        &["submit-image"],
-        &["submit-image-from-job", "--source-job-id", "5"],
+        &["submit-image", "--output-mode", "fits"],
+        &[
+            "submit-image-from-job",
+            "--output-mode",
+            "fits",
+            "--source-job-id",
+            "5",
+        ],
         &["submit-bf"],
     ];
     for command in commands {
@@ -2547,7 +2733,14 @@ fn an_infinite_number_is_refused() {
             "inf",
             TEST_OBS_ID,
         ],
-        vec!["giant-squid", "submit-image", "--uvw-min=-inf", TEST_OBS_ID],
+        vec![
+            "giant-squid",
+            "submit-image",
+            "--output-mode",
+            "fits",
+            "--uvw-min=-inf",
+            TEST_OBS_ID,
+        ],
     ] {
         let err = parse_err(&bad);
         assert_eq!(
@@ -2592,21 +2785,21 @@ fn download_refuses_no_ids_and_a_download_dir_that_is_a_file() {
 fn a_dry_run_refuses_a_custom_centre_without_its_coordinates() {
     use super::run::run_cli;
 
-    for command in ["submit-conv", "submit-image"] {
-        assert_eq!(
-            run_cli([
-                "giant-squid",
-                command,
-                "-n",
-                "--centre",
-                "custom",
-                "--custom-centre-ra",
-                "10",
-                TEST_OBS_ID
-            ]),
-            1,
-            "{command}"
-        );
+    for command in [
+        &["submit-conv"][..],
+        &["submit-image", "--output-mode", "fits"],
+    ] {
+        let mut argv = vec!["giant-squid"];
+        argv.extend_from_slice(command);
+        argv.extend_from_slice(&[
+            "-n",
+            "--centre",
+            "custom",
+            "--custom-centre-ra",
+            "10",
+            TEST_OBS_ID,
+        ]);
+        assert_eq!(run_cli(argv), 1, "{command:?}");
     }
     assert_eq!(
         run_cli([

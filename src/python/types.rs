@@ -19,7 +19,7 @@ use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
     JobDetailResponse, JobSubmittedResponse, JobType, Output, PhaseCentre, Polarization, SortBy,
-    Status, Type,
+    Status,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{
@@ -149,7 +149,7 @@ impl PyJobFile {
     /// Where the file is delivered.
     #[getter]
     #[pyo3(name = "type")]
-    fn type_(&self) -> PyType {
+    fn type_(&self) -> PyDeliveryDestination {
         self.0.type_.into()
     }
 

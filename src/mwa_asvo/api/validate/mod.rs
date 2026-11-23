@@ -129,11 +129,11 @@ pub const AUTO_THRESHOLD: Bounds = Bounds::between(0.1, 5.0);
 pub const AVG_FREQ_RES: Bounds = Bounds::between(0.0, 1280.0);
 /// `avg_time_res`: the time resolution to average to (s).
 pub const AVG_TIME_RES: Bounds = Bounds::at_least(0.0);
-/// `clean_iterations`: the WSClean -niter value. The schema sets only the
-/// upper limit.
-pub const CLEAN_ITERATIONS: Bounds = Bounds::at_most(1_000_000.0);
-/// `clean_threshold`: the WSClean cleaning threshold (Jy).
-pub const CLEAN_THRESHOLD: Bounds = Bounds::between(0.0, 10.0);
+/// `channels_out`: the number of frequency chunks of the image cube. The
+/// schema sets only the lower limit.
+pub const CHANNELS_OUT: Bounds = Bounds::at_least(1.0);
+/// `clean_iterations`: the WSClean -niter value.
+pub const CLEAN_ITERATIONS: Bounds = Bounds::between(0.0, 1_000_000.0);
 /// `custom_centre_dec`: the custom phase centre's declination (degrees).
 pub const CUSTOM_CENTRE_DEC: Bounds = Bounds::between(-90.0, 90.0);
 /// `custom_centre_ra`: the custom phase centre's right ascension (degrees).
@@ -144,8 +144,6 @@ pub const FLAG_EDGE_WIDTH: Bounds = Bounds::between(0.0, 640.0);
 pub const MGAIN: Bounds = Bounds::between(0.1, 1.0);
 /// `nmiter`: the WSClean -nmiter value.
 pub const NMITER: Bounds = Bounds::between(1.0, 500.0);
-/// `nwlayers`: the number of w-projection layers (deprecated in the API).
-pub const NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
 /// `pixel_scale`: the pixel scale (arcsec per pixel).
 pub const PIXEL_SCALE: Bounds = Bounds::between(10.0, 120.0);
 /// `robust`: the WSClean -robust value.
@@ -153,12 +151,14 @@ pub const ROBUST: Bounds = Bounds::between(-2.0, 2.0);
 /// `uvw_max`: the maximum uv distance to image (wavelengths).
 pub const UVW_MAX: Bounds = Bounds::between(1.0, 5000.0);
 /// `uvw_min`: the minimum uv distance to image (wavelengths).
-pub const UVW_MIN: Bounds = Bounds::at_most(100.0);
+pub const UVW_MIN: Bounds = Bounds::between(1.0, 100.0);
 /// `wstack_nwlayers`: the number of w-stacking layers. (Both imaging bodies
 /// since schema v1.11; before, only the imaging body from an Obs ID.)
 pub const WSTACK_NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
 /// `offset` of a voltage job: seconds from the start of the observation.
 pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 5400.0);
+/// `duration` of a voltage job: the seconds of data to download.
+pub const VOLTAGE_DURATION: Bounds = Bounds::between(0.0, 7200.0);
 
 /// The image sizes (pixels) that the MWA ASVO accepts.
 pub const IMAGE_SIZES: [i64; 6] = [512, 1024, 2048, 3072, 4096, 8192];
@@ -189,11 +189,9 @@ macro_rules! shared_imaging_checks {
                 CLEAN_ITERATIONS,
                 Some($params.clean_iterations as f64),
             ),
-            ("clean_threshold", CLEAN_THRESHOLD, $params.clean_threshold),
             ("mgain", MGAIN, Some($params.mgain)),
             ("nmiter", NMITER, Some($params.nmiter.get() as f64)),
-            ("nwlayers", NWLAYERS, $params.nwlayers.map(|n| n as f64)),
-            ("pixel_scale", PIXEL_SCALE, Some($params.pixel_scale)),
+            ("pixel_scale", PIXEL_SCALE, $params.pixel_scale),
             ("robust", ROBUST, Some($params.robust)),
             ("uvw_max", UVW_MAX, $params.uvw_max),
             ("uvw_min", UVW_MIN, Some($params.uvw_min)),
@@ -289,23 +287,30 @@ pub fn check_centre(
 }
 
 /// Check a download request body: its delivery ([`check_delivery_format`])
-/// and its `offset` against the schema's limits. `duration`,
+/// and its `offset` and `duration` against the schema's limits.
 /// `from_channel` and `to_channel` need no check: the schema's limits for
-/// them are the limits of their types (`u64`, `u8`). The other rules of a
+/// them are the limits of their type (`u8`). The other rules of a
 /// download job (for example that only an observation with voltages takes
 /// `offset` and `duration`) are the MWA ASVO's.
 ///
 /// # Errors
 ///
 /// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree, or the `offset` is out of range.
+/// agree, or the `offset` or the `duration` is out of range.
 pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
-    check_all(&[(
-        "offset",
-        VOLTAGE_OFFSET,
-        params.offset.map(|offset| offset as f64),
-    )])
+    check_all(&[
+        (
+            "offset",
+            VOLTAGE_OFFSET,
+            params.offset.map(|offset| offset as f64),
+        ),
+        (
+            "duration",
+            VOLTAGE_DURATION,
+            params.duration.map(|duration| duration as f64),
+        ),
+    ])
 }
 
 /// Check a conversion request body: its delivery ([`check_delivery_format`]),
@@ -387,6 +392,19 @@ pub fn nmiter(value: u64) -> Result<NonZeroU64, AsvoApiError> {
     NMITER.check("nmiter", value as f64)?;
     // NMITER's lower limit is 1, so a value that passed is not zero.
     Ok(NonZeroU64::new(value).expect("NMITER excludes zero"))
+}
+
+/// A `channels_out` value, checked against [`CHANNELS_OUT`]. The type
+/// enforces the limit; this makes the message the same as for any other
+/// limit.
+///
+/// # Errors
+///
+/// [`AsvoApiError::InvalidParameter`] if `value` is outside [`CHANNELS_OUT`].
+pub fn channels_out(value: u64) -> Result<NonZeroU64, AsvoApiError> {
+    CHANNELS_OUT.check("channels_out", value as f64)?;
+    // CHANNELS_OUT's lower limit is 1, so a value that passed is not zero.
+    Ok(NonZeroU64::new(value).expect("CHANNELS_OUT excludes zero"))
 }
 
 /// A `days` value for a job listing, checked against [`DAYS`]. The type of

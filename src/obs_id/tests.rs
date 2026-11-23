@@ -17,6 +17,20 @@ fn validation_fails_too_small() {
     assert!(ObsId::validate(106588012).is_err());
 }
 
+/// The smallest valid Obs ID is the schema's minimum, not the smallest
+/// 10-digit number.
+#[test]
+fn validation_fails_below_the_schema_minimum() {
+    assert!(ObsId::validate(ObsId::MIN).is_ok());
+    assert!(matches!(
+        ObsId::validate(ObsId::MIN - 1),
+        Err(ObsIdError::WrongNumDigits(_))
+    ));
+    assert!(ObsId::validate(1_000_000_000).is_err());
+    assert!(ObsId::has_obs_id_digits(1_000_000_000));
+    assert!(!ObsId::has_obs_id_digits(999_999_999));
+}
+
 #[test]
 fn validation_fails_too_big() {
     assert!(ObsId::validate(10658801288).is_err());

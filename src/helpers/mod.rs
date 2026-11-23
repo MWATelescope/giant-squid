@@ -21,19 +21,18 @@ pub(crate) enum ObsIdOrJobId {
     J(AsvoJobId),
     /// This is 0, which is not a Job ID.
     Zero,
+    /// This has 10 digits, so it is an Obs ID, but it is not a valid one.
+    InvalidObsId(u64),
 }
 
 pub(crate) fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
     match s.parse::<u64>() {
-        // We successfully parsed an int.
-        Ok(i) => {
-            match ObsId::validate(i) {
-                // This int is an obsid.
-                Ok(o) => Some(ObsIdOrJobId::O(o)),
-                // This int isn't an obsid; assume it is a jobid.
-                Err(_) => Some(AsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
-            }
+        // We successfully parsed an int. A number with 10 digits is an Obs
+        // ID (valid or not), and any other number is a Job ID.
+        Ok(i) if ObsId::has_obs_id_digits(i) => {
+            Some(ObsId::validate(i).map_or(ObsIdOrJobId::InvalidObsId(i), ObsIdOrJobId::O))
         }
+        Ok(i) => Some(AsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
         // Could not parse the string as an int; we must fail.
         Err(_) => None,
     }
@@ -66,6 +65,9 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
                 Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
                 Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
                 Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
+                Some(ObsIdOrJobId::InvalidObsId(value)) => {
+                    return Err(ParseError::InvalidObsId { value })
+                }
                 // `text` could not be parsed; so we must fail.
                 None => {
                     return Err(ParseError::InsideFile {
@@ -96,6 +98,9 @@ pub fn parse_many_job_ids_or_obs_ids(
             Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
             Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
             Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
+            Some(ObsIdOrJobId::InvalidObsId(value)) => {
+                return Err(ParseError::InvalidObsId { value })
+            }
             // Could not parse the string as an int; assume it is a
             // file and unpack it.
             None => {
@@ -192,6 +197,19 @@ pub enum ParseError {
     /// 0 was given: it is not an Obs ID, and the MWA ASVO's Job IDs start at 1.
     #[error("0 is not a Job ID or an Obs ID")]
     ZeroJobId,
+
+    /// A number has 10 digits, so it is read as an Obs ID, but it is below
+    /// [`ObsId::MIN`], so it is not a valid one. It is not read as a Job ID.
+    #[error(
+        "'{value}' has 10 digits, so it is read as an Obs ID, but it is not a valid MWA Obs ID: \
+         it must be from {min} to {max}",
+        min = ObsId::MIN,
+        max = ObsId::MAX
+    )]
+    InvalidObsId {
+        /// The number.
+        value: u64,
+    },
 
     /// No Obs ID was given ([`parse_obs_ids_only`]).
     #[error("No Obs IDs specified.")]

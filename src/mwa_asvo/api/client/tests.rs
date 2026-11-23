@@ -22,9 +22,9 @@ use serde_json::json;
 #[cfg(feature = "bin")]
 use crate::cli::Args;
 use crate::mwa_asvo::api::job_params::{download_params, PreprocessJobParams};
+use crate::mwa_asvo::api::openapi::DeliveryDestination;
 #[cfg(feature = "bin")]
 use crate::mwa_asvo::api::openapi::JobsByUserRequest;
-use crate::mwa_asvo::api::openapi::Type as FileType;
 use crate::mwa_asvo::api::openapi::{DownloadJobParams, ErrorResponse};
 use crate::mwa_asvo::client_config_from_env;
 use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoError, AsvoJobId, JobState, JobsFilter};
@@ -979,8 +979,14 @@ fn a_visibility_job_sends_no_voltage_fields() {
     let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBS_ID]);
     let body = serde_json::to_value(&params).expect("params should serialise");
 
-    assert_eq!(body["only_metadata"], json!(false));
-    for field in ["offset", "duration", "from_channel", "to_channel"] {
+    // `only_metadata` has no default in the schema, so it is left out too.
+    for field in [
+        "only_metadata",
+        "offset",
+        "duration",
+        "from_channel",
+        "to_channel",
+    ] {
         assert!(body.get(field).is_none(), "{field} was sent: {body}");
     }
 }
@@ -1107,14 +1113,20 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
         .expect("conversion");
     client
         .submit_preprocess_job(&PreprocessJobParams::from(
-            ImagingJobParams::try_from(ImagingJobParams::builder().obs_id(obs_id))
-                .expect("the imaging body should build"),
+            ImagingJobParams::try_from(
+                ImagingJobParams::builder()
+                    .obs_id(obs_id)
+                    .output_mode(crate::mwa_asvo::api::openapi::ImageOutputMode::Fits),
+            )
+            .expect("the imaging body should build"),
         ))
         .expect("imaging");
     client
         .submit_image_from_job(
             &ImageFromJobParams::try_from(
-                ImageFromJobParams::builder().source_job_id(source_job_id),
+                ImageFromJobParams::builder()
+                    .source_job_id(source_job_id)
+                    .output_mode(crate::mwa_asvo::api::openapi::ImageOutputMode::Fits),
             )
             .expect("the image-from-job body should build"),
         )
@@ -1154,9 +1166,8 @@ fn path_matches(template: &str, path: &str) -> bool {
             .all(|(t, p)| (t.starts_with('{') && t.ends_with('}')) || t == p)
 }
 
-/// Every endpoint that the client calls is a path of the schema (under
-/// `API_PREFIX`, which the schema does not give), with the method the client
-/// uses. The paths come from the `paths` key that
+/// Every endpoint that the client calls is a path of the schema, with the
+/// method the client uses. The paths come from the `paths` key that
 /// `tools/generate_openapi.sh` keeps in `openapi-schema.json`, so a path
 /// that the API renames or removes fails here, not in a real request.
 #[test]
@@ -1182,12 +1193,9 @@ fn every_endpoint_the_client_calls_is_a_schema_path() {
     // refresh), so it is checked from its constant.
     calls.push(("POST".to_string(), super::ENDPOINT_REFRESH.to_string()));
     for (method, path) in calls {
-        let schema_path = path
-            .strip_prefix(super::API_PREFIX)
-            .unwrap_or_else(|| panic!("{path} is not under {}", super::API_PREFIX));
         assert!(
-            has(&method, schema_path),
-            "{method} {schema_path} is not a path of the schema"
+            has(&method, &path),
+            "{method} {path} is not a path of the schema"
         );
     }
 }
@@ -1227,12 +1235,9 @@ fn every_field_of_every_request_body_is_in_the_schema() {
     for (method, path, body) in record_every_end_user_call() {
         // The schemas that the endpoint takes as its body: the `operations`
         // that `tools/generate_openapi.sh` keeps in the schema file. An
-        // endpoint with more than one (`/v2/jobs/download` takes one of
-        // three job types) takes any one of them.
-        let schema_path = path
-            .strip_prefix(super::API_PREFIX)
-            .expect("under API_PREFIX");
-        let names = request_schemas(&schema, &method, schema_path);
+        // endpoint with more than one (`/api/v2/jobs/preprocess` takes one
+        // of two job types) takes any one of them.
+        let names = request_schemas(&schema, &method, &path);
         if names.is_empty() {
             assert!(
                 body.is_null(),
@@ -1302,8 +1307,14 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
 #[test]
 fn an_imaging_job_returns_a_job_submitted_response() {
     let env = TestEnv::with_session();
-    let params = match Args::try_parse_from(["giant-squid", "submit-image", TEST_OBS_ID])
-        .expect("arguments should parse")
+    let params = match Args::try_parse_from([
+        "giant-squid",
+        "submit-image",
+        "--output-mode",
+        "fits",
+        TEST_OBS_ID,
+    ])
+    .expect("arguments should parse")
     {
         Args::SubmitImage { image, .. } => image.to_params(crate::test_config::test_obs_id()),
         _ => panic!("expected submit-image"),
@@ -1330,6 +1341,8 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
     let params = match Args::try_parse_from([
         "giant-squid",
         "submit-image-from-job",
+        "--output-mode",
+        "fits",
         "--source-job-id",
         "12345",
     ])
@@ -1361,6 +1374,7 @@ fn an_out_of_range_imaging_job_is_not_sent() {
     let mut params: crate::mwa_asvo::api::openapi::ImagingJobParams =
         crate::mwa_asvo::api::openapi::ImagingJobParams::builder()
             .obs_id(TEST_OBS_ID_I64)
+            .output_mode(crate::mwa_asvo::api::openapi::ImageOutputMode::Fits)
             .try_into()
             .expect("defaults build");
     params.mgain = 1.5;
@@ -1387,9 +1401,10 @@ fn an_out_of_range_image_from_job_is_not_sent() {
     let mut params: crate::mwa_asvo::api::openapi::ImageFromJobParams =
         crate::mwa_asvo::api::openapi::ImageFromJobParams::builder()
             .source_job_id(std::num::NonZeroU64::new(12345).unwrap())
+            .output_mode(crate::mwa_asvo::api::openapi::ImageOutputMode::Fits)
             .try_into()
             .expect("defaults build");
-    params.pixel_scale = 5.0;
+    params.pixel_scale = Some(5.0);
     let submit = env.server.mock(|when, then| {
         when.method(POST).path("/api/v2/jobs/image_from_job");
         then.status(200).json_body(job_submitted_response(1));
@@ -1532,7 +1547,7 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
         conversion_params, image_from_job_params, imaging_params,
     };
     use crate::mwa_asvo::api::openapi::{
-        DeliveryDestination, DeliveryFormat, JobSubmittedResponse,
+        DeliveryDestination, DeliveryFormat, ImageOutputMode, JobSubmittedResponse,
     };
 
     let env = TestEnv::with_session();
@@ -1564,11 +1579,11 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
     let mut download = download_params(obs_id);
     download.delivery_format = DeliveryFormat::Files;
     refused(client.submit_download_job(&download));
-    let mut image_from_job = image_from_job_params(source_job_id);
+    let mut image_from_job = image_from_job_params(source_job_id, ImageOutputMode::Fits);
     image_from_job.delivery_format = DeliveryFormat::Files;
     refused(client.submit_image_from_job(&image_from_job));
     let mut conversion = PreprocessJobParams::from(conversion_params(obs_id));
-    let mut imaging = PreprocessJobParams::from(imaging_params(obs_id));
+    let mut imaging = PreprocessJobParams::from(imaging_params(obs_id, ImageOutputMode::Fits));
     for preprocess in [&mut conversion, &mut imaging] {
         set_delivery(
             preprocess,
@@ -1695,7 +1710,7 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
         .files;
     assert_eq!(files.len(), 1);
     let file = &files[0];
-    assert_eq!(file.type_, FileType::Acacia);
+    assert_eq!(file.type_, DeliveryDestination::Acacia);
     assert_eq!(file.size_bytes(), RECORDED_SIZE);
     assert_eq!(file.sha1.as_deref(), Some(RECORDED_SHA1));
     assert!(
