@@ -14,6 +14,11 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* `submit-download --only-metadata` (true) with a voltage option (`--offset`, `--duration`, `--from-channel` or
+  `--to-channel`) is an error (`INVALID_PARAMETER` in `--json`), found before any request, also with `--dry-run`. The
+  check is in the library (`validate::check_only_metadata`, called by `validate_download_params`), so it also applies
+  to `MwaAsvoClient::submit_download_job`, Manta Ray CSV files and the Python module (`MwaAsvoApiErrorInvalidParameter`,
+  with `name` `"only_metadata"`).
 * The download links of a job work for 7 days, and the job stays `completed` in the API. `giant-squid` reads the end
   of that time from the `Expires` of the signed URL. `list` and `wait` show a completed job as `completed (ready)`
   or `completed (expired)` (the JSON and `--job-states` keep the API's `completed`). `download` of a job whose links

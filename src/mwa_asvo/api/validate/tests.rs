@@ -755,3 +755,98 @@ fn a_conversion_or_imaging_body_with_a_coordinate_and_no_custom_centre_is_refuse
     validate_imaging_params(&imaging_with_custom_centre())
         .expect("a custom centre with both coordinates is valid");
 }
+
+/// A download body at the schema's defaults: no voltage argument, and no
+/// `only_metadata`.
+fn download_defaults() -> DownloadJobParams {
+    DownloadJobParams::builder()
+        .obs_id(1_065_880_128_i64)
+        .try_into()
+        .expect("defaults build")
+}
+
+/// A metadata download (`only_metadata` true) with any voltage argument is
+/// refused: the error is for `only_metadata`, and it names the voltage
+/// arguments that are given.
+#[test]
+fn only_metadata_with_a_voltage_argument_is_refused() {
+    let cases: [(&str, DownloadJobParams); 4] = [
+        (
+            "offset",
+            DownloadJobParams {
+                offset: Some(0),
+                ..download_defaults()
+            },
+        ),
+        (
+            "duration",
+            DownloadJobParams {
+                duration: Some(8),
+                ..download_defaults()
+            },
+        ),
+        (
+            "from_channel",
+            DownloadJobParams {
+                from_channel: Some(109),
+                ..download_defaults()
+            },
+        ),
+        (
+            "to_channel",
+            DownloadJobParams {
+                to_channel: Some(132),
+                ..download_defaults()
+            },
+        ),
+    ];
+    for (field, params) in cases {
+        let params = DownloadJobParams {
+            only_metadata: Some(true),
+            ..params
+        };
+        let err = validate_download_params(&params).expect_err(field);
+        let message = err.to_string();
+        assert_eq!(invalid_name(Err(err)), ONLY_METADATA, "{field}");
+        assert_eq!(
+            message,
+            format!(
+                "Invalid only_metadata: true is not valid when voltage arguments \
+                 (offset, duration, from_channel, to_channel) are given (got {field})"
+            )
+        );
+    }
+}
+
+/// The message lists every voltage argument that is given, in the order of
+/// [`VOLTAGE_FIELDS`].
+#[test]
+fn only_metadata_names_every_voltage_argument_given() {
+    let err = check_only_metadata(Some(true), Some(0), Some(8), Some(109), Some(132))
+        .expect_err("metadata with voltage arguments is refused");
+    assert!(
+        err.to_string()
+            .ends_with("(got offset, duration, from_channel, to_channel)"),
+        "{err}"
+    );
+}
+
+/// A metadata download with no voltage argument is valid, and so is a
+/// voltage download whose `only_metadata` is false or not set.
+#[test]
+fn only_metadata_without_voltage_arguments_is_valid() {
+    validate_download_params(&DownloadJobParams {
+        only_metadata: Some(true),
+        ..download_defaults()
+    })
+    .expect("a metadata download is valid");
+    for only_metadata in [Some(false), None] {
+        validate_download_params(&DownloadJobParams {
+            only_metadata,
+            from_channel: Some(109),
+            to_channel: Some(132),
+            ..voltage_defaults()
+        })
+        .unwrap_or_else(|e| panic!("only_metadata {only_metadata:?}: {e}"));
+    }
+}

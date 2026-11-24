@@ -1681,3 +1681,49 @@ fn a_job_list_logged_at_trace_level_shows_no_signed_url() {
         "the log shows the signature: {output}"
     );
 }
+
+/// `submit-download --only-metadata` with a voltage option fails before any
+/// request (even in a dry run), with the library's message.
+#[test]
+fn only_metadata_with_a_voltage_option_is_refused_before_any_request() {
+    let env = CliEnv::with_session();
+    let requests = catch_all(&env);
+
+    for voltage in [
+        &["--offset", "0"][..],
+        &["--duration", "8"][..],
+        &["--from-channel", "109"][..],
+        &["--to-channel", "132"][..],
+    ] {
+        let mut cmd = env.command();
+        cmd.args(["submit-download", "--dry-run", "--only-metadata"]);
+        cmd.args(voltage);
+        cmd.arg(TEST_OBS_ID);
+        let result = run(cmd);
+
+        assert!(!result.success, "{voltage:?}: {}", result.combined());
+        assert!(
+            result
+                .combined()
+                .contains("Invalid only_metadata: true is not valid when voltage arguments"),
+            "{voltage:?}: {}",
+            result.combined()
+        );
+    }
+    assert_eq!(requests.calls(), 0, "a refused body must not call the API");
+
+    // `--only-metadata=false` takes the voltage options.
+    let mut cmd = env.command();
+    cmd.args([
+        "submit-download",
+        "--dry-run",
+        "--only-metadata=false",
+        "--offset",
+        "0",
+        "--duration",
+        "8",
+        TEST_OBS_ID,
+    ]);
+    let result = run(cmd);
+    assert!(result.success, "output: {}", result.combined());
+}

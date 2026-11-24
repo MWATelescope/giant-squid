@@ -220,7 +220,8 @@ There are three submit methods, one for each MWA ASVO submit endpoint, and each 
 A `DownloadJobParams` is the body of every download job: raw visibilities, metadata, voltages or beamformer files. The
 MWA ASVO finds the kind of data from the observation. `only_metadata=True` asks for the metadata only, and `offset`,
 `duration`, `from_channel` and `to_channel` are for a voltage observation: the MWA ASVO refuses them for an observation
-that has no voltages. `only_metadata`, `image_size` and `pixel_scale` default to `None`: the MWA ASVO API gives them no
+that has no voltages. `only_metadata=True` with any voltage argument raises `MwaAsvoApiErrorInvalidParameter` (`name`
+is `"only_metadata"`) before any request. `only_metadata`, `image_size` and `pixel_scale` default to `None`: the MWA ASVO API gives them no
 default, so the body leaves them out (the MWA ASVO calculates the image size and the pixel scale). `output_mode` of the
 imaging classes is a required keyword argument, because the API gives it no default. The polarisation is
 `polarization` (the API's name). The imaging classes have no `clean_threshold` and no `nwlayers`, which the MWA ASVO

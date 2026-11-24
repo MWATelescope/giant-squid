@@ -744,7 +744,8 @@ pub struct SubmitDownloadArgs {
 
     /// Download the metadata only: metafits (with PPDs for each tile) and RFI
     /// flags (if available). Takes true or false. Leave unset to leave it out
-    /// of the request (the schema gives it no default).
+    /// of the request (the schema gives it no default). True is not valid with
+    /// the voltage options (--offset, --duration, --from-channel, --to-channel).
     #[arg(
         long,
         default_missing_value = "true",

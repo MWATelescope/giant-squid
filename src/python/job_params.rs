@@ -51,7 +51,8 @@ use crate::obs_id::ObsId;
 /// The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
 /// visibility, metadata, voltage or beamformer job: the MWA ASVO finds the kind of data from the
 /// observation. Set `only_metadata` for a metadata job, and `offset`, `duration`, `from_channel`
-/// and `to_channel` for a voltage job; the MWA ASVO refuses the voltage fields for an observation
+/// and `to_channel` for a voltage job (`only_metadata=True` with any of them is an
+/// `MwaAsvoApiErrorInvalidParameter`); the MWA ASVO refuses the voltage fields for an observation
 /// that has no voltages.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value

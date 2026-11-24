@@ -15,6 +15,11 @@
 //! never sent. In the download body, only the voltage `offset` has limits
 //! that its type does not give.
 //!
+//! A few rules are not in the schema, but are checked here too, so that
+//! every caller refuses the same bodies: the delivery and its format
+//! ([`check_delivery_format`]), the phase centre ([`check_centre`]), and a
+//! metadata download with voltage arguments ([`check_only_metadata`]).
+//!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
 //! directory, so when `tools/generate_openapi.sh` brings in a schema with
@@ -286,8 +291,59 @@ pub fn check_centre(
     Ok(())
 }
 
-/// Check a download request body: its delivery ([`check_delivery_format`])
-/// and its `offset` and `duration` against the schema's limits.
+/// The name of the download field that asks for the metadata only.
+pub const ONLY_METADATA: &str = "only_metadata";
+
+/// The names of the download fields that only a voltage download takes.
+pub const VOLTAGE_FIELDS: [&str; 4] = ["offset", "duration", "from_channel", "to_channel"];
+
+/// Check that a metadata download (`only_metadata` true) has no voltage
+/// argument ([`VOLTAGE_FIELDS`]). An `only_metadata` of false or `None`
+/// takes any of them.
+///
+/// # Errors
+///
+/// [`MwaAsvoApiError::InvalidParameter`] for `only_metadata`, if it is true
+/// and any voltage argument is given. The message names the voltage
+/// arguments that are given.
+pub fn check_only_metadata(
+    only_metadata: Option<bool>,
+    offset: Option<i64>,
+    duration: Option<i64>,
+    from_channel: Option<u8>,
+    to_channel: Option<u8>,
+) -> Result<(), MwaAsvoApiError> {
+    if only_metadata != Some(true) {
+        return Ok(());
+    }
+    let given_flags = [
+        offset.is_some(),
+        duration.is_some(),
+        from_channel.is_some(),
+        to_channel.is_some(),
+    ];
+    let given: Vec<&str> = VOLTAGE_FIELDS
+        .iter()
+        .zip(given_flags)
+        .filter_map(|(name, is_given)| is_given.then_some(*name))
+        .collect();
+    if given.is_empty() {
+        return Ok(());
+    }
+    Err(MwaAsvoApiError::InvalidParameter {
+        name: ONLY_METADATA,
+        message: format!(
+            "true is not valid when voltage arguments ({}) are given (got {})",
+            VOLTAGE_FIELDS.join(", "),
+            given.join(", ")
+        ),
+    })
+}
+
+/// Check a download request body: its delivery ([`check_delivery_format`]),
+/// that a metadata download has no voltage argument
+/// ([`check_only_metadata`]), and its `offset` and `duration` against the
+/// schema's limits.
 /// `from_channel` and `to_channel` need no check: the schema's limits for
 /// them are the limits of their type (`u8`). The other rules of a
 /// download job (for example that only an observation with voltages takes
@@ -296,9 +352,17 @@ pub fn check_centre(
 /// # Errors
 ///
 /// [`MwaAsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree, or the `offset` or the `duration` is out of range.
+/// agree, `only_metadata` is true with a voltage argument, or the `offset` or
+/// the `duration` is out of range.
 pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), MwaAsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
+    check_only_metadata(
+        params.only_metadata,
+        params.offset,
+        params.duration,
+        params.from_channel,
+        params.to_channel,
+    )?;
     check_all(&[
         (
             "offset",

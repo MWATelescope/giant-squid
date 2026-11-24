@@ -285,7 +285,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 beamformer files. The request does not say which: the MWA ASVO finds the kind of data from the observation.
 `--only-metadata` asks for the metadata only, and the voltage options (`--offset`, `--duration`, `--from-channel`
 and `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for an observation that has no
-voltages.
+voltages. `--only-metadata` (true) with any voltage option is an error, found before any request.
 
 ```text
 Submit MWA ASVO jobs to download MWA data
@@ -314,7 +314,7 @@ Options:
           [possible values: tar, files]
 
       --only-metadata[=<ONLY_METADATA>]
-          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default)
+          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default). True is not valid with the voltage options (--offset, --duration, --from-channel, --to-channel)
           
           [possible values: true, false]
 
