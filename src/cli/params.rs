@@ -754,21 +754,21 @@ pub struct SubmitDownloadArgs {
     )]
     pub only_metadata: Option<bool>,
 
-    /// Voltage observations only: the offset in seconds from the start GPS
+    /// Voltage observations only (required): the offset in seconds from the start GPS
     /// time of the observation (0-5400).
     #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: Option<i64>,
 
-    /// Voltage observations only: the duration (in seconds) to download
+    /// Voltage observations only (required): the duration (in seconds) to download
     /// (0-7200).
     #[arg(short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
     pub duration: Option<i64>,
 
-    /// Voltage observations only: the 'from' receiver channel number (0-255).
+    /// Voltage observations only (optional): the 'from' receiver channel number (0-255).
     #[arg(long)]
     pub from_channel: Option<u8>,
 
-    /// Voltage observations only: the 'to' receiver channel number (0-255).
+    /// Voltage observations only (optional): the 'to' receiver channel number (0-255).
     #[arg(long)]
     pub to_channel: Option<u8>,
 
