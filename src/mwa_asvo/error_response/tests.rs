@@ -16,7 +16,7 @@ fn obs_id() -> ObsId {
 
 #[test]
 fn an_api_error_is_copied_verbatim() {
-    let error = MwaAsvoApiError::ApiError {
+    let error = MwaAsvoApiError::Server {
         status: 404,
         response: Box::new(ErrorResponse {
             detail: Some("detail text".to_string()),
@@ -140,7 +140,7 @@ fn a_missing_api_key_has_its_code() {
 
 #[test]
 fn a_download_error_from_the_api_is_the_api_error() {
-    let error = MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus {
+    let error = MwaAsvoError::Api(MwaAsvoApiError::BadStatus {
         status: 502,
         message: String::new(),
     });
@@ -189,7 +189,7 @@ fn a_missing_obs_id_names_the_obs_id() {
 
 #[test]
 fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
-    let error = MwaAsvoError::HttpError {
+    let error = MwaAsvoError::HttpStatus {
         job_id: job_id(7),
         status: 500,
         message: "body".to_string(),
@@ -203,7 +203,7 @@ fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
 
 #[test]
 fn a_download_http_error_names_its_job() {
-    let error = MwaAsvoError::HttpError {
+    let error = MwaAsvoError::HttpStatus {
         job_id: job_id(7),
         status: 503,
         message: "try later".to_string(),

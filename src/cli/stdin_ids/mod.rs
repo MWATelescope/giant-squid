@@ -120,7 +120,7 @@ fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
             .get(KEY_MESSAGE)
             .and_then(serde_json::Value::as_str)
             .unwrap_or("no message");
-        return Err(ParseError::StdinError {
+        return Err(ParseError::StdinFailure {
             message: message.to_string(),
         });
     }

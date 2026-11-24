@@ -6,7 +6,7 @@
 //! `ParseError`.
 //!
 //! Each exception has the name of the Rust error enum. Its `kind` attribute
-//! is the name of the Rust variant (for example `"ApiError"`), and it has one
+//! is the name of the Rust variant (for example `"Server"`), and it has one
 //! attribute for each of that variant's fields. The exception's message is
 //! the Rust error's message.
 
@@ -42,7 +42,7 @@ create_exception!(
     mwa_giant_squid,
     MwaAsvoError,
     PyException,
-    "A download or job check failed. `kind` is the Rust `MwaAsvoError` variant, and the exception is also an instance of the class for that variant (for example `MwaAsvoErrorNoMwaAsvoJob`).\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorMwaAsvoApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
+    "A download or job check failed. `kind` is the Rust `MwaAsvoError` variant, and the exception is also an instance of the class for that variant (for example `MwaAsvoErrorNoMwaAsvoJob`).\n\n`kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this."
 );
 
 create_exception!(
@@ -160,7 +160,7 @@ MwaAsvoApiErrorConversion("Conversion") => "A value could not be turned into the
 MwaAsvoApiErrorInvalidParameter("InvalidParameter") => "A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.",
 MwaAsvoApiErrorBadJson("BadJson") => "The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).",
 MwaAsvoApiErrorHttp("Http") => "An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Http`).",
-MwaAsvoApiErrorApiError("ApiError") => "The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.",
+MwaAsvoApiErrorServer("Server") => "The MWA ASVO replied with an error (kind `Server`). `status` is the HTTP status, and `error_code` is the server's error code.",
 MwaAsvoApiErrorBadStatus("BadStatus") => "The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).",}
 
 variant_exceptions! {
@@ -179,7 +179,7 @@ MwaAsvoErrorInvalidJobState("InvalidJobState") => "The text is not the name of a
 MwaAsvoErrorInvalidJobType("InvalidJobType") => "The text is not the name of a job type (kind `InvalidJobType`).",
 MwaAsvoErrorInvalidEnvironment("InvalidEnvironment") => "An environment variable has a value that cannot be used (kind `InvalidEnvironment`).",
 MwaAsvoErrorInvalidOption("InvalidOption") => "A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.",
-MwaAsvoErrorMwaAsvoApi("MwaAsvoApi") => "An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.",
+MwaAsvoErrorApi("Api") => "An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `Api`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.",
 MwaAsvoErrorInterrupted("Interrupted") => "The download was stopped (kind `Interrupted`).",
 MwaAsvoErrorNoUrl("NoUrl") => "The job's file has no download URL (kind `NoUrl`).",
 MwaAsvoErrorNoHash("NoHash") => "The job's file has no hash (kind `NoHash`).",
@@ -187,9 +187,9 @@ MwaAsvoErrorFilesNotReachable("FilesNotReachable") => "The files are on a file s
 MwaAsvoErrorNoPath("NoPath") => "The job's files have no path (kind `NoPath`).",
 MwaAsvoErrorSymlinkInDownloadDir("SymlinkInDownloadDir") => "The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).",
 MwaAsvoErrorDestinationExists("DestinationExists") => "The place for the files of a Scratch job is already there (kind `DestinationExists`).",
-MwaAsvoErrorHttpError("HttpError") => "The download server replied with an HTTP error (kind `HttpError`).",
+MwaAsvoErrorHttpStatus("HttpStatus") => "The download server replied with an HTTP error (kind `HttpStatus`).",
 MwaAsvoErrorJobExpired("JobExpired") => "The download links of the job have expired (kind `JobExpired`). Resubmit the job.",
-MwaAsvoErrorHttp404Error("Http404Error") => "The download server did not find the file (kind `Http404Error`).",}
+MwaAsvoErrorHttpNotFound("HttpNotFound") => "The download server did not find the file (kind `HttpNotFound`).",}
 
 variant_exceptions! {
 ObsIdError:
@@ -200,7 +200,7 @@ variant_exceptions! {
 ParseError:
 ParseErrorInsideFile("InsideFile") => "A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.",
 ParseErrorInsideStdin("InsideStdin") => "A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.",
-ParseErrorStdinError("StdinError") => "Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.",
+ParseErrorStdinFailure("StdinFailure") => "Standard input has the error line of a command that failed (kind `StdinFailure`). Only the command reads standard input, so the module does not raise this.",
 ParseErrorStdinJson("StdinJson") => "Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.",
 ParseErrorJobIdsGiven("JobIdsGiven") => "Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.",
 ParseErrorObsIdsGiven("ObsIdsGiven") => "Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.",
@@ -253,13 +253,13 @@ mod stub_attributes {
             struct_id: std::any::TypeId::of::<MwaAsvoApiError>,
             attrs: &[
                 attr!("name", String, "InvalidParameter: the name of the argument, as the OpenAPI schema has it."),
-                attr!("message", String, "AuthenticationFailed, InvalidParameter, ApiError and BadStatus."),
-                attr!("error_code", Option<String>, "ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse."),
-                attr!("detail", Option<String>, "ApiError and AuthenticationFailed."),
-                attr!("suggestion", Option<String>, "ApiError and AuthenticationFailed."),
-                attr!("field_errors", Vec<HashMap<String, String>>, "ApiError and AuthenticationFailed: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
-                attr!("request_id", Option<String>, "ApiError and AuthenticationFailed: the server's ID for the request, for a support request."),
-                attr!("status", u16, "ApiError and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpError)."),
+                attr!("message", String, "AuthenticationFailed, InvalidParameter, Server and BadStatus."),
+                attr!("error_code", Option<String>, "Server and AuthenticationFailed: the server's machine-readable error code. Always set for Server; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse."),
+                attr!("detail", Option<String>, "Server and AuthenticationFailed."),
+                attr!("suggestion", Option<String>, "Server and AuthenticationFailed."),
+                attr!("field_errors", Vec<HashMap<String, String>>, "Server and AuthenticationFailed: the fields that failed validation, each as `{\"field\": ..., \"message\": ...}`. Can be empty."),
+                attr!("request_id", Option<String>, "Server and AuthenticationFailed: the server's ID for the request, for a support request."),
+                attr!("status", u16, "Server and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpStatus)."),
             ],
             getters: &[],
             setters: &[],
@@ -274,7 +274,7 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<MwaAsvoError>,
             attrs: &[
-                attr!("job_id", u64, "NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error."),
+                attr!("job_id", u64, "NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpStatus and HttpNotFound."),
                 attr!("obs_id", PyObsId, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("expired", Option<jiff::Timestamp>, "JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known."),
                 attr!("error", String, "JobFailed: the job's error message."),
@@ -285,11 +285,11 @@ mod stub_attributes {
                 attr!("file", String, "HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there."),
                 attr!("calculated_hash", String, "HashMismatch."),
                 attr!("expected_hash", String, "HashMismatch."),
-                attr!("status", u16, "HttpError: the HTTP status code."),
-                attr!("message", String, "HttpError and InvalidOption: what is wrong."),
+                attr!("status", u16, "HttpStatus: the HTTP status code."),
+                attr!("message", String, "HttpStatus and InvalidOption: what is wrong."),
                 attr!("str", String, "InvalidJobState and InvalidJobType: the text that could not be parsed."),
                 attr!("name", String, "InvalidEnvironment: the name of the environment variable. InvalidOption: the name of the option."),
-                attr!("source", ApiErrorObject, "MwaAsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`."),
+                attr!("source", ApiErrorObject, "Api: the API error that stopped the download or the job check. It is also the `__cause__`."),
                 attr!("value", String, "InvalidEnvironment: its value."),
                 attr!("problem", String, "InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)"),
                 attr!("id", i64, "InvalidJob: the `id` of the job, as the API gave it."),
@@ -324,7 +324,7 @@ mod stub_attributes {
             attrs: &[
                 attr!("file", String, "InsideFile: the file."),
                 attr!("text", String, "InsideFile and InsideStdin: the word that is not a number."),
-                attr!("message", String, "StdinError: the message of the error."),
+                attr!("message", String, "StdinFailure: the message of the error."),
                 attr!("problem", String, "StdinJson: what is wrong."),
                 attr!("job_ids", Vec<u64>, "JobIdsGiven: the Job IDs."),
                 attr!("obs_ids", Vec<PyObsId>, "ObsIdsGiven: the Obs IDs."),
@@ -488,14 +488,14 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
         }
         lib::MwaAsvoApiError::BadJson(_) => raise!(MwaAsvoApiErrorBadJson, vec![]),
         lib::MwaAsvoApiError::Http(_) => raise!(MwaAsvoApiErrorHttp, vec![]),
-        lib::MwaAsvoApiError::ApiError { status, response } => {
+        lib::MwaAsvoApiError::Server { status, response } => {
             let mut fields = vec![
                 ("status", Field::Int(u64::from(*status))),
                 ("error_code", Field::Str(response.error_code.clone())),
                 ("message", Field::Str(response.message.clone())),
             ];
             fields.extend(reply_fields(Some(response.clone())));
-            raise!(MwaAsvoApiErrorApiError, fields)
+            raise!(MwaAsvoApiErrorServer, fields)
         }
         lib::MwaAsvoApiError::BadStatus {
             status,
@@ -538,8 +538,8 @@ pub(crate) fn os_error(py: Python<'_>, path: &Path, source: std::io::Error) -> P
 
 /// Convert a library [`lib::MwaAsvoError`] to a Python exception.
 ///
-/// `lib::MwaAsvoError::MwaAsvoApi` wraps an API error (for example, the job list
-/// request before a download), so it becomes `MwaAsvoErrorMwaAsvoApi`, which has
+/// `lib::MwaAsvoError::Api` wraps an API error (for example, the job list
+/// request before a download), so it becomes `MwaAsvoErrorApi`, which has
 /// the Python `MwaAsvoApiError` as its `source` and its `__cause__`.
 /// `lib::MwaAsvoError::IO` and `lib::MwaAsvoError::CannotCreate` (a file or a
 /// directory that cannot be read, written or made) become an `OSError`, as
@@ -556,11 +556,11 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
         };
     }
     match e {
-        lib::MwaAsvoError::MwaAsvoApi(inner) => {
+        lib::MwaAsvoError::Api(inner) => {
             let source = api_error(py, inner);
             let cause = source.value(py).clone().unbind();
             let err = raise!(
-                MwaAsvoErrorMwaAsvoApi,
+                MwaAsvoErrorApi,
                 vec![("source", Field::Exception(cause.clone_ref(py)))]
             );
             err.set_cause(py, Some(source));
@@ -695,20 +695,20 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             MwaAsvoErrorDestinationExists,
             vec![job_id(id), ("file", Field::Str(path.display().to_string()))]
         ),
-        lib::MwaAsvoError::HttpError {
+        lib::MwaAsvoError::HttpStatus {
             job_id: id,
             status,
             message,
         } => raise!(
-            MwaAsvoErrorHttpError,
+            MwaAsvoErrorHttpStatus,
             vec![
                 job_id(id),
                 ("status", Field::Int(u64::from(status))),
                 ("message", Field::Str(message)),
             ]
         ),
-        lib::MwaAsvoError::Http404Error { job_id: id } => {
-            raise!(MwaAsvoErrorHttp404Error, vec![job_id(id)])
+        lib::MwaAsvoError::HttpNotFound { job_id: id } => {
+            raise!(MwaAsvoErrorHttpNotFound, vec![job_id(id)])
         }
     }
 }
@@ -752,8 +752,11 @@ pub(crate) fn parse_error(py: Python<'_>, e: LibParseError) -> PyErr {
             raise!(ParseErrorInsideStdin, vec![("text", Field::Str(text))])
         }
         LibParseError::StdinIO { source } => PyErr::from(source),
-        LibParseError::StdinError { message: problem } => {
-            raise!(ParseErrorStdinError, vec![("message", Field::Str(problem))])
+        LibParseError::StdinFailure { message: problem } => {
+            raise!(
+                ParseErrorStdinFailure,
+                vec![("message", Field::Str(problem))]
+            )
         }
         LibParseError::StdinJson { problem } => {
             raise!(ParseErrorStdinJson, vec![("problem", Field::Str(problem))])

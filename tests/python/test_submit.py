@@ -492,7 +492,7 @@ def test_a_server_error_raises_mwa_asvo_api_error(client: gs.MwaAsvoClient, http
     with pytest.raises(gs.MwaAsvoApiError) as err:
         client.submit_download_job(gs.DownloadJobParams(TEST_OBS_ID))
 
-    assert err.value.kind == "ApiError"
+    assert err.value.kind == "Server"
     assert err.value.error_code == "JOB_ALREADY_EXISTS"
 
 
@@ -855,7 +855,7 @@ def test_cancelling_a_missing_job_raises_mwa_asvo_api_error(client: gs.MwaAsvoCl
     with pytest.raises(gs.MwaAsvoApiError) as err:
         client.cancel_job(CANCELLED_JOB_ID)
 
-    assert err.value.kind == "ApiError"
+    assert err.value.kind == "Server"
     assert err.value.error_code == "JOB_NOT_FOUND"
 
 

@@ -285,7 +285,7 @@ impl MwaAsvoClient {
     /// # Errors
     ///
     /// [`MwaAsvoError::InvalidOption`] if `config.api_timeout` is zero (every
-    /// request would time out). [`MwaAsvoError::MwaAsvoApi`] with
+    /// request would time out). [`MwaAsvoError::Api`] with
     /// [`MwaAsvoApiError::MissingAuthKey`] if `config.api_key` is empty, or
     /// with the error of the login.
     pub fn new(config: MwaAsvoClientConfig) -> Result<MwaAsvoClient, MwaAsvoError> {
@@ -735,7 +735,7 @@ impl MwaAsvoClient {
     fn is_auth_error(err: &MwaAsvoApiError) -> bool {
         matches!(
             err,
-            MwaAsvoApiError::ApiError { response, .. }
+            MwaAsvoApiError::Server { response, .. }
                 if AUTH_ERROR_CODES.contains(&response.error_code.as_str())
         )
     }
@@ -801,7 +801,7 @@ impl MwaAsvoClient {
                 // filter" (see `NO_JOBS_STATUS`): there are no more jobs.
                 // Any other 404 (one that is not an `ErrorResponse`, for
                 // example from a wrong host) is still an error.
-                Err(MwaAsvoApiError::ApiError { status, .. })
+                Err(MwaAsvoApiError::Server { status, .. })
                     if status == NO_JOBS_STATUS.as_u16() =>
                 {
                     debug!("No job matches the filter (HTTP {status})");
@@ -864,7 +864,7 @@ impl MwaAsvoClient {
     ///
     /// # Errors
     ///
-    /// [`MwaAsvoError::MwaAsvoApi`] with the error from the request, as for
+    /// [`MwaAsvoError::Api`] with the error from the request, as for
     /// [`Self::get_jobs`], and [`MwaAsvoError::Interrupted`].
     // Only the CLI (the "bin" feature) calls it, so a build without that
     // feature does not use it.

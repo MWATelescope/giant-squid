@@ -62,7 +62,6 @@ __all__ = [
     "JobType",
     "JobsFilter",
     "MwaAsvoApiError",
-    "MwaAsvoApiErrorApiError",
     "MwaAsvoApiErrorAuthenticationFailed",
     "MwaAsvoApiErrorBadJson",
     "MwaAsvoApiErrorBadStatus",
@@ -70,14 +69,16 @@ __all__ = [
     "MwaAsvoApiErrorHttp",
     "MwaAsvoApiErrorInvalidParameter",
     "MwaAsvoApiErrorMissingAuthKey",
+    "MwaAsvoApiErrorServer",
     "MwaAsvoClient",
     "MwaAsvoClientConfig",
     "MwaAsvoError",
+    "MwaAsvoErrorApi",
     "MwaAsvoErrorDestinationExists",
     "MwaAsvoErrorFilesNotReachable",
     "MwaAsvoErrorHashMismatch",
-    "MwaAsvoErrorHttp404Error",
-    "MwaAsvoErrorHttpError",
+    "MwaAsvoErrorHttpNotFound",
+    "MwaAsvoErrorHttpStatus",
     "MwaAsvoErrorInterrupted",
     "MwaAsvoErrorInvalidEnvironment",
     "MwaAsvoErrorInvalidJob",
@@ -87,7 +88,6 @@ __all__ = [
     "MwaAsvoErrorJobCancelled",
     "MwaAsvoErrorJobExpired",
     "MwaAsvoErrorJobFailed",
-    "MwaAsvoErrorMwaAsvoApi",
     "MwaAsvoErrorNoFiles",
     "MwaAsvoErrorNoHash",
     "MwaAsvoErrorNoJobReadyForObsId",
@@ -114,7 +114,7 @@ __all__ = [
     "ParseErrorNoJobIds",
     "ParseErrorNoObsIds",
     "ParseErrorObsIdsGiven",
-    "ParseErrorStdinError",
+    "ParseErrorStdinFailure",
     "ParseErrorStdinJson",
     "ParseErrorZeroJobId",
     "PhaseCentre",
@@ -1782,31 +1782,31 @@ class MwaAsvoApiError(builtins.Exception):
     """
     message: builtins.str
     r"""
-    AuthenticationFailed, InvalidParameter, ApiError and BadStatus.
+    AuthenticationFailed, InvalidParameter, Server and BadStatus.
     """
     error_code: builtins.str | None
     r"""
-    ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse.
+    Server and AuthenticationFailed: the server's machine-readable error code. Always set for Server; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse.
     """
     detail: builtins.str | None
     r"""
-    ApiError and AuthenticationFailed.
+    Server and AuthenticationFailed.
     """
     suggestion: builtins.str | None
     r"""
-    ApiError and AuthenticationFailed.
+    Server and AuthenticationFailed.
     """
     field_errors: builtins.list[builtins.dict[builtins.str, builtins.str]]
     r"""
-    ApiError and AuthenticationFailed: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
+    Server and AuthenticationFailed: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
     """
     request_id: builtins.str | None
     r"""
-    ApiError and AuthenticationFailed: the server's ID for the request, for a support request.
+    Server and AuthenticationFailed: the server's ID for the request, for a support request.
     """
     status: builtins.int
     r"""
-    ApiError and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpError).
+    Server and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpStatus).
     """
     @property
     def kind(
@@ -1818,21 +1818,11 @@ class MwaAsvoApiError(builtins.Exception):
         "InvalidParameter",
         "BadJson",
         "Http",
-        "ApiError",
+        "Server",
         "BadStatus",
     ]:
         r"""
         The name of the Rust variant. Each subclass has one kind.
-        """
-
-class MwaAsvoApiErrorApiError(MwaAsvoApiError):
-    r"""
-    The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.
-    """
-    @property
-    def kind(self) -> typing.Literal["ApiError"]:
-        r"""
-        Always "ApiError".
         """
 
 class MwaAsvoApiErrorAuthenticationFailed(MwaAsvoApiError):
@@ -1903,6 +1893,16 @@ class MwaAsvoApiErrorMissingAuthKey(MwaAsvoApiError):
     def kind(self) -> typing.Literal["MissingAuthKey"]:
         r"""
         Always "MissingAuthKey".
+        """
+
+class MwaAsvoApiErrorServer(MwaAsvoApiError):
+    r"""
+    The MWA ASVO replied with an error (kind `Server`). `status` is the HTTP status, and `error_code` is the server's error code.
+    """
+    @property
+    def kind(self) -> typing.Literal["Server"]:
+        r"""
+        Always "Server".
         """
 
 @typing.final
@@ -2289,12 +2289,12 @@ class MwaAsvoError(builtins.Exception):
     r"""
     A download or job check failed. `kind` is the Rust `MwaAsvoError` variant, and the exception is also an instance of the class for that variant (for example `MwaAsvoErrorNoMwaAsvoJob`).
 
-    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorMwaAsvoApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
+    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
     """
 
     job_id: builtins.int
     r"""
-    NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
+    NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpStatus and HttpNotFound.
     """
     obs_id: ObsId
     r"""
@@ -2338,11 +2338,11 @@ class MwaAsvoError(builtins.Exception):
     """
     status: builtins.int
     r"""
-    HttpError: the HTTP status code.
+    HttpStatus: the HTTP status code.
     """
     message: builtins.str
     r"""
-    HttpError and InvalidOption: what is wrong.
+    HttpStatus and InvalidOption: what is wrong.
     """
     str: builtins.str
     r"""
@@ -2354,7 +2354,7 @@ class MwaAsvoError(builtins.Exception):
     """
     source: MwaAsvoApiError
     r"""
-    MwaAsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`.
+    Api: the API error that stopped the download or the job check. It is also the `__cause__`.
     """
     value: builtins.str
     r"""
@@ -2386,7 +2386,7 @@ class MwaAsvoError(builtins.Exception):
         "InvalidJobType",
         "InvalidEnvironment",
         "InvalidOption",
-        "MwaAsvoApi",
+        "Api",
         "Interrupted",
         "NoUrl",
         "NoHash",
@@ -2394,12 +2394,22 @@ class MwaAsvoError(builtins.Exception):
         "NoPath",
         "SymlinkInDownloadDir",
         "DestinationExists",
-        "HttpError",
+        "HttpStatus",
         "JobExpired",
-        "Http404Error",
+        "HttpNotFound",
     ]:
         r"""
         The name of the Rust variant. Each subclass has one kind.
+        """
+
+class MwaAsvoErrorApi(MwaAsvoError):
+    r"""
+    An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `Api`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.
+    """
+    @property
+    def kind(self) -> typing.Literal["Api"]:
+        r"""
+        Always "Api".
         """
 
 class MwaAsvoErrorDestinationExists(MwaAsvoError):
@@ -2432,24 +2442,24 @@ class MwaAsvoErrorHashMismatch(MwaAsvoError):
         Always "HashMismatch".
         """
 
-class MwaAsvoErrorHttp404Error(MwaAsvoError):
+class MwaAsvoErrorHttpNotFound(MwaAsvoError):
     r"""
-    The download server did not find the file (kind `Http404Error`).
+    The download server did not find the file (kind `HttpNotFound`).
     """
     @property
-    def kind(self) -> typing.Literal["Http404Error"]:
+    def kind(self) -> typing.Literal["HttpNotFound"]:
         r"""
-        Always "Http404Error".
+        Always "HttpNotFound".
         """
 
-class MwaAsvoErrorHttpError(MwaAsvoError):
+class MwaAsvoErrorHttpStatus(MwaAsvoError):
     r"""
-    The download server replied with an HTTP error (kind `HttpError`).
+    The download server replied with an HTTP error (kind `HttpStatus`).
     """
     @property
-    def kind(self) -> typing.Literal["HttpError"]:
+    def kind(self) -> typing.Literal["HttpStatus"]:
         r"""
-        Always "HttpError".
+        Always "HttpStatus".
         """
 
 class MwaAsvoErrorInterrupted(MwaAsvoError):
@@ -2540,16 +2550,6 @@ class MwaAsvoErrorJobFailed(MwaAsvoError):
     def kind(self) -> typing.Literal["JobFailed"]:
         r"""
         Always "JobFailed".
-        """
-
-class MwaAsvoErrorMwaAsvoApi(MwaAsvoError):
-    r"""
-    An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.
-    """
-    @property
-    def kind(self) -> typing.Literal["MwaAsvoApi"]:
-        r"""
-        Always "MwaAsvoApi".
         """
 
 class MwaAsvoErrorNoFiles(MwaAsvoError):
@@ -2940,7 +2940,7 @@ class ParseError(builtins.Exception):
     """
     message: builtins.str
     r"""
-    StdinError: the message of the error.
+    StdinFailure: the message of the error.
     """
     problem: builtins.str
     r"""
@@ -2964,7 +2964,7 @@ class ParseError(builtins.Exception):
     ) -> typing.Literal[
         "InsideFile",
         "InsideStdin",
-        "StdinError",
+        "StdinFailure",
         "StdinJson",
         "JobIdsGiven",
         "ObsIdsGiven",
@@ -3058,14 +3058,14 @@ class ParseErrorObsIdsGiven(ParseError):
         Always "ObsIdsGiven".
         """
 
-class ParseErrorStdinError(ParseError):
+class ParseErrorStdinFailure(ParseError):
     r"""
-    Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.
+    Standard input has the error line of a command that failed (kind `StdinFailure`). Only the command reads standard input, so the module does not raise this.
     """
     @property
-    def kind(self) -> typing.Literal["StdinError"]:
+    def kind(self) -> typing.Literal["StdinFailure"]:
         r"""
-        Always "StdinError".
+        Always "StdinFailure".
         """
 
 class ParseErrorStdinJson(ParseError):

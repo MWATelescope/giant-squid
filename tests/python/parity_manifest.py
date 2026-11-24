@@ -34,7 +34,7 @@ API_ERROR_VARIANTS = [
     "InvalidParameter",
     "BadJson",
     "Http",
-    "ApiError",
+    "Server",
     "BadStatus",
 ]
 ERROR_VARIANTS = [
@@ -52,7 +52,7 @@ ERROR_VARIANTS = [
     "InvalidJobType",
     "InvalidEnvironment",
     "InvalidOption",
-    "MwaAsvoApi",
+    "Api",
     "IO",
     "Interrupted",
     "NoUrl",
@@ -61,10 +61,10 @@ ERROR_VARIANTS = [
     "NoPath",
     "SymlinkInDownloadDir",
     "DestinationExists",
-    "HttpError",
+    "HttpStatus",
     "CannotCreate",
     "JobExpired",
-    "Http404Error",
+    "HttpNotFound",
 ]
 
 # The variants of the CSV enums (`src/mwa_asvo/manta_ray_csv/mod.rs`). `Read` is an `io::Error`, which Python raises
@@ -88,7 +88,7 @@ PARSE_ERROR_VARIANTS = [
     "InsideFile",
     "InsideStdin",
     "StdinIO",
-    "StdinError",
+    "StdinFailure",
     "StdinJson",
     "IO",
     "JobIdsGiven",

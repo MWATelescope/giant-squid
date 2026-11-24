@@ -149,7 +149,7 @@ impl MwaAsvoApiError {
                 response: Some(response),
                 ..
             }
-            | MwaAsvoApiError::ApiError { response, .. } => ErrorResponse::clone(response),
+            | MwaAsvoApiError::Server { response, .. } => ErrorResponse::clone(response),
             MwaAsvoApiError::AuthenticationFailed { response: None, .. } => {
                 new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self)
             }
@@ -178,14 +178,14 @@ impl MwaAsvoError {
     /// [`MwaAsvoApiError::error_response`].
     pub fn error_response(&self) -> ErrorResponse {
         let code = match self {
-            MwaAsvoError::MwaAsvoApi(e) => return e.error_response(),
+            MwaAsvoError::Api(e) => return e.error_response(),
             MwaAsvoError::JobFailed { error_code, .. } => {
                 return ErrorResponse {
                     detail: error_code.map(|c| c.to_string()),
                     ..new_error_response(ERROR_CODE_JOB_FAILED, self)
                 }
             }
-            MwaAsvoError::HttpError {
+            MwaAsvoError::HttpStatus {
                 status, message, ..
             } => {
                 return ErrorResponse {
@@ -193,7 +193,7 @@ impl MwaAsvoError {
                     ..new_error_response(&http_error_code(*status), self)
                 }
             }
-            MwaAsvoError::Http404Error { .. } => {
+            MwaAsvoError::HttpNotFound { .. } => {
                 return new_error_response(
                     &http_error_code(reqwest::StatusCode::NOT_FOUND.as_u16()),
                     self,
@@ -241,8 +241,8 @@ impl MwaAsvoError {
             | MwaAsvoError::NoHash { job_id }
             | MwaAsvoError::FilesNotReachable { job_id, .. }
             | MwaAsvoError::DestinationExists { job_id, .. }
-            | MwaAsvoError::HttpError { job_id, .. }
-            | MwaAsvoError::Http404Error { job_id } => Some(*job_id),
+            | MwaAsvoError::HttpStatus { job_id, .. }
+            | MwaAsvoError::HttpNotFound { job_id } => Some(*job_id),
             _ => None,
         }
     }

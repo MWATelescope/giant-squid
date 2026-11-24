@@ -36,7 +36,7 @@ use crate::test_config::{client_config, job_type};
 /// Whether `err` is an API error carrying the given machine-readable code.
 fn is_api_error(err: &MwaAsvoApiError, code: &str) -> bool {
     match err {
-        MwaAsvoApiError::ApiError { response, .. } => response.error_code == code,
+        MwaAsvoApiError::Server { response, .. } => response.error_code == code,
         _ => false,
     }
 }
@@ -111,7 +111,7 @@ fn a_missing_api_key_is_reported_before_any_request() {
     assert!(
         matches!(
             err,
-            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::MissingAuthKey { variable: None })
+            MwaAsvoError::Api(MwaAsvoApiError::MissingAuthKey { variable: None })
         ),
         "got {err:?}"
     );
@@ -170,7 +170,7 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
     assert_eq!(login.calls(), 1);
     let text = err.to_string();
     match err {
-        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::AuthenticationFailed {
+        MwaAsvoError::Api(MwaAsvoApiError::AuthenticationFailed {
             message,
             response: Some(response),
         }) => {
@@ -206,7 +206,7 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
 
     assert_eq!(login.calls(), 1);
     match err {
-        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::AuthenticationFailed { message, response }) => {
+        MwaAsvoError::Api(MwaAsvoApiError::AuthenticationFailed { message, response }) => {
             assert!(message.contains("invalid api key"), "got {message}");
             assert_eq!(response, None);
         }
@@ -566,7 +566,7 @@ fn a_job_list_error_that_is_not_transient_is_not_tried_again() {
     assert!(
         matches!(
             err,
-            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus { status: 403, .. })
+            MwaAsvoError::Api(MwaAsvoApiError::BadStatus { status: 403, .. })
         ),
         "{err:?}"
     );
@@ -590,7 +590,7 @@ fn a_job_list_that_keeps_failing_gives_up_after_the_retry_duration() {
     assert!(
         matches!(
             err,
-            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus { status: 503, .. })
+            MwaAsvoError::Api(MwaAsvoApiError::BadStatus { status: 503, .. })
         ),
         "{err:?}"
     );
@@ -607,7 +607,7 @@ fn a_zero_retry_duration_gives_the_first_failure() {
         .expect_err("no retries");
 
     assert_eq!(failing.calls(), 1);
-    assert!(matches!(err, MwaAsvoError::MwaAsvoApi(_)), "{err:?}");
+    assert!(matches!(err, MwaAsvoError::Api(_)), "{err:?}");
 }
 
 #[test]
@@ -645,11 +645,11 @@ fn only_a_failure_that_may_pass_is_transient() {
     };
 
     for status in [429, 500, 502, 503, 504] {
-        assert!(api_error(status).is_transient(), "ApiError {status}");
+        assert!(api_error(status).is_transient(), "Server {status}");
         assert!(bad_status(status).is_transient(), "BadStatus {status}");
     }
     for status in [400, 401, 403, 404, 409, 422] {
-        assert!(!api_error(status).is_transient(), "ApiError {status}");
+        assert!(!api_error(status).is_transient(), "Server {status}");
         assert!(!bad_status(status).is_transient(), "BadStatus {status}");
     }
     assert!(!MwaAsvoApiError::MissingAuthKey { variable: None }.is_transient());
@@ -676,7 +676,7 @@ fn an_api_error_has_the_http_status_of_the_reply() {
         .expect_err("the call should fail");
 
     assert!(
-        matches!(err, MwaAsvoApiError::ApiError { status: 409, .. }),
+        matches!(err, MwaAsvoApiError::Server { status: 409, .. }),
         "{err:?}"
     );
 }
@@ -697,12 +697,12 @@ fn a_structured_error_body_becomes_an_api_error() {
     };
 
     match err {
-        MwaAsvoApiError::ApiError { response, .. } => {
+        MwaAsvoApiError::Server { response, .. } => {
             assert_eq!(response.error_code, "JOB_INVALID_STATE");
             assert_eq!(response.message, "Job is not ready");
             assert_eq!(response.suggestion.as_deref(), Some("try something else"));
         }
-        other => panic!("expected ApiError, got {other:?}"),
+        other => panic!("expected Server, got {other:?}"),
     }
 }
 
@@ -2112,7 +2112,7 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
         .expect_err("expected the listing to fail");
 
     match &err {
-        MwaAsvoApiError::ApiError { response, .. } => {
+        MwaAsvoApiError::Server { response, .. } => {
             let fields: Vec<&str> = response
                 .field_errors
                 .iter()
@@ -2122,7 +2122,7 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
             assert_eq!(fields, ["mgain", "robust"]);
             assert_eq!(response.request_id.as_deref(), Some("req-1234"));
         }
-        other => panic!("expected ApiError, got {other:?}"),
+        other => panic!("expected Server, got {other:?}"),
     }
     assert_eq!(
         err.to_string(),

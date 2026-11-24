@@ -17,12 +17,12 @@ before you upgrade scripts.**
 * The download links of a job work for 7 days, and the job stays `completed` in the API. `giant-squid` reads the end
   of that time from the `Expires` of the signed URL. `list` and `wait` show a completed job as `completed (ready)`
   or `completed (expired)` (the JSON and `--job-states` keep the API's `completed`). `download` of a job whose links
-  have expired fails at once, with no request, with the new error `AsvoError::JobExpired` (`JOB_EXPIRED` in
+  have expired fails at once, with no request, with the new error `MwaAsvoError::JobExpired` (`JOB_EXPIRED` in
   `--json`; kind `JobExpired` in Python): resubmit the job. The same error is given for the file server's
   `AccessDenied` answer (HTTP 403), which was an `HttpError` 403 before. `download` of an Obs ID skips a completed
-  job whose links have expired when another one works, and `wait` (and `AsvoJobVec::all_ready`) fails for a completed
-  job whose links have expired, as it does for a cancelled job. The library has `AsvoJob::expires`, `is_expired` and
-  `display_state` (Python: `AsvoJob.expires`, `is_expired`, `display_state`). See the
+  job whose links have expired when another one works, and `wait` (and `MwaAsvoJobVec::all_ready`) fails for a completed
+  job whose links have expired, as it does for a cancelled job. The library has `MwaAsvoJob::expires`, `is_expired` and
+  `display_state` (Python: `MwaAsvoJob.expires`, `is_expired`, `display_state`). See the
   [README](README.md#expired-download-links).
 * `download` puts the files of each job into a directory of its own below the download directory (`-d`,
   `--download-dir`), named for the Job ID: `-d /data` gives `/data/12345`. The files of two jobs of the same
@@ -35,12 +35,12 @@ before you upgrade scripts.**
   command. See the [README](README.md#a-directory-for-each-job).
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
   `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
-  anything: if something is already at the target, the download fails (`AsvoError::DestinationExists`,
+  anything: if something is already at the target, the download fails (`MwaAsvoError::DestinationExists`,
   `DESTINATION_EXISTS`; `SymlinkInDownloadDir` for a symbolic link) and nothing changes. A directory at the target,
   when the Scratch folder is gone, is the result of an earlier download, and a second download succeeds. If the download directory
   is where the files already are, nothing is moved.
 * `download` of a DUG job, or of a Scratch job whose path this host cannot reach, fails
-  (`AsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
+  (`MwaAsvoError::FilesNotReachable`, `FILES_NOT_REACHABLE`) with a non-zero exit code. Before, it logged an error and
   reported success.
 * An error that the MWA ASVO sends is shown as it sent it: its error code, message, `detail`, `suggestion`, field
   errors and request ID (also for a failed login). A failed job reports the MWA ASVO's `error_code` as well as its
@@ -57,10 +57,14 @@ before you upgrade scripts.**
 * Library (breaking): the public API is reorganised, and it reads no environment variable and prints nothing. The
   `giant-squid` command's variables are read by `client_config_from_env` and `DownloadSettings::from_env`.
   * The module `asvo` is `mwa_asvo`, and most items are also at the crate root (for example
-    `mwa_giant_squid::AsvoClient`). `Obsid` and `ObsidError` are `ObsId` and `ObsIdError`; `AsvoJobID` is `AsvoJobId`
+    `mwa_giant_squid::MwaAsvoClient`). `Obsid` and `ObsidError` are `ObsId` and `ObsIdError`; `AsvoJobID` is `MwaAsvoJobId`
     (a `NonZeroU64`). `ObsId::MIN` and `ObsId::MAX` give the range of a valid Obs ID.
-  * `AsvoClient::new` takes an `AsvoClientConfig`. `download_jobid` and `download_obsid` are `download_job` and
-    `download_obs`, and return the `AsvoJob` that was downloaded (they returned `()`); `download_job_from` and
+  * The names say "MWA ASVO", not "ASVO" (ASVO is the five data portals; the MWA ASVO is one of them):
+    `AsvoClient`, `AsvoJob`, `AsvoJobVec` and `AsvoError` are `MwaAsvoClient`, `MwaAsvoJob`, `MwaAsvoJobVec` and
+    `MwaAsvoError`, and the new types are `MwaAsvoClientConfig`, `MwaAsvoJobId` and `MwaAsvoApiError`. The constant
+    of the default host is `DEFAULT_MWA_ASVO_HOST`. The Python classes have the same names.
+  * `MwaAsvoClient::new` takes an `MwaAsvoClientConfig`. `download_jobid` and `download_obsid` are `download_job` and
+    `download_obs`, and return the `MwaAsvoJob` that was downloaded (they returned `()`); `download_job_from` and
     `download_obs_from` use a job list that the caller already has. `get_jobs` takes a `JobsFilter`. There are three
     submit methods, one for each submit endpoint of the API: `submit_download_job` (a `DownloadJobParams`, one body
     for a visibility, metadata, voltage or beamformer job), `submit_preprocess_job` (a `PreprocessJobParams`: a
@@ -69,15 +73,17 @@ before you upgrade scripts.**
     (`download_params`, `conversion_params`, `imaging_params` and `image_from_job_params`), and checked by
     `mwa_asvo::api::validate`.
   * The types of the OpenAPI schema replace the library's own: `AsvoJobState` is `JobState` (its `Error` member has
-    no message: use `AsvoJob::error_text`), `AsvoJobType` is `JobType` (the schema's string enum, with `names()` and
+    no message: use `MwaAsvoJob::error_text`), `AsvoJobType` is `JobType` (the schema's string enum, with `names()` and
     `parse_name()`), `AsvoFilesArray` and `AsvoJobProduct` are `JobFile` and `JobProduct`, and `Delivery` is the
-    schema's `DeliveryDestination`. `AsvoJob` wraps `JobDetailResponse` (through `Deref`); `obs_id()` and `job_id()` are methods.
-  * Errors: a request to the MWA ASVO API fails with `AsvoApiError`, which holds the API's `ErrorResponse`
-    (`AsvoError::AsvoApi`); `AsvoError::Reqwest` is gone. `AsvoError::HttpError` has the `job_id` of the download.
-    A file or directory that cannot be created is `AsvoError::CannotCreate`, not `AsvoError::IO`. A failed download is
-    reported once, by the caller; the download no longer also logs it. `AsvoError::HashMismatch` names the file by its
-    path in the download directory, not by its URL, which is a signed URL. `error_response` on `AsvoApiError`,
-    `AsvoError` and `ParseError` gives an error as the API's `ErrorResponse`.
+    schema's `DeliveryDestination`. `MwaAsvoJob` wraps `JobDetailResponse` (through `Deref`); `obs_id()` and `job_id()` are methods.
+  * Errors: a request to the MWA ASVO API fails with `MwaAsvoApiError`, which holds the API's `ErrorResponse`
+    (`MwaAsvoError::Api`). `AsvoError::Reqwest` is gone: a failed HTTP request is `MwaAsvoApiError::Http`, and an
+    error reply of the MWA ASVO is `MwaAsvoApiError::Server`. `AsvoError::HttpError` and `Http404Error` are
+    `MwaAsvoError::HttpStatus` and `MwaAsvoError::HttpNotFound`, and have the `job_id` of the download.
+    A file or directory that cannot be created is `MwaAsvoError::CannotCreate`, not `AsvoError::IO`. A failed download is
+    reported once, by the caller; the download no longer also logs it. `MwaAsvoError::HashMismatch` names the file by its
+    path in the download directory, not by its URL, which is a signed URL. `error_response` on `MwaAsvoApiError`,
+    `MwaAsvoError` and `ParseError` gives an error as the API's `ErrorResponse`.
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
   "Obsid"). JSON keys and argument names do not change (`job_id`, `obs_id`).
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
@@ -230,9 +236,9 @@ before you upgrade scripts.**
   and a line that makes the same job as an earlier line, are warnings. A line that gives no delivery or delivery
   format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set; a voltage line that gives
   none and has none set is delivered to Scratch as files, as in manta-ray-client. See the
-  [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `AsvoClient::submit_csv_file`, which
-  reads a file and returns the `JobSubmittedResponse` of each job, `AsvoClient::submit_csv_jobs`,
-  `read_manta_ray_csv`, `parse_manta_ray_csv` and `CsvDefaults`. A file with no job is an error (`CsvFileError::NoJobs`). The Python module has `AsvoClient.submit_csv_file`, which returns a list
+  [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `MwaAsvoClient::submit_csv_file`, which
+  reads a file and returns the `JobSubmittedResponse` of each job, `MwaAsvoClient::submit_csv_jobs`,
+  `read_manta_ray_csv`, `parse_manta_ray_csv` and `CsvDefaults`. A file with no job is an error (`CsvFileError::NoJobs`). The Python module has `MwaAsvoClient.submit_csv_file`, which returns a list
   of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed. A file with no job raises `ValueError`.
 * `download`, `cancel` and `wait` read their IDs from standard input when an argument is `-`. The input is the
   output of the new option `list --ids` (one Job ID on each line) or of `list --json` (the Job IDs are its keys), or
@@ -242,27 +248,27 @@ before you upgrade scripts.**
   only because of the `-`, never guessed from the kind of input, so a command with no ID and no `-` fails as in 2.x
   (its error says to give `-`). See the
   [README](README.md#use-the-output-of-list-as-the-input-of-other-commands).
-* Python: the constants of the Rust library (`DEFAULT_ASVO_HOST`, `DEFAULT_API_TIMEOUT` and
+* Python: the constants of the Rust library (`DEFAULT_MWA_ASVO_HOST`, `DEFAULT_API_TIMEOUT` and
   `DEFAULT_DOWNLOAD_RETRY_DURATION` in seconds, `BYTES_PER_MIB`, `MIN_DOWNLOAD_BUFFER_SIZE`,
   `DEFAULT_DOWNLOAD_BUFFER_SIZE`, `SIGNED_URL_LIFETIME_DAYS`, `OBS_ID_HINT` and the `ENV_*` names of the
   environment variables), and the functions `default_token_cache_path` and `check_file_sha1_hash`. This is the
   first step to make the Python API match the Rust API (`tests/python/parity_manifest.py` lists what is left).
 * Python: `ObsId`, the library's checked Obs ID (`ObsId.MIN`, `MAX`, `validate`, `from_str`, `get`). Every Obs ID
-  argument takes an `int` or an `ObsId`, and `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
+  argument takes an `int` or an `ObsId`, and `MwaAsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
   `ObsId` (it is equal to the `int` of the same value, but `json.dumps` needs `int(obs_id)`). An Obs ID that is not
   valid raises `ObsIdError` (before, `ValueError`), which has a subclass for each Rust variant
   (`ObsIdErrorWrongNumDigits`, `ObsIdErrorParse`). The functions `parse_obs_ids_only`, `parse_job_ids_only`,
   `parse_many_job_ids_or_obs_ids`, `parse_job_ids_and_obs_ids_from_file` and `parse_utc_time`, and the exception
   `ParseError` with a subclass for each Rust variant (`ParseErrorNoObsIds` and so on).
-* Python: `JobDetailResponse` and `AsvoJob.detail()` (the job as the API gives it), `JobFile.size_bytes`,
-  `AsvoJobVec.json()` (as `giant-squid list --json`), and `names()` and `parse_name()` on `JobType` and `JobState`.
-* Python: `AsvoClientConfig`, `JobsFilter`, `DownloadOptions` and `DownloadSettings`, as in the Rust library, and
+* Python: `JobDetailResponse` and `MwaAsvoJob.detail()` (the job as the API gives it), `JobFile.size_bytes`,
+  `MwaAsvoJobVec.json()` (as `giant-squid list --json`), and `names()` and `parse_name()` on `JobType` and `JobState`.
+* Python: `MwaAsvoClientConfig`, `JobsFilter`, `DownloadOptions` and `DownloadSettings`, as in the Rust library, and
   `client_config_from_env()` and `DownloadSettings.from_env()`, which read the environment variables of the
-  `giant-squid` command. **Changed:** `AsvoClient(config)` takes an `AsvoClientConfig` instead of `host`, `api_key`,
+  `giant-squid` command. **Changed:** `MwaAsvoClient(config)` takes an `MwaAsvoClientConfig` instead of `host`, `api_key`,
   `api_timeout` and `token_cache_path`. `get_jobs(filter=None)` takes a `JobsFilter` instead of keyword arguments.
   `download_job(job_id, options)` and `download_obs(obs_id, options)` take a `DownloadOptions` instead of
   `download_dir` and keyword arguments, and the new `download_job_from(jobs, job_id, options)` and
-  `download_obs_from(jobs, obs_id, options)` replace the `jobs=` argument. The `repr` of an `AsvoClientConfig` does
+  `download_obs_from(jobs, obs_id, options)` replace the `jobs=` argument. The `repr` of an `MwaAsvoClientConfig` does
   not show the API key.
 * Python: the library's functions that make a request body: `download_params`, `conversion_params`,
   `imaging_params` and `image_from_job_params`. `validate()` on `DownloadJobParams`, `ConversionJobParams`,
@@ -276,18 +282,20 @@ before you upgrade scripts.**
 * Python: the items of the import of a manta-ray-client CSV file, as in the Rust library: `CsvDefaults` (with
   `from_env()`), `CsvJob`, `CsvJobParams` (`Conversion`, `Imaging`, `Download`, `Voltage` and `Beamformer` variants,
   with `description()` and `validate()`), `CsvRowError`, `parse_manta_ray_csv`, `read_manta_ray_csv`,
-  `AsvoClient.submit_csv_jobs(jobs, on_result=None)` and `AsvoClient.submit_csv_job(params)`. The errors have a
+  `MwaAsvoClient.submit_csv_jobs(jobs, on_result=None)` and `MwaAsvoClient.submit_csv_job(params)`. The errors have a
   subclass for each Rust variant: `CsvError`, `CsvJobsFailed`, `CsvFileError` (`CsvFileErrorInvalid`,
   `CsvFileErrorNoJobs`) and `CsvSubmitError` (`CsvSubmitErrorInvalid`, `CsvSubmitErrorNoJobs`,
   `CsvSubmitErrorFailed`). **Changed:** `submit_csv_file(path, defaults=None)` takes a `CsvDefaults` instead of the
   keyword arguments `delivery`, `delivery_format` and `allow_resubmit`, and a file with a problem or with no job raises
   `CsvSubmitErrorInvalid` or `CsvSubmitErrorNoJobs` (instances of `CsvSubmitError`) instead of `ValueError`.
-* Python: every variant of `AsvoApiError` and `AsvoError` has a subclass of that exception, named by the two
-  (`AsvoApiErrorInvalidParameter`, `AsvoErrorNoAsvoJob`), with the fields of the variant. `kind` is kept.
-  **Changed:** an argument outside the MWA ASVO limits raises `AsvoApiErrorInvalidParameter` (with `name` and `message`)
-  and a download option that cannot be used raises `AsvoErrorInvalidOption`, instead of `ValueError`. An API error
-  during `AsvoClient(config)`, `client_config_from_env()` or a download is `AsvoErrorAsvoApi`, as in the library, with
-  the `AsvoApiError` as its `source` and `__cause__`, instead of the `AsvoApiError` itself. A Job ID of 0, a negative
+* Python: every variant of `MwaAsvoApiError` and `MwaAsvoError` has a subclass of that exception, named by the two
+  (`MwaAsvoApiErrorInvalidParameter`, `MwaAsvoErrorNoMwaAsvoJob`), with the fields of the variant. `kind` is kept: it
+  is the name of the Rust variant, and the stubs type it as a `typing.Literal` of the kinds, which each subclass
+  narrows to its one kind. The same holds for `ObsIdError`, `ParseError`, `CsvFileError` and `CsvSubmitError`.
+  **Changed:** an argument outside the MWA ASVO limits raises `MwaAsvoApiErrorInvalidParameter` (with `name` and `message`)
+  and a download option that cannot be used raises `MwaAsvoErrorInvalidOption`, instead of `ValueError`. An API error
+  during `MwaAsvoClient(config)`, `client_config_from_env()` or a download is `MwaAsvoErrorApi`, as in the library, with
+  the `MwaAsvoApiError` as its `source` and `__cause__`, instead of the `MwaAsvoApiError` itself. A Job ID of 0, a negative
   duration and other values that are not valid as Python values still raise `ValueError`.
 
 ### Fixed in 3.0.0
@@ -303,7 +311,7 @@ before you upgrade scripts.**
   downloads started again from 1.
 * `download` logs in once for all its downloads. Before, each download logged in on its own, and a long list could
   hit the server's limit on logins.
-* `download` no longer panics on a job file with no SHA-1 hash (`AsvoError::NoHash`, `NO_HASH`), or on a download URL
+* `download` no longer panics on a job file with no SHA-1 hash (`MwaAsvoError::NoHash`, `NO_HASH`), or on a download URL
   or Scratch path that names no file (`NoUrl`, `NoPath`). The time and speed in "Completed download of ..." are for
   that file, not for the job so far.
 * `download --keep-tar` resume: the range request was sent with a wrong header, so the server sent the whole file
@@ -333,7 +341,7 @@ before you upgrade scripts.**
   create or overwrite a file anywhere that the user can write. The SHA-1 check still covers the whole archive.
 * `download` does not write through a symbolic link that is already in the download directory. A stream-untar entry
   whose file, or a directory on the way to it, is a symbolic link fails the download with
-  `AsvoError::SymlinkInDownloadDir` (the entries before it are already written). A `--keep-tar` download whose tar file
+  `MwaAsvoError::SymlinkInDownloadDir` (the entries before it are already written). A `--keep-tar` download whose tar file
   is a symbolic link (even one that points nowhere) fails in the same way, and nothing is fetched. The download
   directory itself may be a symbolic link. On Unix, the refusal is part of the call that opens the file
   (`O_NOFOLLOW`) and of the calls that walk down the directories of a tar entry (`openat`), so a link that another
@@ -374,7 +382,7 @@ before you upgrade scripts.**
   `job_type` `None`.
 * Library: `Obsid::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
 * Library: the `built_info` module (build-time information from the `built` crate), which nothing used.
-* Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `AsvoJobVec::json` still prints the jobs as an object keyed by
+* Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `MwaAsvoJobVec::json` still prints the jobs as an object keyed by
   Job ID.
 
 ### Housekeeping in 3.0.0
@@ -395,7 +403,7 @@ before you upgrade scripts.**
 * The unmaintained `backoff` crate (RUSTSEC-2025-0012, and `instant`, RUSTSEC-2024-0384) is replaced by a small
   exponential backoff with jitter in the download code. The waits are as before: from 0.5 s, growing by 1.5 times,
   at most 60 s, each moved by up to half of itself at random.
-* `examples/list_jobs.py` uses the 3.0.0 Python API (`AsvoClientConfig`, `JobsFilter`), as
+* `examples/list_jobs.py` uses the 3.0.0 Python API (`MwaAsvoClientConfig`, `JobsFilter`), as
   `examples/list_jobs.rs` does with the Rust library.
 
 The entries of the development of 3.0.0, as they were written, are in [docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md](docs/history/CHANGELOG_3.0.0_DEVELOPMENT.md).

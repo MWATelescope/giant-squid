@@ -122,21 +122,21 @@ mod module {
     use super::download::PyDownloadOptions;
     #[pymodule_export]
     use super::error::{
-        MwaAsvoApiError, MwaAsvoApiErrorApiError, MwaAsvoApiErrorAuthenticationFailed,
-        MwaAsvoApiErrorBadJson, MwaAsvoApiErrorBadStatus, MwaAsvoApiErrorConversion,
-        MwaAsvoApiErrorHttp, MwaAsvoApiErrorInvalidParameter, MwaAsvoApiErrorMissingAuthKey,
-        MwaAsvoError, MwaAsvoErrorDestinationExists, MwaAsvoErrorFilesNotReachable,
-        MwaAsvoErrorHashMismatch, MwaAsvoErrorHttp404Error, MwaAsvoErrorHttpError,
-        MwaAsvoErrorInterrupted, MwaAsvoErrorInvalidEnvironment, MwaAsvoErrorInvalidJob,
-        MwaAsvoErrorInvalidJobState, MwaAsvoErrorInvalidJobType, MwaAsvoErrorInvalidOption,
-        MwaAsvoErrorJobCancelled, MwaAsvoErrorJobExpired, MwaAsvoErrorJobFailed,
-        MwaAsvoErrorMwaAsvoApi, MwaAsvoErrorNoFiles, MwaAsvoErrorNoHash,
+        MwaAsvoApiError, MwaAsvoApiErrorAuthenticationFailed, MwaAsvoApiErrorBadJson,
+        MwaAsvoApiErrorBadStatus, MwaAsvoApiErrorConversion, MwaAsvoApiErrorHttp,
+        MwaAsvoApiErrorInvalidParameter, MwaAsvoApiErrorMissingAuthKey, MwaAsvoApiErrorServer,
+        MwaAsvoError, MwaAsvoErrorApi, MwaAsvoErrorDestinationExists,
+        MwaAsvoErrorFilesNotReachable, MwaAsvoErrorHashMismatch, MwaAsvoErrorHttpNotFound,
+        MwaAsvoErrorHttpStatus, MwaAsvoErrorInterrupted, MwaAsvoErrorInvalidEnvironment,
+        MwaAsvoErrorInvalidJob, MwaAsvoErrorInvalidJobState, MwaAsvoErrorInvalidJobType,
+        MwaAsvoErrorInvalidOption, MwaAsvoErrorJobCancelled, MwaAsvoErrorJobExpired,
+        MwaAsvoErrorJobFailed, MwaAsvoErrorNoFiles, MwaAsvoErrorNoHash,
         MwaAsvoErrorNoJobReadyForObsId, MwaAsvoErrorNoMwaAsvoJob, MwaAsvoErrorNoObsId,
         MwaAsvoErrorNoPath, MwaAsvoErrorNoUrl, MwaAsvoErrorNotReady,
         MwaAsvoErrorSymlinkInDownloadDir, MwaAsvoErrorTooManyObsIds, ObsIdError, ObsIdErrorParse,
         ObsIdErrorWrongNumDigits, ParseError, ParseErrorInsideFile, ParseErrorInsideStdin,
         ParseErrorInvalidObsId, ParseErrorInvalidTime, ParseErrorJobIdsGiven, ParseErrorNoJobIds,
-        ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError, ParseErrorStdinJson,
+        ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinFailure, ParseErrorStdinJson,
         ParseErrorZeroJobId,
     };
     #[pymodule_export]

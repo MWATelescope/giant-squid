@@ -1,4 +1,4 @@
-# `MwaAsvoApiError::ApiError` keeps every field of the API's `ErrorResponse`
+# `MwaAsvoApiError::Server` keeps every field of the API's `ErrorResponse`
 # (error code, message, detail, suggestion, field errors, request ID), which
 # makes `MwaAsvoApiError`, and `MwaAsvoError` that wraps it, 144 bytes: over the
 # default limit (128) of `clippy::result_large_err`. Boxing the fields would

@@ -110,11 +110,11 @@ def test_the_client_config_from_the_environment_has_defaults(monkeypatch: pytest
 
 
 def test_the_client_config_from_the_environment_needs_a_key() -> None:
-    """No key is an `MwaAsvoErrorMwaAsvoApi` (as in the library) whose `source` is the `MwaAsvoApiError`, which names the
+    """No key is an `MwaAsvoErrorApi` (as in the library) whose `source` is the `MwaAsvoApiError`, which names the
     variable."""
-    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
+    with pytest.raises(gs.MwaAsvoErrorApi, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
         gs.client_config_from_env()
-    assert excinfo.value.kind == "MwaAsvoApi"
+    assert excinfo.value.kind == "Api"
     assert excinfo.value.source.kind == "MissingAuthKey"
 
 

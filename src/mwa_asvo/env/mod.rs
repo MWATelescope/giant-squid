@@ -75,7 +75,7 @@ fn process_env(name: &str) -> Option<String> {
 ///
 /// # Errors
 ///
-/// [`MwaAsvoError::MwaAsvoApi`] with [`MwaAsvoApiError::MissingAuthKey`] if
+/// [`MwaAsvoError::Api`] with [`MwaAsvoApiError::MissingAuthKey`] if
 /// `MWA_ASVO_API_KEY` is not set, and [`MwaAsvoError::InvalidEnvironment`] if
 /// `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of seconds.
 pub fn client_config_from_env() -> Result<MwaAsvoClientConfig, MwaAsvoError> {

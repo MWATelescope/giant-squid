@@ -30,7 +30,7 @@ pub enum MwaAsvoApiError {
     /// Login or token refresh against the MWA ASVO API failed.
     ///
     /// When the server sent an `ErrorResponse`, it is `response`, as for
-    /// [`MwaAsvoApiError::ApiError`], and `message` is its message. Otherwise
+    /// [`MwaAsvoApiError::Server`], and `message` is its message. Otherwise
     /// `message` is the server's body (or what went wrong with the tokens),
     /// and there is no `response`.
     #[error(
@@ -84,7 +84,7 @@ pub enum MwaAsvoApiError {
         message = response.message,
         extra = api_error_extra(Some(response))
     )]
-    ApiError {
+    Server {
         /// The HTTP status code of the reply.
         status: u16,
         /// The reply. An empty `field_errors` is `None`, as if the server
@@ -96,7 +96,7 @@ pub enum MwaAsvoApiError {
     /// The server responded with a non-success status code, but the body
     /// wasn't in the structured `ErrorResponse` shape we expected. The
     /// `status` and `message` are the same fields as those of
-    /// [`MwaAsvoError::HttpError`](crate::MwaAsvoError::HttpError), which is for a
+    /// [`MwaAsvoError::HttpStatus`](crate::MwaAsvoError::HttpStatus), which is for a
     /// failed file download (an error of the file server, not of the API;
     /// it also has the `job_id`).
     #[error("The server responded with status code {status}, message:\n{message}")]
@@ -108,7 +108,7 @@ pub enum MwaAsvoApiError {
     },
 }
 
-/// The part of an [`MwaAsvoApiError::ApiError`] message after the error code
+/// The part of an [`MwaAsvoApiError::Server`] message after the error code
 /// and message: the detail and the suggestion, one line for each field
 /// error, then the request ID. A part that the server did not give is left
 /// out.
@@ -145,11 +145,11 @@ impl MwaAsvoApiError {
             MwaAsvoApiError::Http(e) => {
                 e.is_timeout() || e.is_connect() || e.is_request() || e.is_body()
             }
-            MwaAsvoApiError::ApiError { status, .. }
-            | MwaAsvoApiError::BadStatus { status, .. } => reqwest::StatusCode::from_u16(*status)
-                .is_ok_and(|code| {
+            MwaAsvoApiError::Server { status, .. } | MwaAsvoApiError::BadStatus { status, .. } => {
+                reqwest::StatusCode::from_u16(*status).is_ok_and(|code| {
                     code.is_server_error() || code == reqwest::StatusCode::TOO_MANY_REQUESTS
-                }),
+                })
+            }
             _ => false,
         }
     }
@@ -164,10 +164,10 @@ impl MwaAsvoApiError {
         }
     }
 
-    /// An [`MwaAsvoApiError::ApiError`] for the reply `response` with HTTP
+    /// An [`MwaAsvoApiError::Server`] for the reply `response` with HTTP
     /// status `status`.
     pub(crate) fn api_error(status: u16, response: ErrorResponse) -> Self {
-        MwaAsvoApiError::ApiError {
+        MwaAsvoApiError::Server {
             status,
             response: Box::new(tidy(response)),
         }

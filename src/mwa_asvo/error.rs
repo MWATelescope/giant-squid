@@ -11,7 +11,7 @@ use super::{JobState, MwaAsvoApiError, MwaAsvoJobId};
 use crate::obs_id::ObsId;
 
 /// An error of a download or a job check. An API request that fails during
-/// one is [`MwaAsvoError::MwaAsvoApi`].
+/// one is [`MwaAsvoError::Api`].
 #[derive(Error, Debug)]
 pub enum MwaAsvoError {
     /// Tried to download (or check) a job that doesn't exist.
@@ -103,7 +103,7 @@ pub enum MwaAsvoError {
     /// An MWA ASVO API call failed, for example the job list request that
     /// a download does first.
     #[error("{0}")]
-    MwaAsvoApi(#[from] MwaAsvoApiError),
+    Api(#[from] MwaAsvoApiError),
 
     /// An IO error.
     #[error("{0}")]
@@ -160,7 +160,7 @@ pub enum MwaAsvoError {
     /// `ErrorResponse`); a download is always for one job, so this error also
     /// has its `job_id`.
     #[error("HTTP error {status} downloading a file of Job ID {job_id}: {message}")]
-    HttpError {
+    HttpStatus {
         /// The job whose file was being downloaded.
         job_id: MwaAsvoJobId,
         /// The HTTP status code.
@@ -192,7 +192,7 @@ pub enum MwaAsvoError {
 
     /// The file to download is not on the server (HTTP 404).
     #[error("The file for Job ID {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
-    Http404Error { job_id: MwaAsvoJobId },
+    HttpNotFound { job_id: MwaAsvoJobId },
 }
 
 /// The text that follows "has an error" in the message of
@@ -225,7 +225,7 @@ fn files_not_reachable_message(
 /// one kind for it.
 impl From<reqwest::Error> for MwaAsvoError {
     fn from(e: reqwest::Error) -> Self {
-        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::Http(e))
+        MwaAsvoError::Api(MwaAsvoApiError::Http(e))
     }
 }
 

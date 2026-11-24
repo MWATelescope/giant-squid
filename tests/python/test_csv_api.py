@@ -378,4 +378,4 @@ def test_submit_csv_job_raises_the_api_error_of_a_failed_request(
 
     with pytest.raises(gs.MwaAsvoApiError) as excinfo:
         client.submit_csv_job(job.params)
-    assert excinfo.value.kind == "ApiError"
+    assert excinfo.value.kind == "Server"

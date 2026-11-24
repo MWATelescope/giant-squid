@@ -48,7 +48,7 @@ fn a_missing_api_key_is_an_error() {
     assert!(
         matches!(
             err,
-            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::MissingAuthKey {
+            MwaAsvoError::Api(MwaAsvoApiError::MissingAuthKey {
                 variable: Some(ENV_MWA_ASVO_API_KEY)
             })
         ),

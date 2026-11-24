@@ -149,7 +149,7 @@ pub enum ParseError {
 
     /// Standard input has the error line of a command that failed, not jobs.
     #[error("Standard input has an error, not jobs: {message}")]
-    StdinError {
+    StdinFailure {
         /// The message of the error.
         message: String,
     },

@@ -168,8 +168,8 @@ fn a_failed_job_listing_is_reported_as_an_api_error() {
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, MwaAsvoError::MwaAsvoApi(_)),
-        "expected MwaAsvoApi, got {err:?}"
+        matches!(err, MwaAsvoError::Api(_)),
+        "expected Api, got {err:?}"
     );
 }
 
@@ -512,10 +512,10 @@ fn an_expired_download_url_is_reported_as_gone() {
         .expect_err("a 404 should fail the download");
 
     match err {
-        MwaAsvoError::Http404Error { job_id } => {
+        MwaAsvoError::HttpNotFound { job_id } => {
             assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
         }
-        other => panic!("expected Http404Error, got {other:?}"),
+        other => panic!("expected HttpNotFound, got {other:?}"),
     }
 }
 
@@ -546,8 +546,8 @@ fn a_forbidden_download_fails_without_retrying() {
 
     assert_eq!(file.calls(), 1, "a permanent error must not be retried");
     match err {
-        MwaAsvoError::HttpError { status, .. } => assert_eq!(status, 403),
-        other => panic!("expected HttpError, got {other:?}"),
+        MwaAsvoError::HttpStatus { status, .. } => assert_eq!(status, 403),
+        other => panic!("expected HttpStatus, got {other:?}"),
     }
 }
 
@@ -610,7 +610,7 @@ fn a_file_type_the_schema_does_not_list_fails_the_download() {
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(&err, MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadJson(_))),
+        matches!(&err, MwaAsvoError::Api(MwaAsvoApiError::BadJson(_))),
         "expected a decode error, got {err:?}"
     );
     assert!(err.to_string().contains("some_new_delivery"), "{err}");

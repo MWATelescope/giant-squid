@@ -454,10 +454,10 @@ fn retry_class(e: MwaAsvoError, job_id: MwaAsvoJobId) -> Retry<MwaAsvoError> {
         | MwaAsvoError::SymlinkInDownloadDir { .. }
         | MwaAsvoError::JobExpired { .. }
         | MwaAsvoError::NoHash { .. } => Retry::Permanent(e),
-        MwaAsvoError::HttpError { status: 404, .. } => {
-            Retry::Permanent(MwaAsvoError::Http404Error { job_id })
+        MwaAsvoError::HttpStatus { status: 404, .. } => {
+            Retry::Permanent(MwaAsvoError::HttpNotFound { job_id })
         }
-        MwaAsvoError::HttpError {
+        MwaAsvoError::HttpStatus {
             status: 401 | 403, ..
         } => Retry::Permanent(e),
         _ => Retry::Transient(e),
@@ -1926,7 +1926,7 @@ fn send_checked(
                 expired: signed_url_expiry(url),
             });
         }
-        return Err(MwaAsvoError::HttpError {
+        return Err(MwaAsvoError::HttpStatus {
             job_id,
             status: status.as_u16(),
             message: redact_urls_in_text(&body),

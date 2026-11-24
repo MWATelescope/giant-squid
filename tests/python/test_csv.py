@@ -224,7 +224,7 @@ def test_a_failed_job_does_not_stop_the_others_and_the_exception_has_the_replies
     assert isinstance(failure, gs.CsvJobFailure)
     assert (failure.line, failure.obs_id) == (1, FIRST_OBS_ID)
     assert isinstance(failure.error, gs.MwaAsvoApiError)
-    assert failure.error.kind == "ApiError"
+    assert failure.error.kind == "Server"
     assert failure.error.error_code == "VALID_MISSING_FIELD"
     assert f"line=1, obs_id={FIRST_OBS_ID}" in repr(failure)
 

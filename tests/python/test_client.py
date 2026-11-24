@@ -164,9 +164,9 @@ def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., No
 
 
 def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
-    """An empty API key raises MwaAsvoErrorMwaAsvoApi (as in the library), whose source is an MwaAsvoApiError of kind
+    """An empty API key raises MwaAsvoErrorApi (as in the library), whose source is an MwaAsvoApiError of kind
     MissingAuthKey, and nothing is sent."""
-    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as err:
+    with pytest.raises(gs.MwaAsvoErrorApi) as err:
         gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, ""))
     assert isinstance(err.value.source, gs.MwaAsvoApiErrorMissingAuthKey)
     assert err.value.source.kind == "MissingAuthKey"
@@ -174,10 +174,10 @@ def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: 
 
 
 def test_a_rejected_login_raises_an_authentication_failure(host: str, httpserver: HTTPServer) -> None:
-    """A failed login raises MwaAsvoErrorMwaAsvoApi, whose source is an MwaAsvoApiError with the server's message."""
+    """A failed login raises MwaAsvoErrorApi, whose source is an MwaAsvoApiError with the server's message."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_data("invalid api key", status=401)
 
-    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as err:
+    with pytest.raises(gs.MwaAsvoErrorApi) as err:
         gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     assert isinstance(err.value.source, gs.MwaAsvoApiErrorAuthenticationFailed)
@@ -187,12 +187,12 @@ def test_a_rejected_login_raises_an_authentication_failure(host: str, httpserver
 
 def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, httpserver: HTTPServer) -> None:
     """A failed login with an ErrorResponse body is an AuthenticationFailed with the server's fields, in the source of
-    the MwaAsvoErrorMwaAsvoApi."""
+    the MwaAsvoErrorApi."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_json(
         error_response("AUTH_INVALID_KEY", "Bad API key"), status=401
     )
 
-    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as outer:
+    with pytest.raises(gs.MwaAsvoErrorApi) as outer:
         gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     err = outer.value.source
@@ -216,7 +216,7 @@ def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPSer
     with pytest.raises(gs.MwaAsvoApiError) as err:
         client.get_jobs()
 
-    assert err.value.kind == "ApiError"
+    assert err.value.kind == "Server"
     assert err.value.error_code == "JOB_INVALID_STATE"
     assert err.value.message == "Job is not ready"
     assert err.value.suggestion == "try again"
@@ -229,7 +229,7 @@ def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPSer
 
 @pytest.mark.usefixtures("mock_login")
 def test_a_structured_server_error_has_the_http_status(host: str, httpserver: HTTPServer) -> None:
-    """An ApiError has the HTTP status of the reply, as a BadStatus does."""
+    """A Server error has the HTTP status of the reply, as a BadStatus does."""
     httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(
         error_response("JOB_INVALID_STATE", "Job is not ready"), status=409
     )
@@ -238,7 +238,7 @@ def test_a_structured_server_error_has_the_http_status(host: str, httpserver: HT
     with pytest.raises(gs.MwaAsvoApiError) as err:
         client.get_jobs()
 
-    assert err.value.kind == "ApiError"
+    assert err.value.kind == "Server"
     assert err.value.status == 409
 
 

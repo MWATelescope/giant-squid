@@ -101,7 +101,7 @@ fn the_error_line_of_a_failed_command_is_an_error_with_its_message() {
     let err = parse_ids_from_text(&text).expect_err("not a list");
 
     assert!(
-        matches!(&err, ParseError::StdinError { message } if message == "Bad key"),
+        matches!(&err, ParseError::StdinFailure { message } if message == "Bad key"),
         "{err:?}"
     );
     assert_eq!(

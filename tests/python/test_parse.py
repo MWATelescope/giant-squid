@@ -29,7 +29,7 @@ def test_the_parse_errors_are_not_value_errors() -> None:
     for name in (
         "InsideFile",
         "InsideStdin",
-        "StdinError",
+        "StdinFailure",
         "StdinJson",
         "JobIdsGiven",
         "ObsIdsGiven",

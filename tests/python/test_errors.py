@@ -95,16 +95,16 @@ def test_a_zero_api_timeout_is_an_invalid_option(host: str) -> None:
 
 
 def test_an_api_error_in_a_check_is_wrapped_as_the_library_does(host: str, httpserver: HTTPServer) -> None:
-    """`MwaAsvoErrorMwaAsvoApi` has the `MwaAsvoApiError` as its `source` and its `__cause__`, and the same message."""
+    """`MwaAsvoErrorApi` has the `MwaAsvoApiError` as its `source` and its `__cause__`, and the same message."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_data("invalid api key", status=401)
 
-    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as excinfo:
+    with pytest.raises(gs.MwaAsvoErrorApi) as excinfo:
         gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     error = excinfo.value
     assert isinstance(error, gs.MwaAsvoError)
     assert not isinstance(error, gs.MwaAsvoApiError)
-    assert error.kind == "MwaAsvoApi"
+    assert error.kind == "Api"
     assert isinstance(error.source, gs.MwaAsvoApiErrorAuthenticationFailed)
     assert error.__cause__ is error.source
     assert str(error) == str(error.source)
