@@ -396,11 +396,11 @@ impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
 /// The defaults are those of the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct PreprocessingArgs<P: PreprocessingFields> {
-    /// Frequency resolution to average to (kHz), or null.
+    /// Frequency resolution to average to (kHz), or null for no frequency averaging.
     #[arg(long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_FREQ_RES)))]
     pub avg_freq_res: Nullable<f64>,
 
-    /// Time resolution to average to (s), or null.
+    /// Time resolution to average to (s), or null for no time averaging.
     #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_TIME_RES)))]
     pub avg_time_res: Nullable<f64>,
 
@@ -408,7 +408,7 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     #[arg(long, default_value = P::schema_defaults().flag_edge_width().to_string(), value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
     pub flag_edge_width: f64,
 
-    /// Whether to apply the DI calibration solution.
+    /// Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time).
     #[arg(
         long,
         default_value = P::schema_defaults().apply_di_cal().to_string(),
