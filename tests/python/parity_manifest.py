@@ -33,7 +33,7 @@ API_ERROR_VARIANTS = [
     "Conversion",
     "InvalidParameter",
     "BadJson",
-    "Reqwest",
+    "Http",
     "ApiError",
     "BadStatus",
 ]

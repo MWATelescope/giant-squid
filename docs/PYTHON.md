@@ -476,7 +476,7 @@ the function raises an exception, the download stops and the call raises that ex
 
 | Exception | When |
 |---|---|
-| `MwaAsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `MwaAsvoApiErrorMissingAuthKey`, `MwaAsvoApiErrorAuthenticationFailed`, `MwaAsvoApiErrorConversion`, `MwaAsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `MwaAsvoApiErrorBadJson`, `MwaAsvoApiErrorReqwest`, `MwaAsvoApiErrorApiError` and `MwaAsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
+| `MwaAsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `MwaAsvoApiErrorMissingAuthKey`, `MwaAsvoApiErrorAuthenticationFailed`, `MwaAsvoApiErrorConversion`, `MwaAsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `MwaAsvoApiErrorBadJson`, `MwaAsvoApiErrorHttp`, `MwaAsvoApiErrorApiError` and `MwaAsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
 | `MwaAsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. It has a subclass for each Rust variant (`MwaAsvoErrorNoMwaAsvoJob`, `MwaAsvoErrorNotReady`, `MwaAsvoErrorHashMismatch`, `MwaAsvoErrorInvalidOption` and so on). `MwaAsvoErrorMwaAsvoApi` is an API call that failed inside a check or download, as in the library: for example the login of `MwaAsvoClient(config)`, or the job list that a download gets first. Its `source` is the `MwaAsvoApiError`, which is also its `__cause__`. (A file that cannot be read or written is an `OSError`, not this.) |
 | `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
 | `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
@@ -487,21 +487,23 @@ the function raises an exception, the download stops and the call raises that ex
 | `CsvJobsFailed` | `submit_csv_jobs` submitted the jobs, and some failed. It has `submitted` and `failures`. |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 
-`MwaAsvoApiError`, `MwaAsvoError`, `ObsIdError` and `ParseError` have a `kind` attribute: the name of the Rust error
-variant. `ObsIdError` and `ParseError` also have a subclass for each kind (`ParseErrorNoObsIds`), so you can catch
-one kind with `except`. The other attributes exist only for the kinds that use them (see the docstrings). For example:
+Each of `MwaAsvoApiError`, `MwaAsvoError`, `ObsIdError`, `ParseError`, `CsvSubmitError` and `CsvFileError` has a
+subclass for each Rust variant, named by the error and the variant (`MwaAsvoApiErrorApiError`). To handle one kind,
+catch its subclass. The other attributes exist only for the kinds that use them (see the docstrings). For example:
 
 ```python
-from mwa_giant_squid import MwaAsvoApiError
+from mwa_giant_squid import MwaAsvoApiErrorApiError
 
 try:
     client.cancel_job(1)
-except MwaAsvoApiError as e:
-    if e.kind == "ApiError":
-        print(e.error_code, e.message, e.field_errors, e.request_id)
-    else:
-        raise
+except MwaAsvoApiErrorApiError as e:
+    print(e.error_code, e.message, e.field_errors, e.request_id)
 ```
+
+These exceptions also have a `kind` attribute: the name of the Rust variant (`"ApiError"`). The stubs type it as a
+`typing.Literal` of the kinds, and each subclass narrows it to its one kind. A type checker can then check a `match` on
+`kind` for missing kinds, and mypy (`--strict-equality`) and pyright (strict mode) report a comparison with a kind
+that does not exist.
 
 ## Logging
 

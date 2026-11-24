@@ -124,7 +124,7 @@ mod module {
     use super::error::{
         MwaAsvoApiError, MwaAsvoApiErrorApiError, MwaAsvoApiErrorAuthenticationFailed,
         MwaAsvoApiErrorBadJson, MwaAsvoApiErrorBadStatus, MwaAsvoApiErrorConversion,
-        MwaAsvoApiErrorInvalidParameter, MwaAsvoApiErrorMissingAuthKey, MwaAsvoApiErrorReqwest,
+        MwaAsvoApiErrorHttp, MwaAsvoApiErrorInvalidParameter, MwaAsvoApiErrorMissingAuthKey,
         MwaAsvoError, MwaAsvoErrorDestinationExists, MwaAsvoErrorFilesNotReachable,
         MwaAsvoErrorHashMismatch, MwaAsvoErrorHttp404Error, MwaAsvoErrorHttpError,
         MwaAsvoErrorInterrupted, MwaAsvoErrorInvalidEnvironment, MwaAsvoErrorInvalidJob,

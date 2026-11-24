@@ -164,7 +164,7 @@ impl MwaAsvoApiError {
                 ..new_error_response(ERROR_CODE_INVALID_PARAMETER, self)
             },
             MwaAsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
-            MwaAsvoApiError::Reqwest(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
+            MwaAsvoApiError::Http(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
             MwaAsvoApiError::BadStatus { status, message } => ErrorResponse {
                 detail: Some(message.clone()),
                 ..new_error_response(&http_error_code(*status), status_reason(*status))

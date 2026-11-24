@@ -66,9 +66,10 @@ pub enum MwaAsvoApiError {
     #[error("Couldn't decode JSON from the MWA ASVO response: {0}")]
     BadJson(#[from] serde_json::Error),
 
-    /// An error from the reqwest crate.
+    /// An HTTP request failed: no connection, a timeout, a TLS problem and so
+    /// on. It holds the error of the reqwest crate.
     #[error("{0}")]
-    Reqwest(#[from] reqwest::Error),
+    Http(#[from] reqwest::Error),
 
     /// The server responded with a non-success status code, in the
     /// structured `ErrorResponse` shape.
@@ -141,7 +142,7 @@ impl MwaAsvoApiError {
     /// that cannot be decoded are not.
     pub fn is_transient(&self) -> bool {
         match self {
-            MwaAsvoApiError::Reqwest(e) => {
+            MwaAsvoApiError::Http(e) => {
                 e.is_timeout() || e.is_connect() || e.is_request() || e.is_body()
             }
             MwaAsvoApiError::ApiError { status, .. }

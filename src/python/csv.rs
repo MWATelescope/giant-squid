@@ -75,17 +75,15 @@ create_exception!(
 );
 
 variant_exceptions! {
-    CsvFileError:
-    CsvFileErrorInvalid => "A line of the file has a problem (kind `Invalid`). `errors` has a `CsvRowError` for each of them.",
-    CsvFileErrorNoJobs => "The file has no job: it is empty, or has only blank lines and comments (kind `NoJobs`). `path` is the file.",
-}
+CsvFileError:
+CsvFileErrorInvalid("Invalid") => "A line of the file has a problem (kind `Invalid`). `errors` has a `CsvRowError` for each of them.",
+CsvFileErrorNoJobs("NoJobs") => "The file has no job: it is empty, or has only blank lines and comments (kind `NoJobs`). `path` is the file.",}
 
 variant_exceptions! {
-    CsvSubmitError:
-    CsvSubmitErrorInvalid => "A line of the file has a problem. Nothing was submitted (kind `Invalid`). `errors` has a `CsvRowError` for each of them.",
-    CsvSubmitErrorNoJobs => "The file has no job: it is empty, or has only blank lines and comments. Nothing was submitted (kind `NoJobs`). `path` is the file.",
-    CsvSubmitErrorFailed => "The server refused some jobs, or a request failed (kind `Failed`). The other jobs were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.",
-}
+CsvSubmitError:
+CsvSubmitErrorInvalid("Invalid") => "A line of the file has a problem. Nothing was submitted (kind `Invalid`). `errors` has a `CsvRowError` for each of them.",
+CsvSubmitErrorNoJobs("NoJobs") => "The file has no job: it is empty, or has only blank lines and comments. Nothing was submitted (kind `NoJobs`). `path` is the file.",
+CsvSubmitErrorFailed("Failed") => "The server refused some jobs, or a request failed (kind `Failed`). The other jobs were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.",}
 
 /// The attributes of the exceptions, for the stubs. The functions below set
 /// them at run time, so pyo3-stub-gen cannot see them.
@@ -156,7 +154,6 @@ mod stub_attributes {
     exception_attrs!(
         CsvFileError,
         [
-            attr!("kind", String, "\"Invalid\" or \"NoJobs\"."),
             attr!(
                 "errors",
                 Vec<PyCsvRowError>,
@@ -168,7 +165,6 @@ mod stub_attributes {
     exception_attrs!(
         CsvSubmitError,
         [
-            attr!("kind", String, "\"Invalid\", \"NoJobs\" or \"Failed\"."),
             attr!(
                 "errors",
                 Vec<PyCsvRowError>,
@@ -635,13 +631,13 @@ pub(crate) fn csv_file_error(py: Python<'_>, e: LibCsvFileError) -> PyErr {
         LibCsvFileError::Invalid(error) => with_attributes(
             py,
             PyErr::new::<CsvFileErrorInvalid, _>(message),
-            Some("Invalid"),
+            Some(CsvFileErrorInvalid::KIND),
             |value| value.setattr("errors", row_errors(&error)),
         ),
         LibCsvFileError::NoJobs { path } => with_attributes(
             py,
             PyErr::new::<CsvFileErrorNoJobs, _>(message),
-            Some("NoJobs"),
+            Some(CsvFileErrorNoJobs::KIND),
             |value| value.setattr("path", path),
         ),
     }
@@ -682,13 +678,13 @@ pub(crate) fn csv_submit_error(py: Python<'_>, e: LibCsvSubmitError) -> PyErr {
         LibCsvSubmitError::Invalid(error) => with_attributes(
             py,
             PyErr::new::<CsvSubmitErrorInvalid, _>(message),
-            Some("Invalid"),
+            Some(CsvSubmitErrorInvalid::KIND),
             |value| value.setattr("errors", row_errors(&error)),
         ),
         LibCsvSubmitError::NoJobs { path } => with_attributes(
             py,
             PyErr::new::<CsvSubmitErrorNoJobs, _>(message),
-            Some("NoJobs"),
+            Some(CsvSubmitErrorNoJobs::KIND),
             |value| value.setattr("path", path),
         ),
         LibCsvSubmitError::Failed {
@@ -699,7 +695,7 @@ pub(crate) fn csv_submit_error(py: Python<'_>, e: LibCsvSubmitError) -> PyErr {
             with_attributes(
                 py,
                 PyErr::new::<CsvSubmitErrorFailed, _>(message),
-                Some("Failed"),
+                Some(CsvSubmitErrorFailed::KIND),
                 |value| {
                     value.setattr("submitted", submitted)?;
                     value.setattr("failures", failures)

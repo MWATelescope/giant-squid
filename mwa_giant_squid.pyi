@@ -67,9 +67,9 @@ __all__ = [
     "MwaAsvoApiErrorBadJson",
     "MwaAsvoApiErrorBadStatus",
     "MwaAsvoApiErrorConversion",
+    "MwaAsvoApiErrorHttp",
     "MwaAsvoApiErrorInvalidParameter",
     "MwaAsvoApiErrorMissingAuthKey",
-    "MwaAsvoApiErrorReqwest",
     "MwaAsvoClient",
     "MwaAsvoClientConfig",
     "MwaAsvoError",
@@ -400,10 +400,6 @@ class CsvFileError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown.
     """
 
-    kind: builtins.str
-    r"""
-    "Invalid" or "NoJobs".
-    """
     errors: builtins.list[CsvRowError]
     r"""
     Invalid: the lines that have a problem.
@@ -412,16 +408,31 @@ class CsvFileError(builtins.Exception):
     r"""
     NoJobs: the file.
     """
+    @property
+    def kind(self) -> typing.Literal["Invalid", "NoJobs"]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class CsvFileErrorInvalid(CsvFileError):
     r"""
     A line of the file has a problem (kind `Invalid`). `errors` has a `CsvRowError` for each of them.
     """
+    @property
+    def kind(self) -> typing.Literal["Invalid"]:
+        r"""
+        Always "Invalid".
+        """
 
 class CsvFileErrorNoJobs(CsvFileError):
     r"""
     The file has no job: it is empty, or has only blank lines and comments (kind `NoJobs`). `path` is the file.
     """
+    @property
+    def kind(self) -> typing.Literal["NoJobs"]:
+        r"""
+        Always "NoJobs".
+        """
 
 @typing.final
 class CsvJob:
@@ -607,10 +618,6 @@ class CsvSubmitError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown. For every kind but `Failed`, nothing was submitted. For `Failed`, the jobs that did not fail were submitted: a failed job does not stop the others.
     """
 
-    kind: builtins.str
-    r"""
-    "Invalid", "NoJobs" or "Failed".
-    """
     errors: builtins.list[CsvRowError]
     r"""
     Invalid: the lines that have a problem.
@@ -627,21 +634,41 @@ class CsvSubmitError(builtins.Exception):
     r"""
     Failed: the jobs that were not submitted, in the order of the file.
     """
+    @property
+    def kind(self) -> typing.Literal["Invalid", "NoJobs", "Failed"]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class CsvSubmitErrorFailed(CsvSubmitError):
     r"""
     The server refused some jobs, or a request failed (kind `Failed`). The other jobs were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.
     """
+    @property
+    def kind(self) -> typing.Literal["Failed"]:
+        r"""
+        Always "Failed".
+        """
 
 class CsvSubmitErrorInvalid(CsvSubmitError):
     r"""
     A line of the file has a problem. Nothing was submitted (kind `Invalid`). `errors` has a `CsvRowError` for each of them.
     """
+    @property
+    def kind(self) -> typing.Literal["Invalid"]:
+        r"""
+        Always "Invalid".
+        """
 
 class CsvSubmitErrorNoJobs(CsvSubmitError):
     r"""
     The file has no job: it is empty, or has only blank lines and comments. Nothing was submitted (kind `NoJobs`). `path` is the file.
     """
+    @property
+    def kind(self) -> typing.Literal["NoJobs"]:
+        r"""
+        Always "NoJobs".
+        """
 
 @typing.final
 class DownloadJobParams:
@@ -1749,10 +1776,6 @@ class MwaAsvoApiError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown.
     """
 
-    kind: builtins.str
-    r"""
-    "MissingAuthKey" (the `api_key` given to `MwaAsvoClient` is empty), "AuthenticationFailed", "Conversion", "InvalidParameter" (an argument is outside the MWA ASVO limits), "BadJson", "Reqwest", "ApiError" or "BadStatus".
-    """
     name: builtins.str
     r"""
     InvalidParameter: the name of the argument, as the OpenAPI schema has it.
@@ -1785,46 +1808,102 @@ class MwaAsvoApiError(builtins.Exception):
     r"""
     ApiError and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpError).
     """
+    @property
+    def kind(
+        self,
+    ) -> typing.Literal[
+        "MissingAuthKey",
+        "AuthenticationFailed",
+        "Conversion",
+        "InvalidParameter",
+        "BadJson",
+        "Http",
+        "ApiError",
+        "BadStatus",
+    ]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class MwaAsvoApiErrorApiError(MwaAsvoApiError):
     r"""
     The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.
     """
+    @property
+    def kind(self) -> typing.Literal["ApiError"]:
+        r"""
+        Always "ApiError".
+        """
 
 class MwaAsvoApiErrorAuthenticationFailed(MwaAsvoApiError):
     r"""
     The MWA ASVO refused the login (kind `AuthenticationFailed`).
     """
+    @property
+    def kind(self) -> typing.Literal["AuthenticationFailed"]:
+        r"""
+        Always "AuthenticationFailed".
+        """
 
 class MwaAsvoApiErrorBadJson(MwaAsvoApiError):
     r"""
     The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).
     """
+    @property
+    def kind(self) -> typing.Literal["BadJson"]:
+        r"""
+        Always "BadJson".
+        """
 
 class MwaAsvoApiErrorBadStatus(MwaAsvoApiError):
     r"""
     The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).
     """
+    @property
+    def kind(self) -> typing.Literal["BadStatus"]:
+        r"""
+        Always "BadStatus".
+        """
 
 class MwaAsvoApiErrorConversion(MwaAsvoApiError):
     r"""
     A value could not be turned into the type that the schema has (kind `Conversion`).
     """
+    @property
+    def kind(self) -> typing.Literal["Conversion"]:
+        r"""
+        Always "Conversion".
+        """
+
+class MwaAsvoApiErrorHttp(MwaAsvoApiError):
+    r"""
+    An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Http`).
+    """
+    @property
+    def kind(self) -> typing.Literal["Http"]:
+        r"""
+        Always "Http".
+        """
 
 class MwaAsvoApiErrorInvalidParameter(MwaAsvoApiError):
     r"""
     A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidParameter"]:
+        r"""
+        Always "InvalidParameter".
+        """
 
 class MwaAsvoApiErrorMissingAuthKey(MwaAsvoApiError):
     r"""
     No API key was given: it is empty (kind `MissingAuthKey`).
     """
-
-class MwaAsvoApiErrorReqwest(MwaAsvoApiError):
-    r"""
-    An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).
-    """
+    @property
+    def kind(self) -> typing.Literal["MissingAuthKey"]:
+        r"""
+        Always "MissingAuthKey".
+        """
 
 @typing.final
 class MwaAsvoClient:
@@ -2213,10 +2292,6 @@ class MwaAsvoError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorMwaAsvoApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
     """
 
-    kind: builtins.str
-    r"""
-    The variant, for example "NoMwaAsvoJob", "JobFailed", "NotReady", "HashMismatch" or "Interrupted".
-    """
     job_id: builtins.int
     r"""
     NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
@@ -2293,131 +2368,289 @@ class MwaAsvoError(builtins.Exception):
     r"""
     InvalidJob: the `id` of the job, as the API gave it.
     """
+    @property
+    def kind(
+        self,
+    ) -> typing.Literal[
+        "NoMwaAsvoJob",
+        "JobFailed",
+        "InvalidJob",
+        "JobCancelled",
+        "NoObsId",
+        "NoJobReadyForObsId",
+        "TooManyObsIds",
+        "NotReady",
+        "NoFiles",
+        "HashMismatch",
+        "InvalidJobState",
+        "InvalidJobType",
+        "InvalidEnvironment",
+        "InvalidOption",
+        "MwaAsvoApi",
+        "Interrupted",
+        "NoUrl",
+        "NoHash",
+        "FilesNotReachable",
+        "NoPath",
+        "SymlinkInDownloadDir",
+        "DestinationExists",
+        "HttpError",
+        "JobExpired",
+        "Http404Error",
+    ]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class MwaAsvoErrorDestinationExists(MwaAsvoError):
     r"""
     The place for the files of a Scratch job is already there (kind `DestinationExists`).
     """
+    @property
+    def kind(self) -> typing.Literal["DestinationExists"]:
+        r"""
+        Always "DestinationExists".
+        """
 
 class MwaAsvoErrorFilesNotReachable(MwaAsvoError):
     r"""
     The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).
     """
+    @property
+    def kind(self) -> typing.Literal["FilesNotReachable"]:
+        r"""
+        Always "FilesNotReachable".
+        """
 
 class MwaAsvoErrorHashMismatch(MwaAsvoError):
     r"""
     The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).
     """
+    @property
+    def kind(self) -> typing.Literal["HashMismatch"]:
+        r"""
+        Always "HashMismatch".
+        """
 
 class MwaAsvoErrorHttp404Error(MwaAsvoError):
     r"""
     The download server did not find the file (kind `Http404Error`).
     """
+    @property
+    def kind(self) -> typing.Literal["Http404Error"]:
+        r"""
+        Always "Http404Error".
+        """
 
 class MwaAsvoErrorHttpError(MwaAsvoError):
     r"""
     The download server replied with an HTTP error (kind `HttpError`).
     """
+    @property
+    def kind(self) -> typing.Literal["HttpError"]:
+        r"""
+        Always "HttpError".
+        """
 
 class MwaAsvoErrorInterrupted(MwaAsvoError):
     r"""
     The download was stopped (kind `Interrupted`).
     """
+    @property
+    def kind(self) -> typing.Literal["Interrupted"]:
+        r"""
+        Always "Interrupted".
+        """
 
 class MwaAsvoErrorInvalidEnvironment(MwaAsvoError):
     r"""
     An environment variable has a value that cannot be used (kind `InvalidEnvironment`).
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidEnvironment"]:
+        r"""
+        Always "InvalidEnvironment".
+        """
 
 class MwaAsvoErrorInvalidJob(MwaAsvoError):
     r"""
     The server gave a job that cannot be used (kind `InvalidJob`).
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidJob"]:
+        r"""
+        Always "InvalidJob".
+        """
 
 class MwaAsvoErrorInvalidJobState(MwaAsvoError):
     r"""
     The text is not the name of a job state (kind `InvalidJobState`).
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidJobState"]:
+        r"""
+        Always "InvalidJobState".
+        """
 
 class MwaAsvoErrorInvalidJobType(MwaAsvoError):
     r"""
     The text is not the name of a job type (kind `InvalidJobType`).
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidJobType"]:
+        r"""
+        Always "InvalidJobType".
+        """
 
 class MwaAsvoErrorInvalidOption(MwaAsvoError):
     r"""
     A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidOption"]:
+        r"""
+        Always "InvalidOption".
+        """
 
 class MwaAsvoErrorJobCancelled(MwaAsvoError):
     r"""
     The job was cancelled (kind `JobCancelled`).
     """
+    @property
+    def kind(self) -> typing.Literal["JobCancelled"]:
+        r"""
+        Always "JobCancelled".
+        """
 
 class MwaAsvoErrorJobExpired(MwaAsvoError):
     r"""
     The download links of the job have expired (kind `JobExpired`). Resubmit the job.
     """
+    @property
+    def kind(self) -> typing.Literal["JobExpired"]:
+        r"""
+        Always "JobExpired".
+        """
 
 class MwaAsvoErrorJobFailed(MwaAsvoError):
     r"""
     The job is in the `Error` state (kind `JobFailed`). `error` is its message.
     """
+    @property
+    def kind(self) -> typing.Literal["JobFailed"]:
+        r"""
+        Always "JobFailed".
+        """
 
 class MwaAsvoErrorMwaAsvoApi(MwaAsvoError):
     r"""
     An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.
     """
+    @property
+    def kind(self) -> typing.Literal["MwaAsvoApi"]:
+        r"""
+        Always "MwaAsvoApi".
+        """
 
 class MwaAsvoErrorNoFiles(MwaAsvoError):
     r"""
     The job has no files (kind `NoFiles`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoFiles"]:
+        r"""
+        Always "NoFiles".
+        """
 
 class MwaAsvoErrorNoHash(MwaAsvoError):
     r"""
     The job's file has no hash (kind `NoHash`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoHash"]:
+        r"""
+        Always "NoHash".
+        """
 
 class MwaAsvoErrorNoJobReadyForObsId(MwaAsvoError):
     r"""
     No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoJobReadyForObsId"]:
+        r"""
+        Always "NoJobReadyForObsId".
+        """
 
 class MwaAsvoErrorNoMwaAsvoJob(MwaAsvoError):
     r"""
     There is no job with this Job ID in the job list (kind `NoMwaAsvoJob`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoMwaAsvoJob"]:
+        r"""
+        Always "NoMwaAsvoJob".
+        """
 
 class MwaAsvoErrorNoObsId(MwaAsvoError):
     r"""
     No job has this Obs ID (kind `NoObsId`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoObsId"]:
+        r"""
+        Always "NoObsId".
+        """
 
 class MwaAsvoErrorNoPath(MwaAsvoError):
     r"""
     The job's files have no path (kind `NoPath`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoPath"]:
+        r"""
+        Always "NoPath".
+        """
 
 class MwaAsvoErrorNoUrl(MwaAsvoError):
     r"""
     The job's file has no download URL (kind `NoUrl`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoUrl"]:
+        r"""
+        Always "NoUrl".
+        """
 
 class MwaAsvoErrorNotReady(MwaAsvoError):
     r"""
     The job is not ready for download (kind `NotReady`). `job_state` is its state.
     """
+    @property
+    def kind(self) -> typing.Literal["NotReady"]:
+        r"""
+        Always "NotReady".
+        """
 
 class MwaAsvoErrorSymlinkInDownloadDir(MwaAsvoError):
     r"""
     The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).
     """
+    @property
+    def kind(self) -> typing.Literal["SymlinkInDownloadDir"]:
+        r"""
+        Always "SymlinkInDownloadDir".
+        """
 
 class MwaAsvoErrorTooManyObsIds(MwaAsvoError):
     r"""
     More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).
     """
+    @property
+    def kind(self) -> typing.Literal["TooManyObsIds"]:
+        r"""
+        Always "TooManyObsIds".
+        """
 
 @typing.final
 class MwaAsvoJob:
@@ -2660,24 +2893,35 @@ class ObsIdError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown.
     """
 
-    kind: builtins.str
-    r"""
-    "WrongNumDigits" or "Parse".
-    """
     value: builtins.int
     r"""
     WrongNumDigits: the number.
     """
+    @property
+    def kind(self) -> typing.Literal["WrongNumDigits", "Parse"]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class ObsIdErrorParse(ObsIdError):
     r"""
     The text is not a number (kind `Parse`).
     """
+    @property
+    def kind(self) -> typing.Literal["Parse"]:
+        r"""
+        Always "Parse".
+        """
 
 class ObsIdErrorWrongNumDigits(ObsIdError):
     r"""
     The number is outside `ObsId.MIN` to `ObsId.MAX` (kind `WrongNumDigits`). `value` is the number.
     """
+    @property
+    def kind(self) -> typing.Literal["WrongNumDigits"]:
+        r"""
+        Always "WrongNumDigits".
+        """
 
 class ParseError(builtins.Exception):
     r"""
@@ -2686,10 +2930,6 @@ class ParseError(builtins.Exception):
     `kind` is always set. The other attributes are set only for the kinds shown. A file that cannot be read raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
     """
 
-    kind: builtins.str
-    r"""
-    The variant, for example "NoObsIds", "JobIdsGiven" or "InvalidTime".
-    """
     file: builtins.str
     r"""
     InsideFile: the file.
@@ -2718,61 +2958,135 @@ class ParseError(builtins.Exception):
     r"""
     InvalidObsId: the number.
     """
+    @property
+    def kind(
+        self,
+    ) -> typing.Literal[
+        "InsideFile",
+        "InsideStdin",
+        "StdinError",
+        "StdinJson",
+        "JobIdsGiven",
+        "ObsIdsGiven",
+        "ZeroJobId",
+        "InvalidObsId",
+        "NoObsIds",
+        "NoJobIds",
+        "InvalidTime",
+    ]:
+        r"""
+        The name of the Rust variant. Each subclass has one kind.
+        """
 
 class ParseErrorInsideFile(ParseError):
     r"""
     A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.
     """
+    @property
+    def kind(self) -> typing.Literal["InsideFile"]:
+        r"""
+        Always "InsideFile".
+        """
 
 class ParseErrorInsideStdin(ParseError):
     r"""
     A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.
     """
+    @property
+    def kind(self) -> typing.Literal["InsideStdin"]:
+        r"""
+        Always "InsideStdin".
+        """
 
 class ParseErrorInvalidObsId(ParseError):
     r"""
     A number has 10 digits, so it is read as an Obs ID, but it is below `ObsId.MIN` (kind `InvalidObsId`). `value` is the number.
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidObsId"]:
+        r"""
+        Always "InvalidObsId".
+        """
 
 class ParseErrorInvalidTime(ParseError):
     r"""
     The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).
     """
+    @property
+    def kind(self) -> typing.Literal["InvalidTime"]:
+        r"""
+        Always "InvalidTime".
+        """
 
 class ParseErrorJobIdsGiven(ParseError):
     r"""
     Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.
     """
+    @property
+    def kind(self) -> typing.Literal["JobIdsGiven"]:
+        r"""
+        Always "JobIdsGiven".
+        """
 
 class ParseErrorNoJobIds(ParseError):
     r"""
     No Job IDs were given (kind `NoJobIds`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoJobIds"]:
+        r"""
+        Always "NoJobIds".
+        """
 
 class ParseErrorNoObsIds(ParseError):
     r"""
     No Obs IDs were given (kind `NoObsIds`).
     """
+    @property
+    def kind(self) -> typing.Literal["NoObsIds"]:
+        r"""
+        Always "NoObsIds".
+        """
 
 class ParseErrorObsIdsGiven(ParseError):
     r"""
     Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.
     """
+    @property
+    def kind(self) -> typing.Literal["ObsIdsGiven"]:
+        r"""
+        Always "ObsIdsGiven".
+        """
 
 class ParseErrorStdinError(ParseError):
     r"""
     Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.
     """
+    @property
+    def kind(self) -> typing.Literal["StdinError"]:
+        r"""
+        Always "StdinError".
+        """
 
 class ParseErrorStdinJson(ParseError):
     r"""
     Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.
     """
+    @property
+    def kind(self) -> typing.Literal["StdinJson"]:
+        r"""
+        Always "StdinJson".
+        """
 
 class ParseErrorZeroJobId(ParseError):
     r"""
     0 is not a Job ID or an Obs ID (kind `ZeroJobId`).
     """
+    @property
+    def kind(self) -> typing.Literal["ZeroJobId"]:
+        r"""
+        Always "ZeroJobId".
+        """
 
 class PreprocessJobParams:
     r"""

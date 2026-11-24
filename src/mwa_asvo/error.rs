@@ -221,11 +221,11 @@ fn files_not_reachable_message(
 }
 
 /// A request error of the download path is an API error of the kind
-/// [`MwaAsvoApiError::Reqwest`], as for every other request, so that there is
+/// [`MwaAsvoApiError::Http`], as for every other request, so that there is
 /// one kind for it.
 impl From<reqwest::Error> for MwaAsvoError {
     fn from(e: reqwest::Error) -> Self {
-        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::Reqwest(e))
+        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::Http(e))
     }
 }
 

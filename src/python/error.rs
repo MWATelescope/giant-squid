@@ -68,9 +68,15 @@ create_exception!(
 /// `create_exception!` writes the name of a base that is not a built-in
 /// exception with the module `builtins`, which is wrong.)
 macro_rules! variant_exceptions {
-    ($base:ident: $($name:ident => $doc:literal,)+) => {
+    ($base:ident: $($name:ident($kind:literal) => $doc:literal,)+) => {
         $(
             pyo3::create_exception!(mwa_giant_squid, $name, $base, $doc);
+
+            impl $name {
+                /// The `kind` attribute of this exception: the name of the
+                /// Rust variant.
+                pub(super) const KIND: &'static str = $kind;
+            }
 
             #[cfg(feature = "python-stubgen")]
             impl pyo3_stub_gen::PyStubType for $name {
@@ -87,7 +93,13 @@ macro_rules! variant_exceptions {
                 pyo3_stub_gen::type_info::PyClassInfo {
                     pyclass_name: stringify!($name),
                     struct_id: std::any::TypeId::of::<$name>,
-                    getters: &[],
+                    getters: &[pyo3_stub_gen::type_info::MemberInfo {
+                        name: $crate::python::error::KIND,
+                        r#type: || $crate::python::error::kind_type(&[$kind]),
+                        doc: concat!("Always \"", $kind, "\"."),
+                        default: None,
+                        deprecated: None,
+                    }],
                     setters: &[],
                     module: Some("mwa_giant_squid"),
                     doc: $doc,
@@ -100,72 +112,103 @@ macro_rules! variant_exceptions {
                 }
             }
         )+
+
+        // `kind` of the base exception: one of the kinds of its subclasses.
+        // It is a read-only property in the stubs, so that each subclass can
+        // narrow it to its one kind.
+        #[cfg(feature = "python-stubgen")]
+        pyo3_stub_gen::inventory::submit! {
+            pyo3_stub_gen::type_info::PyMethodsInfo {
+                struct_id: std::any::TypeId::of::<$base>,
+                attrs: &[],
+                getters: &[pyo3_stub_gen::type_info::MemberInfo {
+                    name: $crate::python::error::KIND,
+                    r#type: || $crate::python::error::kind_type(&[$($kind),+]),
+                    doc: "The name of the Rust variant. Each subclass has one kind.",
+                    default: None,
+                    deprecated: None,
+                }],
+                setters: &[],
+                methods: &[],
+                file: file!(),
+                line: line!(),
+                column: column!(),
+            }
+        }
     };
+}
+
+/// The stub type of a `kind` attribute: `typing.Literal` of the kinds.
+#[cfg(feature = "python-stubgen")]
+pub(super) fn kind_type(kinds: &[&str]) -> pyo3_stub_gen::TypeInfo {
+    let kinds: Vec<String> = kinds.iter().map(|kind| format!("\"{kind}\"")).collect();
+    pyo3_stub_gen::TypeInfo {
+        name: format!("typing.Literal[{}]", kinds.join(", ")),
+        source_module: None,
+        import: std::iter::once("typing".into()).collect(),
+        type_refs: std::collections::HashMap::new(),
+    }
 }
 
 pub(super) use variant_exceptions;
 
 variant_exceptions! {
-    MwaAsvoApiError:
-    MwaAsvoApiErrorMissingAuthKey => "No API key was given: it is empty (kind `MissingAuthKey`).",
-    MwaAsvoApiErrorAuthenticationFailed => "The MWA ASVO refused the login (kind `AuthenticationFailed`).",
-    MwaAsvoApiErrorConversion => "A value could not be turned into the type that the schema has (kind `Conversion`).",
-    MwaAsvoApiErrorInvalidParameter => "A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.",
-    MwaAsvoApiErrorBadJson => "The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).",
-    MwaAsvoApiErrorReqwest => "An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).",
-    MwaAsvoApiErrorApiError => "The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.",
-    MwaAsvoApiErrorBadStatus => "The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).",
-}
+MwaAsvoApiError:
+MwaAsvoApiErrorMissingAuthKey("MissingAuthKey") => "No API key was given: it is empty (kind `MissingAuthKey`).",
+MwaAsvoApiErrorAuthenticationFailed("AuthenticationFailed") => "The MWA ASVO refused the login (kind `AuthenticationFailed`).",
+MwaAsvoApiErrorConversion("Conversion") => "A value could not be turned into the type that the schema has (kind `Conversion`).",
+MwaAsvoApiErrorInvalidParameter("InvalidParameter") => "A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.",
+MwaAsvoApiErrorBadJson("BadJson") => "The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).",
+MwaAsvoApiErrorHttp("Http") => "An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Http`).",
+MwaAsvoApiErrorApiError("ApiError") => "The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.",
+MwaAsvoApiErrorBadStatus("BadStatus") => "The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).",}
 
 variant_exceptions! {
-    MwaAsvoError:
-    MwaAsvoErrorNoMwaAsvoJob => "There is no job with this Job ID in the job list (kind `NoMwaAsvoJob`).",
-    MwaAsvoErrorJobFailed => "The job is in the `Error` state (kind `JobFailed`). `error` is its message.",
-    MwaAsvoErrorInvalidJob => "The server gave a job that cannot be used (kind `InvalidJob`).",
-    MwaAsvoErrorJobCancelled => "The job was cancelled (kind `JobCancelled`).",
-    MwaAsvoErrorNoObsId => "No job has this Obs ID (kind `NoObsId`).",
-    MwaAsvoErrorNoJobReadyForObsId => "No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).",
-    MwaAsvoErrorTooManyObsIds => "More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).",
-    MwaAsvoErrorNotReady => "The job is not ready for download (kind `NotReady`). `job_state` is its state.",
-    MwaAsvoErrorNoFiles => "The job has no files (kind `NoFiles`).",
-    MwaAsvoErrorHashMismatch => "The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).",
-    MwaAsvoErrorInvalidJobState => "The text is not the name of a job state (kind `InvalidJobState`).",
-    MwaAsvoErrorInvalidJobType => "The text is not the name of a job type (kind `InvalidJobType`).",
-    MwaAsvoErrorInvalidEnvironment => "An environment variable has a value that cannot be used (kind `InvalidEnvironment`).",
-    MwaAsvoErrorInvalidOption => "A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.",
-    MwaAsvoErrorMwaAsvoApi => "An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.",
-    MwaAsvoErrorInterrupted => "The download was stopped (kind `Interrupted`).",
-    MwaAsvoErrorNoUrl => "The job's file has no download URL (kind `NoUrl`).",
-    MwaAsvoErrorNoHash => "The job's file has no hash (kind `NoHash`).",
-    MwaAsvoErrorFilesNotReachable => "The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).",
-    MwaAsvoErrorNoPath => "The job's files have no path (kind `NoPath`).",
-    MwaAsvoErrorSymlinkInDownloadDir => "The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).",
-    MwaAsvoErrorDestinationExists => "The place for the files of a Scratch job is already there (kind `DestinationExists`).",
-    MwaAsvoErrorHttpError => "The download server replied with an HTTP error (kind `HttpError`).",
-    MwaAsvoErrorJobExpired => "The download links of the job have expired (kind `JobExpired`). Resubmit the job.",
-    MwaAsvoErrorHttp404Error => "The download server did not find the file (kind `Http404Error`).",
-}
+MwaAsvoError:
+MwaAsvoErrorNoMwaAsvoJob("NoMwaAsvoJob") => "There is no job with this Job ID in the job list (kind `NoMwaAsvoJob`).",
+MwaAsvoErrorJobFailed("JobFailed") => "The job is in the `Error` state (kind `JobFailed`). `error` is its message.",
+MwaAsvoErrorInvalidJob("InvalidJob") => "The server gave a job that cannot be used (kind `InvalidJob`).",
+MwaAsvoErrorJobCancelled("JobCancelled") => "The job was cancelled (kind `JobCancelled`).",
+MwaAsvoErrorNoObsId("NoObsId") => "No job has this Obs ID (kind `NoObsId`).",
+MwaAsvoErrorNoJobReadyForObsId("NoJobReadyForObsId") => "No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).",
+MwaAsvoErrorTooManyObsIds("TooManyObsIds") => "More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).",
+MwaAsvoErrorNotReady("NotReady") => "The job is not ready for download (kind `NotReady`). `job_state` is its state.",
+MwaAsvoErrorNoFiles("NoFiles") => "The job has no files (kind `NoFiles`).",
+MwaAsvoErrorHashMismatch("HashMismatch") => "The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).",
+MwaAsvoErrorInvalidJobState("InvalidJobState") => "The text is not the name of a job state (kind `InvalidJobState`).",
+MwaAsvoErrorInvalidJobType("InvalidJobType") => "The text is not the name of a job type (kind `InvalidJobType`).",
+MwaAsvoErrorInvalidEnvironment("InvalidEnvironment") => "An environment variable has a value that cannot be used (kind `InvalidEnvironment`).",
+MwaAsvoErrorInvalidOption("InvalidOption") => "A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.",
+MwaAsvoErrorMwaAsvoApi("MwaAsvoApi") => "An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.",
+MwaAsvoErrorInterrupted("Interrupted") => "The download was stopped (kind `Interrupted`).",
+MwaAsvoErrorNoUrl("NoUrl") => "The job's file has no download URL (kind `NoUrl`).",
+MwaAsvoErrorNoHash("NoHash") => "The job's file has no hash (kind `NoHash`).",
+MwaAsvoErrorFilesNotReachable("FilesNotReachable") => "The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).",
+MwaAsvoErrorNoPath("NoPath") => "The job's files have no path (kind `NoPath`).",
+MwaAsvoErrorSymlinkInDownloadDir("SymlinkInDownloadDir") => "The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).",
+MwaAsvoErrorDestinationExists("DestinationExists") => "The place for the files of a Scratch job is already there (kind `DestinationExists`).",
+MwaAsvoErrorHttpError("HttpError") => "The download server replied with an HTTP error (kind `HttpError`).",
+MwaAsvoErrorJobExpired("JobExpired") => "The download links of the job have expired (kind `JobExpired`). Resubmit the job.",
+MwaAsvoErrorHttp404Error("Http404Error") => "The download server did not find the file (kind `Http404Error`).",}
 
 variant_exceptions! {
-    ObsIdError:
-    ObsIdErrorWrongNumDigits => "The number is outside `ObsId.MIN` to `ObsId.MAX` (kind `WrongNumDigits`). `value` is the number.",
-    ObsIdErrorParse => "The text is not a number (kind `Parse`).",
-}
+ObsIdError:
+ObsIdErrorWrongNumDigits("WrongNumDigits") => "The number is outside `ObsId.MIN` to `ObsId.MAX` (kind `WrongNumDigits`). `value` is the number.",
+ObsIdErrorParse("Parse") => "The text is not a number (kind `Parse`).",}
 
 variant_exceptions! {
-    ParseError:
-    ParseErrorInsideFile => "A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.",
-    ParseErrorInsideStdin => "A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.",
-    ParseErrorStdinError => "Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.",
-    ParseErrorStdinJson => "Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.",
-    ParseErrorJobIdsGiven => "Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.",
-    ParseErrorObsIdsGiven => "Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.",
-    ParseErrorZeroJobId => "0 is not a Job ID or an Obs ID (kind `ZeroJobId`).",
-    ParseErrorInvalidObsId => "A number has 10 digits, so it is read as an Obs ID, but it is below `ObsId.MIN` (kind `InvalidObsId`). `value` is the number.",
-    ParseErrorNoObsIds => "No Obs IDs were given (kind `NoObsIds`).",
-    ParseErrorNoJobIds => "No Job IDs were given (kind `NoJobIds`).",
-    ParseErrorInvalidTime => "The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).",
-}
+ParseError:
+ParseErrorInsideFile("InsideFile") => "A word in a file is not a number (kind `InsideFile`). `file` and `text` say where.",
+ParseErrorInsideStdin("InsideStdin") => "A word on standard input is not a number (kind `InsideStdin`). Only the command reads standard input, so the module does not raise this.",
+ParseErrorStdinError("StdinError") => "Standard input has the error line of a command that failed (kind `StdinError`). Only the command reads standard input, so the module does not raise this.",
+ParseErrorStdinJson("StdinJson") => "Standard input is JSON, but not the output of `giant-squid list --json` (kind `StdinJson`). Only the command reads standard input, so the module does not raise this.",
+ParseErrorJobIdsGiven("JobIdsGiven") => "Only Obs IDs were expected, but Job IDs were given (kind `JobIdsGiven`). `job_ids` are the Job IDs.",
+ParseErrorObsIdsGiven("ObsIdsGiven") => "Only Job IDs were expected, but Obs IDs were given (kind `ObsIdsGiven`). `obs_ids` are the Obs IDs.",
+ParseErrorZeroJobId("ZeroJobId") => "0 is not a Job ID or an Obs ID (kind `ZeroJobId`).",
+ParseErrorInvalidObsId("InvalidObsId") => "A number has 10 digits, so it is read as an Obs ID, but it is below `ObsId.MIN` (kind `InvalidObsId`). `value` is the number.",
+ParseErrorNoObsIds("NoObsIds") => "No Obs IDs were given (kind `NoObsIds`).",
+ParseErrorNoJobIds("NoJobIds") => "No Job IDs were given (kind `NoJobIds`).",
+ParseErrorInvalidTime("InvalidTime") => "The text is not a time (kind `InvalidTime`): use RFC 3339 (`2026-09-01T00:00:00Z`) or a date (`2026-09-01`).",}
 
 /// The attributes of the two exceptions, for the stubs. `build` sets them
 /// at run time, so pyo3-stub-gen cannot see them.
@@ -209,7 +252,6 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<MwaAsvoApiError>,
             attrs: &[
-                attr!("kind", String, "\"MissingAuthKey\" (the `api_key` given to `MwaAsvoClient` is empty), \"AuthenticationFailed\", \"Conversion\", \"InvalidParameter\" (an argument is outside the MWA ASVO limits), \"BadJson\", \"Reqwest\", \"ApiError\" or \"BadStatus\"."),
                 attr!("name", String, "InvalidParameter: the name of the argument, as the OpenAPI schema has it."),
                 attr!("message", String, "AuthenticationFailed, InvalidParameter, ApiError and BadStatus."),
                 attr!("error_code", Option<String>, "ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse."),
@@ -232,7 +274,6 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<MwaAsvoError>,
             attrs: &[
-                attr!("kind", String, "The variant, for example \"NoMwaAsvoJob\", \"JobFailed\", \"NotReady\", \"HashMismatch\" or \"Interrupted\"."),
                 attr!("job_id", u64, "NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error."),
                 attr!("obs_id", PyObsId, "JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds."),
                 attr!("expired", Option<jiff::Timestamp>, "JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known."),
@@ -266,7 +307,6 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<ObsIdError>,
             attrs: &[
-                attr!("kind", String, "\"WrongNumDigits\" or \"Parse\"."),
                 attr!("value", u64, "WrongNumDigits: the number."),
             ],
             getters: &[],
@@ -282,7 +322,6 @@ mod stub_attributes {
         PyMethodsInfo {
             struct_id: std::any::TypeId::of::<ParseError>,
             attrs: &[
-                attr!("kind", String, "The variant, for example \"NoObsIds\", \"JobIdsGiven\" or \"InvalidTime\"."),
                 attr!("file", String, "InsideFile: the file."),
                 attr!("text", String, "InsideFile and InsideStdin: the word that is not a number."),
                 attr!("message", String, "StdinError: the message of the error."),
@@ -414,13 +453,13 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
     let message = e.to_string();
     // The exception of a variant, with `kind` and `fields`.
     macro_rules! raise {
-        ($class:ident, $kind:literal, $fields:expr) => {
-            build::<$class>(py, message, $kind, $fields)
+        ($class:ident, $fields:expr) => {
+            build::<$class>(py, message, $class::KIND, $fields)
         };
     }
     match e {
         lib::MwaAsvoApiError::MissingAuthKey { .. } => {
-            raise!(MwaAsvoApiErrorMissingAuthKey, "MissingAuthKey", vec![])
+            raise!(MwaAsvoApiErrorMissingAuthKey, vec![])
         }
         lib::MwaAsvoApiError::AuthenticationFailed {
             message: text,
@@ -432,28 +471,23 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
                 ("error_code", Field::OptStr(error_code)),
             ];
             fields.extend(reply_fields(response.clone()));
-            raise!(
-                MwaAsvoApiErrorAuthenticationFailed,
-                "AuthenticationFailed",
-                fields
-            )
+            raise!(MwaAsvoApiErrorAuthenticationFailed, fields)
         }
         lib::MwaAsvoApiError::InvalidParameter {
             name,
             message: text,
         } => raise!(
             MwaAsvoApiErrorInvalidParameter,
-            "InvalidParameter",
             vec![
                 ("name", Field::Str((*name).to_string())),
                 ("message", Field::Str(text.clone())),
             ]
         ),
         lib::MwaAsvoApiError::Conversion(_) => {
-            raise!(MwaAsvoApiErrorConversion, "Conversion", vec![])
+            raise!(MwaAsvoApiErrorConversion, vec![])
         }
-        lib::MwaAsvoApiError::BadJson(_) => raise!(MwaAsvoApiErrorBadJson, "BadJson", vec![]),
-        lib::MwaAsvoApiError::Reqwest(_) => raise!(MwaAsvoApiErrorReqwest, "Reqwest", vec![]),
+        lib::MwaAsvoApiError::BadJson(_) => raise!(MwaAsvoApiErrorBadJson, vec![]),
+        lib::MwaAsvoApiError::Http(_) => raise!(MwaAsvoApiErrorHttp, vec![]),
         lib::MwaAsvoApiError::ApiError { status, response } => {
             let mut fields = vec![
                 ("status", Field::Int(u64::from(*status))),
@@ -461,14 +495,13 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
                 ("message", Field::Str(response.message.clone())),
             ];
             fields.extend(reply_fields(Some(response.clone())));
-            raise!(MwaAsvoApiErrorApiError, "ApiError", fields)
+            raise!(MwaAsvoApiErrorApiError, fields)
         }
         lib::MwaAsvoApiError::BadStatus {
             status,
             message: text,
         } => raise!(
             MwaAsvoApiErrorBadStatus,
-            "BadStatus",
             vec![
                 ("status", Field::Int(u64::from(*status))),
                 ("message", Field::Str(text.clone())),
@@ -518,8 +551,8 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
     let obs_id = |o: crate::ObsId| ("obs_id", Field::ObsId(o));
     // The exception of a variant, with `kind` and `fields`.
     macro_rules! raise {
-        ($class:ident, $kind:literal, $fields:expr) => {
-            build::<$class>(py, message, $kind, $fields)
+        ($class:ident, $fields:expr) => {
+            build::<$class>(py, message, $class::KIND, $fields)
         };
     }
     match e {
@@ -528,7 +561,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             let cause = source.value(py).clone().unbind();
             let err = raise!(
                 MwaAsvoErrorMwaAsvoApi,
-                "MwaAsvoApi",
                 vec![("source", Field::Exception(cause.clone_ref(py)))]
             );
             err.set_cause(py, Some(source));
@@ -539,7 +571,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             message: text,
         } => raise!(
             MwaAsvoErrorInvalidOption,
-            "InvalidOption",
             vec![
                 ("name", Field::Str(name.to_string())),
                 ("message", Field::Str(text)),
@@ -548,7 +579,7 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
         lib::MwaAsvoError::IO(source) => PyErr::from(source),
         lib::MwaAsvoError::CannotCreate { path, source } => os_error(py, &path, source),
         lib::MwaAsvoError::NoMwaAsvoJob(id) => {
-            raise!(MwaAsvoErrorNoMwaAsvoJob, "NoMwaAsvoJob", vec![job_id(id)])
+            raise!(MwaAsvoErrorNoMwaAsvoJob, vec![job_id(id)])
         }
         lib::MwaAsvoError::JobFailed {
             job_id: id,
@@ -557,7 +588,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             error_code,
         } => raise!(
             MwaAsvoErrorJobFailed,
-            "JobFailed",
             vec![
                 job_id(id),
                 obs_id(o),
@@ -567,42 +597,37 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
         ),
         lib::MwaAsvoError::InvalidJob { id, problem } => raise!(
             MwaAsvoErrorInvalidJob,
-            "InvalidJob",
             vec![
                 ("id", Field::OptInt(i64::try_from(id.get()).ok())),
                 ("problem", Field::Str(problem)),
             ]
         ),
         lib::MwaAsvoError::JobCancelled(id) => {
-            raise!(MwaAsvoErrorJobCancelled, "JobCancelled", vec![job_id(id)])
+            raise!(MwaAsvoErrorJobCancelled, vec![job_id(id)])
         }
-        lib::MwaAsvoError::NoObsId(o) => raise!(MwaAsvoErrorNoObsId, "NoObsId", vec![obs_id(o)]),
-        lib::MwaAsvoError::NoJobReadyForObsId(o) => raise!(
-            MwaAsvoErrorNoJobReadyForObsId,
-            "NoJobReadyForObsId",
-            vec![obs_id(o)]
-        ),
+        lib::MwaAsvoError::NoObsId(o) => raise!(MwaAsvoErrorNoObsId, vec![obs_id(o)]),
+        lib::MwaAsvoError::NoJobReadyForObsId(o) => {
+            raise!(MwaAsvoErrorNoJobReadyForObsId, vec![obs_id(o)])
+        }
         lib::MwaAsvoError::TooManyObsIds(o) => {
-            raise!(MwaAsvoErrorTooManyObsIds, "TooManyObsIds", vec![obs_id(o)])
+            raise!(MwaAsvoErrorTooManyObsIds, vec![obs_id(o)])
         }
         lib::MwaAsvoError::NotReady {
             job_id: id,
             job_state,
         } => raise!(
             MwaAsvoErrorNotReady,
-            "NotReady",
             vec![
                 job_id(id),
                 ("job_state", Field::State(PyJobState::from(job_state))),
             ]
         ),
-        lib::MwaAsvoError::NoFiles(id) => raise!(MwaAsvoErrorNoFiles, "NoFiles", vec![job_id(id)]),
+        lib::MwaAsvoError::NoFiles(id) => raise!(MwaAsvoErrorNoFiles, vec![job_id(id)]),
         lib::MwaAsvoError::JobExpired {
             job_id: id,
             expired,
         } => raise!(
             MwaAsvoErrorJobExpired,
-            "JobExpired",
             vec![job_id(id), ("expired", Field::Time(expired))]
         ),
         lib::MwaAsvoError::HashMismatch {
@@ -612,7 +637,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             expected_hash,
         } => raise!(
             MwaAsvoErrorHashMismatch,
-            "HashMismatch",
             vec![
                 job_id(id),
                 ("file", Field::Str(file)),
@@ -620,38 +644,33 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
                 ("expected_hash", Field::Str(expected_hash)),
             ]
         ),
-        lib::MwaAsvoError::InvalidJobState { str } => raise!(
-            MwaAsvoErrorInvalidJobState,
-            "InvalidJobState",
-            vec![("str", Field::Str(str))]
-        ),
-        lib::MwaAsvoError::InvalidJobType { str } => raise!(
-            MwaAsvoErrorInvalidJobType,
-            "InvalidJobType",
-            vec![("str", Field::Str(str))]
-        ),
+        lib::MwaAsvoError::InvalidJobState { str } => {
+            raise!(MwaAsvoErrorInvalidJobState, vec![("str", Field::Str(str))])
+        }
+        lib::MwaAsvoError::InvalidJobType { str } => {
+            raise!(MwaAsvoErrorInvalidJobType, vec![("str", Field::Str(str))])
+        }
         lib::MwaAsvoError::InvalidEnvironment {
             name,
             value,
             problem,
         } => raise!(
             MwaAsvoErrorInvalidEnvironment,
-            "InvalidEnvironment",
             vec![
                 ("name", Field::Str(name)),
                 ("value", Field::Str(value)),
                 ("problem", Field::Str(problem)),
             ]
         ),
-        lib::MwaAsvoError::Interrupted => raise!(MwaAsvoErrorInterrupted, "Interrupted", vec![]),
+        lib::MwaAsvoError::Interrupted => raise!(MwaAsvoErrorInterrupted, vec![]),
         lib::MwaAsvoError::NoUrl { job_id: id } => {
-            raise!(MwaAsvoErrorNoUrl, "NoUrl", vec![job_id(id)])
+            raise!(MwaAsvoErrorNoUrl, vec![job_id(id)])
         }
         lib::MwaAsvoError::NoPath { job_id: id } => {
-            raise!(MwaAsvoErrorNoPath, "NoPath", vec![job_id(id)])
+            raise!(MwaAsvoErrorNoPath, vec![job_id(id)])
         }
         lib::MwaAsvoError::NoHash { job_id: id } => {
-            raise!(MwaAsvoErrorNoHash, "NoHash", vec![job_id(id)])
+            raise!(MwaAsvoErrorNoHash, vec![job_id(id)])
         }
         lib::MwaAsvoError::FilesNotReachable {
             job_id: id,
@@ -659,7 +678,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             path,
         } => raise!(
             MwaAsvoErrorFilesNotReachable,
-            "FilesNotReachable",
             vec![
                 job_id(id),
                 (
@@ -671,12 +689,10 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
         ),
         lib::MwaAsvoError::SymlinkInDownloadDir { path } => raise!(
             MwaAsvoErrorSymlinkInDownloadDir,
-            "SymlinkInDownloadDir",
             vec![("file", Field::Str(path.display().to_string()))]
         ),
         lib::MwaAsvoError::DestinationExists { job_id: id, path } => raise!(
             MwaAsvoErrorDestinationExists,
-            "DestinationExists",
             vec![job_id(id), ("file", Field::Str(path.display().to_string()))]
         ),
         lib::MwaAsvoError::HttpError {
@@ -685,7 +701,6 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             message,
         } => raise!(
             MwaAsvoErrorHttpError,
-            "HttpError",
             vec![
                 job_id(id),
                 ("status", Field::Int(u64::from(status))),
@@ -693,7 +708,7 @@ pub(crate) fn mwa_asvo_error(py: Python<'_>, e: lib::MwaAsvoError) -> PyErr {
             ]
         ),
         lib::MwaAsvoError::Http404Error { job_id: id } => {
-            raise!(MwaAsvoErrorHttp404Error, "Http404Error", vec![job_id(id)])
+            raise!(MwaAsvoErrorHttp404Error, vec![job_id(id)])
         }
     }
 }
@@ -706,13 +721,13 @@ pub(crate) fn obs_id_error(py: Python<'_>, e: LibObsIdError) -> PyErr {
         LibObsIdError::WrongNumDigits(value) => build_from(
             py,
             PyErr::new::<ObsIdErrorWrongNumDigits, _>(message),
-            "WrongNumDigits",
+            ObsIdErrorWrongNumDigits::KIND,
             vec![("value", Field::Int(value))],
         ),
         LibObsIdError::Parse(_) => build_from(
             py,
             PyErr::new::<ObsIdErrorParse, _>(message),
-            "Parse",
+            ObsIdErrorParse::KIND,
             vec![],
         ),
     }
@@ -724,38 +739,28 @@ pub(crate) fn parse_error(py: Python<'_>, e: LibParseError) -> PyErr {
     let message = e.to_string();
     // The exception of a variant, with `kind` and `fields`.
     macro_rules! raise {
-        ($class:ident, $kind:literal, $fields:expr) => {
-            build_from(py, PyErr::new::<$class, _>(message), $kind, $fields)
+        ($class:ident, $fields:expr) => {
+            build_from(py, PyErr::new::<$class, _>(message), $class::KIND, $fields)
         };
     }
     match e {
         LibParseError::InsideFile { file, text } => raise!(
             ParseErrorInsideFile,
-            "InsideFile",
             vec![("file", Field::Str(file)), ("text", Field::Str(text))]
         ),
         LibParseError::InsideStdin { text } => {
-            raise!(
-                ParseErrorInsideStdin,
-                "InsideStdin",
-                vec![("text", Field::Str(text))]
-            )
+            raise!(ParseErrorInsideStdin, vec![("text", Field::Str(text))])
         }
         LibParseError::StdinIO { source } => PyErr::from(source),
-        LibParseError::StdinError { message: problem } => raise!(
-            ParseErrorStdinError,
-            "StdinError",
-            vec![("message", Field::Str(problem))]
-        ),
-        LibParseError::StdinJson { problem } => raise!(
-            ParseErrorStdinJson,
-            "StdinJson",
-            vec![("problem", Field::Str(problem))]
-        ),
+        LibParseError::StdinError { message: problem } => {
+            raise!(ParseErrorStdinError, vec![("message", Field::Str(problem))])
+        }
+        LibParseError::StdinJson { problem } => {
+            raise!(ParseErrorStdinJson, vec![("problem", Field::Str(problem))])
+        }
         LibParseError::IO { file, source } => os_error(py, &file, source),
         LibParseError::JobIdsGiven { job_ids } => raise!(
             ParseErrorJobIdsGiven,
-            "JobIdsGiven",
             vec![(
                 "job_ids",
                 Field::Ints(job_ids.into_iter().map(|id| id.get()).collect())
@@ -763,17 +768,14 @@ pub(crate) fn parse_error(py: Python<'_>, e: LibParseError) -> PyErr {
         ),
         LibParseError::ObsIdsGiven { obs_ids } => raise!(
             ParseErrorObsIdsGiven,
-            "ObsIdsGiven",
             vec![("obs_ids", Field::ObsIds(obs_ids))]
         ),
-        LibParseError::ZeroJobId => raise!(ParseErrorZeroJobId, "ZeroJobId", vec![]),
-        LibParseError::InvalidObsId { value } => raise!(
-            ParseErrorInvalidObsId,
-            "InvalidObsId",
-            vec![("value", Field::Int(value))]
-        ),
-        LibParseError::NoObsIds => raise!(ParseErrorNoObsIds, "NoObsIds", vec![]),
-        LibParseError::NoJobIds => raise!(ParseErrorNoJobIds, "NoJobIds", vec![]),
-        LibParseError::InvalidTime => raise!(ParseErrorInvalidTime, "InvalidTime", vec![]),
+        LibParseError::ZeroJobId => raise!(ParseErrorZeroJobId, vec![]),
+        LibParseError::InvalidObsId { value } => {
+            raise!(ParseErrorInvalidObsId, vec![("value", Field::Int(value))])
+        }
+        LibParseError::NoObsIds => raise!(ParseErrorNoObsIds, vec![]),
+        LibParseError::NoJobIds => raise!(ParseErrorNoJobIds, vec![]),
+        LibParseError::InvalidTime => raise!(ParseErrorInvalidTime, vec![]),
     }
 }
