@@ -544,8 +544,11 @@ def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, job: Callable[..., Any
 
 
 def test_a_zero_source_job_id_is_rejected(client: gs.AsvoClient) -> None:
-    """source_job_id must be greater than zero."""
-    with pytest.raises(ValueError, match="source_job_id"):
+    """source_job_id must be greater than zero.
+
+    The match is the library's message: the argument name is only in the note that PyO3 adds on Python 3.11 and later.
+    """
+    with pytest.raises(ValueError, match="0 is not a Job ID"):
         client.submit_image_from_job(IMAGE_FROM_JOB(0))
 
 
