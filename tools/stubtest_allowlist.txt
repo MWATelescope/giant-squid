@@ -89,3 +89,9 @@ mwa_giant_squid.DownloadJobParams.__new__
 mwa_giant_squid.ConversionJobParams.__new__
 mwa_giant_squid.ImagingJobParams.__new__
 mwa_giant_squid.ImageFromJobParams.__new__
+
+# `kind` of each error exception and its variant subclasses: the stub declares it as a read-only property, typed as
+# a `typing.Literal` of the kinds, so that each subclass can narrow it to its one kind (a mutable attribute cannot be
+# narrowed in a subclass). At run time it is an instance attribute that the module sets on each exception object
+# (src/python/error.rs), so the class has no `kind`. 57 classes: the six error families and their subclasses.
+mwa_giant_squid\.(MwaAsvoApiError|MwaAsvoError|ObsIdError|ParseError|CsvFileError|CsvSubmitError)\w*\.kind
