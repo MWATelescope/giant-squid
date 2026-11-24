@@ -149,9 +149,9 @@ fn field_value(field: &str, number: f64) -> Value {
 }
 
 /// The name in an `InvalidParameter` error.
-fn invalid_name(result: Result<(), AsvoApiError>) -> &'static str {
+fn invalid_name(result: Result<(), MwaAsvoApiError>) -> &'static str {
     match result {
-        Err(AsvoApiError::InvalidParameter { name, .. }) => name,
+        Err(MwaAsvoApiError::InvalidParameter { name, .. }) => name,
         other => panic!("expected InvalidParameter, got {other:?}"),
     }
 }
@@ -204,7 +204,7 @@ fn check_names_the_argument() {
 
     assert!(matches!(
         err,
-        AsvoApiError::InvalidParameter { name: "mgain", .. }
+        MwaAsvoApiError::InvalidParameter { name: "mgain", .. }
     ));
     assert_eq!(
         err.to_string(),
@@ -231,7 +231,7 @@ fn the_schema_defaults_are_within_the_limits() {
 fn assert_limits_enforced<T: Serialize + DeserializeOwned>(
     defaults: &T,
     limits: &[(&str, Bounds)],
-    validate: fn(&T) -> Result<(), AsvoApiError>,
+    validate: fn(&T) -> Result<(), MwaAsvoApiError>,
 ) {
     for (field, bounds) in limits {
         for (end, past) in [
@@ -391,7 +391,7 @@ fn an_unsupported_image_size_lists_the_supported_ones() {
     let err = image_size(100).expect_err("100 is not a size");
 
     match err {
-        AsvoApiError::InvalidParameter { name, message } => {
+        MwaAsvoApiError::InvalidParameter { name, message } => {
             assert_eq!(name, "image_size");
             assert_eq!(
                 message,
@@ -589,7 +589,7 @@ fn a_value_the_schema_does_not_allow_is_refused() {
     assert!(
         matches!(
             err,
-            AsvoApiError::InvalidParameter {
+            MwaAsvoApiError::InvalidParameter {
                 name: "image_size",
                 ..
             }
@@ -601,7 +601,7 @@ fn a_value_the_schema_does_not_allow_is_refused() {
     assert!(
         matches!(
             err,
-            AsvoApiError::InvalidParameter {
+            MwaAsvoApiError::InvalidParameter {
                 name: "source_job_id",
                 ..
             }
@@ -628,7 +628,7 @@ fn only_acacia_delivery_with_files_is_refused() {
                 assert!(
                     matches!(
                         err,
-                        AsvoApiError::InvalidParameter {
+                        MwaAsvoApiError::InvalidParameter {
                             name: "delivery_format",
                             ..
                         }
@@ -670,7 +670,7 @@ fn every_body_with_a_delivery_is_checked() {
         assert!(
             matches!(
                 err,
-                AsvoApiError::InvalidParameter {
+                MwaAsvoApiError::InvalidParameter {
                     name: "delivery_format",
                     ..
                 }
@@ -701,7 +701,7 @@ fn the_custom_centre_coordinates_go_with_a_custom_centre() {
         (PhaseCentre::Custom, Some(10.0), None, "custom_centre_dec"),
     ] {
         match check_centre(centre, ra, dec) {
-            Err(AsvoApiError::InvalidParameter { name: got, .. }) => assert_eq!(got, name),
+            Err(MwaAsvoApiError::InvalidParameter { name: got, .. }) => assert_eq!(got, name),
             other => panic!("{centre} {ra:?} {dec:?}: expected {name}, got {other:?}"),
         }
     }
@@ -720,7 +720,7 @@ fn the_custom_centre_coordinates_are_refused_without_a_custom_centre() {
             (Some(10.0), Some(-26.0), "custom_centre_ra"),
         ] {
             match check_centre(centre, ra, dec) {
-                Err(AsvoApiError::InvalidParameter { name: got, message }) => {
+                Err(MwaAsvoApiError::InvalidParameter { name: got, message }) => {
                     assert_eq!(got, name, "{centre} {ra:?} {dec:?}");
                     assert!(message.contains("custom"), "{message}");
                 }

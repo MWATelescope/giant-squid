@@ -28,7 +28,7 @@ macro_rules! module_constants {
 }
 
 module_constants! {
-    DEFAULT_ASVO_HOST: String = crate::DEFAULT_ASVO_HOST.to_string();
+    DEFAULT_MWA_ASVO_HOST: String = crate::DEFAULT_MWA_ASVO_HOST.to_string();
     DEFAULT_API_TIMEOUT: f64 = crate::DEFAULT_API_TIMEOUT.as_secs_f64();
     BYTES_PER_MIB: usize = crate::BYTES_PER_MIB;
     MIN_DOWNLOAD_BUFFER_SIZE: usize = crate::MIN_DOWNLOAD_BUFFER_SIZE;

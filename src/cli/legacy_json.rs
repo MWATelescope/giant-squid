@@ -9,7 +9,7 @@
 //! `jobId`, `jobType`, `jobState`, and `fileUrl`, `filePath`, `fileSize`,
 //! `fileHash` for each file). It also put a file's delivery type under
 //! `jobType`, and it had no times. From 3.0.0, `--json` prints the OpenAPI
-//! names (see [`AsvoJobVec::json`]). This module keeps the format of
+//! names (see [`MwaAsvoJobVec::json`]). This module keeps the format of
 //! giant-squid 2.5.1, byte for byte, so that scripts have time to move over. It is only in the CLI:
 //! the library and the Python module have only the new format.
 //!
@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::mwa_asvo::api::openapi::DeliveryDestination;
-use crate::mwa_asvo::{AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState, JobType};
+use crate::mwa_asvo::{JobFile, JobState, JobType, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec};
 use crate::obs_id::ObsId;
 
 /// The warning logged (to stderr, like every log record) when
@@ -66,7 +66,7 @@ enum LegacyState<'a> {
 
 impl<'a> LegacyState<'a> {
     /// The old form of `job`'s state.
-    fn of(job: &'a AsvoJob) -> Self {
+    fn of(job: &'a MwaAsvoJob) -> Self {
         match job.job_state {
             JobState::Queued => Self::Queued,
             JobState::Waitcal => Self::WaitCal,
@@ -104,7 +104,7 @@ fn legacy_job_type(job_type: Option<JobType>) -> &'static str {
 struct LegacyJob<'a> {
     obsid: ObsId,
     #[serde(rename = "jobId")]
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     #[serde(rename = "jobType")]
     job_type: &'static str,
     #[serde(rename = "jobState")]
@@ -129,8 +129,8 @@ impl<'a> From<&'a JobFile> for LegacyFile<'a> {
     }
 }
 
-impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
-    fn from(job: &'a AsvoJob) -> Self {
+impl<'a> From<&'a MwaAsvoJob> for LegacyJob<'a> {
+    fn from(job: &'a MwaAsvoJob) -> Self {
         Self {
             obsid: job.obs_id(),
             job_id: job.job_id(),
@@ -146,15 +146,15 @@ impl<'a> From<&'a AsvoJob> for LegacyJob<'a> {
 }
 
 /// The jobs in the old JSON format: an object keyed by Job ID, in Job ID
-/// order, as [`AsvoJobVec::json`] is. As there, a Job ID that is listed
+/// order, as [`MwaAsvoJobVec::json`] is. As there, a Job ID that is listed
 /// more than once appears once.
 ///
 /// # Errors
 ///
 /// A `serde_json` error, which does not happen for these types in
 /// practice.
-pub fn to_legacy_json(jobs: &AsvoJobVec) -> Result<String, serde_json::Error> {
-    let map: BTreeMap<AsvoJobId, LegacyJob> = jobs
+pub fn to_legacy_json(jobs: &MwaAsvoJobVec) -> Result<String, serde_json::Error> {
+    let map: BTreeMap<MwaAsvoJobId, LegacyJob> = jobs
         .0
         .iter()
         .map(|job| (job.job_id(), LegacyJob::from(job)))

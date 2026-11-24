@@ -102,7 +102,7 @@ def test_validate_accepts_the_defaults() -> None:
 
 def test_validate_refuses_an_offset_outside_the_limits() -> None:
     """The limit is the library's, and it names the value."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="offset"):
         gs.DownloadJobParams(TEST_OBS_ID, offset=OFFSET_TOO_LARGE, duration=VOLTAGE_DURATION).validate()
 
 
@@ -110,15 +110,15 @@ def test_validate_refuses_a_delivery_that_the_format_does_not_suit() -> None:
     """Acacia delivers a tar file only."""
     params = gs.DownloadJobParams(TEST_OBS_ID, delivery_format=gs.DeliveryFormat.Files)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="delivery_format"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="delivery_format"):
         params.validate()
 
 
 def test_validate_refuses_an_image_size_that_is_not_allowed() -> None:
     """The size must be one of the sizes that the MWA ASVO allows, in both imaging bodies."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         IMAGE_FROM_JOB(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
 
 
@@ -126,7 +126,7 @@ def test_validate_refuses_a_custom_centre_without_a_position() -> None:
     """A custom phase centre needs its RA and Dec."""
     params = gs.ConversionJobParams(TEST_OBS_ID, centre=gs.PhaseCentre.Custom)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="custom_centre"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="custom_centre"):
         params.validate()
 
 
@@ -137,7 +137,7 @@ def test_validate_checks_the_values_as_they_are_now() -> None:
 
     params.offset = OFFSET_TOO_LARGE
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="offset"):
         params.validate()
 
 
@@ -222,17 +222,17 @@ def test_a_preprocess_job_params_validates_what_it_holds() -> None:
     gs.PreprocessJobParams.Conversion(gs.ConversionJobParams(TEST_OBS_ID)).validate()
     bad = gs.PreprocessJobParams.Imaging(IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         bad.validate()
 
 
 @pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
+def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
     """A logged-in client of the mock server."""
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
-def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """The body that is sent is that of the class inside, the same as when the class is given alone."""
     submitted(httpserver, CONVERSION_PATH)
     conversion = gs.ConversionJobParams(TEST_OBS_ID, avg_freq_res=10.0)
@@ -248,13 +248,13 @@ def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.AsvoClie
     assert wrapped["obs_id"] == TEST_OBS_ID
 
 
-def test_submit_preprocess_job_refuses_another_type(client: gs.AsvoClient) -> None:
+def test_submit_preprocess_job_refuses_another_type(client: gs.MwaAsvoClient) -> None:
     """A download body is not a preprocess body."""
     with pytest.raises(TypeError, match="PreprocessJobParams"):
         client.submit_preprocess_job(gs.DownloadJobParams(TEST_OBS_ID))  # ty: ignore[invalid-argument-type]
 
 
-def test_submit_download_job_sends_a_helper_body(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_submit_download_job_sends_a_helper_body(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """A body from a helper is submitted as any other."""
     submitted(httpserver, DOWNLOAD_PATH)
 

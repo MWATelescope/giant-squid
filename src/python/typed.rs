@@ -28,8 +28,8 @@ fn stub_type(name: &str, imports: &[&str]) -> pyo3_stub_gen::TypeInfo {
     }
 }
 
-/// The value that `AsvoJobVec.__iter__` returns: an iterator over a list of
-/// `AsvoJob`. In Python it is the list iterator.
+/// The value that `MwaAsvoJobVec.__iter__` returns: an iterator over a list of
+/// `MwaAsvoJob`. In Python it is the list iterator.
 pub struct JobIterator<'py>(pub Bound<'py, PyIterator>);
 
 impl<'py> IntoPyObject<'py> for JobIterator<'py> {
@@ -45,7 +45,7 @@ impl<'py> IntoPyObject<'py> for JobIterator<'py> {
 #[cfg(feature = "python-stubgen")]
 impl pyo3_stub_gen::PyStubType for JobIterator<'_> {
     fn type_output() -> pyo3_stub_gen::TypeInfo {
-        stub_type("typing.Iterator[AsvoJob]", &["typing"])
+        stub_type("typing.Iterator[MwaAsvoJob]", &["typing"])
     }
 }
 
@@ -108,7 +108,7 @@ impl pyo3_stub_gen::PyStubType for ProgressCallback {
 
 /// The `on_result` argument of `submit_csv_jobs`: a function that takes a
 /// `CsvJob` and the result of its submission (a `JobSubmittedResponse`, or the
-/// `AsvoApiError` that it failed with). Any object is taken; a call to an
+/// `MwaAsvoApiError` that it failed with). Any object is taken; a call to an
 /// object that is not callable raises when the first job is done.
 pub struct ResultCallback(pub Py<PyAny>);
 
@@ -124,24 +124,24 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ResultCallback {
 impl pyo3_stub_gen::PyStubType for ResultCallback {
     fn type_output() -> pyo3_stub_gen::TypeInfo {
         stub_type(
-            "collections.abc.Callable[[CsvJob, JobSubmittedResponse | AsvoApiError], builtins.object]",
+            "collections.abc.Callable[[CsvJob, JobSubmittedResponse | MwaAsvoApiError], builtins.object]",
             &["builtins", "collections.abc"],
         )
     }
 }
 
-/// An MWA ASVO Job ID ([`AsvoJobId`](crate::AsvoJobId), a `NonZeroU64`) as
+/// An MWA ASVO Job ID ([`MwaAsvoJobId`](crate::MwaAsvoJobId), a `NonZeroU64`) as
 /// a Python `int`, as an argument or a return value. An argument that is 0
 /// raises `ValueError`.
 #[derive(Clone, Copy)]
-pub struct JobId(pub crate::AsvoJobId);
+pub struct JobId(pub crate::MwaAsvoJobId);
 
 impl<'a, 'py> FromPyObject<'a, 'py> for JobId {
     type Error = PyErr;
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
         let id: u64 = obj.extract()?;
-        crate::AsvoJobId::new(id)
+        crate::MwaAsvoJobId::new(id)
             .map(Self)
             .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("0 is not a Job ID"))
     }

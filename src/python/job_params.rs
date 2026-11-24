@@ -56,7 +56,7 @@ use crate::obs_id::ObsId;
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+/// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
 /// job is submitted (see the submit method).
@@ -200,7 +200,7 @@ impl PyDownloadJobParams {
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+/// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
 /// job is submitted (see the submit method).
@@ -405,7 +405,7 @@ impl PyConversionJobParams {
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+/// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
 /// job is submitted (see the submit method).
@@ -757,7 +757,7 @@ impl PyImagingJobParams {
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
-/// ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+/// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The values are checked by `validate()` and when the job is submitted (see the submit method).
 ///

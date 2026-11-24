@@ -11,7 +11,7 @@ checks against the module, and it has the types and the docstrings. pdoc cannot 
 
 A stub is not made to be executed, so this script writes a copy that executes, and changes only what must change:
 
-- `from __future__ import annotations`, for the forward references (`-> AsvoClient` in `class AsvoClient`).
+- `from __future__ import annotations`, for the forward references (`-> MwaAsvoClient` in `class MwaAsvoClient`).
 - A nested class does not name its enclosing class as a base (`class Started(DownloadProgress)` cannot execute in the
   body of `DownloadProgress`).
 - The members of an enum, which are `...` in the stub, get their API value from the built module. With `...`, every

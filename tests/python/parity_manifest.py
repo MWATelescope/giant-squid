@@ -26,7 +26,7 @@ from typing import Literal
 Status = Literal["done", "pending", "excluded", "undecided"]
 
 # The variants of the two Rust error enums (``src/mwa_asvo/api/error.rs`` and ``src/mwa_asvo/error.rs``). Each variant
-# is a Python subclass of the enum's exception, named by the enum and the variant (``AsvoApiErrorInvalidParameter``).
+# is a Python subclass of the enum's exception, named by the enum and the variant (``MwaAsvoApiErrorInvalidParameter``).
 API_ERROR_VARIANTS = [
     "MissingAuthKey",
     "AuthenticationFailed",
@@ -38,7 +38,7 @@ API_ERROR_VARIANTS = [
     "BadStatus",
 ]
 ERROR_VARIANTS = [
-    "NoAsvoJob",
+    "NoMwaAsvoJob",
     "JobFailed",
     "InvalidJob",
     "JobCancelled",
@@ -52,7 +52,7 @@ ERROR_VARIANTS = [
     "InvalidJobType",
     "InvalidEnvironment",
     "InvalidOption",
-    "AsvoApi",
+    "MwaAsvoApi",
     "IO",
     "Interrupted",
     "NoUrl",
@@ -76,9 +76,9 @@ CSV_READ_EXCLUDED = {
     "Read": "Python raises OSError (FileNotFoundError, PermissionError and so on), not a CSV error.",
 }
 
-# The variants of `AsvoError` that have no subclass, because Python raises another exception for them.
+# The variants of `MwaAsvoError` that have no subclass, because Python raises another exception for them.
 EXCLUDED_ERROR_VARIANTS = {
-    "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an AsvoError.",
+    "IO": "Python raises OSError (FileNotFoundError, PermissionError and so on), not an MwaAsvoError.",
     "CannotCreate": "A file or directory that cannot be made. Python raises OSError, as for IO, with the path as `filename`.",
 }
 
@@ -166,13 +166,13 @@ def _variant_entries(
 def _errors() -> list[Entry]:
     entries: list[Entry] = []
     for variant in API_ERROR_VARIANTS:
-        entries.append(done(f"crate::AsvoApiError::{variant}", f"AsvoApiError{variant}"))
+        entries.append(done(f"crate::MwaAsvoApiError::{variant}", f"MwaAsvoApiError{variant}"))
     for variant in ERROR_VARIANTS:
-        rust = f"crate::AsvoError::{variant}"
+        rust = f"crate::MwaAsvoError::{variant}"
         if variant in EXCLUDED_ERROR_VARIANTS:
             entries.append(excluded(rust, EXCLUDED_ERROR_VARIANTS[variant]))
         else:
-            entries.append(done(rust, f"AsvoError{variant}"))
+            entries.append(done(rust, f"MwaAsvoError{variant}"))
     return entries
 
 
@@ -209,7 +209,7 @@ SCHEMA_TYPES = [
     "Status",
 ]
 
-ASVO_JOB_MEMBERS = [
+MWA_ASVO_JOB_MEMBERS = [
     "job_id",
     "obs_id",
     "job_type",
@@ -238,21 +238,21 @@ VALIDATION_NOTE = (
 
 MANIFEST: list[Entry] = [
     # --- The client ---
-    done("crate::AsvoClient", "AsvoClient"),
-    done("crate::AsvoClient::new", "AsvoClient"),
-    done("crate::AsvoClient::get_jobs", "AsvoClient.get_jobs"),
-    done("crate::AsvoClient::submit_download_job", "AsvoClient.submit_download_job"),
-    done("crate::AsvoClient::submit_preprocess_job", "AsvoClient.submit_preprocess_job"),
-    done("crate::AsvoClient::submit_image_from_job", "AsvoClient.submit_image_from_job"),
-    done("crate::AsvoClient::submit_csv_file", "AsvoClient.submit_csv_file"),
-    done("crate::AsvoClient::cancel_job", "AsvoClient.cancel_job"),
-    done("crate::AsvoClient::download_job", "AsvoClient.download_job"),
-    done("crate::AsvoClient::download_obs", "AsvoClient.download_obs"),
-    done("crate::AsvoClient::download_job_from", "AsvoClient.download_job_from"),
-    done("crate::AsvoClient::download_obs_from", "AsvoClient.download_obs_from"),
-    done("crate::AsvoClient::submit_csv_jobs", "AsvoClient.submit_csv_jobs"),
-    done("crate::AsvoClient::submit_csv_job", "AsvoClient.submit_csv_job"),
-    done("crate::AsvoClientConfig", "AsvoClientConfig"),
+    done("crate::MwaAsvoClient", "MwaAsvoClient"),
+    done("crate::MwaAsvoClient::new", "MwaAsvoClient"),
+    done("crate::MwaAsvoClient::get_jobs", "MwaAsvoClient.get_jobs"),
+    done("crate::MwaAsvoClient::submit_download_job", "MwaAsvoClient.submit_download_job"),
+    done("crate::MwaAsvoClient::submit_preprocess_job", "MwaAsvoClient.submit_preprocess_job"),
+    done("crate::MwaAsvoClient::submit_image_from_job", "MwaAsvoClient.submit_image_from_job"),
+    done("crate::MwaAsvoClient::submit_csv_file", "MwaAsvoClient.submit_csv_file"),
+    done("crate::MwaAsvoClient::cancel_job", "MwaAsvoClient.cancel_job"),
+    done("crate::MwaAsvoClient::download_job", "MwaAsvoClient.download_job"),
+    done("crate::MwaAsvoClient::download_obs", "MwaAsvoClient.download_obs"),
+    done("crate::MwaAsvoClient::download_job_from", "MwaAsvoClient.download_job_from"),
+    done("crate::MwaAsvoClient::download_obs_from", "MwaAsvoClient.download_obs_from"),
+    done("crate::MwaAsvoClient::submit_csv_jobs", "MwaAsvoClient.submit_csv_jobs"),
+    done("crate::MwaAsvoClient::submit_csv_job", "MwaAsvoClient.submit_csv_job"),
+    done("crate::MwaAsvoClientConfig", "MwaAsvoClientConfig"),
     done("crate::JobsFilter", "JobsFilter"),
     done("crate::JobsFilter::validate", "JobsFilter.validate"),
     done("crate::DownloadOptions", "DownloadOptions"),
@@ -264,7 +264,7 @@ MANIFEST: list[Entry] = [
     excluded("crate::ENDPOINT_DOWNLOAD_JOB", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_PREPROCESS_JOB", "An internal detail of the HTTP client."),
     excluded("crate::ENDPOINT_IMAGE_FROM_JOB", "An internal detail of the HTTP client."),
-    done("crate::DEFAULT_ASVO_HOST", "DEFAULT_ASVO_HOST"),
+    done("crate::DEFAULT_MWA_ASVO_HOST", "DEFAULT_MWA_ASVO_HOST"),
     done("crate::DEFAULT_API_TIMEOUT", "DEFAULT_API_TIMEOUT"),  # Seconds, as a float (a Rust `Duration`).
     # --- Downloads ---
     done("crate::DownloadProgress", "DownloadProgress"),
@@ -283,19 +283,19 @@ MANIFEST: list[Entry] = [
     done("crate::default_token_cache_path", "default_token_cache_path"),
     excluded("crate::StoredTokens", "An internal detail of the token cache. Python gives a path only."),
     # --- Jobs ---
-    done("crate::AsvoJob", "AsvoJob"),
-    *[done(f"crate::AsvoJob::{name}", f"AsvoJob.{name}") for name in ASVO_JOB_MEMBERS],
-    done("crate::AsvoJob::detail", "AsvoJob.detail"),
+    done("crate::MwaAsvoJob", "MwaAsvoJob"),
+    *[done(f"crate::MwaAsvoJob::{name}", f"MwaAsvoJob.{name}") for name in MWA_ASVO_JOB_MEMBERS],
+    done("crate::MwaAsvoJob::detail", "MwaAsvoJob.detail"),
     done("mwa_asvo::api::openapi::JobDetailResponse", "JobDetailResponse"),
-    excluded("crate::AsvoJob::is_expired_at", "A clock-injection helper for tests."),
-    excluded("crate::AsvoJob::display_state_at", "A clock-injection helper for tests."),
-    done("crate::AsvoJobVec", "AsvoJobVec"),
-    done("crate::AsvoJobVec::filter", "AsvoJobVec.filter"),
-    done("crate::AsvoJobVec::all_ready", "AsvoJobVec.all_ready"),
-    done("crate::AsvoJobVec::json", "AsvoJobVec.json"),
-    excluded("crate::AsvoJobVec::all_ready_at", "A clock-injection helper for tests."),
-    excluded("crate::AsvoJobVec::retain", "Takes a Rust closure. `filter` and Python list comprehensions cover it."),
-    excluded("crate::AsvoJobId", "An alias of a non-zero u64. Python uses `int`."),
+    excluded("crate::MwaAsvoJob::is_expired_at", "A clock-injection helper for tests."),
+    excluded("crate::MwaAsvoJob::display_state_at", "A clock-injection helper for tests."),
+    done("crate::MwaAsvoJobVec", "MwaAsvoJobVec"),
+    done("crate::MwaAsvoJobVec::filter", "MwaAsvoJobVec.filter"),
+    done("crate::MwaAsvoJobVec::all_ready", "MwaAsvoJobVec.all_ready"),
+    done("crate::MwaAsvoJobVec::json", "MwaAsvoJobVec.json"),
+    excluded("crate::MwaAsvoJobVec::all_ready_at", "A clock-injection helper for tests."),
+    excluded("crate::MwaAsvoJobVec::retain", "Takes a Rust closure. `filter` and Python list comprehensions cover it."),
+    excluded("crate::MwaAsvoJobId", "An alias of a non-zero u64. Python uses `int`."),
     done("crate::SIGNED_URL_LIFETIME_DAYS", "SIGNED_URL_LIFETIME_DAYS"),
     done("mwa_asvo::types::JobType::names", "JobType.names"),
     done("mwa_asvo::types::JobType::parse_name", "JobType.parse_name"),
@@ -362,8 +362,8 @@ MANIFEST: list[Entry] = [
     done("crate::parse_manta_ray_csv", "parse_manta_ray_csv"),
     done("crate::read_manta_ray_csv", "read_manta_ray_csv"),
     # --- Errors ---
-    done("crate::AsvoApiError", "AsvoApiError"),
-    done("crate::AsvoError", "AsvoError"),
+    done("crate::MwaAsvoApiError", "MwaAsvoApiError"),
+    done("crate::MwaAsvoError", "MwaAsvoError"),
     *_errors(),
     # --- Other ---
     excluded("crate::stub_info", "Hidden. Only the `stub_gen` binary (maintainers) uses it."),

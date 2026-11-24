@@ -54,8 +54,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::helpers::BYTE_ORDER_MARK;
-use crate::mwa_asvo::api::client::{AsvoClient, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_PREPROCESS_JOB};
-use crate::mwa_asvo::api::error::AsvoApiError;
+use crate::mwa_asvo::api::client::{MwaAsvoClient, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_PREPROCESS_JOB};
+use crate::mwa_asvo::api::error::MwaAsvoApiError;
 use crate::mwa_asvo::api::job_params::{
     conversion_params, download_params, imaging_params, PreprocessJobParams,
 };
@@ -172,8 +172,8 @@ impl CsvJobParams {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] if a value is refused.
-    pub fn validate(&self) -> Result<(), AsvoApiError> {
+    /// [`MwaAsvoApiError::InvalidParameter`] if a value is refused.
+    pub fn validate(&self) -> Result<(), MwaAsvoApiError> {
         match self {
             Self::Conversion(p) => validate_conversion_params(p),
             Self::Imaging(p) => validate_imaging_params(p),
@@ -783,7 +783,7 @@ pub struct CsvJobFailure {
     /// The Obs ID of the job.
     pub obs_id: ObsId,
     /// Why the job was not submitted.
-    pub error: AsvoApiError,
+    pub error: MwaAsvoApiError,
 }
 
 impl std::fmt::Display for CsvJobFailure {
@@ -831,7 +831,7 @@ fn no_jobs_message(path: &Path) -> String {
     format!("{} has no jobs.", path.display())
 }
 
-/// The jobs of a file that [`AsvoClient::submit_csv_jobs`] did not submit,
+/// The jobs of a file that [`MwaAsvoClient::submit_csv_jobs`] did not submit,
 /// and the replies for the jobs that it did. It carries on past a failure, so
 /// the other jobs were submitted.
 #[derive(Debug, Error)]
@@ -845,7 +845,7 @@ pub struct CsvJobsFailed {
     pub failures: Vec<CsvJobFailure>,
 }
 
-/// Why [`AsvoClient::submit_csv_file`] did not submit every job of a file.
+/// Why [`MwaAsvoClient::submit_csv_file`] did not submit every job of a file.
 #[derive(Debug, Error)]
 pub enum CsvSubmitError {
     /// The file could not be read. Nothing was submitted.
@@ -867,7 +867,7 @@ pub enum CsvSubmitError {
         path: PathBuf,
     },
     /// The server refused some jobs, or a request failed. The other jobs
-    /// were submitted: [`AsvoClient::submit_csv_jobs`] carries on past a
+    /// were submitted: [`MwaAsvoClient::submit_csv_jobs`] carries on past a
     /// failure.
     #[error("{}", failed_message(.submitted, .failures))]
     Failed {
@@ -934,7 +934,7 @@ pub fn read_manta_ray_csv(
     Ok(jobs)
 }
 
-impl AsvoClient {
+impl MwaAsvoClient {
     /// Read a `manta-ray-client` CSV file ([`read_manta_ray_csv`]), check all
     /// of it, and submit its jobs, in the order of the file.
     ///
@@ -970,7 +970,7 @@ impl AsvoClient {
     pub fn submit_csv_jobs(
         &self,
         jobs: &[CsvJob],
-        mut on_result: impl FnMut(&CsvJob, &Result<JobSubmittedResponse, AsvoApiError>),
+        mut on_result: impl FnMut(&CsvJob, &Result<JobSubmittedResponse, MwaAsvoApiError>),
     ) -> Result<Vec<JobSubmittedResponse>, CsvJobsFailed> {
         let mut submitted = Vec::with_capacity(jobs.len());
         let mut failures = Vec::new();
@@ -1006,7 +1006,7 @@ impl AsvoClient {
     pub fn submit_csv_job(
         &self,
         params: &CsvJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, MwaAsvoApiError> {
         match params {
             CsvJobParams::Conversion(p) => {
                 self.submit_preprocess_job(&PreprocessJobParams::Conversion(p.clone()))

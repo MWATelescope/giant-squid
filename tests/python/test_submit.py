@@ -77,7 +77,7 @@ def body_sent_to(httpserver: HTTPServer, path: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
+def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
     """A client that has logged in to the mock.
 
     Args:
@@ -87,7 +87,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 def assert_response(response: gs.JobSubmittedResponse) -> None:
@@ -102,7 +102,7 @@ def assert_response(response: gs.JobSubmittedResponse) -> None:
     assert str(response.status) == "success"
 
 
-def submit(client: gs.AsvoClient, params: Any) -> gs.JobSubmittedResponse:
+def submit(client: gs.MwaAsvoClient, params: Any) -> gs.JobSubmittedResponse:
     """Submit ``params`` with the submit method for its class.
 
     Args:
@@ -129,7 +129,7 @@ DOWNLOAD_JOBS = [
 
 @pytest.mark.parametrize(("job", "path"), DOWNLOAD_JOBS)
 def test_download_jobs_send_the_arguments_and_return_the_response(
-    client: gs.AsvoClient, httpserver: HTTPServer, job: Callable[..., Any], path: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], path: str
 ) -> None:
     """Each argument reaches the request body, and the reply is a JobSubmittedResponse."""
     submitted(httpserver, path)
@@ -153,7 +153,7 @@ def test_download_jobs_send_the_arguments_and_return_the_response(
 
 @pytest.mark.parametrize(("job", "path"), DOWNLOAD_JOBS)
 def test_download_jobs_use_the_schema_defaults_when_arguments_are_left_out(
-    client: gs.AsvoClient, httpserver: HTTPServer, job: Callable[..., Any], path: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], path: str
 ) -> None:
     """With no optional arguments, the body has the schema's defaults, and none of the voltage fields."""
     submitted(httpserver, path)
@@ -168,7 +168,7 @@ def test_download_jobs_use_the_schema_defaults_when_arguments_are_left_out(
         assert name not in body
 
 
-def test_vis_and_meta_jobs_differ_only_in_only_metadata(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_vis_and_meta_jobs_differ_only_in_only_metadata(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """Both use the download endpoint."""
     submitted(httpserver, DOWNLOAD_PATH)
 
@@ -184,7 +184,7 @@ def test_vis_and_meta_jobs_differ_only_in_only_metadata(client: gs.AsvoClient, h
     assert only_metadata == [None, True]
 
 
-def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_conversion_job_sends_the_arguments(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """Every conversion argument reaches the request body under its OpenAPI name."""
     submitted(httpserver, CONVERSION_PATH)
 
@@ -236,7 +236,7 @@ def test_conversion_job_sends_the_arguments(client: gs.AsvoClient, httpserver: H
 
 
 def test_conversion_job_uses_the_schema_defaults_when_arguments_are_left_out(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """The module adds no defaults of its own; the schema's apply."""
     submitted(httpserver, CONVERSION_PATH)
@@ -251,7 +251,7 @@ def test_conversion_job_uses_the_schema_defaults_when_arguments_are_left_out(
     assert "custom_centre_dec" not in body
 
 
-def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_imaging_job_sends_the_arguments(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """Enum and numeric imaging arguments reach the request body."""
     submitted(httpserver, IMAGING_PATH)
 
@@ -289,7 +289,7 @@ def test_imaging_job_sends_the_arguments(client: gs.AsvoClient, httpserver: HTTP
 
 
 def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """Optional fields with no schema default are not sent."""
     submitted(httpserver, IMAGING_PATH)
@@ -351,7 +351,7 @@ BODY_CASE_IDS = [name for name, *_ in BODY_CASES]
 
 @pytest.mark.parametrize(("name", "job", "path", "args", "kwargs", "schema_name"), BODY_CASES, ids=BODY_CASE_IDS)
 def test_every_field_of_a_body_is_in_the_schema(
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
     httpserver: HTTPServer,
     name: str,
     job: Callable[..., Any],
@@ -372,7 +372,7 @@ def test_every_field_of_a_body_is_in_the_schema(
 
 
 def test_imaging_job_sends_the_six_correction_and_flagging_switches(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """Each switch reaches the body when it is given, and is ``False`` (the schema default) when it is not."""
     submitted(httpserver, IMAGING_PATH)
@@ -397,7 +397,9 @@ def test_imaging_job_sends_the_six_correction_and_flagging_switches(
         assert given_body[name] is True, name
 
 
-def test_image_from_job_sends_the_source_job_and_the_arguments(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_image_from_job_sends_the_source_job_and_the_arguments(
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
+) -> None:
     """The source job ID and the arguments reach the request body."""
     submitted(httpserver, IMAGE_FROM_JOB_PATH)
 
@@ -427,7 +429,7 @@ def test_image_from_job_sends_the_source_job_and_the_arguments(client: gs.AsvoCl
 
 
 def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """The image-from-job default for polarization is the Polarization default, as for imaging."""
     submitted(httpserver, IMAGE_FROM_JOB_PATH)
@@ -441,7 +443,7 @@ def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
     assert body["weighting"] == "briggs"
 
 
-def test_voltage_job_sends_the_arguments_and_no_channel_range(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_voltage_job_sends_the_arguments_and_no_channel_range(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """A voltage job has an offset and a duration, and the schema's delivery; the channel bounds are sent as given."""
     submitted(httpserver, VOLTAGE_PATH)
 
@@ -469,7 +471,7 @@ def test_voltage_job_sends_the_arguments_and_no_channel_range(client: gs.AsvoCli
     assert body["allow_resubmit"] is True
 
 
-def test_voltage_job_without_channels_sends_no_channel(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_voltage_job_without_channels_sends_no_channel(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """With no channel bound, no channel is sent."""
     submitted(httpserver, VOLTAGE_PATH)
 
@@ -481,13 +483,13 @@ def test_voltage_job_without_channels_sends_no_channel(client: gs.AsvoClient, ht
     assert "to_channel" not in body
 
 
-def test_a_server_error_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_a_server_error_raises_mwa_asvo_api_error(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """An error reply to a submission has the server's error fields."""
     httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(
         error_response("JOB_ALREADY_EXISTS", "An identical job exists"), status=409
     )
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.MwaAsvoApiError) as err:
         client.submit_download_job(gs.DownloadJobParams(TEST_OBS_ID))
 
     assert err.value.kind == "ApiError"
@@ -524,26 +526,26 @@ IMAGING_JOBS = [
 
 @pytest.mark.parametrize(("job", "first", "path"), IMAGING_JOBS)
 def test_an_invalid_image_size_is_rejected(
-    client: gs.AsvoClient, httpserver: HTTPServer, job: Callable[..., Any], first: int, path: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], first: int, path: str
 ) -> None:
     """An image size the API does not accept raises ValueError at the submission, and nothing is sent."""
     params = job(first, image_size=INVALID_IMAGE_SIZE)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         submit(client, params)
 
     assert len(httpserver.log) == requests_before
 
 
 @pytest.mark.parametrize(("job", "first", "path"), IMAGING_JOBS)
-def test_a_zero_nmiter_is_rejected(client: gs.AsvoClient, job: Callable[..., Any], first: int, path: str) -> None:
+def test_a_zero_nmiter_is_rejected(client: gs.MwaAsvoClient, job: Callable[..., Any], first: int, path: str) -> None:
     """nmiter must be greater than zero."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="nmiter"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="nmiter"):
         submit(client, job(first, nmiter=0))
 
 
-def test_a_zero_source_job_id_is_rejected(client: gs.AsvoClient) -> None:
+def test_a_zero_source_job_id_is_rejected(client: gs.MwaAsvoClient) -> None:
     """source_job_id must be greater than zero.
 
     The match is the library's message: the argument name is only in the note that PyO3 adds on Python 3.11 and later.
@@ -571,7 +573,7 @@ def test_a_delivery_of_the_wrong_type_is_rejected() -> None:
 
 
 def test_the_classes_are_plain_classes_with_attributes_that_can_be_changed(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """Each argument is an attribute: it is read as given, and a change reaches the request body."""
     submitted(httpserver, CONVERSION_PATH)
@@ -596,20 +598,20 @@ def test_the_classes_are_plain_classes_with_attributes_that_can_be_changed(
 
 
 def test_an_invalid_value_is_checked_at_the_submission_not_when_the_class_is_made(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """The classes check nothing: a bad value raises ValueError from the submit method, and nothing is sent."""
     params = IMAGING_JOB(TEST_OBS_ID, mgain=1.0)
     params.mgain = 1.5
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="mgain"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="mgain"):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
 
 
-def test_the_same_class_can_be_submitted_again_after_a_change(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_the_same_class_can_be_submitted_again_after_a_change(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """A submission does not use up the object: it is a request body, and can be sent again."""
     submitted(httpserver, DOWNLOAD_PATH)
     params = gs.DownloadJobParams(TEST_OBS_ID)
@@ -627,14 +629,14 @@ def test_the_same_class_can_be_submitted_again_after_a_change(client: gs.AsvoCli
     "wrong",
     [None, TEST_OBS_ID, "ConversionJobParams", gs.DownloadJobParams(TEST_OBS_ID), IMAGE_FROM_JOB(1)],
 )
-def test_the_preprocess_method_takes_only_the_preprocess_classes(client: gs.AsvoClient, wrong: Any) -> None:
+def test_the_preprocess_method_takes_only_the_preprocess_classes(client: gs.MwaAsvoClient, wrong: Any) -> None:
     """Any other object raises TypeError, which names the classes (a download or image-from-job body is not one)."""
     with pytest.raises(TypeError, match="PreprocessJobParams, a ConversionJobParams or an ImagingJobParams"):
         client.submit_preprocess_job(wrong)
 
 
 @pytest.mark.parametrize("wrong", [None, TEST_OBS_ID, gs.ConversionJobParams(TEST_OBS_ID)])
-def test_the_download_method_takes_only_a_download_body(client: gs.AsvoClient, wrong: Any) -> None:
+def test_the_download_method_takes_only_a_download_body(client: gs.MwaAsvoClient, wrong: Any) -> None:
     """Any other object raises TypeError, which names the download class."""
     with pytest.raises(TypeError, match="DownloadJobParams"):
         client.submit_download_job(wrong)
@@ -651,7 +653,7 @@ def test_the_new_enums_use_the_api_values_as_their_text() -> None:
     assert gs.Output.Ms != gs.Output.Uvfits
 
 
-def test_the_response_has_a_readable_repr(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_the_response_has_a_readable_repr(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """repr() names the class and shows the job ID."""
     submitted(httpserver, DOWNLOAD_PATH)
 
@@ -710,35 +712,35 @@ def imaging_args(job: Callable[..., Any]) -> tuple[int, ...]:
 
 @pytest.mark.parametrize(("job", "kwargs", "name"), OUT_OF_RANGE)
 def test_an_argument_outside_the_schema_limits_is_rejected_before_any_request(
-    client: gs.AsvoClient, httpserver: HTTPServer, job: Callable[..., Any], kwargs: dict[str, Any], name: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], kwargs: dict[str, Any], name: str
 ) -> None:
     """A number outside the schema's limits raises ValueError that names the argument, and nothing is sent."""
     params = job(*imaging_args(job), **kwargs)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match=name):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match=name):
         submit(client, params)
 
     assert len(httpserver.log) == requests_before
 
 
-def test_the_error_message_gives_the_limits(client: gs.AsvoClient) -> None:
+def test_the_error_message_gives_the_limits(client: gs.MwaAsvoClient) -> None:
     """The message is the library's: the same text the CLI and the Rust client give."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter) as err:
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter) as err:
         client.submit_preprocess_job(IMAGING_JOB(TEST_OBS_ID, mgain=1.5))
 
     assert str(err.value) == "Invalid mgain: must be between 0.1 and 1 (got 1.5)"
 
 
-def test_the_supported_image_sizes_are_listed_in_the_error(client: gs.AsvoClient) -> None:
+def test_the_supported_image_sizes_are_listed_in_the_error(client: gs.MwaAsvoClient) -> None:
     """An unsupported image size is reported with the sizes that the MWA ASVO accepts."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="512, 1024, 2048, 3072, 4096, 8192"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="512, 1024, 2048, 3072, 4096, 8192"):
         client.submit_preprocess_job(IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
 
 @pytest.mark.parametrize(("job", "first", "path"), IMAGING_JOBS)
 def test_values_at_the_limits_are_accepted_and_sent(
-    client: gs.AsvoClient, httpserver: HTTPServer, job: Callable[..., Any], first: int, path: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], first: int, path: str
 ) -> None:
     """The ends of each range are valid."""
     submitted(httpserver, path)
@@ -767,13 +769,13 @@ CONVERSION_OUT_OF_RANGE = [
 
 @pytest.mark.parametrize(("kwargs", "name"), CONVERSION_OUT_OF_RANGE)
 def test_a_conversion_argument_outside_the_schema_limits_is_rejected(
-    client: gs.AsvoClient, httpserver: HTTPServer, kwargs: dict[str, Any], name: str
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, kwargs: dict[str, Any], name: str
 ) -> None:
     """A conversion number outside the schema's limits raises ValueError, and nothing is sent."""
     params = gs.ConversionJobParams(TEST_OBS_ID, **kwargs)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match=name):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match=name):
         client.submit_preprocess_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -781,24 +783,26 @@ def test_a_conversion_argument_outside_the_schema_limits_is_rejected(
 
 @pytest.mark.parametrize("offset", [-1, 5401])
 def test_a_voltage_offset_outside_the_observation_is_rejected(
-    client: gs.AsvoClient, httpserver: HTTPServer, offset: int
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, offset: int
 ) -> None:
     """The offset must be from 0 to 5400 seconds, and nothing is sent otherwise."""
     params = gs.DownloadJobParams(TEST_OBS_ID, offset=offset, duration=VOLTAGE_DURATION)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="offset"):
         client.submit_download_job(params)
 
     assert len(httpserver.log) == requests_before
 
 
-def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_image_from_job_rejects_an_out_of_range_wstack_nwlayers(
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
+) -> None:
     """Since schema v1.11 the image-from-job body limits wstack_nwlayers too, and nothing is sent."""
     params = IMAGE_FROM_JOB(SOURCE_JOB_ID, wstack_nwlayers=16)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="wstack_nwlayers"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="wstack_nwlayers"):
         client.submit_image_from_job(params)
 
     assert len(httpserver.log) == requests_before
@@ -827,7 +831,7 @@ CANCEL_PATH = "/api/v2/jobs"
 CANCELLED_JOB_ID = 4321
 
 
-def test_cancel_job_sends_a_delete_and_returns_the_response(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_cancel_job_sends_a_delete_and_returns_the_response(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """cancel_job deletes the job and returns the server's reply."""
     httpserver.expect_request(f"{CANCEL_PATH}/{CANCELLED_JOB_ID}", method="DELETE").respond_with_json(
         {"job_id": CANCELLED_JOB_ID, "message": "Job cancelled", "status": "success"}
@@ -842,20 +846,20 @@ def test_cancel_job_sends_a_delete_and_returns_the_response(client: gs.AsvoClien
     assert repr(response).startswith("JobCancelledResponse(")
 
 
-def test_cancelling_a_missing_job_raises_asvo_api_error(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_cancelling_a_missing_job_raises_mwa_asvo_api_error(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """A structured error reply has the server's error code."""
     httpserver.expect_request(f"{CANCEL_PATH}/{CANCELLED_JOB_ID}", method="DELETE").respond_with_json(
         error_response("JOB_NOT_FOUND", "No such job"), status=404
     )
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.MwaAsvoApiError) as err:
         client.cancel_job(CANCELLED_JOB_ID)
 
     assert err.value.kind == "ApiError"
     assert err.value.error_code == "JOB_NOT_FOUND"
 
 
-def test_a_negative_job_id_is_rejected_before_any_request(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_a_negative_job_id_is_rejected_before_any_request(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """A job ID must fit the library's job ID type, and nothing is sent otherwise."""
     requests_before = len(httpserver.log)
 
@@ -865,7 +869,7 @@ def test_a_negative_job_id_is_rejected_before_any_request(client: gs.AsvoClient,
     assert len(httpserver.log) == requests_before
 
 
-def test_job_id_zero_is_rejected_before_any_request(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_job_id_zero_is_rejected_before_any_request(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """0 is not a job ID (job IDs start at 1), and nothing is sent."""
     requests_before = len(httpserver.log)
 
@@ -875,7 +879,7 @@ def test_job_id_zero_is_rejected_before_any_request(client: gs.AsvoClient, https
     assert len(httpserver.log) == requests_before
 
 
-def test_conversion_job_sends_no_cable_delay_and_no_rfi(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_conversion_job_sends_no_cable_delay_and_no_rfi(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """The two conversion options reach the request body."""
     submitted(httpserver, CONVERSION_PATH)
 

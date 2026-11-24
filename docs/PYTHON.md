@@ -83,21 +83,21 @@ What is particular to running the program from Python:
 You need an MWA ASVO API key. To get one, log in to the
 [MWA ASVO portal](https://asvo.mwatelescope.org/) and copy the key from your profile.
 
-`AsvoClient(config)` logs in when it is created. The `AsvoClientConfig` is the same as the library's: it holds the
-host, your API key, the API timeout and the token cache. `AsvoClientConfig` itself reads no environment variable.
+`MwaAsvoClient(config)` logs in when it is created. The `MwaAsvoClientConfig` is the same as the library's: it holds the
+host, your API key, the API timeout and the token cache. `MwaAsvoClientConfig` itself reads no environment variable.
 To read them as the `giant-squid` command does, use `client_config_from_env()`.
 
 ```python
 import mwa_giant_squid as gs
 
 # Your program gives the key ...
-client = gs.AsvoClient(gs.AsvoClientConfig("https://asvo.mwatelescope.org:443", api_key))
+client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig("https://asvo.mwatelescope.org:443", api_key))
 
 # ... or the environment does: MWA_ASVO_API_KEY (required), MWA_ASVO_HOST, MWA_ASVO_API_TIMEOUT and HOME.
-client = gs.AsvoClient(gs.client_config_from_env())
+client = gs.MwaAsvoClient(gs.client_config_from_env())
 ```
 
-`AsvoClientConfig(host, api_key, *, api_timeout=None, token_cache_path=None)` has these values. They are also
+`MwaAsvoClientConfig(host, api_key, *, api_timeout=None, token_cache_path=None)` has these values. They are also
 attributes, which you can change before you make the client.
 
 | Argument | Meaning |
@@ -114,8 +114,8 @@ The MWA ASVO allows only a few logins each minute. A program that runs often mus
 ```python
 from pathlib import Path
 
-config = gs.AsvoClientConfig(host, api_key, token_cache_path=gs.default_token_cache_path(Path.home()))
-client = gs.AsvoClient(config)
+config = gs.MwaAsvoClientConfig(host, api_key, token_cache_path=gs.default_token_cache_path(Path.home()))
+client = gs.MwaAsvoClient(config)
 ```
 
 To use a different MWA ASVO server (for example, to test a new feature), give its URL as `host`.
@@ -128,8 +128,8 @@ state, one type, the days or the dates, the sort order), and the module
 filters the rest. Every filter that is `None` does not filter, except `days` and `sort_by`: with `days=None` you
 get the jobs from the MWA ASVO's default window (the schema's default for `days`, which is also the most `days`
 can be), not your full history. The jobs are selected by `days` or by `date_from` and `date_to`, not by both:
-`days` with a date raises `AsvoApiErrorInvalidParameter`, and with a date and no `days` the request has `"days": null`. A job older
-than that is not returned, so `download_job` and `AsvoJobVec.all_ready` cannot find it either.
+`days` with a date raises `MwaAsvoApiErrorInvalidParameter`, and with a date and no `days` the request has `"days": null`. A job older
+than that is not returned, so `download_job` and `MwaAsvoJobVec.all_ready` cannot find it either.
 
 ```python
 from mwa_giant_squid import JobsFilter, JobState, JobType
@@ -150,16 +150,16 @@ jobs = client.get_jobs(
 ```
 
 `get_jobs()` with no filter gets the jobs of the default window. `job_ids` and `obs_ids` cannot be given together:
-that raises `AsvoApiErrorInvalidParameter`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked
+that raises `MwaAsvoApiErrorInvalidParameter`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked
 when you set it, as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 raises
-`ValueError`, and `days` outside 1 to 30 raises `AsvoApiErrorInvalidParameter`.
+`ValueError`, and `days` outside 1 to 30 raises `MwaAsvoApiErrorInvalidParameter`.
 
 ### Obs IDs
 
 An Obs ID argument takes an `int` or an `ObsId`. `ObsId` is the library's checked Obs ID (`ObsId.MIN`, the MWA ASVO's
 minimum 1056643216, to `ObsId.MAX`). An `int` that is not a valid Obs ID raises `ObsIdError`. The `parse_*`
 functions read a number with 10 digits as an Obs ID, so a 10-digit number below `ObsId.MIN` raises
-`ParseErrorInvalidObsId`, not a Job ID. `AsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
+`ParseErrorInvalidObsId`, not a Job ID. `MwaAsvoJob.obs_id`, `CsvJobFailure.obs_id` and the `obs_id` of an error are
 `ObsId`. An `ObsId` is not an `int`, but it acts as one where a number is needed: it is equal to the `int` of the
 same value, has its hash, is ordered with it, and has `__int__` and `__index__`. `json.dumps` does not know it:
 use `int(obs_id)`.
@@ -182,24 +182,24 @@ The functions that read IDs on the command line are also in the module: `parse_o
 ID or the name of a file of IDs), and `parse_utc_time` (RFC 3339 or a date, as a `datetime` in UTC). A problem is a
 `ParseError`.
 
-The result is an `AsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
+The result is an `MwaAsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
 filters a list that you already have, without a request. Its `json()` method gives the jobs as JSON, an object
 keyed by Job ID, as `giant-squid list --json` prints.
 
-`AsvoJob.detail()` is the job as the API gives it, a `JobDetailResponse` that has the attributes of the job. Its
+`MwaAsvoJob.detail()` is the job as the API gives it, a `JobDetailResponse` that has the attributes of the job. Its
 `obs_id` is the `int` that the API gave, not a checked `ObsId`. `JobType.names()` and `JobState.names()` are the
 names of the API's values, and `JobType.parse_name(text)` and `JobState.parse_name(text)` read a name as a user types
-it (case, spaces, hyphens and underscores do not matter), or raise `AsvoError`.
+it (case, spaces, hyphens and underscores do not matter), or raise `MwaAsvoError`.
 
 Notes:
 
 - `JobState` is the MWA ASVO API's job state. `str()` of a member is the API's value, for example
   `completed`. A job is ready for download when it is `Completed`. For an `Error` job, the message is in
-  `AsvoJob.error_text`, and the server's error code (an integer, or `None`) is in `AsvoJob.error_code`. The
-  MWA ASVO does not document the codes. `AsvoJobVec.all_ready` raises `AsvoError` of kind `JobFailed` for a
+  `MwaAsvoJob.error_text`, and the server's error code (an integer, or `None`) is in `MwaAsvoJob.error_code`. The
+  MWA ASVO does not document the codes. `MwaAsvoJobVec.all_ready` raises `MwaAsvoError` of kind `JobFailed` for a
   failed job; its message includes the code, for example `has an error (code 7): the conversion failed`, and
   the exception has the attribute `error_code`.
-- The download links of a completed job work for 7 days, and the job stays `Completed` in the API. `AsvoJob.expires` is when its links stop working (the `Expires` of its Acacia URLs, or `None`), `AsvoJob.is_expired` is whether they have, and `AsvoJob.display_state` is the state as `giant-squid list` shows it (`completed (ready)` or `completed (expired)` for a completed job). A download of an expired job, and `AsvoJobVec.all_ready` for one, raise `AsvoError` of kind `JobExpired`, with `job_id` and `expired`: resubmit the job.
+- The download links of a completed job work for 7 days, and the job stays `Completed` in the API. `MwaAsvoJob.expires` is when its links stop working (the `Expires` of its Acacia URLs, or `None`), `MwaAsvoJob.is_expired` is whether they have, and `MwaAsvoJob.display_state` is the state as `giant-squid list` shows it (`completed (ready)` or `completed (expired)` for a completed job). A download of an expired job, and `MwaAsvoJobVec.all_ready` for one, raise `MwaAsvoError` of kind `JobExpired`, with `job_id` and `expired`: resubmit the job.
 - Times (`created`, `started`, `completed`, `modified`) are `datetime.datetime` objects with a time zone.
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
 - The files of a ready job are in `job.product.files` (a `JobProduct`). Each `JobFile` has `type` (a
@@ -268,7 +268,7 @@ print(reply.job_id, reply.status, reply.message)
 ```
 
 `validate()` of a class checks the values against the limits with the library's `validate_*_params` function, and
-raises `AsvoApiErrorInvalidParameter` for the first value that is outside them (`name` is the argument, `message` says
+raises `MwaAsvoApiErrorInvalidParameter` for the first value that is outside them (`name` is the argument, `message` says
 what is wrong). The submit methods do this before they send a request,
 so nothing is sent for a body that is not valid. A body that is not valid includes
 `delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
@@ -287,13 +287,13 @@ raises an exception, so do not use `status` to decide whether a call worked.
 
 `cancel_job` returns a `JobCancelledResponse`, which has the same attributes. The MWA ASVO answers the cancellation of a job that is already cancelled
 with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
-is an error and raises `AsvoApiError`.
+is an error and raises `MwaAsvoApiError`.
 
 ### Submit the jobs of a manta-ray-client CSV file
 
 `submit_csv_file` submits the jobs of a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV
 file (the file that `mwa_client -c` reads). Each line of the file is one job. It is the same method as
-`AsvoClient::submit_csv_file` of the Rust library, and the file format is the one that
+`MwaAsvoClient::submit_csv_file` of the Rust library, and the file format is the one that
 [the README](https://github.com/MWATelescope/giant-squid#jobs-from-a-manta-ray-client-csv-file) describes.
 
 ```python
@@ -344,7 +344,7 @@ except CsvSubmitError as e:
             print("line", failure.line, "Obs ID", failure.obs_id, "failed:", failure.error)
 ```
 
-Each `CsvJobFailure` has `line` (of the file), `obs_id` and `error`, the `AsvoApiError` of the request.
+Each `CsvJobFailure` has `line` (of the file), `obs_id` and `error`, the `MwaAsvoApiError` of the request.
 
 #### The steps of `submit_csv_file`
 
@@ -360,7 +360,7 @@ for job in jobs:
 
 
 def report(job, result):
-    # `result` is the JobSubmittedResponse, or the AsvoApiError of a request that failed (given, not raised).
+    # `result` is the JobSubmittedResponse, or the MwaAsvoApiError of a request that failed (given, not raised).
     print(job.line, result)
 
 
@@ -383,7 +383,7 @@ be stopped), it is not called again, and its first exception is raised when the 
 ## Wait for jobs
 
 The module has no wait function. Write the loop in your own code. This lets you choose the interval and
-handle Ctrl-C and timeouts yourself. `AsvoJobVec.all_ready` makes no request. It checks a list that
+handle Ctrl-C and timeouts yourself. `MwaAsvoJobVec.all_ready` makes no request. It checks a list that
 you already have.
 
 ```python
@@ -396,13 +396,13 @@ while not client.get_jobs().all_ready(job_ids):
     time.sleep(POLL_INTERVAL_S)
 ```
 
-`all_ready` returns `False` while a job is in progress. It raises `AsvoError` if a job is missing, has
+`all_ready` returns `False` while a job is in progress. It raises `MwaAsvoError` if a job is missing, has
 an error, was cancelled, or is completed but its download links have expired (kind `JobExpired`).
 
 ## Download
 
 `download_job(job_id, options)` downloads the files of one ready job. `download_obs(obs_id, options)` does the same
-for the one ready job of an Obs ID. Both return the `AsvoJob` that was downloaded, so `download_obs` gives the
+for the one ready job of an Obs ID. Both return the `MwaAsvoJob` that was downloaded, so `download_obs` gives the
 Job ID of the Obs ID's job. `options` is a `DownloadOptions`.
 
 ```python
@@ -476,27 +476,27 @@ the function raises an exception, the download stops and the call raises that ex
 
 | Exception | When |
 |---|---|
-| `AsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `AsvoApiErrorMissingAuthKey`, `AsvoApiErrorAuthenticationFailed`, `AsvoApiErrorConversion`, `AsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `AsvoApiErrorBadJson`, `AsvoApiErrorReqwest`, `AsvoApiErrorApiError` and `AsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
-| `AsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. It has a subclass for each Rust variant (`AsvoErrorNoAsvoJob`, `AsvoErrorNotReady`, `AsvoErrorHashMismatch`, `AsvoErrorInvalidOption` and so on). `AsvoErrorAsvoApi` is an API call that failed inside a check or download, as in the library: for example the login of `AsvoClient(config)`, or the job list that a download gets first. Its `source` is the `AsvoApiError`, which is also its `__cause__`. (A file that cannot be read or written is an `OSError`, not this.) |
+| `MwaAsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `MwaAsvoApiErrorMissingAuthKey`, `MwaAsvoApiErrorAuthenticationFailed`, `MwaAsvoApiErrorConversion`, `MwaAsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `MwaAsvoApiErrorBadJson`, `MwaAsvoApiErrorReqwest`, `MwaAsvoApiErrorApiError` and `MwaAsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. |
+| `MwaAsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. It has a subclass for each Rust variant (`MwaAsvoErrorNoMwaAsvoJob`, `MwaAsvoErrorNotReady`, `MwaAsvoErrorHashMismatch`, `MwaAsvoErrorInvalidOption` and so on). `MwaAsvoErrorMwaAsvoApi` is an API call that failed inside a check or download, as in the library: for example the login of `MwaAsvoClient(config)`, or the job list that a download gets first. Its `source` is the `MwaAsvoApiError`, which is also its `__cause__`. (A file that cannot be read or written is an `OSError`, not this.) |
 | `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
 | `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
-| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid as a Python value: a Job ID of 0, a number that is not an integer or is out of range, a negative duration. The module raises these before it sends a request. A value that the MWA ASVO does not allow is an `AsvoApiErrorInvalidParameter` or an `AsvoErrorInvalidOption`, not these. |
+| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid as a Python value: a Job ID of 0, a number that is not an integer or is out of range, a negative duration. The module raises these before it sends a request. A value that the MWA ASVO does not allow is an `MwaAsvoApiErrorInvalidParameter` or an `MwaAsvoErrorInvalidOption`, not these. |
 | `OSError` | A file or directory cannot be read, written or made: a CSV file, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
 | `CsvSubmitError` | `submit_csv_file` did not submit every job of a file. `CsvSubmitErrorInvalid` (a line has a problem; `errors`) and `CsvSubmitErrorNoJobs` (`path`) submit nothing. `CsvSubmitErrorFailed` means that some jobs failed and the others were submitted: it has `submitted` (the replies) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `CsvFileError`, `CsvError` | `read_manta_ray_csv` (`CsvFileErrorInvalid` with `errors`, `CsvFileErrorNoJobs` with `path`) or `parse_manta_ray_csv` (`CsvError` with `errors`) could not read the jobs of a file. |
 | `CsvJobsFailed` | `submit_csv_jobs` submitted the jobs, and some failed. It has `submitted` and `failures`. |
 | `KeyboardInterrupt` | Ctrl-C stopped a download. |
 
-`AsvoApiError`, `AsvoError`, `ObsIdError` and `ParseError` have a `kind` attribute: the name of the Rust error
+`MwaAsvoApiError`, `MwaAsvoError`, `ObsIdError` and `ParseError` have a `kind` attribute: the name of the Rust error
 variant. `ObsIdError` and `ParseError` also have a subclass for each kind (`ParseErrorNoObsIds`), so you can catch
 one kind with `except`. The other attributes exist only for the kinds that use them (see the docstrings). For example:
 
 ```python
-from mwa_giant_squid import AsvoApiError
+from mwa_giant_squid import MwaAsvoApiError
 
 try:
     client.cancel_job(1)
-except AsvoApiError as e:
+except MwaAsvoApiError as e:
     if e.kind == "ApiError":
         print(e.error_code, e.message, e.field_errors, e.request_id)
     else:
@@ -508,7 +508,7 @@ except AsvoApiError as e:
 The module sends its log records to the Python `logging` module. The logger names start with
 `mwa_giant_squid`. Records below `DEBUG` are not sent, because they can contain tokens.
 
-The module connects to `logging` when you make the first `AsvoClient`, not when you import it. A Rust program can have only one log destination per
+The module connects to `logging` when you make the first `MwaAsvoClient`, not when you import it. A Rust program can have only one log destination per
 process, and the `giant-squid` command needs its own. A log record that something else makes before that point
 is not sent anywhere. If another extension module has already set the Rust log destination in the process, the
 records go there and `reset_logging()` does nothing.
@@ -532,7 +532,7 @@ The `giant-squid` command does not use `logging`: it writes its own log lines to
 
 ## Threads
 
-One `AsvoClient` can be shared by several threads. If the server rejects the session, only one thread
+One `MwaAsvoClient` can be shared by several threads. If the server rejects the session, only one thread
 logs in again. The other threads use its new session.
 
 ## Limits

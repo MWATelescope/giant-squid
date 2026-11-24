@@ -6,13 +6,13 @@ use serde_json::json;
 
 use super::{parse_ids_from_text, resolve_ids_from, ResolvedIds};
 use crate::helpers::ParseError;
-use crate::mwa_asvo::AsvoJobId;
+use crate::mwa_asvo::MwaAsvoJobId;
 use crate::obs_id::ObsId;
 
 const OBS_ID: u64 = 1065880128;
 
-fn job_id(id: u64) -> AsvoJobId {
-    AsvoJobId::new(id).expect("a Job ID is more than 0")
+fn job_id(id: u64) -> MwaAsvoJobId {
+    MwaAsvoJobId::new(id).expect("a Job ID is more than 0")
 }
 
 fn obs_id(id: u64) -> ObsId {

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! ASVO data types.
+//! MWA ASVO data types.
 
 use jiff::Timestamp;
 use serde::Serialize;
@@ -12,7 +12,7 @@ use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, JobDetailResponse, JobFile, JobState, JobType,
 };
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
-use crate::{obs_id::ObsId, AsvoError};
+use crate::{obs_id::ObsId, MwaAsvoError};
 
 /// The query key of the time at which a signed download URL stops working:
 /// seconds since the Unix epoch (an S3 presigned URL has `Expires=<seconds>`).
@@ -22,7 +22,7 @@ const URL_EXPIRES_KEY: &str = "Expires";
 /// signs it. The URL has the end of that time in its `Expires`.
 pub const SIGNED_URL_LIFETIME_DAYS: u32 = 7;
 
-/// What [`AsvoJob::display_state_at`] adds to `completed` for a job whose
+/// What [`MwaAsvoJob::display_state_at`] adds to `completed` for a job whose
 /// download links work, and for a job whose links have expired.
 const DISPLAY_READY: &str = "ready";
 const DISPLAY_EXPIRED: &str = "expired";
@@ -50,9 +50,9 @@ impl JobType {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidJobType`] for any other text.
-    pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        Self::from_name(s).ok_or_else(|| AsvoError::InvalidJobType { str: s.to_string() })
+    /// [`MwaAsvoError::InvalidJobType`] for any other text.
+    pub fn parse_name(s: &str) -> Result<Self, MwaAsvoError> {
+        Self::from_name(s).ok_or_else(|| MwaAsvoError::InvalidJobType { str: s.to_string() })
     }
 }
 
@@ -70,9 +70,9 @@ impl JobState {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidJobState`] for any other text.
-    pub fn parse_name(s: &str) -> Result<Self, AsvoError> {
-        Self::from_name(s).ok_or_else(|| AsvoError::InvalidJobState { str: s.to_string() })
+    /// [`MwaAsvoError::InvalidJobState`] for any other text.
+    pub fn parse_name(s: &str) -> Result<Self, MwaAsvoError> {
+        Self::from_name(s).ok_or_else(|| MwaAsvoError::InvalidJobState { str: s.to_string() })
     }
 }
 
@@ -88,20 +88,20 @@ impl JobFile {
 /// (in `JobSubmittedResponse`, `JobDetailResponse` and the other responses).
 /// A type alias, not a newtype, because a newtype would add complexity for no
 /// gain.
-pub type AsvoJobId = std::num::NonZeroU64;
+pub type MwaAsvoJobId = std::num::NonZeroU64;
 
 /// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's Obs ID
 /// checked.
 ///
 /// The fields of the `JobDetailResponse` are reached through [`Deref`]
 /// (`job.job_id`, `job.job_state`, `job.product` and so on). The checked
-/// Obs ID is [`AsvoJob::obs_id`].
+/// Obs ID is [`MwaAsvoJob::obs_id`].
 ///
 /// In JSON the job is its `JobDetailResponse`, as the API gives it.
 ///
 /// [`Deref`]: std::ops::Deref
 #[derive(Serialize, Debug, Clone, PartialEq)]
-pub struct AsvoJob {
+pub struct MwaAsvoJob {
     /// `detail.obs_id`, checked. Not in the JSON: that has `obs_id`.
     #[serde(skip)]
     obs_id: ObsId,
@@ -109,14 +109,14 @@ pub struct AsvoJob {
     detail: JobDetailResponse,
 }
 
-impl AsvoJob {
+impl MwaAsvoJob {
     /// The job's Obs ID: the `obs_id` of its `JobDetailResponse`, checked.
     pub fn obs_id(&self) -> ObsId {
         self.obs_id
     }
 
     /// The job's ID: the `job_id` of its `JobDetailResponse`.
-    pub fn job_id(&self) -> AsvoJobId {
+    pub fn job_id(&self) -> MwaAsvoJobId {
         self.detail.job_id
     }
 
@@ -133,7 +133,7 @@ impl AsvoJob {
     }
 }
 
-impl AsvoJob {
+impl MwaAsvoJob {
     /// When the download links of the job stop working: the earliest
     /// `Expires` of the signed URLs of its Acacia files. The MWA ASVO signs
     /// them for [`SIGNED_URL_LIFETIME_DAYS`] days. `None` if the job has no
@@ -187,7 +187,7 @@ impl AsvoJob {
     }
 }
 
-impl std::ops::Deref for AsvoJob {
+impl std::ops::Deref for MwaAsvoJob {
     type Target = JobDetailResponse;
 
     fn deref(&self) -> &JobDetailResponse {
@@ -199,12 +199,12 @@ impl std::ops::Deref for AsvoJob {
 ///
 /// # Errors
 ///
-/// [`AsvoError::InvalidJob`], with what is wrong.
-impl TryFrom<JobDetailResponse> for AsvoJob {
-    type Error = AsvoError;
+/// [`MwaAsvoError::InvalidJob`], with what is wrong.
+impl TryFrom<JobDetailResponse> for MwaAsvoJob {
+    type Error = MwaAsvoError;
 
-    fn try_from(detail: JobDetailResponse) -> Result<Self, AsvoError> {
-        let invalid = |problem: String| AsvoError::InvalidJob {
+    fn try_from(detail: JobDetailResponse) -> Result<Self, MwaAsvoError> {
+        let invalid = |problem: String| MwaAsvoError::InvalidJob {
             id: detail.job_id,
             problem,
         };
@@ -216,68 +216,72 @@ impl TryFrom<JobDetailResponse> for AsvoJob {
     }
 }
 
-/// A vector of ASVO jobs.
+/// A vector of MWA ASVO jobs.
 ///
 /// By using a custom type, custom methods can be easily defined and used.
 #[derive(Clone, Debug, PartialEq)]
-pub struct AsvoJobVec(pub Vec<AsvoJob>);
+pub struct MwaAsvoJobVec(pub Vec<MwaAsvoJob>);
 
-impl AsvoJobVec {
+impl MwaAsvoJobVec {
     /// The jobs in JSON form: an object keyed by Job ID, in Job ID order,
-    /// whose values have the keys shown on [`AsvoJob`]. `giant-squid list
+    /// whose values have the keys shown on [`MwaAsvoJob`]. `giant-squid list
     /// --json` prints this.
     ///
     /// If the job list has a Job ID more than once, the output has only the
     /// last of those jobs.
     pub fn json(self) -> Result<String, serde_json::Error> {
-        let map: BTreeMap<AsvoJobId, AsvoJob> =
+        let map: BTreeMap<MwaAsvoJobId, MwaAsvoJob> =
             self.0.into_iter().map(|j| (j.job_id(), j)).collect();
         serde_json::to_string(&map)
     }
 
     /// Check whether all of `job_ids` are ready for download, in this job
     /// list. This makes no request: to wait for jobs, the caller gets the
-    /// job list ([`AsvoClient::get_jobs`](crate::AsvoClient::get_jobs)),
+    /// job list ([`MwaAsvoClient::get_jobs`](crate::MwaAsvoClient::get_jobs)),
     /// calls this, and sleeps and repeats while it returns `Ok(false)`.
     ///
     /// Returns `Ok(true)` if every job is `Completed`, and `Ok(false)` if
     /// every job is completed or still in progress (queued, processing and
     /// so on). Returns an error for the first job (in the order of
-    /// `job_ids`) that is not in the list ([`AsvoError::NoAsvoJob`]), has an
-    /// error ([`AsvoError::JobFailed`]), has been cancelled
-    /// ([`AsvoError::JobCancelled`]) or is completed but has download links
-    /// that have expired ([`AsvoError::JobExpired`]: waiting longer does not
+    /// `job_ids`) that is not in the list ([`MwaAsvoError::NoMwaAsvoJob`]), has an
+    /// error ([`MwaAsvoError::JobFailed`]), has been cancelled
+    /// ([`MwaAsvoError::JobCancelled`]) or is completed but has download links
+    /// that have expired ([`MwaAsvoError::JobExpired`]: waiting longer does not
     /// help, the job has to be resubmitted).
-    pub fn all_ready(&self, job_ids: &[AsvoJobId]) -> Result<bool, AsvoError> {
+    pub fn all_ready(&self, job_ids: &[MwaAsvoJobId]) -> Result<bool, MwaAsvoError> {
         self.all_ready_at(job_ids, Timestamp::now())
     }
 
     /// [`Self::all_ready`] at the time `now`.
-    pub fn all_ready_at(&self, job_ids: &[AsvoJobId], now: Timestamp) -> Result<bool, AsvoError> {
+    pub fn all_ready_at(
+        &self,
+        job_ids: &[MwaAsvoJobId],
+        now: Timestamp,
+    ) -> Result<bool, MwaAsvoError> {
         let mut all_ready = true;
         for job_id in job_ids {
             let job = self
                 .0
                 .iter()
                 .find(|j| j.job_id() == *job_id)
-                .ok_or(AsvoError::NoAsvoJob(*job_id))?;
+                .ok_or(MwaAsvoError::NoMwaAsvoJob(*job_id))?;
             match &job.job_state {
                 JobState::Completed if job.is_expired_at(now) => {
-                    return Err(AsvoError::JobExpired {
+                    return Err(MwaAsvoError::JobExpired {
                         job_id: *job_id,
                         expired: job.expires(),
                     });
                 }
                 JobState::Completed => (),
                 JobState::Error => {
-                    return Err(AsvoError::JobFailed {
+                    return Err(MwaAsvoError::JobFailed {
                         job_id: *job_id,
                         obs_id: job.obs_id,
                         error: job.error_text.clone().unwrap_or_default(),
                         error_code: job.error_code,
                     });
                 }
-                JobState::Cancelled => return Err(AsvoError::JobCancelled(*job_id)),
+                JobState::Cancelled => return Err(MwaAsvoError::JobCancelled(*job_id)),
                 _ => all_ready = false,
             }
         }
@@ -294,7 +298,7 @@ impl AsvoJobVec {
     /// - `states`: the job state is one of these.
     pub fn filter(
         self,
-        job_ids: &[AsvoJobId],
+        job_ids: &[MwaAsvoJobId],
         obs_ids: &[ObsId],
         job_types: &[JobType],
         states: &[JobState],
@@ -308,7 +312,7 @@ impl AsvoJobVec {
     }
 
     /// Keep only the jobs for which `predicate` returns `true`.
-    pub fn retain(mut self, predicate: impl Fn(&AsvoJob) -> bool) -> Self {
+    pub fn retain(mut self, predicate: impl Fn(&MwaAsvoJob) -> bool) -> Self {
         self.0.retain(predicate);
         self
     }
@@ -316,7 +320,7 @@ impl AsvoJobVec {
 
 /// A short description of the job, for a message: its ID, Obs ID, type,
 /// state and files.
-impl std::fmt::Display for AsvoJob {
+impl std::fmt::Display for MwaAsvoJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

@@ -2,59 +2,59 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The Python class `AsvoClient`.
+//! The Python class `MwaAsvoClient`.
 //!
 //! Every network call releases the GIL (`Python::detach`), so other Python
 //! threads run while it waits. The library client is `Send + Sync`, so one
-//! Python `AsvoClient` can be used from several threads.
+//! Python `MwaAsvoClient` can be used from several threads.
 
 use std::path::PathBuf;
 
 use pyo3::prelude::*;
 
-use super::config::PyAsvoClientConfig;
+use super::config::PyMwaAsvoClientConfig;
 use super::connect_python_logging;
 use super::csv::{
     csv_jobs_failed, csv_submit_error, result_object, PyCsvDefaults, PyCsvJob, PyCsvJobParams,
 };
 use super::download::{run_download, PyDownloadOptions};
-use super::error::{api_error, asvo_error};
+use super::error::{api_error, mwa_asvo_error};
 use super::filter::PyJobsFilter;
 use super::job_params::{PreprocessParams, PyDownloadJobParams, PyImageFromJobParams};
 use super::obs_id::ObsIdArg;
 use super::typed::{JobId, ResultCallback};
-use super::types::{PyAsvoJob, PyAsvoJobVec, PyJobCancelledResponse, PyJobSubmittedResponse};
-use crate::mwa_asvo::{AsvoClient, JobsFilter};
+use super::types::{PyJobCancelledResponse, PyJobSubmittedResponse, PyMwaAsvoJob, PyMwaAsvoJobVec};
+use crate::mwa_asvo::{JobsFilter, MwaAsvoClient};
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
 /// Args:
 ///     config: The host, your API key, the API timeout and the token cache
-///         (an `AsvoClientConfig`). `client_config_from_env` reads them from
+///         (an `MwaAsvoClientConfig`). `client_config_from_env` reads them from
 ///         the environment, as the `giant-squid` command does.
 ///
 /// Raises:
-///     AsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
+///     MwaAsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
 ///         login failed.
 ///     ValueError: `config.api_timeout` is not finite, or is not more than 0.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(frozen, name = "AsvoClient", module = "mwa_giant_squid")]
-pub struct PyAsvoClient {
-    inner: AsvoClient,
+#[pyclass(frozen, name = "MwaAsvoClient", module = "mwa_giant_squid")]
+pub struct PyMwaAsvoClient {
+    inner: MwaAsvoClient,
     host: String,
 }
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyAsvoClient {
+impl PyMwaAsvoClient {
     #[new]
-    fn new(py: Python<'_>, config: PyRef<'_, PyAsvoClientConfig>) -> PyResult<Self> {
+    fn new(py: Python<'_>, config: PyRef<'_, PyMwaAsvoClientConfig>) -> PyResult<Self> {
         connect_python_logging();
         let host = config.host.clone();
         let lib_config = config.to_lib()?;
         let inner = py
-            .detach(|| AsvoClient::new(lib_config))
-            .map_err(|e| asvo_error(py, e))?;
+            .detach(|| MwaAsvoClient::new(lib_config))
+            .map_err(|e| mwa_asvo_error(py, e))?;
         Ok(Self { inner, host })
     }
 
@@ -71,16 +71,16 @@ impl PyAsvoClient {
     ///     ValueError: The filter is not valid: both `job_ids` and
     ///         `obs_ids` are given, or `days` is not from 1 to 30 or is
     ///         given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
-    ///     AsvoApiError: The request failed.
+    ///     MwaAsvoApiError: The request failed.
     #[pyo3(signature = (filter=None))]
     fn get_jobs(
         &self,
         py: Python<'_>,
         filter: Option<PyRef<'_, PyJobsFilter>>,
-    ) -> PyResult<PyAsvoJobVec> {
+    ) -> PyResult<PyMwaAsvoJobVec> {
         let filter = filter.map_or_else(JobsFilter::default, |f| f.0.clone());
         py.detach(|| self.inner.get_jobs(&filter))
-            .map(PyAsvoJobVec::from)
+            .map(PyMwaAsvoJobVec::from)
             .map_err(|e| api_error(py, e))
     }
 
@@ -102,7 +102,7 @@ impl PyAsvoClient {
     ///         or `delivery` is `DeliveryDestination.Acacia` and
     ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
     ///         tar only). Nothing is sent.
-    ///     AsvoApiError: The request failed.
+    ///     MwaAsvoApiError: The request failed.
     fn submit_download_job(
         &self,
         py: Python<'_>,
@@ -138,7 +138,7 @@ impl PyAsvoClient {
     ///         `custom_centre_ra` and `custom_centre_dec`, or either of them
     ///         is given with another `centre`. The message names the
     ///         argument and its limits. Nothing is sent.
-    ///     AsvoApiError: The request failed.
+    ///     MwaAsvoApiError: The request failed.
     fn submit_preprocess_job(
         &self,
         py: Python<'_>,
@@ -165,7 +165,7 @@ impl PyAsvoClient {
     ///         `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
     ///         tar only). The message names the argument and its limits.
     ///         Nothing is sent.
-    ///     AsvoApiError: The request failed.
+    ///     MwaAsvoApiError: The request failed.
     fn submit_image_from_job(
         &self,
         py: Python<'_>,
@@ -236,7 +236,7 @@ impl PyAsvoClient {
     ///     on_result: A function to call for each job when its request is
     ///         done, so that you can report it at once. It is called with
     ///         the `CsvJob` and its result: the `JobSubmittedResponse`, or
-    ///         the `AsvoApiError` that the request failed with (as a value,
+    ///         the `MwaAsvoApiError` that the request failed with (as a value,
     ///         not raised). If it raises, it is not called again, the other
     ///         jobs are still submitted (the library's loop cannot be
     ///         stopped), and its first exception is raised when they are
@@ -310,7 +310,7 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: A value is outside the limits of the MWA ASVO. Nothing
     ///         is sent.
-    ///     AsvoApiError: The request failed. (The errors of the submit
+    ///     MwaAsvoApiError: The request failed. (The errors of the submit
     ///         methods.)
     fn submit_csv_job(
         &self,
@@ -339,7 +339,7 @@ impl PyAsvoClient {
     /// Raises:
     ///     ValueError: `job_id` is 0.
     ///     OverflowError: `job_id` is negative or too large to be a Job ID.
-    ///     AsvoApiError: The request failed, for example because there is
+    ///     MwaAsvoApiError: The request failed, for example because there is
     ///         no such job.
     fn cancel_job(&self, py: Python<'_>, job_id: JobId) -> PyResult<PyJobCancelledResponse> {
         py.detach(|| self.inner.cancel_job(job_id.0))
@@ -349,7 +349,7 @@ impl PyAsvoClient {
 
     /// Download the files of a job.
     ///
-    /// The job must be ready (see `AsvoJobVec.all_ready`). The call blocks
+    /// The job must be ready (see `MwaAsvoJobVec.all_ready`). The call blocks
     /// until the download ends, with the GIL released. Ctrl-C stops the
     /// download at the next chunk and raises `KeyboardInterrupt`, when the
     /// call is made from the main thread. A partial file stays on disk, so
@@ -366,9 +366,9 @@ impl PyAsvoClient {
     ///     The job that was downloaded.
     ///
     /// Raises:
-    ///     AsvoError: The job is missing, not ready or has no files, a
+    ///     MwaAsvoError: The job is missing, not ready or has no files, a
     ///         transfer failed, or the hash does not match.
-    ///     AsvoApiError: Getting the job list failed.
+    ///     MwaAsvoApiError: Getting the job list failed.
     ///     ValueError: `options.download_dir`, `options.buffer_size` or
     ///         `options.retry_duration` is not valid.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
@@ -377,9 +377,9 @@ impl PyAsvoClient {
         py: Python<'_>,
         job_id: JobId,
         options: PyRef<'_, PyDownloadOptions>,
-    ) -> PyResult<PyAsvoJob> {
+    ) -> PyResult<PyMwaAsvoJob> {
         run_download(py, &options, |opts| self.inner.download_job(job_id.0, opts))
-            .map(PyAsvoJob::from)
+            .map(PyMwaAsvoJob::from)
     }
 
     /// Download the files of a job that is in a job list that you have.
@@ -396,7 +396,7 @@ impl PyAsvoClient {
     ///     The job that was downloaded.
     ///
     /// Raises:
-    ///     AsvoError: The job is missing from `jobs`, not ready or has no
+    ///     MwaAsvoError: The job is missing from `jobs`, not ready or has no
     ///         files, a transfer failed, or the hash does not match.
     ///     ValueError: `options.download_dir`, `options.buffer_size` or
     ///         `options.retry_duration` is not valid.
@@ -404,16 +404,16 @@ impl PyAsvoClient {
     fn download_job_from(
         &self,
         py: Python<'_>,
-        jobs: PyRef<'_, PyAsvoJobVec>,
+        jobs: PyRef<'_, PyMwaAsvoJobVec>,
         job_id: JobId,
         options: PyRef<'_, PyDownloadOptions>,
-    ) -> PyResult<PyAsvoJob> {
+    ) -> PyResult<PyMwaAsvoJob> {
         // A copy, so that the download can run without the GIL.
         let jobs = jobs.inner().clone();
         run_download(py, &options, |opts| {
             self.inner.download_job_from(&jobs, job_id.0, opts)
         })
-        .map(PyAsvoJob::from)
+        .map(PyMwaAsvoJob::from)
     }
 
     /// Download the files of the one ready job for an Obs ID.
@@ -430,18 +430,18 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     ObsIdError: `obs_id` is not a valid Obs ID.
-    ///     AsvoError: No job, no ready job, or more than one ready job has
+    ///     MwaAsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
-    ///     AsvoApiError: Getting the job list failed.
+    ///     MwaAsvoApiError: Getting the job list failed.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_obs(
         &self,
         py: Python<'_>,
         obs_id: ObsIdArg,
         options: PyRef<'_, PyDownloadOptions>,
-    ) -> PyResult<PyAsvoJob> {
+    ) -> PyResult<PyMwaAsvoJob> {
         run_download(py, &options, |opts| self.inner.download_obs(obs_id.0, opts))
-            .map(PyAsvoJob::from)
+            .map(PyMwaAsvoJob::from)
     }
 
     /// Download the files of the one ready job for an Obs ID, from a job
@@ -460,26 +460,26 @@ impl PyAsvoClient {
     ///
     /// Raises:
     ///     ObsIdError: `obs_id` is not a valid Obs ID.
-    ///     AsvoError: No job, no ready job, or more than one ready job has
+    ///     MwaAsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_obs_from(
         &self,
         py: Python<'_>,
-        jobs: PyRef<'_, PyAsvoJobVec>,
+        jobs: PyRef<'_, PyMwaAsvoJobVec>,
         obs_id: ObsIdArg,
         options: PyRef<'_, PyDownloadOptions>,
-    ) -> PyResult<PyAsvoJob> {
+    ) -> PyResult<PyMwaAsvoJob> {
         // A copy, so that the download can run without the GIL.
         let jobs = jobs.inner().clone();
         run_download(py, &options, |opts| {
             self.inner.download_obs_from(&jobs, obs_id.0, opts)
         })
-        .map(PyAsvoJob::from)
+        .map(PyMwaAsvoJob::from)
     }
 
     fn __repr__(&self) -> String {
         let host = &self.host;
-        format!("AsvoClient(host={host:?})")
+        format!("MwaAsvoClient(host={host:?})")
     }
 }

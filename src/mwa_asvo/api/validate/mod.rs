@@ -24,7 +24,7 @@
 
 use std::num::NonZeroU64;
 
-use super::error::AsvoApiError;
+use super::error::MwaAsvoApiError;
 use super::openapi::{
     ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
     ImageFromJobParams, ImageSizes, ImagingJobParams, PhaseCentre,
@@ -95,12 +95,12 @@ impl Bounds {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] if it is not.
-    pub fn check(&self, name: &'static str, value: f64) -> Result<(), AsvoApiError> {
+    /// [`MwaAsvoApiError::InvalidParameter`] if it is not.
+    pub fn check(&self, name: &'static str, value: f64) -> Result<(), MwaAsvoApiError> {
         if self.contains(value) {
             Ok(())
         } else {
-            Err(AsvoApiError::InvalidParameter {
+            Err(MwaAsvoApiError::InvalidParameter {
                 name,
                 message: self.describe(value),
             })
@@ -164,7 +164,7 @@ pub const VOLTAGE_DURATION: Bounds = Bounds::between(0.0, 7200.0);
 pub const IMAGE_SIZES: [i64; 6] = [512, 1024, 2048, 3072, 4096, 8192];
 
 /// Check each `(name, bounds, value)` whose value is present.
-fn check_all(checks: &[(&'static str, Bounds, Option<f64>)]) -> Result<(), AsvoApiError> {
+fn check_all(checks: &[(&'static str, Bounds, Option<f64>)]) -> Result<(), MwaAsvoApiError> {
     for (name, bounds, value) in checks {
         if let Some(value) = value {
             bounds.check(name, *value)?;
@@ -214,7 +214,7 @@ fn check_preprocessing(
     centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
-) -> Result<(), AsvoApiError> {
+) -> Result<(), MwaAsvoApiError> {
     check_all(&[
         ("avg_freq_res", AVG_FREQ_RES, avg_freq_res),
         ("avg_time_res", AVG_TIME_RES, avg_time_res),
@@ -232,14 +232,14 @@ fn check_preprocessing(
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] for `delivery_format`, if `delivery` is
+/// [`MwaAsvoApiError::InvalidParameter`] for `delivery_format`, if `delivery` is
 /// `acacia` and `delivery_format` is `files`.
 pub fn check_delivery_format(
     delivery: DeliveryDestination,
     delivery_format: DeliveryFormat,
-) -> Result<(), AsvoApiError> {
+) -> Result<(), MwaAsvoApiError> {
     if delivery == DeliveryDestination::Acacia && delivery_format == DeliveryFormat::Files {
-        return Err(AsvoApiError::InvalidParameter {
+        return Err(MwaAsvoApiError::InvalidParameter {
             name: "delivery_format",
             message: format!(
                 "must be {} when delivery is {} (got {delivery_format})",
@@ -257,27 +257,27 @@ pub fn check_delivery_format(
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] for the first of `custom_centre_ra` and
+/// [`MwaAsvoApiError::InvalidParameter`] for the first of `custom_centre_ra` and
 /// `custom_centre_dec` that is missing when `centre` is `custom`, or the first
 /// that is given when it is not.
 pub fn check_centre(
     centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
-) -> Result<(), AsvoApiError> {
+) -> Result<(), MwaAsvoApiError> {
     let custom = PhaseCentre::Custom;
     for (name, value) in [
         ("custom_centre_ra", custom_centre_ra),
         ("custom_centre_dec", custom_centre_dec),
     ] {
         if centre == custom && value.is_none() {
-            return Err(AsvoApiError::InvalidParameter {
+            return Err(MwaAsvoApiError::InvalidParameter {
                 name,
                 message: format!("is required when centre is {custom}"),
             });
         }
         if centre != custom && value.is_some() {
-            return Err(AsvoApiError::InvalidParameter {
+            return Err(MwaAsvoApiError::InvalidParameter {
                 name,
                 message: format!("is only allowed when centre is {custom} (centre is {centre})"),
             });
@@ -295,9 +295,9 @@ pub fn check_centre(
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if the delivery and its format do not
+/// [`MwaAsvoApiError::InvalidParameter`] if the delivery and its format do not
 /// agree, or the `offset` or the `duration` is out of range.
-pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoApiError> {
+pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), MwaAsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&[
         (
@@ -319,9 +319,9 @@ pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), AsvoAp
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`], for the first argument that is out
+/// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
 /// of range or the delivery and its format that do not agree.
-pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), AsvoApiError> {
+pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), MwaAsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_preprocessing(
         params.avg_freq_res,
@@ -339,9 +339,9 @@ pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), As
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`], for the first argument that is out
+/// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
 /// of range or the delivery and its format that do not agree.
-pub fn validate_imaging_params(params: &ImagingJobParams) -> Result<(), AsvoApiError> {
+pub fn validate_imaging_params(params: &ImagingJobParams) -> Result<(), MwaAsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))?;
     check_preprocessing(
@@ -359,9 +359,9 @@ pub fn validate_imaging_params(params: &ImagingJobParams) -> Result<(), AsvoApiE
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`], for the first argument that is out
+/// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
 /// of range or the delivery and its format that do not agree.
-pub fn validate_image_from_job_params(params: &ImageFromJobParams) -> Result<(), AsvoApiError> {
+pub fn validate_image_from_job_params(params: &ImageFromJobParams) -> Result<(), MwaAsvoApiError> {
     check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))
 }
@@ -371,9 +371,9 @@ pub fn validate_image_from_job_params(params: &ImageFromJobParams) -> Result<(),
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is not one of them.
-pub fn image_size(value: i64) -> Result<ImageSizes, AsvoApiError> {
-    ImageSizes::try_from(value).map_err(|_| AsvoApiError::InvalidParameter {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is not one of them.
+pub fn image_size(value: i64) -> Result<ImageSizes, MwaAsvoApiError> {
+    ImageSizes::try_from(value).map_err(|_| MwaAsvoApiError::InvalidParameter {
         name: "image_size",
         message: format!(
             "must be one of {} (got {value})",
@@ -387,8 +387,8 @@ pub fn image_size(value: i64) -> Result<ImageSizes, AsvoApiError> {
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is outside [`NMITER`].
-pub fn nmiter(value: u64) -> Result<NonZeroU64, AsvoApiError> {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is outside [`NMITER`].
+pub fn nmiter(value: u64) -> Result<NonZeroU64, MwaAsvoApiError> {
     NMITER.check("nmiter", value as f64)?;
     // NMITER's lower limit is 1, so a value that passed is not zero.
     Ok(NonZeroU64::new(value).expect("NMITER excludes zero"))
@@ -400,8 +400,8 @@ pub fn nmiter(value: u64) -> Result<NonZeroU64, AsvoApiError> {
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is outside [`CHANNELS_OUT`].
-pub fn channels_out(value: u64) -> Result<NonZeroU64, AsvoApiError> {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is outside [`CHANNELS_OUT`].
+pub fn channels_out(value: u64) -> Result<NonZeroU64, MwaAsvoApiError> {
     CHANNELS_OUT.check("channels_out", value as f64)?;
     // CHANNELS_OUT's lower limit is 1, so a value that passed is not zero.
     Ok(NonZeroU64::new(value).expect("CHANNELS_OUT excludes zero"))
@@ -413,8 +413,8 @@ pub fn channels_out(value: u64) -> Result<NonZeroU64, AsvoApiError> {
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is outside [`DAYS`].
-pub fn days(value: i64) -> Result<NonZeroU64, AsvoApiError> {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is outside [`DAYS`].
+pub fn days(value: i64) -> Result<NonZeroU64, MwaAsvoApiError> {
     DAYS.check("days", value as f64)?;
     Ok(days_in_range(value))
 }
@@ -434,8 +434,8 @@ pub(crate) fn days_in_range(value: i64) -> NonZeroU64 {
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is above [`DAYS`].
-pub fn check_days(value: NonZeroU64) -> Result<NonZeroU64, AsvoApiError> {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is above [`DAYS`].
+pub fn check_days(value: NonZeroU64) -> Result<NonZeroU64, MwaAsvoApiError> {
     DAYS.check("days", value.get() as f64)?;
     Ok(value)
 }
@@ -445,9 +445,9 @@ pub fn check_days(value: NonZeroU64) -> Result<NonZeroU64, AsvoApiError> {
 ///
 /// # Errors
 ///
-/// [`AsvoApiError::InvalidParameter`] if `value` is zero.
-pub fn source_job_id(value: u64) -> Result<NonZeroU64, AsvoApiError> {
-    NonZeroU64::new(value).ok_or_else(|| AsvoApiError::InvalidParameter {
+/// [`MwaAsvoApiError::InvalidParameter`] if `value` is zero.
+pub fn source_job_id(value: u64) -> Result<NonZeroU64, MwaAsvoApiError> {
+    NonZeroU64::new(value).ok_or_else(|| MwaAsvoApiError::InvalidParameter {
         name: "source_job_id",
         message: "must be at least 1 (got 0)".to_string(),
     })

@@ -4,7 +4,7 @@
 
 """List your MWA ASVO jobs with the mwa_giant_squid module, as examples/list_jobs.rs does with the Rust library.
 
-The module reads no environment variables when it makes an ``AsvoClientConfig``, so this program (the caller)
+The module reads no environment variables when it makes an ``MwaAsvoClientConfig``, so this program (the caller)
 reads them:
 
 ```text
@@ -36,12 +36,12 @@ def main() -> int:
     if api_key is None:
         print(f"{gs.ENV_MWA_ASVO_API_KEY} is not set", file=sys.stderr)
         return 1
-    host = os.environ.get(gs.ENV_MWA_ASVO_HOST, gs.DEFAULT_ASVO_HOST)
+    host = os.environ.get(gs.ENV_MWA_ASVO_HOST, gs.DEFAULT_MWA_ASVO_HOST)
     days = int(sys.argv[DAYS_ARGUMENT]) if len(sys.argv) > DAYS_ARGUMENT else None
     home = os.environ.get(gs.ENV_HOME)
     token_cache_path = gs.default_token_cache_path(home) if home is not None else None
 
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, api_key, token_cache_path=token_cache_path))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, api_key, token_cache_path=token_cache_path))
     jobs = client.get_jobs(gs.JobsFilter(days=days))
 
     if len(jobs) == 0:

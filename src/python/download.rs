@@ -43,11 +43,11 @@ use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 
 use super::config::duration_from_seconds;
-use super::error::asvo_error;
+use super::error::mwa_asvo_error;
 use super::typed::ProgressCallback;
 use super::types::PyDownloadProgress;
 use crate::mwa_asvo::{
-    AsvoError, DownloadOptions, DownloadProgress, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    DownloadOptions, DownloadProgress, MwaAsvoError, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
@@ -351,7 +351,7 @@ fn take_stray_error(py: Python<'_>) -> Option<PyErr> {
 /// # Errors
 ///
 /// `ValueError` for a `download_dir` that is not UTF-8 or a bad
-/// `retry_duration`; `AsvoError` or `AsvoApiError` from the download; or
+/// `retry_duration`; `MwaAsvoError` or `MwaAsvoApiError` from the download; or
 /// the exception from the callback or a signal handler.
 pub(super) fn run_download<F, T>(
     py: Python<'_>,
@@ -359,7 +359,7 @@ pub(super) fn run_download<F, T>(
     download: F,
 ) -> PyResult<T>
 where
-    F: FnOnce(&DownloadOptions) -> Result<T, AsvoError> + Send,
+    F: FnOnce(&DownloadOptions) -> Result<T, MwaAsvoError> + Send,
     T: Send,
 {
     let download_dir = options
@@ -403,5 +403,5 @@ where
     if let Some(err) = take_stray_error(py) {
         return Err(err);
     }
-    result.map_err(|e| asvo_error(py, e))
+    result.map_err(|e| mwa_asvo_error(py, e))
 }

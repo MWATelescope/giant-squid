@@ -1,4 +1,4 @@
-"""Tests for `JobsFilter`, and for how `AsvoClient.get_jobs` sends it."""
+"""Tests for `JobsFilter`, and for how `MwaAsvoClient.get_jobs` sends it."""
 
 import datetime
 from collections.abc import Callable
@@ -95,10 +95,10 @@ def test_the_repr_shows_the_values_that_are_set() -> None:
 @pytest.mark.parametrize("days", [0, -1, TOO_MANY_DAYS])
 def test_days_outside_the_limits_are_refused_when_they_are_set(days: int) -> None:
     """The check is the library's `validate::days`."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="days"):
         gs.JobsFilter(days=days)
     filter = gs.JobsFilter()
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="days"):
         filter.days = days
 
 
@@ -122,13 +122,13 @@ def test_validate_accepts_a_good_filter() -> None:
 
 def test_validate_refuses_job_ids_with_obs_ids() -> None:
     """The jobs are selected by Job IDs or by Obs IDs."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
         gs.JobsFilter(job_ids=[JOB_ID], obs_ids=[TEST_OBS_ID]).validate()
 
 
 def test_validate_refuses_days_with_a_date() -> None:
     """The jobs are selected by `days` or by the dates."""
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="date_from or date_to"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="date_from or date_to"):
         gs.JobsFilter(days=FILTER_DAYS, date_from=FROM_DATE).validate()
 
 
@@ -138,7 +138,7 @@ def test_get_jobs_with_no_filter_sends_the_default_request(
 ) -> None:
     """`get_jobs()` is `get_jobs(JobsFilter())`."""
     serve_jobs([job_detail(JOB_ID, "completed")])
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     plain = client.get_jobs()
     empty = client.get_jobs(gs.JobsFilter())
@@ -155,12 +155,12 @@ def test_get_jobs_refuses_a_filter_that_is_not_valid_and_sends_nothing(
 ) -> None:
     """Job IDs and Obs IDs together: the check is before any request."""
     serve_jobs([])
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
     before = len(httpserver.log)
     filter = gs.JobsFilter(job_ids=[JOB_ID])
     filter.obs_ids = [TEST_OBS_ID]
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
         client.get_jobs(filter)
 
     assert len(httpserver.log) == before

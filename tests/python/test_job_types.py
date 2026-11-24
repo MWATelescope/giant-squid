@@ -1,4 +1,4 @@
-"""Tests for `JobDetailResponse`, `AsvoJob.detail`, `JobFile.size_bytes`, `AsvoJobVec.json` and the job type and state names."""
+"""Tests for `JobDetailResponse`, `MwaAsvoJob.detail`, `JobFile.size_bytes`, `MwaAsvoJobVec.json` and the job type and state names."""
 
 import json
 from collections.abc import Callable
@@ -20,7 +20,7 @@ FILE_URL = "https://example.org/file.tar?Expires=1790000000"
 NEGATIVE_FILE_SIZE = -5
 FAILED_ERROR_CODE = 7
 
-# The attributes that `AsvoJob` and `JobDetailResponse` share.
+# The attributes that `MwaAsvoJob` and `JobDetailResponse` share.
 SHARED_ATTRIBUTES = [
     "job_id",
     "job_type",
@@ -48,20 +48,20 @@ def served_jobs() -> list[dict[str, Any]]:
 
 
 @pytest.fixture
-def jobs(host: str, mock_login: None, serve_jobs: Callable[..., None]) -> gs.AsvoJobVec:
+def jobs(host: str, mock_login: None, serve_jobs: Callable[..., None]) -> gs.MwaAsvoJobVec:
     """The jobs of `served_jobs`, got through a client."""
     serve_jobs(served_jobs())
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
 
-def job_with_id(jobs: gs.AsvoJobVec, job_id: int) -> gs.AsvoJob:
+def job_with_id(jobs: gs.MwaAsvoJobVec, job_id: int) -> gs.MwaAsvoJob:
     """The job that has this Job ID."""
     (job,) = jobs.filter(job_ids=[job_id])
     return job
 
 
-def test_detail_is_the_job_as_the_api_gives_it(jobs: gs.AsvoJobVec) -> None:
-    """`AsvoJob.detail` is a `JobDetailResponse` that has the attributes of the job."""
+def test_detail_is_the_job_as_the_api_gives_it(jobs: gs.MwaAsvoJobVec) -> None:
+    """`MwaAsvoJob.detail` is a `JobDetailResponse` that has the attributes of the job."""
     job = job_with_id(jobs, JOB_ID_FIRST)
 
     detail = job.detail()
@@ -74,7 +74,7 @@ def test_detail_is_the_job_as_the_api_gives_it(jobs: gs.AsvoJobVec) -> None:
     assert detail.job_state == gs.JobState.Completed
 
 
-def test_the_obs_id_of_the_detail_is_the_number_that_the_api_gave(jobs: gs.AsvoJobVec) -> None:
+def test_the_obs_id_of_the_detail_is_the_number_that_the_api_gave(jobs: gs.MwaAsvoJobVec) -> None:
     """The detail has the schema's `int`, and the job has the checked `ObsId`."""
     job = job_with_id(jobs, JOB_ID_FIRST)
 
@@ -83,7 +83,7 @@ def test_the_obs_id_of_the_detail_is_the_number_that_the_api_gave(jobs: gs.AsvoJ
     assert isinstance(job.obs_id, gs.ObsId)
 
 
-def test_the_product_of_the_detail_has_the_files(jobs: gs.AsvoJobVec) -> None:
+def test_the_product_of_the_detail_has_the_files(jobs: gs.MwaAsvoJobVec) -> None:
     """The product comes through the detail."""
     detail = job_with_id(jobs, JOB_ID_FIRST).detail()
 
@@ -93,7 +93,7 @@ def test_the_product_of_the_detail_has_the_files(jobs: gs.AsvoJobVec) -> None:
     assert job_with_id(jobs, JOB_ID_SECOND).detail().product is None
 
 
-def test_the_detail_repr_names_the_job(jobs: gs.AsvoJobVec) -> None:
+def test_the_detail_repr_names_the_job(jobs: gs.MwaAsvoJobVec) -> None:
     """The repr has the Job ID and the state."""
     text = repr(job_with_id(jobs, JOB_ID_SECOND).detail())
 
@@ -102,7 +102,7 @@ def test_the_detail_repr_names_the_job(jobs: gs.AsvoJobVec) -> None:
     assert f"obs_id={TEST_OBS_ID}" in text
 
 
-def test_size_bytes_is_the_size_as_an_unsigned_number(jobs: gs.AsvoJobVec) -> None:
+def test_size_bytes_is_the_size_as_an_unsigned_number(jobs: gs.MwaAsvoJobVec) -> None:
     """A file has `size` and `size_bytes`."""
     product = job_with_id(jobs, JOB_ID_FIRST).product
     assert product is not None
@@ -118,7 +118,7 @@ def test_size_bytes_is_zero_for_a_negative_size(host: str, serve_jobs: Callable[
     product = {"files": [{"type": "acacia", "url": FILE_URL, "size": NEGATIVE_FILE_SIZE}]}
     serve_jobs([job_detail(JOB_ID_FIRST, "completed", completed=COMPLETED_TEXT, product=product)])
 
-    job = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()[0]
+    job = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()[0]
 
     assert job.product is not None
     (file,) = job.product.files
@@ -126,14 +126,14 @@ def test_size_bytes_is_zero_for_a_negative_size(host: str, serve_jobs: Callable[
     assert file.size_bytes == 0
 
 
-def test_json_is_an_object_keyed_by_job_id_in_job_id_order(jobs: gs.AsvoJobVec) -> None:
+def test_json_is_an_object_keyed_by_job_id_in_job_id_order(jobs: gs.MwaAsvoJobVec) -> None:
     """The server sent the second job first. The JSON is in Job ID order."""
     loaded = json.loads(jobs.json())
 
     assert list(loaded) == [str(JOB_ID_FIRST), str(JOB_ID_SECOND)]
 
 
-def test_json_has_the_fields_that_the_api_gave(jobs: gs.AsvoJobVec) -> None:
+def test_json_has_the_fields_that_the_api_gave(jobs: gs.MwaAsvoJobVec) -> None:
     """Each value is the job as the API gives it, with the schema's `obs_id`."""
     loaded = json.loads(jobs.json())
 
@@ -154,7 +154,7 @@ def test_json_of_no_jobs_is_an_empty_object(host: str, serve_jobs: Callable[...,
     """An empty job list is `{}`."""
     serve_jobs([])
 
-    assert gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs().json() == "{}"
+    assert gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs().json() == "{}"
 
 
 @pytest.mark.parametrize("enum", [gs.JobType, gs.JobState])
@@ -192,17 +192,17 @@ def test_parse_name_ignores_hyphens_and_underscores() -> None:
     assert gs.JobState.parse_name("wait_cal") == gs.JobState.Waitcal
 
 
-def test_an_unknown_job_type_raises_asvo_error() -> None:
+def test_an_unknown_job_type_raises_mwa_asvo_error() -> None:
     """The error has the kind and the text."""
-    with pytest.raises(gs.AsvoError) as excinfo:
+    with pytest.raises(gs.MwaAsvoError) as excinfo:
         gs.JobType.parse_name("nonsense")
     assert excinfo.value.kind == "InvalidJobType"
     assert excinfo.value.str == "nonsense"
 
 
-def test_an_unknown_job_state_raises_asvo_error() -> None:
+def test_an_unknown_job_state_raises_mwa_asvo_error() -> None:
     """The error has the kind and the text."""
-    with pytest.raises(gs.AsvoError) as excinfo:
+    with pytest.raises(gs.MwaAsvoError) as excinfo:
         gs.JobState.parse_name("nonsense")
     assert excinfo.value.kind == "InvalidJobState"
     assert excinfo.value.str == "nonsense"

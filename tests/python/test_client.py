@@ -1,4 +1,4 @@
-"""Tests for AsvoClient and the job types, against a local mock MWA ASVO."""
+"""Tests for MwaAsvoClient and the job types, against a local mock MWA ASVO."""
 
 import datetime
 import json
@@ -86,7 +86,7 @@ def mixed_jobs() -> list[dict[str, Any]]:
 def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Callable[..., None]) -> None:
     """Every field of a job comes through from the server."""
     serve_jobs(mixed_jobs())
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     jobs = client.get_jobs()
 
@@ -116,9 +116,9 @@ def test_get_jobs_returns_the_jobs_with_their_fields(host: str, serve_jobs: Call
 
 @pytest.mark.usefixtures("mock_login")
 def test_a_job_list_supports_iteration_and_rejects_a_bad_index(host: str, serve_jobs: Callable[..., None]) -> None:
-    """AsvoJobVec behaves like a read-only sequence."""
+    """MwaAsvoJobVec behaves like a read-only sequence."""
     serve_jobs(mixed_jobs())
-    jobs = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    jobs = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert [job.job_id for job in jobs] == [JOB_ID_READY, JOB_ID_QUEUED, JOB_ID_FAILED]
     with pytest.raises(IndexError):
@@ -129,7 +129,7 @@ def test_a_job_list_supports_iteration_and_rejects_a_bad_index(host: str, serve_
 def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., None]) -> None:
     """Each filter works."""
     serve_jobs(mixed_jobs())
-    jobs = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    jobs = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert len(jobs.filter()) == len(mixed_jobs())
     assert [j.job_id for j in jobs.filter(job_ids=[JOB_ID_QUEUED])] == [JOB_ID_QUEUED]
@@ -143,14 +143,14 @@ def test_filter_keeps_the_matching_jobs(host: str, serve_jobs: Callable[..., Non
 
 @pytest.mark.usefixtures("mock_login")
 def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., None]) -> None:
-    """all_ready is True, False, or raises AsvoError with the variant's fields."""
+    """all_ready is True, False, or raises MwaAsvoError with the variant's fields."""
     serve_jobs(mixed_jobs())
-    jobs = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    jobs = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert jobs.all_ready([JOB_ID_READY])
     assert not jobs.all_ready([JOB_ID_READY, JOB_ID_QUEUED])
 
-    with pytest.raises(gs.AsvoError) as failed:
+    with pytest.raises(gs.MwaAsvoError) as failed:
         jobs.all_ready([JOB_ID_FAILED])
     assert failed.value.kind == "JobFailed"
     assert failed.value.job_id == JOB_ID_FAILED
@@ -158,42 +158,42 @@ def test_all_ready_checks_the_given_jobs(host: str, serve_jobs: Callable[..., No
     assert failed.value.error_code == FAILED_ERROR_CODE
     assert f"has an error (code {FAILED_ERROR_CODE}): the conversion failed" in str(failed.value)
 
-    with pytest.raises(gs.AsvoError) as missing:
+    with pytest.raises(gs.MwaAsvoError) as missing:
         jobs.all_ready([999])
-    assert missing.value.kind == "NoAsvoJob"
+    assert missing.value.kind == "NoMwaAsvoJob"
 
 
 def test_an_empty_api_key_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
-    """An empty API key raises AsvoErrorAsvoApi (as in the library), whose source is an AsvoApiError of kind
+    """An empty API key raises MwaAsvoErrorMwaAsvoApi (as in the library), whose source is an MwaAsvoApiError of kind
     MissingAuthKey, and nothing is sent."""
-    with pytest.raises(gs.AsvoErrorAsvoApi) as err:
-        gs.AsvoClient(gs.AsvoClientConfig(host, ""))
-    assert isinstance(err.value.source, gs.AsvoApiErrorMissingAuthKey)
+    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as err:
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, ""))
+    assert isinstance(err.value.source, gs.MwaAsvoApiErrorMissingAuthKey)
     assert err.value.source.kind == "MissingAuthKey"
     assert len(httpserver.log) == 0
 
 
 def test_a_rejected_login_raises_an_authentication_failure(host: str, httpserver: HTTPServer) -> None:
-    """A failed login raises AsvoErrorAsvoApi, whose source is an AsvoApiError with the server's message."""
+    """A failed login raises MwaAsvoErrorMwaAsvoApi, whose source is an MwaAsvoApiError with the server's message."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_data("invalid api key", status=401)
 
-    with pytest.raises(gs.AsvoErrorAsvoApi) as err:
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as err:
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
-    assert isinstance(err.value.source, gs.AsvoApiErrorAuthenticationFailed)
+    assert isinstance(err.value.source, gs.MwaAsvoApiErrorAuthenticationFailed)
     assert err.value.source.kind == "AuthenticationFailed"
     assert "invalid api key" in err.value.source.message
 
 
 def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, httpserver: HTTPServer) -> None:
     """A failed login with an ErrorResponse body is an AuthenticationFailed with the server's fields, in the source of
-    the AsvoErrorAsvoApi."""
+    the MwaAsvoErrorMwaAsvoApi."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_json(
         error_response("AUTH_INVALID_KEY", "Bad API key"), status=401
     )
 
-    with pytest.raises(gs.AsvoErrorAsvoApi) as outer:
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi) as outer:
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     err = outer.value.source
     assert err.kind == "AuthenticationFailed"
@@ -207,13 +207,13 @@ def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, h
 
 @pytest.mark.usefixtures("mock_login")
 def test_a_structured_server_error_has_its_fields(host: str, httpserver: HTTPServer) -> None:
-    """A structured error response raises AsvoApiError with error_code, message, detail and suggestion."""
+    """A structured error response raises MwaAsvoApiError with error_code, message, detail and suggestion."""
     httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(
         error_response("JOB_INVALID_STATE", "Job is not ready"), status=400
     )
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.MwaAsvoApiError) as err:
         client.get_jobs()
 
     assert err.value.kind == "ApiError"
@@ -233,9 +233,9 @@ def test_a_structured_server_error_has_the_http_status(host: str, httpserver: HT
     httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(
         error_response("JOB_INVALID_STATE", "Job is not ready"), status=409
     )
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
-    with pytest.raises(gs.AsvoApiError) as err:
+    with pytest.raises(gs.MwaAsvoApiError) as err:
         client.get_jobs()
 
     assert err.value.kind == "ApiError"
@@ -249,8 +249,8 @@ def test_a_token_cache_path_lets_a_second_client_skip_the_login(
     """With a token cache, the second client reuses the first client's session."""
     cache = tmp_path / "tokens.json"
 
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
 
     assert cache.exists()
     assert logins(httpserver) == 1
@@ -263,8 +263,8 @@ def test_a_cached_session_is_not_used_by_another_api_key(
     """A session is for one API key: a client with another key logs in again, and the file never holds a key."""
     cache = tmp_path / "tokens.json"
 
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
-    gs.AsvoClient(gs.AsvoClientConfig(host, "another-api-key", token_cache_path=cache))
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, token_cache_path=cache))
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, "another-api-key", token_cache_path=cache))
 
     assert logins(httpserver) == 2
     stored = cache.read_text()
@@ -276,7 +276,7 @@ def test_a_cached_session_is_not_used_by_another_api_key(
 def test_without_a_token_cache_every_client_logs_in(host: str, httpserver: HTTPServer) -> None:
     """With no token cache, the session is in memory only."""
     for _ in range(CLIENTS):
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     assert logins(httpserver) == CLIENTS
 
@@ -284,13 +284,13 @@ def test_without_a_token_cache_every_client_logs_in(host: str, httpserver: HTTPS
 def test_a_bad_timeout_is_rejected(host: str) -> None:
     """A negative api_timeout raises ValueError."""
     with pytest.raises(ValueError, match="api_timeout"):
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, api_timeout=-1.0))
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, api_timeout=-1.0))
 
 
 def test_a_timeout_of_zero_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
     """An api_timeout of 0 would time out every request, so the library refuses it before the login."""
-    with pytest.raises(gs.AsvoErrorInvalidOption, match="api_timeout"):
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY, api_timeout=0.0))
+    with pytest.raises(gs.MwaAsvoErrorInvalidOption, match="api_timeout"):
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, api_timeout=0.0))
 
     assert logins(httpserver) == 0
 
@@ -299,7 +299,7 @@ def test_a_timeout_of_zero_is_rejected_before_any_request(host: str, httpserver:
 def test_rust_log_records_reach_python_logging(host: str, caplog: pytest.LogCaptureFixture) -> None:
     """The library's warning about a non-default host arrives on a mwa_giant_squid logger."""
     with caplog.at_level(logging.WARNING, logger=MODULE_LOGGER):
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     records = [r for r in caplog.records if r.name.startswith(MODULE_LOGGER)]
     assert any("non-default host" in r.getMessage() for r in records), caplog.text
@@ -310,7 +310,7 @@ def test_rust_log_records_reach_python_logging(host: str, caplog: pytest.LogCapt
 def test_one_client_can_be_used_from_several_threads(host: str, serve_jobs: Callable[..., None]) -> None:
     """Calls release the GIL and the client is thread-safe."""
     serve_jobs(mixed_jobs())
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     with ThreadPoolExecutor(max_workers=THREADS) as pool:
         counts = list(pool.map(lambda _: len(client.get_jobs()), range(THREADS)))
@@ -360,7 +360,7 @@ def test_a_file_has_the_format_the_server_gives(host: str, serve_jobs: Callable[
     }
     serve_jobs([job_detail(JOB_ID_READY, "completed", completed=COMPLETED_TEXT, product=product)])
 
-    (job,) = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    (job,) = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert job.product is not None
     assert [file.format for file in job.product.files] == ["tar", None]
@@ -416,7 +416,7 @@ def test_get_jobs_sends_every_filter_to_the_server(
     """
     serve_jobs([])
 
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs(
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(
         gs.JobsFilter(
             days=FILTER_DAYS, job_states=[gs.JobState.Completed], job_types=[gs.JobType.Imaging], sort_by=FILTER_SORT
         )
@@ -436,7 +436,7 @@ def test_get_jobs_sends_the_dates_to_the_server(
     """The dates reach the request body, and ``days`` is ``null``: the jobs are selected by days or by dates."""
     serve_jobs([])
 
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs(
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(
         gs.JobsFilter(date_from=FILTER_FROM, date_to=FILTER_TO)
     )
 
@@ -451,7 +451,7 @@ def test_get_jobs_with_no_filter_sends_none(host: str, httpserver: HTTPServer, s
     """With no filters, the body has the schema's default for days, the default order, and no other filter."""
     serve_jobs([])
 
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     body = get_jobs_body(httpserver)
     assert body["days"] == SCHEMA_DEFAULT_DAYS
@@ -465,15 +465,15 @@ def test_get_jobs_refuses_a_time_without_a_time_zone(host: str) -> None:
     """A naive datetime is ambiguous, so it is refused."""
     naive = datetime.datetime(2026, 9, 1)
     with pytest.raises(TypeError):
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs(gs.JobsFilter(date_from=naive))
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(gs.JobsFilter(date_from=naive))
 
 
 @pytest.mark.usefixtures("mock_login")
 def test_a_job_has_every_field_of_the_job_detail(host: str, serve_jobs: Callable[..., None]) -> None:
-    """The job detail's other fields reach AsvoJob."""
+    """The job detail's other fields reach MwaAsvoJob."""
     serve_jobs([job_detail(JOB_ID_READY, "completed", started="2026-09-08T05:50:00", modified="2026-09-08T05:55:00")])
 
-    (job,) = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    (job,) = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert job.created == datetime.datetime(2026, 9, 8, 5, 41, 54, 757232, tzinfo=datetime.timezone.utc)
     assert job.started == datetime.datetime(2026, 9, 8, 5, 50, tzinfo=datetime.timezone.utc)
@@ -493,8 +493,8 @@ def test_an_api_error_has_its_field_errors_and_request_id(host: str, httpserver:
     body["request_id"] = "req-1234"
     httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(body, status=422)
 
-    with pytest.raises(gs.AsvoApiError) as err:
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    with pytest.raises(gs.MwaAsvoApiError) as err:
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert err.value.field_errors == [{"field": "mgain", "message": "must be at most 1"}]
     assert err.value.request_id == "req-1234"
@@ -509,8 +509,8 @@ def test_an_api_error_without_details_has_empty_ones(host: str, httpserver: HTTP
         error_response("JOB_INVALID_STATE", "Job is not ready"), status=400
     )
 
-    with pytest.raises(gs.AsvoApiError) as err:
-        gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()
+    with pytest.raises(gs.MwaAsvoApiError) as err:
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()
 
     assert err.value.field_errors == []
     assert err.value.request_id is None
@@ -536,7 +536,7 @@ OTHER_OBS_ID = 1090008640
 def test_get_jobs_filters_by_several_states_and_obsids(host: str, serve_jobs: Callable[..., None]) -> None:
     """The lists are applied to the result."""
     serve_jobs(three_jobs())
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
     completed_or_queued = client.get_jobs(gs.JobsFilter(job_states=[gs.JobState.Completed, gs.JobState.Queued]))
     cancelled = client.get_jobs(gs.JobsFilter(job_states=[gs.JobState.Cancelled]))
@@ -554,7 +554,7 @@ def test_get_jobs_sends_a_single_state_and_type_to_the_server(
     """One supported state and one type are server filters, so less comes back."""
     serve_jobs(three_jobs())
 
-    jobs = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs(
+    jobs = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(
         gs.JobsFilter(job_states=[gs.JobState.Queued], job_types=[gs.JobType.Imaging], days=FILTER_DAYS)
     )
 
@@ -571,10 +571,10 @@ def test_days_outside_one_to_thirty_raise_value_error_before_any_request(
     host: str, httpserver: HTTPServer, days: int
 ) -> None:
     """`get_jobs` takes the schema's 1 to 30 for ``days``, and the message gives the limits."""
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days.*between 1 and 30"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="days.*between 1 and 30"):
         client.get_jobs(gs.JobsFilter(days=days))
 
     assert len(httpserver.log) == requests_before
@@ -587,7 +587,7 @@ def test_the_ends_of_the_days_range_are_sent(
 ) -> None:
     """``days`` of 1 and of 30 are accepted and sent as they are."""
     serve_jobs([])
-    gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs(gs.JobsFilter(days=days))
+    gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(gs.JobsFilter(days=days))
 
     assert get_jobs_body(httpserver)["days"] == days
 
@@ -595,10 +595,10 @@ def test_the_ends_of_the_days_range_are_sent(
 @pytest.mark.usefixtures("mock_login")
 def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
     """Job IDs and obsids together raise ValueError before any listing."""
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="can't specify both"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="can't specify both"):
         client.get_jobs(gs.JobsFilter(job_ids=[1], obs_ids=[TEST_OBS_ID]))
 
     assert len(httpserver.log) == requests_before
@@ -606,9 +606,9 @@ def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HT
 
 @pytest.mark.usefixtures("mock_login")
 def test_a_job_has_an_obs_id(host: str, serve_jobs: Callable[..., None]) -> None:
-    """`AsvoJob.obs_id` is an `ObsId`, which is equal to the number."""
+    """`MwaAsvoJob.obs_id` is an `ObsId`, which is equal to the number."""
     serve_jobs(mixed_jobs())
-    job = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY)).get_jobs()[0]
+    job = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs()[0]
 
     assert isinstance(job.obs_id, gs.ObsId)
     assert job.obs_id == TEST_OBS_ID
@@ -619,7 +619,7 @@ def test_a_job_has_an_obs_id(host: str, serve_jobs: Callable[..., None]) -> None
 def test_an_obs_id_argument_is_an_int_or_an_obs_id(host: str, serve_jobs: Callable[..., None]) -> None:
     """`filter` and `get_jobs` take an `ObsId` as well as an `int`."""
     serve_jobs(mixed_jobs())
-    client = gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
     jobs = client.get_jobs(gs.JobsFilter(obs_ids=[gs.ObsId(TEST_OBS_ID)]))
 
     assert len(jobs) == len(mixed_jobs())

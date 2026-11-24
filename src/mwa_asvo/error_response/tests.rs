@@ -6,8 +6,8 @@ use super::*;
 
 const TEST_OBS_ID: u64 = 1_384_357_952;
 
-fn job_id(id: u64) -> AsvoJobId {
-    AsvoJobId::new(id).expect("a job ID is not zero")
+fn job_id(id: u64) -> MwaAsvoJobId {
+    MwaAsvoJobId::new(id).expect("a job ID is not zero")
 }
 
 fn obs_id() -> ObsId {
@@ -16,7 +16,7 @@ fn obs_id() -> ObsId {
 
 #[test]
 fn an_api_error_is_copied_verbatim() {
-    let error = AsvoApiError::ApiError {
+    let error = MwaAsvoApiError::ApiError {
         status: 404,
         response: Box::new(ErrorResponse {
             detail: Some("detail text".to_string()),
@@ -44,7 +44,7 @@ fn an_api_error_is_copied_verbatim() {
 #[test]
 fn an_api_error_without_field_errors_has_no_field_errors_key() {
     // The server sent an empty list: it is the same as none.
-    let error = AsvoApiError::api_error(
+    let error = MwaAsvoApiError::api_error(
         401,
         ErrorResponse {
             detail: None,
@@ -67,7 +67,7 @@ fn an_api_error_without_field_errors_has_no_field_errors_key() {
 #[test]
 fn a_bad_status_is_the_http_code_with_the_body_as_the_detail() {
     let body = "<html><body>503</body></html>\n";
-    let error = AsvoApiError::BadStatus {
+    let error = MwaAsvoApiError::BadStatus {
         status: 503,
         message: body.to_string(),
     };
@@ -81,7 +81,7 @@ fn a_bad_status_is_the_http_code_with_the_body_as_the_detail() {
 
 #[test]
 fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
-    let error = AsvoApiError::AuthenticationFailed {
+    let error = MwaAsvoApiError::AuthenticationFailed {
         message: "Bad API key".to_string(),
         response: Some(Box::new(ErrorResponse {
             detail: None,
@@ -101,7 +101,7 @@ fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
 
 #[test]
 fn a_failed_login_with_another_body_is_authentication_failed() {
-    let error = AsvoApiError::authentication_failed("no");
+    let error = MwaAsvoApiError::authentication_failed("no");
 
     let resp = error.error_response();
 
@@ -111,7 +111,7 @@ fn a_failed_login_with_another_body_is_authentication_failed() {
 
 #[test]
 fn an_invalid_parameter_has_a_field_error() {
-    let error = AsvoApiError::InvalidParameter {
+    let error = MwaAsvoApiError::InvalidParameter {
         name: "days",
         message: "must be between 1 and 30 (got 31)".to_string(),
     };
@@ -131,7 +131,7 @@ fn an_invalid_parameter_has_a_field_error() {
 
 #[test]
 fn a_missing_api_key_has_its_code() {
-    let error = AsvoApiError::MissingAuthKey { variable: None };
+    let error = MwaAsvoApiError::MissingAuthKey { variable: None };
     assert_eq!(
         error.error_response().error_code,
         ERROR_CODE_MISSING_API_KEY
@@ -140,7 +140,7 @@ fn a_missing_api_key_has_its_code() {
 
 #[test]
 fn a_download_error_from_the_api_is_the_api_error() {
-    let error = AsvoError::AsvoApi(AsvoApiError::BadStatus {
+    let error = MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus {
         status: 502,
         message: String::new(),
     });
@@ -150,7 +150,7 @@ fn a_download_error_from_the_api_is_the_api_error() {
 
 #[test]
 fn a_missing_job_uses_the_api_code_and_names_the_job() {
-    let error = AsvoError::NoAsvoJob(job_id(12345));
+    let error = MwaAsvoError::NoMwaAsvoJob(job_id(12345));
 
     assert_eq!(error.error_response().error_code, ERROR_CODE_JOB_NOT_FOUND);
     assert_eq!(error.error_response().message, error.to_string());
@@ -160,7 +160,7 @@ fn a_missing_job_uses_the_api_code_and_names_the_job() {
 
 #[test]
 fn a_failed_job_has_the_job_error_code_as_the_detail() {
-    let error = AsvoError::JobFailed {
+    let error = MwaAsvoError::JobFailed {
         job_id: job_id(12345),
         obs_id: obs_id(),
         error: "it broke".to_string(),
@@ -177,7 +177,7 @@ fn a_failed_job_has_the_job_error_code_as_the_detail() {
 
 #[test]
 fn a_missing_obs_id_names_the_obs_id() {
-    let error = AsvoError::NoObsId(obs_id());
+    let error = MwaAsvoError::NoObsId(obs_id());
 
     assert_eq!(
         error.error_response().error_code,
@@ -189,7 +189,7 @@ fn a_missing_obs_id_names_the_obs_id() {
 
 #[test]
 fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
-    let error = AsvoError::HttpError {
+    let error = MwaAsvoError::HttpError {
         job_id: job_id(7),
         status: 500,
         message: "body".to_string(),
@@ -203,7 +203,7 @@ fn a_download_http_error_is_the_http_code_with_the_body_as_the_detail() {
 
 #[test]
 fn a_download_http_error_names_its_job() {
-    let error = AsvoError::HttpError {
+    let error = MwaAsvoError::HttpError {
         job_id: job_id(7),
         status: 503,
         message: "try later".to_string(),
@@ -215,7 +215,7 @@ fn a_download_http_error_names_its_job() {
 
 #[test]
 fn a_file_that_cannot_be_created_is_an_io_error_that_names_the_path() {
-    let error = AsvoError::CannotCreate {
+    let error = MwaAsvoError::CannotCreate {
         path: std::path::PathBuf::from("/data/a.dat"),
         source: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
     };
@@ -243,7 +243,7 @@ fn a_parse_error_is_an_invalid_argument() {
 
 #[test]
 fn a_download_error_without_a_hash_has_its_own_code() {
-    let error = AsvoError::NoHash { job_id: job_id(5) };
+    let error = MwaAsvoError::NoHash { job_id: job_id(5) };
 
     let resp = error.error_response();
 
@@ -255,7 +255,7 @@ fn a_download_error_without_a_hash_has_its_own_code() {
 fn files_that_cannot_be_reached_have_their_own_code() {
     use crate::mwa_asvo::api::openapi::DeliveryDestination;
 
-    let error = AsvoError::FilesNotReachable {
+    let error = MwaAsvoError::FilesNotReachable {
         job_id: job_id(5),
         delivery: DeliveryDestination::Dug,
         path: None,

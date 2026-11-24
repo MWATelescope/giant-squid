@@ -88,7 +88,7 @@ def test_defaults_from_an_environment_that_is_not_valid(monkeypatch: pytest.Monk
     """The error is of kind `InvalidEnvironment`, and names the variable."""
     monkeypatch.setenv(gs.ENV_GIANT_SQUID_DELIVERY, "the-moon")
 
-    with pytest.raises(gs.AsvoError, match=gs.ENV_GIANT_SQUID_DELIVERY) as excinfo:
+    with pytest.raises(gs.MwaAsvoError, match=gs.ENV_GIANT_SQUID_DELIVERY) as excinfo:
         gs.CsvDefaults.from_env()
     assert excinfo.value.kind == "InvalidEnvironment"
 
@@ -169,7 +169,7 @@ def test_validate_accepts_a_body_from_a_file_and_refuses_one_that_was_changed() 
 
     body(job.params).offset = 6000
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="offset"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="offset"):
         job.params.validate()
 
 
@@ -263,7 +263,7 @@ def test_the_csv_errors_are_exceptions_that_are_not_asvo_errors() -> None:
     """The hierarchy is the library's."""
     for error in (gs.CsvError, gs.CsvJobsFailed, gs.CsvFileError, gs.CsvSubmitError):
         assert issubclass(error, Exception)
-        assert not issubclass(error, (gs.AsvoApiError, gs.AsvoError, ValueError))
+        assert not issubclass(error, (gs.MwaAsvoApiError, gs.MwaAsvoError, ValueError))
     assert issubclass(gs.CsvFileErrorInvalid, gs.CsvFileError)
     assert issubclass(gs.CsvFileErrorNoJobs, gs.CsvFileError)
     assert issubclass(gs.CsvSubmitErrorInvalid, gs.CsvSubmitError)
@@ -272,7 +272,7 @@ def test_the_csv_errors_are_exceptions_that_are_not_asvo_errors() -> None:
 
 
 def test_submit_csv_file_raises_the_failed_kind(
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
     httpserver: HTTPServer,
     write_csv: Callable[[str], pathlib.Path],
 ) -> None:
@@ -287,7 +287,7 @@ def test_submit_csv_file_raises_the_failed_kind(
     assert [f.obs_id for f in excinfo.value.failures] == [FIRST_OBS_ID]
 
 
-def test_submit_csv_jobs_submits_the_jobs_in_order(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_submit_csv_jobs_submits_the_jobs_in_order(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """The replies are in the order of the jobs, and each job goes to the endpoint of its type."""
     serve_submissions(httpserver)
     jobs = gs.parse_manta_ray_csv(f"{LINE_BY_TYPE['Conversion']}\n{VISIBILITY_LINES}")
@@ -304,8 +304,8 @@ def test_submit_csv_jobs_submits_the_jobs_in_order(client: gs.AsvoClient, httpse
     assert paths[1] == paths[2]
 
 
-def test_submit_csv_jobs_calls_on_result_for_each_job(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """The function gets the job and its reply, or the `AsvoApiError` of a failed request as a value."""
+def test_submit_csv_jobs_calls_on_result_for_each_job(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
+    """The function gets the job and its reply, or the `MwaAsvoApiError` of a failed request as a value."""
     serve_submissions(httpserver, failing=frozenset({FIRST_OBS_ID}))
     jobs = gs.parse_manta_ray_csv(VISIBILITY_LINES)
     seen: list[tuple[gs.CsvJob, object]] = []
@@ -314,7 +314,7 @@ def test_submit_csv_jobs_calls_on_result_for_each_job(client: gs.AsvoClient, htt
         client.submit_csv_jobs(jobs, lambda job, result: seen.append((job, result)))
 
     assert [job for job, _ in seen] == jobs
-    assert isinstance(seen[0][1], gs.AsvoApiError)
+    assert isinstance(seen[0][1], gs.MwaAsvoApiError)
     assert isinstance(seen[1][1], gs.JobSubmittedResponse)
     assert seen[1][1].job_id == job_id_for(SECOND_OBS_ID)
     assert [r.job_id for r in excinfo.value.submitted] == [job_id_for(SECOND_OBS_ID)]
@@ -323,7 +323,7 @@ def test_submit_csv_jobs_calls_on_result_for_each_job(client: gs.AsvoClient, htt
 
 
 def test_an_exception_in_on_result_is_raised_when_the_jobs_are_done(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """The library's loop cannot be stopped, so the other jobs are submitted, and the function is not called again."""
     serve_submissions(httpserver)
@@ -342,20 +342,20 @@ def test_an_exception_in_on_result_is_raised_when_the_jobs_are_done(
 
 
 def test_submit_csv_jobs_refuses_a_body_that_is_not_valid_and_sends_nothing(
-    client: gs.AsvoClient, httpserver: HTTPServer
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
 ) -> None:
     """A body that was changed after it was read is checked before any request."""
     serve_submissions(httpserver)
     jobs = gs.parse_manta_ray_csv(f"{LINE_BY_TYPE['Imaging']}\n")
     body(jobs[0].params).image_size = 100
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         client.submit_csv_jobs(jobs)
 
     assert requests_to_submit_paths(httpserver) == []
 
 
-def test_submit_csv_job_submits_one_body(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
+def test_submit_csv_job_submits_one_body(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """One job goes to its endpoint, and its reply comes back."""
     serve_submissions(httpserver)
     (job,) = gs.parse_manta_ray_csv(LINE_BY_TYPE["Voltage"])
@@ -369,11 +369,13 @@ def test_submit_csv_job_submits_one_body(client: gs.AsvoClient, httpserver: HTTP
     assert body["duration"] == 8
 
 
-def test_submit_csv_job_raises_the_api_error_of_a_failed_request(client: gs.AsvoClient, httpserver: HTTPServer) -> None:
-    """A failed request is an `AsvoApiError`, as for the other submit methods."""
+def test_submit_csv_job_raises_the_api_error_of_a_failed_request(
+    client: gs.MwaAsvoClient, httpserver: HTTPServer
+) -> None:
+    """A failed request is an `MwaAsvoApiError`, as for the other submit methods."""
     serve_submissions(httpserver, failing=frozenset({FIRST_OBS_ID}))
     (job,) = gs.parse_manta_ray_csv(LINE_BY_TYPE["Download"])
 
-    with pytest.raises(gs.AsvoApiError) as excinfo:
+    with pytest.raises(gs.MwaAsvoApiError) as excinfo:
         client.submit_csv_job(job.params)
     assert excinfo.value.kind == "ApiError"

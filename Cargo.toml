@@ -93,7 +93,7 @@ base64 = "0.23"
 bytesize = "2.0"
 # Dates and times. Only `Timestamp` is used (every MWA ASVO time is UTC), so
 # the time zone database features are off. jiff types are in the public API
-# (for example `AsvoJob::created`), so a jiff major version is a giant-squid
+# (for example `MwaAsvoJob::created`), so a jiff major version is a giant-squid
 # major version; `mwa_giant_squid::jiff` re-exports the version in use.
 jiff = { version = "0.2", default-features = false, features = ["std", "serde"] }
 log = "0.4"
@@ -134,7 +134,7 @@ pyo3-stub-gen = { version = "0.23.1", default-features = false, features = ["inf
 tempfile = "3.20"
 # Runs a real local HTTP server per test, so the client's requests and
 # response handling are exercised end to end without touching a real MWA
-# ASVO. The "record" feature is only needed by `record_login_and_get_jobs`
+# MWA ASVO. The "record" feature is only needed by `record_login_and_get_jobs`
 # in src/mwa_asvo/api/client/tests.rs, which is #[ignore]d and captures
 # fixtures from a live server by hand.
 httpmock = { version = "0.9", features = ["record"] }

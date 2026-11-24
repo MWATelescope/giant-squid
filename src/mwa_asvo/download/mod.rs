@@ -17,7 +17,7 @@ use super::api::openapi::DeliveryDestination;
 use super::redact::{redact_url, redact_urls_in_text};
 use super::retry::{sleep_unless_stopped, Backoff};
 use super::types::signed_url_expiry;
-use super::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, JobFile, JobState};
+use super::{JobFile, JobState, MwaAsvoError, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec};
 
 use std::cell::{Cell, RefCell};
 use std::fmt;
@@ -66,7 +66,7 @@ pub enum DownloadProgress {
     /// A file download starts, or starts again.
     Started {
         /// The MWA ASVO Job ID.
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         /// A human-readable label for the download, for example
         /// `Job ID 123 (obsid: 1234567890) [1/2]:`.
         label: String,
@@ -104,7 +104,7 @@ pub struct DownloadOptions<'a> {
     /// and not into `download_dir` itself. The files of two jobs of the same
     /// observation do not then meet in one directory, and a resumed download
     /// looks for the files of its own job only. A symbolic link at the path
-    /// of the directory is refused ([`AsvoError::SymlinkInDownloadDir`]).
+    /// of the directory is refused ([`MwaAsvoError::SymlinkInDownloadDir`]).
     ///
     /// A Scratch job is not affected: its files are moved into
     /// `download_dir` in a folder that the MWA ASVO has named for the job
@@ -125,7 +125,7 @@ pub struct DownloadOptions<'a> {
     /// How much data, in bytes, is held in memory before it is written to
     /// disk. At least [`MIN_DOWNLOAD_BUFFER_SIZE`](crate::MIN_DOWNLOAD_BUFFER_SIZE);
     /// a download with a smaller value fails with
-    /// [`AsvoError::InvalidOption`](crate::AsvoError::InvalidOption). See
+    /// [`MwaAsvoError::InvalidOption`](crate::MwaAsvoError::InvalidOption). See
     /// [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
     pub buffer_size: usize,
     /// How long to retry transient download failures before giving up.
@@ -134,7 +134,7 @@ pub struct DownloadOptions<'a> {
     pub retry_duration: std::time::Duration,
     /// Asked between chunks of a download, and during the wait before a
     /// retry, whether to stop. When it returns `true`, the download stops
-    /// with [`AsvoError::Interrupted`](crate::AsvoError::Interrupted), which
+    /// with [`MwaAsvoError::Interrupted`](crate::MwaAsvoError::Interrupted), which
     /// is never retried. `None` never stops. The caller decides what a stop
     /// means (for example, Ctrl-C in the Python module); the library reads
     /// no signals. A file that is being written stays on disk, partial, so
@@ -147,10 +147,10 @@ impl DownloadOptions<'_> {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidOption`] for the first option that has not.
-    pub(crate) fn check(&self) -> Result<(), AsvoError> {
+    /// [`MwaAsvoError::InvalidOption`] for the first option that has not.
+    pub(crate) fn check(&self) -> Result<(), MwaAsvoError> {
         if self.buffer_size < MIN_DOWNLOAD_BUFFER_SIZE {
-            return Err(AsvoError::InvalidOption {
+            return Err(MwaAsvoError::InvalidOption {
                 name: "buffer_size",
                 message: format!(
                     "must be at least {MIN_DOWNLOAD_BUFFER_SIZE} (got {})",
@@ -199,10 +199,10 @@ const MILLIS_PER_SECOND: u64 = 1000;
 /// Look up a single job by Job ID from the supplied list and download it.
 pub(crate) fn download_by_job_id(
     http_client: &Client,
-    jobs: &AsvoJobVec,
-    job_id: AsvoJobId,
+    jobs: &MwaAsvoJobVec,
+    job_id: MwaAsvoJobId,
     opts: &DownloadOptions,
-) -> Result<AsvoJob, AsvoError> {
+) -> Result<MwaAsvoJob, MwaAsvoError> {
     opts.check()?;
     debug!("Attempting to download Job ID {job_id}");
     // A Job ID is unique. If the list ever has it twice, the first is used.
@@ -210,7 +210,7 @@ pub(crate) fn download_by_job_id(
         .0
         .iter()
         .find(|j| j.job_id() == job_id)
-        .ok_or(AsvoError::NoAsvoJob(job_id))?;
+        .ok_or(MwaAsvoError::NoMwaAsvoJob(job_id))?;
     download_job(http_client, job, opts)?;
     Ok(job.clone())
 }
@@ -219,24 +219,24 @@ pub(crate) fn download_by_job_id(
 /// Fails if zero, or more than one, ready jobs match the Obs ID.
 pub(crate) fn download_by_obs_id(
     http_client: &Client,
-    jobs: &AsvoJobVec,
+    jobs: &MwaAsvoJobVec,
     obs_id: ObsId,
     opts: &DownloadOptions,
-) -> Result<AsvoJob, AsvoError> {
+) -> Result<MwaAsvoJob, MwaAsvoError> {
     opts.check()?;
     debug!("Attempting to download Obs ID {obs_id}");
     let mut of_obs_id = jobs.0.iter().filter(|j| j.obs_id() == obs_id).peekable();
     if of_obs_id.peek().is_none() {
-        return Err(AsvoError::NoObsId(obs_id));
+        return Err(MwaAsvoError::NoObsId(obs_id));
     }
-    let ready: Vec<&AsvoJob> = of_obs_id
+    let ready: Vec<&MwaAsvoJob> = of_obs_id
         .filter(|j| j.job_state == JobState::Completed)
         .collect();
     // A completed job whose download links have expired cannot be
     // downloaded, so it does not count when another completed job of the
     // Obs ID can.
     let now = Timestamp::now();
-    let usable: Vec<&AsvoJob> = ready
+    let usable: Vec<&MwaAsvoJob> = ready
         .iter()
         .copied()
         .filter(|j| !j.is_expired_at(now))
@@ -244,29 +244,29 @@ pub(crate) fn download_by_obs_id(
     match usable.as_slice() {
         [] => match ready.iter().max_by_key(|j| j.expires()) {
             // Every completed job has expired: say so for the newest.
-            Some(newest) => Err(AsvoError::JobExpired {
+            Some(newest) => Err(MwaAsvoError::JobExpired {
                 job_id: newest.job_id(),
                 expired: newest.expires(),
             }),
-            None => Err(AsvoError::NoJobReadyForObsId(obs_id)),
+            None => Err(MwaAsvoError::NoJobReadyForObsId(obs_id)),
         },
         [job] => {
             download_job(http_client, job, opts)?;
             Ok((*job).clone())
         }
-        _ => Err(AsvoError::TooManyObsIds(obs_id)),
+        _ => Err(MwaAsvoError::TooManyObsIds(obs_id)),
     }
 }
 
 /// Download all files for a single job, dispatching by delivery type.
 fn download_job(
     http_client: &Client,
-    job: &AsvoJob,
+    job: &MwaAsvoJob,
     opts: &DownloadOptions,
-) -> Result<(), AsvoError> {
+) -> Result<(), MwaAsvoError> {
     let job_id = job.job_id();
     if job.job_state != JobState::Completed {
-        return Err(AsvoError::NotReady {
+        return Err(MwaAsvoError::NotReady {
             job_id,
             job_state: job.job_state,
         });
@@ -275,15 +275,15 @@ fn download_job(
     // The MWA ASVO signs the URLs for a time, and a request after it fails
     // with HTTP 403. The `Expires` of the URL says so before any request.
     if job.is_expired_at(Timestamp::now()) {
-        return Err(AsvoError::JobExpired {
+        return Err(MwaAsvoError::JobExpired {
             job_id,
             expired: job.expires(),
         });
     }
 
     let files = match &job.product {
-        None => return Err(AsvoError::NoFiles(job_id)),
-        Some(p) if p.files.is_empty() => return Err(AsvoError::NoFiles(job_id)),
+        None => return Err(MwaAsvoError::NoFiles(job_id)),
+        Some(p) if p.files.is_empty() => return Err(MwaAsvoError::NoFiles(job_id)),
         Some(p) => &p.files,
     };
 
@@ -296,13 +296,13 @@ fn download_job(
         match f.type_ {
             DeliveryDestination::Acacia => {
                 let start_time = Instant::now();
-                let no_url = || AsvoError::NoUrl { job_id };
+                let no_url = || MwaAsvoError::NoUrl { job_id };
                 let url = f.url.as_deref().ok_or_else(no_url)?;
                 // Every downloaded file is checked against the MWA ASVO hash
                 // when it is resumed, so a file without one is refused before
                 // any request.
                 if f.sha1.is_none() {
-                    return Err(AsvoError::NoHash { job_id });
+                    return Err(MwaAsvoError::NoHash { job_id });
                 }
 
                 debug!("{log_prefix} Downloading from url {}", redact_url(url));
@@ -389,14 +389,14 @@ fn download_job(
                 }
             }
             DeliveryDestination::Dug => {
-                return Err(AsvoError::FilesNotReachable {
+                return Err(MwaAsvoError::FilesNotReachable {
                     job_id,
                     delivery: f.type_,
                     path: f.path.clone(),
                 });
             }
             DeliveryDestination::Scratch => {
-                let no_path = || AsvoError::NoPath { job_id };
+                let no_path = || MwaAsvoError::NoPath { job_id };
                 let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);
                 let folder_name = path_obj.file_name().ok_or_else(no_path)?;
@@ -415,7 +415,7 @@ fn download_job(
                         );
                     }
                     MoveTarget::Free if !path_obj.exists() => {
-                        return Err(AsvoError::FilesNotReachable {
+                        return Err(MwaAsvoError::FilesNotReachable {
                             job_id,
                             delivery: f.type_,
                             path: f.path.clone(),
@@ -445,19 +445,19 @@ fn download_job(
 /// error came from reading the download itself (see [`NetworkReader`]): a
 /// dropped connection is worth another attempt.
 #[allow(clippy::result_large_err)]
-fn retry_class(e: AsvoError, job_id: AsvoJobId) -> Retry<AsvoError> {
+fn retry_class(e: MwaAsvoError, job_id: MwaAsvoJobId) -> Retry<MwaAsvoError> {
     match &e {
-        AsvoError::IO(io_error) if is_network_read_error(io_error) => Retry::Transient(e),
-        AsvoError::IO(_)
-        | AsvoError::CannotCreate { .. }
-        | AsvoError::Interrupted
-        | AsvoError::SymlinkInDownloadDir { .. }
-        | AsvoError::JobExpired { .. }
-        | AsvoError::NoHash { .. } => Retry::Permanent(e),
-        AsvoError::HttpError { status: 404, .. } => {
-            Retry::Permanent(AsvoError::Http404Error { job_id })
+        MwaAsvoError::IO(io_error) if is_network_read_error(io_error) => Retry::Transient(e),
+        MwaAsvoError::IO(_)
+        | MwaAsvoError::CannotCreate { .. }
+        | MwaAsvoError::Interrupted
+        | MwaAsvoError::SymlinkInDownloadDir { .. }
+        | MwaAsvoError::JobExpired { .. }
+        | MwaAsvoError::NoHash { .. } => Retry::Permanent(e),
+        MwaAsvoError::HttpError { status: 404, .. } => {
+            Retry::Permanent(MwaAsvoError::Http404Error { job_id })
         }
-        AsvoError::HttpError {
+        MwaAsvoError::HttpError {
             status: 401 | 403, ..
         } => Retry::Permanent(e),
         _ => Retry::Transient(e),
@@ -497,17 +497,17 @@ fn try_download(
     http_client: &Client,
     url: &str,
     file_info: &JobFile,
-    job: &AsvoJob,
+    job: &MwaAsvoJob,
     out_path: &PathBuf,
     log_prefix: &str,
     opts: &DownloadOptions,
     retry_state: &mut RetryState,
-) -> Result<u64, AsvoError> {
+) -> Result<u64, MwaAsvoError> {
     let job_id = job.job_id();
     let mwa_asvo_hash = file_info
         .sha1
         .as_deref()
-        .ok_or(AsvoError::NoHash { job_id })?;
+        .ok_or(MwaAsvoError::NoHash { job_id })?;
 
     let job_type = job.job_type.map(|t| t.to_string()).unwrap_or_default();
     let size_text = bytesize::ByteSize(file_info.size_bytes()).display().iec();
@@ -628,7 +628,7 @@ enum EntryTarget {
     /// The entry's file, or a directory on the way to it, is a symbolic link
     /// that is already on disk (at this path). Writing through it would write
     /// wherever it points, so the download fails
-    /// ([`AsvoError::SymlinkInDownloadDir`]).
+    /// ([`MwaAsvoError::SymlinkInDownloadDir`]).
     ThroughLink(PathBuf),
     /// Not unpacked: the entry is not a file or a directory (for example a
     /// symbolic link, a hard link or a device). giant-squid unpacks only
@@ -713,7 +713,7 @@ fn tar_entry_target(
 /// Make the directory for the files of the job `job_id` in `download_dir`
 /// (`download_dir/<job_id>`), if it is not there, and give its path. A
 /// symbolic link at its path is refused, as one inside a download is.
-fn make_job_directory(download_dir: &Path, job_id: AsvoJobId) -> Result<String, AsvoError> {
+fn make_job_directory(download_dir: &Path, job_id: MwaAsvoJobId) -> Result<String, MwaAsvoError> {
     let relative = PathBuf::from(job_id.to_string());
     open_download_root(download_dir)?
         .create_dir_all(&relative)
@@ -723,10 +723,10 @@ fn make_job_directory(download_dir: &Path, job_id: AsvoJobId) -> Result<String, 
 
 /// Open the download directory, for making the files and directories of a tar
 /// archive below it (see [`DownloadRoot`]). The directory must exist.
-fn open_download_root(unpack_path: &Path) -> Result<DownloadRoot, AsvoError> {
+fn open_download_root(unpack_path: &Path) -> Result<DownloadRoot, MwaAsvoError> {
     DownloadRoot::open(unpack_path).map_err(|source| {
         let path_display = unpack_path.display();
-        AsvoError::IO(io::Error::new(
+        MwaAsvoError::IO(io::Error::new(
             source.kind(),
             format!("cannot open the download directory {path_display}: {source}"),
         ))
@@ -735,10 +735,10 @@ fn open_download_root(unpack_path: &Path) -> Result<DownloadRoot, AsvoError> {
 
 /// The error of a file or directory below the download directory that could
 /// not be made: a symbolic link on the way, or another failure.
-fn below_error(error: BelowError) -> AsvoError {
+fn below_error(error: BelowError) -> MwaAsvoError {
     match error {
-        BelowError::Symlink(path) => AsvoError::SymlinkInDownloadDir { path },
-        BelowError::Io { path, source } => AsvoError::CannotCreate { path, source },
+        BelowError::Symlink(path) => MwaAsvoError::SymlinkInDownloadDir { path },
+        BelowError::Io { path, source } => MwaAsvoError::CannotCreate { path, source },
     }
 }
 
@@ -852,13 +852,13 @@ fn try_download_untar(
     http_client: &Client,
     url: &str,
     file_info: &JobFile,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     out_path: &Path,
     log_prefix: &str,
     opts: &DownloadOptions,
     mwa_asvo_hash: &str,
     checkpoint: &mut Option<UntarCheckpoint>,
-) -> Result<u64, AsvoError> {
+) -> Result<u64, MwaAsvoError> {
     let unpack_path = Path::new(opts.download_dir);
 
     let mut resume = match checkpoint.as_ref() {
@@ -963,7 +963,7 @@ fn untar_stream(
     log_prefix: &str,
     opts: &DownloadOptions,
     checkpoint: &mut Option<UntarCheckpoint>,
-) -> Result<Sha1, AsvoError> {
+) -> Result<Sha1, MwaAsvoError> {
     untar_stream_with_sidecar(
         source,
         resume,
@@ -985,7 +985,7 @@ fn untar_stream_with_sidecar(
     opts: &DownloadOptions,
     checkpoint: &mut Option<UntarCheckpoint>,
     sidecar: Option<&SidecarWriter>,
-) -> Result<Sha1, AsvoError> {
+) -> Result<Sha1, MwaAsvoError> {
     let buffer_size = opts.buffer_size;
     let root = open_download_root(unpack_path)?;
     // Stamps after the resume point belong to an attempt that failed later
@@ -1085,7 +1085,7 @@ fn untar_stream_with_sidecar(
                          download directory (its path is absolute, has '..' or names no file).");
                 }
                 EntryTarget::ThroughLink(path) => {
-                    return Err(AsvoError::SymlinkInDownloadDir { path });
+                    return Err(MwaAsvoError::SymlinkInDownloadDir { path });
                 }
                 EntryTarget::NotAFile => {
                     // As for `Skip`, the hash still covers the entry.
@@ -1112,7 +1112,7 @@ fn untar_stream_with_sidecar(
 /// still covers the whole archive. A file that is
 /// larger than its member cannot be this download's own, so the attempt
 /// then starts again from the beginning of the archive.
-fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, AsvoError> {
+fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, MwaAsvoError> {
     let mut hasher = cp.hasher.clone();
     let (on_disk, file) = match &cp.out_path {
         None => (0, None),
@@ -1136,7 +1136,7 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
             // The path was made from `unpack_path`, so it is below it.
             let unpack_path = &cp.unpack_path;
             let relative = path.strip_prefix(unpack_path).map_err(|_| {
-                AsvoError::IO(io::Error::new(
+                MwaAsvoError::IO(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!("{path:?} is not below the download directory"),
                 ))
@@ -1163,7 +1163,7 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, A
 }
 
 /// Add the first `len` bytes of the file at `path` to `hasher`.
-fn hash_file_prefix(path: &Path, len: u64, hasher: &mut Sha1) -> Result<(), AsvoError> {
+fn hash_file_prefix(path: &Path, len: u64, hasher: &mut Sha1) -> Result<(), MwaAsvoError> {
     let copied = hash_reader(File::open(path)?.take(len), hasher)?;
     if copied < len {
         let path_display = path.display();
@@ -1239,15 +1239,15 @@ impl<R: Read> Read for CountingReader<'_, R> {
 /// (for example, the server does not answer byte range requests). A failed
 /// check is not an error: the download fetches the whole archive, as it
 /// would without the check. Only a stop that the caller asked for
-/// ([`AsvoError::Interrupted`]) is an error.
+/// ([`MwaAsvoError::Interrupted`]) is an error.
 fn untar_checkpoint_from_disk(
     http_client: &Client,
     url: &str,
     file_info: &JobFile,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     log_prefix: &str,
     opts: &DownloadOptions,
-) -> Result<Option<UntarCheckpoint>, AsvoError> {
+) -> Result<Option<UntarCheckpoint>, MwaAsvoError> {
     // An empty directory cannot hold files from an earlier run, so it is
     // not worth a request to the server.
     let dir_is_empty = std::fs::read_dir(opts.download_dir)
@@ -1259,7 +1259,7 @@ fn untar_checkpoint_from_disk(
 
     match find_files_on_disk(http_client, url, file_info, job_id, log_prefix, opts) {
         Ok(checkpoint) => Ok(checkpoint),
-        Err(AsvoError::Interrupted) => Err(AsvoError::Interrupted),
+        Err(MwaAsvoError::Interrupted) => Err(MwaAsvoError::Interrupted),
         Err(e) => {
             warn!(
                 "{log_prefix} Could not check for files from an earlier download ({e}). \
@@ -1275,10 +1275,10 @@ fn find_files_on_disk(
     http_client: &Client,
     url: &str,
     file_info: &JobFile,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     log_prefix: &str,
     opts: &DownloadOptions,
-) -> Result<Option<UntarCheckpoint>, AsvoError> {
+) -> Result<Option<UntarCheckpoint>, MwaAsvoError> {
     let unpack_path = Path::new(opts.download_dir);
     let hasher = RefCell::new(Sha1::new());
     let local = RefCell::new(None);
@@ -1398,7 +1398,7 @@ struct SpliceReader<'a> {
     http_client: &'a Client,
     url: &'a str,
     /// The job whose archive this is, for the errors of the requests.
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     /// The size of the archive, in bytes.
     archive_size: u64,
     /// The archive offset of the next byte.
@@ -1860,14 +1860,14 @@ fn stop_requested(opts: &DownloadOptions) -> bool {
 /// Run `op`, and retry it under `backoff` while it fails with a transient
 /// error. The wait before each retry is cut into steps of at most
 /// `STOP_CHECK_INTERVAL` (see [`sleep_unless_stopped`]), and the retries end with
-/// [`AsvoError::Interrupted`] when the caller asks the download to stop.
+/// [`MwaAsvoError::Interrupted`] when the caller asks the download to stop.
 /// Otherwise a stop could wait for the whole back-off interval, which grows
 /// to a minute.
 fn retry_unless_stopped<T>(
     mut backoff: Backoff,
-    mut op: impl FnMut() -> Result<T, Retry<AsvoError>>,
+    mut op: impl FnMut() -> Result<T, Retry<MwaAsvoError>>,
     opts: &DownloadOptions,
-) -> Result<T, AsvoError> {
+) -> Result<T, MwaAsvoError> {
     loop {
         match op() {
             Ok(value) => return Ok(value),
@@ -1906,8 +1906,8 @@ fn send_checked(
     http_client: &Client,
     url: &str,
     headers: Option<HeaderMap>,
-    job_id: AsvoJobId,
-) -> Result<reqwest::blocking::Response, AsvoError> {
+    job_id: MwaAsvoJobId,
+) -> Result<reqwest::blocking::Response, MwaAsvoError> {
     let mut req = http_client.get(url);
     if let Some(h) = headers {
         req = req.headers(h);
@@ -1921,12 +1921,12 @@ fn send_checked(
         // The file server answers a URL that has expired (or whose
         // signature is not valid) with 403 and an `AccessDenied` error.
         if status == reqwest::StatusCode::FORBIDDEN && body.contains(ACCESS_DENIED_CODE) {
-            return Err(AsvoError::JobExpired {
+            return Err(MwaAsvoError::JobExpired {
                 job_id,
                 expired: signed_url_expiry(url),
             });
         }
-        return Err(AsvoError::HttpError {
+        return Err(MwaAsvoError::HttpError {
             job_id,
             status: status.as_u16(),
             message: redact_urls_in_text(&body),
@@ -1970,7 +1970,7 @@ fn report(opts: &DownloadOptions, event: DownloadProgress) {
 /// bytes of `total_bytes`.
 fn report_started(
     opts: &DownloadOptions,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     label: &str,
     total_bytes: u64,
     position: u64,
@@ -1988,17 +1988,17 @@ fn report_started(
 
 /// Buffered copy from `reader` to `writer`, reporting progress. Before
 /// each chunk it asks [`DownloadOptions::should_stop`], and stops with
-/// [`AsvoError::Interrupted`] if the caller asks.
+/// [`MwaAsvoError::Interrupted`] if the caller asks.
 fn copy_with_progress(
     reader: impl Read,
     writer: &mut impl Write,
     buffer_size: usize,
     opts: &DownloadOptions,
-) -> Result<(), AsvoError> {
+) -> Result<(), MwaAsvoError> {
     let mut buf = BufReader::with_capacity(buffer_size, reader);
     loop {
         if stop_requested(opts) {
-            return Err(AsvoError::Interrupted);
+            return Err(MwaAsvoError::Interrupted);
         }
         let data = buf.fill_buf()?;
         let len = data.len();
@@ -2064,19 +2064,21 @@ enum MoveTarget {
 ///
 /// # Errors
 ///
-/// [`AsvoError::SymlinkInDownloadDir`] if `to` is a symbolic link (even one
-/// that points nowhere), and [`AsvoError::DestinationExists`] if something
+/// [`MwaAsvoError::SymlinkInDownloadDir`] if `to` is a symbolic link (even one
+/// that points nowhere), and [`MwaAsvoError::DestinationExists`] if something
 /// else is there that is not `from` itself.
-fn move_target(from: &Path, to: &Path, job_id: AsvoJobId) -> Result<MoveTarget, AsvoError> {
+fn move_target(from: &Path, to: &Path, job_id: MwaAsvoJobId) -> Result<MoveTarget, MwaAsvoError> {
     match fs::symlink_metadata(to) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(MoveTarget::Free),
         Err(e) => Err(e.into()),
-        Ok(metadata) if metadata.file_type().is_symlink() => Err(AsvoError::SymlinkInDownloadDir {
-            path: to.to_path_buf(),
-        }),
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(MwaAsvoError::SymlinkInDownloadDir {
+                path: to.to_path_buf(),
+            })
+        }
         Ok(_) if same_path(from, to) => Ok(MoveTarget::AlreadyThere),
         Ok(metadata) if metadata.is_dir() && !path_exists(from) => Ok(MoveTarget::AlreadyMoved),
-        Ok(_) => Err(AsvoError::DestinationExists {
+        Ok(_) => Err(MwaAsvoError::DestinationExists {
             job_id,
             path: to.to_path_buf(),
         }),
@@ -2231,15 +2233,15 @@ fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
 ///
 /// A symbolic link at `path` is refused when the file is opened, so that it
 /// cannot be put there between a check and the open
-/// ([`AsvoError::SymlinkInDownloadDir`]).
-fn create_file(path: &Path) -> Result<File, AsvoError> {
+/// ([`MwaAsvoError::SymlinkInDownloadDir`]).
+fn create_file(path: &Path) -> Result<File, MwaAsvoError> {
     open_for_writing(path, WriteMode::CreateOrTruncate).map_err(|source| {
         if refused_a_symlink(&source, path) {
-            AsvoError::SymlinkInDownloadDir {
+            MwaAsvoError::SymlinkInDownloadDir {
                 path: path.to_path_buf(),
             }
         } else {
-            AsvoError::CannotCreate {
+            MwaAsvoError::CannotCreate {
                 path: path.to_path_buf(),
                 source,
             }
@@ -2252,7 +2254,7 @@ fn create_file(path: &Path) -> Result<File, AsvoError> {
 /// a variant of its own, so that a caller cannot miss it.
 enum OutputTarget {
     /// Nothing to fetch: the file is already complete and matches the MWA
-    /// ASVO hash.
+    /// MWA ASVO hash.
     AlreadyDone { reason: &'static str },
 
     /// Fetch into this file, starting `offset` bytes in. An `offset` of 0
@@ -2273,10 +2275,10 @@ fn prepare_output_file(
     no_resume: bool,
     file_info: &JobFile,
     mwa_asvo_hash: &str,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     log_prefix: &str,
-) -> Result<OutputTarget, AsvoError> {
-    let start_again = || -> Result<OutputTarget, AsvoError> {
+) -> Result<OutputTarget, MwaAsvoError> {
+    let start_again = || -> Result<OutputTarget, MwaAsvoError> {
         Ok(OutputTarget::Download {
             file: create_file(out_path)?,
             offset: 0,
@@ -2286,7 +2288,7 @@ fn prepare_output_file(
     // A symbolic link at `out_path` (even one that points nowhere) would make
     // the download write wherever it points, so it is refused.
     if std::fs::symlink_metadata(out_path).is_ok_and(|m| m.file_type().is_symlink()) {
-        return Err(AsvoError::SymlinkInDownloadDir {
+        return Err(MwaAsvoError::SymlinkInDownloadDir {
             path: out_path.clone(),
         });
     }
@@ -2327,11 +2329,11 @@ fn prepare_output_file(
     Ok(OutputTarget::Download {
         file: open_for_writing(out_path, WriteMode::Append).map_err(|source| {
             if refused_a_symlink(&source, out_path) {
-                AsvoError::SymlinkInDownloadDir {
+                MwaAsvoError::SymlinkInDownloadDir {
                     path: out_path.clone(),
                 }
             } else {
-                AsvoError::IO(source)
+                MwaAsvoError::IO(source)
             }
         })?,
         offset: file_size_bytes,

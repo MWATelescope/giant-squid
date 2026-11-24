@@ -13,7 +13,7 @@ use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use super::error::asvo_error;
+use super::error::mwa_asvo_error;
 use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
@@ -23,7 +23,7 @@ use crate::mwa_asvo::api::openapi::{
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{
-    AsvoJob, AsvoJobId, AsvoJobVec, DownloadProgress, JobFile, JobProduct, JobState,
+    DownloadProgress, JobFile, JobProduct, JobState, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec,
 };
 use crate::obs_id::ObsId;
 
@@ -91,13 +91,13 @@ macro_rules! py_enum {
             ///     s: The name.
             ///
             /// Raises:
-            ///     AsvoError: The text is not the name of a job type (kind
+            ///     MwaAsvoError: The text is not the name of a job type (kind
             ///         `InvalidJobType`).
             #[staticmethod]
             fn parse_name(py: Python<'_>, s: &str) -> PyResult<Self> {
                 JobType::parse_name(s)
                     .map(Self::from)
-                    .map_err(|e| asvo_error(py, e))
+                    .map_err(|e| mwa_asvo_error(py, e))
             }
         });
     };
@@ -118,13 +118,13 @@ macro_rules! py_enum {
             ///     s: The name.
             ///
             /// Raises:
-            ///     AsvoError: The text is not the name of a job state (kind
+            ///     MwaAsvoError: The text is not the name of a job state (kind
             ///         `InvalidJobState`).
             #[staticmethod]
             fn parse_name(py: Python<'_>, s: &str) -> PyResult<Self> {
                 JobState::parse_name(s)
                     .map(Self::from)
-                    .map_err(|e| asvo_error(py, e))
+                    .map_err(|e| mwa_asvo_error(py, e))
             }
         });
     };
@@ -226,18 +226,18 @@ impl PyJobProduct {
 
 /// An MWA ASVO job.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(frozen, name = "AsvoJob", module = "mwa_giant_squid")]
+#[pyclass(frozen, name = "MwaAsvoJob", module = "mwa_giant_squid")]
 #[derive(Clone)]
-pub struct PyAsvoJob(AsvoJob);
+pub struct PyMwaAsvoJob(MwaAsvoJob);
 
-impl From<AsvoJob> for PyAsvoJob {
-    fn from(job: AsvoJob) -> Self {
+impl From<MwaAsvoJob> for PyMwaAsvoJob {
+    fn from(job: MwaAsvoJob) -> Self {
         Self(job)
     }
 }
 
 /// Make the `#[pymethods]` block of a class that has the fields of the
-/// schema's `JobDetailResponse` as attributes: `AsvoJob` (which derefs to it
+/// schema's `JobDetailResponse` as attributes: `MwaAsvoJob` (which derefs to it
 /// in Rust) and `JobDetailResponse`. `$extra` are the methods of only this
 /// class. (A class has one `#[pymethods]` block, so the block is made here.)
 macro_rules! detail_pymethods {
@@ -343,7 +343,7 @@ macro_rules! detail_pymethods {
     };
 }
 
-detail_pymethods!(PyAsvoJob, {
+detail_pymethods!(PyMwaAsvoJob, {
     /// The Obs ID.
     #[getter]
     fn obs_id(&self) -> PyObsId {
@@ -367,7 +367,7 @@ detail_pymethods!(PyAsvoJob, {
     /// Whether the job is completed and its download links have expired. The
     /// MWA ASVO has no such state, so this is worked out from `expires`.
     /// `job_state` is still the MWA ASVO's. A download of an expired job
-    /// raises `AsvoError` of kind `JobExpired`: resubmit the job.
+    /// raises `MwaAsvoError` of kind `JobExpired`: resubmit the job.
     #[getter]
     fn is_expired(&self) -> bool {
         self.0.is_expired()
@@ -390,14 +390,14 @@ detail_pymethods!(PyAsvoJob, {
             .map_or("None".to_string(), |t| t.to_string());
         let job_state = self.0.job_state;
         format!(
-            "AsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
+            "MwaAsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
         )
     }
 });
 
 /// A job as the MWA ASVO API gives it: the OpenAPI schema's
-/// `JobDetailResponse`. `AsvoJob.detail` returns it. It has the same
-/// attributes as `AsvoJob`, except that `obs_id` is the `int` that the API
+/// `JobDetailResponse`. `MwaAsvoJob.detail` returns it. It has the same
+/// attributes as `MwaAsvoJob`, except that `obs_id` is the `int` that the API
 /// gave, not a checked `ObsId`.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "JobDetailResponse", module = "mwa_giant_squid")]
@@ -406,7 +406,7 @@ pub struct PyJobDetailResponse(JobDetailResponse);
 
 detail_pymethods!(PyJobDetailResponse, {
     /// The Obs ID, as the API gives it: a number that is not checked. (The
-    /// Obs ID of an `AsvoJob` is an `ObsId`.)
+    /// Obs ID of an `MwaAsvoJob` is an `ObsId`.)
     #[getter]
     fn obs_id(&self) -> i64 {
         self.0.obs_id
@@ -427,7 +427,7 @@ detail_pymethods!(PyJobDetailResponse, {
 });
 
 /// A download progress event, given to the `progress` callback of
-/// `AsvoClient.download_job` and `AsvoClient.download_obs`.
+/// `MwaAsvoClient.download_job` and `MwaAsvoClient.download_obs`.
 ///
 /// For each file there are one or more `Started` events, then zero or more
 /// `Advanced` events, then one `Finished` event. A second `Started` for the
@@ -571,41 +571,41 @@ py_job_response!(
 
 /// A list of MWA ASVO jobs. Supports `len()`, indexing and iteration.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(frozen, name = "AsvoJobVec", module = "mwa_giant_squid")]
-pub struct PyAsvoJobVec(AsvoJobVec);
+#[pyclass(frozen, name = "MwaAsvoJobVec", module = "mwa_giant_squid")]
+pub struct PyMwaAsvoJobVec(MwaAsvoJobVec);
 
-impl PyAsvoJobVec {
+impl PyMwaAsvoJobVec {
     /// The library's job list.
-    pub(crate) fn inner(&self) -> &AsvoJobVec {
+    pub(crate) fn inner(&self) -> &MwaAsvoJobVec {
         &self.0
     }
 }
 
-impl From<AsvoJobVec> for PyAsvoJobVec {
-    fn from(jobs: AsvoJobVec) -> Self {
+impl From<MwaAsvoJobVec> for PyMwaAsvoJobVec {
+    fn from(jobs: MwaAsvoJobVec) -> Self {
         Self(jobs)
     }
 }
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyAsvoJobVec {
+impl PyMwaAsvoJobVec {
     fn __len__(&self) -> usize {
         self.0 .0.len()
     }
 
-    fn __getitem__(&self, index: isize) -> PyResult<PyAsvoJob> {
+    fn __getitem__(&self, index: isize) -> PyResult<PyMwaAsvoJob> {
         let len = self.0 .0.len() as isize;
         let i = if index < 0 { index + len } else { index };
         if (0..len).contains(&i) {
-            Ok(PyAsvoJob(self.0 .0[i as usize].clone()))
+            Ok(PyMwaAsvoJob(self.0 .0[i as usize].clone()))
         } else {
-            Err(PyIndexError::new_err("AsvoJobVec index out of range"))
+            Err(PyIndexError::new_err("MwaAsvoJobVec index out of range"))
         }
     }
 
     fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<JobIterator<'py>> {
-        let jobs: Vec<PyAsvoJob> = self.0 .0.iter().cloned().map(PyAsvoJob).collect();
+        let jobs: Vec<PyMwaAsvoJob> = self.0 .0.iter().cloned().map(PyMwaAsvoJob).collect();
         PyList::new(py, jobs)?.try_iter().map(JobIterator)
     }
 
@@ -665,20 +665,22 @@ impl PyAsvoJobVec {
     /// Whether all of `job_ids` are ready for download. `False` means some
     /// are still in progress.
     ///
-    /// This makes no request: to wait, call `AsvoClient.get_jobs` and this
+    /// This makes no request: to wait, call `MwaAsvoClient.get_jobs` and this
     /// in a loop.
     ///
     /// Raises:
-    ///     AsvoError: A job is missing, has an error, has been cancelled, or
+    ///     MwaAsvoError: A job is missing, has an error, has been cancelled, or
     ///         is completed but its download links have expired (kind
     ///         `JobExpired`).
     fn all_ready(&self, py: Python<'_>, job_ids: Vec<JobId>) -> PyResult<bool> {
-        let job_ids: Vec<AsvoJobId> = job_ids.into_iter().map(|id| id.0).collect();
-        self.0.all_ready(&job_ids).map_err(|e| asvo_error(py, e))
+        let job_ids: Vec<MwaAsvoJobId> = job_ids.into_iter().map(|id| id.0).collect();
+        self.0
+            .all_ready(&job_ids)
+            .map_err(|e| mwa_asvo_error(py, e))
     }
 
     fn __repr__(&self) -> String {
         let job_count = self.0 .0.len();
-        format!("AsvoJobVec(<{job_count} jobs>)")
+        format!("MwaAsvoJobVec(<{job_count} jobs>)")
     }
 }

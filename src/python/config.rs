@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! The settings of a client and of a download: `AsvoClientConfig` and
+//! The settings of a client and of a download: `MwaAsvoClientConfig` and
 //! `DownloadSettings`, and the functions that read them from the environment.
 //!
 //! A `Duration` of the library is a `float` number of seconds.
@@ -13,8 +13,8 @@ use std::time::Duration;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use super::error::asvo_error;
-use crate::mwa_asvo::AsvoClientConfig;
+use super::error::mwa_asvo_error;
+use crate::mwa_asvo::MwaAsvoClientConfig;
 use crate::{
     DownloadSettings, DEFAULT_API_TIMEOUT, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
@@ -30,7 +30,7 @@ pub(super) fn duration_from_seconds(name: &str, seconds: f64) -> PyResult<Durati
         .map_err(|e| PyValueError::new_err(format!("{name}={seconds} is not valid: {e}")))
 }
 
-/// Everything an `AsvoClient` needs to connect to the MWA ASVO.
+/// Everything an `MwaAsvoClient` needs to connect to the MWA ASVO.
 ///
 /// The module reads no environment variables here. To read them (as the
 /// `giant-squid` command does), use `client_config_from_env`.
@@ -50,8 +50,8 @@ pub(super) fn duration_from_seconds(name: &str, seconds: f64) -> PyResult<Durati
 ///         hash of the key, never the key. `default_token_cache_path` is the
 ///         place that the `giant-squid` command uses.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
-#[pyclass(name = "AsvoClientConfig", module = "mwa_giant_squid")]
-pub struct PyAsvoClientConfig {
+#[pyclass(name = "MwaAsvoClientConfig", module = "mwa_giant_squid")]
+pub struct PyMwaAsvoClientConfig {
     /// The MWA ASVO base URL.
     #[pyo3(get, set)]
     pub host: String,
@@ -68,7 +68,7 @@ pub struct PyAsvoClientConfig {
 
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
-impl PyAsvoClientConfig {
+impl PyMwaAsvoClientConfig {
     #[new]
     #[pyo3(signature = (host, api_key, *, api_timeout=None, token_cache_path=None))]
     fn new(
@@ -88,29 +88,29 @@ impl PyAsvoClientConfig {
     /// The repr does not show the API key.
     fn __repr__(&self) -> String {
         format!(
-            "AsvoClientConfig(host={:?}, api_key=<hidden>, api_timeout={}, token_cache_path={:?})",
+            "MwaAsvoClientConfig(host={:?}, api_key=<hidden>, api_timeout={}, token_cache_path={:?})",
             self.host, self.api_timeout, self.token_cache_path
         )
     }
 }
 
-impl PyAsvoClientConfig {
+impl PyMwaAsvoClientConfig {
     /// The library's config for these values.
     ///
     /// # Errors
     ///
     /// `ValueError` if `api_timeout` is negative or not finite. (A timeout of
     /// 0 is refused when the client is made.)
-    pub(super) fn to_lib(&self) -> PyResult<AsvoClientConfig> {
-        let mut config = AsvoClientConfig::new(self.host.clone(), self.api_key.clone());
+    pub(super) fn to_lib(&self) -> PyResult<MwaAsvoClientConfig> {
+        let mut config = MwaAsvoClientConfig::new(self.host.clone(), self.api_key.clone());
         config.api_timeout = duration_from_seconds("api_timeout", self.api_timeout)?;
         config.token_cache_path = self.token_cache_path.clone();
         Ok(config)
     }
 }
 
-impl From<AsvoClientConfig> for PyAsvoClientConfig {
-    fn from(config: AsvoClientConfig) -> Self {
+impl From<MwaAsvoClientConfig> for PyMwaAsvoClientConfig {
+    fn from(config: MwaAsvoClientConfig) -> Self {
         Self {
             host: config.host,
             api_key: config.api_key,
@@ -120,11 +120,11 @@ impl From<AsvoClientConfig> for PyAsvoClientConfig {
     }
 }
 
-/// Build an `AsvoClientConfig` from the environment, as the `giant-squid`
+/// Build an `MwaAsvoClientConfig` from the environment, as the `giant-squid`
 /// command does.
 ///
 /// - `MWA_ASVO_API_KEY` is required.
-/// - `MWA_ASVO_HOST` is the host. The default is `DEFAULT_ASVO_HOST`.
+/// - `MWA_ASVO_HOST` is the host. The default is `DEFAULT_MWA_ASVO_HOST`.
 /// - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds. The default is
 ///   `DEFAULT_API_TIMEOUT`.
 /// - The session is cached under `HOME` (see `default_token_cache_path`).
@@ -134,18 +134,18 @@ impl From<AsvoClientConfig> for PyAsvoClientConfig {
 ///     The config.
 ///
 /// Raises:
-///     AsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
+///     MwaAsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
 ///         seconds of at least 1 (kind `InvalidEnvironment`).
-///     AsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
+///     MwaAsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
 #[cfg_attr(
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
 )]
 #[pyfunction]
-pub(super) fn client_config_from_env(py: Python<'_>) -> PyResult<PyAsvoClientConfig> {
+pub(super) fn client_config_from_env(py: Python<'_>) -> PyResult<PyMwaAsvoClientConfig> {
     crate::client_config_from_env()
-        .map(PyAsvoClientConfig::from)
-        .map_err(|e| asvo_error(py, e))
+        .map(PyMwaAsvoClientConfig::from)
+        .map_err(|e| mwa_asvo_error(py, e))
 }
 
 /// The settings of a download that the environment can give: how much data to
@@ -194,7 +194,7 @@ impl PyDownloadSettings {
     ///     The settings.
     ///
     /// Raises:
-    ///     AsvoError: A variable is set but is not a whole number, or is too
+    ///     MwaAsvoError: A variable is set but is not a whole number, or is too
     ///         large (kind `InvalidEnvironment`).
     #[staticmethod]
     fn from_env(py: Python<'_>) -> PyResult<Self> {
@@ -203,7 +203,7 @@ impl PyDownloadSettings {
                 buffer_size: settings.buffer_size,
                 retry_duration: settings.retry_duration.as_secs_f64(),
             })
-            .map_err(|e| asvo_error(py, e))
+            .map_err(|e| mwa_asvo_error(py, e))
     }
 
     fn __repr__(&self) -> String {

@@ -66,9 +66,9 @@ static CLI_HAS_RUN: AtomicBool = AtomicBool::new(false);
 const RUN_CLI_TWICE: &str = "the giant-squid command can run only once in a process: \
      run each command in a process of its own";
 
-/// The message of `_run_cli` after an `AsvoClient` was made.
+/// The message of `_run_cli` after an `MwaAsvoClient` was made.
 const RUN_CLI_AFTER_CLIENT: &str = "the giant-squid command cannot run in a process that has \
-     made an AsvoClient: run it in a process of its own";
+     made an MwaAsvoClient: run it in a process of its own";
 
 /// The handle that clears `pyo3-log`'s cache of Python loggers and levels.
 /// Set once, when [`connect_python_logging`] first runs.
@@ -79,7 +79,7 @@ static LOG_RESET_HANDLE: OnceLock<pyo3_log::ResetHandle> = OnceLock::new();
 /// Only one Rust logger can be installed per process, and the `giant-squid`
 /// command (`_run_cli`) needs to install its own, with progress bars. So the
 /// module does not install `pyo3-log` when it is imported. It installs it
-/// here, the first time that something that can log is used: an `AsvoClient`
+/// here, the first time that something that can log is used: an `MwaAsvoClient`
 /// is made. Calls after the first do nothing.
 ///
 /// Another extension module in this process may have installed a Rust logger
@@ -100,7 +100,7 @@ pub(crate) fn connect_python_logging() {
 mod module {
     use pyo3::prelude::*;
 
-    use super::error::asvo_error;
+    use super::error::mwa_asvo_error;
     use super::typed::JobId;
     use super::{CLI_HAS_RUN, LOG_RESET_HANDLE, RUN_CLI_AFTER_CLIENT, RUN_CLI_TWICE};
     use pyo3::exceptions::PyRuntimeError;
@@ -108,9 +108,9 @@ mod module {
     use std::sync::atomic::Ordering;
 
     #[pymodule_export]
-    use super::client::PyAsvoClient;
+    use super::client::PyMwaAsvoClient;
     #[pymodule_export]
-    use super::config::{client_config_from_env, PyAsvoClientConfig, PyDownloadSettings};
+    use super::config::{client_config_from_env, PyDownloadSettings, PyMwaAsvoClientConfig};
     #[pymodule_export]
     use super::csv::{
         parse_manta_ray_csv, read_manta_ray_csv, CsvError, CsvFileError, CsvFileErrorInvalid,
@@ -122,20 +122,22 @@ mod module {
     use super::download::PyDownloadOptions;
     #[pymodule_export]
     use super::error::{
-        AsvoApiError, AsvoApiErrorApiError, AsvoApiErrorAuthenticationFailed, AsvoApiErrorBadJson,
-        AsvoApiErrorBadStatus, AsvoApiErrorConversion, AsvoApiErrorInvalidParameter,
-        AsvoApiErrorMissingAuthKey, AsvoApiErrorReqwest, AsvoError, AsvoErrorAsvoApi,
-        AsvoErrorDestinationExists, AsvoErrorFilesNotReachable, AsvoErrorHashMismatch,
-        AsvoErrorHttp404Error, AsvoErrorHttpError, AsvoErrorInterrupted,
-        AsvoErrorInvalidEnvironment, AsvoErrorInvalidJob, AsvoErrorInvalidJobState,
-        AsvoErrorInvalidJobType, AsvoErrorInvalidOption, AsvoErrorJobCancelled,
-        AsvoErrorJobExpired, AsvoErrorJobFailed, AsvoErrorNoAsvoJob, AsvoErrorNoFiles,
-        AsvoErrorNoHash, AsvoErrorNoJobReadyForObsId, AsvoErrorNoObsId, AsvoErrorNoPath,
-        AsvoErrorNoUrl, AsvoErrorNotReady, AsvoErrorSymlinkInDownloadDir, AsvoErrorTooManyObsIds,
-        ObsIdError, ObsIdErrorParse, ObsIdErrorWrongNumDigits, ParseError, ParseErrorInsideFile,
-        ParseErrorInsideStdin, ParseErrorInvalidObsId, ParseErrorInvalidTime,
-        ParseErrorJobIdsGiven, ParseErrorNoJobIds, ParseErrorNoObsIds, ParseErrorObsIdsGiven,
-        ParseErrorStdinError, ParseErrorStdinJson, ParseErrorZeroJobId,
+        MwaAsvoApiError, MwaAsvoApiErrorApiError, MwaAsvoApiErrorAuthenticationFailed,
+        MwaAsvoApiErrorBadJson, MwaAsvoApiErrorBadStatus, MwaAsvoApiErrorConversion,
+        MwaAsvoApiErrorInvalidParameter, MwaAsvoApiErrorMissingAuthKey, MwaAsvoApiErrorReqwest,
+        MwaAsvoError, MwaAsvoErrorDestinationExists, MwaAsvoErrorFilesNotReachable,
+        MwaAsvoErrorHashMismatch, MwaAsvoErrorHttp404Error, MwaAsvoErrorHttpError,
+        MwaAsvoErrorInterrupted, MwaAsvoErrorInvalidEnvironment, MwaAsvoErrorInvalidJob,
+        MwaAsvoErrorInvalidJobState, MwaAsvoErrorInvalidJobType, MwaAsvoErrorInvalidOption,
+        MwaAsvoErrorJobCancelled, MwaAsvoErrorJobExpired, MwaAsvoErrorJobFailed,
+        MwaAsvoErrorMwaAsvoApi, MwaAsvoErrorNoFiles, MwaAsvoErrorNoHash,
+        MwaAsvoErrorNoJobReadyForObsId, MwaAsvoErrorNoMwaAsvoJob, MwaAsvoErrorNoObsId,
+        MwaAsvoErrorNoPath, MwaAsvoErrorNoUrl, MwaAsvoErrorNotReady,
+        MwaAsvoErrorSymlinkInDownloadDir, MwaAsvoErrorTooManyObsIds, ObsIdError, ObsIdErrorParse,
+        ObsIdErrorWrongNumDigits, ParseError, ParseErrorInsideFile, ParseErrorInsideStdin,
+        ParseErrorInvalidObsId, ParseErrorInvalidTime, ParseErrorJobIdsGiven, ParseErrorNoJobIds,
+        ParseErrorNoObsIds, ParseErrorObsIdsGiven, ParseErrorStdinError, ParseErrorStdinJson,
+        ParseErrorZeroJobId,
     };
     #[pymodule_export]
     use super::filter::PyJobsFilter;
@@ -154,9 +156,9 @@ mod module {
     };
     #[pymodule_export]
     use super::types::{
-        PyAsvoJob, PyAsvoJobVec, PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress,
-        PyImageOutputMode, PyImageWeighting, PyJobCancelledResponse, PyJobDetailResponse,
-        PyJobFile, PyJobProduct, PyJobState, PyJobSubmittedResponse, PyJobType, PyOutput,
+        PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress, PyImageOutputMode,
+        PyImageWeighting, PyJobCancelledResponse, PyJobDetailResponse, PyJobFile, PyJobProduct,
+        PyJobState, PyJobSubmittedResponse, PyJobType, PyMwaAsvoJob, PyMwaAsvoJobVec, PyOutput,
         PyPhaseCentre, PyPolarization, PySortBy, PyStatus,
     };
 
@@ -166,7 +168,7 @@ mod module {
     /// first time a Rust log record uses it. Call this after you change
     /// the logging configuration (for example, after `logging.basicConfig`
     /// or `setLevel`), if the module has already logged. The module connects
-    /// to Python's `logging` when you make the first `AsvoClient`, so until
+    /// to Python's `logging` when you make the first `MwaAsvoClient`, so until
     /// then there is nothing to reset.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
     #[pyfunction]
@@ -194,7 +196,7 @@ mod module {
     ///
     /// Raises:
     ///     RuntimeError: The command already ran in this process, or an
-    ///         `AsvoClient` was made first. A process has only one Rust
+    ///         `MwaAsvoClient` was made first. A process has only one Rust
     ///         logger: the command installs its own the first time, and a
     ///         second run (or a run after the module's Python logging was
     ///         installed) would write its log lines to the wrong place. Run
@@ -216,7 +218,7 @@ mod module {
 
     /// The path of the token cache that mwa-cli also uses:
     /// `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
-    /// `AsvoClient` to share sessions with mwa-cli.
+    /// `MwaAsvoClient` to share sessions with mwa-cli.
     ///
     /// Args:
     ///     home: The home directory.
@@ -239,7 +241,7 @@ mod module {
     ///     job_id: The Job ID that the file belongs to. It is for the error.
     ///
     /// Raises:
-    ///     AsvoError: The hash does not match (kind `HashMismatch`).
+    ///     MwaAsvoError: The hash does not match (kind `HashMismatch`).
     ///     ValueError: `job_id` is 0.
     ///     OSError: The file cannot be read.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
@@ -251,7 +253,7 @@ mod module {
         job_id: JobId,
     ) -> PyResult<()> {
         py.detach(|| crate::check_file_sha1_hash(&filename, expected_hash, job_id.0))
-            .map_err(|e| asvo_error(py, e))
+            .map_err(|e| mwa_asvo_error(py, e))
     }
 
     #[pymodule_init]

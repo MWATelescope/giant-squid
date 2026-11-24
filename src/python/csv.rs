@@ -6,7 +6,7 @@
 //! library's `CsvDefaults`, `CsvJob`, `CsvJobParams`, `CsvRowError`,
 //! `CsvJobFailure` and its errors, and the functions that read a file.
 //!
-//! The Python methods `AsvoClient.submit_csv_file`, `submit_csv_jobs` and
+//! The Python methods `MwaAsvoClient.submit_csv_file`, `submit_csv_jobs` and
 //! `submit_csv_job` are the library's methods of the same names (see
 //! `super::client`).
 //!
@@ -57,7 +57,7 @@ create_exception!(
     mwa_giant_squid,
     CsvJobsFailed,
     PyException,
-    "`AsvoClient.submit_csv_jobs` submitted the jobs, but some jobs failed.\n\nThe jobs that did not fail were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file."
+    "`MwaAsvoClient.submit_csv_jobs` submitted the jobs, but some jobs failed.\n\nThe jobs that did not fail were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file."
 );
 
 create_exception!(
@@ -71,7 +71,7 @@ create_exception!(
     mwa_giant_squid,
     CsvSubmitError,
     PyException,
-    "`AsvoClient.submit_csv_file` did not submit every job of a file. `kind` is the Rust `CsvSubmitError` variant, and the exception is also an instance of the class for that variant (for example `CsvSubmitErrorFailed`). A file that cannot be read is an `OSError`, not this.\n\n`kind` is always set. The other attributes are set only for the kinds shown. For every kind but `Failed`, nothing was submitted. For `Failed`, the jobs that did not fail were submitted: a failed job does not stop the others."
+    "`MwaAsvoClient.submit_csv_file` did not submit every job of a file. `kind` is the Rust `CsvSubmitError` variant, and the exception is also an instance of the class for that variant (for example `CsvSubmitErrorFailed`). A file that cannot be read is an `OSError`, not this.\n\n`kind` is always set. The other attributes are set only for the kinds shown. For every kind but `Failed`, nothing was submitted. For `Failed`, the jobs that did not fail were submitted: a failed job does not stop the others."
 );
 
 variant_exceptions! {
@@ -269,7 +269,7 @@ impl PyCsvJobFailure {
         self.obs_id
     }
 
-    /// Why the job was not submitted: the `AsvoApiError` of the request.
+    /// Why the job was not submitted: the `MwaAsvoApiError` of the request.
     #[getter]
     fn error(&self, py: Python<'_>) -> ExceptionObject {
         ExceptionObject(self.error.clone_ref(py))
@@ -346,13 +346,13 @@ impl PyCsvDefaults {
     ///     The defaults.
     ///
     /// Raises:
-    ///     AsvoError: A variable is set to a value that the schema does not
+    ///     MwaAsvoError: A variable is set to a value that the schema does not
     ///         list (kind `InvalidEnvironment`).
     #[staticmethod]
     fn from_env(py: Python<'_>) -> PyResult<Self> {
         CsvDefaults::from_env()
             .map(Self::from)
-            .map_err(|e| super::error::asvo_error(py, e))
+            .map_err(|e| super::error::mwa_asvo_error(py, e))
     }
 
     fn __repr__(&self) -> String {
@@ -790,12 +790,12 @@ pub(super) fn read_manta_ray_csv(
 }
 
 /// The result of one job for the `on_result` function of `submit_csv_jobs`:
-/// the reply, or the `AsvoApiError` of the failed request.
+/// the reply, or the `MwaAsvoApiError` of the failed request.
 pub(super) fn result_object<'py>(
     py: Python<'py>,
     result: &Result<
         crate::mwa_asvo::api::openapi::JobSubmittedResponse,
-        crate::mwa_asvo::AsvoApiError,
+        crate::mwa_asvo::MwaAsvoApiError,
     >,
 ) -> PyResult<Bound<'py, PyAny>> {
     match result {

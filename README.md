@@ -1162,9 +1162,9 @@ its URL), so it knows without a request:
   expired, it reports the one that expired last.
 - `wait` fails for a completed job whose links have expired, with the same error, as it does for a cancelled job:
   waiting does not help.
-- In the library, `AsvoJob::expires`, `is_expired` and `display_state` give the same facts, and the error is
-  `AsvoError::JobExpired`. In Python they are `AsvoJob.expires`, `AsvoJob.is_expired` and
-  `AsvoJob.display_state`, and `AsvoError` of kind `JobExpired`.
+- In the library, `MwaAsvoJob::expires`, `is_expired` and `display_state` give the same facts, and the error is
+  `MwaAsvoError::JobExpired`. In Python they are `MwaAsvoJob.expires`, `MwaAsvoJob.is_expired` and
+  `MwaAsvoJob.display_state`, and `MwaAsvoError` of kind `JobExpired`.
 
 To choose the directory to download to, give `download` the `-d`, `--download-dir` option. Without it, the
 download goes to the current directory `.`.
@@ -1410,19 +1410,19 @@ The `mwa_giant_squid` crate is also a Rust library. The `giant-squid`
 command uses it, and your own Rust programs can use it too. The library:
 
 - reads no environment variables. Your program gives it the host, API key,
-  timeout and token cache path in an `AsvoClientConfig`.
+  timeout and token cache path in an `MwaAsvoClientConfig`.
 - prints nothing. It logs through the [`log`](https://crates.io/crates/log)
   crate, and it reports download progress through an optional callback.
-- returns typed errors: `AsvoApiError` for MWA ASVO API calls, and
-  `AsvoError` for downloads and job checks.
+- returns typed errors: `MwaAsvoApiError` for MWA ASVO API calls, and
+  `MwaAsvoError` for downloads and job checks.
 - does not do poll loops. To wait for jobs, your program calls
-  `AsvoJobVec::all_ready` in its own loop.
-- has an `AsvoClient` that is `Send + Sync`, so threads can share one
+  `MwaAsvoJobVec::all_ready` in its own loop.
+- has an `MwaAsvoClient` that is `Send + Sync`, so threads can share one
   client. If the server rejects the session token, only one thread logs in
   again, and the other threads use the new token.
 - has one path for each item: the client, jobs, errors and downloads are at
-  the crate root (`mwa_giant_squid::AsvoClient`), and the types of the MWA
-  ASVO OpenAPI schema are in `mwa_giant_squid::mwa_asvo::api::openapi` (for
+  the crate root (`mwa_giant_squid::MwaAsvoClient`), and the types of the MWA
+  MWA ASVO OpenAPI schema are in `mwa_giant_squid::mwa_asvo::api::openapi` (for
   example `JobState`).
 
 Add the crate without its default `bin` feature, so that the command line
@@ -1445,19 +1445,19 @@ use std::time::Duration;
 use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, DownloadOptions, DownloadProgress,
-    JobsFilter, ObsId, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    default_token_cache_path, MwaAsvoClient, MwaAsvoClientConfig, DownloadOptions, DownloadProgress,
+    JobsFilter, ObsId, DEFAULT_MWA_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
     // The library reads no environment variables: the caller supplies everything.
-    let mut config = AsvoClientConfig::new(DEFAULT_ASVO_HOST, "my-api-key");
+    let mut config = MwaAsvoClientConfig::new(DEFAULT_MWA_ASVO_HOST, "my-api-key");
     config.token_cache_path = Some(default_token_cache_path(Path::new("/home/me")));
-    let client = AsvoClient::new(config)?;
+    let client = MwaAsvoClient::new(config)?;
 
     // List the ready jobs from the past 7 days. The server filters them;
-    // `AsvoJobVec::filter` can then filter by several states or types.
+    // `MwaAsvoJobVec::filter` can then filter by several states or types.
     let ready = client.get_jobs(&JobsFilter {
         days: NonZeroU64::new(7),
         job_states: vec![JobState::Completed],
@@ -1510,7 +1510,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 To use a server other than the production MWA ASVO (for example, to test
 API features that are not live yet), give its URL as the host, for example
-`AsvoClientConfig::new("https://test-asvo.mwatelescope.org", api_key)`.
+`MwaAsvoClientConfig::new("https://test-asvo.mwatelescope.org", api_key)`.
 With `token_cache_path = None`, the session is kept in memory only.
 
 For a complete program that reads its settings from the environment, see
@@ -1526,7 +1526,7 @@ The full API is on [docs.rs](https://docs.rs/mwa_giant_squid).
 
 ### Submitting the jobs of a manta-ray-client CSV file
 
-`AsvoClient::submit_csv_file` reads a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV file
+`MwaAsvoClient::submit_csv_file` reads a [manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV file
 (see [Jobs from a manta-ray-client CSV file](#jobs-from-a-manta-ray-client-csv-file)), checks every line, and submits
 the jobs in the order of the file. It returns the `JobSubmittedResponse` of each job. Nothing is submitted if the file
 cannot be read, has no job, or has a bad line. A job that fails does not stop the others: the error,
@@ -1535,9 +1535,9 @@ cannot be read, has no job, or has a bad line. A job that fails does not stop th
 ```rust
 use std::path::Path;
 
-use mwa_giant_squid::{AsvoClient, CsvDefaults, CsvSubmitError};
+use mwa_giant_squid::{MwaAsvoClient, CsvDefaults, CsvSubmitError};
 
-fn submit(client: &AsvoClient) -> Result<(), CsvSubmitError> {
+fn submit(client: &MwaAsvoClient) -> Result<(), CsvSubmitError> {
     // `CsvDefaults::from_env()` gives the defaults of the `giant-squid` command (the library itself reads no
     // environment variable). `CsvDefaults::default()` leaves the defaults of the MWA ASVO.
     let replies = client.submit_csv_file(Path::new("jobs.csv"), &CsvDefaults::default())?;
@@ -1549,7 +1549,7 @@ fn submit(client: &AsvoClient) -> Result<(), CsvSubmitError> {
 ```
 
 `read_manta_ray_csv` reads the jobs of a file without a client (it refuses a file with no job, as `submit_csv_file`
-does), and `parse_manta_ray_csv` reads the text of a file. `AsvoClient::submit_csv_jobs` submits the jobs that they
+does), and `parse_manta_ray_csv` reads the text of a file. `MwaAsvoClient::submit_csv_jobs` submits the jobs that they
 return, with a function that is called for each job when its request is done. Its error, `CsvJobsFailed`, has the
 replies of the jobs that were submitted and the jobs that were not.
 
@@ -1562,7 +1562,7 @@ reads no environment variables (see
 | Variable | Description | Default |
 |---|---|---|
 | `MWA_ASVO_API_KEY` | Your MWA ASVO API key. **Required** for all operations. | — |
-| `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_ASVO_HOST` in the library (the production MWA ASVO) |
+| `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_MWA_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
 | `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |

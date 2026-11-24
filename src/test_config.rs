@@ -2,21 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Builds an [`AsvoClientConfig`] that points at a [`TestEnv`]'s mock
+//! Builds an [`MwaAsvoClientConfig`] that points at a [`TestEnv`]'s mock
 //! server, for the unit tests.
 //!
 //! This is separate from `src/test_common.rs` because that file is also
 //! compiled into `tests/cli.rs` and so must use no `crate::` items.
 
 use crate::mwa_asvo::api::openapi::JobDetailResponse;
-use crate::mwa_asvo::{AsvoClientConfig, AsvoJob, JobType};
+use crate::mwa_asvo::{JobType, MwaAsvoClientConfig, MwaAsvoJob};
 use crate::obs_id::ObsId;
 use crate::test_common::{TestEnv, TEST_API_TIMEOUT};
 
 /// A client config for the mock server in `env`, with the token cache in
 /// its temporary home directory.
-pub fn client_config(env: &TestEnv) -> AsvoClientConfig {
-    let mut config = AsvoClientConfig::new(env.base_url(), env.api_key());
+pub fn client_config(env: &TestEnv) -> MwaAsvoClientConfig {
+    let mut config = MwaAsvoClientConfig::new(env.base_url(), env.api_key());
     config.api_timeout = TEST_API_TIMEOUT;
     config.token_cache_path = Some(env.token_cache_path());
     config
@@ -30,12 +30,12 @@ pub fn job_type(name: &str) -> JobType {
 /// A job for the tests: `detail`, with `obs_id` set as its `obs_id` (and put
 /// in its `job_params`, where the API has it too), checked as a job from the
 /// API is.
-pub fn asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> AsvoJob {
+pub fn mwa_asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> MwaAsvoJob {
     detail.obs_id = i64::from(obs_id);
     detail
         .job_params
         .insert("obs_id".to_string(), serde_json::json!(u64::from(obs_id)));
-    AsvoJob::try_from(detail).expect("a test job should be usable")
+    MwaAsvoJob::try_from(detail).expect("a test job should be usable")
 }
 
 /// `n`, which must not be 0, as a `NonZeroU64` (for example a `days`).
@@ -47,12 +47,12 @@ pub const fn nonzero(n: u64) -> std::num::NonZeroU64 {
 }
 
 /// The job ID `n`, which must not be 0.
-pub const fn job_id(n: u64) -> crate::AsvoJobId {
+pub const fn job_id(n: u64) -> crate::MwaAsvoJobId {
     nonzero(n)
 }
 
 /// [`TEST_JOB_ID`](crate::test_common::TEST_JOB_ID) as a job ID.
-pub const TEST_ASVO_JOB_ID: crate::AsvoJobId = job_id(crate::test_common::TEST_JOB_ID);
+pub const TEST_MWA_ASVO_JOB_ID: crate::MwaAsvoJobId = job_id(crate::test_common::TEST_JOB_ID);
 
 /// [`TEST_OBS_ID`](crate::test_common::TEST_OBS_ID) as an obsid.
 pub fn test_obs_id() -> ObsId {

@@ -49,7 +49,7 @@ DELIVERY_JOBS = [
 
 
 @pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
+def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
     """A client that has logged in to the mock.
 
     Args:
@@ -59,7 +59,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:
@@ -77,7 +77,7 @@ def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:
 
 @pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)
 def test_acacia_with_files_is_refused_before_any_request(
-    httpserver: HTTPServer, client: gs.AsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
+    httpserver: HTTPServer, client: gs.MwaAsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
 ) -> None:
     """Every submit method refuses ``Files`` with ``Acacia`` (given, or the default), and sends nothing.
 
@@ -93,7 +93,7 @@ def test_acacia_with_files_is_refused_before_any_request(
     for delivery in ({}, {"delivery": gs.DeliveryDestination.Acacia}):
         params = job(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
         with pytest.raises(
-            gs.AsvoApiErrorInvalidParameter, match="delivery_format: must be tar when delivery is acacia"
+            gs.MwaAsvoApiErrorInvalidParameter, match="delivery_format: must be tar when delivery is acacia"
         ):
             submit(client, params)
     assert requests_to(httpserver, path) == []
@@ -101,7 +101,7 @@ def test_acacia_with_files_is_refused_before_any_request(
 
 @pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)
 def test_the_other_deliveries_and_formats_are_sent(
-    httpserver: HTTPServer, client: gs.AsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
+    httpserver: HTTPServer, client: gs.MwaAsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
 ) -> None:
     """Acacia with tar, and the other deliveries with either format, are sent as they are given.
 
@@ -141,7 +141,7 @@ def expect_get_jobs(httpserver: HTTPServer) -> None:
 @pytest.mark.parametrize(("date_from", "date_to"), [(DATE_FROM, None), (None, DATE_TO), (DATE_FROM, DATE_TO)])
 def test_days_with_a_date_is_refused_before_any_request(
     httpserver: HTTPServer,
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
     date_from: datetime.datetime | None,
     date_to: datetime.datetime | None,
 ) -> None:
@@ -155,12 +155,12 @@ def test_days_with_a_date_is_refused_before_any_request(
     """
     expect_get_jobs(httpserver)
 
-    with pytest.raises(gs.AsvoApiErrorInvalidParameter, match="days: can't be used with date_from or date_to"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="days: can't be used with date_from or date_to"):
         client.get_jobs(gs.JobsFilter(days=DAYS, date_from=date_from, date_to=date_to))
     assert requests_to(httpserver, GET_JOBS_PATH) == []
 
 
-def test_a_date_sends_null_days_and_days_alone_sends_no_date(httpserver: HTTPServer, client: gs.AsvoClient) -> None:
+def test_a_date_sends_null_days_and_days_alone_sends_no_date(httpserver: HTTPServer, client: gs.MwaAsvoClient) -> None:
     """With a date and no ``days``, ``days`` is ``null``. With ``days`` alone, there is no date. With neither, ``days`` is the default.
 
     Args:

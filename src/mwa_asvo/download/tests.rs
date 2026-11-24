@@ -27,7 +27,7 @@ use sha1::{Digest, Sha1};
 use tempfile::TempDir;
 
 use crate::mwa_asvo::{
-    AsvoApiError, AsvoClient, AsvoError, AsvoJobVec, DownloadOptions, DownloadProgress,
+    DownloadOptions, DownloadProgress, MwaAsvoApiError, MwaAsvoClient, MwaAsvoError, MwaAsvoJobVec,
     DEFAULT_DOWNLOAD_BUFFER_SIZE,
 };
 use crate::test_common::*;
@@ -102,18 +102,18 @@ fn a_buffer_size_of_zero_is_refused_before_any_request() {
         buffer_size: 0,
         ..options(&dir)
     };
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
 
     let errors = [
-        client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts),
+        client.download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts),
         client.download_obs(obs_id, &opts),
         client.download_job_from(
-            &AsvoJobVec(vec![]),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            &MwaAsvoJobVec(vec![]),
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &opts,
         ),
-        client.download_obs_from(&AsvoJobVec(vec![]), obs_id, &opts),
+        client.download_obs_from(&MwaAsvoJobVec(vec![]), obs_id, &opts),
     ];
 
     for result in errors {
@@ -122,7 +122,7 @@ fn a_buffer_size_of_zero_is_refused_before_any_request() {
             err.to_string(),
             "Invalid buffer_size: must be at least 1 (got 0)"
         );
-        assert!(matches!(err, AsvoError::InvalidOption { .. }), "{err:?}");
+        assert!(matches!(err, MwaAsvoError::InvalidOption { .. }), "{err:?}");
     }
 }
 
@@ -132,17 +132,19 @@ fn downloading_an_unknown_job_id_is_reported() {
     env.mock_get_jobs(vec![]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoAsvoJob(job_id) => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
-        other => panic!("expected NoAsvoJob, got {other:?}"),
+        MwaAsvoError::NoMwaAsvoJob(job_id) => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
+        }
+        other => panic!("expected NoMwaAsvoJob, got {other:?}"),
     }
 }
 
@@ -157,17 +159,17 @@ fn a_failed_job_listing_is_reported_as_an_api_error() {
     });
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, AsvoError::AsvoApi(_)),
-        "expected AsvoApi, got {err:?}"
+        matches!(err, MwaAsvoError::MwaAsvoApi(_)),
+        "expected MwaAsvoApi, got {err:?}"
     );
 }
 
@@ -182,17 +184,17 @@ fn downloading_a_job_that_is_not_ready_is_reported() {
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NotReady { job_id, .. } => {
-            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        MwaAsvoError::NotReady { job_id, .. } => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
         }
         other => panic!("expected NotReady, got {other:?}"),
     }
@@ -212,16 +214,18 @@ fn a_ready_job_reports_that_it_has_no_files() {
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
 
     match err {
-        AsvoError::NoFiles(job_id) => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
+        MwaAsvoError::NoFiles(job_id) => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
+        }
         other => panic!("expected NoFiles, got {other:?}"),
     }
     assert_eq!(
@@ -239,13 +243,13 @@ fn downloading_an_unknown_obs_id_is_reported() {
     env.mock_get_jobs(vec![job_detail(1, "1061311664", "completed", 1)]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
         .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
-    assert!(matches!(err, AsvoError::NoObsId(_)), "expected NoObsid");
+    assert!(matches!(err, MwaAsvoError::NoObsId(_)), "expected NoObsid");
 }
 
 #[test]
@@ -259,14 +263,14 @@ fn an_obs_id_whose_only_job_is_unfinished_is_reported() {
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
         .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, AsvoError::NoJobReadyForObsId(_)),
+        matches!(err, MwaAsvoError::NoJobReadyForObsId(_)),
         "expected NoJobReadyForObsid"
     );
 }
@@ -280,14 +284,14 @@ fn an_obs_id_with_several_ready_jobs_is_ambiguous() {
     ]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
         .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(err, AsvoError::TooManyObsIds(_)),
+        matches!(err, MwaAsvoError::TooManyObsIds(_)),
         "expected TooManyObsids"
     );
 }
@@ -303,15 +307,15 @@ fn a_job_listing_with_an_empty_product_is_not_downloadable() {
     env.mock_get_jobs(vec![detail]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
 
-    assert!(matches!(err, AsvoError::NoFiles(_)), "expected NoFiles");
+    assert!(matches!(err, MwaAsvoError::NoFiles(_)), "expected NoFiles");
 }
 
 // ---------------------------------------------------------------------------
@@ -337,9 +341,9 @@ fn a_ready_job_downloads_its_file_and_checks_the_hash() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -371,9 +375,9 @@ fn a_download_reports_its_progress_to_the_callback() {
     opts.keep_tar = true;
     opts.progress = Some(&progress);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let events = events.into_inner().unwrap();
@@ -384,7 +388,7 @@ fn a_download_reports_its_progress_to_the_callback() {
             position,
             ..
         }) => {
-            assert_eq!(*job_id, crate::test_config::TEST_ASVO_JOB_ID);
+            assert_eq!(*job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID);
             assert_eq!(*total_bytes, payload.len() as u64);
             assert_eq!(*position, 0);
         }
@@ -423,9 +427,12 @@ fn a_downloaded_tar_is_unpacked_when_keep_tar_is_not_set() {
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
+        .download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&dir_path),
+        )
         .expect("the download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -457,19 +464,19 @@ fn a_hash_mismatch_is_reported() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the hash check should fail");
 
     match err {
-        AsvoError::HashMismatch {
+        MwaAsvoError::HashMismatch {
             job_id,
             expected_hash,
             calculated_hash,
             ..
         } => {
-            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID);
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID);
             assert_eq!(expected_hash, "0000000000000000000000000000000000000000");
             assert_eq!(calculated_hash, sha1_hex(payload.as_bytes()));
         }
@@ -499,14 +506,14 @@ fn an_expired_download_url_is_reported_as_gone() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("a 404 should fail the download");
 
     match err {
-        AsvoError::Http404Error { job_id } => {
-            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        MwaAsvoError::Http404Error { job_id } => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
         }
         other => panic!("expected Http404Error, got {other:?}"),
     }
@@ -532,14 +539,14 @@ fn a_forbidden_download_fails_without_retrying() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("a 403 should fail the download");
 
     assert_eq!(file.calls(), 1, "a permanent error must not be retried");
     match err {
-        AsvoError::HttpError { status, .. } => assert_eq!(status, 403),
+        MwaAsvoError::HttpError { status, .. } => assert_eq!(status, 403),
         other => panic!("expected HttpError, got {other:?}"),
     }
 }
@@ -564,15 +571,17 @@ fn a_failed_file_request_names_the_job() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("a 403 should fail the download");
 
-    assert_eq!(err.job_id(), Some(crate::test_config::TEST_ASVO_JOB_ID));
+    assert_eq!(err.job_id(), Some(crate::test_config::TEST_MWA_ASVO_JOB_ID));
     assert!(
-        err.to_string()
-            .contains(&format!("Job ID {}", crate::test_config::TEST_ASVO_JOB_ID)),
+        err.to_string().contains(&format!(
+            "Job ID {}",
+            crate::test_config::TEST_MWA_ASVO_JOB_ID
+        )),
         "message: {err}"
     );
 }
@@ -592,13 +601,16 @@ fn a_file_type_the_schema_does_not_list_fails_the_download() {
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
+        .download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&dir_path),
+        )
         .expect_err("expected the download to fail");
 
     assert!(
-        matches!(&err, AsvoError::AsvoApi(AsvoApiError::BadJson(_))),
+        matches!(&err, MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadJson(_))),
         "expected a decode error, got {err:?}"
     );
     assert!(err.to_string().contains("some_new_delivery"), "{err}");
@@ -632,13 +644,13 @@ fn a_keep_tar_download_refuses_a_symlink() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the link should be refused");
 
     assert!(
-        matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+        matches!(err, MwaAsvoError::SymlinkInDownloadDir { .. }),
         "{err:?}"
     );
     assert!(!target.exists(), "nothing may be written through the link");
@@ -671,9 +683,9 @@ fn a_partial_file_is_resumed_from_where_it_stopped() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the resumed download should succeed");
 
     assert_eq!(file.calls(), 1, "the range request should be made once");
@@ -711,12 +723,15 @@ fn without_a_hash_check_a_resumed_keep_tar_file_is_still_checked() {
     opts.keep_tar = true;
     opts.hash = false;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the wrong partial file should fail the hash check");
 
-    assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+    assert!(
+        matches!(err, MwaAsvoError::HashMismatch { .. }),
+        "got {err:?}"
+    );
 }
 
 #[test]
@@ -739,9 +754,9 @@ fn a_complete_and_verified_file_is_not_fetched_again() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("an already-complete file should be a no-op");
 
     assert_eq!(requests.calls(), 0, "nothing should have been fetched");
@@ -769,9 +784,9 @@ fn a_complete_file_with_the_wrong_contents_is_fetched_again() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should restart and succeed");
 
     assert_eq!(file.calls(), 1);
@@ -804,9 +819,9 @@ fn keep_tar_no_resume_download(contents: &[u8]) -> (usize, String) {
     opts.keep_tar = true;
     opts.no_resume = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let written =
@@ -865,9 +880,9 @@ fn a_file_larger_than_the_download_is_downloaded_again() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(whole.calls(), 1);
@@ -902,9 +917,9 @@ fn a_server_that_ignores_the_range_request_restarts_the_download() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the restarted download should succeed");
 
     assert_eq!(file.calls(), 1);
@@ -946,12 +961,12 @@ fn a_download_stops_when_the_caller_asks() {
     opts.keep_tar = true;
     opts.should_stop = Some(&stop);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the download should stop");
 
-    assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
+    assert!(matches!(err, MwaAsvoError::Interrupted), "got {err:?}");
     assert_eq!(
         asked.load(std::sync::atomic::Ordering::SeqCst),
         1,
@@ -985,9 +1000,9 @@ fn a_download_that_is_not_stopped_completes() {
     opts.keep_tar = true;
     opts.should_stop = Some(&stop);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert!(asked.load(std::sync::atomic::Ordering::SeqCst) >= 1);
@@ -1031,13 +1046,13 @@ fn a_stop_ends_the_wait_before_a_retry() {
     opts.retry_duration = LONG_RETRY;
     opts.should_stop = Some(&stop);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let started = std::time::Instant::now();
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the download should stop");
 
-    assert!(matches!(err, AsvoError::Interrupted), "got {err:?}");
+    assert!(matches!(err, MwaAsvoError::Interrupted), "got {err:?}");
     assert!(file.calls() >= 2, "the transient failure was retried");
     assert!(
         started.elapsed() < MAX_STOP_TIME,
@@ -1069,7 +1084,7 @@ mod retries {
         try_download_untar, untar_stream, NetworkReader, ResumePoint, Retry, RetryState,
         UntarCheckpoint,
     };
-    use crate::mwa_asvo::{AsvoError, AsvoJob, JobFile, JobState};
+    use crate::mwa_asvo::{JobFile, JobState, MwaAsvoError, MwaAsvoJob};
     use crate::obs_id::ObsId;
     use crate::test_common::{TEST_JOB_ID, TEST_OBS_ID};
     use crate::test_config::job_type;
@@ -1175,7 +1190,7 @@ mod retries {
         .expect_err("the first attempt should fail");
 
         match &err {
-            AsvoError::IO(e) => assert!(is_network_read_error(e), "expected a network error"),
+            MwaAsvoError::IO(e) => assert!(is_network_read_error(e), "expected a network error"),
             other => panic!("expected an IO error, got {other:?}"),
         }
         checkpoint.expect("the first attempt should leave a checkpoint")
@@ -1194,12 +1209,12 @@ mod retries {
     }
 
     /// A ready job, for the functions that take one.
-    fn ready_job() -> AsvoJob {
-        crate::test_config::asvo_job(
+    fn ready_job() -> MwaAsvoJob {
+        crate::test_config::mwa_asvo_job(
             ObsId::validate(TEST_OBS_ID.parse().expect("the test obsid is a number"))
                 .expect("the test obsid should be valid"),
             JobDetailResponse {
-                job_id: crate::AsvoJobId::new(TEST_JOB_ID).expect("a test job ID is not zero"),
+                job_id: crate::MwaAsvoJobId::new(TEST_JOB_ID).expect("a test job ID is not zero"),
                 obs_id: 0,
                 job_type: Some(job_type("visibility")),
                 job_state: JobState::Completed,
@@ -1313,7 +1328,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1348,7 +1363,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1379,7 +1394,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &wrong_hash),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
@@ -1388,7 +1403,10 @@ mod retries {
         )
         .expect_err("the hash should not match");
 
-        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+        assert!(
+            matches!(err, MwaAsvoError::HashMismatch { .. }),
+            "got {err:?}"
+        );
         assert!(
             checkpoint.is_none(),
             "the retry must fetch the whole archive"
@@ -1417,7 +1435,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &wrong_hash),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &opts,
@@ -1459,7 +1477,7 @@ mod retries {
             &reqwest::blocking::Client::new(),
             &url,
             &file_info(&url, &archive, &sha1_hex(&archive)),
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             dir.path(),
             LOG_PREFIX,
             &opts,
@@ -1468,7 +1486,10 @@ mod retries {
         )
         .expect_err("the changed bytes should fail the hash check");
 
-        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+        assert!(
+            matches!(err, MwaAsvoError::HashMismatch { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -1527,17 +1548,17 @@ mod retries {
 
     #[test]
     fn a_failed_read_of_the_download_is_retried_but_a_disk_error_is_not() {
-        let network = AsvoError::IO(network_error(io::Error::from(
+        let network = MwaAsvoError::IO(network_error(io::Error::from(
             io::ErrorKind::ConnectionReset,
         )));
-        let disk = AsvoError::IO(io::Error::from(io::ErrorKind::PermissionDenied));
+        let disk = MwaAsvoError::IO(io::Error::from(io::ErrorKind::PermissionDenied));
 
         assert!(matches!(
-            retry_class(network, crate::test_config::TEST_ASVO_JOB_ID),
+            retry_class(network, crate::test_config::TEST_MWA_ASVO_JOB_ID),
             Retry::Transient(_)
         ));
         assert!(matches!(
-            retry_class(disk, crate::test_config::TEST_ASVO_JOB_ID),
+            retry_class(disk, crate::test_config::TEST_MWA_ASVO_JOB_ID),
             Retry::Permanent(_)
         ));
     }
@@ -1555,7 +1576,7 @@ mod retries {
             "message: {error}"
         );
         assert!(matches!(
-            retry_class(error, crate::test_config::TEST_ASVO_JOB_ID),
+            retry_class(error, crate::test_config::TEST_MWA_ASVO_JOB_ID),
             Retry::Permanent(_)
         ));
     }
@@ -1581,7 +1602,7 @@ mod reruns {
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
     use crate::mwa_asvo::download::EARLIER_FILES_WINDOW;
-    use crate::mwa_asvo::{AsvoClient, AsvoError};
+    use crate::mwa_asvo::{MwaAsvoClient, MwaAsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1695,13 +1716,13 @@ mod reruns {
         env: &TestEnv,
         dir: &TempDir,
         configure: impl FnOnce(&mut crate::mwa_asvo::DownloadOptions),
-    ) -> Result<(), AsvoError> {
+    ) -> Result<(), MwaAsvoError> {
         let dir_path = dir.path().display().to_string();
         let mut opts = options(&dir_path);
         configure(&mut opts);
-        let client = AsvoClient::new(client_config(env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(env)).expect("client should be created");
         client
-            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+            .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
             .map(|_| ())
     }
 
@@ -1904,7 +1925,7 @@ mod unsafe_paths {
     use crate::mwa_asvo::download::{
         entry_target, untar_stream, EntryTarget, ResumePoint, EARLIER_FILES_WINDOW,
     };
-    use crate::mwa_asvo::{AsvoClient, AsvoError};
+    use crate::mwa_asvo::{MwaAsvoClient, MwaAsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -1948,7 +1969,7 @@ mod unsafe_paths {
     }
 
     /// Unpack `archive` into `unpack_dir`, and give the result of the unpack.
-    fn try_unpack(archive: &[u8], unpack_dir: &std::path::Path) -> Result<(), AsvoError> {
+    fn try_unpack(archive: &[u8], unpack_dir: &std::path::Path) -> Result<(), MwaAsvoError> {
         let dir_path = unpack_dir.display().to_string();
         let mut checkpoint = None;
         untar_stream(
@@ -2040,7 +2061,7 @@ mod unsafe_paths {
         let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
         assert!(
-            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if *path == link),
+            matches!(&err, MwaAsvoError::SymlinkInDownloadDir { path } if *path == link),
             "{err:?}"
         );
         assert_eq!(std::fs::read(&target).expect("the target"), b"untouched");
@@ -2060,7 +2081,7 @@ mod unsafe_paths {
         let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
         assert!(
-            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if *path == link),
+            matches!(&err, MwaAsvoError::SymlinkInDownloadDir { path } if *path == link),
             "{err:?}"
         );
         assert!(
@@ -2083,7 +2104,7 @@ mod unsafe_paths {
         let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
         assert!(
-            matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+            matches!(err, MwaAsvoError::SymlinkInDownloadDir { .. }),
             "{err:?}"
         );
         assert!(!missing.exists(), "nothing may be written through the link");
@@ -2102,7 +2123,7 @@ mod unsafe_paths {
         let err = try_unpack(&archive, dir.path()).expect_err("the link should be refused");
 
         assert!(
-            matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+            matches!(err, MwaAsvoError::SymlinkInDownloadDir { .. }),
             "{err:?}"
         );
         assert!(!elsewhere.path().join("a.dat").exists());
@@ -2192,9 +2213,12 @@ mod unsafe_paths {
         std::fs::write(unpack_dir.join("a.dat"), &a_data).expect("could not write a.dat");
         let dir_path = unpack_dir.display().to_string();
 
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
         client
-            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
+            .download_job(
+                crate::test_config::TEST_MWA_ASVO_JOB_ID,
+                &options(&dir_path),
+            )
             .expect("the rerun should succeed and match the hash");
 
         assert_eq!(check.calls(), 1);
@@ -2227,7 +2251,7 @@ mod sidecar {
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_FILE, DOWNLOAD_PATH};
     use crate::mwa_asvo::download::{EARLIER_FILES_WINDOW, SIDECAR_SUFFIX};
-    use crate::mwa_asvo::{AsvoClient, AsvoError, DownloadOptions};
+    use crate::mwa_asvo::{DownloadOptions, MwaAsvoClient, MwaAsvoError};
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -2316,13 +2340,14 @@ mod sidecar {
         server: &Server,
         dir: &TempDir,
         configure: impl FnOnce(&mut DownloadOptions),
-    ) -> Result<(), AsvoError> {
+    ) -> Result<(), MwaAsvoError> {
         let dir_path = dir.path().display().to_string();
         let mut opts = options(&dir_path);
         configure(&mut opts);
-        let client = AsvoClient::new(client_config(server.env)).expect("client should be created");
+        let client =
+            MwaAsvoClient::new(client_config(server.env)).expect("client should be created");
         client
-            .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+            .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
             .map(|_| ())
     }
 
@@ -2332,7 +2357,10 @@ mod sidecar {
     fn failed_first_run(server: &Server, dir: &TempDir) {
         std::fs::create_dir(dir.path().join("c.dat")).expect("could not create the obstacle");
         let err = download(server, dir, |_| {}).expect_err("writing c.dat should fail");
-        assert!(matches!(err, AsvoError::CannotCreate { .. }), "got {err:?}");
+        assert!(
+            matches!(err, MwaAsvoError::CannotCreate { .. }),
+            "got {err:?}"
+        );
         std::fs::remove_dir(dir.path().join("c.dat")).expect("could not remove the obstacle");
         assert!(
             sidecar_file(dir).exists(),
@@ -2399,7 +2427,10 @@ mod sidecar {
         let err = download(&server, &dir, |opts| opts.hash = false)
             .expect_err("the forced hash check should fail");
 
-        assert!(matches!(err, AsvoError::HashMismatch { .. }), "got {err:?}");
+        assert!(
+            matches!(err, MwaAsvoError::HashMismatch { .. }),
+            "got {err:?}"
+        );
         assert!(
             !sidecar_file(&dir).exists(),
             "a failed hash deletes the resume file"
@@ -2506,12 +2537,12 @@ fn ready_job_with_file(file: Value) -> Value {
 }
 
 /// Download the test job into a new directory, which must stay empty.
-fn download_fails(env: &TestEnv) -> AsvoError {
+fn download_fails(env: &TestEnv) -> MwaAsvoError {
     let dir = TempDir::new().expect("could not create a download directory");
-    let client = AsvoClient::new(client_config(env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("expected the download to fail");
@@ -2537,12 +2568,12 @@ fn a_dug_job_is_reported_as_not_reachable() {
     )]);
 
     match download_fails(&env) {
-        AsvoError::FilesNotReachable {
+        MwaAsvoError::FilesNotReachable {
             job_id,
             delivery,
             path,
         } => {
-            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID);
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID);
             assert_eq!(delivery, DeliveryDestination::Dug);
             assert_eq!(path.as_deref(), Some("/dug/asvo/12345"));
         }
@@ -2563,7 +2594,7 @@ fn a_scratch_job_that_this_host_cannot_reach_is_reported() {
     )]);
 
     match download_fails(&env) {
-        AsvoError::FilesNotReachable {
+        MwaAsvoError::FilesNotReachable {
             delivery,
             path: reported,
             ..
@@ -2591,8 +2622,8 @@ fn a_file_without_a_hash_is_refused_before_any_request() {
     }))]);
 
     match download_fails(&env) {
-        AsvoError::NoHash { job_id } => {
-            assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID)
+        MwaAsvoError::NoHash { job_id } => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
         }
         other => panic!("expected NoHash, got {other:?}"),
     }
@@ -2615,7 +2646,9 @@ fn a_download_url_with_no_file_name_is_reported() {
     )]);
 
     match download_fails(&env) {
-        AsvoError::NoUrl { job_id } => assert_eq!(job_id, crate::test_config::TEST_ASVO_JOB_ID),
+        MwaAsvoError::NoUrl { job_id } => {
+            assert_eq!(job_id, crate::test_config::TEST_MWA_ASVO_JOB_ID)
+        }
         other => panic!("expected NoUrl, got {other:?}"),
     }
     assert_eq!(file.calls(), 0);
@@ -2642,13 +2675,13 @@ fn a_hash_mismatch_names_the_file_not_the_url() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the hash check should fail");
 
     match err {
-        AsvoError::HashMismatch { file, .. } => {
+        MwaAsvoError::HashMismatch { file, .. } => {
             assert_eq!(file, dir.path().join(DOWNLOAD_FILE).display().to_string());
             assert!(!file.contains("Signature"), "{file}");
         }
@@ -2672,10 +2705,10 @@ fn a_reachable_scratch_job_is_moved_into_the_download_directory() {
     }))]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect("the move should succeed");
@@ -2737,12 +2770,12 @@ fn a_download_from_a_job_list_makes_no_job_list_request() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&crate::mwa_asvo::JobsFilter::default())
         .expect("the job list");
     client
-        .download_job_from(&jobs, crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job_from(&jobs, crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download by Job ID should succeed");
     let obs_id = crate::test_config::test_obs_id();
     std::fs::remove_file(dir.path().join(DOWNLOAD_FILE)).expect("the file was written");
@@ -2776,8 +2809,8 @@ fn the_access_token_is_not_sent_to_the_host_of_a_file() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let result = client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts);
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let result = client.download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts);
 
     assert_eq!(
         file.calls(),
@@ -2789,7 +2822,7 @@ fn the_access_token_is_not_sent_to_the_host_of_a_file() {
 
 /// Download the tar `archive` of the test job with stream-untar into a new
 /// directory, and return the directory and the result.
-fn untar_download(archive: Vec<u8>) -> (TempDir, Result<crate::AsvoJob, AsvoError>) {
+fn untar_download(archive: Vec<u8>) -> (TempDir, Result<crate::MwaAsvoJob, MwaAsvoError>) {
     let env = TestEnv::with_session();
     let sha1 = sha1_hex(&archive);
     let size = archive.len() as u64;
@@ -2804,8 +2837,11 @@ fn untar_download(archive: Vec<u8>) -> (TempDir, Result<crate::AsvoJob, AsvoErro
     )]);
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
-    let result = client.download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path));
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let result = client.download_job(
+        crate::test_config::TEST_MWA_ASVO_JOB_ID,
+        &options(&dir_path),
+    );
     (dir, result)
 }
 
@@ -2940,16 +2976,16 @@ fn a_scratch_move_does_not_replace_what_is_already_there() {
     std::fs::create_dir(dir.path().join("12345")).expect("could not create the target");
     std::fs::write(dir.path().join("12345").join("a.fits"), "old").expect("a file");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("the move should be refused");
 
     assert!(
-        matches!(err, AsvoError::DestinationExists { .. }),
+        matches!(err, MwaAsvoError::DestinationExists { .. }),
         "expected DestinationExists, got {err:?}"
     );
     assert_eq!(
@@ -2971,7 +3007,7 @@ fn the_target_of_a_scratch_move_is_checked_first() {
     let dir = TempDir::new().expect("could not create a directory");
     let from = dir.path().join("12345");
     std::fs::create_dir(&from).expect("could not create the job directory");
-    let job_id = crate::test_config::TEST_ASVO_JOB_ID;
+    let job_id = crate::test_config::TEST_MWA_ASVO_JOB_ID;
 
     let free = dir.path().join("free");
     assert_eq!(move_target(&from, &free, job_id).unwrap(), MoveTarget::Free);
@@ -2983,7 +3019,7 @@ fn the_target_of_a_scratch_move_is_checked_first() {
     std::fs::write(&other, "x").expect("could not write a file");
     assert!(matches!(
         move_target(&from, &other, job_id),
-        Err(AsvoError::DestinationExists { .. })
+        Err(MwaAsvoError::DestinationExists { .. })
     ));
     #[cfg(unix)]
     {
@@ -2991,7 +3027,7 @@ fn the_target_of_a_scratch_move_is_checked_first() {
         std::os::unix::fs::symlink("nowhere", &link).expect("could not make a link");
         assert!(matches!(
             move_target(&from, &link, job_id),
-            Err(AsvoError::SymlinkInDownloadDir { .. })
+            Err(MwaAsvoError::SymlinkInDownloadDir { .. })
         ));
     }
 }
@@ -3076,7 +3112,7 @@ fn create_file_refuses_a_symlink_and_changes_nothing() {
     for link in [&to_existing, &to_missing] {
         let err = create_file(link).expect_err("the link should be refused");
         assert!(
-            matches!(&err, AsvoError::SymlinkInDownloadDir { path } if path == link),
+            matches!(&err, MwaAsvoError::SymlinkInDownloadDir { path } if path == link),
             "{err:?}"
         );
     }
@@ -3097,7 +3133,7 @@ fn create_file_makes_a_file_and_reports_other_failures() {
 
     let err = create_file(&dir.path().join("no_such_dir").join("a.dat"))
         .expect_err("the directory is missing");
-    assert!(matches!(err, AsvoError::CannotCreate { .. }), "{err:?}");
+    assert!(matches!(err, MwaAsvoError::CannotCreate { .. }), "{err:?}");
 }
 
 /// A second download of a Scratch job whose files an earlier download moved
@@ -3118,14 +3154,20 @@ fn a_second_download_of_a_moved_scratch_job_succeeds() {
     let dir = TempDir::new().expect("could not create a download directory");
     let opts_dir = dir.path().display().to_string();
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&opts_dir))
+        .download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&opts_dir),
+        )
         .expect("the first download should move the files");
     assert!(!job_dir.exists());
 
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&opts_dir))
+        .download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&opts_dir),
+        )
         .expect("the second download should find the files already moved");
 
     assert_eq!(
@@ -3143,7 +3185,7 @@ fn the_target_of_a_scratch_move_with_no_source_is_checked() {
 
     let dir = TempDir::new().expect("could not create a directory");
     let from = dir.path().join("scratch").join("12345");
-    let job_id = crate::test_config::TEST_ASVO_JOB_ID;
+    let job_id = crate::test_config::TEST_MWA_ASVO_JOB_ID;
 
     let moved = dir.path().join("moved");
     std::fs::create_dir(&moved).expect("could not create a directory");
@@ -3156,7 +3198,7 @@ fn the_target_of_a_scratch_move_with_no_source_is_checked() {
     std::fs::write(&file, "x").expect("could not write a file");
     assert!(matches!(
         move_target(&from, &file, job_id),
-        Err(AsvoError::DestinationExists { .. })
+        Err(MwaAsvoError::DestinationExists { .. })
     ));
 
     assert_eq!(
@@ -3194,9 +3236,9 @@ fn a_connection_error_does_not_show_the_signed_url() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("a refused connection should fail the download");
 
     let message = format!("{err} {err:?}");
@@ -3224,9 +3266,9 @@ fn an_error_body_that_repeats_the_signed_url_is_redacted() {
     let mut opts = options(&dir_path);
     opts.keep_tar = true;
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("a 403 should fail the download");
 
     let message = format!("{err} {err:?}");
@@ -3271,9 +3313,9 @@ fn with_a_job_subdirectory_the_tar_is_unpacked_into_a_directory_named_for_the_jo
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let job_dir = dir.path().join(job_directory_name());
@@ -3312,9 +3354,9 @@ fn with_a_job_subdirectory_a_kept_tar_is_in_the_directory_of_the_job() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     let written = std::fs::read(dir.path().join(job_directory_name()).join(DOWNLOAD_FILE))
@@ -3345,7 +3387,7 @@ fn an_obs_id_download_uses_the_directory_of_the_job_that_it_finds() {
     };
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .download_obs(obs_id, &opts)
         .expect("the download should succeed");
@@ -3395,9 +3437,9 @@ fn the_files_of_two_jobs_of_one_observation_do_not_meet() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     for job_id in [12345, 12346] {
-        let job_id = crate::AsvoJobId::new(job_id).expect("a Job ID");
+        let job_id = crate::MwaAsvoJobId::new(job_id).expect("a Job ID");
         client
             .download_job(job_id, &opts)
             .expect("the download should succeed");
@@ -3427,9 +3469,12 @@ fn without_a_job_subdirectory_no_directory_is_made_for_the_job() {
     let dir = TempDir::new().expect("could not create a download directory");
     let dir_path = dir.path().display().to_string();
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &options(&dir_path))
+        .download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&dir_path),
+        )
         .expect("the download should succeed");
 
     assert!(dir.path().join("1065880128.metafits").is_file());
@@ -3459,9 +3504,9 @@ fn a_job_subdirectory_that_is_already_there_is_used_and_its_files_are_kept() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(
@@ -3494,13 +3539,13 @@ fn a_job_subdirectory_that_is_a_symlink_is_refused() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the link should be refused");
 
     assert!(
-        matches!(err, AsvoError::SymlinkInDownloadDir { .. }),
+        matches!(err, MwaAsvoError::SymlinkInDownloadDir { .. }),
         "{err:?}"
     );
     assert_eq!(file.calls(), 0, "nothing should be fetched");
@@ -3527,9 +3572,9 @@ fn a_job_subdirectory_needs_the_download_directory_to_exist() {
         ..options(&missing_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect_err("the download directory is missing");
 
     assert!(
@@ -3561,9 +3606,9 @@ fn a_scratch_job_is_not_put_in_a_job_subdirectory() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the move should succeed");
 
     assert!(dir.path().join("12345").join("a.fits").is_file());
@@ -3604,10 +3649,10 @@ fn a_job_whose_links_have_expired_is_refused_before_any_request() {
     env.mock_get_jobs(vec![completed_job_at(TEST_JOB_ID as i64, &url)]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .download_job(
-            crate::test_config::TEST_ASVO_JOB_ID,
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
             &options(&dir.path().display().to_string()),
         )
         .expect_err("the expired job should be refused");
@@ -3615,8 +3660,8 @@ fn a_job_whose_links_have_expired_is_refused_before_any_request() {
     assert!(
         matches!(
             &err,
-            AsvoError::JobExpired { job_id, expired }
-                if *job_id == crate::test_config::TEST_ASVO_JOB_ID
+            MwaAsvoError::JobExpired { job_id, expired }
+                if *job_id == crate::test_config::TEST_MWA_ASVO_JOB_ID
                     && *expired == Some("2001-09-09T01:46:40Z".parse().expect("a time"))
         ),
         "{err:?}"
@@ -3650,9 +3695,9 @@ fn a_job_whose_links_have_not_expired_is_downloaded() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
-        .download_job(crate::test_config::TEST_ASVO_JOB_ID, &opts)
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
         .expect("the download should succeed");
 
     assert_eq!(
@@ -3687,7 +3732,7 @@ fn an_obs_id_is_downloaded_from_its_job_whose_links_work() {
         ..options(&dir_path)
     };
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let job = client
         .download_obs(obs_id, &opts)
@@ -3717,14 +3762,14 @@ fn an_obs_id_whose_jobs_have_all_expired_names_the_newest() {
     ]);
     let dir = TempDir::new().expect("could not create a download directory");
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID.parse().expect("the test obsid should parse");
     let err = client
         .download_obs(obs_id, &options(&dir.path().display().to_string()))
         .expect_err("every job has expired");
 
     assert!(
-        matches!(&err, AsvoError::JobExpired { job_id, .. } if job_id.get() == 8),
+        matches!(&err, MwaAsvoError::JobExpired { job_id, .. } if job_id.get() == 8),
         "{err:?}"
     );
     assert_eq!(file.calls(), 0);
@@ -3757,10 +3802,10 @@ fn an_access_denied_answer_is_an_expired_link() {
         env.mock_get_jobs(vec![completed_job_at(TEST_JOB_ID as i64, &url)]);
         let dir = TempDir::new().expect("could not create a download directory");
 
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
         let err = client
             .download_job(
-                crate::test_config::TEST_ASVO_JOB_ID,
+                crate::test_config::TEST_MWA_ASVO_JOB_ID,
                 &options(&dir.path().display().to_string()),
             )
             .expect_err("the 403 should fail the download");
@@ -3768,8 +3813,8 @@ fn an_access_denied_answer_is_an_expired_link() {
         assert!(
             matches!(
                 &err,
-                AsvoError::JobExpired { job_id, expired: found }
-                    if *job_id == crate::test_config::TEST_ASVO_JOB_ID && *found == expired
+                MwaAsvoError::JobExpired { job_id, expired: found }
+                    if *job_id == crate::test_config::TEST_MWA_ASVO_JOB_ID && *found == expired
             ),
             "{query}: {err:?}"
         );

@@ -7,7 +7,7 @@
 
 use std::time::{Duration, Instant};
 
-use super::AsvoError;
+use super::MwaAsvoError;
 
 #[cfg(test)]
 mod tests;
@@ -16,12 +16,12 @@ mod tests;
 /// again, while it waits to retry.
 const STOP_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 
-/// Sleep for `wait`, and stop early with [`AsvoError::Interrupted`] if
+/// Sleep for `wait`, and stop early with [`MwaAsvoError::Interrupted`] if
 /// `should_stop` (when there is one) says that the caller wants to stop.
 pub(crate) fn sleep_unless_stopped(
     wait: Duration,
     should_stop: Option<&dyn Fn() -> bool>,
-) -> Result<(), AsvoError> {
+) -> Result<(), MwaAsvoError> {
     let Some(should_stop) = should_stop else {
         std::thread::sleep(wait);
         return Ok(());
@@ -29,7 +29,7 @@ pub(crate) fn sleep_unless_stopped(
     let deadline = Instant::now() + wait;
     loop {
         if should_stop() {
-            return Err(AsvoError::Interrupted);
+            return Err(MwaAsvoError::Interrupted);
         }
         let now = Instant::now();
         if now >= deadline {
@@ -52,7 +52,7 @@ const BACKOFF_RANDOMIZATION_FACTOR: f64 = 0.5;
 /// The retry policy: exponential backoff with jitter. A download uses it
 /// ([`DownloadOptions::retry_duration`](crate::DownloadOptions::retry_duration)),
 /// and so does the job list request of a wait
-/// ([`AsvoClient::get_jobs_retrying`](crate::AsvoClient::get_jobs_retrying)).
+/// ([`MwaAsvoClient::get_jobs_retrying`](crate::MwaAsvoClient::get_jobs_retrying)).
 ///
 /// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
 /// retried for `retry_duration`. The

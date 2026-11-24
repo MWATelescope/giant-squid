@@ -311,7 +311,7 @@ example `queued`). `preparing` and `imaging` are new. The names are still
 case insensitive. `giant-squid list --help` lists them.
 
 **The job type names are the API's.** `--job-types` takes the names of the MWA
-ASVO API's `JobType`, the table shows them, and so does the JSON:
+MWA ASVO API's `JobType`, the table shows them, and so does the JSON:
 
 | 2.x name | 2.x JSON | 3.0.0 name and JSON |
 |---|---|---|
@@ -432,7 +432,7 @@ use `--no-job-subdir` to carry on with it. A Scratch job is not affected.
 
 New: `-j`, `--json` prints the result of each download as one line of JSON
 (`job_id`, `obs_id`, `status`, `message`), and `cancel --json` prints the MWA
-ASVO's reply to each request, as the submit commands do. A failed download or
+MWA ASVO's reply to each request, as the submit commands do. A failed download or
 cancel request is an error line: see [Errors with `--json`](#errors-with---json).
 
 New: a download without `--keep-tar` (stream untar) resumes. In 2.x, only a

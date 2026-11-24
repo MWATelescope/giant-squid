@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use crate::mwa_asvo::api::openapi::{ErrorResponse, Status};
 use crate::mwa_asvo::error_response::{ERROR_CODE_CLIENT_ERROR, ERROR_CODE_INVALID_ARGUMENT};
-use crate::mwa_asvo::{new_error_response, AsvoApiError, AsvoError, AsvoJobId};
+use crate::mwa_asvo::{new_error_response, MwaAsvoApiError, MwaAsvoError, MwaAsvoJobId};
 use crate::obs_id::{ObsId, ObsIdError};
 use crate::ParseError;
 
@@ -50,7 +50,7 @@ pub(super) struct JsonError {
     #[serde(flatten)]
     error: ErrorResponse,
     #[serde(skip_serializing_if = "Option::is_none")]
-    job_id: Option<AsvoJobId>,
+    job_id: Option<MwaAsvoJobId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     obs_id: Option<ObsId>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,10 +64,10 @@ impl JsonError {
     /// [`ERROR_CODE_CLIENT_ERROR`], with the whole chain as the message.
     pub(super) fn new(error: &anyhow::Error) -> Self {
         for cause in error.chain() {
-            if let Some(e) = cause.downcast_ref::<AsvoError>() {
+            if let Some(e) = cause.downcast_ref::<MwaAsvoError>() {
                 return Self::from_response(e.error_response(), e.job_id(), e.obs_id());
             }
-            if let Some(e) = cause.downcast_ref::<AsvoApiError>() {
+            if let Some(e) = cause.downcast_ref::<MwaAsvoApiError>() {
                 return Self::from_response(e.error_response(), None, None);
             }
             if let Some(e) = cause.downcast_ref::<ParseError>() {
@@ -93,7 +93,7 @@ impl JsonError {
 
     /// The error line of an error of an API request, which is borrowed: the
     /// `ErrorResponse` of the library for it.
-    pub(super) fn api_error(error: &AsvoApiError) -> Self {
+    pub(super) fn api_error(error: &MwaAsvoApiError) -> Self {
         Self::from_response(error.error_response(), None, None)
     }
 
@@ -119,7 +119,7 @@ impl JsonError {
 
     fn from_response(
         error: ErrorResponse,
-        job_id: Option<AsvoJobId>,
+        job_id: Option<MwaAsvoJobId>,
         obs_id: Option<ObsId>,
     ) -> Self {
         Self {
@@ -132,7 +132,7 @@ impl JsonError {
     }
 
     /// The line for the Job ID `job_id`, which was asked for.
-    pub(super) fn with_job_id(mut self, job_id: AsvoJobId) -> Self {
+    pub(super) fn with_job_id(mut self, job_id: MwaAsvoJobId) -> Self {
         self.job_id = Some(job_id);
         self
     }

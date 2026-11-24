@@ -48,7 +48,7 @@ fn a_missing_api_key_is_an_error() {
     assert!(
         matches!(
             err,
-            AsvoError::AsvoApi(AsvoApiError::MissingAuthKey {
+            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::MissingAuthKey {
                 variable: Some(ENV_MWA_ASVO_API_KEY)
             })
         ),
@@ -65,7 +65,7 @@ fn the_defaults_are_used_when_only_the_key_is_set() {
     let config = client_config_from(vars([(ENV_MWA_ASVO_API_KEY, KEY)])).expect("a config");
 
     assert_eq!(config.api_key, KEY);
-    assert_eq!(config.host, DEFAULT_ASVO_HOST);
+    assert_eq!(config.host, DEFAULT_MWA_ASVO_HOST);
     assert_eq!(config.api_timeout, DEFAULT_API_TIMEOUT);
     assert_eq!(config.token_cache_path, None);
 }
@@ -239,6 +239,6 @@ fn a_bad_delivery_variable_is_an_error_that_lists_the_values() {
         let text = err.to_string();
         assert!(text.contains(&format!("{name}='nowhere'")), "{text}");
         assert!(text.contains("should be one of"), "{text}");
-        assert!(matches!(err, AsvoError::InvalidEnvironment { .. }));
+        assert!(matches!(err, MwaAsvoError::InvalidEnvironment { .. }));
     }
 }

@@ -45,7 +45,7 @@ def test_the_sizes_are_in_bytes() -> None:
 
 def test_the_default_host_is_the_mwa_asvo() -> None:
     """The default host is the production MWA ASVO, with its port."""
-    assert gs.DEFAULT_ASVO_HOST == "https://asvo.mwatelescope.org:443"
+    assert gs.DEFAULT_MWA_ASVO_HOST == "https://asvo.mwatelescope.org:443"
 
 
 def test_the_signed_url_lifetime_is_in_days() -> None:
@@ -106,9 +106,9 @@ def test_check_file_sha1_hash_takes_a_string_path(hashed_file: pathlib.Path) -> 
 
 
 def test_check_file_sha1_hash_raises_for_a_wrong_hash(hashed_file: pathlib.Path) -> None:
-    """A wrong hash is an `AsvoError` of kind `HashMismatch`, with both hashes."""
+    """A wrong hash is an `MwaAsvoError` of kind `HashMismatch`, with both hashes."""
     wrong = "0" * len(FILE_SHA1)
-    with pytest.raises(gs.AsvoError) as excinfo:
+    with pytest.raises(gs.MwaAsvoError) as excinfo:
         gs.check_file_sha1_hash(hashed_file, wrong, JOB_ID)
     error = excinfo.value
     assert error.kind == "HashMismatch"

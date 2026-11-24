@@ -31,8 +31,8 @@ use crate::mwa_asvo::api::openapi::{
 };
 use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
 use crate::mwa_asvo::{
-    client_config_from_env, AsvoApiError, AsvoClient, AsvoJob, AsvoJobId, AsvoJobVec,
-    DownloadOptions, DownloadProgress, DownloadSettings, JobState, JobsFilter,
+    client_config_from_env, DownloadOptions, DownloadProgress, DownloadSettings, JobState,
+    JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec,
     ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
@@ -89,8 +89,8 @@ fn update_progress_bar(pb: &ProgressBar, event: DownloadProgress) {
 }
 
 /// Log in to the MWA ASVO with the config from the environment.
-fn connect() -> anyhow::Result<AsvoClient> {
-    Ok(AsvoClient::new(client_config_from_env()?)?)
+fn connect() -> anyhow::Result<MwaAsvoClient> {
+    Ok(MwaAsvoClient::new(client_config_from_env()?)?)
 }
 
 /// The time between the starts of two downloads, so that the downloads start
@@ -101,13 +101,13 @@ const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(50);
 /// What one download is for: a Job ID, or an Obs ID.
 #[derive(Clone, Copy)]
 enum DownloadTarget {
-    Job(AsvoJobId),
+    Job(MwaAsvoJobId),
     Obs(ObsId),
 }
 
 impl DownloadTarget {
     /// The targets of `job_ids` and then of `obs_ids`, in that order.
-    fn all(job_ids: &[AsvoJobId], obs_ids: &[ObsId]) -> Vec<Self> {
+    fn all(job_ids: &[MwaAsvoJobId], obs_ids: &[ObsId]) -> Vec<Self> {
         job_ids
             .iter()
             .map(|j| Self::Job(*j))
@@ -116,7 +116,7 @@ impl DownloadTarget {
     }
 
     /// The Job ID that was asked for, if it is one.
-    fn job_id(self) -> Option<AsvoJobId> {
+    fn job_id(self) -> Option<MwaAsvoJobId> {
         match self {
             Self::Job(job_id) => Some(job_id),
             Self::Obs(_) => None,
@@ -134,10 +134,10 @@ impl DownloadTarget {
     /// Download the target, found in the job list `jobs`.
     fn download(
         self,
-        client: &AsvoClient,
-        jobs: &AsvoJobVec,
+        client: &MwaAsvoClient,
+        jobs: &MwaAsvoJobVec,
         opts: &DownloadOptions,
-    ) -> anyhow::Result<AsvoJob> {
+    ) -> anyhow::Result<MwaAsvoJob> {
         Ok(match self {
             Self::Job(job_id) => client.download_job_from(jobs, job_id, opts)?,
             Self::Obs(obs_id) => client.download_obs_from(jobs, obs_id, opts)?,
@@ -152,7 +152,7 @@ impl DownloadTarget {
 #[derive(serde::Serialize)]
 pub(super) struct DownloadReport {
     pub(super) status: Status,
-    pub(super) job_id: AsvoJobId,
+    pub(super) job_id: MwaAsvoJobId,
     pub(super) obs_id: ObsId,
     pub(super) message: String,
 }
@@ -160,7 +160,7 @@ pub(super) struct DownloadReport {
 impl DownloadReport {
     /// The report of the download of `job`, to `download_dir` (with
     /// `job_subdir`, in the directory for the job below it).
-    fn new(job: &AsvoJob, download_dir: &str, job_subdir: bool) -> Self {
+    fn new(job: &MwaAsvoJob, download_dir: &str, job_subdir: bool) -> Self {
         Self {
             status: Status::Success,
             job_id: job.job_id(),
@@ -175,7 +175,7 @@ impl DownloadReport {
 /// the Job ID `job_id` or the Obs ID `obs_id` that was asked for.
 fn print_download_line(
     target: DownloadTarget,
-    result: &anyhow::Result<AsvoJob>,
+    result: &anyhow::Result<MwaAsvoJob>,
     download_dir: &str,
     job_subdir: bool,
 ) -> Result<(), anyhow::Error> {
@@ -196,7 +196,7 @@ fn print_download_line(
 #[derive(serde::Serialize)]
 struct DryRunDownload {
     #[serde(skip_serializing_if = "Option::is_none")]
-    job_id: Option<AsvoJobId>,
+    job_id: Option<MwaAsvoJobId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     obs_id: Option<ObsId>,
     keep_tar: bool,
@@ -229,13 +229,13 @@ struct DryRunImageFromJob<'a, T: serde::Serialize> {
 #[derive(serde::Serialize)]
 struct DryRunCancel {
     endpoint: String,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
 }
 
 /// What a successful download did, for its JSON report: the size and the
 /// directory of an Acacia download, or the Scratch path that was moved to
 /// the download directory.
-fn downloaded_message(job: &AsvoJob, download_dir: &str, job_subdir: bool) -> String {
+fn downloaded_message(job: &MwaAsvoJob, download_dir: &str, job_subdir: bool) -> String {
     match job_files(job).first() {
         // A Scratch job that this host can reach is moved to the download
         // directory. (One that it cannot reach, or a DUG job, is an error.)
@@ -397,8 +397,8 @@ fn run_submit<P, B, C, S>(
 where
     P: serde::Serialize,
     B: Fn(ObsId) -> P,
-    C: Fn(&P) -> Result<(), AsvoApiError>,
-    S: Fn(&AsvoClient, &P) -> Result<JobSubmittedResponse, AsvoApiError>,
+    C: Fn(&P) -> Result<(), MwaAsvoApiError>,
+    S: Fn(&MwaAsvoClient, &P) -> Result<JobSubmittedResponse, MwaAsvoApiError>,
 {
     let Submission {
         obs_ids,
@@ -416,7 +416,7 @@ where
     }
 
     let client = connect()?;
-    let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(obs_ids.len());
+    let mut job_ids: Vec<MwaAsvoJobId> = Vec::with_capacity(obs_ids.len());
     let outcome = submit_each_obs_id(obs_ids, description, json, |o| {
         let params = build(*o);
         let resp = submit(&client, &params)?;
@@ -447,7 +447,7 @@ fn run_submit_download(
         &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, description),
         |obs_id| download.to_params(obs_id),
         validate_download_params,
-        AsvoClient::submit_download_job,
+        MwaAsvoClient::submit_download_job,
     )
 }
 
@@ -463,7 +463,7 @@ fn run_submit_preprocess(
         &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "conversion"),
         |obs_id| PreprocessJobParams::from(conv.to_params(obs_id)),
         PreprocessJobParams::validate,
-        AsvoClient::submit_preprocess_job,
+        MwaAsvoClient::submit_preprocess_job,
     )
 }
 
@@ -546,7 +546,7 @@ fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> 
     }
 
     let client = connect()?;
-    let mut job_ids: Vec<AsvoJobId> = Vec::with_capacity(jobs.len());
+    let mut job_ids: Vec<MwaAsvoJobId> = Vec::with_capacity(jobs.len());
     let outcome = submit_each_csv_job(&client, &jobs, submit.json, &mut job_ids);
     if submit.wait {
         wait_for_submitted(&client, &job_ids, outcome)
@@ -570,16 +570,16 @@ fn report_invalid_csv_json(error: &CsvError) -> anyhow::Result<()> {
 }
 
 /// Submit the jobs of a CSV file with the library's
-/// [`AsvoClient::submit_csv_jobs`], which carries on past failures, as
+/// [`MwaAsvoClient::submit_csv_jobs`], which carries on past failures, as
 /// [`submit_each_obs_id`] does for the Obs IDs of a command line. The Job IDs
 /// of the jobs that were submitted are added to `job_ids`. The error counts
 /// the failures, because each was reported when it happened
 /// ([`report_csv_result`]).
 fn submit_each_csv_job(
-    client: &AsvoClient,
+    client: &MwaAsvoClient,
     jobs: &[CsvJob],
     json: bool,
-    job_ids: &mut Vec<AsvoJobId>,
+    job_ids: &mut Vec<MwaAsvoJobId>,
 ) -> anyhow::Result<()> {
     // The callback cannot return an error: the first error of the output is
     // kept, and returned after the last job.
@@ -622,7 +622,7 @@ fn submit_each_csv_job(
 /// file.
 fn report_csv_result(
     job: &CsvJob,
-    result: &Result<JobSubmittedResponse, AsvoApiError>,
+    result: &Result<JobSubmittedResponse, MwaAsvoApiError>,
     json: bool,
 ) -> anyhow::Result<()> {
     match result {
@@ -683,8 +683,8 @@ fn report_dry_run_csv(jobs: &[CsvJob], json: bool) -> anyhow::Result<()> {
 /// error is returned, with the summary of the failed submissions (if any)
 /// as its context, so that neither is lost.
 pub(super) fn wait_for_submitted(
-    client: &AsvoClient,
-    job_ids: &[AsvoJobId],
+    client: &MwaAsvoClient,
+    job_ids: &[MwaAsvoJobId],
     outcome: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     if job_ids.is_empty() {
@@ -867,7 +867,7 @@ fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
 /// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
 /// Print the Job ID of each job, one on each line (`list --ids`). A list
 /// with no job prints nothing.
-fn print_job_ids(jobs: &AsvoJobVec) {
+fn print_job_ids(jobs: &MwaAsvoJobVec) {
     if jobs.0.is_empty() {
         info!("You have no jobs.");
     }
@@ -887,7 +887,7 @@ fn print_job_ids(jobs: &AsvoJobVec) {
 ///
 /// [`ParseError`] if an ID is not valid, if there is an Obs ID, or if there
 /// is no ID.
-fn read_job_ids(args: &[String]) -> Result<Option<(Vec<AsvoJobId>, bool)>, ParseError> {
+fn read_job_ids(args: &[String]) -> Result<Option<(Vec<MwaAsvoJobId>, bool)>, ParseError> {
     let ids = resolve_ids(args)?;
     if ids.is_empty_input() {
         return Ok(None);
@@ -909,7 +909,7 @@ fn log_read_from_stdin(from_stdin: bool, job_count: usize) {
 }
 
 fn print_jobs(
-    jobs: AsvoJobVec,
+    jobs: MwaAsvoJobVec,
     json: bool,
     legacy_json: bool,
     no_colour: bool,
@@ -930,11 +930,11 @@ fn print_jobs(
 /// Poll the job list until all of `job_ids` are ready, logging each job's
 /// state when it changes. Fails as soon as a job is missing, has an error,
 /// has been cancelled or has expired download links (see
-/// `AsvoJobVec::all_ready`).
-fn wait_loop(client: &AsvoClient, job_ids: &[AsvoJobId]) -> anyhow::Result<()> {
+/// `MwaAsvoJobVec::all_ready`).
+fn wait_loop(client: &MwaAsvoClient, job_ids: &[MwaAsvoJobId]) -> anyhow::Result<()> {
     let job_count = job_ids.len();
     info!("Waiting for {job_count} jobs to be ready...");
-    let mut last_state = BTreeMap::<AsvoJobId, JobState>::new();
+    let mut last_state = BTreeMap::<MwaAsvoJobId, JobState>::new();
     // Offer the MWA ASVO a kindness by waiting a moment, so that the
     // user's queue is hopefully current.
     std::thread::sleep(WAIT_INITIAL_DELAY);
@@ -1112,7 +1112,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                     .build()?;
 
                 let targets = DownloadTarget::all(&job_ids, &obs_ids);
-                let results: Vec<anyhow::Result<AsvoJob>> =
+                let results: Vec<anyhow::Result<MwaAsvoJob>> =
                     run_in_order(&pool, &targets, DOWNLOAD_START_DELAY, |index, target| {
                         let pb = create_progress_bar(&mpb);
                         let progress = |event| update_progress_bar(&pb, event);
@@ -1214,7 +1214,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "imaging"),
                 |obs_id| PreprocessJobParams::from(image.to_params(obs_id)),
                 PreprocessJobParams::validate,
-                AsvoClient::submit_preprocess_job,
+                MwaAsvoClient::submit_preprocess_job,
             )?;
         }
 

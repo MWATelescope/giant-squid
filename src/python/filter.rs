@@ -19,7 +19,7 @@ use super::types::{PyJobState, PyJobType, PySortBy};
 use crate::mwa_asvo::api::validate;
 use crate::mwa_asvo::JobsFilter;
 
-/// Which of your jobs to get: the filter of `AsvoClient.get_jobs`.
+/// Which of your jobs to get: the filter of `MwaAsvoClient.get_jobs`.
 ///
 /// A filter that is `None` or empty does not filter, except `days` and
 /// `sort_by`: `days=None` is the default window of the MWA ASVO API (30
@@ -200,7 +200,7 @@ impl PyJobsFilter {
         self.0.job_states = job_states.into_iter().map(Into::into).collect();
     }
 
-    /// Check the filter before any request. `AsvoClient.get_jobs` does this.
+    /// Check the filter before any request. `MwaAsvoClient.get_jobs` does this.
     ///
     /// Raises:
     ///     ValueError: Both `job_ids` and `obs_ids` are given, `days` is not

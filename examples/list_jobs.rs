@@ -5,7 +5,7 @@
 //! List your MWA ASVO jobs with the giant-squid library only (no CLI code).
 //!
 //! The library reads no environment variables, so this program (the
-//! caller) reads them and builds an `AsvoClientConfig`:
+//! caller) reads them and builds an `MwaAsvoClientConfig`:
 //!
 //! ```text
 //! MWA_ASVO_API_KEY=<your key> cargo run --example list_jobs [DAYS]
@@ -28,7 +28,7 @@ use std::path::Path;
 
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
-    default_token_cache_path, AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_ASVO_HOST,
+    default_token_cache_path, JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, DEFAULT_MWA_ASVO_HOST,
 };
 
 /// The environment variable that holds the API key.
@@ -40,15 +40,15 @@ const ENV_HOME: &str = "HOME";
 
 fn main() -> Result<(), Box<dyn Error>> {
     let api_key = env::var(ENV_API_KEY).map_err(|_| format!("{ENV_API_KEY} is not set"))?;
-    let host = env::var(ENV_HOST).unwrap_or_else(|_| DEFAULT_ASVO_HOST.to_string());
+    let host = env::var(ENV_HOST).unwrap_or_else(|_| DEFAULT_MWA_ASVO_HOST.to_string());
     let days: Option<std::num::NonZeroU64> = env::args().nth(1).map(|d| d.parse()).transpose()?;
 
-    let mut config = AsvoClientConfig::new(host, api_key);
+    let mut config = MwaAsvoClientConfig::new(host, api_key);
     config.token_cache_path = env::var(ENV_HOME)
         .ok()
         .map(|home| default_token_cache_path(Path::new(&home)));
 
-    let client = AsvoClient::new(config)?;
+    let client = MwaAsvoClient::new(config)?;
     let jobs = client.get_jobs(&JobsFilter {
         days,
         ..JobsFilter::default()

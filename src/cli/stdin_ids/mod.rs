@@ -34,7 +34,7 @@ use crate::helpers::{
     BYTE_ORDER_MARK,
 };
 use crate::mwa_asvo::api::openapi::Status;
-use crate::mwa_asvo::AsvoJobId;
+use crate::mwa_asvo::MwaAsvoJobId;
 use crate::obs_id::ObsId;
 
 #[cfg(test)]
@@ -49,7 +49,7 @@ const STDIN_ARG: &str = "-";
 pub(super) struct TextIds {
     /// The Job IDs, in ascending order for a JSON list and in the order of
     /// the text otherwise.
-    pub job_ids: Vec<AsvoJobId>,
+    pub job_ids: Vec<MwaAsvoJobId>,
     /// The Obs IDs, in the order of the text.
     pub obs_ids: Vec<ObsId>,
 }
@@ -127,7 +127,7 @@ fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
 
     let mut job_ids = Vec::with_capacity(entries.len());
     for (key, job) in &entries {
-        let job_id = key.parse::<u64>().ok().and_then(AsvoJobId::new);
+        let job_id = key.parse::<u64>().ok().and_then(MwaAsvoJobId::new);
         match job_id {
             Some(job_id) if job.is_object() => job_ids.push(job_id),
             _ => {
@@ -151,7 +151,7 @@ fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct ResolvedIds {
     /// The Job IDs.
-    pub job_ids: Vec<AsvoJobId>,
+    pub job_ids: Vec<MwaAsvoJobId>,
     /// The Obs IDs.
     pub obs_ids: Vec<ObsId>,
     /// Standard input was read.
@@ -177,7 +177,7 @@ impl ResolvedIds {
     /// # Errors
     ///
     /// [`ParseError::ObsIdsGiven`] if there is an Obs ID.
-    pub(super) fn into_job_ids(self) -> Result<Vec<AsvoJobId>, ParseError> {
+    pub(super) fn into_job_ids(self) -> Result<Vec<MwaAsvoJobId>, ParseError> {
         if self.obs_ids.is_empty() {
             Ok(self.job_ids)
         } else {

@@ -788,7 +788,7 @@ mod submitting {
     use tempfile::TempDir;
 
     use super::super::{CsvDefaults, CsvSubmitError};
-    use crate::mwa_asvo::AsvoClient;
+    use crate::mwa_asvo::MwaAsvoClient;
     use crate::test_common::*;
     use crate::test_config::client_config;
 
@@ -826,7 +826,7 @@ mod submitting {
             &dir,
             "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=c\n",
         );
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
         let replies = client
             .submit_csv_file(&file, &CsvDefaults::default())
@@ -855,7 +855,7 @@ mod submitting {
             &dir,
             "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=d,download_type=vis\n",
         );
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
         let err = client
             .submit_csv_file(&file, &CsvDefaults::default())
@@ -895,7 +895,7 @@ mod submitting {
             &dir,
             "obs_id=1349904240,job_type=d,download_type=vis\nobs_id=1349904184,job_type=x\n",
         );
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
         let err = client
             .submit_csv_file(&file, &CsvDefaults::default())
@@ -911,7 +911,7 @@ mod submitting {
     #[test]
     fn a_file_that_cannot_be_read_is_an_error_that_names_it() {
         let env = TestEnv::with_session();
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
         let err = client
             .submit_csv_file(Path::new("/no/such/dir/jobs.csv"), &CsvDefaults::default())
@@ -934,7 +934,7 @@ mod submitting {
         });
         let dir = TempDir::new().expect("could not create a temporary directory");
         let file = csv_file(&dir, "# nothing\n");
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
         let err = client
             .submit_csv_file(&file, &CsvDefaults::default())

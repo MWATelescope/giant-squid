@@ -35,10 +35,10 @@ pub use helpers::{
 /// the `created` field of a job), so that a program uses the same jiff version.
 pub use jiff;
 pub use mwa_asvo::api::client::{
-    AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
+    JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST,
     ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
-pub use mwa_asvo::api::error::AsvoApiError;
+pub use mwa_asvo::api::error::MwaAsvoApiError;
 pub use mwa_asvo::download::{
     DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
@@ -48,11 +48,11 @@ pub use mwa_asvo::env::{
     ENV_GIANT_SQUID_DELIVERY_FORMAT, ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS, ENV_HOME,
     ENV_MWA_ASVO_API_KEY, ENV_MWA_ASVO_API_TIMEOUT, ENV_MWA_ASVO_HOST,
 };
-pub use mwa_asvo::error::AsvoError;
+pub use mwa_asvo::error::MwaAsvoError;
 pub use mwa_asvo::manta_ray_csv::{
     parse_manta_ray_csv, read_manta_ray_csv, CsvDefaults, CsvError, CsvFileError, CsvJob,
     CsvJobFailure, CsvJobParams, CsvJobsFailed, CsvRowError, CsvSubmitError,
 };
 pub use mwa_asvo::token_store::{default_token_cache_path, StoredTokens};
-pub use mwa_asvo::types::{AsvoJob, AsvoJobId, AsvoJobVec, SIGNED_URL_LIFETIME_DAYS};
+pub use mwa_asvo::types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec, SIGNED_URL_LIFETIME_DAYS};
 pub use obs_id::{ObsId, ObsIdError};

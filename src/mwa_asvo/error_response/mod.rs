@@ -12,7 +12,7 @@
 //! code is used (for example [`ERROR_CODE_JOB_NOT_FOUND`]).
 
 use super::api::openapi::{ErrorResponse, FieldError};
-use super::{AsvoApiError, AsvoError, AsvoJobId};
+use super::{MwaAsvoApiError, MwaAsvoError, MwaAsvoJobId};
 use crate::obs_id::{ObsId, ObsIdError};
 use crate::ParseError;
 
@@ -70,7 +70,7 @@ pub const ERROR_CODE_INVALID_JOB: &str = "INVALID_JOB";
 pub const ERROR_CODE_NO_FILES: &str = "NO_FILES";
 
 /// The download links of a job have expired: the job has to be resubmitted
-/// ([`AsvoError::JobExpired`]).
+/// ([`MwaAsvoError::JobExpired`]).
 pub const ERROR_CODE_JOB_EXPIRED: &str = "JOB_EXPIRED";
 
 /// The job has no URL to download its files from.
@@ -133,7 +133,7 @@ fn status_reason(status: u16) -> String {
         .map_or_else(|| status.to_string(), str::to_string)
 }
 
-impl AsvoApiError {
+impl MwaAsvoApiError {
     /// The error as an `ErrorResponse`.
     ///
     /// An error that the MWA ASVO sent as an `ErrorResponse` is copied
@@ -142,28 +142,30 @@ impl AsvoApiError {
     /// as the message and the body, verbatim, as the detail.
     pub fn error_response(&self) -> ErrorResponse {
         match self {
-            AsvoApiError::MissingAuthKey { .. } => {
+            MwaAsvoApiError::MissingAuthKey { .. } => {
                 new_error_response(ERROR_CODE_MISSING_API_KEY, self)
             }
-            AsvoApiError::AuthenticationFailed {
+            MwaAsvoApiError::AuthenticationFailed {
                 response: Some(response),
                 ..
             }
-            | AsvoApiError::ApiError { response, .. } => ErrorResponse::clone(response),
-            AsvoApiError::AuthenticationFailed { response: None, .. } => {
+            | MwaAsvoApiError::ApiError { response, .. } => ErrorResponse::clone(response),
+            MwaAsvoApiError::AuthenticationFailed { response: None, .. } => {
                 new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self)
             }
-            AsvoApiError::Conversion(_) => new_error_response(ERROR_CODE_INVALID_PARAMETER, self),
-            AsvoApiError::InvalidParameter { name, message } => ErrorResponse {
+            MwaAsvoApiError::Conversion(_) => {
+                new_error_response(ERROR_CODE_INVALID_PARAMETER, self)
+            }
+            MwaAsvoApiError::InvalidParameter { name, message } => ErrorResponse {
                 field_errors: Some(vec![FieldError {
                     field: name.to_string(),
                     message: message.clone(),
                 }]),
                 ..new_error_response(ERROR_CODE_INVALID_PARAMETER, self)
             },
-            AsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
-            AsvoApiError::Reqwest(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
-            AsvoApiError::BadStatus { status, message } => ErrorResponse {
+            MwaAsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
+            MwaAsvoApiError::Reqwest(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
+            MwaAsvoApiError::BadStatus { status, message } => ErrorResponse {
                 detail: Some(message.clone()),
                 ..new_error_response(&http_error_code(*status), status_reason(*status))
             },
@@ -171,19 +173,19 @@ impl AsvoApiError {
     }
 }
 
-impl AsvoError {
+impl MwaAsvoError {
     /// The error as an `ErrorResponse`. An API error is
-    /// [`AsvoApiError::error_response`].
+    /// [`MwaAsvoApiError::error_response`].
     pub fn error_response(&self) -> ErrorResponse {
         let code = match self {
-            AsvoError::AsvoApi(e) => return e.error_response(),
-            AsvoError::JobFailed { error_code, .. } => {
+            MwaAsvoError::MwaAsvoApi(e) => return e.error_response(),
+            MwaAsvoError::JobFailed { error_code, .. } => {
                 return ErrorResponse {
                     detail: error_code.map(|c| c.to_string()),
                     ..new_error_response(ERROR_CODE_JOB_FAILED, self)
                 }
             }
-            AsvoError::HttpError {
+            MwaAsvoError::HttpError {
                 status, message, ..
             } => {
                 return ErrorResponse {
@@ -191,56 +193,56 @@ impl AsvoError {
                     ..new_error_response(&http_error_code(*status), self)
                 }
             }
-            AsvoError::Http404Error { .. } => {
+            MwaAsvoError::Http404Error { .. } => {
                 return new_error_response(
                     &http_error_code(reqwest::StatusCode::NOT_FOUND.as_u16()),
                     self,
                 )
             }
-            AsvoError::NoAsvoJob(_) => ERROR_CODE_JOB_NOT_FOUND,
-            AsvoError::InvalidJob { .. } => ERROR_CODE_INVALID_JOB,
-            AsvoError::JobCancelled(_) => ERROR_CODE_JOB_CANCELLED,
-            AsvoError::NoObsId(_) => ERROR_CODE_OBS_ID_NOT_FOUND,
-            AsvoError::NoJobReadyForObsId(_) | AsvoError::NotReady { .. } => {
+            MwaAsvoError::NoMwaAsvoJob(_) => ERROR_CODE_JOB_NOT_FOUND,
+            MwaAsvoError::InvalidJob { .. } => ERROR_CODE_INVALID_JOB,
+            MwaAsvoError::JobCancelled(_) => ERROR_CODE_JOB_CANCELLED,
+            MwaAsvoError::NoObsId(_) => ERROR_CODE_OBS_ID_NOT_FOUND,
+            MwaAsvoError::NoJobReadyForObsId(_) | MwaAsvoError::NotReady { .. } => {
                 ERROR_CODE_JOB_NOT_READY
             }
-            AsvoError::TooManyObsIds(_) => ERROR_CODE_AMBIGUOUS_OBS_ID,
-            AsvoError::NoFiles(_) => ERROR_CODE_NO_FILES,
-            AsvoError::JobExpired { .. } => ERROR_CODE_JOB_EXPIRED,
-            AsvoError::HashMismatch { .. } => ERROR_CODE_HASH_MISMATCH,
-            AsvoError::InvalidJobState { .. }
-            | AsvoError::InvalidJobType { .. }
-            | AsvoError::InvalidOption { .. } => ERROR_CODE_INVALID_ARGUMENT,
-            AsvoError::InvalidEnvironment { .. } => ERROR_CODE_INVALID_ENVIRONMENT,
-            AsvoError::IO(_) | AsvoError::CannotCreate { .. } => ERROR_CODE_IO_ERROR,
-            AsvoError::Interrupted => ERROR_CODE_INTERRUPTED,
-            AsvoError::NoUrl { .. } => ERROR_CODE_NO_URL,
-            AsvoError::NoPath { .. } => ERROR_CODE_NO_PATH,
-            AsvoError::NoHash { .. } => ERROR_CODE_NO_HASH,
-            AsvoError::FilesNotReachable { .. } => ERROR_CODE_FILES_NOT_REACHABLE,
-            AsvoError::SymlinkInDownloadDir { .. } => ERROR_CODE_SYMLINK_IN_DOWNLOAD_DIR,
-            AsvoError::DestinationExists { .. } => ERROR_CODE_DESTINATION_EXISTS,
+            MwaAsvoError::TooManyObsIds(_) => ERROR_CODE_AMBIGUOUS_OBS_ID,
+            MwaAsvoError::NoFiles(_) => ERROR_CODE_NO_FILES,
+            MwaAsvoError::JobExpired { .. } => ERROR_CODE_JOB_EXPIRED,
+            MwaAsvoError::HashMismatch { .. } => ERROR_CODE_HASH_MISMATCH,
+            MwaAsvoError::InvalidJobState { .. }
+            | MwaAsvoError::InvalidJobType { .. }
+            | MwaAsvoError::InvalidOption { .. } => ERROR_CODE_INVALID_ARGUMENT,
+            MwaAsvoError::InvalidEnvironment { .. } => ERROR_CODE_INVALID_ENVIRONMENT,
+            MwaAsvoError::IO(_) | MwaAsvoError::CannotCreate { .. } => ERROR_CODE_IO_ERROR,
+            MwaAsvoError::Interrupted => ERROR_CODE_INTERRUPTED,
+            MwaAsvoError::NoUrl { .. } => ERROR_CODE_NO_URL,
+            MwaAsvoError::NoPath { .. } => ERROR_CODE_NO_PATH,
+            MwaAsvoError::NoHash { .. } => ERROR_CODE_NO_HASH,
+            MwaAsvoError::FilesNotReachable { .. } => ERROR_CODE_FILES_NOT_REACHABLE,
+            MwaAsvoError::SymlinkInDownloadDir { .. } => ERROR_CODE_SYMLINK_IN_DOWNLOAD_DIR,
+            MwaAsvoError::DestinationExists { .. } => ERROR_CODE_DESTINATION_EXISTS,
         };
         new_error_response(code, self)
     }
 
     /// The job that the error is about, if it is about one job.
-    pub fn job_id(&self) -> Option<AsvoJobId> {
+    pub fn job_id(&self) -> Option<MwaAsvoJobId> {
         match self {
-            AsvoError::NoAsvoJob(job_id)
-            | AsvoError::JobCancelled(job_id)
-            | AsvoError::NoFiles(job_id)
-            | AsvoError::JobFailed { job_id, .. }
-            | AsvoError::NotReady { job_id, .. }
-            | AsvoError::JobExpired { job_id, .. }
-            | AsvoError::HashMismatch { job_id, .. }
-            | AsvoError::NoUrl { job_id }
-            | AsvoError::NoPath { job_id }
-            | AsvoError::NoHash { job_id }
-            | AsvoError::FilesNotReachable { job_id, .. }
-            | AsvoError::DestinationExists { job_id, .. }
-            | AsvoError::HttpError { job_id, .. }
-            | AsvoError::Http404Error { job_id } => Some(*job_id),
+            MwaAsvoError::NoMwaAsvoJob(job_id)
+            | MwaAsvoError::JobCancelled(job_id)
+            | MwaAsvoError::NoFiles(job_id)
+            | MwaAsvoError::JobFailed { job_id, .. }
+            | MwaAsvoError::NotReady { job_id, .. }
+            | MwaAsvoError::JobExpired { job_id, .. }
+            | MwaAsvoError::HashMismatch { job_id, .. }
+            | MwaAsvoError::NoUrl { job_id }
+            | MwaAsvoError::NoPath { job_id }
+            | MwaAsvoError::NoHash { job_id }
+            | MwaAsvoError::FilesNotReachable { job_id, .. }
+            | MwaAsvoError::DestinationExists { job_id, .. }
+            | MwaAsvoError::HttpError { job_id, .. }
+            | MwaAsvoError::Http404Error { job_id } => Some(*job_id),
             _ => None,
         }
     }
@@ -248,10 +250,10 @@ impl AsvoError {
     /// The Obs ID that the error is about, if it is about one Obs ID.
     pub fn obs_id(&self) -> Option<ObsId> {
         match self {
-            AsvoError::NoObsId(obs_id)
-            | AsvoError::NoJobReadyForObsId(obs_id)
-            | AsvoError::TooManyObsIds(obs_id)
-            | AsvoError::JobFailed { obs_id, .. } => Some(*obs_id),
+            MwaAsvoError::NoObsId(obs_id)
+            | MwaAsvoError::NoJobReadyForObsId(obs_id)
+            | MwaAsvoError::TooManyObsIds(obs_id)
+            | MwaAsvoError::JobFailed { obs_id, .. } => Some(*obs_id),
             _ => None,
         }
     }

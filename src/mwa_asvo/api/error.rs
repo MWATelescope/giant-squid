@@ -4,7 +4,7 @@
 
 //! Errors when interfacing with the MWA ASVO API (version 2).
 //!
-//! This is intentionally separate from [`crate::mwa_asvo::AsvoError`], which
+//! This is intentionally separate from [`crate::mwa_asvo::MwaAsvoError`], which
 //! covers the file download path (job lookup, hash checks, HTTP transfer).
 //! This enum covers talking to the API itself: authentication and the
 //! structured error responses (`ErrorResponse`).
@@ -16,7 +16,7 @@ use super::openapi::{ErrorResponse, FieldError};
 
 /// An error of a request to the MWA ASVO API, or of its arguments.
 #[derive(Error, Debug)]
-pub enum AsvoApiError {
+pub enum MwaAsvoApiError {
     /// No API key was given: the config's API key is empty, or the
     /// environment variable `variable` is not defined (see
     /// [`client_config_from_env`](crate::client_config_from_env)).
@@ -30,7 +30,7 @@ pub enum AsvoApiError {
     /// Login or token refresh against the MWA ASVO API failed.
     ///
     /// When the server sent an `ErrorResponse`, it is `response`, as for
-    /// [`AsvoApiError::ApiError`], and `message` is its message. Otherwise
+    /// [`MwaAsvoApiError::ApiError`], and `message` is its message. Otherwise
     /// `message` is the server's body (or what went wrong with the tokens),
     /// and there is no `response`.
     #[error(
@@ -95,7 +95,7 @@ pub enum AsvoApiError {
     /// The server responded with a non-success status code, but the body
     /// wasn't in the structured `ErrorResponse` shape we expected. The
     /// `status` and `message` are the same fields as those of
-    /// [`AsvoError::HttpError`](crate::AsvoError::HttpError), which is for a
+    /// [`MwaAsvoError::HttpError`](crate::MwaAsvoError::HttpError), which is for a
     /// failed file download (an error of the file server, not of the API;
     /// it also has the `job_id`).
     #[error("The server responded with status code {status}, message:\n{message}")]
@@ -107,7 +107,7 @@ pub enum AsvoApiError {
     },
 }
 
-/// The part of an [`AsvoApiError::ApiError`] message after the error code
+/// The part of an [`MwaAsvoApiError::ApiError`] message after the error code
 /// and message: the detail and the suggestion, one line for each field
 /// error, then the request ID. A part that the server did not give is left
 /// out.
@@ -132,7 +132,7 @@ fn api_error_extra(response: Option<&ErrorResponse>) -> String {
     extra
 }
 
-impl AsvoApiError {
+impl MwaAsvoApiError {
     /// Whether the same request might succeed if it is sent again later: it
     /// did not reach the server or got no complete reply (a timeout, a
     /// refused or dropped connection), or the server said that it is
@@ -141,40 +141,40 @@ impl AsvoApiError {
     /// that cannot be decoded are not.
     pub fn is_transient(&self) -> bool {
         match self {
-            AsvoApiError::Reqwest(e) => {
+            MwaAsvoApiError::Reqwest(e) => {
                 e.is_timeout() || e.is_connect() || e.is_request() || e.is_body()
             }
-            AsvoApiError::ApiError { status, .. } | AsvoApiError::BadStatus { status, .. } => {
-                reqwest::StatusCode::from_u16(*status).is_ok_and(|code| {
+            MwaAsvoApiError::ApiError { status, .. }
+            | MwaAsvoApiError::BadStatus { status, .. } => reqwest::StatusCode::from_u16(*status)
+                .is_ok_and(|code| {
                     code.is_server_error() || code == reqwest::StatusCode::TOO_MANY_REQUESTS
-                })
-            }
+                }),
             _ => false,
         }
     }
 
-    /// An [`AsvoApiError::AuthenticationFailed`] with only a message: a
+    /// An [`MwaAsvoApiError::AuthenticationFailed`] with only a message: a
     /// failure that is not an error reply from the server (for example a
     /// token that cannot be decoded).
     pub(crate) fn authentication_failed(message: impl Into<String>) -> Self {
-        AsvoApiError::AuthenticationFailed {
+        MwaAsvoApiError::AuthenticationFailed {
             message: message.into(),
             response: None,
         }
     }
 
-    /// An [`AsvoApiError::ApiError`] for the reply `response` with HTTP
+    /// An [`MwaAsvoApiError::ApiError`] for the reply `response` with HTTP
     /// status `status`.
     pub(crate) fn api_error(status: u16, response: ErrorResponse) -> Self {
-        AsvoApiError::ApiError {
+        MwaAsvoApiError::ApiError {
             status,
             response: Box::new(tidy(response)),
         }
     }
 
-    /// An [`AsvoApiError::AuthenticationFailed`] for the reply `response`.
+    /// An [`MwaAsvoApiError::AuthenticationFailed`] for the reply `response`.
     pub(crate) fn authentication_failed_with(response: ErrorResponse) -> Self {
-        AsvoApiError::AuthenticationFailed {
+        MwaAsvoApiError::AuthenticationFailed {
             message: response.message.clone(),
             response: Some(Box::new(tidy(response))),
         }
@@ -190,7 +190,7 @@ fn tidy(mut response: ErrorResponse) -> ErrorResponse {
     response
 }
 
-/// The error code of an [`AsvoApiError::AuthenticationFailed`] message, as
+/// The error code of an [`MwaAsvoApiError::AuthenticationFailed`] message, as
 /// ` (CODE)`, or nothing when the server gave no code.
 fn error_code_suffix(response: Option<&ErrorResponse>) -> String {
     response
@@ -201,7 +201,7 @@ fn error_code_suffix(response: Option<&ErrorResponse>) -> String {
         .unwrap_or_default()
 }
 
-/// The end of the message of [`AsvoApiError::MissingAuthKey`]: what to set,
+/// The end of the message of [`MwaAsvoApiError::MissingAuthKey`]: what to set,
 /// when the key comes from the environment.
 fn missing_key_hint(variable: &Option<&'static str>) -> String {
     match variable {

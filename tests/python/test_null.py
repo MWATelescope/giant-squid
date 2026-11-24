@@ -31,7 +31,7 @@ from .test_submit import (
 
 
 @pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
+def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
     """A client that has logged in to the mock.
 
     Args:
@@ -41,7 +41,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 # A voltage job has an offset and a duration.
@@ -71,7 +71,7 @@ NULLABLE_WITH_DEFAULT = [
 @pytest.mark.parametrize(("job", "path", "args", "argument", "default"), NULLABLE_WITH_DEFAULT)
 def test_none_is_sent_as_null_and_the_default_is_the_schema_default(
     httpserver: HTTPServer,
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
     job: Callable[..., Any],
     path: str,
     args: tuple[Any, ...],
@@ -100,7 +100,7 @@ def test_none_is_sent_as_null_and_the_default_is_the_schema_default(
 
 def test_none_in_an_argument_whose_default_is_null_leaves_it_out(
     httpserver: HTTPServer,
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
 ) -> None:
     """The default of ``custom_centre_ra`` is ``null``, and the body leaves a null field out.
 

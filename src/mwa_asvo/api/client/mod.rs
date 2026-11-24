@@ -12,7 +12,7 @@
 //! does not log in again.
 //!
 //! The client reads no environment variables: the caller supplies the host,
-//! API key, timeout and token cache path in an [`AsvoClientConfig`].
+//! API key, timeout and token cache path in an [`MwaAsvoClientConfig`].
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;
@@ -29,10 +29,10 @@ use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
 use crate::mwa_asvo::redact::{redact_body, redact_parsed_url};
 use crate::mwa_asvo::retry::{sleep_unless_stopped, Backoff};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
-use crate::mwa_asvo::{AsvoError, AsvoJob, AsvoJobId, AsvoJobVec, DownloadOptions};
+use crate::mwa_asvo::{DownloadOptions, MwaAsvoError, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec};
 use crate::obs_id::ObsId;
 
-use super::error::AsvoApiError;
+use super::error::MwaAsvoApiError;
 use super::job_params::PreprocessJobParams;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, ImageFromJobParams,
@@ -43,8 +43,8 @@ use super::validate::{self, validate_download_params, validate_image_from_job_pa
 
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
-/// [`AsvoClientConfig::host`].
-pub const DEFAULT_ASVO_HOST: &str = "https://asvo.mwatelescope.org:443";
+/// [`MwaAsvoClientConfig::host`].
+pub const DEFAULT_MWA_ASVO_HOST: &str = "https://asvo.mwatelescope.org:443";
 
 /// The default timeout for a single MWA ASVO API request.
 pub const DEFAULT_API_TIMEOUT: Duration = Duration::from_secs(60);
@@ -87,20 +87,20 @@ pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/jobs/image_from_job";
 /// that the request sends. It is not an error: the list is empty.
 const NO_JOBS_STATUS: reqwest::StatusCode = reqwest::StatusCode::NOT_FOUND;
 
-/// Everything an [`AsvoClient`] needs to connect to the MWA ASVO.
+/// Everything an [`MwaAsvoClient`] needs to connect to the MWA ASVO.
 ///
 /// The library reads no environment variables. A caller (such as the
 /// giant-squid CLI) finds these values and builds the config.
 #[derive(Debug, Clone)]
-pub struct AsvoClientConfig {
-    /// The MWA ASVO base URL, for example [`DEFAULT_ASVO_HOST`]. An
+pub struct MwaAsvoClientConfig {
+    /// The MWA ASVO base URL, for example [`DEFAULT_MWA_ASVO_HOST`]. An
     /// `http://` host is permitted (a local mock server or a plain-HTTP
     /// development instance); any other host must use TLS.
     pub host: String,
     /// The user's MWA ASVO API key.
     pub api_key: String,
     /// The timeout for a single API request. It must be more than zero:
-    /// [`AsvoClient::new`] refuses zero.
+    /// [`MwaAsvoClient::new`] refuses zero.
     pub api_timeout: Duration,
     /// Where to cache the session tokens between runs. `None` keeps the
     /// session in memory only, so every new client logs in again. A cached
@@ -112,7 +112,7 @@ pub struct AsvoClientConfig {
     pub token_cache_path: Option<PathBuf>,
 }
 
-impl AsvoClientConfig {
+impl MwaAsvoClientConfig {
     /// A config for `host` and `api_key`, with the default timeout
     /// ([`DEFAULT_API_TIMEOUT`]) and no token cache.
     pub fn new(host: impl Into<String>, api_key: impl Into<String>) -> Self {
@@ -129,7 +129,7 @@ impl AsvoClientConfig {
 /// replaced after a rejected token.
 ///
 /// A thread records the generation of the client it sends a request with.
-/// If the server rejects that token, [`AsvoClient::reauthenticate`] compares
+/// If the server rejects that token, [`MwaAsvoClient::reauthenticate`] compares
 /// that generation with the current one. If they differ, another thread
 /// has already logged in again, so this thread reuses the new client.
 #[derive(Debug)]
@@ -139,13 +139,13 @@ struct Session {
 }
 
 #[derive(Debug)]
-pub struct AsvoClient {
+pub struct MwaAsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
     ///
     /// Wrapped in a [`Mutex`] so that, if the server rejects our access
     /// token (`AUTH_INVALID_TOKEN` / `AUTH_REQUIRED`), `send_authed` can
     /// re-authenticate and swap in a fresh client mid-flight, and so that
-    /// an `AsvoClient` is `Sync` and can be shared between threads (the
+    /// an `MwaAsvoClient` is `Sync` and can be shared between threads (the
     /// Python bindings need this). The lock is held only to clone or swap
     /// the client (see [`Self::current_session`]), never during a request,
     /// so requests from different threads run at the same time.
@@ -158,7 +158,7 @@ pub struct AsvoClient {
     /// The connection details. Kept so that a fresh login can be done on
     /// demand (i.e. when the current token is rejected), and so that every
     /// request uses the same host.
-    config: AsvoClientConfig,
+    config: MwaAsvoClientConfig,
     /// The HTTP client for the files of a job. It sends no access token:
     /// the files are on another host (Acacia), and their URLs are signed.
     download_client: Client,
@@ -234,14 +234,14 @@ fn execute_logged(
 /// reading the `exp` claim to know when a token we've already been handed
 /// by the server will expire, not authenticating anything with it) and
 /// return its expiry as a UTC timestamp.
-fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
+fn decode_jwt_exp(token: &str) -> Result<Timestamp, MwaAsvoApiError> {
     #[derive(serde::Deserialize)]
     struct JwtExpClaim {
         exp: i64,
     }
 
     let payload_b64 = token.split('.').nth(1).ok_or_else(|| {
-        AsvoApiError::authentication_failed(
+        MwaAsvoApiError::authentication_failed(
             "Malformed JWT returned by MWA ASVO: no payload segment",
         )
     })?;
@@ -249,19 +249,19 @@ fn decode_jwt_exp(token: &str) -> Result<Timestamp, AsvoApiError> {
     let payload_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload_b64)
         .map_err(|e| {
-            AsvoApiError::authentication_failed(format!(
+            MwaAsvoApiError::authentication_failed(format!(
                 "Could not base64-decode JWT payload from MWA ASVO: {e}"
             ))
         })?;
 
     let claim: JwtExpClaim = serde_json::from_slice(&payload_bytes).map_err(|e| {
-        AsvoApiError::authentication_failed(format!(
+        MwaAsvoApiError::authentication_failed(format!(
             "Could not parse JWT payload JSON from MWA ASVO: {e}"
         ))
     })?;
 
     Timestamp::from_second(claim.exp).map_err(|_| {
-        AsvoApiError::authentication_failed("JWT `exp` claim from MWA ASVO was out of range")
+        MwaAsvoApiError::authentication_failed("JWT `exp` claim from MWA ASVO was out of range")
     })
 }
 
@@ -271,7 +271,7 @@ fn require_tls(host: &str) -> bool {
     !host.starts_with(PLAIN_HTTP_SCHEME)
 }
 
-impl AsvoClient {
+impl MwaAsvoClient {
     /// Get a new client which has authenticated with the MWA ASVO v2 API,
     /// using the host, API key and timeout in `config`.
     ///
@@ -284,25 +284,25 @@ impl AsvoClient {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidOption`] if `config.api_timeout` is zero (every
-    /// request would time out). [`AsvoError::AsvoApi`] with
-    /// [`AsvoApiError::MissingAuthKey`] if `config.api_key` is empty, or
+    /// [`MwaAsvoError::InvalidOption`] if `config.api_timeout` is zero (every
+    /// request would time out). [`MwaAsvoError::MwaAsvoApi`] with
+    /// [`MwaAsvoApiError::MissingAuthKey`] if `config.api_key` is empty, or
     /// with the error of the login.
-    pub fn new(config: AsvoClientConfig) -> Result<AsvoClient, AsvoError> {
+    pub fn new(config: MwaAsvoClientConfig) -> Result<MwaAsvoClient, MwaAsvoError> {
         if config.api_timeout.is_zero() {
-            return Err(AsvoError::InvalidOption {
+            return Err(MwaAsvoError::InvalidOption {
                 name: "api_timeout",
                 message: "must be more than 0 seconds".to_string(),
             });
         }
         if config.api_key.is_empty() {
-            return Err(AsvoApiError::MissingAuthKey { variable: None }.into());
+            return Err(MwaAsvoApiError::MissingAuthKey { variable: None }.into());
         }
 
         // If we are using a non-default MWA ASVO host, then upgrade this
         // debug message to a warn message.
         let host = &config.host;
-        if config.host == DEFAULT_ASVO_HOST {
+        if config.host == DEFAULT_MWA_ASVO_HOST {
             debug!("Connecting to MWA ASVO... {host}");
         } else {
             warn!("Connecting to MWA ASVO non-default host: {host}...");
@@ -322,7 +322,7 @@ impl AsvoClient {
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
         let download_client = Self::build_plain_client(&config)?;
 
-        Ok(AsvoClient {
+        Ok(MwaAsvoClient {
             session: Mutex::new(Session {
                 client,
                 generation: 0,
@@ -341,14 +341,14 @@ impl AsvoClient {
     /// a session loaded from the cache behaves the same as one from a fresh
     /// login.
     fn build_authed_client(
-        config: &AsvoClientConfig,
+        config: &MwaAsvoClientConfig,
         access_token: &str,
-    ) -> Result<Client, AsvoApiError> {
+    ) -> Result<Client, MwaAsvoApiError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             reqwest::header::COOKIE,
             HeaderValue::from_str(&format!("mwa_access_token={access_token}")).map_err(|e| {
-                AsvoApiError::authentication_failed(format!(
+                MwaAsvoApiError::authentication_failed(format!(
                     "MWA ASVO returned an invalid access token: {e}"
                 ))
             })?,
@@ -368,7 +368,7 @@ impl AsvoClient {
     /// Build a [Client] that sends no access token: for the login and
     /// refresh calls, and for the files of a job. The access token must
     /// not go to the host of a file (Acacia).
-    fn build_plain_client(config: &AsvoClientConfig) -> Result<Client, AsvoApiError> {
+    fn build_plain_client(config: &MwaAsvoClientConfig) -> Result<Client, MwaAsvoApiError> {
         Ok(ClientBuilder::new()
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
@@ -401,9 +401,9 @@ impl AsvoClient {
     /// [`Self::download_job_from`].
     pub fn download_job(
         &self,
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         opts: &DownloadOptions,
-    ) -> Result<AsvoJob, AsvoError> {
+    ) -> Result<MwaAsvoJob, MwaAsvoError> {
         opts.check()?; // before the job list request
         let jobs = self.get_jobs(&JobsFilter::default())?;
         self.download_job_from(&jobs, job_id, opts)
@@ -414,10 +414,10 @@ impl AsvoClient {
     /// job list request.
     pub fn download_job_from(
         &self,
-        jobs: &AsvoJobVec,
-        job_id: AsvoJobId,
+        jobs: &MwaAsvoJobVec,
+        job_id: MwaAsvoJobId,
         opts: &DownloadOptions,
-    ) -> Result<AsvoJob, AsvoError> {
+    ) -> Result<MwaAsvoJob, MwaAsvoError> {
         download_by_job_id(&self.download_client, jobs, job_id, opts)
     }
 
@@ -431,7 +431,7 @@ impl AsvoClient {
         &self,
         obs_id: ObsId,
         opts: &DownloadOptions,
-    ) -> Result<AsvoJob, AsvoError> {
+    ) -> Result<MwaAsvoJob, MwaAsvoError> {
         opts.check()?; // before the job list request
         let jobs = self.get_jobs(&JobsFilter::default())?;
         self.download_obs_from(&jobs, obs_id, opts)
@@ -441,10 +441,10 @@ impl AsvoClient {
     /// of a new job list request.
     pub fn download_obs_from(
         &self,
-        jobs: &AsvoJobVec,
+        jobs: &MwaAsvoJobVec,
         obs_id: ObsId,
         opts: &DownloadOptions,
-    ) -> Result<AsvoJob, AsvoError> {
+    ) -> Result<MwaAsvoJob, MwaAsvoError> {
         download_by_obs_id(&self.download_client, jobs, obs_id, opts)
     }
 
@@ -453,7 +453,7 @@ impl AsvoClient {
     /// login. With a token cache path in `config`, successful refreshes and
     /// logins are cached to disk for next time (best-effort; failure to
     /// cache is not fatal).
-    fn get_valid_tokens(config: &AsvoClientConfig) -> Result<StoredTokens, AsvoApiError> {
+    fn get_valid_tokens(config: &MwaAsvoClientConfig) -> Result<StoredTokens, MwaAsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the auth headers).
         let auth_client = Self::build_plain_client(config)?;
@@ -502,7 +502,7 @@ impl AsvoClient {
     }
 
     /// Save `tokens` to the token cache in `config`, if it has one.
-    fn cache_tokens(config: &AsvoClientConfig, tokens: &StoredTokens) {
+    fn cache_tokens(config: &MwaAsvoClientConfig, tokens: &StoredTokens) {
         match &config.token_cache_path {
             Some(path) => token_store::save(path, tokens),
             None => {
@@ -514,8 +514,8 @@ impl AsvoClient {
     /// Perform a fresh login against the MWA ASVO v2 API using the API key.
     fn login(
         auth_client: &Client,
-        config: &AsvoClientConfig,
-    ) -> Result<StoredTokens, AsvoApiError> {
+        config: &MwaAsvoClientConfig,
+    ) -> Result<StoredTokens, MwaAsvoApiError> {
         let login: Login = CLIENT_VERSION.try_into()?;
 
         let host = &config.host;
@@ -553,7 +553,7 @@ impl AsvoClient {
         auth_client: &Client,
         host: &str,
         previous: &StoredTokens,
-    ) -> Result<StoredTokens, AsvoApiError> {
+    ) -> Result<StoredTokens, MwaAsvoApiError> {
         let refresh_token = &previous.refresh_token;
         let response = execute_logged(
             auth_client,
@@ -595,7 +595,7 @@ impl AsvoClient {
     /// generation has changed by the time this thread holds the lock,
     /// another thread has already logged in again, so this thread does not
     /// log in and the caller uses the new client.
-    fn reauthenticate(&self, rejected_generation: u64) -> Result<(), AsvoApiError> {
+    fn reauthenticate(&self, rejected_generation: u64) -> Result<(), MwaAsvoApiError> {
         let _login = self
             .login_lock
             .lock()
@@ -625,14 +625,14 @@ impl AsvoClient {
         access_token: String,
         refresh_token: String,
         user: UserResponse,
-    ) -> Result<StoredTokens, AsvoApiError> {
+    ) -> Result<StoredTokens, MwaAsvoApiError> {
         // `StoredTokens.user_id` is a u64 (it's shared with mwa-cli's token
         // cache format), but the generated `UserResponse.id` is an i64.
         // A negative user ID from the server would be unexpected, but
         // let's not panic or silently wrap if it ever happened.
         let user_id = u64::try_from(user.id).map_err(|_| {
             let negative_id = user.id;
-            AsvoApiError::authentication_failed(format!(
+            MwaAsvoApiError::authentication_failed(format!(
                 "MWA ASVO returned an invalid (negative) user ID: {negative_id}"
             ))
         })?;
@@ -646,7 +646,7 @@ impl AsvoClient {
         user_id: u64,
         user_login: String,
         user_email: String,
-    ) -> Result<StoredTokens, AsvoApiError> {
+    ) -> Result<StoredTokens, MwaAsvoApiError> {
         let access_expires_at = decode_jwt_exp(&access_token)?;
         let refresh_expires_at = decode_jwt_exp(&refresh_token)?;
 
@@ -674,10 +674,10 @@ impl AsvoClient {
     /// switching between the dev and test environments.
     ///
     /// On success the response body is returned for the caller to parse; a
-    /// non-success status is mapped to an [`AsvoApiError`] by
+    /// non-success status is mapped to an [`MwaAsvoApiError`] by
     /// [`Self::error_from_body`]. All requests are logged via
     /// [`execute_logged`].
-    fn send_authed<F>(&self, build: F) -> Result<String, AsvoApiError>
+    fn send_authed<F>(&self, build: F) -> Result<String, MwaAsvoApiError>
     where
         F: Fn(&Client) -> reqwest::blocking::RequestBuilder,
     {
@@ -707,13 +707,13 @@ impl AsvoClient {
         Err(Self::error_from_body(response.status, response.body))
     }
 
-    /// Map a non-success response body to an [`AsvoApiError`], preferring the
+    /// Map a non-success response body to an [`MwaAsvoApiError`], preferring the
     /// structured `ErrorResponse` shape and falling back to `BadStatus` for
     /// anything that doesn't match it.
-    fn error_from_body(status: reqwest::StatusCode, body: String) -> AsvoApiError {
+    fn error_from_body(status: reqwest::StatusCode, body: String) -> MwaAsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
-            Ok(err) => AsvoApiError::api_error(status.as_u16(), err),
-            Err(_) => AsvoApiError::BadStatus {
+            Ok(err) => MwaAsvoApiError::api_error(status.as_u16(), err),
+            Err(_) => MwaAsvoApiError::BadStatus {
                 status: status.as_u16(),
                 message: body,
             },
@@ -721,21 +721,21 @@ impl AsvoClient {
     }
 
     /// Map the body of a failed login or refresh to an
-    /// [`AsvoApiError::AuthenticationFailed`]: the fields of a structured
+    /// [`MwaAsvoApiError::AuthenticationFailed`]: the fields of a structured
     /// `ErrorResponse`, verbatim, or else the body as the message.
-    fn auth_error_from_body(body: String) -> AsvoApiError {
+    fn auth_error_from_body(body: String) -> MwaAsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
-            Ok(err) => AsvoApiError::authentication_failed_with(err),
-            Err(_) => AsvoApiError::authentication_failed(body),
+            Ok(err) => MwaAsvoApiError::authentication_failed_with(err),
+            Err(_) => MwaAsvoApiError::authentication_failed(body),
         }
     }
 
     /// Whether `err` is an authentication failure that a fresh login might
     /// fix (see [`AUTH_ERROR_CODES`]).
-    fn is_auth_error(err: &AsvoApiError) -> bool {
+    fn is_auth_error(err: &MwaAsvoApiError) -> bool {
         matches!(
             err,
-            AsvoApiError::ApiError { response, .. }
+            MwaAsvoApiError::ApiError { response, .. }
                 if AUTH_ERROR_CODES.contains(&response.error_code.as_str())
         )
     }
@@ -749,15 +749,15 @@ impl AsvoClient {
     ///
     /// A job without a usable obs_id in its untyped `job_params` is skipped
     /// with a warning, rather than failing the whole listing (see
-    /// `AsvoJob::try_from`). A job state or file type that the schema
+    /// `MwaAsvoJob::try_from`). A job state or file type that the schema
     /// does not list fails the whole listing with a decode error.
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] before any request, if the filter
+    /// [`MwaAsvoApiError::InvalidParameter`] before any request, if the filter
     /// is refused ([`JobsFilter::validate`]); otherwise the error from the
     /// request.
-    pub fn get_jobs(&self, filter: &JobsFilter) -> Result<AsvoJobVec, AsvoApiError> {
+    pub fn get_jobs(&self, filter: &JobsFilter) -> Result<MwaAsvoJobVec, MwaAsvoApiError> {
         filter.validate()?;
         let days = filter.days;
         let dates = filter.date_from.is_some() || filter.date_to.is_some();
@@ -801,7 +801,9 @@ impl AsvoClient {
                 // filter" (see `NO_JOBS_STATUS`): there are no more jobs.
                 // Any other 404 (one that is not an `ErrorResponse`, for
                 // example from a wrong host) is still an error.
-                Err(AsvoApiError::ApiError { status, .. }) if status == NO_JOBS_STATUS.as_u16() => {
+                Err(MwaAsvoApiError::ApiError { status, .. })
+                    if status == NO_JOBS_STATUS.as_u16() =>
+                {
                     debug!("No job matches the filter (HTTP {status})");
                     break;
                 }
@@ -820,12 +822,12 @@ impl AsvoClient {
                 // Hard error: this is a basic structural mismatch against
                 // the schema (an item that isn't even a JobDetailResponse
                 // shape), not a content-level problem like the ones that
-                // `AsvoJob::try_from` finds, which skip only that job.
+                // `MwaAsvoJob::try_from` finds, which skip only that job.
                 let detail: JobDetailResponse =
                     serde_json::from_value(serde_json::Value::Object(job_value))?;
-                // A job that cannot be used (see `AsvoJob::try_from`) is
+                // A job that cannot be used (see `MwaAsvoJob::try_from`) is
                 // skipped, so that one bad job does not hide the others.
-                match AsvoJob::try_from(detail) {
+                match MwaAsvoJob::try_from(detail) {
                     Ok(job) => all_jobs.push(job),
                     Err(e) => warn!("Skipping a job: {e}"),
                 }
@@ -838,7 +840,7 @@ impl AsvoClient {
             }
         }
 
-        Ok(AsvoJobVec(all_jobs).filter(
+        Ok(MwaAsvoJobVec(all_jobs).filter(
             &filter.job_ids,
             &filter.obs_ids,
             &filter.job_types,
@@ -847,7 +849,7 @@ impl AsvoClient {
     }
 
     /// As [`Self::get_jobs`], and when the request fails in a way that may
-    /// pass (see [`AsvoApiError::is_transient`]), try again after a wait
+    /// pass (see [`MwaAsvoApiError::is_transient`]), try again after a wait
     /// that grows (see the retry policy of the downloads). It gives up with
     /// the last error when the failures have gone on for `retry_duration`,
     /// and at once for any other error. A zero `retry_duration` never
@@ -855,15 +857,15 @@ impl AsvoClient {
     /// `wait` command: one failure should not end the task. It is not public,
     /// so [`Self::get_jobs`] is the one public way to get the job list. A
     /// caller of the library that wants retries makes its own loop around
-    /// [`Self::get_jobs`], with [`AsvoApiError::is_transient`].
+    /// [`Self::get_jobs`], with [`MwaAsvoApiError::is_transient`].
     ///
     /// `should_stop` is asked during each wait. When it returns `true`,
-    /// the call ends with [`AsvoError::Interrupted`]. `None` never stops.
+    /// the call ends with [`MwaAsvoError::Interrupted`]. `None` never stops.
     ///
     /// # Errors
     ///
-    /// [`AsvoError::AsvoApi`] with the error from the request, as for
-    /// [`Self::get_jobs`], and [`AsvoError::Interrupted`].
+    /// [`MwaAsvoError::MwaAsvoApi`] with the error from the request, as for
+    /// [`Self::get_jobs`], and [`MwaAsvoError::Interrupted`].
     // Only the CLI (the "bin" feature) calls it, so a build without that
     // feature does not use it.
     #[cfg_attr(not(feature = "bin"), allow(dead_code))]
@@ -872,7 +874,7 @@ impl AsvoClient {
         filter: &JobsFilter,
         retry_duration: Duration,
         should_stop: Option<&dyn Fn() -> bool>,
-    ) -> Result<AsvoJobVec, AsvoError> {
+    ) -> Result<MwaAsvoJobVec, MwaAsvoError> {
         let mut backoff = Backoff::new(retry_duration);
         loop {
             let err = match self.get_jobs(filter) {
@@ -896,14 +898,14 @@ impl AsvoClient {
     ///
     /// The body is checked against the schema's limits first
     /// ([`validate_download_params`]); nothing is sent if a value is
-    /// wrong, and the error is [`AsvoApiError::InvalidParameter`]. The
+    /// wrong, and the error is [`MwaAsvoApiError::InvalidParameter`]. The
     /// rules of each kind of job (for example, that the observation has
     /// voltages) are the MWA ASVO's: it refuses a body that does not suit
     /// its observation.
     pub fn submit_download_job(
         &self,
         params: &DownloadJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, MwaAsvoApiError> {
         validate_download_params(params)?;
         debug!("Submitting a download job to MWA ASVO");
 
@@ -916,11 +918,11 @@ impl AsvoClient {
     ///
     /// The body is checked against the schema's limits first
     /// ([`PreprocessJobParams::validate`]); nothing is sent if a value is
-    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
+    /// wrong, and the error is [`MwaAsvoApiError::InvalidParameter`].
     pub fn submit_preprocess_job(
         &self,
         params: &PreprocessJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, MwaAsvoApiError> {
         params.validate()?;
         debug!("Submitting a preprocess job to MWA ASVO");
 
@@ -932,11 +934,11 @@ impl AsvoClient {
     ///
     /// The body is checked against the schema's limits first
     /// ([`validate_image_from_job_params`]); nothing is sent if a value is
-    /// wrong, and the error is [`AsvoApiError::InvalidParameter`].
+    /// wrong, and the error is [`MwaAsvoApiError::InvalidParameter`].
     pub fn submit_image_from_job(
         &self,
         params: &ImageFromJobParams,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, MwaAsvoApiError> {
         validate_image_from_job_params(params)?;
         debug!("Submitting an image from job to MWA ASVO");
 
@@ -950,7 +952,7 @@ impl AsvoClient {
         &self,
         endpoint: &str,
         params: &impl serde::Serialize,
-    ) -> Result<JobSubmittedResponse, AsvoApiError> {
+    ) -> Result<JobSubmittedResponse, MwaAsvoApiError> {
         let host = &self.config.host;
         let body =
             self.send_authed(|client| client.post(format!("{host}{endpoint}")).json(params))?;
@@ -971,7 +973,10 @@ impl AsvoClient {
     ///
     /// The error from the request, for example `JOB_NOT_FOUND` for a job
     /// that does not exist.
-    pub fn cancel_job(&self, job_id: AsvoJobId) -> Result<JobCancelledResponse, AsvoApiError> {
+    pub fn cancel_job(
+        &self,
+        job_id: MwaAsvoJobId,
+    ) -> Result<JobCancelledResponse, MwaAsvoApiError> {
         debug!("Cancelling MWA ASVO Job ID {job_id}");
 
         let host = &self.config.host;
@@ -1034,7 +1039,7 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
     }
 }
 
-/// Which jobs [`AsvoClient::get_jobs`] gets, as `giant-squid list` selects
+/// Which jobs [`MwaAsvoClient::get_jobs`] gets, as `giant-squid list` selects
 /// them. An empty list, or a field that is `None`, does not filter, except
 /// `days` and `sort_by`, which use the API's defaults (the past 30 days, and
 /// the order `id`, in the current schema).
@@ -1042,7 +1047,7 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// `days`, the dates, `sort_by` and, when a list has exactly one entry, that
 /// state or type are filters of the MWA ASVO API (`JobsByUserRequest`) and are
 /// sent to the server. The lists are also applied to the jobs that come back
-/// ([`AsvoJobVec::filter`]), because the server takes one state and one type
+/// ([`MwaAsvoJobVec::filter`]), because the server takes one state and one type
 /// at most. `days` and the dates are exclusive: the jobs are selected by one
 /// or the other, and a filter with `days` and a date is refused
 /// ([`JobsFilter::validate`]). With a date and no `days`, the request has
@@ -1061,7 +1066,7 @@ pub struct JobsFilter {
     /// The column to sort the jobs by, for example `id`.
     pub sort_by: Option<SortBy>,
     /// Only these jobs. Cannot be combined with `obs_ids`.
-    pub job_ids: Vec<AsvoJobId>,
+    pub job_ids: Vec<MwaAsvoJobId>,
     /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
     pub obs_ids: Vec<ObsId>,
     /// Only the jobs of these types.
@@ -1075,13 +1080,13 @@ impl JobsFilter {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids` are
+    /// [`MwaAsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids` are
     /// given, if `days` is outside 1 to 30, or if `days` is given with
     /// `date_from` or `date_to`: the jobs are selected by `days` or by the
     /// dates, not by both.
-    pub fn validate(&self) -> Result<(), AsvoApiError> {
+    pub fn validate(&self) -> Result<(), MwaAsvoApiError> {
         if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
-            return Err(AsvoApiError::InvalidParameter {
+            return Err(MwaAsvoApiError::InvalidParameter {
                 name: "job_ids",
                 message: "can't specify both Job IDs and Obs IDs; use one or the other".to_string(),
             });
@@ -1089,7 +1094,7 @@ impl JobsFilter {
         if let Some(days) = self.days {
             validate::check_days(days)?;
             if self.date_from.is_some() || self.date_to.is_some() {
-                return Err(AsvoApiError::InvalidParameter {
+                return Err(MwaAsvoApiError::InvalidParameter {
                     name: "days",
                     message: "can't be used with date_from or date_to; use days or the dates"
                         .to_string(),

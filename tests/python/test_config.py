@@ -1,4 +1,4 @@
-"""Tests for `AsvoClientConfig`, `DownloadSettings` and the functions that read them from the environment."""
+"""Tests for `MwaAsvoClientConfig`, `DownloadSettings` and the functions that read them from the environment."""
 
 import pathlib
 
@@ -35,7 +35,7 @@ def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_a_config_has_the_defaults_of_the_library() -> None:
     """The timeout is the library's, and nothing is cached."""
-    config = gs.AsvoClientConfig(HOST, TEST_API_KEY)
+    config = gs.MwaAsvoClientConfig(HOST, TEST_API_KEY)
 
     assert config.host == HOST
     assert config.api_key == TEST_API_KEY
@@ -45,18 +45,18 @@ def test_a_config_has_the_defaults_of_the_library() -> None:
 
 def test_a_config_takes_a_timeout_and_a_cache_path(tmp_path: pathlib.Path) -> None:
     """Both are keyword-only. A cache path comes back as a `Path`."""
-    config = gs.AsvoClientConfig(HOST, TEST_API_KEY, api_timeout=CUSTOM_TIMEOUT, token_cache_path=str(tmp_path))
+    config = gs.MwaAsvoClientConfig(HOST, TEST_API_KEY, api_timeout=CUSTOM_TIMEOUT, token_cache_path=str(tmp_path))
 
     assert config.api_timeout == CUSTOM_TIMEOUT
     assert config.token_cache_path == tmp_path
     assert isinstance(config.token_cache_path, pathlib.Path)
     with pytest.raises(TypeError):
-        gs.AsvoClientConfig(HOST, TEST_API_KEY, CUSTOM_TIMEOUT)  # ty: ignore[too-many-positional-arguments]
+        gs.MwaAsvoClientConfig(HOST, TEST_API_KEY, CUSTOM_TIMEOUT)  # ty: ignore[too-many-positional-arguments]
 
 
 def test_a_config_can_be_changed() -> None:
     """The attributes are the fields of the Rust struct, and they can be set."""
-    config = gs.AsvoClientConfig(HOST, TEST_API_KEY)
+    config = gs.MwaAsvoClientConfig(HOST, TEST_API_KEY)
 
     config.host = "http://127.0.0.1:1"
     config.api_timeout = CUSTOM_TIMEOUT
@@ -69,7 +69,7 @@ def test_a_config_can_be_changed() -> None:
 
 def test_the_repr_does_not_show_the_api_key() -> None:
     """A repr goes to logs and tracebacks."""
-    text = repr(gs.AsvoClientConfig(HOST, TEST_API_KEY))
+    text = repr(gs.MwaAsvoClientConfig(HOST, TEST_API_KEY))
 
     assert TEST_API_KEY not in text
     assert HOST in text
@@ -79,7 +79,7 @@ def test_the_repr_does_not_show_the_api_key() -> None:
 def test_a_client_refuses_a_timeout_that_is_not_valid(timeout: float) -> None:
     """The timeout is checked when the client is made, and nothing is sent."""
     with pytest.raises(ValueError, match="api_timeout"):
-        gs.AsvoClient(gs.AsvoClientConfig(HOST, TEST_API_KEY, api_timeout=timeout))
+        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(HOST, TEST_API_KEY, api_timeout=timeout))
 
 
 def test_the_client_config_from_the_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
@@ -91,7 +91,7 @@ def test_the_client_config_from_the_environment(monkeypatch: pytest.MonkeyPatch,
 
     config = gs.client_config_from_env()
 
-    assert isinstance(config, gs.AsvoClientConfig)
+    assert isinstance(config, gs.MwaAsvoClientConfig)
     assert config.api_key == TEST_API_KEY
     assert config.host == HOST
     assert config.api_timeout == ENV_TIMEOUT_SECONDS
@@ -104,17 +104,17 @@ def test_the_client_config_from_the_environment_has_defaults(monkeypatch: pytest
 
     config = gs.client_config_from_env()
 
-    assert config.host == gs.DEFAULT_ASVO_HOST
+    assert config.host == gs.DEFAULT_MWA_ASVO_HOST
     assert config.api_timeout == gs.DEFAULT_API_TIMEOUT
     assert config.token_cache_path is None
 
 
 def test_the_client_config_from_the_environment_needs_a_key() -> None:
-    """No key is an `AsvoErrorAsvoApi` (as in the library) whose `source` is the `AsvoApiError`, which names the
+    """No key is an `MwaAsvoErrorMwaAsvoApi` (as in the library) whose `source` is the `MwaAsvoApiError`, which names the
     variable."""
-    with pytest.raises(gs.AsvoErrorAsvoApi, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
+    with pytest.raises(gs.MwaAsvoErrorMwaAsvoApi, match=gs.ENV_MWA_ASVO_API_KEY) as excinfo:
         gs.client_config_from_env()
-    assert excinfo.value.kind == "AsvoApi"
+    assert excinfo.value.kind == "MwaAsvoApi"
     assert excinfo.value.source.kind == "MissingAuthKey"
 
 
@@ -126,7 +126,7 @@ def test_the_client_config_from_the_environment_refuses_a_bad_timeout(
     monkeypatch.setenv(gs.ENV_MWA_ASVO_API_KEY, TEST_API_KEY)
     monkeypatch.setenv(gs.ENV_MWA_ASVO_API_TIMEOUT, value)
 
-    with pytest.raises(gs.AsvoError, match=gs.ENV_MWA_ASVO_API_TIMEOUT) as excinfo:
+    with pytest.raises(gs.MwaAsvoError, match=gs.ENV_MWA_ASVO_API_TIMEOUT) as excinfo:
         gs.client_config_from_env()
     assert excinfo.value.kind == "InvalidEnvironment"
 
@@ -173,6 +173,6 @@ def test_download_settings_refuse_a_value_that_is_not_a_whole_number(
     """The error is of kind `InvalidEnvironment`, and names the variable."""
     monkeypatch.setenv(name, "lots")
 
-    with pytest.raises(gs.AsvoError, match=name) as excinfo:
+    with pytest.raises(gs.MwaAsvoError, match=name) as excinfo:
         gs.DownloadSettings.from_env()
     assert excinfo.value.kind == "InvalidEnvironment"

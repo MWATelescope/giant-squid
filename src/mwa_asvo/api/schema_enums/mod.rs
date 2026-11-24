@@ -121,7 +121,7 @@ macro_rules! for_each_schema_enum {
             "JobState",
             "The state of an MWA ASVO job: the OpenAPI schema's `JobState`. `str()`\n\
              is the API value (for example \"completed\"). For `Error`, the message is\n\
-             in `AsvoJob.error_text`.",
+             in `MwaAsvoJob.error_text`.",
             [
                 Preparing,
                 Queued,
@@ -161,7 +161,7 @@ macro_rules! for_each_schema_enum {
              the OpenAPI schema's `Status`. `str()` is the API value (\"success\" or\n\
              \"failed\"). It describes the reply, like `message`; it is for display\n\
              only. Success or failure of a call is decided by the HTTP status, so a\n\
-             call that fails raises `AsvoApiError`.",
+             call that fails raises `MwaAsvoApiError`.",
             [Success, Failed]
         );
     };

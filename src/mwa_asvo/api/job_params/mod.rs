@@ -28,7 +28,7 @@ use std::num::NonZeroU64;
 
 use serde::Serialize;
 
-use super::error::AsvoApiError;
+use super::error::MwaAsvoApiError;
 use super::openapi::{
     ConversionJobParams, DownloadJobParams, ImageFromJobParams, ImageOutputMode, ImagingJobParams,
 };
@@ -137,7 +137,7 @@ pub fn image_from_job_params(
 /// type: the MWA ASVO tells them apart by their fields (for example, only
 /// an imaging body has the imaging fields), so the body is serialised as
 /// the type it holds. An imaging job from a conversion job has its own
-/// endpoint ([`super::client::AsvoClient::submit_image_from_job`]).
+/// endpoint ([`super::client::MwaAsvoClient::submit_image_from_job`]).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum PreprocessJobParams {
@@ -153,9 +153,9 @@ impl PreprocessJobParams {
     ///
     /// # Errors
     ///
-    /// [`AsvoApiError::InvalidParameter`] for the first value that is not
+    /// [`MwaAsvoApiError::InvalidParameter`] for the first value that is not
     /// allowed.
-    pub fn validate(&self) -> Result<(), AsvoApiError> {
+    pub fn validate(&self) -> Result<(), MwaAsvoApiError> {
         match self {
             Self::Conversion(p) => validate_conversion_params(p),
             Self::Imaging(p) => validate_imaging_params(p),

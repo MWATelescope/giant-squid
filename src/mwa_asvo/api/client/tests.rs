@@ -27,14 +27,16 @@ use crate::mwa_asvo::api::openapi::DeliveryDestination;
 use crate::mwa_asvo::api::openapi::JobsByUserRequest;
 use crate::mwa_asvo::api::openapi::{DownloadJobParams, ErrorResponse};
 use crate::mwa_asvo::client_config_from_env;
-use crate::mwa_asvo::{AsvoApiError, AsvoClient, AsvoError, AsvoJobId, JobState, JobsFilter};
+use crate::mwa_asvo::{
+    JobState, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoError, MwaAsvoJobId,
+};
 use crate::test_common::*;
 use crate::test_config::{client_config, job_type};
 
 /// Whether `err` is an API error carrying the given machine-readable code.
-fn is_api_error(err: &AsvoApiError, code: &str) -> bool {
+fn is_api_error(err: &MwaAsvoApiError, code: &str) -> bool {
     match err {
-        AsvoApiError::ApiError { response, .. } => response.error_code == code,
+        MwaAsvoApiError::ApiError { response, .. } => response.error_code == code,
         _ => false,
     }
 }
@@ -62,14 +64,14 @@ fn assert_send_sync<T: Send + Sync>() {}
 fn the_client_can_be_shared_between_threads() {
     // PyO3 requires a `#[pyclass]` to be `Sync`, and the Python bindings
     // release the GIL during network calls.
-    assert_send_sync::<AsvoClient>();
+    assert_send_sync::<MwaAsvoClient>();
 }
 
 #[test]
 fn one_client_can_be_used_from_several_threads_at_once() {
     let env = TestEnv::with_session();
     let get_jobs = env.mock_get_jobs(vec![]);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     std::thread::scope(|scope| {
         for _ in 0..4 {
@@ -92,24 +94,24 @@ fn a_timeout_of_zero_is_refused_before_any_request() {
     let mut config = client_config(&env);
     config.api_timeout = std::time::Duration::ZERO;
 
-    let err = AsvoClient::new(config).expect_err("a timeout of 0 seconds");
+    let err = MwaAsvoClient::new(config).expect_err("a timeout of 0 seconds");
 
     assert_eq!(
         err.to_string(),
         "Invalid api_timeout: must be more than 0 seconds"
     );
-    assert!(matches!(err, AsvoError::InvalidOption { .. }), "{err:?}");
+    assert!(matches!(err, MwaAsvoError::InvalidOption { .. }), "{err:?}");
 }
 
 #[test]
 fn a_missing_api_key_is_reported_before_any_request() {
     let env = TestEnv::without_api_key();
 
-    let err = AsvoClient::new(client_config(&env)).expect_err("expected a missing-key failure");
+    let err = MwaAsvoClient::new(client_config(&env)).expect_err("expected a missing-key failure");
     assert!(
         matches!(
             err,
-            AsvoError::AsvoApi(AsvoApiError::MissingAuthKey { variable: None })
+            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::MissingAuthKey { variable: None })
         ),
         "got {err:?}"
     );
@@ -121,7 +123,7 @@ fn a_valid_cached_session_is_reused_without_logging_in() {
     let login = env.mock_login();
     let get_jobs = env.mock_get_jobs(vec![]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
@@ -136,7 +138,7 @@ fn a_fresh_login_is_performed_and_cached_when_no_session_exists() {
     let env = TestEnv::without_session();
     let login = env.mock_login();
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(login.calls(), 1);
     let cached = env.cached_session().expect("the session should be cached");
@@ -163,12 +165,12 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
             }));
     });
 
-    let err = AsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
+    let err = MwaAsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
 
     assert_eq!(login.calls(), 1);
     let text = err.to_string();
     match err {
-        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed {
+        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::AuthenticationFailed {
             message,
             response: Some(response),
         }) => {
@@ -200,11 +202,11 @@ fn a_rejected_login_is_reported_as_an_authentication_failure() {
     let env = TestEnv::without_session();
     let login = env.mock_login_failure(401, "invalid api key");
 
-    let err = AsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
+    let err = MwaAsvoClient::new(client_config(&env)).expect_err("expected the login to fail");
 
     assert_eq!(login.calls(), 1);
     match err {
-        AsvoError::AsvoApi(AsvoApiError::AuthenticationFailed { message, response }) => {
+        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::AuthenticationFailed { message, response }) => {
             assert!(message.contains("invalid api key"), "got {message}");
             assert_eq!(response, None);
         }
@@ -237,7 +239,7 @@ fn a_fresh_login_is_cached_with_its_host_and_the_hash_of_its_key() {
     let env = TestEnv::without_session();
     env.mock_login();
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(
         cached_owner(&env),
@@ -254,7 +256,7 @@ fn a_cached_session_for_another_api_key_is_not_used() {
     let mut config = client_config(&env);
     config.api_key = "another-api-key".to_string();
 
-    AsvoClient::new(config).expect("client should be created");
+    MwaAsvoClient::new(config).expect("client should be created");
 
     assert_eq!(
         login.calls(),
@@ -279,7 +281,7 @@ fn a_cached_session_for_another_host_is_not_used() {
     );
     let login = env.mock_login();
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(
         login.calls(),
@@ -303,7 +305,7 @@ fn a_cached_session_in_the_old_format_is_replaced_by_a_fresh_login() {
     std::fs::write(env.token_cache_path(), old.to_string()).expect("write the old file");
     let login = env.mock_login();
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(login.calls(), 1);
     assert_eq!(
@@ -323,7 +325,7 @@ fn a_refreshed_session_keeps_its_host_and_key_hash() {
             .json_body(token_response());
     });
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(
         cached_owner(&env),
@@ -343,7 +345,7 @@ fn an_expired_access_token_is_refreshed_rather_than_re_logged_in() {
             .json_body(token_response());
     });
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(refresh.calls(), 1);
     assert_eq!(login.calls(), 0, "a valid refresh token should be used");
@@ -359,7 +361,7 @@ fn a_failed_refresh_falls_back_to_a_fresh_login() {
         then.status(401).body("refresh token already rotated");
     });
 
-    AsvoClient::new(client_config(&env)).expect("client should still be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should still be created");
 
     assert_eq!(refresh.calls(), 1);
     assert_eq!(login.calls(), 1);
@@ -375,7 +377,7 @@ fn an_expired_refresh_token_goes_straight_to_a_fresh_login() {
         then.status(200).json_body(token_response());
     });
 
-    AsvoClient::new(client_config(&env)).expect("client should be created");
+    MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     assert_eq!(refresh.calls(), 0);
     assert_eq!(login.calls(), 1);
@@ -395,7 +397,7 @@ fn a_token_the_server_rejects_triggers_one_relogin_and_one_retry() {
             ));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
@@ -448,7 +450,7 @@ fn threads_that_share_a_rejected_token_log_in_again_only_once() {
             .json_body(json!({ "jobs": [], "total_count": 0 }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let start = std::sync::Barrier::new(CONCURRENT_THREADS);
     std::thread::scope(|scope| {
         for _ in 0..CONCURRENT_THREADS {
@@ -500,7 +502,7 @@ fn a_structured_404_from_the_job_list_is_an_empty_list() {
             .header("content-type", "application/json")
             .json_body(error_response("JOB_NOT_FOUND", "No jobs found"));
     });
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let jobs = client
         .get_jobs(&JobsFilter::default())
@@ -516,14 +518,14 @@ fn a_structured_404_from_the_job_list_is_an_empty_list() {
 fn another_404_from_the_job_list_is_an_error() {
     let env = TestEnv::with_session();
     mock_get_jobs_failure(&env, 404);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("a 404 that is not an ErrorResponse is an error");
 
     assert!(
-        matches!(err, AsvoApiError::BadStatus { status: 404, .. }),
+        matches!(err, MwaAsvoApiError::BadStatus { status: 404, .. }),
         "{err:?}"
     );
 }
@@ -532,7 +534,7 @@ fn another_404_from_the_job_list_is_an_error() {
 fn a_job_list_that_fails_with_a_503_is_tried_again_until_it_works() {
     let env = TestEnv::with_session();
     let mut failing = mock_get_jobs_failure(&env, 503);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let jobs = std::thread::scope(|scope| {
         let poll =
@@ -554,7 +556,7 @@ fn a_job_list_that_fails_with_a_503_is_tried_again_until_it_works() {
 fn a_job_list_error_that_is_not_transient_is_not_tried_again() {
     let env = TestEnv::with_session();
     let refused = mock_get_jobs_failure(&env, 403);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs_retrying(&JobsFilter::default(), LONG_RETRY, None)
@@ -564,7 +566,7 @@ fn a_job_list_error_that_is_not_transient_is_not_tried_again() {
     assert!(
         matches!(
             err,
-            AsvoError::AsvoApi(AsvoApiError::BadStatus { status: 403, .. })
+            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus { status: 403, .. })
         ),
         "{err:?}"
     );
@@ -574,7 +576,7 @@ fn a_job_list_error_that_is_not_transient_is_not_tried_again() {
 fn a_job_list_that_keeps_failing_gives_up_after_the_retry_duration() {
     let env = TestEnv::with_session();
     let failing = mock_get_jobs_failure(&env, 503);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs_retrying(
@@ -588,7 +590,7 @@ fn a_job_list_that_keeps_failing_gives_up_after_the_retry_duration() {
     assert!(
         matches!(
             err,
-            AsvoError::AsvoApi(AsvoApiError::BadStatus { status: 503, .. })
+            MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::BadStatus { status: 503, .. })
         ),
         "{err:?}"
     );
@@ -598,34 +600,34 @@ fn a_job_list_that_keeps_failing_gives_up_after_the_retry_duration() {
 fn a_zero_retry_duration_gives_the_first_failure() {
     let env = TestEnv::with_session();
     let failing = mock_get_jobs_failure(&env, 503);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs_retrying(&JobsFilter::default(), std::time::Duration::ZERO, None)
         .expect_err("no retries");
 
     assert_eq!(failing.calls(), 1);
-    assert!(matches!(err, AsvoError::AsvoApi(_)), "{err:?}");
+    assert!(matches!(err, MwaAsvoError::MwaAsvoApi(_)), "{err:?}");
 }
 
 #[test]
 fn a_stop_request_ends_the_retries() {
     let env = TestEnv::with_session();
     let failing = mock_get_jobs_failure(&env, 503);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs_retrying(&JobsFilter::default(), LONG_RETRY, Some(&|| true))
         .expect_err("the caller asked to stop");
 
     assert_eq!(failing.calls(), 1);
-    assert!(matches!(err, AsvoError::Interrupted), "{err:?}");
+    assert!(matches!(err, MwaAsvoError::Interrupted), "{err:?}");
 }
 
 #[test]
 fn only_a_failure_that_may_pass_is_transient() {
     let api_error = |status| {
-        AsvoApiError::api_error(
+        MwaAsvoApiError::api_error(
             status,
             ErrorResponse {
                 detail: None,
@@ -637,7 +639,7 @@ fn only_a_failure_that_may_pass_is_transient() {
             },
         )
     };
-    let bad_status = |status| AsvoApiError::BadStatus {
+    let bad_status = |status| MwaAsvoApiError::BadStatus {
         status,
         message: String::new(),
     };
@@ -650,8 +652,8 @@ fn only_a_failure_that_may_pass_is_transient() {
         assert!(!api_error(status).is_transient(), "ApiError {status}");
         assert!(!bad_status(status).is_transient(), "BadStatus {status}");
     }
-    assert!(!AsvoApiError::MissingAuthKey { variable: None }.is_transient());
-    assert!(!AsvoApiError::authentication_failed("no").is_transient());
+    assert!(!MwaAsvoApiError::MissingAuthKey { variable: None }.is_transient());
+    assert!(!MwaAsvoApiError::authentication_failed("no").is_transient());
 }
 
 // ---------------------------------------------------------------------------
@@ -667,14 +669,14 @@ fn an_api_error_has_the_http_status_of_the_reply() {
             .header("content-type", "application/json")
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
     });
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("the call should fail");
 
     assert!(
-        matches!(err, AsvoApiError::ApiError { status: 409, .. }),
+        matches!(err, MwaAsvoApiError::ApiError { status: 409, .. }),
         "{err:?}"
     );
 }
@@ -689,13 +691,13 @@ fn a_structured_error_body_becomes_an_api_error() {
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
 
     match err {
-        AsvoApiError::ApiError { response, .. } => {
+        MwaAsvoApiError::ApiError { response, .. } => {
             assert_eq!(response.error_code, "JOB_INVALID_STATE");
             assert_eq!(response.message, "Job is not ready");
             assert_eq!(response.suggestion.as_deref(), Some("try something else"));
@@ -712,13 +714,13 @@ fn a_non_json_error_body_becomes_a_bad_status() {
         then.status(502).body("<html>bad gateway</html>");
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let Err(err) = client.get_jobs(&JobsFilter::default()) else {
         panic!("expected the call to fail");
     };
 
     match err {
-        AsvoApiError::BadStatus { status, message } => {
+        MwaAsvoApiError::BadStatus { status, message } => {
             assert_eq!(status, 502);
             assert!(message.contains("bad gateway"), "got {message}");
         }
@@ -740,7 +742,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
         1,
     )]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
@@ -748,7 +750,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     assert_eq!(get_jobs.calls(), 1);
     assert_eq!(jobs.0.len(), 1);
     let job = &jobs.0[0];
-    assert_eq!(job.job_id(), crate::test_config::TEST_ASVO_JOB_ID);
+    assert_eq!(job.job_id(), crate::test_config::TEST_MWA_ASVO_JOB_ID);
     assert_eq!(job.obs_id().get(), TEST_OBS_ID_I64 as u64);
     assert_eq!(job.job_type, Some(job_type("visibility")));
     // The API says "completed" where the rest of giant-squid says "ready".
@@ -784,7 +786,7 @@ fn a_long_job_listing_is_fetched_page_by_page() {
             .json_body(json!({ "jobs": page(101, 50), "total_count": total }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
@@ -805,7 +807,7 @@ fn an_errored_job_carries_the_servers_error_text() {
     detail["error_text"] = json!("Observation has no data files");
     env.mock_get_jobs(vec![detail]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
@@ -836,13 +838,13 @@ fn unusable_jobs_are_skipped_rather_than_failing_the_listing() {
 
     env.mock_get_jobs(vec![bad_obs_id, negative_obs_id, good]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
 
     assert_eq!(jobs.0.len(), 1, "only the usable job should be returned");
-    assert_eq!(jobs.0[0].job_id(), crate::test_config::TEST_ASVO_JOB_ID);
+    assert_eq!(jobs.0[0].job_id(), crate::test_config::TEST_MWA_ASVO_JOB_ID);
     assert_eq!(jobs.0[0].job_state, JobState::Queued);
 }
 
@@ -862,12 +864,12 @@ fn a_job_that_breaks_the_schema_fails_the_listing() {
         break_it(&mut broken);
         env.mock_get_jobs(vec![broken]);
 
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
         let err = client
             .get_jobs(&JobsFilter::default())
             .expect_err("a job that breaks the schema must fail the listing");
 
-        assert!(matches!(err, AsvoApiError::BadJson(_)), "{err:?}");
+        assert!(matches!(err, MwaAsvoApiError::BadJson(_)), "{err:?}");
     }
 }
 
@@ -882,12 +884,12 @@ fn a_job_state_the_schema_does_not_list_fails_the_listing() {
         job_detail(2, TEST_OBS_ID, "wibble", 1),
     ]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("an unlisted state must fail the listing");
 
-    assert!(matches!(err, AsvoApiError::BadJson(_)), "{err:?}");
+    assert!(matches!(err, MwaAsvoApiError::BadJson(_)), "{err:?}");
     assert!(err.to_string().contains("wibble"), "{err}");
 }
 
@@ -904,7 +906,7 @@ fn a_job_without_a_type_has_none() {
         .remove("job_type");
     env.mock_get_jobs(vec![typeless, missing]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("get_jobs should succeed");
@@ -933,7 +935,7 @@ fn a_visibility_job_posts_the_body_the_cli_built() {
             .json_body(job_submitted_response(777));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_download_job(&params)
         .expect("submission should succeed");
@@ -962,7 +964,7 @@ fn a_metadata_job_posts_to_the_download_endpoint_with_only_metadata() {
         then.status(200).json_body(job_submitted_response(778));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_download_job(&params)
         .expect("submission should succeed");
@@ -1009,7 +1011,7 @@ fn a_conversion_job_posts_to_the_preprocess_endpoint() {
         then.status(200).json_body(job_submitted_response(779));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_preprocess_job(&PreprocessJobParams::from(params))
         .expect("submission should succeed");
@@ -1076,7 +1078,7 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
             });
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = TEST_OBS_ID_I64;
     let source_job_id = NonZeroU64::new(TEST_JOB_ID).unwrap();
 
@@ -1132,7 +1134,7 @@ fn record_every_end_user_call() -> Vec<RecordedRequest> {
         )
         .expect("image from job");
     client
-        .cancel_job(crate::test_config::TEST_ASVO_JOB_ID)
+        .cancel_job(crate::test_config::TEST_MWA_ASVO_JOB_ID)
         .expect("cancel");
 
     let seen = seen.lock().unwrap().clone();
@@ -1273,9 +1275,9 @@ fn a_cancellation_deletes_the_job_resource() {
             .json_body(job_submitted_response(TEST_JOB_ID));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
-        .cancel_job(crate::test_config::TEST_ASVO_JOB_ID)
+        .cancel_job(crate::test_config::TEST_MWA_ASVO_JOB_ID)
         .expect("cancellation should succeed");
 
     assert_eq!(cancel.calls(), 1);
@@ -1293,7 +1295,7 @@ fn a_cancellation_of_an_unknown_job_is_reported() {
             .json_body(error_response("JOB_NOT_FOUND", "No such job"));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .cancel_job(crate::test_config::job_id(999999))
         .expect_err("expected the cancellation to fail");
@@ -1325,7 +1327,7 @@ fn an_imaging_job_returns_a_job_submitted_response() {
         then.status(200).json_body(job_submitted_response(779));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_preprocess_job(&PreprocessJobParams::from(params))
         .expect("submission should succeed");
@@ -1357,7 +1359,7 @@ fn an_image_from_job_submission_returns_a_job_submitted_response() {
         then.status(200).json_body(job_submitted_response(780));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let resp = client
         .submit_image_from_job(&params)
         .expect("submission should succeed");
@@ -1383,13 +1385,13 @@ fn an_out_of_range_imaging_job_is_not_sent() {
         then.status(200).json_body(job_submitted_response(1));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .submit_preprocess_job(&PreprocessJobParams::from(params))
         .expect_err("expected the submission to be refused");
 
     assert!(
-        matches!(err, AsvoApiError::InvalidParameter { name: "mgain", .. }),
+        matches!(err, MwaAsvoApiError::InvalidParameter { name: "mgain", .. }),
         "got {err:?}"
     );
     assert_eq!(submit.calls(), 0);
@@ -1410,7 +1412,7 @@ fn an_out_of_range_image_from_job_is_not_sent() {
         then.status(200).json_body(job_submitted_response(1));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .submit_image_from_job(&params)
         .expect_err("expected the submission to be refused");
@@ -1418,7 +1420,7 @@ fn an_out_of_range_image_from_job_is_not_sent() {
     assert!(
         matches!(
             err,
-            AsvoApiError::InvalidParameter {
+            MwaAsvoApiError::InvalidParameter {
                 name: "pixel_scale",
                 ..
             }
@@ -1442,7 +1444,7 @@ fn an_out_of_range_conversion_job_is_not_sent() {
         then.status(200).json_body(job_submitted_response(1));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .submit_preprocess_job(&PreprocessJobParams::from(params))
         .expect_err("expected the submission to be refused");
@@ -1450,7 +1452,7 @@ fn an_out_of_range_conversion_job_is_not_sent() {
     assert!(
         matches!(
             err,
-            AsvoApiError::InvalidParameter {
+            MwaAsvoApiError::InvalidParameter {
                 name: "avg_freq_res",
                 ..
             }
@@ -1473,13 +1475,16 @@ fn an_out_of_range_voltage_job_is_not_sent() {
         then.status(200).json_body(job_submitted_response(1));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .submit_download_job(&params)
         .expect_err("expected the submission to be refused");
 
     assert!(
-        matches!(err, AsvoApiError::InvalidParameter { name: "offset", .. }),
+        matches!(
+            err,
+            MwaAsvoApiError::InvalidParameter { name: "offset", .. }
+        ),
         "got {err:?}"
     );
     assert_eq!(submit.calls(), 0);
@@ -1513,7 +1518,7 @@ fn a_voltage_body_sends_the_channels_and_no_channel_range() {
             then.status(200).json_body(job_submitted_response(1));
         });
 
-        let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
         client.submit_download_job(&params).expect("submitted");
 
         assert_eq!(submit.calls(), 1, "{from_channel:?} {to_channel:?}");
@@ -1555,16 +1560,16 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
         when.method(POST);
         then.status(200).json_body(job_submitted_response(1));
     });
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let obs_id = crate::test_config::test_obs_id();
     let source_job_id = crate::test_config::nonzero(TEST_JOB_ID);
 
-    let refused = |result: Result<JobSubmittedResponse, AsvoApiError>| {
+    let refused = |result: Result<JobSubmittedResponse, MwaAsvoApiError>| {
         let err = result.expect_err("acacia with files should be refused");
         assert!(
             matches!(
                 err,
-                AsvoApiError::InvalidParameter {
+                MwaAsvoApiError::InvalidParameter {
                     name: "delivery_format",
                     ..
                 }
@@ -1649,7 +1654,7 @@ fn acacia_delivery_with_files_is_refused_before_any_request() {
 /// also plays back the paging of `get_jobs`. The first job is the newest: a
 /// completed imaging job with one Acacia file.
 const RECORDED_JOB_COUNT: usize = 201;
-const RECORDED_JOB_ID: AsvoJobId = crate::test_config::job_id(30000796);
+const RECORDED_JOB_ID: MwaAsvoJobId = crate::test_config::job_id(30000796);
 const RECORDED_OBS_ID: u64 = 1349904184;
 const RECORDED_SIZE: u64 = 377692160;
 const RECORDED_SHA1: &str = "9c189b4eb6387d846dc5248f28ce1f3662ed7830";
@@ -1664,7 +1669,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
             .join("login_and_get_jobs.yaml"),
     );
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     // The recording was made with --days 30, and the recorded request is
     // the matching criteria, so the same argument is required here.
     let jobs = client
@@ -1695,7 +1700,7 @@ fn a_recorded_jobs_product_becomes_a_file_list() {
             .join("login_and_get_jobs.yaml"),
     );
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter {
             days: Some(crate::test_config::nonzero(30)),
@@ -1782,7 +1787,7 @@ fn record_login_and_get_jobs() {
     let mut config = client_config_from_env().expect("MWA_ASVO_API_KEY must be set");
     config.host = server.base_url();
 
-    let client = AsvoClient::new(config).expect("could not authenticate with the target server");
+    let client = MwaAsvoClient::new(config).expect("could not authenticate with the target server");
     let jobs = client
         .get_jobs(&JobsFilter {
             days: Some(crate::test_config::nonzero(30)),
@@ -1809,7 +1814,7 @@ fn a_product_file_keeps_its_format() {
     });
     env.mock_get_jobs(vec![detail]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");
@@ -1828,7 +1833,7 @@ fn a_product_without_files_does_not_fail_the_listing() {
     let other = job_detail(TEST_JOB_ID as i64 + 1, TEST_OBS_ID, "queued", 1);
     env.mock_get_jobs(vec![empty, other]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");
@@ -1865,7 +1870,7 @@ fn get_jobs_sends_every_filter_to_the_server() {
         sort_by: Some(crate::mwa_asvo::SortBy::Created),
         ..JobsFilter::default()
     };
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .get_jobs(&filter)
         .expect("the listing should succeed");
@@ -1898,7 +1903,7 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
             .json_body(json!({ "jobs": [], "total_count": 0 }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     client
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");
@@ -1913,7 +1918,7 @@ fn get_jobs_with_no_filter_uses_the_schema_defaults() {
 fn days_with_a_date_is_refused_before_any_request() {
     let env = TestEnv::with_session();
     let listing = env.mock_get_jobs(vec![]);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let time: jiff::Timestamp = "2026-09-01T00:00:00Z".parse().expect("a valid time");
 
     for (date_from, date_to) in [
@@ -1933,7 +1938,7 @@ fn days_with_a_date_is_refused_before_any_request() {
             client.get_jobs(&filter).expect_err("get_jobs is refused"),
         ] {
             assert!(
-                matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
+                matches!(err, MwaAsvoApiError::InvalidParameter { name: "days", .. }),
                 "got {err:?}"
             );
             assert!(err.to_string().contains("date_from"), "{err}");
@@ -1948,7 +1953,7 @@ fn days_with_a_date_is_refused_before_any_request() {
 #[test]
 fn a_date_sends_null_days_and_days_alone_sends_no_date() {
     let env = TestEnv::with_session();
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let empty = json!({ "jobs": [], "total_count": 0 });
 
     let mut dated = env.server.mock(|when, then| {
@@ -2014,7 +2019,7 @@ fn a_date_sends_null_days_and_days_alone_sends_no_date() {
 fn days_outside_the_schema_limits_are_refused_before_any_request() {
     let env = TestEnv::with_session();
     let listing = env.mock_get_jobs(vec![]);
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
 
     // The type refuses 0; the library refuses what is above 30.
     for days in [31, u64::MAX].map(crate::test_config::nonzero) {
@@ -2025,7 +2030,7 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
             })
             .expect_err("days should be refused");
         assert!(
-            matches!(err, AsvoApiError::InvalidParameter { name: "days", .. }),
+            matches!(err, MwaAsvoApiError::InvalidParameter { name: "days", .. }),
             "got {err:?}"
         );
         assert!(
@@ -2039,7 +2044,7 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
                 ..JobsFilter::default()
             }
             .validate(),
-            Err(AsvoApiError::InvalidParameter { name: "days", .. })
+            Err(MwaAsvoApiError::InvalidParameter { name: "days", .. })
         ));
     }
     assert_eq!(listing.calls(), 0);
@@ -2055,7 +2060,7 @@ fn days_outside_the_schema_limits_are_refused_before_any_request() {
     assert_eq!(listing.calls(), 2);
 }
 
-/// Every field of the job detail reaches `AsvoJob`.
+/// Every field of the job detail reaches `MwaAsvoJob`.
 #[test]
 fn a_listed_job_has_every_field_of_the_job_detail() {
     let env = TestEnv::with_session();
@@ -2066,7 +2071,7 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
     detail["modified"] = json!("2026-09-08T05:55:00Z");
     env.mock_get_jobs(vec![detail]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");
@@ -2101,13 +2106,13 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
         then.status(422).json_body(body);
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("expected the listing to fail");
 
     match &err {
-        AsvoApiError::ApiError { response, .. } => {
+        MwaAsvoApiError::ApiError { response, .. } => {
             let fields: Vec<&str> = response
                 .field_errors
                 .iter()
@@ -2138,7 +2143,7 @@ fn an_api_error_without_details_has_the_plain_message() {
             .json_body(json!({ "error_code": "JOB_INVALID_STATE", "message": "Job is not ready" }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("expected the listing to fail");
@@ -2161,7 +2166,7 @@ fn an_api_error_shows_the_servers_detail_and_suggestion() {
             .json_body(error_response("JOB_INVALID_STATE", "Job is not ready"));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("expected the listing to fail");
@@ -2186,7 +2191,7 @@ fn an_api_error_with_only_a_suggestion_shows_only_the_suggestion() {
         }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&JobsFilter::default())
         .expect_err("expected the listing to fail");
@@ -2224,7 +2229,7 @@ fn get_jobs_sends_a_single_state_and_type_to_the_server() {
             .json_body(json!({ "jobs": three_jobs(), "total_count": 3 }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter {
             job_states: vec![JobState::Queued],
@@ -2234,7 +2239,7 @@ fn get_jobs_sends_a_single_state_and_type_to_the_server() {
         .expect("the listing should succeed");
 
     assert_eq!(listing.calls(), 1);
-    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
+    let ids: Vec<MwaAsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
     assert_eq!(ids, [crate::test_config::job_id(2)]);
 }
 
@@ -2252,7 +2257,7 @@ fn get_jobs_filters_several_states_on_the_client() {
             .json_body(json!({ "jobs": three_jobs(), "total_count": 3 }));
     });
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter {
             job_states: vec![JobState::Completed, JobState::Queued],
@@ -2261,7 +2266,7 @@ fn get_jobs_filters_several_states_on_the_client() {
         .expect("the listing should succeed");
 
     assert_eq!(listing.calls(), 1);
-    let ids: Vec<AsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
+    let ids: Vec<MwaAsvoJobId> = jobs.0.iter().map(|j| j.job_id()).collect();
     assert_eq!(
         ids,
         [crate::test_config::job_id(1), crate::test_config::job_id(2)]
@@ -2281,12 +2286,12 @@ fn get_jobs_refuses_job_ids_and_obs_ids_together() {
 
     assert!(matches!(
         filter.validate(),
-        Err(AsvoApiError::InvalidParameter {
+        Err(MwaAsvoApiError::InvalidParameter {
             name: "job_ids",
             ..
         })
     ));
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let err = client
         .get_jobs(&filter)
         .expect_err("the filter should be refused");
@@ -2323,7 +2328,7 @@ fn a_time_with_any_zone_is_left_alone_and_a_time_without_one_gets_z() {
     detail["modified"] = json!("2026-09-08T05:55:00");
     env.mock_get_jobs(vec![detail]);
 
-    let client = AsvoClient::new(client_config(&env)).expect("client should be created");
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
     let jobs = client
         .get_jobs(&JobsFilter::default())
         .expect("the listing should succeed");

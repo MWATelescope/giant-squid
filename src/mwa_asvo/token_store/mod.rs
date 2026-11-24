@@ -79,7 +79,7 @@ pub struct StoredTokens {
     pub user_login: String,
     pub user_email: String,
     /// The MWA ASVO host that issued the session, as in
-    /// [`AsvoClientConfig::host`](crate::AsvoClientConfig::host).
+    /// [`MwaAsvoClientConfig::host`](crate::MwaAsvoClientConfig::host).
     #[serde(default)]
     pub host: String,
     /// The SHA-256 of the API key that the session was made with, as
@@ -115,7 +115,7 @@ pub(crate) fn api_key_sha256(api_key: &str) -> String {
 
 /// Returns `<home>/.mwa-asvo/tokens.json`: the token cache that mwa-cli
 /// also uses. Pass the result as
-/// [`AsvoClientConfig::token_cache_path`](crate::AsvoClientConfig::token_cache_path)
+/// [`MwaAsvoClientConfig::token_cache_path`](crate::MwaAsvoClientConfig::token_cache_path)
 /// to share sessions with mwa-cli.
 pub fn default_token_cache_path(home: &Path) -> PathBuf {
     home.join(TOKEN_CACHE_DIR).join(TOKEN_CACHE_FILE)

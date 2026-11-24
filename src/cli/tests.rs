@@ -1714,20 +1714,20 @@ fn the_argument_placeholders_use_the_schema_names() {
 /// Three jobs that between them have every kind of value: files with a
 /// URL and with a path, no files, an empty file list, a completion time,
 /// and an error state with a message that needs escaping.
-fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
+fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
     use crate::mwa_asvo::api::openapi::{DeliveryDestination, JobDetailResponse, JobProduct};
-    use crate::mwa_asvo::{AsvoJobVec, JobFile, JobState};
+    use crate::mwa_asvo::{JobFile, JobState, MwaAsvoJobVec};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
     let mut job_params = serde_json::Map::new();
     job_params.insert("obs_id".to_string(), serde_json::json!(1065880128));
     job_params.insert("delivery".to_string(), serde_json::json!("acacia"));
-    AsvoJobVec(vec![
-        crate::test_config::asvo_job(
+    MwaAsvoJobVec(vec![
+        crate::test_config::mwa_asvo_job(
             obs_id,
             JobDetailResponse {
-                job_id: crate::AsvoJobId::new(101).expect("not zero"),
+                job_id: crate::MwaAsvoJobId::new(101).expect("not zero"),
                 obs_id: 0,
                 job_type: Some(crate::test_config::job_type("visibility")),
                 job_state: JobState::Completed,
@@ -1763,10 +1763,10 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
                 job_params,
             },
         ),
-        crate::test_config::asvo_job(
+        crate::test_config::mwa_asvo_job(
             obs_id,
             JobDetailResponse {
-                job_id: crate::AsvoJobId::new(102).expect("not zero"),
+                job_id: crate::MwaAsvoJobId::new(102).expect("not zero"),
                 obs_id: 0,
                 job_type: Some(crate::test_config::job_type("conversion")),
                 job_state: JobState::Queued,
@@ -1783,10 +1783,10 @@ fn json_sample_jobs() -> crate::mwa_asvo::AsvoJobVec {
                 job_params: serde_json::Map::new(),
             },
         ),
-        crate::test_config::asvo_job(
+        crate::test_config::mwa_asvo_job(
             obs_id,
             JobDetailResponse {
-                job_id: crate::AsvoJobId::new(103).expect("not zero"),
+                job_id: crate::MwaAsvoJobId::new(103).expect("not zero"),
                 obs_id: 0,
                 job_type: Some(crate::test_config::job_type("imaging")),
                 job_state: JobState::Error,
@@ -1820,13 +1820,13 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 /// `--legacy-json` names every job type as giant-squid 2.5.1 did, for the
 /// integer code that the API sends: 0 to 6, and no type (`Unknown`). The
 /// expected text is what 2.5.1 (tag `v2.5.1`) printed for one job of each
-/// type, made by its own `AsvoJobVec::json`. A job in the sample above has
+/// type, made by its own `MwaAsvoJobVec::json`. A job in the sample above has
 /// each of the other keys, so this one varies only the job type.
 #[test]
 fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
     use crate::mwa_asvo::api::openapi::JobDetailResponse;
     use crate::mwa_asvo::api::schema_enums::SchemaEnum;
-    use crate::mwa_asvo::{AsvoJobVec, JobState, JobType};
+    use crate::mwa_asvo::{JobState, JobType, MwaAsvoJobVec};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
     let job_types: Vec<Option<JobType>> = JobType::VARIANTS
@@ -1835,15 +1835,15 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
         .map(Some)
         .chain([None])
         .collect();
-    let jobs = AsvoJobVec(
+    let jobs = MwaAsvoJobVec(
         job_types
             .into_iter()
             .zip(201..)
             .map(|(job_type, id)| {
-                crate::test_config::asvo_job(
+                crate::test_config::mwa_asvo_job(
                     obs_id,
                     JobDetailResponse {
-                        job_id: crate::AsvoJobId::new(id).expect("not zero"),
+                        job_id: crate::MwaAsvoJobId::new(id).expect("not zero"),
                         obs_id: 0,
                         job_type,
                         job_state: JobState::Completed,
@@ -2827,7 +2827,7 @@ fn waiting_for_no_submitted_job_makes_no_request() {
     use crate::test_common::TestEnv;
 
     let env = TestEnv::with_session();
-    let client = crate::AsvoClient::new(crate::test_config::client_config(&env))
+    let client = crate::MwaAsvoClient::new(crate::test_config::client_config(&env))
         .expect("client should be created");
 
     assert!(wait_for_submitted(&client, &[], Ok(())).is_ok());
@@ -2850,13 +2850,13 @@ fn a_failed_wait_keeps_the_summary_of_the_failed_submissions() {
     let env = TestEnv::with_session();
     // An empty job list: the submitted job is not in it.
     env.mock_get_jobs(vec![]);
-    let client = crate::AsvoClient::new(crate::test_config::client_config(&env))
+    let client = crate::MwaAsvoClient::new(crate::test_config::client_config(&env))
         .expect("client should be created");
     let summary = "1 of 2 job submissions failed";
 
     let err = wait_for_submitted(
         &client,
-        &[crate::test_config::TEST_ASVO_JOB_ID],
+        &[crate::test_config::TEST_MWA_ASVO_JOB_ID],
         Err(ReportedFailures(summary.to_string()).into()),
     )
     .expect_err("the wait should fail");
@@ -2865,7 +2865,7 @@ fn a_failed_wait_keeps_the_summary_of_the_failed_submissions() {
     assert!(text.contains(summary), "{text}");
     assert!(
         err.chain()
-            .any(|cause| cause.downcast_ref::<crate::AsvoError>().is_some()),
+            .any(|cause| cause.downcast_ref::<crate::MwaAsvoError>().is_some()),
         "{text}"
     );
 }

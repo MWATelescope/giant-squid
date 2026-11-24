@@ -57,11 +57,11 @@ mwa_giant_squid.ImageWeighting.Briggs
 mwa_giant_squid.ImageWeighting.Natural
 mwa_giant_squid.ImageWeighting.Uniform
 
-# `AsvoJobVec.__getitem__`: pyo3 does not permit a `signature` on a magic method, so `index` is positional-only at
+# `MwaAsvoJobVec.__getitem__`: pyo3 does not permit a `signature` on a magic method, so `index` is positional-only at
 # run time, while the stub names it.
-mwa_giant_squid.AsvoJobVec.__getitem__
+mwa_giant_squid.MwaAsvoJobVec.__getitem__
 
-# `ObsId.__eq__`, `__lt__`, `__le__`, `__gt__` and `__ge__`: as for `AsvoJobVec.__getitem__`, pyo3 does not permit a `signature`
+# `ObsId.__eq__`, `__lt__`, `__le__`, `__gt__` and `__ge__`: as for `MwaAsvoJobVec.__getitem__`, pyo3 does not permit a `signature`
 # on a magic method, so the other operand is positional-only at run time, while the stub names it `other`.
 mwa_giant_squid.ObsId.__eq__
 mwa_giant_squid.ObsId.__lt__

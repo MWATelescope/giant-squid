@@ -14,9 +14,9 @@ import typing
 __all__ = [
     "BYTES_PER_MIB",
     "DEFAULT_API_TIMEOUT",
-    "DEFAULT_ASVO_HOST",
     "DEFAULT_DOWNLOAD_BUFFER_SIZE",
     "DEFAULT_DOWNLOAD_RETRY_DURATION",
+    "DEFAULT_MWA_ASVO_HOST",
     "ENV_GIANT_SQUID_BUF_SIZE",
     "ENV_GIANT_SQUID_DELIVERY",
     "ENV_GIANT_SQUID_DELIVERY_FORMAT",
@@ -28,45 +28,6 @@ __all__ = [
     "MIN_DOWNLOAD_BUFFER_SIZE",
     "OBS_ID_HINT",
     "SIGNED_URL_LIFETIME_DAYS",
-    "AsvoApiError",
-    "AsvoApiErrorApiError",
-    "AsvoApiErrorAuthenticationFailed",
-    "AsvoApiErrorBadJson",
-    "AsvoApiErrorBadStatus",
-    "AsvoApiErrorConversion",
-    "AsvoApiErrorInvalidParameter",
-    "AsvoApiErrorMissingAuthKey",
-    "AsvoApiErrorReqwest",
-    "AsvoClient",
-    "AsvoClientConfig",
-    "AsvoError",
-    "AsvoErrorAsvoApi",
-    "AsvoErrorDestinationExists",
-    "AsvoErrorFilesNotReachable",
-    "AsvoErrorHashMismatch",
-    "AsvoErrorHttp404Error",
-    "AsvoErrorHttpError",
-    "AsvoErrorInterrupted",
-    "AsvoErrorInvalidEnvironment",
-    "AsvoErrorInvalidJob",
-    "AsvoErrorInvalidJobState",
-    "AsvoErrorInvalidJobType",
-    "AsvoErrorInvalidOption",
-    "AsvoErrorJobCancelled",
-    "AsvoErrorJobExpired",
-    "AsvoErrorJobFailed",
-    "AsvoErrorNoAsvoJob",
-    "AsvoErrorNoFiles",
-    "AsvoErrorNoHash",
-    "AsvoErrorNoJobReadyForObsId",
-    "AsvoErrorNoObsId",
-    "AsvoErrorNoPath",
-    "AsvoErrorNoUrl",
-    "AsvoErrorNotReady",
-    "AsvoErrorSymlinkInDownloadDir",
-    "AsvoErrorTooManyObsIds",
-    "AsvoJob",
-    "AsvoJobVec",
     "ConversionJobParams",
     "CsvDefaults",
     "CsvError",
@@ -100,6 +61,45 @@ __all__ = [
     "JobSubmittedResponse",
     "JobType",
     "JobsFilter",
+    "MwaAsvoApiError",
+    "MwaAsvoApiErrorApiError",
+    "MwaAsvoApiErrorAuthenticationFailed",
+    "MwaAsvoApiErrorBadJson",
+    "MwaAsvoApiErrorBadStatus",
+    "MwaAsvoApiErrorConversion",
+    "MwaAsvoApiErrorInvalidParameter",
+    "MwaAsvoApiErrorMissingAuthKey",
+    "MwaAsvoApiErrorReqwest",
+    "MwaAsvoClient",
+    "MwaAsvoClientConfig",
+    "MwaAsvoError",
+    "MwaAsvoErrorDestinationExists",
+    "MwaAsvoErrorFilesNotReachable",
+    "MwaAsvoErrorHashMismatch",
+    "MwaAsvoErrorHttp404Error",
+    "MwaAsvoErrorHttpError",
+    "MwaAsvoErrorInterrupted",
+    "MwaAsvoErrorInvalidEnvironment",
+    "MwaAsvoErrorInvalidJob",
+    "MwaAsvoErrorInvalidJobState",
+    "MwaAsvoErrorInvalidJobType",
+    "MwaAsvoErrorInvalidOption",
+    "MwaAsvoErrorJobCancelled",
+    "MwaAsvoErrorJobExpired",
+    "MwaAsvoErrorJobFailed",
+    "MwaAsvoErrorMwaAsvoApi",
+    "MwaAsvoErrorNoFiles",
+    "MwaAsvoErrorNoHash",
+    "MwaAsvoErrorNoJobReadyForObsId",
+    "MwaAsvoErrorNoMwaAsvoJob",
+    "MwaAsvoErrorNoObsId",
+    "MwaAsvoErrorNoPath",
+    "MwaAsvoErrorNoUrl",
+    "MwaAsvoErrorNotReady",
+    "MwaAsvoErrorSymlinkInDownloadDir",
+    "MwaAsvoErrorTooManyObsIds",
+    "MwaAsvoJob",
+    "MwaAsvoJobVec",
     "ObsId",
     "ObsIdError",
     "ObsIdErrorParse",
@@ -141,9 +141,9 @@ __all__ = [
 
 BYTES_PER_MIB: builtins.int = 1048576
 DEFAULT_API_TIMEOUT: builtins.float = 60.0
-DEFAULT_ASVO_HOST: builtins.str = "https://asvo.mwatelescope.org:443"
 DEFAULT_DOWNLOAD_BUFFER_SIZE: builtins.int = 104857600
 DEFAULT_DOWNLOAD_RETRY_DURATION: builtins.float = 900.0
+DEFAULT_MWA_ASVO_HOST: builtins.str = "https://asvo.mwatelescope.org:443"
 ENV_GIANT_SQUID_BUF_SIZE: builtins.str = "GIANT_SQUID_BUF_SIZE"
 ENV_GIANT_SQUID_DELIVERY: builtins.str = "GIANT_SQUID_DELIVERY"
 ENV_GIANT_SQUID_DELIVERY_FORMAT: builtins.str = "GIANT_SQUID_DELIVERY_FORMAT"
@@ -158,835 +158,6 @@ SIGNED_URL_LIFETIME_DAYS: builtins.int = 7
 _PROGRAM_NAME: builtins.str
 __version__: builtins.str
 
-class AsvoApiError(builtins.Exception):
-    r"""
-    An MWA ASVO API call failed, or an argument is outside what the MWA ASVO API allows. `kind` is the Rust `AsvoApiError` variant, and the exception is also an instance of the class for that variant (for example `AsvoApiErrorInvalidParameter`).
-
-    `kind` is always set. The other attributes are set only for the kinds shown.
-    """
-
-    kind: builtins.str
-    r"""
-    "MissingAuthKey" (the `api_key` given to `AsvoClient` is empty), "AuthenticationFailed", "Conversion", "InvalidParameter" (an argument is outside the MWA ASVO limits), "BadJson", "Reqwest", "ApiError" or "BadStatus".
-    """
-    name: builtins.str
-    r"""
-    InvalidParameter: the name of the argument, as the OpenAPI schema has it.
-    """
-    message: builtins.str
-    r"""
-    AuthenticationFailed, InvalidParameter, ApiError and BadStatus.
-    """
-    error_code: builtins.str | None
-    r"""
-    ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse.
-    """
-    detail: builtins.str | None
-    r"""
-    ApiError and AuthenticationFailed.
-    """
-    suggestion: builtins.str | None
-    r"""
-    ApiError and AuthenticationFailed.
-    """
-    field_errors: builtins.list[builtins.dict[builtins.str, builtins.str]]
-    r"""
-    ApiError and AuthenticationFailed: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
-    """
-    request_id: builtins.str | None
-    r"""
-    ApiError and AuthenticationFailed: the server's ID for the request, for a support request.
-    """
-    status: builtins.int
-    r"""
-    ApiError and BadStatus: the HTTP status code (as `status` of an AsvoError HttpError).
-    """
-
-class AsvoApiErrorApiError(AsvoApiError):
-    r"""
-    The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.
-    """
-
-class AsvoApiErrorAuthenticationFailed(AsvoApiError):
-    r"""
-    The MWA ASVO refused the login (kind `AuthenticationFailed`).
-    """
-
-class AsvoApiErrorBadJson(AsvoApiError):
-    r"""
-    The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).
-    """
-
-class AsvoApiErrorBadStatus(AsvoApiError):
-    r"""
-    The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).
-    """
-
-class AsvoApiErrorConversion(AsvoApiError):
-    r"""
-    A value could not be turned into the type that the schema has (kind `Conversion`).
-    """
-
-class AsvoApiErrorInvalidParameter(AsvoApiError):
-    r"""
-    A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.
-    """
-
-class AsvoApiErrorMissingAuthKey(AsvoApiError):
-    r"""
-    No API key was given: it is empty (kind `MissingAuthKey`).
-    """
-
-class AsvoApiErrorReqwest(AsvoApiError):
-    r"""
-    An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).
-    """
-
-@typing.final
-class AsvoClient:
-    r"""
-    A client for the MWA ASVO. It logs in when it is created.
-
-    Args:
-        config: The host, your API key, the API timeout and the token cache
-            (an `AsvoClientConfig`). `client_config_from_env` reads them from
-            the environment, as the `giant-squid` command does.
-
-    Raises:
-        AsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
-            login failed.
-        ValueError: `config.api_timeout` is not finite, or is not more than 0.
-    """
-    def __new__(cls, config: AsvoClientConfig) -> AsvoClient: ...
-    def get_jobs(self, filter: JobsFilter | None = None) -> AsvoJobVec:
-        r"""
-        Get your jobs, as `giant-squid list` does: the server filters what it
-        can, and the lists (several Job IDs, Obs IDs, types or states) are
-        applied to the result.
-
-        Args:
-            filter: Which jobs to get (a `JobsFilter`). `None` is a filter
-                that does not filter, but note that `days=None` is the
-                default window of the MWA ASVO API, not your full history.
-
-        Raises:
-            ValueError: The filter is not valid: both `job_ids` and
-                `obs_ids` are given, or `days` is not from 1 to 30 or is
-                given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
-            AsvoApiError: The request failed.
-        """
-    def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
-        r"""
-        Submit a download job: a visibility, metadata, voltage or
-        beamformer job.
-
-        The MWA ASVO finds the kind of data from the observation. It
-        refuses a body that does not suit the observation (for example
-        `offset` and `duration` for an observation that has no voltages).
-
-        Args:
-            params: The request body.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: The `offset` is not from 0 to 5400,
-                or `delivery` is `DeliveryDestination.Acacia` and
-                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-                tar only). Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_preprocess_job(
-        self, params: PreprocessJobParams | ConversionJobParams | ImagingJobParams
-    ) -> JobSubmittedResponse:
-        r"""
-        Submit a preprocessing job: a conversion job or an imaging job from
-        an Obs ID. An imaging job from a conversion job is
-        `submit_image_from_job`.
-
-        The MWA ASVO finds the kind of job from the fields of the request
-        body: only an imaging body has the imaging fields.
-
-        Args:
-            params: The request body: a `PreprocessJobParams`, a
-                `ConversionJobParams` or an `ImagingJobParams`.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            TypeError: `params` is not one of the three classes.
-            ValueError: A number is outside what the MWA ASVO accepts (for
-                example `avg_freq_res` above 1280), `delivery` is
-                `DeliveryDestination.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `PhaseCentre.Custom` without both
-                `custom_centre_ra` and `custom_centre_dec`, or either of them
-                is given with another `centre`. The message names the
-                argument and its limits. Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_image_from_job(self, params: ImageFromJobParams) -> JobSubmittedResponse:
-        r"""
-        Submit an imaging job from a conversion job: an image of
-        the conversion job `params.source_job_id`. The MWA ASVO takes the Obs
-        ID from the source job.
-
-        Args:
-            params: The request body.
-
-        Returns:
-            The server's reply, with the new job's ID.
-
-        Raises:
-            ValueError: A number is outside what the MWA ASVO accepts, or
-                `delivery` is `DeliveryDestination.Acacia` and
-                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-                tar only). The message names the argument and its limits.
-                Nothing is sent.
-            AsvoApiError: The request failed.
-        """
-    def submit_csv_file(
-        self, path: builtins.str | os.PathLike | pathlib.Path, defaults: CsvDefaults | None = None
-    ) -> builtins.list[JobSubmittedResponse]:
-        r"""
-        Submit the jobs of a manta-ray-client CSV file (the file that
-        `mwa_client -c` reads), one job for each line.
-
-        The whole file is read and checked before anything is submitted.
-        Then the jobs are submitted in the order of the file. A job that
-        fails does not stop the others.
-
-        A key that a line does not give has the default of the MWA ASVO,
-        except `delivery`, `delivery_format` and `allow_resubmit`, for which
-        `defaults` are the defaults. (This method reads no environment
-        variable. `CsvDefaults.from_env()` reads the variables of the
-        `giant-squid` command.) A key that a line does give wins. A key that
-        a line gives twice, and a line that makes the same job as an earlier
-        line, are logged as warnings. See the README for the keys of each job
-        type.
-
-        Args:
-            path: The CSV file.
-            defaults: What the lines do not give (a `CsvDefaults`). `None` is
-                no defaults.
-
-        Returns:
-            The server's reply for each job, in the order of the file.
-
-        Raises:
-            OSError: The file cannot be read. Nothing is submitted.
-            CsvSubmitError: The file has a problem on some lines (kind
-                `Invalid`, with `errors`, the message lists every bad line by
-                its line number), or it has no job (kind `NoJobs`). Nothing is
-                submitted. Or some jobs failed (kind `Failed`): the other jobs
-                were submitted, and the exception's `submitted` has their
-                replies and its `failures` has a `CsvJobFailure` for each job
-                that failed.
-        """
-    def submit_csv_jobs(
-        self,
-        jobs: typing.Sequence[CsvJob],
-        on_result: collections.abc.Callable[[CsvJob, JobSubmittedResponse | AsvoApiError], builtins.object]
-        | None = None,
-    ) -> builtins.list[JobSubmittedResponse]:
-        r"""
-        Submit the jobs that `parse_manta_ray_csv` or `read_manta_ray_csv`
-        read, in order, and carry on past a job that fails.
-
-        Args:
-            jobs: The jobs (`CsvJob`).
-            on_result: A function to call for each job when its request is
-                done, so that you can report it at once. It is called with
-                the `CsvJob` and its result: the `JobSubmittedResponse`, or
-                the `AsvoApiError` that the request failed with (as a value,
-                not raised). If it raises, it is not called again, the other
-                jobs are still submitted (the library's loop cannot be
-                stopped), and its first exception is raised when they are
-                done.
-
-        Returns:
-            The server's reply for each job, in the order of the jobs.
-
-        Raises:
-            ValueError: The image size or `nmiter` of an imaging job is not
-                valid. Nothing is submitted.
-            CsvJobsFailed: Some jobs failed. The other jobs were submitted:
-                the exception's `submitted` has their replies and its
-                `failures` has a `CsvJobFailure` for each job that failed.
-        """
-    def submit_csv_job(self, params: CsvJobParams) -> JobSubmittedResponse:
-        r"""
-        Submit the job of one line of a manta-ray-client CSV file (see
-        `parse_manta_ray_csv`), to the endpoint of its job type.
-
-        Args:
-            params: The request body (a `CsvJobParams`, from a `CsvJob`).
-
-        Returns:
-            The server's reply.
-
-        Raises:
-            ValueError: A value is outside the limits of the MWA ASVO. Nothing
-                is sent.
-            AsvoApiError: The request failed. (The errors of the submit
-                methods.)
-        """
-    def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
-        r"""
-        Cancel a job.
-
-        Args:
-            job_id: The ID of the job to cancel.
-
-        Returns:
-            The server's reply, a `JobCancelledResponse`. Its `job_id` is the
-            job in the request. The
-            MWA ASVO answers the cancellation of a job that is already
-            cancelled with a normal reply and not an error, so no exception
-            is raised. The reason is in `message`. Any other refusal is an
-            error.
-
-        Raises:
-            ValueError: `job_id` is 0.
-            OverflowError: `job_id` is negative or too large to be a Job ID.
-            AsvoApiError: The request failed, for example because there is
-                no such job.
-        """
-    def download_job(self, job_id: builtins.int, options: DownloadOptions) -> AsvoJob:
-        r"""
-        Download the files of a job.
-
-        The job must be ready (see `AsvoJobVec.all_ready`). The call blocks
-        until the download ends, with the GIL released. Ctrl-C stops the
-        download at the next chunk and raises `KeyboardInterrupt`, when the
-        call is made from the main thread. A partial file stays on disk, so
-        a new call resumes it (unless `options.no_resume`).
-
-        The call gets the job list first. To download several jobs, get the
-        job list once and call `download_job_from` for each.
-
-        Args:
-            job_id: The Job ID.
-            options: How to download, and where to (a `DownloadOptions`).
-
-        Returns:
-            The job that was downloaded.
-
-        Raises:
-            AsvoError: The job is missing, not ready or has no files, a
-                transfer failed, or the hash does not match.
-            AsvoApiError: Getting the job list failed.
-            ValueError: `options.download_dir`, `options.buffer_size` or
-                `options.retry_duration` is not valid.
-            KeyboardInterrupt: Ctrl-C was pressed.
-        """
-    def download_job_from(self, jobs: AsvoJobVec, job_id: builtins.int, options: DownloadOptions) -> AsvoJob:
-        r"""
-        Download the files of a job that is in a job list that you have.
-
-        As `download_job`, but it finds the job in `jobs`, and makes no
-        request to get the job list.
-
-        Args:
-            jobs: A job list from `get_jobs`.
-            job_id: The Job ID.
-            options: How to download, and where to (a `DownloadOptions`).
-
-        Returns:
-            The job that was downloaded.
-
-        Raises:
-            AsvoError: The job is missing from `jobs`, not ready or has no
-                files, a transfer failed, or the hash does not match.
-            ValueError: `options.download_dir`, `options.buffer_size` or
-                `options.retry_duration` is not valid.
-            KeyboardInterrupt: Ctrl-C was pressed.
-        """
-    def download_obs(self, obs_id: builtins.int | ObsId, options: DownloadOptions) -> AsvoJob:
-        r"""
-        Download the files of the one ready job for an Obs ID.
-
-        The way the download runs is that of `download_job`.
-
-        Args:
-            obs_id: The Obs ID. There must be exactly one ready job for it.
-            options: How to download, and where to (a `DownloadOptions`).
-
-        Returns:
-            The job that was downloaded (its `job_id` is the job found for
-            the Obs ID).
-
-        Raises:
-            ObsIdError: `obs_id` is not a valid Obs ID.
-            AsvoError: No job, no ready job, or more than one ready job has
-                this Obs ID, or the download failed (see `download_job`).
-            AsvoApiError: Getting the job list failed.
-            KeyboardInterrupt: Ctrl-C was pressed.
-        """
-    def download_obs_from(self, jobs: AsvoJobVec, obs_id: builtins.int | ObsId, options: DownloadOptions) -> AsvoJob:
-        r"""
-        Download the files of the one ready job for an Obs ID, from a job
-        list that you have.
-
-        As `download_obs`, but it finds the job in `jobs`, and makes no
-        request to get the job list.
-
-        Args:
-            jobs: A job list from `get_jobs`.
-            obs_id: The Obs ID. There must be exactly one ready job for it.
-            options: How to download, and where to (a `DownloadOptions`).
-
-        Returns:
-            The job that was downloaded.
-
-        Raises:
-            ObsIdError: `obs_id` is not a valid Obs ID.
-            AsvoError: No job, no ready job, or more than one ready job has
-                this Obs ID, or the download failed (see `download_job`).
-            KeyboardInterrupt: Ctrl-C was pressed.
-        """
-
-@typing.final
-class AsvoClientConfig:
-    r"""
-    Everything an `AsvoClient` needs to connect to the MWA ASVO.
-
-    The module reads no environment variables here. To read them (as the
-    `giant-squid` command does), use `client_config_from_env`.
-
-    Args:
-        host: The MWA ASVO base URL, for example
-            "https://asvo.mwatelescope.org:443". An "http://" host is
-            permitted (a local test server); every other host must use TLS.
-        api_key: Your MWA ASVO API key.
-        api_timeout: The timeout for one API request, in seconds. More than 0.
-            `None` is `DEFAULT_API_TIMEOUT`.
-        token_cache_path: Where to cache the session between runs. `None`
-            keeps the session in memory only, so every new client logs in.
-            Give a path for a script that runs often, because the server
-            permits only a few logins a minute. A cached session is used only
-            by a client with the same `host` and `api_key`; the file holds a
-            hash of the key, never the key. `default_token_cache_path` is the
-            place that the `giant-squid` command uses.
-    """
-    @property
-    def host(self) -> builtins.str:
-        r"""
-        The MWA ASVO base URL.
-        """
-    @host.setter
-    def host(self, value: builtins.str) -> None:
-        r"""
-        The MWA ASVO base URL.
-        """
-    @property
-    def api_key(self) -> builtins.str:
-        r"""
-        Your MWA ASVO API key.
-        """
-    @api_key.setter
-    def api_key(self, value: builtins.str) -> None:
-        r"""
-        Your MWA ASVO API key.
-        """
-    @property
-    def api_timeout(self) -> builtins.float:
-        r"""
-        The timeout for one API request, in seconds. More than 0.
-        """
-    @api_timeout.setter
-    def api_timeout(self, value: builtins.float) -> None:
-        r"""
-        The timeout for one API request, in seconds. More than 0.
-        """
-    @property
-    def token_cache_path(self) -> pathlib.Path | None:
-        r"""
-        Where to cache the session between runs, or `None`.
-        """
-    @token_cache_path.setter
-    def token_cache_path(self, value: builtins.str | os.PathLike | pathlib.Path | None) -> None:
-        r"""
-        Where to cache the session between runs, or `None`.
-        """
-    def __new__(
-        cls,
-        host: builtins.str,
-        api_key: builtins.str,
-        *,
-        api_timeout: builtins.float | None = None,
-        token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
-    ) -> AsvoClientConfig: ...
-
-class AsvoError(builtins.Exception):
-    r"""
-    A download or job check failed. `kind` is the Rust `AsvoError` variant, and the exception is also an instance of the class for that variant (for example `AsvoErrorNoAsvoJob`).
-
-    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `AsvoErrorAsvoApi`, which has the `AsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
-    """
-
-    kind: builtins.str
-    r"""
-    The variant, for example "NoAsvoJob", "JobFailed", "NotReady", "HashMismatch" or "Interrupted".
-    """
-    job_id: builtins.int
-    r"""
-    NoAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
-    """
-    obs_id: ObsId
-    r"""
-    JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds.
-    """
-    expired: datetime.datetime | None
-    r"""
-    JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known.
-    """
-    error: builtins.str
-    r"""
-    JobFailed: the job's error message.
-    """
-    error_code: builtins.int | None
-    r"""
-    JobFailed: the job's error code, or None.
-    """
-    job_state: JobState
-    r"""
-    NotReady: the job's state.
-    """
-    delivery: DeliveryDestination
-    r"""
-    FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch).
-    """
-    path: builtins.str | None
-    r"""
-    FilesNotReachable: the path of the files, if the MWA ASVO gave one.
-    """
-    file: builtins.str
-    r"""
-    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there.
-    """
-    calculated_hash: builtins.str
-    r"""
-    HashMismatch.
-    """
-    expected_hash: builtins.str
-    r"""
-    HashMismatch.
-    """
-    status: builtins.int
-    r"""
-    HttpError: the HTTP status code.
-    """
-    message: builtins.str
-    r"""
-    HttpError and InvalidOption: what is wrong.
-    """
-    str: builtins.str
-    r"""
-    InvalidJobState and InvalidJobType: the text that could not be parsed.
-    """
-    name: builtins.str
-    r"""
-    InvalidEnvironment: the name of the environment variable. InvalidOption: the name of the option.
-    """
-    source: AsvoApiError
-    r"""
-    AsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`.
-    """
-    value: builtins.str
-    r"""
-    InvalidEnvironment: its value.
-    """
-    problem: builtins.str
-    r"""
-    InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)
-    """
-    id: builtins.int
-    r"""
-    InvalidJob: the `id` of the job, as the API gave it.
-    """
-
-class AsvoErrorAsvoApi(AsvoError):
-    r"""
-    An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `AsvoApi`). `source` is the `AsvoApiError`, which is also the `__cause__`.
-    """
-
-class AsvoErrorDestinationExists(AsvoError):
-    r"""
-    The place for the files of a Scratch job is already there (kind `DestinationExists`).
-    """
-
-class AsvoErrorFilesNotReachable(AsvoError):
-    r"""
-    The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).
-    """
-
-class AsvoErrorHashMismatch(AsvoError):
-    r"""
-    The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).
-    """
-
-class AsvoErrorHttp404Error(AsvoError):
-    r"""
-    The download server did not find the file (kind `Http404Error`).
-    """
-
-class AsvoErrorHttpError(AsvoError):
-    r"""
-    The download server replied with an HTTP error (kind `HttpError`).
-    """
-
-class AsvoErrorInterrupted(AsvoError):
-    r"""
-    The download was stopped (kind `Interrupted`).
-    """
-
-class AsvoErrorInvalidEnvironment(AsvoError):
-    r"""
-    An environment variable has a value that cannot be used (kind `InvalidEnvironment`).
-    """
-
-class AsvoErrorInvalidJob(AsvoError):
-    r"""
-    The server gave a job that cannot be used (kind `InvalidJob`).
-    """
-
-class AsvoErrorInvalidJobState(AsvoError):
-    r"""
-    The text is not the name of a job state (kind `InvalidJobState`).
-    """
-
-class AsvoErrorInvalidJobType(AsvoError):
-    r"""
-    The text is not the name of a job type (kind `InvalidJobType`).
-    """
-
-class AsvoErrorInvalidOption(AsvoError):
-    r"""
-    A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.
-    """
-
-class AsvoErrorJobCancelled(AsvoError):
-    r"""
-    The job was cancelled (kind `JobCancelled`).
-    """
-
-class AsvoErrorJobExpired(AsvoError):
-    r"""
-    The download links of the job have expired (kind `JobExpired`). Resubmit the job.
-    """
-
-class AsvoErrorJobFailed(AsvoError):
-    r"""
-    The job is in the `Error` state (kind `JobFailed`). `error` is its message.
-    """
-
-class AsvoErrorNoAsvoJob(AsvoError):
-    r"""
-    There is no job with this Job ID in the job list (kind `NoAsvoJob`).
-    """
-
-class AsvoErrorNoFiles(AsvoError):
-    r"""
-    The job has no files (kind `NoFiles`).
-    """
-
-class AsvoErrorNoHash(AsvoError):
-    r"""
-    The job's file has no hash (kind `NoHash`).
-    """
-
-class AsvoErrorNoJobReadyForObsId(AsvoError):
-    r"""
-    No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).
-    """
-
-class AsvoErrorNoObsId(AsvoError):
-    r"""
-    No job has this Obs ID (kind `NoObsId`).
-    """
-
-class AsvoErrorNoPath(AsvoError):
-    r"""
-    The job's files have no path (kind `NoPath`).
-    """
-
-class AsvoErrorNoUrl(AsvoError):
-    r"""
-    The job's file has no download URL (kind `NoUrl`).
-    """
-
-class AsvoErrorNotReady(AsvoError):
-    r"""
-    The job is not ready for download (kind `NotReady`). `job_state` is its state.
-    """
-
-class AsvoErrorSymlinkInDownloadDir(AsvoError):
-    r"""
-    The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).
-    """
-
-class AsvoErrorTooManyObsIds(AsvoError):
-    r"""
-    More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).
-    """
-
-@typing.final
-class AsvoJob:
-    r"""
-    An MWA ASVO job.
-    """
-    @property
-    def job_id(self) -> builtins.int:
-        r"""
-        The Job ID.
-        """
-    @property
-    def job_type(self) -> JobType | None:
-        r"""
-        The job type, or `None` if the server gives none.
-        """
-    @property
-    def job_state(self) -> JobState:
-        r"""
-        The job state.
-        """
-    @property
-    def error_code(self) -> builtins.int | None:
-        r"""
-        The server's error code, or `None`. The MWA ASVO does not
-        document its values, so it is given as it is.
-        """
-    @property
-    def error_text(self) -> builtins.str | None:
-        r"""
-        The server's error message, or `None`. A job in the `Error`
-        state has its message here.
-        """
-    @property
-    def product(self) -> JobProduct | None:
-        r"""
-        The job's product (its files), or `None` if the job has none
-        yet.
-        """
-    @property
-    def completed(self) -> datetime.datetime | None:
-        r"""
-        When the job completed (UTC), or `None`.
-        """
-    @property
-    def created(self) -> datetime.datetime:
-        r"""
-        When the job was created (UTC).
-        """
-    @property
-    def started(self) -> datetime.datetime | None:
-        r"""
-        When the job started (UTC), or `None` if it has not started.
-        """
-    @property
-    def modified(self) -> datetime.datetime | None:
-        r"""
-        When the job was last changed (UTC), or `None`.
-        """
-    @property
-    def user_id(self) -> builtins.int:
-        r"""
-        The ID of the user who submitted the job.
-        """
-    @property
-    def first_name(self) -> builtins.str:
-        r"""
-        The first name of the user who submitted the job.
-        """
-    @property
-    def last_name(self) -> builtins.str:
-        r"""
-        The last name of the user who submitted the job.
-        """
-    @property
-    def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
-        r"""
-        The job's parameters as the server gives them, as a `dict`.
-        """
-    @property
-    def obs_id(self) -> ObsId:
-        r"""
-        The Obs ID.
-        """
-    @property
-    def expires(self) -> datetime.datetime | None:
-        r"""
-        When the download links of the job stop working (UTC): the earliest
-        `Expires` of the signed URLs of its Acacia files, or `None` if the job
-        has no such URL. The MWA ASVO signs the URLs for 7 days.
-        """
-    @property
-    def is_expired(self) -> builtins.bool:
-        r"""
-        Whether the job is completed and its download links have expired. The
-        MWA ASVO has no such state, so this is worked out from `expires`.
-        `job_state` is still the MWA ASVO's. A download of an expired job
-        raises `AsvoError` of kind `JobExpired`: resubmit the job.
-        """
-    @property
-    def display_state(self) -> builtins.str:
-        r"""
-        The job state as `giant-squid list` shows it: the MWA ASVO's state
-        (for example `queued`), except that a completed job is
-        `completed (ready)` or `completed (expired)`.
-        """
-    def detail(self) -> JobDetailResponse:
-        r"""
-        The job as the API gives it: the schema's `JobDetailResponse`. Its
-        `obs_id` is the number that the API gave, not checked.
-        """
-
-@typing.final
-class AsvoJobVec:
-    r"""
-    A list of MWA ASVO jobs. Supports `len()`, indexing and iteration.
-    """
-    def __len__(self) -> builtins.int: ...
-    def __getitem__(self, index: builtins.int) -> AsvoJob: ...
-    def __iter__(self) -> typing.Iterator[AsvoJob]: ...
-    def filter(
-        self,
-        job_ids: typing.Sequence[builtins.int] | None = None,
-        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
-        job_types: typing.Sequence[JobType] | None = None,
-        job_states: typing.Sequence[JobState] | None = None,
-    ) -> AsvoJobVec:
-        r"""
-        Keep only the jobs that match every given filter. A filter that is
-        `None` or empty does not filter.
-
-        Raises:
-            ObsIdError: An Obs ID is not valid.
-        """
-    def json(self) -> builtins.str:
-        r"""
-        The jobs as JSON: an object keyed by Job ID, in Job ID order, whose
-        values are the jobs as the API gives them. `giant-squid list --json`
-        prints this. If a Job ID is in the list more than once, only the last
-        of those jobs is in the output.
-        """
-    def all_ready(self, job_ids: typing.Sequence[builtins.int]) -> builtins.bool:
-        r"""
-        Whether all of `job_ids` are ready for download. `False` means some
-        are still in progress.
-
-        This makes no request: to wait, call `AsvoClient.get_jobs` and this
-        in a loop.
-
-        Raises:
-            AsvoError: A job is missing, has an error, has been cancelled, or
-                is completed but its download links have expired (kind
-                `JobExpired`).
-        """
-
 @typing.final
 class ConversionJobParams:
     r"""
@@ -994,7 +165,7 @@ class ConversionJobParams:
 
     Every keyword argument has the MWA ASVO's default as its default value
     (the type stubs show it). `None` is accepted by the arguments that the MWA
-    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
     job is submitted (see the submit method).
@@ -1208,7 +379,7 @@ class CsvDefaults:
             The defaults.
 
         Raises:
-            AsvoError: A variable is set to a value that the schema does not
+            MwaAsvoError: A variable is set to a value that the schema does not
                 list (kind `InvalidEnvironment`).
         """
 
@@ -1297,7 +468,7 @@ class CsvJobFailure:
     @property
     def error(self) -> builtins.Exception:
         r"""
-        Why the job was not submitted: the `AsvoApiError` of the request.
+        Why the job was not submitted: the `MwaAsvoApiError` of the request.
         """
 
 class CsvJobParams:
@@ -1399,7 +570,7 @@ class CsvJobParams:
 
 class CsvJobsFailed(builtins.Exception):
     r"""
-    `AsvoClient.submit_csv_jobs` submitted the jobs, but some jobs failed.
+    `MwaAsvoClient.submit_csv_jobs` submitted the jobs, but some jobs failed.
 
     The jobs that did not fail were submitted: a failed job does not stop the others. `submitted` has the replies of the jobs that were submitted, and `failures` has one `CsvJobFailure` for each job that was not, both in the order of the file.
     """
@@ -1431,7 +602,7 @@ class CsvRowError:
 
 class CsvSubmitError(builtins.Exception):
     r"""
-    `AsvoClient.submit_csv_file` did not submit every job of a file. `kind` is the Rust `CsvSubmitError` variant, and the exception is also an instance of the class for that variant (for example `CsvSubmitErrorFailed`). A file that cannot be read is an `OSError`, not this.
+    `MwaAsvoClient.submit_csv_file` did not submit every job of a file. `kind` is the Rust `CsvSubmitError` variant, and the exception is also an instance of the class for that variant (for example `CsvSubmitErrorFailed`). A file that cannot be read is an `OSError`, not this.
 
     `kind` is always set. The other attributes are set only for the kinds shown. For every kind but `Failed`, nothing was submitted. For `Failed`, the jobs that did not fail were submitted: a failed job does not stop the others.
     """
@@ -1483,7 +654,7 @@ class DownloadJobParams:
 
     Every keyword argument has the MWA ASVO's default as its default value
     (the type stubs show it). `None` is accepted by the arguments that the MWA
-    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
     job is submitted (see the submit method).
@@ -1721,7 +892,7 @@ class DownloadOptions:
 class DownloadProgress:
     r"""
     A download progress event, given to the `progress` callback of
-    `AsvoClient.download_job` and `AsvoClient.download_obs`.
+    `MwaAsvoClient.download_job` and `MwaAsvoClient.download_obs`.
 
     For each file there are one or more `Started` events, then zero or more
     `Advanced` events, then one `Finished` event. A second `Started` for the
@@ -1843,7 +1014,7 @@ class DownloadSettings:
             The settings.
 
         Raises:
-            AsvoError: A variable is set but is not a whole number, or is too
+            MwaAsvoError: A variable is set but is not a whole number, or is too
                 large (kind `InvalidEnvironment`).
         """
 
@@ -1856,7 +1027,7 @@ class ImageFromJobParams:
 
     Every keyword argument has the MWA ASVO's default as its default value
     (the type stubs show it). `None` is accepted by the arguments that the MWA
-    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The values are checked by `validate()` and when the job is submitted (see the submit method).
 
@@ -2008,7 +1179,7 @@ class ImagingJobParams:
 
     Every keyword argument has the MWA ASVO's default as its default value
     (the type stubs show it). `None` is accepted by the arguments that the MWA
-    ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
+    MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
     job is submitted (see the submit method).
@@ -2300,8 +1471,8 @@ class JobCancelledResponse:
 class JobDetailResponse:
     r"""
     A job as the MWA ASVO API gives it: the OpenAPI schema's
-    `JobDetailResponse`. `AsvoJob.detail` returns it. It has the same
-    attributes as `AsvoJob`, except that `obs_id` is the `int` that the API
+    `JobDetailResponse`. `MwaAsvoJob.detail` returns it. It has the same
+    attributes as `MwaAsvoJob`, except that `obs_id` is the `int` that the API
     gave, not a checked `ObsId`.
     """
     @property
@@ -2381,7 +1552,7 @@ class JobDetailResponse:
     def obs_id(self) -> builtins.int:
         r"""
         The Obs ID, as the API gives it: a number that is not checked. (The
-        Obs ID of an `AsvoJob` is an `ObsId`.)
+        Obs ID of an `MwaAsvoJob` is an `ObsId`.)
         """
 
 @typing.final
@@ -2464,7 +1635,7 @@ class JobSubmittedResponse:
 @typing.final
 class JobsFilter:
     r"""
-    Which of your jobs to get: the filter of `AsvoClient.get_jobs`.
+    Which of your jobs to get: the filter of `MwaAsvoClient.get_jobs`.
 
     A filter that is `None` or empty does not filter, except `days` and
     `sort_by`: `days=None` is the default window of the MWA ASVO API (30
@@ -2563,12 +1734,843 @@ class JobsFilter:
     ) -> JobsFilter: ...
     def validate(self) -> None:
         r"""
-        Check the filter before any request. `AsvoClient.get_jobs` does this.
+        Check the filter before any request. `MwaAsvoClient.get_jobs` does this.
 
         Raises:
             ValueError: Both `job_ids` and `obs_ids` are given, `days` is not
                 from 1 to 30, or `days` is given with `date_from` or
                 `date_to`.
+        """
+
+class MwaAsvoApiError(builtins.Exception):
+    r"""
+    An MWA ASVO API call failed, or an argument is outside what the MWA ASVO API allows. `kind` is the Rust `MwaAsvoApiError` variant, and the exception is also an instance of the class for that variant (for example `MwaAsvoApiErrorInvalidParameter`).
+
+    `kind` is always set. The other attributes are set only for the kinds shown.
+    """
+
+    kind: builtins.str
+    r"""
+    "MissingAuthKey" (the `api_key` given to `MwaAsvoClient` is empty), "AuthenticationFailed", "Conversion", "InvalidParameter" (an argument is outside the MWA ASVO limits), "BadJson", "Reqwest", "ApiError" or "BadStatus".
+    """
+    name: builtins.str
+    r"""
+    InvalidParameter: the name of the argument, as the OpenAPI schema has it.
+    """
+    message: builtins.str
+    r"""
+    AuthenticationFailed, InvalidParameter, ApiError and BadStatus.
+    """
+    error_code: builtins.str | None
+    r"""
+    ApiError and AuthenticationFailed: the server's machine-readable error code. Always set for ApiError; None for an AuthenticationFailed whose reply was not an MWA ASVO ErrorResponse.
+    """
+    detail: builtins.str | None
+    r"""
+    ApiError and AuthenticationFailed.
+    """
+    suggestion: builtins.str | None
+    r"""
+    ApiError and AuthenticationFailed.
+    """
+    field_errors: builtins.list[builtins.dict[builtins.str, builtins.str]]
+    r"""
+    ApiError and AuthenticationFailed: the fields that failed validation, each as `{"field": ..., "message": ...}`. Can be empty.
+    """
+    request_id: builtins.str | None
+    r"""
+    ApiError and AuthenticationFailed: the server's ID for the request, for a support request.
+    """
+    status: builtins.int
+    r"""
+    ApiError and BadStatus: the HTTP status code (as `status` of an MwaAsvoError HttpError).
+    """
+
+class MwaAsvoApiErrorApiError(MwaAsvoApiError):
+    r"""
+    The MWA ASVO replied with an error (kind `ApiError`). `status` is the HTTP status, and `error_code` is the server's error code.
+    """
+
+class MwaAsvoApiErrorAuthenticationFailed(MwaAsvoApiError):
+    r"""
+    The MWA ASVO refused the login (kind `AuthenticationFailed`).
+    """
+
+class MwaAsvoApiErrorBadJson(MwaAsvoApiError):
+    r"""
+    The JSON of an MWA ASVO reply could not be decoded (kind `BadJson`).
+    """
+
+class MwaAsvoApiErrorBadStatus(MwaAsvoApiError):
+    r"""
+    The MWA ASVO replied with an HTTP status that is not a success, and a body that is not an MWA ASVO error (kind `BadStatus`).
+    """
+
+class MwaAsvoApiErrorConversion(MwaAsvoApiError):
+    r"""
+    A value could not be turned into the type that the schema has (kind `Conversion`).
+    """
+
+class MwaAsvoApiErrorInvalidParameter(MwaAsvoApiError):
+    r"""
+    A job argument is outside what the MWA ASVO OpenAPI schema allows. It was found before any request was sent (kind `InvalidParameter`). `name` is the name of the argument, and `message` says what is wrong.
+    """
+
+class MwaAsvoApiErrorMissingAuthKey(MwaAsvoApiError):
+    r"""
+    No API key was given: it is empty (kind `MissingAuthKey`).
+    """
+
+class MwaAsvoApiErrorReqwest(MwaAsvoApiError):
+    r"""
+    An HTTP request failed: no connection, a timeout, a TLS problem and so on (kind `Reqwest`).
+    """
+
+@typing.final
+class MwaAsvoClient:
+    r"""
+    A client for the MWA ASVO. It logs in when it is created.
+
+    Args:
+        config: The host, your API key, the API timeout and the token cache
+            (an `MwaAsvoClientConfig`). `client_config_from_env` reads them from
+            the environment, as the `giant-squid` command does.
+
+    Raises:
+        MwaAsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
+            login failed.
+        ValueError: `config.api_timeout` is not finite, or is not more than 0.
+    """
+    def __new__(cls, config: MwaAsvoClientConfig) -> MwaAsvoClient: ...
+    def get_jobs(self, filter: JobsFilter | None = None) -> MwaAsvoJobVec:
+        r"""
+        Get your jobs, as `giant-squid list` does: the server filters what it
+        can, and the lists (several Job IDs, Obs IDs, types or states) are
+        applied to the result.
+
+        Args:
+            filter: Which jobs to get (a `JobsFilter`). `None` is a filter
+                that does not filter, but note that `days=None` is the
+                default window of the MWA ASVO API, not your full history.
+
+        Raises:
+            ValueError: The filter is not valid: both `job_ids` and
+                `obs_ids` are given, or `days` is not from 1 to 30 or is
+                given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
+            MwaAsvoApiError: The request failed.
+        """
+    def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
+        r"""
+        Submit a download job: a visibility, metadata, voltage or
+        beamformer job.
+
+        The MWA ASVO finds the kind of data from the observation. It
+        refuses a body that does not suit the observation (for example
+        `offset` and `duration` for an observation that has no voltages).
+
+        Args:
+            params: The request body.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: The `offset` is not from 0 to 5400,
+                or `delivery` is `DeliveryDestination.Acacia` and
+                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+                tar only). Nothing is sent.
+            MwaAsvoApiError: The request failed.
+        """
+    def submit_preprocess_job(
+        self, params: PreprocessJobParams | ConversionJobParams | ImagingJobParams
+    ) -> JobSubmittedResponse:
+        r"""
+        Submit a preprocessing job: a conversion job or an imaging job from
+        an Obs ID. An imaging job from a conversion job is
+        `submit_image_from_job`.
+
+        The MWA ASVO finds the kind of job from the fields of the request
+        body: only an imaging body has the imaging fields.
+
+        Args:
+            params: The request body: a `PreprocessJobParams`, a
+                `ConversionJobParams` or an `ImagingJobParams`.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            TypeError: `params` is not one of the three classes.
+            ValueError: A number is outside what the MWA ASVO accepts (for
+                example `avg_freq_res` above 1280), `delivery` is
+                `DeliveryDestination.Acacia` and `delivery_format` is
+                `DeliveryFormat.Files` (Acacia delivers a tar only), or
+                `centre` is `PhaseCentre.Custom` without both
+                `custom_centre_ra` and `custom_centre_dec`, or either of them
+                is given with another `centre`. The message names the
+                argument and its limits. Nothing is sent.
+            MwaAsvoApiError: The request failed.
+        """
+    def submit_image_from_job(self, params: ImageFromJobParams) -> JobSubmittedResponse:
+        r"""
+        Submit an imaging job from a conversion job: an image of
+        the conversion job `params.source_job_id`. The MWA ASVO takes the Obs
+        ID from the source job.
+
+        Args:
+            params: The request body.
+
+        Returns:
+            The server's reply, with the new job's ID.
+
+        Raises:
+            ValueError: A number is outside what the MWA ASVO accepts, or
+                `delivery` is `DeliveryDestination.Acacia` and
+                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
+                tar only). The message names the argument and its limits.
+                Nothing is sent.
+            MwaAsvoApiError: The request failed.
+        """
+    def submit_csv_file(
+        self, path: builtins.str | os.PathLike | pathlib.Path, defaults: CsvDefaults | None = None
+    ) -> builtins.list[JobSubmittedResponse]:
+        r"""
+        Submit the jobs of a manta-ray-client CSV file (the file that
+        `mwa_client -c` reads), one job for each line.
+
+        The whole file is read and checked before anything is submitted.
+        Then the jobs are submitted in the order of the file. A job that
+        fails does not stop the others.
+
+        A key that a line does not give has the default of the MWA ASVO,
+        except `delivery`, `delivery_format` and `allow_resubmit`, for which
+        `defaults` are the defaults. (This method reads no environment
+        variable. `CsvDefaults.from_env()` reads the variables of the
+        `giant-squid` command.) A key that a line does give wins. A key that
+        a line gives twice, and a line that makes the same job as an earlier
+        line, are logged as warnings. See the README for the keys of each job
+        type.
+
+        Args:
+            path: The CSV file.
+            defaults: What the lines do not give (a `CsvDefaults`). `None` is
+                no defaults.
+
+        Returns:
+            The server's reply for each job, in the order of the file.
+
+        Raises:
+            OSError: The file cannot be read. Nothing is submitted.
+            CsvSubmitError: The file has a problem on some lines (kind
+                `Invalid`, with `errors`, the message lists every bad line by
+                its line number), or it has no job (kind `NoJobs`). Nothing is
+                submitted. Or some jobs failed (kind `Failed`): the other jobs
+                were submitted, and the exception's `submitted` has their
+                replies and its `failures` has a `CsvJobFailure` for each job
+                that failed.
+        """
+    def submit_csv_jobs(
+        self,
+        jobs: typing.Sequence[CsvJob],
+        on_result: collections.abc.Callable[[CsvJob, JobSubmittedResponse | MwaAsvoApiError], builtins.object]
+        | None = None,
+    ) -> builtins.list[JobSubmittedResponse]:
+        r"""
+        Submit the jobs that `parse_manta_ray_csv` or `read_manta_ray_csv`
+        read, in order, and carry on past a job that fails.
+
+        Args:
+            jobs: The jobs (`CsvJob`).
+            on_result: A function to call for each job when its request is
+                done, so that you can report it at once. It is called with
+                the `CsvJob` and its result: the `JobSubmittedResponse`, or
+                the `MwaAsvoApiError` that the request failed with (as a value,
+                not raised). If it raises, it is not called again, the other
+                jobs are still submitted (the library's loop cannot be
+                stopped), and its first exception is raised when they are
+                done.
+
+        Returns:
+            The server's reply for each job, in the order of the jobs.
+
+        Raises:
+            ValueError: The image size or `nmiter` of an imaging job is not
+                valid. Nothing is submitted.
+            CsvJobsFailed: Some jobs failed. The other jobs were submitted:
+                the exception's `submitted` has their replies and its
+                `failures` has a `CsvJobFailure` for each job that failed.
+        """
+    def submit_csv_job(self, params: CsvJobParams) -> JobSubmittedResponse:
+        r"""
+        Submit the job of one line of a manta-ray-client CSV file (see
+        `parse_manta_ray_csv`), to the endpoint of its job type.
+
+        Args:
+            params: The request body (a `CsvJobParams`, from a `CsvJob`).
+
+        Returns:
+            The server's reply.
+
+        Raises:
+            ValueError: A value is outside the limits of the MWA ASVO. Nothing
+                is sent.
+            MwaAsvoApiError: The request failed. (The errors of the submit
+                methods.)
+        """
+    def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
+        r"""
+        Cancel a job.
+
+        Args:
+            job_id: The ID of the job to cancel.
+
+        Returns:
+            The server's reply, a `JobCancelledResponse`. Its `job_id` is the
+            job in the request. The
+            MWA ASVO answers the cancellation of a job that is already
+            cancelled with a normal reply and not an error, so no exception
+            is raised. The reason is in `message`. Any other refusal is an
+            error.
+
+        Raises:
+            ValueError: `job_id` is 0.
+            OverflowError: `job_id` is negative or too large to be a Job ID.
+            MwaAsvoApiError: The request failed, for example because there is
+                no such job.
+        """
+    def download_job(self, job_id: builtins.int, options: DownloadOptions) -> MwaAsvoJob:
+        r"""
+        Download the files of a job.
+
+        The job must be ready (see `MwaAsvoJobVec.all_ready`). The call blocks
+        until the download ends, with the GIL released. Ctrl-C stops the
+        download at the next chunk and raises `KeyboardInterrupt`, when the
+        call is made from the main thread. A partial file stays on disk, so
+        a new call resumes it (unless `options.no_resume`).
+
+        The call gets the job list first. To download several jobs, get the
+        job list once and call `download_job_from` for each.
+
+        Args:
+            job_id: The Job ID.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded.
+
+        Raises:
+            MwaAsvoError: The job is missing, not ready or has no files, a
+                transfer failed, or the hash does not match.
+            MwaAsvoApiError: Getting the job list failed.
+            ValueError: `options.download_dir`, `options.buffer_size` or
+                `options.retry_duration` is not valid.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def download_job_from(self, jobs: MwaAsvoJobVec, job_id: builtins.int, options: DownloadOptions) -> MwaAsvoJob:
+        r"""
+        Download the files of a job that is in a job list that you have.
+
+        As `download_job`, but it finds the job in `jobs`, and makes no
+        request to get the job list.
+
+        Args:
+            jobs: A job list from `get_jobs`.
+            job_id: The Job ID.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded.
+
+        Raises:
+            MwaAsvoError: The job is missing from `jobs`, not ready or has no
+                files, a transfer failed, or the hash does not match.
+            ValueError: `options.download_dir`, `options.buffer_size` or
+                `options.retry_duration` is not valid.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def download_obs(self, obs_id: builtins.int | ObsId, options: DownloadOptions) -> MwaAsvoJob:
+        r"""
+        Download the files of the one ready job for an Obs ID.
+
+        The way the download runs is that of `download_job`.
+
+        Args:
+            obs_id: The Obs ID. There must be exactly one ready job for it.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded (its `job_id` is the job found for
+            the Obs ID).
+
+        Raises:
+            ObsIdError: `obs_id` is not a valid Obs ID.
+            MwaAsvoError: No job, no ready job, or more than one ready job has
+                this Obs ID, or the download failed (see `download_job`).
+            MwaAsvoApiError: Getting the job list failed.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def download_obs_from(
+        self, jobs: MwaAsvoJobVec, obs_id: builtins.int | ObsId, options: DownloadOptions
+    ) -> MwaAsvoJob:
+        r"""
+        Download the files of the one ready job for an Obs ID, from a job
+        list that you have.
+
+        As `download_obs`, but it finds the job in `jobs`, and makes no
+        request to get the job list.
+
+        Args:
+            jobs: A job list from `get_jobs`.
+            obs_id: The Obs ID. There must be exactly one ready job for it.
+            options: How to download, and where to (a `DownloadOptions`).
+
+        Returns:
+            The job that was downloaded.
+
+        Raises:
+            ObsIdError: `obs_id` is not a valid Obs ID.
+            MwaAsvoError: No job, no ready job, or more than one ready job has
+                this Obs ID, or the download failed (see `download_job`).
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+
+@typing.final
+class MwaAsvoClientConfig:
+    r"""
+    Everything an `MwaAsvoClient` needs to connect to the MWA ASVO.
+
+    The module reads no environment variables here. To read them (as the
+    `giant-squid` command does), use `client_config_from_env`.
+
+    Args:
+        host: The MWA ASVO base URL, for example
+            "https://asvo.mwatelescope.org:443". An "http://" host is
+            permitted (a local test server); every other host must use TLS.
+        api_key: Your MWA ASVO API key.
+        api_timeout: The timeout for one API request, in seconds. More than 0.
+            `None` is `DEFAULT_API_TIMEOUT`.
+        token_cache_path: Where to cache the session between runs. `None`
+            keeps the session in memory only, so every new client logs in.
+            Give a path for a script that runs often, because the server
+            permits only a few logins a minute. A cached session is used only
+            by a client with the same `host` and `api_key`; the file holds a
+            hash of the key, never the key. `default_token_cache_path` is the
+            place that the `giant-squid` command uses.
+    """
+    @property
+    def host(self) -> builtins.str:
+        r"""
+        The MWA ASVO base URL.
+        """
+    @host.setter
+    def host(self, value: builtins.str) -> None:
+        r"""
+        The MWA ASVO base URL.
+        """
+    @property
+    def api_key(self) -> builtins.str:
+        r"""
+        Your MWA ASVO API key.
+        """
+    @api_key.setter
+    def api_key(self, value: builtins.str) -> None:
+        r"""
+        Your MWA ASVO API key.
+        """
+    @property
+    def api_timeout(self) -> builtins.float:
+        r"""
+        The timeout for one API request, in seconds. More than 0.
+        """
+    @api_timeout.setter
+    def api_timeout(self, value: builtins.float) -> None:
+        r"""
+        The timeout for one API request, in seconds. More than 0.
+        """
+    @property
+    def token_cache_path(self) -> pathlib.Path | None:
+        r"""
+        Where to cache the session between runs, or `None`.
+        """
+    @token_cache_path.setter
+    def token_cache_path(self, value: builtins.str | os.PathLike | pathlib.Path | None) -> None:
+        r"""
+        Where to cache the session between runs, or `None`.
+        """
+    def __new__(
+        cls,
+        host: builtins.str,
+        api_key: builtins.str,
+        *,
+        api_timeout: builtins.float | None = None,
+        token_cache_path: builtins.str | os.PathLike | pathlib.Path | None = None,
+    ) -> MwaAsvoClientConfig: ...
+
+class MwaAsvoError(builtins.Exception):
+    r"""
+    A download or job check failed. `kind` is the Rust `MwaAsvoError` variant, and the exception is also an instance of the class for that variant (for example `MwaAsvoErrorNoMwaAsvoJob`).
+
+    `kind` is always set. The other attributes are set only for the kinds shown. A failed API call during a download is `MwaAsvoErrorMwaAsvoApi`, which has the `MwaAsvoApiError` as its `source`. A file or directory that cannot be read, written or made raises `OSError` (`FileNotFoundError`, `PermissionError` and so on), not this.
+    """
+
+    kind: builtins.str
+    r"""
+    The variant, for example "NoMwaAsvoJob", "JobFailed", "NotReady", "HashMismatch" or "Interrupted".
+    """
+    job_id: builtins.int
+    r"""
+    NoMwaAsvoJob, JobFailed, JobCancelled, NotReady, NoFiles, JobExpired, HashMismatch, NoUrl, NoPath, NoHash, FilesNotReachable, DestinationExists, HttpError and Http404Error.
+    """
+    obs_id: ObsId
+    r"""
+    JobFailed, NoObsId, NoJobReadyForObsId and TooManyObsIds.
+    """
+    expired: datetime.datetime | None
+    r"""
+    JobExpired: when the download links expired (the `Expires` of the URL), or None if it is not known.
+    """
+    error: builtins.str
+    r"""
+    JobFailed: the job's error message.
+    """
+    error_code: builtins.int | None
+    r"""
+    JobFailed: the job's error code, or None.
+    """
+    job_state: JobState
+    r"""
+    NotReady: the job's state.
+    """
+    delivery: DeliveryDestination
+    r"""
+    FilesNotReachable: where the MWA ASVO delivered the files (Dug or Scratch).
+    """
+    path: builtins.str | None
+    r"""
+    FilesNotReachable: the path of the files, if the MWA ASVO gave one.
+    """
+    file: builtins.str
+    r"""
+    HashMismatch: the file that failed the check. SymlinkInDownloadDir: the path of the symbolic link. DestinationExists: the path that is already there.
+    """
+    calculated_hash: builtins.str
+    r"""
+    HashMismatch.
+    """
+    expected_hash: builtins.str
+    r"""
+    HashMismatch.
+    """
+    status: builtins.int
+    r"""
+    HttpError: the HTTP status code.
+    """
+    message: builtins.str
+    r"""
+    HttpError and InvalidOption: what is wrong.
+    """
+    str: builtins.str
+    r"""
+    InvalidJobState and InvalidJobType: the text that could not be parsed.
+    """
+    name: builtins.str
+    r"""
+    InvalidEnvironment: the name of the environment variable. InvalidOption: the name of the option.
+    """
+    source: MwaAsvoApiError
+    r"""
+    MwaAsvoApi: the API error that stopped the download or the job check. It is also the `__cause__`.
+    """
+    value: builtins.str
+    r"""
+    InvalidEnvironment: its value.
+    """
+    problem: builtins.str
+    r"""
+    InvalidEnvironment and InvalidJob: what is wrong. (A job list skips an InvalidJob job with a warning, so the module does not raise it.)
+    """
+    id: builtins.int
+    r"""
+    InvalidJob: the `id` of the job, as the API gave it.
+    """
+
+class MwaAsvoErrorDestinationExists(MwaAsvoError):
+    r"""
+    The place for the files of a Scratch job is already there (kind `DestinationExists`).
+    """
+
+class MwaAsvoErrorFilesNotReachable(MwaAsvoError):
+    r"""
+    The files are on a file system that this computer cannot reach (kind `FilesNotReachable`).
+    """
+
+class MwaAsvoErrorHashMismatch(MwaAsvoError):
+    r"""
+    The SHA-1 hash of a downloaded file is not the MWA ASVO's (kind `HashMismatch`).
+    """
+
+class MwaAsvoErrorHttp404Error(MwaAsvoError):
+    r"""
+    The download server did not find the file (kind `Http404Error`).
+    """
+
+class MwaAsvoErrorHttpError(MwaAsvoError):
+    r"""
+    The download server replied with an HTTP error (kind `HttpError`).
+    """
+
+class MwaAsvoErrorInterrupted(MwaAsvoError):
+    r"""
+    The download was stopped (kind `Interrupted`).
+    """
+
+class MwaAsvoErrorInvalidEnvironment(MwaAsvoError):
+    r"""
+    An environment variable has a value that cannot be used (kind `InvalidEnvironment`).
+    """
+
+class MwaAsvoErrorInvalidJob(MwaAsvoError):
+    r"""
+    The server gave a job that cannot be used (kind `InvalidJob`).
+    """
+
+class MwaAsvoErrorInvalidJobState(MwaAsvoError):
+    r"""
+    The text is not the name of a job state (kind `InvalidJobState`).
+    """
+
+class MwaAsvoErrorInvalidJobType(MwaAsvoError):
+    r"""
+    The text is not the name of a job type (kind `InvalidJobType`).
+    """
+
+class MwaAsvoErrorInvalidOption(MwaAsvoError):
+    r"""
+    A download option has a value that cannot be used, for example a `buffer_size` of 0. It was found before any request was sent (kind `InvalidOption`). `name` is the name of the option, and `message` says what is wrong.
+    """
+
+class MwaAsvoErrorJobCancelled(MwaAsvoError):
+    r"""
+    The job was cancelled (kind `JobCancelled`).
+    """
+
+class MwaAsvoErrorJobExpired(MwaAsvoError):
+    r"""
+    The download links of the job have expired (kind `JobExpired`). Resubmit the job.
+    """
+
+class MwaAsvoErrorJobFailed(MwaAsvoError):
+    r"""
+    The job is in the `Error` state (kind `JobFailed`). `error` is its message.
+    """
+
+class MwaAsvoErrorMwaAsvoApi(MwaAsvoError):
+    r"""
+    An MWA ASVO API call failed during a download or job check, for example the job list request that a download does first (kind `MwaAsvoApi`). `source` is the `MwaAsvoApiError`, which is also the `__cause__`.
+    """
+
+class MwaAsvoErrorNoFiles(MwaAsvoError):
+    r"""
+    The job has no files (kind `NoFiles`).
+    """
+
+class MwaAsvoErrorNoHash(MwaAsvoError):
+    r"""
+    The job's file has no hash (kind `NoHash`).
+    """
+
+class MwaAsvoErrorNoJobReadyForObsId(MwaAsvoError):
+    r"""
+    No job for this Obs ID is ready for download (kind `NoJobReadyForObsId`).
+    """
+
+class MwaAsvoErrorNoMwaAsvoJob(MwaAsvoError):
+    r"""
+    There is no job with this Job ID in the job list (kind `NoMwaAsvoJob`).
+    """
+
+class MwaAsvoErrorNoObsId(MwaAsvoError):
+    r"""
+    No job has this Obs ID (kind `NoObsId`).
+    """
+
+class MwaAsvoErrorNoPath(MwaAsvoError):
+    r"""
+    The job's files have no path (kind `NoPath`).
+    """
+
+class MwaAsvoErrorNoUrl(MwaAsvoError):
+    r"""
+    The job's file has no download URL (kind `NoUrl`).
+    """
+
+class MwaAsvoErrorNotReady(MwaAsvoError):
+    r"""
+    The job is not ready for download (kind `NotReady`). `job_state` is its state.
+    """
+
+class MwaAsvoErrorSymlinkInDownloadDir(MwaAsvoError):
+    r"""
+    The download directory has a symbolic link where a file should be written (kind `SymlinkInDownloadDir`).
+    """
+
+class MwaAsvoErrorTooManyObsIds(MwaAsvoError):
+    r"""
+    More than one job for this Obs ID is ready for download (kind `TooManyObsIds`).
+    """
+
+@typing.final
+class MwaAsvoJob:
+    r"""
+    An MWA ASVO job.
+    """
+    @property
+    def job_id(self) -> builtins.int:
+        r"""
+        The Job ID.
+        """
+    @property
+    def job_type(self) -> JobType | None:
+        r"""
+        The job type, or `None` if the server gives none.
+        """
+    @property
+    def job_state(self) -> JobState:
+        r"""
+        The job state.
+        """
+    @property
+    def error_code(self) -> builtins.int | None:
+        r"""
+        The server's error code, or `None`. The MWA ASVO does not
+        document its values, so it is given as it is.
+        """
+    @property
+    def error_text(self) -> builtins.str | None:
+        r"""
+        The server's error message, or `None`. A job in the `Error`
+        state has its message here.
+        """
+    @property
+    def product(self) -> JobProduct | None:
+        r"""
+        The job's product (its files), or `None` if the job has none
+        yet.
+        """
+    @property
+    def completed(self) -> datetime.datetime | None:
+        r"""
+        When the job completed (UTC), or `None`.
+        """
+    @property
+    def created(self) -> datetime.datetime:
+        r"""
+        When the job was created (UTC).
+        """
+    @property
+    def started(self) -> datetime.datetime | None:
+        r"""
+        When the job started (UTC), or `None` if it has not started.
+        """
+    @property
+    def modified(self) -> datetime.datetime | None:
+        r"""
+        When the job was last changed (UTC), or `None`.
+        """
+    @property
+    def user_id(self) -> builtins.int:
+        r"""
+        The ID of the user who submitted the job.
+        """
+    @property
+    def first_name(self) -> builtins.str:
+        r"""
+        The first name of the user who submitted the job.
+        """
+    @property
+    def last_name(self) -> builtins.str:
+        r"""
+        The last name of the user who submitted the job.
+        """
+    @property
+    def job_params(self) -> builtins.dict[builtins.str, typing.Any]:
+        r"""
+        The job's parameters as the server gives them, as a `dict`.
+        """
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID.
+        """
+    @property
+    def expires(self) -> datetime.datetime | None:
+        r"""
+        When the download links of the job stop working (UTC): the earliest
+        `Expires` of the signed URLs of its Acacia files, or `None` if the job
+        has no such URL. The MWA ASVO signs the URLs for 7 days.
+        """
+    @property
+    def is_expired(self) -> builtins.bool:
+        r"""
+        Whether the job is completed and its download links have expired. The
+        MWA ASVO has no such state, so this is worked out from `expires`.
+        `job_state` is still the MWA ASVO's. A download of an expired job
+        raises `MwaAsvoError` of kind `JobExpired`: resubmit the job.
+        """
+    @property
+    def display_state(self) -> builtins.str:
+        r"""
+        The job state as `giant-squid list` shows it: the MWA ASVO's state
+        (for example `queued`), except that a completed job is
+        `completed (ready)` or `completed (expired)`.
+        """
+    def detail(self) -> JobDetailResponse:
+        r"""
+        The job as the API gives it: the schema's `JobDetailResponse`. Its
+        `obs_id` is the number that the API gave, not checked.
+        """
+
+@typing.final
+class MwaAsvoJobVec:
+    r"""
+    A list of MWA ASVO jobs. Supports `len()`, indexing and iteration.
+    """
+    def __len__(self) -> builtins.int: ...
+    def __getitem__(self, index: builtins.int) -> MwaAsvoJob: ...
+    def __iter__(self) -> typing.Iterator[MwaAsvoJob]: ...
+    def filter(
+        self,
+        job_ids: typing.Sequence[builtins.int] | None = None,
+        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
+        job_types: typing.Sequence[JobType] | None = None,
+        job_states: typing.Sequence[JobState] | None = None,
+    ) -> MwaAsvoJobVec:
+        r"""
+        Keep only the jobs that match every given filter. A filter that is
+        `None` or empty does not filter.
+
+        Raises:
+            ObsIdError: An Obs ID is not valid.
+        """
+    def json(self) -> builtins.str:
+        r"""
+        The jobs as JSON: an object keyed by Job ID, in Job ID order, whose
+        values are the jobs as the API gives them. `giant-squid list --json`
+        prints this. If a Job ID is in the list more than once, only the last
+        of those jobs is in the output.
+        """
+    def all_ready(self, job_ids: typing.Sequence[builtins.int]) -> builtins.bool:
+        r"""
+        Whether all of `job_ids` are ready for download. `False` means some
+        are still in progress.
+
+        This makes no request: to wait, call `MwaAsvoClient.get_jobs` and this
+        in a loop.
+
+        Raises:
+            MwaAsvoError: A job is missing, has an error, has been cancelled, or
+                is completed but its download links have expired (kind
+                `JobExpired`).
         """
 
 @typing.final
@@ -2867,7 +2869,7 @@ class JobState(enum.Enum):
     r"""
     The state of an MWA ASVO job: the OpenAPI schema's `JobState`. `str()`
     is the API value (for example "completed"). For `Error`, the message is
-    in `AsvoJob.error_text`.
+    in `MwaAsvoJob.error_text`.
     """
 
     Preparing = ...
@@ -2900,7 +2902,7 @@ class JobState(enum.Enum):
             s: The name.
 
         Raises:
-            AsvoError: The text is not the name of a job state (kind
+            MwaAsvoError: The text is not the name of a job state (kind
                 `InvalidJobState`).
         """
 
@@ -2936,7 +2938,7 @@ class JobType(enum.Enum):
             s: The name.
 
         Raises:
-            AsvoError: The text is not the name of a job type (kind
+            MwaAsvoError: The text is not the name of a job type (kind
                 `InvalidJobType`).
         """
 
@@ -2993,7 +2995,7 @@ class Status(enum.Enum):
     the OpenAPI schema's `Status`. `str()` is the API value ("success" or
     "failed"). It describes the reply, like `message`; it is for display
     only. Success or failure of a call is decided by the HTTP status, so a
-    call that fails raises `AsvoApiError`.
+    call that fails raises `MwaAsvoApiError`.
     """
 
     Success = ...
@@ -3019,7 +3021,7 @@ def _run_cli(args: typing.Sequence[builtins.str]) -> builtins.int:
 
     Raises:
         RuntimeError: The command already ran in this process, or an
-            `AsvoClient` was made first. A process has only one Rust
+            `MwaAsvoClient` was made first. A process has only one Rust
             logger: the command installs its own the first time, and a
             second run (or a run after the module's Python logging was
             installed) would write its log lines to the wrong place. Run
@@ -3041,18 +3043,18 @@ def check_file_sha1_hash(
         job_id: The Job ID that the file belongs to. It is for the error.
 
     Raises:
-        AsvoError: The hash does not match (kind `HashMismatch`).
+        MwaAsvoError: The hash does not match (kind `HashMismatch`).
         ValueError: `job_id` is 0.
         OSError: The file cannot be read.
     """
 
-def client_config_from_env() -> AsvoClientConfig:
+def client_config_from_env() -> MwaAsvoClientConfig:
     r"""
-    Build an `AsvoClientConfig` from the environment, as the `giant-squid`
+    Build an `MwaAsvoClientConfig` from the environment, as the `giant-squid`
     command does.
 
     - `MWA_ASVO_API_KEY` is required.
-    - `MWA_ASVO_HOST` is the host. The default is `DEFAULT_ASVO_HOST`.
+    - `MWA_ASVO_HOST` is the host. The default is `DEFAULT_MWA_ASVO_HOST`.
     - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds. The default is
       `DEFAULT_API_TIMEOUT`.
     - The session is cached under `HOME` (see `default_token_cache_path`).
@@ -3062,9 +3064,9 @@ def client_config_from_env() -> AsvoClientConfig:
         The config.
 
     Raises:
-        AsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
+        MwaAsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
             seconds of at least 1 (kind `InvalidEnvironment`).
-        AsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
+        MwaAsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
     """
 
 def conversion_params(obs_id: builtins.int | ObsId) -> ConversionJobParams:
@@ -3086,7 +3088,7 @@ def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) ->
     r"""
     The path of the token cache that mwa-cli also uses:
     `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
-    `AsvoClient` to share sessions with mwa-cli.
+    `MwaAsvoClient` to share sessions with mwa-cli.
 
     Args:
         home: The home directory.
@@ -3309,6 +3311,6 @@ def reset_logging() -> None:
     first time a Rust log record uses it. Call this after you change
     the logging configuration (for example, after `logging.basicConfig`
     or `setLevel`), if the module has already logged. The module connects
-    to Python's `logging` when you make the first `AsvoClient`, so until
+    to Python's `logging` when you make the first `MwaAsvoClient`, so until
     then there is nothing to reset.
     """

@@ -153,7 +153,7 @@ def serve_jobs(httpserver: HTTPServer) -> Callable[[list[dict[str, Any]]], None]
 
 
 @pytest.fixture
-def client(host: str, mock_login: None) -> gs.AsvoClient:
+def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
     """A client that has logged in to the mock.
 
     Args:
@@ -163,7 +163,7 @@ def client(host: str, mock_login: None) -> gs.AsvoClient:
     Returns:
         The client.
     """
-    return gs.AsvoClient(gs.AsvoClientConfig(host, TEST_API_KEY))
+    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 @pytest.fixture

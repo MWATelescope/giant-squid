@@ -11,14 +11,14 @@ use std::{fs, io};
 use sha1::{Digest, Sha1};
 use thiserror::Error;
 
-use crate::mwa_asvo::{AsvoError, AsvoJobId};
+use crate::mwa_asvo::{MwaAsvoError, MwaAsvoJobId};
 use crate::obs_id::ObsId;
 
 pub(crate) enum ObsIdOrJobId {
     /// This is an Obs ID.
     O(ObsId),
     /// This is a Job ID.
-    J(AsvoJobId),
+    J(MwaAsvoJobId),
     /// This is 0, which is not a Job ID.
     Zero,
     /// This has 10 digits, so it is an Obs ID, but it is not a valid one.
@@ -32,17 +32,17 @@ pub(crate) fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
         Ok(i) if ObsId::has_obs_id_digits(i) => {
             Some(ObsId::validate(i).map_or(ObsIdOrJobId::InvalidObsId(i), ObsIdOrJobId::O))
         }
-        Ok(i) => Some(AsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
+        Ok(i) => Some(MwaAsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
         // Could not parse the string as an int; we must fail.
         Err(_) => None,
     }
 }
 
-/// Read a file, and return two vectors of ASVO Job IDs and Obs IDs. Fail if any
+/// Read a file, and return two vectors of MWA ASVO Job IDs and Obs IDs. Fail if any
 /// string in the file cannot be parsed as either.
 pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     f: T,
-) -> Result<(Vec<AsvoJobId>, Vec<ObsId>), ParseError> {
+) -> Result<(Vec<MwaAsvoJobId>, Vec<ObsId>), ParseError> {
     let mut obs_ids = vec![];
     let mut job_ids = vec![];
 
@@ -83,13 +83,13 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     Ok((job_ids, obs_ids))
 }
 
-/// Parse a string of ASVO Job IDs, Obs IDs, or files containing Job IDs or
+/// Parse a string of MWA ASVO Job IDs, Obs IDs, or files containing Job IDs or
 /// Obs IDs into two vectors of Job IDs and Obs IDs.
 pub fn parse_many_job_ids_or_obs_ids(
     strings: &[String],
-) -> Result<(Vec<AsvoJobId>, Vec<ObsId>), ParseError> {
+) -> Result<(Vec<MwaAsvoJobId>, Vec<ObsId>), ParseError> {
     // Attempt to parse all arguments as ints. If they aren't 10
-    // digits long, assume they are ASVO job IDs. If any argument is
+    // digits long, assume they are MWA ASVO job IDs. If any argument is
     // not an int, assume it is a file. Exit on any error.
     let mut job_ids = vec![];
     let mut obs_ids = vec![];
@@ -180,7 +180,7 @@ pub enum ParseError {
     )]
     JobIdsGiven {
         /// The Job IDs, in the order given.
-        job_ids: Vec<AsvoJobId>,
+        job_ids: Vec<MwaAsvoJobId>,
     },
 
     /// A command that takes Job IDs only was given Obs IDs
@@ -270,7 +270,7 @@ pub fn parse_obs_ids_only(strings: &[String]) -> Result<Vec<ObsId>, ParseError> 
 ///   it would wait for, or cancel, fewer jobs than the user asked for.
 /// - No Job ID at all is [`ParseError::NoJobIds`].
 /// - A file that cannot be read or parsed is an error.
-pub fn parse_job_ids_only(strings: &[String]) -> Result<Vec<AsvoJobId>, ParseError> {
+pub fn parse_job_ids_only(strings: &[String]) -> Result<Vec<MwaAsvoJobId>, ParseError> {
     let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(strings)?;
     if !obs_ids.is_empty() {
         return Err(ParseError::ObsIdsGiven { obs_ids });
@@ -336,12 +336,12 @@ pub(crate) fn hash_reader(mut reader: impl io::Read, hasher: &mut Sha1) -> io::R
 
 /// Takes a filename, expected hash and a Job ID and returns
 /// Ok if the calculated hash matches the expected hash, otherwise
-/// returns an AsvoError::HashMismatch
+/// returns an MwaAsvoError::HashMismatch
 pub fn check_file_sha1_hash(
     filename: &PathBuf,
     expected_hash: &str,
-    job_id: AsvoJobId,
-) -> Result<(), AsvoError> {
+    job_id: MwaAsvoJobId,
+) -> Result<(), MwaAsvoError> {
     let file = fs::File::open(filename)?;
     let mut hasher = Sha1::new();
     hash_reader(file, &mut hasher)?;
@@ -349,20 +349,20 @@ pub fn check_file_sha1_hash(
 }
 
 /// Finish `hasher`, and return `Ok` if its hash is `expected_hash` (in
-/// either case), or else [`AsvoError::HashMismatch`] for the file `file`.
+/// either case), or else [`MwaAsvoError::HashMismatch`] for the file `file`.
 pub(crate) fn check_sha1_hash(
     hasher: Sha1,
     expected_hash: &str,
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     file: &Path,
-) -> Result<(), AsvoError> {
+) -> Result<(), MwaAsvoError> {
     let hash = to_hex(&hasher.finalize());
     let file_display = file.display();
     log::debug!("Calculated SHA-1 of {file_display}: {hash}");
     if hash.eq_ignore_ascii_case(expected_hash) {
         Ok(())
     } else {
-        Err(AsvoError::HashMismatch {
+        Err(MwaAsvoError::HashMismatch {
             job_id,
             file: file.display().to_string(),
             calculated_hash: hash,

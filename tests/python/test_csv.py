@@ -1,4 +1,4 @@
-"""Tests for ``AsvoClient.submit_csv_file``, against a local mock MWA ASVO.
+"""Tests for ``MwaAsvoClient.submit_csv_file``, against a local mock MWA ASVO.
 
 The parser and the submit loop are the Rust library's, and its tests cover them in detail. These tests check what
 the Python module adds: the argument types, the replies as Python objects, and the Python exceptions.
@@ -88,7 +88,9 @@ def requests_to_submit_paths(httpserver: HTTPServer) -> list[tuple[str, dict[str
 
 
 @pytest.mark.parametrize(("file", "path"), SAMPLE_FILES)
-def test_every_manta_ray_file_is_submitted(client: gs.AsvoClient, httpserver: HTTPServer, file: str, path: str) -> None:
+def test_every_manta_ray_file_is_submitted(
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, file: str, path: str
+) -> None:
     """Each file that manta-ray-client users have gives two replies, from the endpoint of its job type."""
     serve_submissions(httpserver)
 
@@ -100,7 +102,7 @@ def test_every_manta_ray_file_is_submitted(client: gs.AsvoClient, httpserver: HT
 
 
 def test_the_replies_are_in_the_order_of_the_file(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """A reply is a JobSubmittedResponse, and the list follows the lines."""
     serve_submissions(httpserver)
@@ -119,7 +121,7 @@ def test_the_replies_are_in_the_order_of_the_file(
 
 
 def test_the_path_can_be_a_string(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """A path is a ``str`` or a ``PathLike``."""
     serve_submissions(httpserver)
@@ -129,7 +131,7 @@ def test_the_path_can_be_a_string(
 
 
 def test_a_file_with_no_job_is_refused(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """Comments and blank lines are not jobs: a file with only those is refused, and nothing is sent."""
     serve_submissions(httpserver)
@@ -146,7 +148,7 @@ def test_a_file_with_no_job_is_refused(
 
 
 def test_the_arguments_are_the_defaults_of_the_lines_that_give_no_value(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """A line that gives a key wins over the argument."""
     serve_submissions(httpserver)
@@ -166,7 +168,7 @@ def test_the_arguments_are_the_defaults_of_the_lines_that_give_no_value(
 
 
 def test_a_bad_line_is_refused_and_sends_nothing(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """The message names every bad line, and no job is submitted."""
     serve_submissions(httpserver)
@@ -188,7 +190,9 @@ def test_a_bad_line_is_refused_and_sends_nothing(
     assert requests_to_submit_paths(httpserver) == []
 
 
-def test_a_file_that_cannot_be_read_raises_the_os_error_of_open(client: gs.AsvoClient, tmp_path: pathlib.Path) -> None:
+def test_a_file_that_cannot_be_read_raises_the_os_error_of_open(
+    client: gs.MwaAsvoClient, tmp_path: pathlib.Path
+) -> None:
     """A missing file is a FileNotFoundError that has the file name."""
     missing = tmp_path / "no_such_file.csv"
 
@@ -201,7 +205,7 @@ def test_a_file_that_cannot_be_read_raises_the_os_error_of_open(client: gs.AsvoC
 
 
 def test_a_failed_job_does_not_stop_the_others_and_the_exception_has_the_replies(
-    client: gs.AsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
+    client: gs.MwaAsvoClient, httpserver: HTTPServer, write_csv: Callable[[str], pathlib.Path]
 ) -> None:
     """CsvSubmitError has the replies of the jobs that were submitted, and a CsvJobFailure for the others."""
     serve_submissions(httpserver, failing=frozenset({FIRST_OBS_ID}))
@@ -219,20 +223,20 @@ def test_a_failed_job_does_not_stop_the_others_and_the_exception_has_the_replies
     (failure,) = info.value.failures
     assert isinstance(failure, gs.CsvJobFailure)
     assert (failure.line, failure.obs_id) == (1, FIRST_OBS_ID)
-    assert isinstance(failure.error, gs.AsvoApiError)
+    assert isinstance(failure.error, gs.MwaAsvoApiError)
     assert failure.error.kind == "ApiError"
     assert failure.error.error_code == "VALID_MISSING_FIELD"
     assert f"line=1, obs_id={FIRST_OBS_ID}" in repr(failure)
 
 
-def test_the_exception_is_an_exception_that_is_not_an_asvo_error() -> None:
+def test_the_exception_is_an_exception_that_is_not_an_mwa_asvo_error() -> None:
     """A caller that catches the module's other exceptions does not catch a partly failed file by mistake."""
     assert issubclass(gs.CsvSubmitError, Exception)
-    assert not issubclass(gs.CsvSubmitError, (gs.AsvoApiError, gs.AsvoError))
+    assert not issubclass(gs.CsvSubmitError, (gs.MwaAsvoApiError, gs.MwaAsvoError))
 
 
 def test_a_repeated_key_and_a_repeated_job_are_logged_as_warnings(
-    client: gs.AsvoClient,
+    client: gs.MwaAsvoClient,
     httpserver: HTTPServer,
     write_csv: Callable[[str], pathlib.Path],
     caplog: pytest.LogCaptureFixture,

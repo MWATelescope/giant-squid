@@ -24,11 +24,11 @@ pub(crate) mod types;
 #[allow(unused_imports)]
 pub(crate) use self::{
     api::client::{
-        AsvoClient, AsvoClientConfig, JobsFilter, DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST,
+        JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST,
         ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
     },
     api::openapi::{DeliveryDestination, JobFile, JobProduct, JobState, JobType, SortBy},
-    api::AsvoApiError,
+    api::MwaAsvoApiError,
     download::{
         DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
         DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
@@ -37,8 +37,8 @@ pub(crate) use self::{
         client_config_from_env, DownloadSettings, ENV_GIANT_SQUID_DELIVERY,
         ENV_GIANT_SQUID_DELIVERY_FORMAT,
     },
-    error::AsvoError,
+    error::MwaAsvoError,
     error_response::new_error_response,
     token_store::default_token_cache_path,
-    types::{AsvoJob, AsvoJobId, AsvoJobVec},
+    types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec},
 };

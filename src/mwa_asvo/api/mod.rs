@@ -41,7 +41,7 @@ pub mod job_params;
 pub mod schema_enums;
 pub mod validate;
 
-pub(crate) use error::AsvoApiError;
+pub(crate) use error::MwaAsvoApiError;
 
 #[cfg(test)]
 mod tests;

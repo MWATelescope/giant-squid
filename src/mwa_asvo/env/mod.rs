@@ -9,7 +9,7 @@
 //! The library itself reads no environment variable. These functions are
 //! opt-in: a program calls [`client_config_from_env`] or
 //! [`DownloadSettings::from_env`], and gets an explicit
-//! [`AsvoClientConfig`] or explicit download settings to pass on. A
+//! [`MwaAsvoClientConfig`] or explicit download settings to pass on. A
 //! program that wants other variable names, or none, builds its own.
 //!
 //! The text of every message about a variable is here, so that every program
@@ -25,15 +25,15 @@ use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::manta_ray_csv::CsvDefaults;
 use crate::mwa_asvo::{
-    default_token_cache_path, AsvoApiError, AsvoClientConfig, AsvoError, BYTES_PER_MIB,
-    DEFAULT_API_TIMEOUT, DEFAULT_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    default_token_cache_path, MwaAsvoApiError, MwaAsvoClientConfig, MwaAsvoError, BYTES_PER_MIB,
+    DEFAULT_API_TIMEOUT, DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
+    DEFAULT_MWA_ASVO_HOST,
 };
 
 #[cfg(test)]
 mod tests;
 
-/// Overrides the MWA ASVO host (default [`DEFAULT_ASVO_HOST`]).
+/// Overrides the MWA ASVO host (default [`DEFAULT_MWA_ASVO_HOST`]).
 pub const ENV_MWA_ASVO_HOST: &str = "MWA_ASVO_HOST";
 /// The user's MWA ASVO API key. Required.
 pub const ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
@@ -65,37 +65,39 @@ fn process_env(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
-/// Build an [`AsvoClientConfig`] from the environment.
+/// Build an [`MwaAsvoClientConfig`] from the environment.
 ///
 /// - `MWA_ASVO_API_KEY` is required.
-/// - `MWA_ASVO_HOST` defaults to [`DEFAULT_ASVO_HOST`].
+/// - `MWA_ASVO_HOST` defaults to [`DEFAULT_MWA_ASVO_HOST`].
 /// - `MWA_ASVO_API_TIMEOUT` is a whole number of seconds.
 /// - The session is cached under `HOME` (see [`default_token_cache_path`]).
 ///   Without `HOME` it is not cached.
 ///
 /// # Errors
 ///
-/// [`AsvoError::AsvoApi`] with [`AsvoApiError::MissingAuthKey`] if
-/// `MWA_ASVO_API_KEY` is not set, and [`AsvoError::InvalidEnvironment`] if
+/// [`MwaAsvoError::MwaAsvoApi`] with [`MwaAsvoApiError::MissingAuthKey`] if
+/// `MWA_ASVO_API_KEY` is not set, and [`MwaAsvoError::InvalidEnvironment`] if
 /// `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of seconds.
-pub fn client_config_from_env() -> Result<AsvoClientConfig, AsvoError> {
+pub fn client_config_from_env() -> Result<MwaAsvoClientConfig, MwaAsvoError> {
     client_config_from(process_env)
 }
 
 /// As [`client_config_from_env`], reading the variables with `get`.
-fn client_config_from(get: impl Fn(&str) -> Option<String>) -> Result<AsvoClientConfig, AsvoError> {
-    let api_key = get(ENV_MWA_ASVO_API_KEY).ok_or(AsvoApiError::MissingAuthKey {
+fn client_config_from(
+    get: impl Fn(&str) -> Option<String>,
+) -> Result<MwaAsvoClientConfig, MwaAsvoError> {
+    let api_key = get(ENV_MWA_ASVO_API_KEY).ok_or(MwaAsvoApiError::MissingAuthKey {
         variable: Some(ENV_MWA_ASVO_API_KEY),
     })?;
-    let host = get(ENV_MWA_ASVO_HOST).unwrap_or_else(|| DEFAULT_ASVO_HOST.to_string());
+    let host = get(ENV_MWA_ASVO_HOST).unwrap_or_else(|| DEFAULT_MWA_ASVO_HOST.to_string());
 
-    let mut config = AsvoClientConfig::new(host, api_key);
+    let mut config = MwaAsvoClientConfig::new(host, api_key);
     config.api_timeout = match get(ENV_MWA_ASVO_API_TIMEOUT) {
         None => DEFAULT_API_TIMEOUT,
         Some(value) => {
             let seconds: u64 = whole_number(ENV_MWA_ASVO_API_TIMEOUT, &value, EXPECTED_SECONDS)?;
             if seconds == 0 {
-                return Err(AsvoError::InvalidEnvironment {
+                return Err(MwaAsvoError::InvalidEnvironment {
                     name: ENV_MWA_ASVO_API_TIMEOUT.to_string(),
                     value,
                     problem: format!("is not valid. (It should be {EXPECTED_SECONDS}, at least 1)"),
@@ -117,14 +119,14 @@ fn client_config_from(get: impl Fn(&str) -> Option<String>) -> Result<AsvoClient
 ///
 /// # Errors
 ///
-/// [`AsvoError::InvalidEnvironment`] if it is not one; the message says it
+/// [`MwaAsvoError::InvalidEnvironment`] if it is not one; the message says it
 /// should be `expected`.
 fn whole_number<T: std::str::FromStr>(
     name: &str,
     value: &str,
     expected: &str,
-) -> Result<T, AsvoError> {
-    value.parse().map_err(|_| AsvoError::InvalidEnvironment {
+) -> Result<T, MwaAsvoError> {
+    value.parse().map_err(|_| MwaAsvoError::InvalidEnvironment {
         name: name.to_string(),
         value: value.to_string(),
         problem: format!("is not valid. (It should be {expected})"),
@@ -152,29 +154,29 @@ impl DownloadSettings {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidEnvironment`] if `GIANT_SQUID_BUF_SIZE` is set but
+    /// [`MwaAsvoError::InvalidEnvironment`] if `GIANT_SQUID_BUF_SIZE` is set but
     /// is not a whole number of MiB, or is too large, or if
     /// `GIANT_SQUID_DOWNLOAD_RETRY_SECS` is set but is not a whole number of
     /// seconds.
-    pub fn from_env() -> Result<Self, AsvoError> {
+    pub fn from_env() -> Result<Self, MwaAsvoError> {
         Self::from(process_env)
     }
 
     /// As [`Self::from_env`], reading the variables with `get`.
-    fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, AsvoError> {
+    fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, MwaAsvoError> {
         let buffer_size = match get(ENV_GIANT_SQUID_BUF_SIZE) {
             None => DEFAULT_DOWNLOAD_BUFFER_SIZE,
             Some(value) => {
                 let mib: usize = whole_number(ENV_GIANT_SQUID_BUF_SIZE, &value, EXPECTED_MIB)?;
                 if mib == 0 {
-                    return Err(AsvoError::InvalidEnvironment {
+                    return Err(MwaAsvoError::InvalidEnvironment {
                         name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),
                         value,
                         problem: format!("is not valid. (It should be {EXPECTED_MIB}, at least 1)"),
                     });
                 }
                 mib.checked_mul(BYTES_PER_MIB)
-                    .ok_or_else(|| AsvoError::InvalidEnvironment {
+                    .ok_or_else(|| MwaAsvoError::InvalidEnvironment {
                         name: ENV_GIANT_SQUID_BUF_SIZE.to_string(),
                         value: value.clone(),
                         problem: "is too large".to_string(),
@@ -204,14 +206,14 @@ impl DownloadSettings {
 ///
 /// # Errors
 ///
-/// [`AsvoError::InvalidEnvironment`] if it is set to something else.
+/// [`MwaAsvoError::InvalidEnvironment`] if it is set to something else.
 fn named_value<T: SchemaEnum>(
     get: &impl Fn(&str) -> Option<String>,
     name: &str,
-) -> Result<Option<T>, AsvoError> {
+) -> Result<Option<T>, MwaAsvoError> {
     get(name)
         .map(|value| {
-            T::from_name(&value).ok_or_else(|| AsvoError::InvalidEnvironment {
+            T::from_name(&value).ok_or_else(|| MwaAsvoError::InvalidEnvironment {
                 name: name.to_string(),
                 problem: format!(
                     "is not valid. (It should be one of {})",
@@ -235,14 +237,14 @@ impl CsvDefaults {
     ///
     /// # Errors
     ///
-    /// [`AsvoError::InvalidEnvironment`] if a variable is set to a value
+    /// [`MwaAsvoError::InvalidEnvironment`] if a variable is set to a value
     /// that the schema does not list.
-    pub fn from_env() -> Result<Self, AsvoError> {
+    pub fn from_env() -> Result<Self, MwaAsvoError> {
         Self::from(process_env)
     }
 
     /// As [`Self::from_env`], reading the variables with `get`.
-    fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, AsvoError> {
+    fn from(get: impl Fn(&str) -> Option<String>) -> Result<Self, MwaAsvoError> {
         Ok(Self {
             delivery: named_value::<DeliveryDestination>(&get, ENV_GIANT_SQUID_DELIVERY)?,
             delivery_format: named_value::<DeliveryFormat>(&get, ENV_GIANT_SQUID_DELIVERY_FORMAT)?,

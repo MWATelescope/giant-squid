@@ -148,8 +148,8 @@ def test_every_crate_root_entry_is_exported() -> None:
 @pytest.mark.parametrize(
     ("path", "enum", "listed"),
     [
-        (API_ERROR_RS, "AsvoApiError", API_ERROR_VARIANTS),
-        (ERROR_RS, "AsvoError", ERROR_VARIANTS),
+        (API_ERROR_RS, "MwaAsvoApiError", API_ERROR_VARIANTS),
+        (ERROR_RS, "MwaAsvoError", ERROR_VARIANTS),
         (OBS_ID_RS, "ObsIdError", OBS_ID_ERROR_VARIANTS),
         (HELPERS_RS, "ParseError", PARSE_ERROR_VARIANTS),
         (CSV_RS, "CsvJobParams", CSV_JOB_PARAMS_VARIANTS),

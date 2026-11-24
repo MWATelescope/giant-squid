@@ -5,7 +5,7 @@
 //! Shared harness for the tests that run against a mock MWA ASVO.
 //!
 //! Every test here runs against a local [`MockServer`], never a real MWA
-//! ASVO. The client is built from an explicit config (see
+//! MWA ASVO. The client is built from an explicit config (see
 //! `src/test_config.rs`) that points it at the mock server, with the token
 //! cache in a temporary directory, so a developer's real
 //! `~/.mwa-asvo/tokens.json` is never read or written. The library reads no
@@ -58,7 +58,7 @@ pub struct TestEnv {
 
 impl TestEnv {
     /// Start a mock server with a valid cached session already on disk, so
-    /// `AsvoClient::new` uses it instead of logging in. This is the usual
+    /// `MwaAsvoClient::new` uses it instead of logging in. This is the usual
     /// starting point: it keeps tests focused on the endpoint under test.
     pub fn with_session() -> Self {
         let env = Self::bare();
@@ -66,7 +66,7 @@ impl TestEnv {
         env
     }
 
-    /// Start a mock server with no cached session, so `AsvoClient::new`
+    /// Start a mock server with no cached session, so `MwaAsvoClient::new`
     /// has to log in. Used by the authentication tests.
     pub fn without_session() -> Self {
         Self::bare()

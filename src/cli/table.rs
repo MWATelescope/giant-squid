@@ -10,7 +10,7 @@ use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 use jiff::Timestamp;
 
-use crate::mwa_asvo::{AsvoJob, AsvoJobVec, JobFile, JobState, JobType};
+use crate::mwa_asvo::{JobFile, JobState, JobType, MwaAsvoJob, MwaAsvoJobVec};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";
@@ -32,7 +32,7 @@ const JOB_TABLE_HEADER: [&str; 7] = [
 ];
 
 /// The files of `job`: none if it has no product.
-pub(super) fn job_files(job: &AsvoJob) -> &[JobFile] {
+pub(super) fn job_files(job: &MwaAsvoJob) -> &[JobFile] {
     job.product
         .as_ref()
         .map(|p| p.files.as_slice())
@@ -41,7 +41,7 @@ pub(super) fn job_files(job: &AsvoJob) -> &[JobFile] {
 
 /// The total size of the files of `job`, for a person to read (for example
 /// `117.7 MiB`).
-pub(super) fn job_size_text(job: &AsvoJob) -> String {
+pub(super) fn job_size_text(job: &MwaAsvoJob) -> String {
     let bytes: u64 = job_files(job).iter().map(JobFile::size_bytes).sum();
     bytesize::ByteSize(bytes).display().iec().to_string()
 }
@@ -60,7 +60,7 @@ pub(super) fn monochrome(no_colour: bool, no_color: Option<std::ffi::OsString>) 
 /// Print `jobs` to stdout as a table, or a short message if there are none.
 /// The table is coloured only on a terminal, and not with `no_colour` or
 /// `NO_COLOR` (set and not empty).
-pub fn print_jobs_table(jobs: AsvoJobVec, no_colour: bool) {
+pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
     if jobs.0.is_empty() {
         println!("You have no jobs.");
         return;
@@ -129,9 +129,9 @@ fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
 
 /// The text of a job state cell: the schema's value (for example
 /// `queued`), for a completed job `completed (ready)` or `completed
-/// (expired)` ([`AsvoJob::display_state_at`]), and for a job with an error,
+/// (expired)` ([`MwaAsvoJob::display_state_at`]), and for a job with an error,
 /// its message.
-fn job_state_text(job: &AsvoJob, now: Timestamp) -> String {
+fn job_state_text(job: &MwaAsvoJob, now: Timestamp) -> String {
     match (&job.job_state, &job.error_text) {
         (state @ JobState::Error, Some(text)) => format!("{state}: {text}"),
         _ => job.display_state_at(now),
@@ -140,7 +140,7 @@ fn job_state_text(job: &AsvoJob, now: Timestamp) -> String {
 
 /// The colour of a job state cell. A completed job whose download links have
 /// expired is not green: it cannot be downloaded.
-fn job_state_colour(job: &AsvoJob, now: Timestamp) -> Color {
+fn job_state_colour(job: &MwaAsvoJob, now: Timestamp) -> Color {
     match job.job_state {
         JobState::Queued => Color::White,
         JobState::Waitcal

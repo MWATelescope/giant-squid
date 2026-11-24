@@ -7,23 +7,23 @@
 use thiserror::Error;
 
 use super::api::openapi::DeliveryDestination;
-use super::{AsvoApiError, AsvoJobId, JobState};
+use super::{JobState, MwaAsvoApiError, MwaAsvoJobId};
 use crate::obs_id::ObsId;
 
 /// An error of a download or a job check. An API request that fails during
-/// one is [`AsvoError::AsvoApi`].
+/// one is [`MwaAsvoError::MwaAsvoApi`].
 #[derive(Error, Debug)]
-pub enum AsvoError {
+pub enum MwaAsvoError {
     /// Tried to download (or check) a job that doesn't exist.
     #[error("MWA ASVO Job ID {0} wasn't found in your list of jobs.")]
-    NoAsvoJob(AsvoJobId),
+    NoMwaAsvoJob(MwaAsvoJobId),
 
     /// A checked job is in an error state. `error_code` is the server's
     /// code for the error, if it gave one; the message shows it as
     /// `(code N)`.
     #[error("MWA ASVO Job ID {job_id} (Obs ID: {obs_id}) has an error{code_suffix}: {error}", code_suffix = error_code_suffix(.error_code))]
     JobFailed {
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         obs_id: ObsId,
         error: String,
         error_code: Option<i64>,
@@ -31,11 +31,11 @@ pub enum AsvoError {
 
     /// A job from the API cannot be used: its `obs_id` is not a valid Obs ID.
     #[error("MWA ASVO Job ID {id} cannot be used: {problem}")]
-    InvalidJob { id: AsvoJobId, problem: String },
+    InvalidJob { id: MwaAsvoJobId, problem: String },
 
     /// A checked job has been cancelled.
     #[error("MWA ASVO Job ID {0} has been cancelled.")]
-    JobCancelled(AsvoJobId),
+    JobCancelled(MwaAsvoJobId),
 
     /// Tried to download an Obs ID that doesn't exist.
     #[error("Obs ID {0} wasn't found in your list of jobs.")]
@@ -54,18 +54,18 @@ pub enum AsvoError {
     /// Tried to download a job that wasn't ready.
     #[error("MWA ASVO Job ID {job_id} isn't ready; current status: {job_state}")]
     NotReady {
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         job_state: JobState,
     },
 
     /// Tried to download a job that has no files.
     #[error("MWA ASVO Job ID {0} has no files.")]
-    NoFiles(AsvoJobId),
+    NoFiles(MwaAsvoJobId),
 
-    /// ASVO SHA1 hash for a file didn't match our hash.
+    /// MWA ASVO SHA1 hash for a file didn't match our hash.
     #[error("Hash mismatch for MWA ASVO Job ID {job_id} file {file}:\n expected   {expected_hash}\n calculated {calculated_hash}")]
     HashMismatch {
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         file: String,
         calculated_hash: String,
         expected_hash: String,
@@ -91,7 +91,7 @@ pub enum AsvoError {
 
     /// A download option has a value that cannot be used, for example a
     /// `buffer_size` of 0. Found before any request is sent. (An environment
-    /// variable with such a value is [`AsvoError::InvalidEnvironment`].)
+    /// variable with such a value is [`MwaAsvoError::InvalidEnvironment`].)
     #[error("Invalid {name}: {message}")]
     InvalidOption {
         /// The name of the option, as in [`DownloadOptions`](super::DownloadOptions).
@@ -103,7 +103,7 @@ pub enum AsvoError {
     /// An MWA ASVO API call failed, for example the job list request that
     /// a download does first.
     #[error("{0}")]
-    AsvoApi(#[from] AsvoApiError),
+    MwaAsvoApi(#[from] MwaAsvoApiError),
 
     /// An IO error.
     #[error("{0}")]
@@ -116,26 +116,26 @@ pub enum AsvoError {
 
     /// A file of an Acacia job has no URL to download it from.
     #[error("Could not determine the URL for Job ID {job_id}")]
-    NoUrl { job_id: AsvoJobId },
+    NoUrl { job_id: MwaAsvoJobId },
 
     /// A file of an Acacia job has no SHA-1 hash, so the download could not
     /// be checked. Nothing is downloaded.
     #[error("MWA ASVO Job ID {job_id} has a file with no SHA-1 hash. Please report this to asvo_support@mwatelescope.org.")]
-    NoHash { job_id: AsvoJobId },
+    NoHash { job_id: MwaAsvoJobId },
 
     /// The files of a DUG or Scratch job are not on a file system that this
     /// host can reach, so there is nothing to download here. `path` is
     /// where the MWA ASVO delivered them, if it said.
     #[error("{text}", text = files_not_reachable_message(*.job_id, *.delivery, .path.as_deref()))]
     FilesNotReachable {
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         delivery: DeliveryDestination,
         path: Option<String>,
     },
 
     /// A file of a Scratch job has no path.
     #[error("Could not determine the path for Job ID {job_id}")]
-    NoPath { job_id: AsvoJobId },
+    NoPath { job_id: MwaAsvoJobId },
 
     /// The file to download to is a symbolic link. The download would write
     /// wherever the link points, so it is refused.
@@ -148,21 +148,21 @@ pub enum AsvoError {
     #[error("MWA ASVO Job ID {job_id}: {path:?} already exists, and giant-squid does not replace it. Remove it, or use another download directory. (An earlier download may have moved the files of this job there.)")]
     DestinationExists {
         /// The job whose files were to be moved.
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         /// What is already there.
         path: std::path::PathBuf,
     },
 
     /// The file server answered a file download with an HTTP error. This is
-    /// not an error of the MWA ASVO API, so it is not an [`AsvoApiError`].
+    /// not an error of the MWA ASVO API, so it is not an [`MwaAsvoApiError`].
     /// `status` and `message` are the same fields as those of
-    /// [`AsvoApiError::BadStatus`] (an API reply that is not an
+    /// [`MwaAsvoApiError::BadStatus`] (an API reply that is not an
     /// `ErrorResponse`); a download is always for one job, so this error also
     /// has its `job_id`.
     #[error("HTTP error {status} downloading a file of Job ID {job_id}: {message}")]
     HttpError {
         /// The job whose file was being downloaded.
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         /// The HTTP status code.
         status: u16,
         /// The body of the reply.
@@ -185,18 +185,18 @@ pub enum AsvoError {
     #[error("{}", job_expired_message(*.job_id, .expired))]
     JobExpired {
         /// The job whose links expired.
-        job_id: AsvoJobId,
+        job_id: MwaAsvoJobId,
         /// When they expired, if known (the `Expires` of the URL).
         expired: Option<jiff::Timestamp>,
     },
 
     /// The file to download is not on the server (HTTP 404).
     #[error("The file for Job ID {job_id} you are trying to download no longer exists. It may have expired or been removed. Please contact support if you think this is in error.")]
-    Http404Error { job_id: AsvoJobId },
+    Http404Error { job_id: MwaAsvoJobId },
 }
 
 /// The text that follows "has an error" in the message of
-/// [`AsvoError::JobFailed`]: ` (code N)`, or nothing if the server gave no
+/// [`MwaAsvoError::JobFailed`]: ` (code N)`, or nothing if the server gave no
 /// code.
 fn error_code_suffix(error_code: &Option<i64>) -> String {
     match error_code {
@@ -205,9 +205,9 @@ fn error_code_suffix(error_code: &Option<i64>) -> String {
     }
 }
 
-/// The message of [`AsvoError::FilesNotReachable`].
+/// The message of [`MwaAsvoError::FilesNotReachable`].
 fn files_not_reachable_message(
-    job_id: AsvoJobId,
+    job_id: MwaAsvoJobId,
     delivery: DeliveryDestination,
     path: Option<&str>,
 ) -> String {
@@ -221,16 +221,16 @@ fn files_not_reachable_message(
 }
 
 /// A request error of the download path is an API error of the kind
-/// [`AsvoApiError::Reqwest`], as for every other request, so that there is
+/// [`MwaAsvoApiError::Reqwest`], as for every other request, so that there is
 /// one kind for it.
-impl From<reqwest::Error> for AsvoError {
+impl From<reqwest::Error> for MwaAsvoError {
     fn from(e: reqwest::Error) -> Self {
-        AsvoError::AsvoApi(AsvoApiError::Reqwest(e))
+        MwaAsvoError::MwaAsvoApi(MwaAsvoApiError::Reqwest(e))
     }
 }
 
-/// The message of [`AsvoError::JobExpired`].
-fn job_expired_message(job_id: AsvoJobId, expired: &Option<jiff::Timestamp>) -> String {
+/// The message of [`MwaAsvoError::JobExpired`].
+fn job_expired_message(job_id: MwaAsvoJobId, expired: &Option<jiff::Timestamp>) -> String {
     let days = super::types::SIGNED_URL_LIFETIME_DAYS;
     let when = match expired {
         Some(time) => format!("expired on {time}"),
