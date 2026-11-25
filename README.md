@@ -253,7 +253,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 - Files are tarred up and uploaded to Pawsey's Acacia object store.
 - To submit a job with the Acacia delivery option specify `--delivery=acacia` on any job submission command.
 - A URL which expires in 7 days is generated- allowing you to download the file via giant-squid, wget, curl, etc from anywhere in the world.
-- Acacia delivers a tar only: `--delivery-format=files` with the Acacia delivery is an error, in giant-squid before anything is sent. Use `--delivery-format=tar` (the default), or the scratch or DUG delivery to get the individual files.
+- Acacia delivers a tar only: the MWA ASVO refuses `--delivery-format=files` with the Acacia delivery. Use `--delivery-format=tar` (the default), or the scratch or DUG delivery to get the individual files.
 
 ##### Delivery: Pawsey Scratch Filesystem
 
@@ -285,7 +285,7 @@ Before submitting any MWA ASVO job, you will need to decide _where_ you want the
 beamformer files. The request does not say which: the MWA ASVO finds the kind of data from the observation.
 `--only-metadata` asks for the metadata only, and the voltage options (`--offset`, `--duration`, `--from-channel`
 and `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for an observation that has no
-voltages. `--only-metadata` (true) with any voltage option is an error, found before any request.
+voltages, and with `--only-metadata` (true).
 
 ```text
 Submit MWA ASVO jobs to download MWA data

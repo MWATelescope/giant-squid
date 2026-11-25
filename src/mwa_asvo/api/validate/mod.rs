@@ -15,10 +15,9 @@
 //! never sent. In the download body, only the voltage `offset` has limits
 //! that its type does not give.
 //!
-//! A few rules are not in the schema, but are checked here too, so that
-//! every caller refuses the same bodies: the delivery and its format
-//! ([`check_delivery_format`]), the phase centre ([`check_centre`]), and a
-//! metadata download with voltage arguments ([`check_only_metadata`]).
+//! A rule that is not in the schema (for example, which delivery formats a
+//! delivery takes) is not checked here: the MWA ASVO refuses such a body
+//! with a validation error.
 //!
 //! Each limit is a hand-written constant, not read from the schema at run
 //! time. A unit test compares every constant with the schema file in this
@@ -31,8 +30,7 @@ use std::num::NonZeroU64;
 
 use super::error::MwaAsvoApiError;
 use super::openapi::{
-    ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
-    ImageFromJobParams, ImageSizes, ImagingJobParams, PhaseCentre,
+    ConversionJobParams, DownloadJobParams, ImageFromJobParams, ImageSizes, ImagingJobParams,
 };
 
 #[cfg(test)]
@@ -210,13 +208,11 @@ macro_rules! shared_imaging_checks {
 }
 
 /// The checks of the preprocessing fields that the conversion and imaging
-/// request bodies both have: the numbers against the schema's
-/// limits, and the phase centre ([`check_centre`]).
+/// request bodies both have: the numbers against the schema's limits.
 fn check_preprocessing(
     avg_freq_res: Option<f64>,
     avg_time_res: Option<f64>,
     flag_edge_width: Option<f64>,
-    centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
 ) -> Result<(), MwaAsvoApiError> {
@@ -226,123 +222,10 @@ fn check_preprocessing(
         ("flag_edge_width", FLAG_EDGE_WIDTH, flag_edge_width),
         ("custom_centre_ra", CUSTOM_CENTRE_RA, custom_centre_ra),
         ("custom_centre_dec", CUSTOM_CENTRE_DEC, custom_centre_dec),
-    ])?;
-    check_centre(centre, custom_centre_ra, custom_centre_dec)
+    ])
 }
 
-/// Check that the `delivery` and the `delivery_format` of a job agree: the
-/// MWA ASVO delivers to Acacia as a tar only, so `delivery_format` must be
-/// `tar` when `delivery` is `acacia`. The other deliveries take either
-/// format.
-///
-/// # Errors
-///
-/// [`MwaAsvoApiError::InvalidParameter`] for `delivery_format`, if `delivery` is
-/// `acacia` and `delivery_format` is `files`.
-pub fn check_delivery_format(
-    delivery: DeliveryDestination,
-    delivery_format: DeliveryFormat,
-) -> Result<(), MwaAsvoApiError> {
-    if delivery == DeliveryDestination::Acacia && delivery_format == DeliveryFormat::Files {
-        return Err(MwaAsvoApiError::InvalidParameter {
-            name: "delivery_format",
-            message: format!(
-                "must be {} when delivery is {} (got {delivery_format})",
-                DeliveryFormat::Tar,
-                DeliveryDestination::Acacia
-            ),
-        });
-    }
-    Ok(())
-}
-
-/// Check the phase centre of a request body: `custom_centre_ra` and
-/// `custom_centre_dec` are both given when `centre` is `custom`, and neither
-/// is given with any other `centre`.
-///
-/// # Errors
-///
-/// [`MwaAsvoApiError::InvalidParameter`] for the first of `custom_centre_ra` and
-/// `custom_centre_dec` that is missing when `centre` is `custom`, or the first
-/// that is given when it is not.
-pub fn check_centre(
-    centre: PhaseCentre,
-    custom_centre_ra: Option<f64>,
-    custom_centre_dec: Option<f64>,
-) -> Result<(), MwaAsvoApiError> {
-    let custom = PhaseCentre::Custom;
-    for (name, value) in [
-        ("custom_centre_ra", custom_centre_ra),
-        ("custom_centre_dec", custom_centre_dec),
-    ] {
-        if centre == custom && value.is_none() {
-            return Err(MwaAsvoApiError::InvalidParameter {
-                name,
-                message: format!("is required when centre is {custom}"),
-            });
-        }
-        if centre != custom && value.is_some() {
-            return Err(MwaAsvoApiError::InvalidParameter {
-                name,
-                message: format!("is only allowed when centre is {custom} (centre is {centre})"),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// The name of the download field that asks for the metadata only.
-pub const ONLY_METADATA: &str = "only_metadata";
-
-/// The names of the download fields that only a voltage download takes.
-pub const VOLTAGE_FIELDS: [&str; 4] = ["offset", "duration", "from_channel", "to_channel"];
-
-/// Check that a metadata download (`only_metadata` true) has no voltage
-/// argument ([`VOLTAGE_FIELDS`]). An `only_metadata` of false or `None`
-/// takes any of them.
-///
-/// # Errors
-///
-/// [`MwaAsvoApiError::InvalidParameter`] for `only_metadata`, if it is true
-/// and any voltage argument is given. The message names the voltage
-/// arguments that are given.
-pub fn check_only_metadata(
-    only_metadata: Option<bool>,
-    offset: Option<i64>,
-    duration: Option<i64>,
-    from_channel: Option<u8>,
-    to_channel: Option<u8>,
-) -> Result<(), MwaAsvoApiError> {
-    if only_metadata != Some(true) {
-        return Ok(());
-    }
-    let given_flags = [
-        offset.is_some(),
-        duration.is_some(),
-        from_channel.is_some(),
-        to_channel.is_some(),
-    ];
-    let given: Vec<&str> = VOLTAGE_FIELDS
-        .iter()
-        .zip(given_flags)
-        .filter_map(|(name, is_given)| is_given.then_some(*name))
-        .collect();
-    if given.is_empty() {
-        return Ok(());
-    }
-    Err(MwaAsvoApiError::InvalidParameter {
-        name: ONLY_METADATA,
-        message: format!(
-            "true is not valid when voltage arguments ({}) are given (got {})",
-            VOLTAGE_FIELDS.join(", "),
-            given.join(", ")
-        ),
-    })
-}
-
-/// Check a download request body: its delivery ([`check_delivery_format`]),
-/// that a metadata download has no voltage argument
-/// ([`check_only_metadata`]), and its `offset` and `duration` against the
+/// Check a download request body: its `offset` and `duration` against the
 /// schema's limits.
 /// `from_channel` and `to_channel` need no check: the schema's limits for
 /// them are the limits of their type (`u8`). The other rules of a
@@ -351,18 +234,9 @@ pub fn check_only_metadata(
 ///
 /// # Errors
 ///
-/// [`MwaAsvoApiError::InvalidParameter`] if the delivery and its format do not
-/// agree, `only_metadata` is true with a voltage argument, or the `offset` or
-/// the `duration` is out of range.
+/// [`MwaAsvoApiError::InvalidParameter`] if the `offset` or the `duration` is
+/// out of range.
 pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), MwaAsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)?;
-    check_only_metadata(
-        params.only_metadata,
-        params.offset,
-        params.duration,
-        params.from_channel,
-        params.to_channel,
-    )?;
     check_all(&[
         (
             "offset",
@@ -377,56 +251,49 @@ pub fn validate_download_params(params: &DownloadJobParams) -> Result<(), MwaAsv
     ])
 }
 
-/// Check a conversion request body: its delivery ([`check_delivery_format`]),
-/// its numbers against the schema's limits, and its phase centre
-/// ([`check_centre`]).
+/// Check a conversion request body: its numbers against the schema's
+/// limits.
 ///
 /// # Errors
 ///
 /// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range or the delivery and its format that do not agree.
+/// of range.
 pub fn validate_conversion_params(params: &ConversionJobParams) -> Result<(), MwaAsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)?;
     check_preprocessing(
         params.avg_freq_res,
         params.avg_time_res,
         params.flag_edge_width,
-        params.centre,
         params.custom_centre_ra,
         params.custom_centre_dec,
     )
 }
 
-/// Check an imaging request body (from an Obs ID): its delivery
-/// ([`check_delivery_format`]), its numbers against the schema's limits, and
-/// its phase centre ([`check_centre`]).
+/// Check an imaging request body (from an Obs ID): its numbers against the
+/// schema's limits.
 ///
 /// # Errors
 ///
 /// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range or the delivery and its format that do not agree.
+/// of range.
 pub fn validate_imaging_params(params: &ImagingJobParams) -> Result<(), MwaAsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))?;
     check_preprocessing(
         params.avg_freq_res,
         params.avg_time_res,
         params.flag_edge_width,
-        params.centre,
         params.custom_centre_ra,
         params.custom_centre_dec,
     )
 }
 
-/// Check an image-from-job request body: its delivery
-/// ([`check_delivery_format`]) and its numbers against the schema's limits.
+/// Check an image-from-job request body: its numbers against the schema's
+/// limits.
 ///
 /// # Errors
 ///
 /// [`MwaAsvoApiError::InvalidParameter`], for the first argument that is out
-/// of range or the delivery and its format that do not agree.
+/// of range.
 pub fn validate_image_from_job_params(params: &ImageFromJobParams) -> Result<(), MwaAsvoApiError> {
-    check_delivery_format(params.delivery, params.delivery_format)?;
     check_all(&shared_imaging_checks!(params))
 }
 

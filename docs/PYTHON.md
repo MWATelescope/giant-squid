@@ -220,8 +220,7 @@ There are three submit methods, one for each MWA ASVO submit endpoint, and each 
 A `DownloadJobParams` is the body of every download job: raw visibilities, metadata, voltages or beamformer files. The
 MWA ASVO finds the kind of data from the observation. `only_metadata=True` asks for the metadata only, and `offset`,
 `duration`, `from_channel` and `to_channel` are for a voltage observation: the MWA ASVO refuses them for an observation
-that has no voltages. `only_metadata=True` with any voltage argument raises `MwaAsvoApiErrorInvalidParameter` (`name`
-is `"only_metadata"`) before any request. `only_metadata`, `image_size` and `pixel_scale` default to `None`: the MWA ASVO API gives them no
+that has no voltages, and with `only_metadata=True`. `only_metadata`, `image_size` and `pixel_scale` default to `None`: the MWA ASVO API gives them no
 default, so the body leaves them out (the MWA ASVO calculates the image size and the pixel scale). `output_mode` of the
 imaging classes is a required keyword argument, because the API gives it no default. The polarisation is
 `polarization` (the API's name). The imaging classes have no `clean_threshold` and no `nwlayers`, which the MWA ASVO
@@ -271,9 +270,9 @@ print(reply.job_id, reply.status, reply.message)
 `validate()` of a class checks the values against the limits with the library's `validate_*_params` function, and
 raises `MwaAsvoApiErrorInvalidParameter` for the first value that is outside them (`name` is the argument, `message` says
 what is wrong). The submit methods do this before they send a request,
-so nothing is sent for a body that is not valid. A body that is not valid includes
-`delivery_format=DeliveryFormat.Files` with `delivery=DeliveryDestination.Acacia` (the default): Acacia delivers a tar
-only. The other deliveries take either format.
+so nothing is sent for a body with a value outside the limits of the schema. The rules that are not in the schema (for
+example, Acacia delivers a tar only, so it does not take `delivery_format=DeliveryFormat.Files`) are the MWA ASVO's: it
+refuses such a body with a validation error.
 
 `submit_download_job` takes a `DownloadJobParams`, the library's enum of the three download bodies:
 `DownloadJobParams.Beamformer(params)`, `DownloadJobParams.Visibility(params)` or `DownloadJobParams.Voltage(params)`.

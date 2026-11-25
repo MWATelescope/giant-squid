@@ -1,8 +1,8 @@
-"""Tests of two rules of the MWA ASVO that the module refuses before it sends a request.
+"""Tests of the rules about which requests the module sends.
 
 * The jobs of ``get_jobs`` are selected by ``days`` or by ``date_from`` and ``date_to``, not by both.
   With a date and no ``days``, the request has ``"days": null``.
-* Acacia delivers a tar only: ``delivery_format`` must be ``Tar`` when ``delivery`` is ``Acacia`` (the default).
+* Every delivery and format is sent as it is given: which formats a delivery takes is the MWA ASVO's rule.
 """
 
 import datetime
@@ -73,30 +73,6 @@ def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:
         The bodies, in order.
     """
     return [json.loads(request.get_data()) for request, _ in httpserver.log if request.path == path]
-
-
-@pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)
-def test_acacia_with_files_is_refused_before_any_request(
-    httpserver: HTTPServer, client: gs.MwaAsvoClient, job: Callable[..., Any], path: str, args: tuple[Any, ...]
-) -> None:
-    """Every submit method refuses ``Files`` with ``Acacia`` (given, or the default), and sends nothing.
-
-    Args:
-        httpserver: The mock server.
-        client: A logged-in client.
-        job: The class of the request body.
-        path: Its endpoint.
-        args: Its positional arguments.
-    """
-    submitted(httpserver, path)
-
-    for delivery in ({}, {"delivery": gs.DeliveryDestination.Acacia}):
-        params = job(*args, delivery_format=gs.DeliveryFormat.Files, **delivery)
-        with pytest.raises(
-            gs.MwaAsvoApiErrorInvalidParameter, match="delivery_format: must be tar when delivery is acacia"
-        ):
-            submit(client, params)
-    assert requests_to(httpserver, path) == []
 
 
 @pytest.mark.parametrize(("job", "path", "args"), DELIVERY_JOBS)

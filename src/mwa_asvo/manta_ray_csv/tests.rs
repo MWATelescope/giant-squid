@@ -340,23 +340,6 @@ fn the_deprecated_imaging_keys_are_unknown() {
     }
 }
 
-#[test]
-fn a_default_delivery_format_that_does_not_suit_the_delivery_is_refused() {
-    let defaults = CsvDefaults {
-        delivery_format: Some(DeliveryFormat::Files),
-        ..CsvDefaults::default()
-    };
-
-    let error = parse_manta_ray_csv("obs_id=1349904240,job_type=b\n", &defaults)
-        .expect_err("files with acacia is refused");
-
-    assert_eq!(error.errors.len(), 1);
-    assert!(
-        error.errors[0].message.contains("delivery_format"),
-        "{error}"
-    );
-}
-
 // ---------------------------------------------------------------------------
 // Problems
 // ---------------------------------------------------------------------------
@@ -545,18 +528,6 @@ fn a_value_outside_the_limits_of_the_schema_is_refused_at_its_line() {
         (
             "obs_id=1323577520,job_type=v,offset=99999,duration=16\n",
             "offset",
-        ),
-        (
-            "obs_id=1349904240,job_type=c,centre=custom\n",
-            "custom_centre_ra",
-        ),
-        (
-            "obs_id=1349904240,job_type=c,phase_centre_ra=10,phase_centre_dec=10\n",
-            "custom_centre_ra",
-        ),
-        (
-            "obs_id=1349904240,job_type=c,delivery=acacia,delivery_format=files\n",
-            "delivery_format",
         ),
     ] {
         let problems = problems(text);

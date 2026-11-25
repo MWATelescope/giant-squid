@@ -25,8 +25,6 @@ OTHER_OBS_ID = 1065880248
 INVALID_OBS_ID = 1
 OFFSET_TOO_LARGE = 6000
 INVALID_IMAGE_SIZE = 100
-FROM_CHANNEL = 109
-TO_CHANNEL = 132
 
 # The classes that are made from an Obs ID.
 OBS_ID_CLASSES = [gs.DownloadJobParams, gs.ConversionJobParams, IMAGING_JOB]
@@ -108,51 +106,12 @@ def test_validate_refuses_an_offset_outside_the_limits() -> None:
         gs.DownloadJobParams(TEST_OBS_ID, offset=OFFSET_TOO_LARGE, duration=VOLTAGE_DURATION).validate()
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("offset", VOLTAGE_OFFSET),
-        ("duration", VOLTAGE_DURATION),
-        ("from_channel", FROM_CHANNEL),
-        ("to_channel", TO_CHANNEL),
-    ],
-)
-def test_validate_refuses_only_metadata_with_a_voltage_argument(field: str, value: int) -> None:
-    """A metadata download takes no voltage argument: the error is for `only_metadata`."""
-    params = gs.DownloadJobParams(TEST_OBS_ID, only_metadata=True)
-    setattr(params, field, value)
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="voltage arguments") as excinfo:
-        params.validate()
-    assert excinfo.value.name == "only_metadata"
-
-
-def test_validate_accepts_voltage_arguments_when_only_metadata_is_false() -> None:
-    """`only_metadata=False` takes the voltage arguments."""
-    gs.DownloadJobParams(TEST_OBS_ID, only_metadata=False, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION).validate()
-
-
-def test_validate_refuses_a_delivery_that_the_format_does_not_suit() -> None:
-    """Acacia delivers a tar file only."""
-    params = gs.DownloadJobParams(TEST_OBS_ID, delivery_format=gs.DeliveryFormat.Files)
-
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="delivery_format"):
-        params.validate()
-
-
 def test_validate_refuses_an_image_size_that_is_not_allowed() -> None:
     """The size must be one of the sizes that the MWA ASVO allows, in both imaging bodies."""
     with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE).validate()
     with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
         IMAGE_FROM_JOB(SOURCE_JOB_ID, image_size=INVALID_IMAGE_SIZE).validate()
-
-
-def test_validate_refuses_a_custom_centre_without_a_position() -> None:
-    """A custom phase centre needs its RA and Dec."""
-    params = gs.ConversionJobParams(TEST_OBS_ID, centre=gs.PhaseCentre.Custom)
-
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="custom_centre"):
-        params.validate()
 
 
 def test_validate_checks_the_values_as_they_are_now() -> None:

@@ -2518,72 +2518,6 @@ fn the_options_without_a_short_flag_still_have_a_long_name() {
 // delivery and format, and days and dates
 // ---------------------------------------------------------------------------
 
-/// The MWA ASVO delivers to Acacia as a tar only: `--delivery-format files`
-/// with the delivery `acacia` (the default, or given) is a usage error for
-/// every submit command, and the other deliveries take either format.
-#[test]
-fn acacia_with_files_is_a_usage_error_for_every_submit_command() {
-    let commands: [&[&'static str]; 6] = [
-        &["submit-vis"],
-        &["submit-meta"],
-        &["submit-conv"],
-        &["submit-image", "--output-mode", "fits"],
-        &[
-            "submit-image-from-job",
-            "--output-mode",
-            "fits",
-            "--source-job-id",
-            "5",
-        ],
-        &["submit-bf"],
-    ];
-    for command in commands {
-        let argv = |delivery: &[&'static str]| {
-            let mut argv = vec!["giant-squid"];
-            argv.extend_from_slice(command);
-            argv.extend_from_slice(delivery);
-            argv.extend_from_slice(&["--delivery-format", "files"]);
-            // `submit-image-from-job` takes no Obs ID.
-            if command[0] != "submit-image-from-job" {
-                argv.push(TEST_OBS_ID);
-            }
-            argv
-        };
-
-        // The delivery is acacia by default, and when it is given.
-        for delivery in [
-            &[][..],
-            &["--delivery", "acacia"][..],
-            &["-d", "acacia"][..],
-        ] {
-            let err = parse_err(&argv(delivery));
-            assert_eq!(
-                err.kind(),
-                clap::error::ErrorKind::ArgumentConflict,
-                "{command:?}"
-            );
-            assert!(
-                err.to_string()
-                    .contains("must be tar when delivery is acacia (got files)"),
-                "{err}"
-            );
-        }
-
-        // The other deliveries take files; acacia takes tar.
-        for delivery in ["scratch", "dug"] {
-            Args::try_parse_from(argv(&["--delivery", delivery]))
-                .unwrap_or_else(|e| panic!("{command:?} {delivery}: {e}"));
-        }
-        let mut tar = vec!["giant-squid"];
-        tar.extend_from_slice(command);
-        tar.extend_from_slice(&["--delivery", "acacia", "--delivery-format", "tar"]);
-        if command[0] != "submit-image-from-job" {
-            tar.push(TEST_OBS_ID);
-        }
-        Args::try_parse_from(tar).expect("acacia with tar is valid");
-    }
-}
-
 /// The jobs of `list` are selected by `--days` or by the dates: clap refuses
 /// `--days` given with a date, and a date does not conflict with the default
 /// of `--days`.
@@ -2772,45 +2706,6 @@ fn download_refuses_no_ids_and_a_download_dir_that_is_a_file() {
             TEST_OBS_ID
         ]),
         1
-    );
-}
-
-/// A dry run checks the request body as a submission does: here
-/// `--centre custom` without both coordinates.
-#[test]
-fn a_dry_run_refuses_a_custom_centre_without_its_coordinates() {
-    use super::run::run_cli;
-
-    for command in [
-        &["submit-conv"][..],
-        &["submit-image", "--output-mode", "fits"],
-    ] {
-        let mut argv = vec!["giant-squid"];
-        argv.extend_from_slice(command);
-        argv.extend_from_slice(&[
-            "-n",
-            "--centre",
-            "custom",
-            "--custom-centre-ra",
-            "10",
-            TEST_OBS_ID,
-        ]);
-        assert_eq!(run_cli(argv), 1, "{command:?}");
-    }
-    assert_eq!(
-        run_cli([
-            "giant-squid",
-            "submit-conv",
-            "-n",
-            "--centre",
-            "custom",
-            "--custom-centre-ra",
-            "10",
-            "--custom-centre-dec",
-            "-26",
-            TEST_OBS_ID
-        ]),
-        0
     );
 }
 

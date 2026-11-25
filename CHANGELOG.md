@@ -14,11 +14,12 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
-* `submit-download --only-metadata` (true) with a voltage option (`--offset`, `--duration`, `--from-channel` or
-  `--to-channel`) is an error (`INVALID_PARAMETER` in `--json`), found before any request, also with `--dry-run`. The
-  check is in the library (`validate::check_only_metadata`, called by `validate_download_params`), so it also applies
-  to `MwaAsvoClient::submit_download_job`, Manta Ray CSV files and the Python module (`MwaAsvoApiErrorInvalidParameter`,
-  with `name` `"only_metadata"`).
+* The library checks a job body only against the limits of the schema (numbers, image sizes). The rules that are not
+  in the schema are the MWA ASVO's, and it refuses a body that breaks one with a validation error: `delivery_format`
+  `files` with `delivery` `acacia`, the phase centre (`custom_centre_ra` and `custom_centre_dec` with `centre`
+  `custom` only), and `only_metadata` (true) with a voltage argument. `validate::check_delivery_format`,
+  `validate::check_centre` and `validate::check_only_metadata` are removed, and `--delivery-format files` with
+  `--delivery acacia` is no longer a usage error.
 * The download links of a job work for 7 days, and the job stays `completed` in the API. `giant-squid` reads the end
   of that time from the `Expires` of the signed URL. `list` and `wait` show a completed job as `completed (ready)`
   or `completed (expired)` (the JSON and `--job-states` keep the API's `completed`). `download` of a job whose links
@@ -170,10 +171,6 @@ before you upgrade scripts.**
   a key that has no value is left out (was `null`).
 * A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The Job ID is `id` (was
   `job_id`), and a key that has no value is left out (was `null`).
-* Acacia delivers a tar only: `delivery_format` `files` with `delivery` `acacia` is refused before any request by
-  every submit method (`validate::check_delivery_format`; `InvalidParameter` for `delivery_format`, `ValueError` in
-  Python), and is a usage error in every `submit-*` command (`--delivery-format files` with the default or a given
-  `--delivery acacia`, also from `GIANT_SQUID_DELIVERY_FORMAT`). The other deliveries take either format.
 * `giant-squid --version` also prints the version of the MWA ASVO API and of the OpenAPI specification that the
   library was generated from (for example `MWA ASVO API 2.3.4`, `OpenAPI 3.1.0`). The library has them as
   `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`.

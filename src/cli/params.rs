@@ -363,10 +363,9 @@ struct RawDeliveryArgs<P: DeliveryFields> {
 }
 
 /// Where and how the MWA ASVO delivers a job's files. The defaults are those
-/// of the schema type `P`. The options are `--delivery` and `--delivery-format`; a
-/// `delivery_format` of `files` with a `delivery` of `acacia` is a usage
-/// error ([`validate::check_delivery_format`], the library's check), whether
-/// the values come from the command line or the environment.
+/// of the schema type `P`. The options are `--delivery` and `--delivery-format`.
+/// Which formats a delivery takes is the MWA ASVO's rule: it refuses a job
+/// whose delivery and format do not agree.
 #[derive(Debug, Clone)]
 pub struct DeliveryArgs<P: DeliveryFields> {
     pub delivery: DeliveryDestination,
@@ -400,8 +399,6 @@ impl<P: DeliveryFields> clap::Args for DeliveryArgs<P> {
 impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
         let raw = <RawDeliveryArgs<P> as clap::FromArgMatches>::from_arg_matches(matches)?;
-        validate::check_delivery_format(raw.delivery, raw.delivery_format)
-            .map_err(|e| clap::Error::raw(clap::error::ErrorKind::ArgumentConflict, e))?;
         Ok(Self {
             delivery: raw.delivery,
             delivery_format: raw.delivery_format,

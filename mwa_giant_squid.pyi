@@ -1957,10 +1957,7 @@ class MwaAsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: The `offset` is not from 0 to 5400,
-                or `delivery` is `DeliveryDestination.Acacia` and
-                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-                tar only). Nothing is sent.
+            ValueError: The `offset` is not from 0 to 5400. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_preprocess_job(
@@ -1984,12 +1981,7 @@ class MwaAsvoClient:
         Raises:
             TypeError: `params` is not one of the three classes.
             ValueError: A number is outside what the MWA ASVO accepts (for
-                example `avg_freq_res` above 1280), `delivery` is
-                `DeliveryDestination.Acacia` and `delivery_format` is
-                `DeliveryFormat.Files` (Acacia delivers a tar only), or
-                `centre` is `PhaseCentre.Custom` without both
-                `custom_centre_ra` and `custom_centre_dec`, or either of them
-                is given with another `centre`. The message names the
+                example `avg_freq_res` above 1280). The message names the
                 argument and its limits. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
@@ -2006,11 +1998,8 @@ class MwaAsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: A number is outside what the MWA ASVO accepts, or
-                `delivery` is `DeliveryDestination.Acacia` and
-                `delivery_format` is `DeliveryFormat.Files` (Acacia delivers a
-                tar only). The message names the argument and its limits.
-                Nothing is sent.
+            ValueError: A number is outside what the MWA ASVO accepts. The
+                message names the argument and its limits. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_csv_file(

@@ -320,8 +320,6 @@ MANIFEST: list[Entry] = [
     excluded("mwa_asvo::api::validate::days", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::check_days", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::source_job_id", VALIDATION_NOTE),
-    excluded("mwa_asvo::api::validate::check_delivery_format", VALIDATION_NOTE),
-    excluded("mwa_asvo::api::validate::check_centre", VALIDATION_NOTE),
     excluded("mwa_asvo::api::validate::Bounds", VALIDATION_NOTE),
     # --- IDs and parsing ---
     done("crate::ObsId", "ObsId"),
