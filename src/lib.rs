@@ -49,6 +49,7 @@ pub use mwa_asvo::env::{
     ENV_MWA_ASVO_API_KEY, ENV_MWA_ASVO_API_TIMEOUT, ENV_MWA_ASVO_HOST,
 };
 pub use mwa_asvo::error::MwaAsvoError;
+pub use mwa_asvo::job_fields::{job_field_names, job_field_value, parse_job_field};
 pub use mwa_asvo::manta_ray_csv::{
     parse_manta_ray_csv, read_manta_ray_csv, CsvDefaults, CsvError, CsvFileError, CsvJob,
     CsvJobFailure, CsvJobParams, CsvJobsFailed, CsvRowError, CsvSubmitError,

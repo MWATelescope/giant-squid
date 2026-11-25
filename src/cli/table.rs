@@ -10,7 +10,7 @@ use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 use jiff::Timestamp;
 
-use crate::mwa_asvo::{JobFile, JobState, JobType, MwaAsvoJob, MwaAsvoJobVec};
+use crate::mwa_asvo::{job_field_value, JobFile, JobState, JobType, MwaAsvoJob, MwaAsvoJobVec};
 
 /// The format for the "Completed" column.
 const COMPLETED_FORMAT: &str = "%Y-%m-%d %H:%M";
@@ -59,8 +59,10 @@ pub(super) fn monochrome(no_colour: bool, no_color: Option<std::ffi::OsString>) 
 
 /// Print `jobs` to stdout as a table, or a short message if there are none.
 /// The table is coloured only on a terminal, and not with `no_colour` or
-/// `NO_COLOR` (set and not empty).
-pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
+/// `NO_COLOR` (set and not empty). It has one more column for each of
+/// `fields` (names that [`crate::parse_job_field`] accepted), after the
+/// others; a cell is empty if the job does not have the field.
+pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool, fields: &[String]) {
     if jobs.0.is_empty() {
         println!("You have no jobs.");
         return;
@@ -74,6 +76,8 @@ pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
     table.set_header(
         JOB_TABLE_HEADER
             .iter()
+            .copied()
+            .chain(fields.iter().map(String::as_str))
             .map(|title| Cell::new(title).add_attribute(Attribute::Bold)),
     );
 
@@ -89,7 +93,7 @@ pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
         let completed = j
             .completed
             .map(|dt| dt.strftime(COMPLETED_FORMAT).to_string());
-        table.add_row(Row::from(vec![
+        let mut cells = vec![
             Cell::new(j.job_id()),
             Cell::new(j.obs_id()),
             coloured(Cell::new(j.job_type), Some(job_type_colour(j.job_type))),
@@ -100,7 +104,13 @@ pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
             Cell::new(size.unwrap_or_default()),
             Cell::new(delivery.unwrap_or_default()),
             Cell::new(completed.unwrap_or_default()),
-        ]));
+        ];
+        cells.extend(
+            fields
+                .iter()
+                .map(|field| Cell::new(job_field_value(&j, field).unwrap_or_default())),
+        );
+        table.add_row(Row::from(cells));
     }
 
     println!("{table}");

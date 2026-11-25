@@ -3054,3 +3054,43 @@ fn download_puts_each_job_in_a_directory_unless_it_is_told_not_to() {
         other => panic!("expected Download, got {other:?}"),
     }
 }
+
+#[test]
+fn list_fields_are_comma_separated_names_of_job_fields() {
+    match parse(&["giant-squid", "list", "--fields", "avg_time_res,Error-Text"]) {
+        Args::List { fields, .. } => assert_eq!(fields, ["avg_time_res", "error_text"]),
+        other => panic!("expected List, got {other:?}"),
+    }
+}
+
+#[test]
+fn list_fields_refuses_a_name_that_is_not_a_field() {
+    let err = parse_err(&["giant-squid", "list", "--fields", "avg_time_res,nonsense"]);
+
+    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
+    let text = err.to_string();
+    assert!(text.contains("`nonsense` is not a job field: expected one of: user_id,"));
+}
+
+#[test]
+fn list_fields_cannot_be_used_with_the_other_outputs() {
+    for other in ["--json", "--legacy-json", "--ids"] {
+        let err = parse_err(&["giant-squid", "list", "--fields", "user_id", other]);
+
+        assert_eq!(
+            err.kind(),
+            clap::error::ErrorKind::ArgumentConflict,
+            "{other}"
+        );
+    }
+}
+
+#[test]
+fn list_help_names_every_field() {
+    let err = parse_err(&["giant-squid", "list", "--help"]);
+    let help = err.to_string();
+
+    for name in crate::job_field_names() {
+        assert!(help.contains(name.as_str()), "{name} is in the help");
+    }
+}

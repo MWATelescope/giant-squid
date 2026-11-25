@@ -1727,3 +1727,41 @@ fn only_metadata_with_a_voltage_option_is_refused_before_any_request() {
     let result = run(cmd);
     assert!(result.success, "output: {}", result.combined());
 }
+
+/// `list --fields` adds a column for each field, after the others. A job
+/// that does not have a field has an empty cell.
+#[test]
+fn list_fields_adds_a_column_for_each_field() {
+    let env = CliEnv::with_session();
+    let mut conversion = job_detail(12345, TEST_OBS_ID, "completed", 0);
+    conversion["job_params"] =
+        serde_json::json!({"obs_id": TEST_OBS_ID_I64, "delivery": "acacia", "avg_time_res": 0.5});
+    let visibility = job_detail(12346, TEST_OBS_ID, "completed", 1);
+    env.mock_get_jobs(vec![conversion, visibility]);
+
+    let mut cmd = env.command();
+    cmd.args(["list", "--no-colour", "--fields", "avg_time_res,user_id"]);
+    let result = run(cmd);
+
+    assert!(result.success, "output: {}", result.combined());
+    let lines: Vec<&str> = result.stdout.lines().collect();
+    let header: Vec<&str> = lines[1].split('|').map(str::trim).collect();
+    assert_eq!(
+        &header[header.len() - 3..header.len() - 1],
+        ["avg_time_res", "user_id"]
+    );
+    let row = |job_id: &str| -> Vec<String> {
+        lines
+            .iter()
+            .find(|l| l.contains(job_id))
+            .expect("a row for the job")
+            .split('|')
+            .map(|c| c.trim().to_string())
+            .collect()
+    };
+    let conversion_row = row("12345");
+    assert_eq!(conversion_row[conversion_row.len() - 3], "0.5");
+    let visibility_row = row("12346");
+    assert_eq!(visibility_row[visibility_row.len() - 3], "");
+    assert_eq!(visibility_row[visibility_row.len() - 2], "4242");
+}

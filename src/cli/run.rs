@@ -913,6 +913,7 @@ fn print_jobs(
     json: bool,
     legacy_json: bool,
     no_colour: bool,
+    fields: &[String],
 ) -> anyhow::Result<()> {
     if legacy_json {
         warn!("{LEGACY_JSON_WARNING}");
@@ -922,7 +923,7 @@ fn print_jobs(
         let jobs_json = jobs.json()?;
         println!("{jobs_json}");
     } else {
-        print_jobs_table(jobs, no_colour);
+        print_jobs_table(jobs, no_colour, fields);
     }
     Ok(())
 }
@@ -987,6 +988,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             date_from,
             date_to,
             sort_by,
+            fields,
         } => {
             init_logger(verbosity, json);
 
@@ -1010,7 +1012,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             if ids {
                 print_job_ids(&jobs);
             } else {
-                print_jobs(jobs, json, legacy_json, no_colour)?;
+                print_jobs(jobs, json, legacy_json, no_colour, &fields)?;
             }
         }
 
@@ -1296,7 +1298,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 ..JobsFilter::default()
             })?;
 
-            print_jobs(jobs, json, legacy_json, no_colour)?;
+            print_jobs(jobs, json, legacy_json, no_colour, &[])?;
         }
 
         Args::Cancel {

@@ -221,6 +221,11 @@ before you upgrade scripts.**
 
 ### Added in 3.0.0
 
+* `list --fields a,b,c` adds a column to the job table for each named field of the job or its parameters (for
+  example `avg_time_res` or `error_text`); `--help` lists the fields. A job that does not have a field has an empty
+  cell. The library has `job_field_names`, `parse_job_field` and `job_field_value`. A listed job's `job_params` are
+  now read as the schema type of the job's type (conversion, imaging, ...); before, only the download keys were kept
+  for every job.
 * `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs the `giant-squid` command, which is the Rust program run inside the module, so it is the same

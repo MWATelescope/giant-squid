@@ -859,6 +859,7 @@ Options:
       --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
       --sort-by <SORT_BY>       The column to sort the jobs by [possible values: id, created, completed]
+      --fields <FIELDS>         Add a column to the table for each of these job fields (comma separated)
   -h, --help                    Print help
   -V, --version                 Print version
 ```
@@ -938,6 +939,14 @@ shown in `--help`, so `list` shows your recent jobs and not your full history), 
 `2026-09-01T12:00:00Z`) limit the listing by when the jobs were created, and `--sort-by` sets the
 order. The jobs are selected by `--days` or by the dates, not by both: `--days` with `--date-from` or `--date-to` is
 an error, and with a date the default of `--days` is not used.
+
+`--fields` adds a column to the table for each field you name, for example
+`giant-squid list --fields avg_time_res,error_text`. A field is a key of the job's parameters or one of
+`user_id`, `first_name`, `last_name`, `created`, `started`, `modified`, `error_code` and `error_text`; `giant-squid
+list --help` lists them all. A job that does not have a field (a visibility job has no `avg_time_res`) has an
+empty cell, and a field with no value is `null`. The parameters are read as the MWA ASVO API's types, so a key that
+the MWA ASVO did not send for a job shows the default of the API. `--fields` cannot be used with `--json`,
+`--legacy-json` or `--ids`; `--json` already has every field.
 
 These both take a comma-separated, case-insensitive list of the job type names and job states
 above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,

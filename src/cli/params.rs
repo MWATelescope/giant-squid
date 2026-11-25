@@ -26,7 +26,9 @@ use crate::mwa_asvo::api::openapi::{
     JobsByUserRequest, OutputFormat, PhaseCentre, Polarization,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
-use crate::mwa_asvo::{ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
+use crate::mwa_asvo::{
+    job_field_names, parse_job_field, ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT,
+};
 
 use super::value_enums::SchemaEnumParser;
 use crate::obs_id::ObsId;
@@ -104,6 +106,27 @@ pub fn parse_nullable_bool(s: &str) -> Result<Nullable<bool>, String> {
 pub fn parse_days(s: &str) -> Result<NonZeroU64, String> {
     let days = parse_i64_bounds(validate::DAYS)(s)?;
     Ok(validate::days_in_range(days))
+}
+
+/// The clap value parser of `list --fields`: one name of the library's
+/// [`job_field_names`].
+pub fn parse_field(s: &str) -> Result<String, String> {
+    parse_job_field(s).map(str::to_string)
+}
+
+/// The long help of `list --fields`, with every field name.
+pub fn fields_long_help() -> String {
+    format!(
+        "Add a column for each of these job fields (comma separated), after \
+         the other columns. A job that does not have a field (for example a \
+         visibility job has no avg_time_res) has an empty cell, and a field \
+         with no value is `null`. The fields of a job's params are the \
+         schema's names. A key that the MWA ASVO did not send for a job has \
+         the schema's default. The case, hyphens and underscores do not \
+         matter. Cannot be used with --json, --legacy-json or --ids.\n\n\
+         Fields: {}",
+        job_field_names().join(", ")
+    )
 }
 
 /// The clap value parser of `list --date-from` and `--date-to`: the

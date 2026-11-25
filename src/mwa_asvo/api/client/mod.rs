@@ -36,7 +36,7 @@ use super::error::MwaAsvoApiError;
 use super::job_params::PreprocessJobParams;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, ImageFromJobParams,
-    JobCancelledResponse, JobDetailResponse, JobState, JobSubmittedResponse, JobType,
+    JobCancelledResponse, JobDetailResponse, JobParams, JobState, JobSubmittedResponse, JobType,
     JobsByUserRequest, Login, SortBy, TokenResponse, UserResponse,
 };
 use super::validate::{self, validate_download_params, validate_image_from_job_params};
@@ -818,13 +818,15 @@ impl MwaAsvoClient {
             let page_len = page.jobs.len() as u64;
             for mut job_value in page.jobs {
                 normalize_job_value(&mut job_value);
+                let raw_params = job_value.get("job_params").cloned();
 
                 // Hard error: this is a basic structural mismatch against
                 // the schema (an item that isn't even a JobDetailResponse
                 // shape), not a content-level problem like the ones that
                 // `MwaAsvoJob::try_from` finds, which skip only that job.
-                let detail: JobDetailResponse =
+                let mut detail: JobDetailResponse =
                     serde_json::from_value(serde_json::Value::Object(job_value))?;
+                detail.job_params = typed_job_params(detail.job_type, raw_params);
                 // A job that cannot be used (see `MwaAsvoJob::try_from`) is
                 // skipped, so that one bad job does not hide the others.
                 match MwaAsvoJob::try_from(detail) {
@@ -986,6 +988,47 @@ impl MwaAsvoClient {
         let resp: JobCancelledResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
+}
+
+/// The `job_params` of a job as the one schema type that its `job_type` has.
+///
+/// The generated `JobParams` has four optional structs, all `flatten`ed, and
+/// serde gives a key to the first struct that names it (the download
+/// parameters take `obs_id`, `delivery` and more). A conversion or imaging
+/// job read that way would keep only its download keys, so the type that
+/// fits the job is read from the raw value instead, and the others stay
+/// `None`:
+///
+/// - visibility, metadata, voltage and beamformer: `DownloadJobParams`;
+/// - conversion: `ConversionJobParams`;
+/// - imaging: `ImageFromJobParams` if there is a `source_job_id`, else
+///   `ImagingJobParams`;
+/// - cancel: none.
+///
+/// Params that the type cannot read (an old job has numbers as strings, for
+/// example) are none too, and the job is still listed.
+pub(crate) fn typed_job_params(job_type: JobType, raw: Option<serde_json::Value>) -> JobParams {
+    let mut params = JobParams::default();
+    let Some(raw) = raw else {
+        return params;
+    };
+    let has_source_job = raw.get("source_job_id").is_some_and(|v| !v.is_null());
+    let read = match job_type {
+        JobType::Visibility | JobType::Metadata | JobType::Voltage | JobType::Beamformer => {
+            serde_json::from_value(raw).map(|p| params.subtype_0 = Some(p))
+        }
+        JobType::Conversion => serde_json::from_value(raw).map(|p| params.subtype_1 = Some(p)),
+        JobType::Imaging if has_source_job => {
+            serde_json::from_value(raw).map(|p| params.subtype_2 = Some(p))
+        }
+        JobType::Imaging => serde_json::from_value(raw).map(|p| params.subtype_3 = Some(p)),
+        JobType::Cancel => Ok(()),
+    };
+    if let Err(e) = read {
+        debug!("A job's params are not the schema's {job_type:?} params: {e}");
+        return JobParams::default();
+    }
+    params
 }
 
 /// Patches the quirks of the real server into a raw job JSON object before it

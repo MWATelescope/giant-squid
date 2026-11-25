@@ -340,6 +340,9 @@ MANIFEST: list[Entry] = [
     done("crate::parse_many_job_ids_or_obs_ids", "parse_many_job_ids_or_obs_ids"),
     done("crate::parse_job_ids_and_obs_ids_from_file", "parse_job_ids_and_obs_ids_from_file"),
     done("crate::parse_utc_time", "parse_utc_time"),
+    pending("crate::job_field_names", "job_field_names", "For `list --fields`; the Python part is a later diff."),
+    pending("crate::parse_job_field", "parse_job_field", "For `list --fields`; the Python part is a later diff."),
+    pending("crate::job_field_value", "job_field_value", "For `list --fields`; the Python part is a later diff."),
     done("crate::check_file_sha1_hash", "check_file_sha1_hash"),
     excluded("crate::jiff", "A Rust crate re-export. Python dates are `datetime.datetime`."),
     # --- The manta-ray-client CSV file ---

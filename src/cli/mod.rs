@@ -32,8 +32,9 @@ use jiff::Timestamp;
 use crate::mwa_asvo::api::openapi::{MWA_ASVO_API_VERSION, OPENAPI_VERSION};
 use crate::mwa_asvo::{JobState, JobType, SortBy};
 use params::{
-    list_days_default, parse_days, parse_utc_time, ConversionJobArgs, DownloadJobArgs,
-    ImagingFromJobArgs, ImagingJobArgs, SubmitDownloadArgs, VoltageJobArgs,
+    fields_long_help, list_days_default, parse_days, parse_field, parse_utc_time,
+    ConversionJobArgs, DownloadJobArgs, ImagingFromJobArgs, ImagingJobArgs, SubmitDownloadArgs,
+    VoltageJobArgs,
 };
 use value_enums::SchemaEnumParser;
 
@@ -255,6 +256,11 @@ pub enum Args {
         /// The column to sort the jobs by.
         #[arg(long, value_parser = SchemaEnumParser::<SortBy>::new())]
         sort_by: Option<SortBy>,
+
+        /// Add a column to the table for each of these job fields (comma
+        /// separated).
+        #[arg(long, value_delimiter = ',', value_parser = parse_field, long_help = fields_long_help(), conflicts_with_all = ["json", "legacy_json", "ids"])]
+        fields: Vec<String>,
 
         /// Job IDs or Obs IDs to filter by. Files containing Job IDs or
         /// Obs IDs are also accepted.

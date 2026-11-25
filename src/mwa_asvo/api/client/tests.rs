@@ -2340,3 +2340,40 @@ fn a_time_with_any_zone_is_left_alone_and_a_time_without_one_gets_z() {
     assert_eq!(job.started, Some(utc("2026-09-07T21:50:00Z")));
     assert_eq!(job.modified, Some(utc("2026-09-08T05:55:00Z")));
 }
+
+/// A listed job has its `job_params` as the schema type of its job type, not
+/// as the first type that names a key (the download parameters).
+#[test]
+fn a_listed_conversion_job_keeps_its_conversion_params() {
+    let env = TestEnv::with_session();
+    let mut detail = job_detail(1, TEST_OBS_ID, "completed", 0);
+    detail["job_params"] =
+        json!({"obs_id": TEST_OBS_ID_I64, "delivery": "acacia", "avg_time_res": 0.5});
+    env.mock_get_jobs(vec![detail]);
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
+
+    let params = &jobs.0[0].job_params;
+    assert!(params.subtype_0.is_none(), "not the download params");
+    let conversion = params.subtype_1.as_ref().expect("the conversion params");
+    assert_eq!(conversion.avg_time_res, Some(0.5));
+}
+
+/// Params that the schema type cannot read (an old job) do not stop the job
+/// from being listed.
+#[test]
+fn a_listed_job_with_old_style_params_is_listed_without_params() {
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![job_detail(1, TEST_OBS_ID, "completed", 0)]);
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let jobs = client
+        .get_jobs(&JobsFilter::default())
+        .expect("get_jobs should succeed");
+
+    assert_eq!(jobs.0.len(), 1);
+    assert_eq!(jobs.0[0].job_params, Default::default());
+}

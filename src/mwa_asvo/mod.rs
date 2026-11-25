@@ -12,6 +12,7 @@ pub(crate) mod download;
 pub(crate) mod env;
 pub(crate) mod error;
 pub mod error_response;
+pub(crate) mod job_fields;
 pub(crate) mod manta_ray_csv;
 pub(crate) mod redact;
 pub(crate) mod retry;
@@ -39,6 +40,7 @@ pub(crate) use self::{
     },
     error::MwaAsvoError,
     error_response::new_error_response,
+    job_fields::{job_field_names, job_field_value, parse_job_field},
     token_store::default_token_cache_path,
     types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec},
 };
