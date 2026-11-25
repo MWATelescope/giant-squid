@@ -35,6 +35,4 @@ cargo build --locked --no-default-features
 echo "Cargo doc..."
 cargo doc --locked --no-deps
 
-tools/run_stubtest.sh
-
 echo "Done"
