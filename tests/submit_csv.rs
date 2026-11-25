@@ -603,7 +603,7 @@ fn the_other_fields_of_the_schema_are_accepted_as_keys() {
 
     assert!(result.success, "{}", result.combined());
     let lines = result.stdout_json_lines();
-    assert_eq!(lines[0]["params"]["polarization"], "xx,yy");
+    assert_eq!(lines[0]["params"]["polarization"], "xxyy");
     assert_eq!(lines[0]["params"]["wstack_nwlayers"], 64);
     assert_eq!(lines[1]["params"]["no_apply_amps"], true);
     // A beamformer body has no download_type.

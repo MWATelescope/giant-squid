@@ -104,7 +104,7 @@ __all__ = [
     "ObsIdError",
     "ObsIdErrorParse",
     "ObsIdErrorWrongNumDigits",
-    "Output",
+    "OutputFormat",
     "ParseError",
     "ParseErrorInsideFile",
     "ParseErrorInsideStdin",
@@ -178,7 +178,8 @@ class ConversionJobParams:
         output: The output format.
         avg_freq_res: The frequency resolution to average to (kHz).
         avg_time_res: The time resolution to average to (s).
-        flag_edge_width: The width of the frequency edge flagging (kHz).
+        flag_edge_width: The width of the frequency edge flagging (kHz), or
+            None for no edge flagging.
         apply_di_cal: Apply the DI calibration solution.
         centre: The phase centre mode. `PhaseCentre.Custom` needs
             `custom_centre_ra` and `custom_centre_dec`, and they are only
@@ -206,9 +207,9 @@ class ConversionJobParams:
     @delivery_format.setter
     def delivery_format(self, value: DeliveryFormat) -> None: ...
     @property
-    def output(self) -> Output: ...
+    def output(self) -> OutputFormat: ...
     @output.setter
-    def output(self, value: Output) -> None: ...
+    def output(self, value: OutputFormat) -> None: ...
     @property
     def avg_freq_res(self) -> builtins.float | None: ...
     @avg_freq_res.setter
@@ -218,9 +219,9 @@ class ConversionJobParams:
     @avg_time_res.setter
     def avg_time_res(self, value: builtins.float | None) -> None: ...
     @property
-    def flag_edge_width(self) -> builtins.float: ...
+    def flag_edge_width(self) -> builtins.float | None: ...
     @flag_edge_width.setter
-    def flag_edge_width(self, value: builtins.float) -> None: ...
+    def flag_edge_width(self, value: builtins.float | None) -> None: ...
     @property
     def apply_di_cal(self) -> builtins.bool: ...
     @apply_di_cal.setter
@@ -291,10 +292,10 @@ class ConversionJobParams:
         *,
         delivery: DeliveryDestination = DeliveryDestination.Acacia,
         delivery_format: DeliveryFormat = DeliveryFormat.Tar,
-        output: Output = Output.Ms,
+        output: OutputFormat = OutputFormat.Ms,
         avg_freq_res: builtins.float | None = 40.0,
         avg_time_res: builtins.float | None = 2.0,
-        flag_edge_width: builtins.float = 80.0,
+        flag_edge_width: builtins.float | None = 80.0,
         apply_di_cal: builtins.bool = False,
         centre: PhaseCentre = PhaseCentre.Phase,
         custom_centre_ra: builtins.float | None = None,
@@ -1190,7 +1191,7 @@ class ImageFromJobParams:
         multiscale: builtins.bool = False,
         nmiter: builtins.int = 10,
         pixel_scale: builtins.float | None = None,
-        polarization: Polarization = Polarization.XxYy,
+        polarization: Polarization = Polarization.I,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
@@ -1235,7 +1236,8 @@ class ImagingJobParams:
             (degrees).
         custom_centre_ra: The custom phase centre's right ascension
             (degrees).
-        flag_edge_width: The width of the frequency edge flagging (kHz).
+        flag_edge_width: The width of the frequency edge flagging (kHz), or
+            None for no edge flagging.
         image_size: The WSClean image size in pixels. Only the sizes
             that the MWA ASVO accepts are valid. `None` (the default) lets the
             MWA ASVO calculate it.
@@ -1321,9 +1323,9 @@ class ImagingJobParams:
     @custom_centre_ra.setter
     def custom_centre_ra(self, value: builtins.float | None) -> None: ...
     @property
-    def flag_edge_width(self) -> builtins.float: ...
+    def flag_edge_width(self) -> builtins.float | None: ...
     @flag_edge_width.setter
-    def flag_edge_width(self, value: builtins.float) -> None: ...
+    def flag_edge_width(self, value: builtins.float | None) -> None: ...
     @property
     def image_size(self) -> builtins.int | None: ...
     @image_size.setter
@@ -1447,7 +1449,7 @@ class ImagingJobParams:
         centre: PhaseCentre = PhaseCentre.Phase,
         custom_centre_dec: builtins.float | None = None,
         custom_centre_ra: builtins.float | None = None,
-        flag_edge_width: builtins.float = 80.0,
+        flag_edge_width: builtins.float | None = 80.0,
         image_size: builtins.int | None = None,
         join_channels: builtins.bool = True,
         join_polarizations: builtins.bool = False,
@@ -1462,7 +1464,7 @@ class ImagingJobParams:
         no_cable_delay: builtins.bool | None = False,
         no_rfi: builtins.bool | None = False,
         pixel_scale: builtins.float | None = None,
-        polarization: Polarization = Polarization.XxYy,
+        polarization: Polarization = Polarization.I,
         robust: builtins.float = -0.5,
         uvw_max: builtins.float | None = None,
         uvw_min: builtins.float = 75.0,
@@ -1509,9 +1511,9 @@ class JobDetailResponse:
         The Job ID.
         """
     @property
-    def job_type(self) -> JobType | None:
+    def job_type(self) -> JobType:
         r"""
-        The job type, or `None` if the server gives none.
+        The job type.
         """
     @property
     def job_state(self) -> JobState:
@@ -2664,9 +2666,9 @@ class MwaAsvoJob:
         The Job ID.
         """
     @property
-    def job_type(self) -> JobType | None:
+    def job_type(self) -> JobType:
         r"""
-        The job type, or `None` if the server gives none.
+        The job type.
         """
     @property
     def job_state(self) -> JobState:
@@ -3258,9 +3260,9 @@ class JobType(enum.Enum):
         """
 
 @typing.final
-class Output(enum.Enum):
+class OutputFormat(enum.Enum):
     r"""
-    The format of a conversion job's output: the OpenAPI schema's `Output`.
+    The format of a conversion job's output: the OpenAPI schema's `OutputFormat`.
     `str()` is the API value.
     """
 
@@ -3288,7 +3290,7 @@ class Polarization(enum.Enum):
     Yy = ...
     Xy = ...
     Yx = ...
-    XxYy = ...
+    Xxyy = ...
     I = ...
     Iquv = ...
 

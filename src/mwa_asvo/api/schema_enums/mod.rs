@@ -17,7 +17,7 @@ use std::str::FromStr;
 
 use super::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobState, JobType,
-    Output, PhaseCentre, Polarization, SortBy, Status,
+    OutputFormat, PhaseCentre, Polarization, SortBy, Status,
 };
 
 /// An enum of the OpenAPI schema, with the list of all its values.
@@ -78,10 +78,10 @@ macro_rules! for_each_schema_enum {
             [Tar, Files]
         );
         $callback!(
-            Output,
-            PyOutput,
-            "Output",
-            "The format of a conversion job's output: the OpenAPI schema's `Output`.\n\
+            OutputFormat,
+            PyOutputFormat,
+            "OutputFormat",
+            "The format of a conversion job's output: the OpenAPI schema's `OutputFormat`.\n\
              `str()` is the API value.",
             [Ms, Uvfits]
         );
@@ -113,7 +113,7 @@ macro_rules! for_each_schema_enum {
             PyPolarization,
             "Polarization",
             "The polarisation an imaging job images. `str()` is the API value.",
-            [Xx, Yy, Xy, Yx, XxYy, I, Iquv]
+            [Xx, Yy, Xy, Yx, Xxyy, I, Iquv]
         );
         $callback!(
             JobState,

@@ -38,7 +38,7 @@ use super::error::api_error;
 use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::JobId;
 use super::types::{
-    PyDeliveryDestination, PyDeliveryFormat, PyImageOutputMode, PyImageWeighting, PyOutput,
+    PyDeliveryDestination, PyDeliveryFormat, PyImageOutputMode, PyImageWeighting, PyOutputFormat,
     PyPhaseCentre, PyPolarization,
 };
 use crate::mwa_asvo::api::job_params::{self as schema, PreprocessJobParams};
@@ -214,7 +214,8 @@ impl PyDownloadJobParams {
 ///     output: The output format.
 ///     avg_freq_res: The frequency resolution to average to (kHz).
 ///     avg_time_res: The time resolution to average to (s).
-///     flag_edge_width: The width of the frequency edge flagging (kHz).
+///     flag_edge_width: The width of the frequency edge flagging (kHz), or
+///         None for no edge flagging.
 ///     apply_di_cal: Apply the DI calibration solution.
 ///     centre: The phase centre mode. `PhaseCentre.Custom` needs
 ///         `custom_centre_ra` and `custom_centre_dec`, and they are only
@@ -241,13 +242,13 @@ pub struct PyConversionJobParams {
     #[pyo3(get, set)]
     pub delivery_format: PyDeliveryFormat,
     #[pyo3(get, set)]
-    pub output: PyOutput,
+    pub output: PyOutputFormat,
     #[pyo3(get, set)]
     pub avg_freq_res: Option<f64>,
     #[pyo3(get, set)]
     pub avg_time_res: Option<f64>,
     #[pyo3(get, set)]
-    pub flag_edge_width: f64,
+    pub flag_edge_width: Option<f64>,
     #[pyo3(get, set)]
     pub apply_di_cal: bool,
     #[pyo3(get, set)]
@@ -300,14 +301,14 @@ impl PyConversionJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', output='Output.Ms', avg_freq_res=40.0, avg_time_res=2.0, flag_edge_width=80.0, apply_di_cal=False, centre='PhaseCentre.Phase', custom_centre_ra=None, custom_centre_dec=None, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, allow_resubmit=False)"
+        text_signature = "(obs_id, *, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', output='OutputFormat.Ms', avg_freq_res=40.0, avg_time_res=2.0, flag_edge_width=80.0, apply_di_cal=False, centre='PhaseCentre.Phase', custom_centre_ra=None, custom_centre_dec=None, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         obs_id,
         *,
         delivery = PyDeliveryDestination::from(schema::conversion_defaults().delivery),
         delivery_format = PyDeliveryFormat::from(schema::conversion_defaults().delivery_format),
-        output = PyOutput::from(schema::conversion_defaults().output),
+        output = PyOutputFormat::from(schema::conversion_defaults().output),
         avg_freq_res = schema::conversion_defaults().avg_freq_res,
         avg_time_res = schema::conversion_defaults().avg_time_res,
         flag_edge_width = schema::conversion_defaults().flag_edge_width,
@@ -329,10 +330,10 @@ impl PyConversionJobParams {
         obs_id: ObsIdArg,
         delivery: PyDeliveryDestination,
         delivery_format: PyDeliveryFormat,
-        output: PyOutput,
+        output: PyOutputFormat,
         avg_freq_res: Option<f64>,
         avg_time_res: Option<f64>,
-        flag_edge_width: f64,
+        flag_edge_width: Option<f64>,
         apply_di_cal: bool,
         centre: PyPhaseCentre,
         custom_centre_ra: Option<f64>,
@@ -434,7 +435,8 @@ impl PyConversionJobParams {
 ///         (degrees).
 ///     custom_centre_ra: The custom phase centre's right ascension
 ///         (degrees).
-///     flag_edge_width: The width of the frequency edge flagging (kHz).
+///     flag_edge_width: The width of the frequency edge flagging (kHz), or
+///         None for no edge flagging.
 ///     image_size: The WSClean image size in pixels. Only the sizes
 ///         that the MWA ASVO accepts are valid. `None` (the default) lets the
 ///         MWA ASVO calculate it.
@@ -495,7 +497,7 @@ pub struct PyImagingJobParams {
     #[pyo3(get, set)]
     pub custom_centre_ra: Option<f64>,
     #[pyo3(get, set)]
-    pub flag_edge_width: f64,
+    pub flag_edge_width: Option<f64>,
     #[pyo3(get, set)]
     pub image_size: Option<i64>,
     #[pyo3(get, set)]
@@ -568,7 +570,7 @@ impl PyImagingJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, pixel_scale=None, polarization='Polarization.XxYy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(obs_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         obs_id,
@@ -629,7 +631,7 @@ impl PyImagingJobParams {
         centre: PyPhaseCentre,
         custom_centre_dec: Option<f64>,
         custom_centre_ra: Option<f64>,
-        flag_edge_width: f64,
+        flag_edge_width: Option<f64>,
         image_size: Option<i64>,
         join_channels: bool,
         join_polarizations: bool,
@@ -842,7 +844,7 @@ impl PyImageFromJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(source_job_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, pixel_scale=None, polarization='Polarization.XxYy', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(source_job_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         source_job_id,

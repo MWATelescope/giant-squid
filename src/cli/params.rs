@@ -23,7 +23,7 @@ use crate::mwa_asvo::api::job_params::{
 use crate::mwa_asvo::api::openapi::{
     ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
     ImageFromJobParams, ImageOutputMode, ImageSizes, ImageWeighting, ImagingJobParams,
-    JobsByUserRequest, Output, PhaseCentre, Polarization,
+    JobsByUserRequest, OutputFormat, PhaseCentre, Polarization,
 };
 use crate::mwa_asvo::api::validate::{self, Bounds};
 use crate::mwa_asvo::{ENV_GIANT_SQUID_DELIVERY, ENV_GIANT_SQUID_DELIVERY_FORMAT};
@@ -214,7 +214,7 @@ fn nullable_default<T: ToString>(default: Option<T>, name: &str) -> String {
 pub trait PreprocessingFields: SchemaDefaults {
     fn avg_freq_res(&self) -> Option<f64>;
     fn avg_time_res(&self) -> Option<f64>;
-    fn flag_edge_width(&self) -> f64;
+    fn flag_edge_width(&self) -> Option<f64>;
     fn apply_di_cal(&self) -> bool;
     fn no_apply_amps(&self) -> bool;
     fn centre(&self) -> PhaseCentre;
@@ -229,7 +229,7 @@ pub trait PreprocessingFields: SchemaDefaults {
 impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobParams] {
     avg_freq_res: Option<f64>,
     avg_time_res: Option<f64>,
-    flag_edge_width: f64,
+    flag_edge_width: Option<f64>,
     apply_di_cal: bool,
     no_apply_amps: bool,
     centre: PhaseCentre,
@@ -404,9 +404,9 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_TIME_RES)))]
     pub avg_time_res: Nullable<f64>,
 
-    /// Width of frequency edge flagging (kHz).
-    #[arg(long, default_value = P::schema_defaults().flag_edge_width().to_string(), value_parser = parse_f64_bounds(validate::FLAG_EDGE_WIDTH))]
-    pub flag_edge_width: f64,
+    /// Width of frequency edge flagging (kHz), or null for no edge flagging.
+    #[arg(long, default_value = nullable_default(P::schema_defaults().flag_edge_width(), "flag_edge_width"), value_parser = nullable(parse_f64_bounds(validate::FLAG_EDGE_WIDTH)))]
+    pub flag_edge_width: Nullable<f64>,
 
     /// Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time).
     #[arg(
@@ -685,7 +685,6 @@ impl_apply_to!(ResubmitArgs for [
 
 impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobParams] {
     copy: [
-        flag_edge_width,
         apply_di_cal,
         centre,
         custom_centre_ra,
@@ -695,6 +694,7 @@ impl_apply_to!(PreprocessingArgs for [ConversionJobParams, ImagingJobParams] {
     nullable: [
         avg_freq_res,
         avg_time_res,
+        flag_edge_width,
         no_digital_gains,
         no_flag_dc,
         no_geometric_delay,
@@ -855,8 +855,8 @@ pub struct ConversionJobArgs {
     pub delivery_args: DeliveryArgs<ConversionJobParams>,
 
     /// Output format: "ms" (measurement set) or "uvfits".
-    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<Output>::new())]
-    pub output: Output,
+    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<OutputFormat>::new())]
+    pub output: OutputFormat,
 
     #[command(flatten)]
     pub preprocessing: PreprocessingArgs<ConversionJobParams>,

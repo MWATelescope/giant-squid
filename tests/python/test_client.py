@@ -481,7 +481,13 @@ def test_a_job_has_every_field_of_the_job_detail(host: str, serve_jobs: Callable
     assert job.user_id == TEST_USER_ID
     assert job.first_name == "Test"
     assert job.last_name == "User"
-    assert job.job_params == {"obs_id": str(TEST_OBS_ID), "delivery": "acacia"}
+    # job_params is the schema type, so the keys the server did not send have the schema's defaults.
+    assert job.job_params == {
+        "obs_id": TEST_OBS_ID,
+        "delivery": "acacia",
+        "delivery_format": "tar",
+        "allow_resubmit": False,
+    }
     assert job.error_text is None
 
 

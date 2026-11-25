@@ -116,8 +116,8 @@ before you upgrade scripts.**
 * `submit-image` and `submit-image-from-job`: `-o`/`--output-mode` is required, because the MWA ASVO API gives
   `output_mode` no default (it was `fits`). `--image-size` and `--pixel-scale` have no default: if you do not give
   them, the MWA ASVO calculates them (they were `3072` and `20`). `--polarization` (the API's name) selects the
-  polarisation: `xx`, `yy`, `xy`, `yx`, `xx,yy`, `i` or `iquv`, default `xx,yy`. A `submit-csv` imaging line must
-  give `output_mode`, and gives the polarisation as `polarization=xxyy` for `xx,yy` (a cell cannot hold a comma).
+  polarisation: `xx`, `yy`, `xy`, `yx`, `xxyy`, `i` or `iquv`, default `i`. A `submit-csv` imaging line must
+  give `output_mode`.
 * `submit-conv` and `submit-image`: the `-p` / `--parameters` option is gone. Each key is now a command line
   option with the API's name (for example `--avg-time-res 0.5`). `--phase-centre-ra`, `--phase-centre-dec`,
   `--custom-ra`, `--custom-dec` and `--phase-center` still work.
@@ -194,6 +194,12 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
+* MWA ASVO API 2.8.2 (OpenAPI 3.1.0) is applied. The polarisation `xx,yy` is now `xxyy`, and the default `--polarization`
+  is `i`. `--flag-edge-width` (and the Python `flag_edge_width` and the CSV key) can be `null` for no edge flagging, as
+  `--avg-time-res` can. A job always has a `job_type` (Python `MwaAsvoJob.job_type` is never `None`), and the listed
+  `job_params` are the schema type, so a key the server did not send shows the schema default. The Python enum
+  `Output` is now `OutputFormat`, the schema's name. The imaging body no longer has `output`.
+
 * MWA ASVO API 2.8.1 (OpenAPI 3.1.0) is applied. The download jobs (visibility, metadata, voltage and beamformer) go to
   `/api/v2/jobs/download`, the conversion and imaging jobs to `/api/v2/jobs/preprocess`, and an image from a
   conversion job to `/api/v2/jobs/image_from_job`; the job list, login and refresh endpoints have new paths. A job has `job_id` (not
@@ -202,7 +208,7 @@ before you upgrade scripts.**
   `from_channel` and `to_channel`. The MWA ASVO finds the kind of data from the observation. The beamformer `mode`
   and `channel_range` are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
   `submit-image-from-job` takes no Obs ID. A 404 `ErrorResponse` from the job list is an empty list (no job matches
-  the filter). The conversion `OutputFormat` is the schema's `Output`. `list --sort-by` takes `id`, `created` or `completed`.
+  the filter). The conversion `OutputFormat` is the schema's `OutputFormat`. `list --sort-by` takes `id`, `created` or `completed`.
   `JobFile.type` is a `DeliveryDestination` (the enum `Type` is gone). A download job that does not give
   `--only-metadata` leaves `only_metadata` out of the request (the API gives it no default). The voltage
   `--duration` is limited to 0 to 7200 seconds, `--channels-out` to 1 or more, `--clean-iterations` to 0 to 1000000,
@@ -280,7 +286,7 @@ before you upgrade scripts.**
   `ImagingJobParams` and `ImageFromJobParams`. `PreprocessJobParams`, the enum of the preprocess bodies
   (`PreprocessJobParams.Conversion(params)` and `PreprocessJobParams.Imaging(params)`), which
   `submit_preprocess_job` takes (it also takes one of the classes alone). `submit_download_job` takes a
-  `DownloadJobParams`, and `submit_image_from_job` an `ImageFromJobParams`. The enum `Output`. **Changed:** the
+  `DownloadJobParams`, and `submit_image_from_job` an `ImageFromJobParams`. The enum `OutputFormat`. **Changed:** the
   `obs_id` of a request body is an `ObsId`, checked when the class is made or the attribute is set (`ObsIdError`,
   before: `ValueError` when the job was submitted), and `source_job_id` is checked when it is set.
   `ImageFromJobParams` has no `obs_id`, as the schema's type does not.

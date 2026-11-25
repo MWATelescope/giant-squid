@@ -238,7 +238,7 @@ accepts `None`, and `None` is sent as `null`. For example, `avg_freq_res=None` s
 MWA ASVO schema does not say what the MWA ASVO does with a `null` for each argument.
 
 The keyword names are the MWA ASVO API field names, for example `avg_freq_res`. Where an argument has a
-fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `Output`, `PhaseCentre`,
+fixed set of values, the module has an enum (`DeliveryDestination`, `DeliveryFormat`, `OutputFormat`, `PhaseCentre`,
 `ImageOutputMode`, `Polarization`, `ImageWeighting`, and `JobState`, `JobType` and `SortBy` for job lists). The
 docstring of each class gives the limits of each number.
 
@@ -254,11 +254,11 @@ for the body that the library makes, which has the MWA ASVO's defaults (`downloa
 `DownloadJobParams(obs_id)`).
 
 ```python
-from mwa_giant_squid import ConversionJobParams, DeliveryDestination, DeliveryFormat, Output
+from mwa_giant_squid import ConversionJobParams, DeliveryDestination, DeliveryFormat, OutputFormat
 
 params = ConversionJobParams(
     1065880128,
-    output=Output.Ms,
+    output=OutputFormat.Ms,
     avg_freq_res=80.0,
     delivery=DeliveryDestination.Acacia,
     delivery_format=DeliveryFormat.Tar,

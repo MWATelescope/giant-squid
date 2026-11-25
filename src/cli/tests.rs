@@ -321,7 +321,9 @@ fn submit_conv_defaults_come_from_the_schema() {
     );
     assert_eq!(
         json["flag_edge_width"],
-        conversion_defaults().flag_edge_width
+        conversion_defaults()
+            .flag_edge_width
+            .expect("schema default")
     );
 }
 
@@ -460,7 +462,7 @@ fn submit_image_default_polarization_comes_from_the_schema() {
 
 #[test]
 fn submit_image_accepts_each_supported_polarization() {
-    for polarization in ["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"] {
+    for polarization in ["xx", "yy", "xy", "yx", "xxyy", "i", "iquv"] {
         let (args, _) = image_args(&[
             "giant-squid",
             "submit-image",
@@ -477,9 +479,8 @@ fn submit_image_accepts_each_supported_polarization() {
 
 #[test]
 fn submit_image_rejects_an_unsupported_polarization() {
-    // `XX` is `xx`: the case does not matter. `xxyy` is accepted only in a
-    // manta-ray-client CSV file. `--pol` is not an alias.
-    for bad in ["xxyy", "X", "Q"] {
+    // `XX` is `xx`: the case does not matter. `--pol` is not an alias.
+    for bad in ["xx,yy", "X", "Q"] {
         let err = parse_err(&[
             "giant-squid",
             "submit-image",
@@ -1720,16 +1721,16 @@ fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let completed: jiff::Timestamp = "2026-09-08T06:00:00Z".parse().expect("a valid time");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
-    let mut job_params = serde_json::Map::new();
-    job_params.insert("obs_id".to_string(), serde_json::json!(1065880128));
-    job_params.insert("delivery".to_string(), serde_json::json!("acacia"));
+    let job_params =
+        serde_json::from_value(serde_json::json!({"obs_id": 1065880128, "delivery": "acacia"}))
+            .expect("job params are readable");
     MwaAsvoJobVec(vec![
         crate::test_config::mwa_asvo_job(
             obs_id,
             JobDetailResponse {
                 job_id: crate::MwaAsvoJobId::new(101).expect("not zero"),
                 obs_id: 0,
-                job_type: Some(crate::test_config::job_type("visibility")),
+                job_type: crate::test_config::job_type("visibility"),
                 job_state: JobState::Completed,
                 product: Some(JobProduct {
                     files: vec![
@@ -1768,7 +1769,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
             JobDetailResponse {
                 job_id: crate::MwaAsvoJobId::new(102).expect("not zero"),
                 obs_id: 0,
-                job_type: Some(crate::test_config::job_type("conversion")),
+                job_type: crate::test_config::job_type("conversion"),
                 job_state: JobState::Queued,
                 product: None,
                 created,
@@ -1780,7 +1781,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
                 user_id: 4242,
                 first_name: "Test".to_string(),
                 last_name: "User".to_string(),
-                job_params: serde_json::Map::new(),
+                job_params: Default::default(),
             },
         ),
         crate::test_config::mwa_asvo_job(
@@ -1788,7 +1789,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
             JobDetailResponse {
                 job_id: crate::MwaAsvoJobId::new(103).expect("not zero"),
                 obs_id: 0,
-                job_type: Some(crate::test_config::job_type("imaging")),
+                job_type: crate::test_config::job_type("imaging"),
                 job_state: JobState::Error,
                 product: Some(JobProduct { files: vec![] }),
                 created,
@@ -1800,7 +1801,7 @@ fn json_sample_jobs() -> crate::mwa_asvo::MwaAsvoJobVec {
                 user_id: 4242,
                 first_name: "Test".to_string(),
                 last_name: "User".to_string(),
-                job_params: serde_json::Map::new(),
+                job_params: Default::default(),
             },
         ),
     ])
@@ -1818,7 +1819,7 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
 }
 
 /// `--legacy-json` names every job type as giant-squid 2.5.1 did, for the
-/// integer code that the API sends: 0 to 6, and no type (`Unknown`). The
+/// integer code that the API sends: 0 to 6. The
 /// expected text is what 2.5.1 (tag `v2.5.1`) printed for one job of each
 /// type, made by its own `MwaAsvoJobVec::json`. A job in the sample above has
 /// each of the other keys, so this one varies only the job type.
@@ -1829,12 +1830,7 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
     use crate::mwa_asvo::{JobState, JobType, MwaAsvoJobVec};
     let obs_id = crate::obs_id::ObsId::validate(1065880128).expect("a valid obsid");
     let created: jiff::Timestamp = "2026-09-08T05:41:54Z".parse().expect("a valid time");
-    let job_types: Vec<Option<JobType>> = JobType::VARIANTS
-        .iter()
-        .copied()
-        .map(Some)
-        .chain([None])
-        .collect();
+    let job_types: Vec<JobType> = JobType::VARIANTS.to_vec();
     let jobs = MwaAsvoJobVec(
         job_types
             .into_iter()
@@ -1857,13 +1853,13 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
                         user_id: 4242,
                         first_name: "Test".to_string(),
                         last_name: "User".to_string(),
-                        job_params: serde_json::Map::new(),
+                        job_params: Default::default(),
                     },
                 )
             })
             .collect(),
     );
-    let expected = r#"{"201":{"obsid":1065880128,"jobId":201,"jobType":"Conversion","jobState":"Ready","files":null},"202":{"obsid":1065880128,"jobId":202,"jobType":"DownloadVisibilities","jobState":"Ready","files":null},"203":{"obsid":1065880128,"jobId":203,"jobType":"DownloadMetadata","jobState":"Ready","files":null},"204":{"obsid":1065880128,"jobId":204,"jobType":"DownloadVoltage","jobState":"Ready","files":null},"205":{"obsid":1065880128,"jobId":205,"jobType":"CancelJob","jobState":"Ready","files":null},"206":{"obsid":1065880128,"jobId":206,"jobType":"DownloadBeamformer","jobState":"Ready","files":null},"207":{"obsid":1065880128,"jobId":207,"jobType":"Imaging","jobState":"Ready","files":null},"208":{"obsid":1065880128,"jobId":208,"jobType":"Unknown","jobState":"Ready","files":null}}"#;
+    let expected = r#"{"201":{"obsid":1065880128,"jobId":201,"jobType":"Conversion","jobState":"Ready","files":null},"202":{"obsid":1065880128,"jobId":202,"jobType":"DownloadVisibilities","jobState":"Ready","files":null},"203":{"obsid":1065880128,"jobId":203,"jobType":"DownloadMetadata","jobState":"Ready","files":null},"204":{"obsid":1065880128,"jobId":204,"jobType":"DownloadVoltage","jobState":"Ready","files":null},"205":{"obsid":1065880128,"jobId":205,"jobType":"CancelJob","jobState":"Ready","files":null},"206":{"obsid":1065880128,"jobId":206,"jobType":"DownloadBeamformer","jobState":"Ready","files":null},"207":{"obsid":1065880128,"jobId":207,"jobType":"Imaging","jobState":"Ready","files":null}}"#;
 
     let output = super::legacy_json::to_legacy_json(&jobs).expect("serialises");
 
@@ -1875,7 +1871,7 @@ fn legacy_json_names_every_job_type_as_giant_squid_2_5_1_did() {
 /// it), and no key for a field that has no value.
 #[test]
 fn json_uses_the_openapi_names() {
-    let expected = r#"{"101":{"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":101,"job_params":{"delivery":"acacia","obs_id":1065880128},"job_state":"completed","job_type":"visibility","last_name":"User","modified":"2026-09-08T06:00:00Z","obs_id":1065880128,"product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"started":"2026-09-08T05:41:54Z","user_id":4242},"102":{"created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":102,"job_params":{"obs_id":1065880128},"job_state":"queued","job_type":"conversion","last_name":"User","obs_id":1065880128,"user_id":4242},"103":{"created":"2026-09-08T05:41:54Z","error_code":12,"error_text":"the \"conversion\" failed","first_name":"Test","job_id":103,"job_params":{"obs_id":1065880128},"job_state":"error","job_type":"imaging","last_name":"User","obs_id":1065880128,"product":{"files":[]},"user_id":4242}}"#;
+    let expected = r#"{"101":{"completed":"2026-09-08T06:00:00Z","created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":101,"job_params":{"allow_resubmit":false,"delivery":"acacia","delivery_format":"tar","obs_id":1065880128},"job_state":"completed","job_type":"visibility","last_name":"User","modified":"2026-09-08T06:00:00Z","obs_id":1065880128,"product":{"files":[{"sha1":"abababababababababababababababababababab","size":1234,"type":"acacia","url":"https://example.org/a.tar"},{"path":"/scratch/mwa/x","size":5,"type":"scratch"}]},"started":"2026-09-08T05:41:54Z","user_id":4242},"102":{"created":"2026-09-08T05:41:54Z","first_name":"Test","job_id":102,"job_params":{"allow_resubmit":false,"delivery":"acacia","delivery_format":"tar","obs_id":1065880128},"job_state":"queued","job_type":"conversion","last_name":"User","obs_id":1065880128,"user_id":4242},"103":{"created":"2026-09-08T05:41:54Z","error_code":12,"error_text":"the \"conversion\" failed","first_name":"Test","job_id":103,"job_params":{"allow_resubmit":false,"delivery":"acacia","delivery_format":"tar","obs_id":1065880128},"job_state":"error","job_type":"imaging","last_name":"User","obs_id":1065880128,"product":{"files":[]},"user_id":4242}}"#;
 
     let output = json_sample_jobs().json().expect("serialises");
 

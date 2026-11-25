@@ -21,7 +21,7 @@ fn each_list_is_in_the_schema_order_and_parses_back() {
     );
     assert_eq!(
         values::<Polarization>(),
-        ["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"]
+        ["xx", "yy", "xy", "yx", "xxyy", "i", "iquv"]
     );
     assert_eq!(
         values::<JobState>().first().map(String::as_str),

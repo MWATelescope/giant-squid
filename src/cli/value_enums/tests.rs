@@ -13,8 +13,8 @@ use clap::{CommandFactory, Parser};
 use super::*;
 use crate::cli::Args;
 use crate::mwa_asvo::api::openapi::{
-    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, Output, PhaseCentre,
-    Polarization,
+    DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, OutputFormat,
+    PhaseCentre, Polarization,
 };
 
 // The values in the schema's order, which `--help` and the messages use.
@@ -23,7 +23,7 @@ const DELIVERY_FORMAT: &[&str] = &["tar", "files"];
 const OUTPUT: &[&str] = &["ms", "uvfits"];
 const CENTRE: &[&str] = &["phase", "pointing", "custom"];
 const OUTPUT_MODE: &[&str] = &["fits", "all_fits", "all_files"];
-const POLARIZATION: &[&str] = &["xx", "yy", "xy", "yx", "xx,yy", "i", "iquv"];
+const POLARIZATION: &[&str] = &["xx", "yy", "xy", "yx", "xxyy", "i", "iquv"];
 const WEIGHTING: &[&str] = &["briggs", "uniform", "natural"];
 
 /// Every option that takes a schema enum: the command, the option and the
@@ -95,7 +95,7 @@ fn every_schema_enum_is_listed_once_and_in_order() {
     check_enum::<PhaseCentre>();
     check_enum::<DeliveryDestination>();
     check_enum::<DeliveryFormat>();
-    check_enum::<Output>();
+    check_enum::<OutputFormat>();
     check_enum::<ImageOutputMode>();
     check_enum::<Polarization>();
     check_enum::<ImageWeighting>();
@@ -163,13 +163,13 @@ fn the_polarisation_option_gives_the_api_text() {
         "--output-mode",
         "fits",
         "--polarization",
-        "xx,yy",
+        "xxyy",
         "1065880128",
     ])
-    .expect("xx,yy is a polarisation");
+    .expect("xxyy is a polarisation");
     match args {
         Args::SubmitImage { image, .. } => {
-            assert_eq!(image.wsclean.polarization.to_string(), "xx,yy")
+            assert_eq!(image.wsclean.polarization.to_string(), "xxyy")
         }
         other => panic!("expected SubmitImage, got {other:?}"),
     }
@@ -187,7 +187,7 @@ fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
         "--output-mode",
         "All-Fits",
         "--polarization",
-        "XX,YY",
+        "XXYY",
         "1065880128",
     ])
     .expect("the values parse");
@@ -195,7 +195,7 @@ fn every_named_value_is_parsed_without_regard_to_case_or_separators() {
         Args::SubmitImage { image, .. } => {
             assert_eq!(image.delivery_args.delivery, DeliveryDestination::Acacia);
             assert_eq!(image.wsclean.output_mode, ImageOutputMode::AllFits);
-            assert_eq!(image.wsclean.polarization, Polarization::XxYy);
+            assert_eq!(image.wsclean.polarization, Polarization::Xxyy);
         }
         other => panic!("expected SubmitImage, got {other:?}"),
     }

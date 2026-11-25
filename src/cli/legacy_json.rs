@@ -85,17 +85,16 @@ impl<'a> LegacyState<'a> {
 }
 
 /// A job type, as the old format wrote it (for example
-/// `DownloadVisibilities`). A job with no type was `Unknown`.
-fn legacy_job_type(job_type: Option<JobType>) -> &'static str {
+/// `DownloadVisibilities`).
+fn legacy_job_type(job_type: JobType) -> &'static str {
     match job_type {
-        Some(JobType::Conversion) => "Conversion",
-        Some(JobType::Visibility) => "DownloadVisibilities",
-        Some(JobType::Metadata) => "DownloadMetadata",
-        Some(JobType::Voltage) => "DownloadVoltage",
-        Some(JobType::Cancel) => "CancelJob",
-        Some(JobType::Beamformer) => "DownloadBeamformer",
-        Some(JobType::Imaging) => "Imaging",
-        None => "Unknown",
+        JobType::Conversion => "Conversion",
+        JobType::Visibility => "DownloadVisibilities",
+        JobType::Metadata => "DownloadMetadata",
+        JobType::Voltage => "DownloadVoltage",
+        JobType::Cancel => "CancelJob",
+        JobType::Beamformer => "DownloadBeamformer",
+        JobType::Imaging => "Imaging",
     }
 }
 

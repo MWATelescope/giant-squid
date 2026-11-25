@@ -37,9 +37,6 @@
 //!   not keys of an imaging line: use `abs_threshold` and `wstack_nwlayers`.
 //! - An imaging line must give `output_mode`: the schema requires it and
 //!   gives it no default.
-//! - The schema's polarization `xx,yy` has a comma, which separates the
-//!   cells, so an imaging line gives it as `polarization=xxyy`
-//!   ([`CSV_POLARIZATION_XX_YY`]).
 //!
 //! A key that a line does not give has the default of the schema. The
 //! exceptions are `delivery`, `delivery_format` and `allow_resubmit`,
@@ -61,9 +58,10 @@ use crate::mwa_asvo::api::job_params::{
 };
 use crate::mwa_asvo::api::openapi::{
     ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams, ImageOutputMode,
-    ImageWeighting, ImagingJobParams, JobSubmittedResponse, Output, PhaseCentre, Polarization,
+    ImageWeighting, ImagingJobParams, JobSubmittedResponse, OutputFormat, PhaseCentre,
+    Polarization,
 };
-use crate::mwa_asvo::api::schema_enums::{sanitize_identifier, SchemaEnum};
+use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 use crate::mwa_asvo::api::validate::{
     self, validate_conversion_params, validate_download_params, validate_imaging_params,
 };
@@ -98,10 +96,6 @@ const DOWNLOAD_TYPE_META: &str = "vis_meta";
 
 /// The key of the polarization of an imaging line.
 const KEY_POLARIZATION: &str = "polarization";
-/// The value of [`KEY_POLARIZATION`] for the schema's [`Polarization::XxYy`]
-/// (`xx,yy`): a cell cannot have a comma, because a comma separates the
-/// cells.
-pub const CSV_POLARIZATION_XX_YY: &str = "xxyy";
 
 /// The character that starts a comment line.
 const COMMENT_CHAR: char = '#';
@@ -457,31 +451,6 @@ macro_rules! impl_whole_number {
 
 impl_whole_number!(u8, u64, i64);
 
-/// The [`KEY_POLARIZATION`] cell of an imaging line: a schema value, as
-/// [`Row::named`] reads it, or [`CSV_POLARIZATION_XX_YY`] for
-/// [`Polarization::XxYy`].
-fn csv_polarization(row: &mut Row) -> Result<Option<Polarization>, String> {
-    let Some(value) = row.text(KEY_POLARIZATION) else {
-        return Ok(None);
-    };
-    if sanitize_identifier(&value) == CSV_POLARIZATION_XX_YY {
-        return Ok(Some(Polarization::XxYy));
-    }
-    Polarization::from_name(&value).map(Some).ok_or_else(|| {
-        let names: Vec<String> = Polarization::VARIANTS
-            .iter()
-            .map(|p| match p {
-                Polarization::XxYy => CSV_POLARIZATION_XX_YY.to_string(),
-                other => other.to_string(),
-            })
-            .collect();
-        format!(
-            "{KEY_POLARIZATION}: `{value}` is not one of {}",
-            names.join(", ")
-        )
-    })
-}
-
 /// A value that the job type requires.
 fn required<T>(value: Option<T>, key: &str) -> Result<T, String> {
     value.ok_or_else(|| format!("{key} is required"))
@@ -568,7 +537,7 @@ macro_rules! apply_preprocessing {
             $params.avg_time_res = Some(v);
         }
         if let Some(v) = $row.float("flag_edge_width")? {
-            $params.flag_edge_width = v;
+            $params.flag_edge_width = Some(v);
         }
         if let Some(v) = $row.boolean("apply_di_cal")? {
             $params.apply_di_cal = v;
@@ -620,7 +589,7 @@ fn parse_conversion(
 ) -> Result<ConversionJobParams, String> {
     let mut params = conversion_params(obs_id);
     apply_delivery!(row, defaults, params);
-    if let Some(output) = row.named::<Output>("output")? {
+    if let Some(output) = row.named::<OutputFormat>("output")? {
         params.output = output;
     }
     apply_preprocessing!(row, params);
@@ -694,7 +663,7 @@ fn parse_imaging(
     if let Some(v) = row.boolean("join_channels")? {
         params.join_channels = v;
     }
-    if let Some(v) = csv_polarization(row)? {
+    if let Some(v) = row.named::<Polarization>(KEY_POLARIZATION)? {
         params.polarization = v;
     }
     apply_resubmit!(row, defaults, params);

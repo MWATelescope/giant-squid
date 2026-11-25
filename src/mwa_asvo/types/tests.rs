@@ -162,7 +162,7 @@ fn job(job_id: MwaAsvoJobId, state: JobState) -> MwaAsvoJob {
         JobDetailResponse {
             job_id,
             obs_id: 0,
-            job_type: Some(job_type("visibility")),
+            job_type: job_type("visibility"),
             job_state: state,
             product: None,
             created: test_created(),
@@ -174,7 +174,7 @@ fn job(job_id: MwaAsvoJobId, state: JobState) -> MwaAsvoJob {
             user_id: TEST_USER_ID,
             first_name: "Test".to_string(),
             last_name: "User".to_string(),
-            job_params: serde_json::Map::new(),
+            job_params: Default::default(),
         },
     )
 }
@@ -306,7 +306,7 @@ fn job_with(job_id: MwaAsvoJobId, obs_id: u64, job_type: JobType, state: JobStat
         JobDetailResponse {
             job_id,
             obs_id: 0,
-            job_type: Some(job_type),
+            job_type,
             job_state: state,
             product: None,
             created: test_created(),
@@ -318,7 +318,7 @@ fn job_with(job_id: MwaAsvoJobId, obs_id: u64, job_type: JobType, state: JobStat
             user_id: TEST_USER_ID,
             first_name: "Test".to_string(),
             last_name: "User".to_string(),
-            job_params: serde_json::Map::new(),
+            job_params: Default::default(),
         },
     )
 }

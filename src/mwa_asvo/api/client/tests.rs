@@ -752,7 +752,7 @@ fn a_job_listing_is_mapped_from_the_api_response() {
     let job = &jobs.0[0];
     assert_eq!(job.job_id(), crate::test_config::TEST_MWA_ASVO_JOB_ID);
     assert_eq!(job.obs_id().get(), TEST_OBS_ID_I64 as u64);
-    assert_eq!(job.job_type, Some(job_type("visibility")));
+    assert_eq!(job.job_type, job_type("visibility"));
     // The API says "completed" where the rest of giant-squid says "ready".
     assert_eq!(job.job_state, JobState::Completed);
 }
@@ -817,7 +817,7 @@ fn an_errored_job_carries_the_servers_error_text() {
         jobs.0[0].error_text.as_deref(),
         Some("Observation has no data files")
     );
-    assert_eq!(jobs.0[0].job_type, Some(job_type("conversion")));
+    assert_eq!(jobs.0[0].job_type, job_type("conversion"));
     // The server sent no `error_code` key, which is the same as null.
     assert_eq!(jobs.0[0].error_code, None);
 }
@@ -893,9 +893,9 @@ fn a_job_state_the_schema_does_not_list_fails_the_listing() {
     assert!(err.to_string().contains("wibble"), "{err}");
 }
 
-/// The server may give no `job_type` (schema 1.13); the job has no type.
+/// The schema requires `job_type` (2.8.2): a job without one is an error.
 #[test]
-fn a_job_without_a_type_has_none() {
+fn a_job_without_a_type_is_an_error() {
     let env = TestEnv::with_session();
     let mut typeless = job_detail(1, TEST_OBS_ID, "queued", 1);
     typeless["job_type"] = serde_json::Value::Null;
@@ -904,15 +904,13 @@ fn a_job_without_a_type_has_none() {
         .as_object_mut()
         .expect("a job is an object")
         .remove("job_type");
-    env.mock_get_jobs(vec![typeless, missing]);
 
-    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
-    let jobs = client
-        .get_jobs(&JobsFilter::default())
-        .expect("get_jobs should succeed");
-
-    let types: Vec<_> = jobs.0.iter().map(|j| j.job_type).collect();
-    assert_eq!(types, [None, None]);
+    for job in [typeless, missing] {
+        env.mock_get_jobs(vec![job]);
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+        let result = client.get_jobs(&JobsFilter::default());
+        assert!(result.is_err(), "a job with no job_type is refused");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1683,7 +1681,7 @@ fn a_recorded_job_listing_is_mapped_as_expected() {
     let job = &jobs.0[0];
     assert_eq!(job.job_id(), RECORDED_JOB_ID);
     assert_eq!(job.obs_id().get(), RECORDED_OBS_ID);
-    assert_eq!(job.job_type, Some(job_type("imaging")));
+    assert_eq!(job.job_type, job_type("imaging"));
     assert_eq!(job.job_state, JobState::Completed);
     assert!(job.completed.is_some(), "completed should be parsed");
 }
@@ -2067,6 +2065,8 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
     let mut detail = job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "error", 1);
     detail["error_code"] = json!(7);
     detail["error_text"] = json!("it failed");
+    // A typed `job_params` needs a number for `obs_id`.
+    detail["job_params"] = json!({"obs_id": TEST_OBS_ID_I64, "delivery": "acacia"});
     detail["started"] = json!("2026-09-08T05:50:00");
     detail["modified"] = json!("2026-09-08T05:55:00Z");
     env.mock_get_jobs(vec![detail]);
@@ -2087,7 +2087,8 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
     assert_eq!(job.user_id, TEST_USER_ID);
     assert_eq!(job.first_name, "Test");
     assert_eq!(job.last_name, "User");
-    assert_eq!(job.job_params["delivery"], "acacia");
+    let job_params = serde_json::to_value(&job.job_params).expect("job_params is JSON");
+    assert_eq!(job_params["delivery"], "acacia");
 }
 
 /// An API error keeps its field errors and request ID, and shows them in

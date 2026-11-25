@@ -92,10 +92,7 @@ pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool) {
         table.add_row(Row::from(vec![
             Cell::new(j.job_id()),
             Cell::new(j.obs_id()),
-            coloured(
-                Cell::new(j.job_type.map(|t| t.to_string()).unwrap_or_default()),
-                job_type_colour(j.job_type),
-            ),
+            coloured(Cell::new(j.job_type), Some(job_type_colour(j.job_type))),
             coloured(
                 Cell::new(job_state_text(&j, now)),
                 Some(job_state_colour(&j, now)),
@@ -117,14 +114,14 @@ fn coloured(cell: Cell, colour: Option<Color>) -> Cell {
     }
 }
 
-/// The colour of a job type cell. A job with no type has no colour.
-fn job_type_colour(job_type: Option<JobType>) -> Option<Color> {
-    job_type.map(|job_type| match job_type {
+/// The colour of a job type cell.
+fn job_type_colour(job_type: JobType) -> Color {
+    match job_type {
         JobType::Metadata => Color::DarkYellow,
         JobType::Voltage => Color::DarkMagenta,
         JobType::Cancel => Color::DarkRed,
         _ => Color::DarkBlue,
-    })
+    }
 }
 
 /// The text of a job state cell: the schema's value (for example

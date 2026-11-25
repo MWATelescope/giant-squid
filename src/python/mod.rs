@@ -158,8 +158,8 @@ mod module {
     use super::types::{
         PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress, PyImageOutputMode,
         PyImageWeighting, PyJobCancelledResponse, PyJobDetailResponse, PyJobFile, PyJobProduct,
-        PyJobState, PyJobSubmittedResponse, PyJobType, PyMwaAsvoJob, PyMwaAsvoJobVec, PyOutput,
-        PyPhaseCentre, PyPolarization, PySortBy, PyStatus,
+        PyJobState, PyJobSubmittedResponse, PyJobType, PyMwaAsvoJob, PyMwaAsvoJobVec,
+        PyOutputFormat, PyPhaseCentre, PyPolarization, PySortBy, PyStatus,
     };
 
     /// Make Python see changes to its logging configuration.

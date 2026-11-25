@@ -1216,7 +1216,7 @@ mod retries {
             JobDetailResponse {
                 job_id: crate::MwaAsvoJobId::new(TEST_JOB_ID).expect("a test job ID is not zero"),
                 obs_id: 0,
-                job_type: Some(job_type("visibility")),
+                job_type: job_type("visibility"),
                 job_state: JobState::Completed,
                 product: None,
                 created: jiff::Timestamp::UNIX_EPOCH,
@@ -1228,7 +1228,7 @@ mod retries {
                 user_id: 1,
                 first_name: "Test".to_string(),
                 last_name: "User".to_string(),
-                job_params: serde_json::Map::new(),
+                job_params: Default::default(),
             },
         )
     }

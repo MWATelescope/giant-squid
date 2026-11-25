@@ -202,7 +202,7 @@ SCHEMA_TYPES = [
     "JobState",
     "JobSubmittedResponse",
     "JobType",
-    "Output",
+    "OutputFormat",
     "PhaseCentre",
     "Polarization",
     "SortBy",

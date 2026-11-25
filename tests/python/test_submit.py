@@ -193,7 +193,7 @@ def test_conversion_job_sends_the_arguments(client: gs.MwaAsvoClient, httpserver
             TEST_OBS_ID,
             delivery=gs.DeliveryDestination.Scratch,
             delivery_format=gs.DeliveryFormat.Files,
-            output=gs.Output.Uvfits,
+            output=gs.OutputFormat.Uvfits,
             avg_freq_res=FREQ_RES,
             avg_time_res=FREQ_RES,
             flag_edge_width=FREQ_RES,
@@ -297,7 +297,7 @@ def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
     client.submit_preprocess_job(IMAGING_JOB(TEST_OBS_ID))
 
     body = body_sent_to(httpserver, IMAGING_PATH)
-    assert body["polarization"] == "xx,yy"
+    assert body["polarization"] == "i"
     assert body["output_mode"] == "fits"
     assert body["weighting"] == "briggs"
     assert body["apply_di_cal"] is True
@@ -437,7 +437,7 @@ def test_image_from_job_uses_the_schema_defaults_when_arguments_are_left_out(
     client.submit_image_from_job(IMAGE_FROM_JOB(SOURCE_JOB_ID))
 
     body = body_sent_to(httpserver, IMAGE_FROM_JOB_PATH)
-    assert body["polarization"] == "xx,yy"
+    assert body["polarization"] == "i"
     for name in ("image_size", "pixel_scale"):
         assert name not in body
     assert body["weighting"] == "briggs"
@@ -645,12 +645,12 @@ def test_the_download_method_takes_only_a_download_body(client: gs.MwaAsvoClient
 def test_the_new_enums_use_the_api_values_as_their_text() -> None:
     """str() of a member is the value the API uses."""
     assert str(gs.DeliveryFormat.Tar) == "tar"
-    assert str(gs.Output.Uvfits) == "uvfits"
+    assert str(gs.OutputFormat.Uvfits) == "uvfits"
     assert str(gs.PhaseCentre.Custom) == "custom"
     assert str(gs.ImageOutputMode.AllFits) == "all_fits"
     assert str(gs.ImageWeighting.Briggs) == "briggs"
-    assert str(gs.Polarization.XxYy) == "xx,yy"
-    assert gs.Output.Ms != gs.Output.Uvfits
+    assert str(gs.Polarization.Xxyy) == "xxyy"
+    assert gs.OutputFormat.Ms != gs.OutputFormat.Uvfits
 
 
 def test_the_response_has_a_readable_repr(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
@@ -822,7 +822,7 @@ def test_image_from_job_rejects_a_polarisation_string() -> None:
         gs.ImageFromJobParams(
             SOURCE_JOB_ID,
             output_mode=TEST_OUTPUT_MODE,
-            polarization="xx,yy",  # ty: ignore[invalid-argument-type]
+            polarization="xxyy",  # ty: ignore[invalid-argument-type]
         )
 
 

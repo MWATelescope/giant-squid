@@ -170,10 +170,9 @@ giant-squid submit-image 1065880128 -o fits --image-size 3072 --pixel-scale 20 \
 
 For an Obs ID, the conversion part of an imaging job also has the new
 conversion defaults (see above). Run `giant-squid submit-image --help` to
-see every default. `--polarization` (`xx`, `yy`, `xy`, `yx`, `xx,yy`, `i`
-or `iquv`, default `xx,yy`) is new. In a `submit-csv` imaging line, give
-`output_mode`, and give `xx,yy` as `polarization=xxyy`: a cell cannot hold
-a comma.
+see every default. `--polarization` (`xx`, `yy`, `xy`, `yx`, `xxyy`, `i`
+or `iquv`, default `i`) is new. In a `submit-csv` imaging line, give
+`output_mode`.
 
 ## Other submit commands
 

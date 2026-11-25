@@ -6,10 +6,7 @@
 
 use serde_json::{json, Value};
 
-use super::{
-    parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams,
-    CSV_POLARIZATION_XX_YY,
-};
+use super::{parse_manta_ray_csv, parse_with_warnings, CsvDefaults, CsvJob, CsvJobParams};
 use crate::mwa_asvo::api::openapi::{DeliveryDestination, DeliveryFormat};
 
 const BEAMFORMER_FILE: &str =
@@ -660,7 +657,7 @@ fn the_other_fields_of_the_schema_are_keys_of_an_imaging_job() {
         &body(&jobs[0]),
         json!({
             "output_mode": "all_fits",
-            "polarization": "xx,yy",
+            "polarization": "xxyy",
             "join_channels": true,
             "abs_threshold": 0.5,
             "wstack_nwlayers": 64,
@@ -680,13 +677,12 @@ fn an_imaging_line_without_an_output_mode_is_refused() {
     assert_eq!(problems, ["line 1: output_mode is required"]);
 }
 
-/// The schema's polarization `xx,yy` has a comma, which separates the cells,
-/// so a line gives it as `xxyy`. The other values are the schema's.
+/// The polarization values are the schema's, whatever the case.
 #[test]
-fn the_polarization_xx_yy_is_given_as_xxyy() {
+fn the_polarization_values_are_the_schemas() {
     for (value, expected) in [
-        (CSV_POLARIZATION_XX_YY, "xx,yy"),
-        ("XXYY", "xx,yy"),
+        ("xxyy", "xxyy"),
+        ("XXYY", "xxyy"),
         ("xx", "xx"),
         ("IQUV", "iquv"),
     ] {

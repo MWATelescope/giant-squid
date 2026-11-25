@@ -32,9 +32,8 @@ pub fn job_type(name: &str) -> JobType {
 /// API is.
 pub fn mwa_asvo_job(obs_id: ObsId, mut detail: JobDetailResponse) -> MwaAsvoJob {
     detail.obs_id = i64::from(obs_id);
-    detail
-        .job_params
-        .insert("obs_id".to_string(), serde_json::json!(u64::from(obs_id)));
+    detail.job_params = serde_json::from_value(serde_json::json!({"obs_id": u64::from(obs_id)}))
+        .expect("a test job's params should be readable");
     MwaAsvoJob::try_from(detail).expect("a test job should be usable")
 }
 

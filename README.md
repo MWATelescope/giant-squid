@@ -427,7 +427,7 @@ Options:
       --avg-time-res <AVG_TIME_RES>
           Time resolution to average to (s), or null [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz) [default: 80]
+          Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply the DI calibration solution [default: false] [possible values: true, false]
       --centre <CENTRE>
@@ -501,7 +501,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `-o`, `--output` | Output data format (CASA measurement set or UVFITS) | one of `ms`, `uvfits` | ms |
 | `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280, or null | 40 |
 | `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
-| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
+| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640, or null | 80 |
 | `--apply-di-cal` | Apply the basic direction-independent calibration solution (if available). `--apply-di-cal` alone is `--apply-di-cal=true` | `true` or `false` | false |
 | `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
@@ -541,7 +541,7 @@ Options:
       --avg-time-res <AVG_TIME_RES>
           Time resolution to average to (s), or null [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz) [default: 80]
+          Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply the DI calibration solution [default: true] [possible values: true, false]
       --centre <CENTRE>
@@ -593,7 +593,7 @@ Options:
       --pixel-scale <PIXEL_SCALE>
           Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
       --polarization <POLARIZATION>
-          Polarisation to image [default: xx,yy] [possible values: xx, yy, xy, yx, xx,yy, i, iquv]
+          Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -645,7 +645,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--clean-iterations` | Maximum number of clean iterations to perform | 0 to 1000000 | 100000 |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
-| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640 | 80 |
+| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640, or null | 80 |
 | `--image-size` | width and height in pixels of output image. Leave unset to let the server calculate it | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | none |
 | `--join-channels` | Join output channel groups for cleaning | `true` or `false`, given as `--join-channels=false` | true |
 | `--join-polarizations` | Join polarisations for cleaning | flag, or `true` or `false` | false |
@@ -655,7 +655,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `-o`, `--output-mode` | The output mode / product to request. Required | one of `fits`, `all_fits`, `all_files` | none (required) |
 | `--centre` | Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec | one of `phase`, `pointing`, `custom` | phase |
 | `--pixel-scale` | Number of arcsecs per pixel. Leave unset to let the server calculate it | 10 to 120 | none |
-| `--polarization` | Polarisation to image | one of `xx`, `yy`, `xy`, `yx`, `xx,yy`, `i`, `iquv` | xx,yy |
+| `--polarization` | Polarisation to image | one of `xx`, `yy`, `xy`, `yx`, `xxyy`, `i`, `iquv` | i |
 | `--robust` | Robustness parameter- only used if `weighting=briggs` | -2 to 2 | -0.5 |
 | `--uvw-max` | Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) | 1 to 5000 | none |
 | `--uvw-min` | Minimum uv distance to image, in wavelengths | 1 to 100 | 75 |
@@ -723,7 +723,7 @@ Options:
       --pixel-scale <PIXEL_SCALE>
           Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
       --polarization <POLARIZATION>
-          Polarisation to image [default: xx,yy] [possible values: xx, yy, xy, yx, xx,yy, i, iquv]
+          Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
       --uvw-max <UVW_MAX>
@@ -807,7 +807,6 @@ It differs from manta-ray-client where that client sends a mistake to the server
 - A key that the job type does not have is an error (a typo such as `no_rf=true` cannot change a job unseen).
   `clean_threshold` and `nwlayers`, which the MWA ASVO API no longer has, are not keys of an imaging line: use
   `abs_threshold` and `wstack_nwlayers`.
-- A cell cannot hold a comma, so an imaging line gives the polarization `xx,yy` as `polarization=xxyy`.
 - A key that a line gives twice, and a line that makes the same job as an earlier line, are warnings. As in
   manta-ray-client, the last value of a key is used.
 - A cell with a key and no value (`delivery=`) is ignored, as in manta-ray-client.

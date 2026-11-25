@@ -158,7 +158,7 @@ fn a_preprocess_body_is_checked_as_the_body_it_holds() {
     assert!(PreprocessJobParams::from(conversion.clone())
         .validate()
         .is_ok());
-    conversion.flag_edge_width = -1.0;
+    conversion.flag_edge_width = Some(-1.0);
     assert!(matches!(
         PreprocessJobParams::from(conversion).validate(),
         Err(MwaAsvoApiError::InvalidParameter {

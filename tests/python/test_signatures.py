@@ -31,7 +31,7 @@ CLASSES = [
 ENUMS = {
     "DeliveryDestination": gs.DeliveryDestination,
     "DeliveryFormat": gs.DeliveryFormat,
-    "Output": gs.Output,
+    "OutputFormat": gs.OutputFormat,
     "PhaseCentre": gs.PhaseCentre,
     "ImageOutputMode": gs.ImageOutputMode,
     "Polarization": gs.Polarization,

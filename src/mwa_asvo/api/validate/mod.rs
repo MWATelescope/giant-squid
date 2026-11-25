@@ -215,7 +215,7 @@ macro_rules! shared_imaging_checks {
 fn check_preprocessing(
     avg_freq_res: Option<f64>,
     avg_time_res: Option<f64>,
-    flag_edge_width: f64,
+    flag_edge_width: Option<f64>,
     centre: PhaseCentre,
     custom_centre_ra: Option<f64>,
     custom_centre_dec: Option<f64>,
@@ -223,7 +223,7 @@ fn check_preprocessing(
     check_all(&[
         ("avg_freq_res", AVG_FREQ_RES, avg_freq_res),
         ("avg_time_res", AVG_TIME_RES, avg_time_res),
-        ("flag_edge_width", FLAG_EDGE_WIDTH, Some(flag_edge_width)),
+        ("flag_edge_width", FLAG_EDGE_WIDTH, flag_edge_width),
         ("custom_centre_ra", CUSTOM_CENTRE_RA, custom_centre_ra),
         ("custom_centre_dec", CUSTOM_CENTRE_DEC, custom_centre_dec),
     ])?;

@@ -86,7 +86,7 @@ def job_detail(job_id: int, job_state: str, **extra: Any) -> dict[str, Any]:
         "created": "2026-09-08T05:41:54.757232",
         "first_name": "Test",
         "job_id": job_id,
-        "job_params": {"obs_id": str(TEST_OBS_ID), "delivery": "acacia"},
+        "job_params": {"obs_id": TEST_OBS_ID, "delivery": "acacia"},
         "obs_id": TEST_OBS_ID,
         "job_state": job_state,
         "job_type": JOB_TYPE_DOWNLOAD_VISIBILITIES,

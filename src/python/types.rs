@@ -18,8 +18,8 @@ use super::obs_id::{ObsIdArg, PyObsId};
 use super::typed::{JobId, JobIterator, JsonDict};
 use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, DeliveryFormat, ImageOutputMode, ImageWeighting, JobCancelledResponse,
-    JobDetailResponse, JobSubmittedResponse, JobType, Output, PhaseCentre, Polarization, SortBy,
-    Status,
+    JobDetailResponse, JobSubmittedResponse, JobType, OutputFormat, PhaseCentre, Polarization,
+    SortBy, Status,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
 use crate::mwa_asvo::{
@@ -251,10 +251,10 @@ macro_rules! detail_pymethods {
                 JobId(self.0.job_id)
             }
 
-            /// The job type, or `None` if the server gives none.
+            /// The job type.
             #[getter]
-            fn job_type(&self) -> Option<PyJobType> {
-                self.0.job_type.map(PyJobType::from)
+            fn job_type(&self) -> PyJobType {
+                PyJobType::from(self.0.job_type)
             }
 
             /// The job state.
@@ -384,10 +384,7 @@ detail_pymethods!(PyMwaAsvoJob, {
     fn __repr__(&self) -> String {
         let job_id = self.0.job_id();
         let obs_id = self.0.obs_id();
-        let job_type = self
-            .0
-            .job_type
-            .map_or("None".to_string(), |t| t.to_string());
+        let job_type = self.0.job_type;
         let job_state = self.0.job_state;
         format!(
             "MwaAsvoJob(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"
@@ -415,10 +412,7 @@ detail_pymethods!(PyJobDetailResponse, {
     fn __repr__(&self) -> String {
         let job_id = self.0.job_id;
         let obs_id = self.0.obs_id;
-        let job_type = self
-            .0
-            .job_type
-            .map_or("None".to_string(), |t| t.to_string());
+        let job_type = self.0.job_type;
         let job_state = self.0.job_state;
         format!(
             "JobDetailResponse(job_id={job_id}, obs_id={obs_id}, job_type={job_type}, job_state={job_state})"

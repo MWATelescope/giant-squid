@@ -306,7 +306,7 @@ impl MwaAsvoJobVec {
         self.retain(|j| {
             (job_ids.is_empty() || job_ids.contains(&j.job_id()))
                 && (obs_ids.is_empty() || obs_ids.contains(&j.obs_id))
-                && (job_types.is_empty() || j.job_type.is_some_and(|t| job_types.contains(&t)))
+                && (job_types.is_empty() || job_types.contains(&j.job_type))
                 && (states.is_empty() || states.contains(&j.job_state))
         })
     }
@@ -327,7 +327,7 @@ impl std::fmt::Display for MwaAsvoJob {
             "Job ID: {job_id}, Obs ID: {obs_id}, type: {type}, state: {state}, files: {files:?}",
             obs_id=self.obs_id,
             job_id=self.job_id(),
-            type=self.job_type.map(|t| t.to_string()).unwrap_or_default(),
+            type=self.job_type,
             state=self.job_state,
             files=self.product.as_ref().map(|p| &p.files),
         )
