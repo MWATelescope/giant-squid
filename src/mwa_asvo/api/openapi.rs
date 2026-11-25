@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.8.1";
+pub const MWA_ASVO_API_VERSION: &str = "2.8.2";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -129,7 +129,7 @@ pub struct ConversionJobParams {
     #[serde(default = "defaults::conversion_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::conversion_job_params_flag_edge_width")]
-    pub flag_edge_width: f64,
+    pub flag_edge_width: ::std::option::Option<f64>,
     #[serde(default)]
     pub no_apply_amps: bool,
     #[serde(default = "defaults::conversion_job_params_no_cable_delay")]
@@ -147,7 +147,7 @@ pub struct ConversionJobParams {
     pub obs_id: i64,
     ///output uvfits or measurement sets.
     #[serde(default = "defaults::conversion_job_params_output")]
-    pub output: Output,
+    pub output: OutputFormat,
 }
 impl ConversionJobParams {
     pub fn builder() -> builder::ConversionJobParams {
@@ -358,7 +358,7 @@ pub struct ImageFromJobParams {
     ///Correct the final images post-deconvolution using a Mueller matrix
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_primary_beam: bool,
-    ///Noise threshold ($\sigma$) above which a clean mask is automatically made.
+    ///Noise threshold (sigma) above which a clean mask is automatically made.
     #[serde(default = "defaults::default_u64::<i64, 3>")]
     pub auto_mask: i64,
     ///Automated stopping criteria based on residual noise level (sigma). Highly recommended.
@@ -409,7 +409,7 @@ pub struct ImageFromJobParams {
     ///Filters out very short baselines (useful to suppress massive diffuse noise).
     #[serde(default = "defaults::image_from_job_params_uvw_min")]
     pub uvw_min: f64,
-    /// Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
+    ///Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::image_from_job_params_weighting")]
     pub weighting: ImageWeighting,
     ///Number of w-layers for w-stacking.
@@ -590,7 +590,7 @@ pub struct ImagingJobParams {
     ///Correct the final images post-deconvolution using a Mueller matrix
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_primary_beam: bool,
-    ///Noise threshold ($\sigma$) above which a clean mask is automatically made.
+    ///Noise threshold (sigma) above which a clean mask is automatically made.
     #[serde(default = "defaults::default_u64::<i64, 3>")]
     pub auto_mask: i64,
     ///Automated stopping criteria based on residual noise level (sigma). Highly recommended.
@@ -617,7 +617,7 @@ pub struct ImagingJobParams {
     #[serde(default = "defaults::imaging_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     #[serde(default = "defaults::imaging_job_params_flag_edge_width")]
-    pub flag_edge_width: f64,
+    pub flag_edge_width: ::std::option::Option<f64>,
     ///Image size (pixels). When None is provided, the value will be calculated automatically
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub image_size: ::std::option::Option<ImageSizes>,
@@ -651,8 +651,6 @@ pub struct ImagingJobParams {
     #[serde(default = "defaults::imaging_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
     pub obs_id: i64,
-    #[serde(default = "defaults::imaging_job_params_output")]
-    pub output: OutputFormat,
     pub output_mode: ImageOutputMode,
     ///Pixel scale. If none is provided, this value will be calculated automatically
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -669,7 +667,7 @@ pub struct ImagingJobParams {
     ///Filters out very short baselines (useful to suppress massive diffuse noise).
     #[serde(default = "defaults::imaging_job_params_uvw_min")]
     pub uvw_min: f64,
-    /// Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
+    ///Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::imaging_job_params_weighting")]
     pub weighting: ImageWeighting,
     ///Number of w-layers for w-stacking.
@@ -713,12 +711,11 @@ pub struct JobDetailResponse {
     ///Unique job identifier
     pub job_id: ::std::num::NonZeroU64,
     ///Job parameters as JSON object (obs_id, delivery, processing options)
-    pub job_params: ::serde_json::Map<::std::string::String, ::serde_json::Value>,
+    pub job_params: JobParams,
     ///Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'
     pub job_state: JobState,
     ///Job type: 'conversion' | 'visibility' | 'metadata' | 'voltage' | 'cancel' | 'beamformer' | 'imaging'
-    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub job_type: ::std::option::Option<JobType>,
+    pub job_type: JobType,
     ///Last name of user who submitted the job
     pub last_name: ::std::string::String,
     ///Timestamp of when the job was last modified
@@ -817,6 +814,23 @@ pub struct JobListResponse {
 }
 impl JobListResponse {
     pub fn builder() -> builder::JobListResponse {
+        Default::default()
+    }
+}
+///Job parameters as JSON object (obs_id, delivery, processing options)
+#[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, Default, PartialEq)]
+pub struct JobParams {
+    #[serde(flatten, skip_serializing_if = "::std::option::Option::is_none")]
+    pub subtype_0: ::std::option::Option<DownloadJobParams>,
+    #[serde(flatten, skip_serializing_if = "::std::option::Option::is_none")]
+    pub subtype_1: ::std::option::Option<ConversionJobParams>,
+    #[serde(flatten, skip_serializing_if = "::std::option::Option::is_none")]
+    pub subtype_2: ::std::option::Option<ImageFromJobParams>,
+    #[serde(flatten, skip_serializing_if = "::std::option::Option::is_none")]
+    pub subtype_3: ::std::option::Option<ImagingJobParams>,
+}
+impl JobParams {
+    pub fn builder() -> builder::JobParams {
         Default::default()
     }
 }
@@ -1622,66 +1636,6 @@ impl ObservationSizeResponse {
         Default::default()
     }
 }
-///output uvfits or measurement sets.
-#[derive(
-    ::serde::Deserialize,
-    ::serde::Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd
-)]
-pub enum Output {
-    #[serde(rename = "ms")]
-    Ms,
-    #[serde(rename = "uvfits")]
-    Uvfits,
-}
-impl ::std::fmt::Display for Output {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Ms => f.write_str("ms"),
-            Self::Uvfits => f.write_str("uvfits"),
-        }
-    }
-}
-impl ::std::str::FromStr for Output {
-    type Err = self::error::ConversionError;
-    fn from_str(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "ms" => Ok(Self::Ms),
-            "uvfits" => Ok(Self::Uvfits),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for Output {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &str,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for Output {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::default::Default for Output {
-    fn default() -> Self {
-        Output::Ms
-    }
-}
 ///`OutputFormat`
 #[derive(
     ::serde::Deserialize,
@@ -1907,8 +1861,8 @@ pub enum Polarization {
     Xy,
     #[serde(rename = "yx")]
     Yx,
-    #[serde(rename = "xx,yy")]
-    XxYy,
+    #[serde(rename = "xxyy")]
+    Xxyy,
     #[serde(rename = "i")]
     I,
     #[serde(rename = "iquv")]
@@ -1921,7 +1875,7 @@ impl ::std::fmt::Display for Polarization {
             Self::Yy => f.write_str("yy"),
             Self::Xy => f.write_str("xy"),
             Self::Yx => f.write_str("yx"),
-            Self::XxYy => f.write_str("xx,yy"),
+            Self::Xxyy => f.write_str("xxyy"),
             Self::I => f.write_str("i"),
             Self::Iquv => f.write_str("iquv"),
         }
@@ -1937,7 +1891,7 @@ impl ::std::str::FromStr for Polarization {
             "yy" => Ok(Self::Yy),
             "xy" => Ok(Self::Xy),
             "yx" => Ok(Self::Yx),
-            "xx,yy" => Ok(Self::XxYy),
+            "xxyy" => Ok(Self::Xxyy),
             "i" => Ok(Self::I),
             "iquv" => Ok(Self::Iquv),
             _ => Err("invalid value".into()),
@@ -3089,7 +3043,10 @@ pub mod builder {
             super::DeliveryFormat,
             ::std::string::String,
         >,
-        flag_edge_width: ::std::result::Result<f64, ::std::string::String>,
+        flag_edge_width: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         no_apply_amps: ::std::result::Result<bool, ::std::string::String>,
         no_cable_delay: ::std::result::Result<
             ::std::option::Option<bool>,
@@ -3116,7 +3073,7 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output: ::std::result::Result<super::Output, ::std::string::String>,
+        output: ::std::result::Result<super::OutputFormat, ::std::string::String>,
     }
     impl ::std::default::Default for ConversionJobParams {
         fn default() -> Self {
@@ -3266,7 +3223,7 @@ pub mod builder {
         }
         pub fn flag_edge_width<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.flag_edge_width = value
@@ -3372,7 +3329,7 @@ pub mod builder {
         }
         pub fn output<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<super::Output>,
+            T: ::std::convert::TryInto<super::OutputFormat>,
             T::Error: ::std::fmt::Display,
         {
             self.output = value
@@ -4400,7 +4357,10 @@ pub mod builder {
             super::DeliveryFormat,
             ::std::string::String,
         >,
-        flag_edge_width: ::std::result::Result<f64, ::std::string::String>,
+        flag_edge_width: ::std::result::Result<
+            ::std::option::Option<f64>,
+            ::std::string::String,
+        >,
         image_size: ::std::result::Result<
             ::std::option::Option<super::ImageSizes>,
             ::std::string::String,
@@ -4436,7 +4396,6 @@ pub mod builder {
             ::std::string::String,
         >,
         obs_id: ::std::result::Result<i64, ::std::string::String>,
-        output: ::std::result::Result<super::OutputFormat, ::std::string::String>,
         output_mode: ::std::result::Result<
             super::ImageOutputMode,
             ::std::string::String,
@@ -4505,7 +4464,6 @@ pub mod builder {
                 ),
                 no_rfi: Ok(super::defaults::imaging_job_params_no_rfi()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
-                output: Ok(super::defaults::imaging_job_params_output()),
                 output_mode: Err("no value supplied for output_mode".to_string()),
                 pixel_scale: Ok(Default::default()),
                 polarization: Ok(super::defaults::imaging_job_params_polarization()),
@@ -4700,7 +4658,7 @@ pub mod builder {
         }
         pub fn flag_edge_width<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<f64>,
+            T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
             self.flag_edge_width = value
@@ -4874,16 +4832,6 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for obs_id: {e}"));
             self
         }
-        pub fn output<T>(mut self, value: T) -> Self
-        where
-            T: ::std::convert::TryInto<super::OutputFormat>,
-            T::Error: ::std::fmt::Display,
-        {
-            self.output = value
-                .try_into()
-                .map_err(|e| format!("error converting supplied value for output: {e}"));
-            self
-        }
         pub fn output_mode<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<super::ImageOutputMode>,
@@ -5015,7 +4963,6 @@ pub mod builder {
                 no_passband_gains: value.no_passband_gains?,
                 no_rfi: value.no_rfi?,
                 obs_id: value.obs_id?,
-                output: value.output?,
                 output_mode: value.output_mode?,
                 pixel_scale: value.pixel_scale?,
                 polarization: value.polarization?,
@@ -5060,7 +5007,6 @@ pub mod builder {
                 no_passband_gains: Ok(value.no_passband_gains),
                 no_rfi: Ok(value.no_rfi),
                 obs_id: Ok(value.obs_id),
-                output: Ok(value.output),
                 output_mode: Ok(value.output_mode),
                 pixel_scale: Ok(value.pixel_scale),
                 polarization: Ok(value.polarization),
@@ -5159,15 +5105,9 @@ pub mod builder {
         >,
         first_name: ::std::result::Result<::std::string::String, ::std::string::String>,
         job_id: ::std::result::Result<::std::num::NonZeroU64, ::std::string::String>,
-        job_params: ::std::result::Result<
-            ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-            ::std::string::String,
-        >,
+        job_params: ::std::result::Result<super::JobParams, ::std::string::String>,
         job_state: ::std::result::Result<super::JobState, ::std::string::String>,
-        job_type: ::std::result::Result<
-            ::std::option::Option<super::JobType>,
-            ::std::string::String,
-        >,
+        job_type: ::std::result::Result<super::JobType, ::std::string::String>,
         last_name: ::std::result::Result<::std::string::String, ::std::string::String>,
         modified: ::std::result::Result<
             ::std::option::Option<::jiff::Timestamp>,
@@ -5195,7 +5135,7 @@ pub mod builder {
                 job_id: Err("no value supplied for job_id".to_string()),
                 job_params: Err("no value supplied for job_params".to_string()),
                 job_state: Err("no value supplied for job_state".to_string()),
-                job_type: Ok(Default::default()),
+                job_type: Err("no value supplied for job_type".to_string()),
                 last_name: Err("no value supplied for last_name".to_string()),
                 modified: Ok(Default::default()),
                 obs_id: Err("no value supplied for obs_id".to_string()),
@@ -5278,9 +5218,7 @@ pub mod builder {
         }
         pub fn job_params<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<
-                ::serde_json::Map<::std::string::String, ::serde_json::Value>,
-            >,
+            T: ::std::convert::TryInto<super::JobParams>,
             T::Error: ::std::fmt::Display,
         {
             self.job_params = value
@@ -5304,7 +5242,7 @@ pub mod builder {
         }
         pub fn job_type<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::option::Option<super::JobType>>,
+            T: ::std::convert::TryInto<super::JobType>,
             T::Error: ::std::fmt::Display,
         {
             self.job_type = value
@@ -5780,6 +5718,110 @@ pub mod builder {
                 counts_by_state: Ok(value.counts_by_state),
                 jobs: Ok(value.jobs),
                 pagination: Ok(value.pagination),
+            }
+        }
+    }
+    #[derive(Clone, Debug)]
+    pub struct JobParams {
+        subtype_0: ::std::result::Result<
+            ::std::option::Option<super::DownloadJobParams>,
+            ::std::string::String,
+        >,
+        subtype_1: ::std::result::Result<
+            ::std::option::Option<super::ConversionJobParams>,
+            ::std::string::String,
+        >,
+        subtype_2: ::std::result::Result<
+            ::std::option::Option<super::ImageFromJobParams>,
+            ::std::string::String,
+        >,
+        subtype_3: ::std::result::Result<
+            ::std::option::Option<super::ImagingJobParams>,
+            ::std::string::String,
+        >,
+    }
+    impl ::std::default::Default for JobParams {
+        fn default() -> Self {
+            Self {
+                subtype_0: Ok(Default::default()),
+                subtype_1: Ok(Default::default()),
+                subtype_2: Ok(Default::default()),
+                subtype_3: Ok(Default::default()),
+            }
+        }
+    }
+    impl JobParams {
+        pub fn subtype_0<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<super::DownloadJobParams>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.subtype_0 = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for subtype_0: {e}")
+                });
+            self
+        }
+        pub fn subtype_1<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<
+                ::std::option::Option<super::ConversionJobParams>,
+            >,
+            T::Error: ::std::fmt::Display,
+        {
+            self.subtype_1 = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for subtype_1: {e}")
+                });
+            self
+        }
+        pub fn subtype_2<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<super::ImageFromJobParams>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.subtype_2 = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for subtype_2: {e}")
+                });
+            self
+        }
+        pub fn subtype_3<T>(mut self, value: T) -> Self
+        where
+            T: ::std::convert::TryInto<::std::option::Option<super::ImagingJobParams>>,
+            T::Error: ::std::fmt::Display,
+        {
+            self.subtype_3 = value
+                .try_into()
+                .map_err(|e| {
+                    format!("error converting supplied value for subtype_3: {e}")
+                });
+            self
+        }
+    }
+    impl ::std::convert::TryFrom<JobParams> for super::JobParams {
+        type Error = super::error::ConversionError;
+        fn try_from(
+            value: JobParams,
+        ) -> ::std::result::Result<Self, super::error::ConversionError> {
+            Ok(Self {
+                subtype_0: value.subtype_0?,
+                subtype_1: value.subtype_1?,
+                subtype_2: value.subtype_2?,
+                subtype_3: value.subtype_3?,
+            })
+        }
+    }
+    impl ::std::convert::From<super::JobParams> for JobParams {
+        fn from(value: super::JobParams) -> Self {
+            Self {
+                subtype_0: Ok(value.subtype_0),
+                subtype_1: Ok(value.subtype_1),
+                subtype_2: Ok(value.subtype_2),
+                subtype_3: Ok(value.subtype_3),
             }
         }
     }
@@ -10840,8 +10882,8 @@ pub mod defaults {
     pub(super) fn conversion_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
     }
-    pub(super) fn conversion_job_params_flag_edge_width() -> f64 {
-        80.0_f64
+    pub(super) fn conversion_job_params_flag_edge_width() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(80.0_f64)
     }
     pub(super) fn conversion_job_params_no_cable_delay() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
@@ -10867,8 +10909,8 @@ pub mod defaults {
     pub(super) fn conversion_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn conversion_job_params_output() -> super::Output {
-        super::Output::Ms
+    pub(super) fn conversion_job_params_output() -> super::OutputFormat {
+        super::OutputFormat::Ms
     }
     pub(super) fn download_job_params_allow_resubmit() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
@@ -10898,7 +10940,7 @@ pub mod defaults {
         0.8_f64
     }
     pub(super) fn image_from_job_params_polarization() -> super::Polarization {
-        super::Polarization::XxYy
+        super::Polarization::I
     }
     pub(super) fn image_from_job_params_robust() -> f64 {
         -0.5_f64
@@ -10933,8 +10975,8 @@ pub mod defaults {
     pub(super) fn imaging_job_params_delivery_format() -> super::DeliveryFormat {
         super::DeliveryFormat::Tar
     }
-    pub(super) fn imaging_job_params_flag_edge_width() -> f64 {
-        80.0_f64
+    pub(super) fn imaging_job_params_flag_edge_width() -> ::std::option::Option<f64> {
+        ::std::option::Option::Some(80.0_f64)
     }
     pub(super) fn imaging_job_params_mgain() -> f64 {
         0.8_f64
@@ -10959,11 +11001,8 @@ pub mod defaults {
     pub(super) fn imaging_job_params_no_rfi() -> ::std::option::Option<bool> {
         ::std::option::Option::Some(false)
     }
-    pub(super) fn imaging_job_params_output() -> super::OutputFormat {
-        super::OutputFormat::Ms
-    }
     pub(super) fn imaging_job_params_polarization() -> super::Polarization {
-        super::Polarization::XxYy
+        super::Polarization::I
     }
     pub(super) fn imaging_job_params_robust() -> f64 {
         -0.5_f64

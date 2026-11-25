@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.8.1"
+    "version": "2.8.2"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -239,12 +239,7 @@
           "default": false
         },
         "output": {
-          "type": "string",
-          "enum": [
-            "ms",
-            "uvfits"
-          ],
-          "title": "Output",
+          "$ref": "#/definitions/OutputFormat",
           "description": "output uvfits or measurement sets.",
           "default": "ms"
         },
@@ -276,9 +271,16 @@
           "default": 40.0
         },
         "flag_edge_width": {
-          "type": "number",
-          "maximum": 640.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 640.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Flag Edge Width",
           "default": 80.0
         },
@@ -733,7 +735,7 @@
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
-          "description": " Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
+          "description": "Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
           "default": "briggs",
           "x-cmd-flag": "-weight"
         },
@@ -744,7 +746,7 @@
           "title": "Robust",
           "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
           "default": -0.5,
-          "x-cmd-flag": "robust"
+          "x-cmd-value": "robust"
         },
         "clean_iterations": {
           "type": "integer",
@@ -803,7 +805,7 @@
           "maximum": 512.0,
           "minimum": 2.0,
           "title": "Auto Mask",
-          "description": "Noise threshold ($\\sigma$) above which a clean mask is automatically made.",
+          "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
           "x-cmd-flag": "-auto-mask"
         },
@@ -885,7 +887,7 @@
         "polarization": {
           "$ref": "#/definitions/Polarization",
           "description": "Polarization",
-          "default": "xx,yy",
+          "default": "i",
           "x-cmd-flag": "-pol"
         },
         "output_mode": {
@@ -992,7 +994,7 @@
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
-          "description": " Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
+          "description": "Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
           "default": "briggs",
           "x-cmd-flag": "-weight"
         },
@@ -1003,7 +1005,7 @@
           "title": "Robust",
           "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
           "default": -0.5,
-          "x-cmd-flag": "robust"
+          "x-cmd-value": "robust"
         },
         "clean_iterations": {
           "type": "integer",
@@ -1062,7 +1064,7 @@
           "maximum": 512.0,
           "minimum": 2.0,
           "title": "Auto Mask",
-          "description": "Noise threshold ($\\sigma$) above which a clean mask is automatically made.",
+          "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
           "x-cmd-flag": "-auto-mask"
         },
@@ -1144,15 +1146,11 @@
         "polarization": {
           "$ref": "#/definitions/Polarization",
           "description": "Polarization",
-          "default": "xx,yy",
+          "default": "i",
           "x-cmd-flag": "-pol"
         },
         "output_mode": {
           "$ref": "#/definitions/ImageOutputMode"
-        },
-        "output": {
-          "$ref": "#/definitions/OutputFormat",
-          "default": "ms"
         },
         "avg_time_res": {
           "anyOf": [
@@ -1182,9 +1180,16 @@
           "default": 40.0
         },
         "flag_edge_width": {
-          "type": "number",
-          "maximum": 640.0,
-          "minimum": 0.0,
+          "anyOf": [
+            {
+              "type": "number",
+              "maximum": 640.0,
+              "minimum": 0.0
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Flag Edge Width",
           "default": 80.0
         },
@@ -1364,8 +1369,20 @@
           "description": "Current job state: 'queued' | 'waitcal' | 'staging' | 'staged' | 'downloading' | 'preprocessing' | 'delivering' | 'completed' | 'error' | 'cancelled'"
         },
         "job_params": {
-          "additionalProperties": true,
-          "type": "object",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DownloadJobParams"
+            },
+            {
+              "$ref": "#/definitions/ConversionJobParams"
+            },
+            {
+              "$ref": "#/definitions/ImageFromJobParams"
+            },
+            {
+              "$ref": "#/definitions/ImagingJobParams"
+            }
+          ],
           "title": "Job Params",
           "description": "Job parameters as JSON object (obs_id, delivery, processing options)"
         },
@@ -1438,10 +1455,22 @@
           "description": "Error code",
           "examples": [
             {
-              "0": "(TODO)"
+              "0": "(legacy and new) Unknown error: Default value when the error_code field is not specified when updating a job. This error code was also used in the legacy server, although its meaning is unclear (it appears in both descriptive errors and as a default error code)"
             },
             {
-              "1": "(TODO)"
+              "1": "(legacy) Unknown error"
+            },
+            {
+              "5": "(legacy) Unknown error"
+            },
+            {
+              "10": "(legacy) Unknown error"
+            },
+            {
+              "100": "(legacy) Unknown error"
+            },
+            {
+              "199": "(legacy) Unknown error"
             },
             {
               "429": "Hit restage job count limit"
@@ -1450,7 +1479,7 @@
               "499": "User cancelled job. Waiting for processor to cleanup"
             },
             {
-              "500": "Unexpected error"
+              "500": "Internal error"
             }
           ]
         },
@@ -1482,6 +1511,7 @@
         "job_id",
         "obs_id",
         "user_id",
+        "job_type",
         "job_state",
         "job_params",
         "created",
@@ -3509,7 +3539,7 @@
         "yy",
         "xy",
         "yx",
-        "xx,yy",
+        "xxyy",
         "i",
         "iquv"
       ],
