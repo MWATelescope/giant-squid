@@ -2,6 +2,12 @@
 
 A Rust client for the MWA ASVO, with Python bindings (`mwa-giant-squid`) built from the `python` feature by maturin. See `docs/PYTHON_BINDINGS.md`.
 
+## Architecture
+
+- The MWA ASVO FastAPI (its OpenAPI schema) dictates the library: its methods, types, names, defaults and limits.
+- The Rust CLI uses the library as much as possible. Put logic in the library, not in the CLI.
+- The Python CLI (`mwa_giant_squid_cli`) is only a wrapper of the Rust CLI. It adds no logic of its own.
+
 ## Before you hand over code
 
 Rust:
