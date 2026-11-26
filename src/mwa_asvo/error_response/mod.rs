@@ -10,6 +10,10 @@
 //! `ERROR_CODE_*` constants), in the UPPER_SNAKE style of the API's codes,
 //! and its message. Where the API has a code with the same meaning, that
 //! code is used (for example [`ERROR_CODE_JOB_NOT_FOUND`]).
+//!
+//! The schema's `ErrorResponse` holds only the API's codes (`ErrorCode`),
+//! so these errors are a [`ClientErrorResponse`]: the same JSON shape, with
+//! the code as text.
 
 use super::api::openapi::{ErrorResponse, FieldError};
 use super::{MwaAsvoApiError, MwaAsvoError, MwaAsvoJobId};
@@ -104,11 +108,58 @@ pub const ERROR_CODE_INTERRUPTED: &str = "INTERRUPTED";
 /// Any other error.
 pub const ERROR_CODE_CLIENT_ERROR: &str = "CLIENT_ERROR";
 
-/// An `ErrorResponse` with only the code `error_code` and the message
+/// An error in the JSON shape of the MWA ASVO's `ErrorResponse`, but with
+/// the error code as text, so that it can also hold a giant-squid code
+/// (the `ERROR_CODE_*` constants). The fields are in the order in which
+/// `ErrorResponse` writes them.
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
+pub struct ClientErrorResponse {
+    /// Additional technical detail.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// The machine-readable error code: the API's `ErrorCode` or a
+    /// giant-squid code.
+    pub error_code: String,
+    /// Field-specific validation errors.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_errors: Option<Vec<FieldError>>,
+    /// The user-friendly error message.
+    pub message: String,
+    /// The request ID for tracing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    /// The suggested resolution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+}
+
+impl From<ErrorResponse> for ClientErrorResponse {
+    /// The MWA ASVO's `ErrorResponse`, verbatim.
+    fn from(response: ErrorResponse) -> Self {
+        let ErrorResponse {
+            detail,
+            error_code,
+            field_errors,
+            message,
+            request_id,
+            suggestion,
+        } = response;
+        Self {
+            detail,
+            error_code: error_code.to_string(),
+            field_errors,
+            message,
+            request_id,
+            suggestion,
+        }
+    }
+}
+
+/// A [`ClientErrorResponse`] with only the code `error_code` and the message
 /// `message`. Also for an error that is not one of the library's, for
 /// example a command-line argument that cannot be used.
-pub fn new_error_response(error_code: &str, message: impl ToString) -> ErrorResponse {
-    ErrorResponse {
+pub fn new_error_response(error_code: &str, message: impl ToString) -> ClientErrorResponse {
+    ClientErrorResponse {
         detail: None,
         error_code: error_code.to_string(),
         field_errors: None,
@@ -134,13 +185,13 @@ fn status_reason(status: u16) -> String {
 }
 
 impl MwaAsvoApiError {
-    /// The error as an `ErrorResponse`.
+    /// The error in the shape of an `ErrorResponse`.
     ///
     /// An error that the MWA ASVO sent as an `ErrorResponse` is copied
     /// verbatim; this includes a failed login whose body is one. An HTTP
     /// error with another body is `HTTP_<status>`, with the status's reason
     /// as the message and the body, verbatim, as the detail.
-    pub fn error_response(&self) -> ErrorResponse {
+    pub fn error_response(&self) -> ClientErrorResponse {
         match self {
             MwaAsvoApiError::MissingAuthKey { .. } => {
                 new_error_response(ERROR_CODE_MISSING_API_KEY, self)
@@ -149,14 +200,16 @@ impl MwaAsvoApiError {
                 response: Some(response),
                 ..
             }
-            | MwaAsvoApiError::Server { response, .. } => ErrorResponse::clone(response),
+            | MwaAsvoApiError::Server { response, .. } => {
+                ClientErrorResponse::from(ErrorResponse::clone(response))
+            }
             MwaAsvoApiError::AuthenticationFailed { response: None, .. } => {
                 new_error_response(ERROR_CODE_AUTHENTICATION_FAILED, self)
             }
             MwaAsvoApiError::Conversion(_) => {
                 new_error_response(ERROR_CODE_INVALID_PARAMETER, self)
             }
-            MwaAsvoApiError::InvalidParameter { name, message } => ErrorResponse {
+            MwaAsvoApiError::InvalidParameter { name, message } => ClientErrorResponse {
                 field_errors: Some(vec![FieldError {
                     field: name.to_string(),
                     message: message.clone(),
@@ -165,7 +218,7 @@ impl MwaAsvoApiError {
             },
             MwaAsvoApiError::BadJson(_) => new_error_response(ERROR_CODE_BAD_RESPONSE, self),
             MwaAsvoApiError::Http(_) => new_error_response(ERROR_CODE_NETWORK_ERROR, self),
-            MwaAsvoApiError::BadStatus { status, message } => ErrorResponse {
+            MwaAsvoApiError::BadStatus { status, message } => ClientErrorResponse {
                 detail: Some(message.clone()),
                 ..new_error_response(&http_error_code(*status), status_reason(*status))
             },
@@ -174,13 +227,13 @@ impl MwaAsvoApiError {
 }
 
 impl MwaAsvoError {
-    /// The error as an `ErrorResponse`. An API error is
+    /// The error in the shape of an `ErrorResponse`. An API error is
     /// [`MwaAsvoApiError::error_response`].
-    pub fn error_response(&self) -> ErrorResponse {
+    pub fn error_response(&self) -> ClientErrorResponse {
         let code = match self {
             MwaAsvoError::Api(e) => return e.error_response(),
             MwaAsvoError::JobFailed { error_code, .. } => {
-                return ErrorResponse {
+                return ClientErrorResponse {
                     detail: error_code.map(|c| c.to_string()),
                     ..new_error_response(ERROR_CODE_JOB_FAILED, self)
                 }
@@ -188,7 +241,7 @@ impl MwaAsvoError {
             MwaAsvoError::HttpStatus {
                 status, message, ..
             } => {
-                return ErrorResponse {
+                return ClientErrorResponse {
                     detail: Some(message.clone()),
                     ..new_error_response(&http_error_code(*status), self)
                 }
@@ -260,15 +313,17 @@ impl MwaAsvoError {
 }
 
 impl ParseError {
-    /// The error as an `ErrorResponse`: an argument that cannot be used.
-    pub fn error_response(&self) -> ErrorResponse {
+    /// The error in the shape of an `ErrorResponse`: an argument that cannot be
+    /// used.
+    pub fn error_response(&self) -> ClientErrorResponse {
         new_error_response(ERROR_CODE_INVALID_ARGUMENT, self)
     }
 }
 
 impl ObsIdError {
-    /// The error as an `ErrorResponse`: an argument that cannot be used.
-    pub fn error_response(&self) -> ErrorResponse {
+    /// The error in the shape of an `ErrorResponse`: an argument that cannot be
+    /// used.
+    pub fn error_response(&self) -> ClientErrorResponse {
         new_error_response(ERROR_CODE_INVALID_ARGUMENT, self)
     }
 }

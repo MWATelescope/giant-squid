@@ -471,7 +471,7 @@ fn every_failure_is_listed_at_the_end() {
         when.method(POST).path("/api/v2/jobs/download");
         then.status(400)
             .header("content-type", "application/json")
-            .json_body(error_response("OBSID_NOT_FOUND", "No such observation"));
+            .json_body(error_response("VALID_OBS_NOT_FOUND", "No such observation"));
     });
 
     let mut cmd = env.command();
@@ -500,7 +500,7 @@ fn a_server_error_on_submission_fails_the_run() {
         when.method(POST).path("/api/v2/jobs/download");
         then.status(400)
             .header("content-type", "application/json")
-            .json_body(error_response("OBSID_NOT_FOUND", "No such observation"));
+            .json_body(error_response("VALID_OBS_NOT_FOUND", "No such observation"));
     });
 
     let mut cmd = env.command();

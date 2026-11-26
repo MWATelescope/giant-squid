@@ -72,7 +72,7 @@ use crate::obs_id::ObsId;
 ///     only_metadata: Download the metadata only, or `None` (the schema gives it no
 ///         default).
 ///     offset: Voltage jobs: the offset in seconds from the start GPS time of the
-///         observation, from 0 to 5400, or `None`.
+///         observation, from 0 to 7200, or `None`.
 ///     duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
 ///         `None`.
 ///     from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
@@ -458,8 +458,8 @@ impl PyConversionJobParams {
 ///         the MWA ASVO calculate it.
 ///     polarization: The polarisation to image.
 ///     robust: The WSClean -robust value.
-///     uvw_max: The maximum uv distance to image (wavelengths).
-///     uvw_min: The minimum uv distance to image (wavelengths).
+///     uv_max: The maximum uv distance to image (wavelengths).
+///     uv_min: The minimum uv distance to image (wavelengths).
 ///     weighting: The WSClean weighting scheme.
 ///     wstack_nwlayers: The number of w-stacking layers.
 ///     allow_resubmit: Submit the job even if an identical one has
@@ -533,9 +533,9 @@ pub struct PyImagingJobParams {
     #[pyo3(get, set)]
     pub robust: f64,
     #[pyo3(get, set)]
-    pub uvw_max: Option<f64>,
+    pub uv_max: Option<f64>,
     #[pyo3(get, set)]
-    pub uvw_min: f64,
+    pub uv_min: f64,
     #[pyo3(get, set)]
     pub weighting: PyImageWeighting,
     #[pyo3(get, set)]
@@ -570,7 +570,7 @@ impl PyImagingJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(obs_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(obs_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_di_cal=True, apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, avg_freq_res=40.0, avg_time_res=2.0, channels_out=4, clean_iterations=100000, centre='PhaseCentre.Phase', custom_centre_dec=None, custom_centre_ra=None, flag_edge_width=80.0, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, no_apply_amps=False, no_digital_gains=False, no_flag_dc=False, no_geometric_delay=False, no_passband_gains=False, no_cable_delay=False, no_rfi=False, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uv_max=None, uv_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         obs_id,
@@ -607,8 +607,8 @@ impl PyImagingJobParams {
         pixel_scale = schema::imaging_defaults().pixel_scale,
         polarization = PyPolarization::from(schema::imaging_defaults().polarization),
         robust = schema::imaging_defaults().robust,
-        uvw_max = schema::imaging_defaults().uvw_max,
-        uvw_min = schema::imaging_defaults().uvw_min,
+        uv_max = schema::imaging_defaults().uv_max,
+        uv_min = schema::imaging_defaults().uv_min,
         weighting = PyImageWeighting::from(schema::imaging_defaults().weighting),
         wstack_nwlayers = schema::imaging_defaults().wstack_nwlayers,
         allow_resubmit = schema::imaging_defaults().allow_resubmit,
@@ -648,8 +648,8 @@ impl PyImagingJobParams {
         pixel_scale: Option<f64>,
         polarization: PyPolarization,
         robust: f64,
-        uvw_max: Option<f64>,
-        uvw_min: f64,
+        uv_max: Option<f64>,
+        uv_min: f64,
         weighting: PyImageWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
@@ -688,8 +688,8 @@ impl PyImagingJobParams {
             pixel_scale,
             polarization,
             robust,
-            uvw_max,
-            uvw_min,
+            uv_max,
+            uv_min,
             weighting,
             wstack_nwlayers,
             allow_resubmit,
@@ -745,8 +745,8 @@ impl PyImagingJobParams {
         params.pixel_scale = self.pixel_scale;
         params.polarization = self.polarization.into();
         params.robust = self.robust;
-        params.uvw_max = self.uvw_max;
-        params.uvw_min = self.uvw_min;
+        params.uv_max = self.uv_max;
+        params.uv_min = self.uv_min;
         params.weighting = self.weighting.into();
         params.wstack_nwlayers = self.wstack_nwlayers;
         params.allow_resubmit = self.allow_resubmit;
@@ -808,9 +808,9 @@ pub struct PyImageFromJobParams {
     #[pyo3(get, set)]
     pub robust: f64,
     #[pyo3(get, set)]
-    pub uvw_max: Option<f64>,
+    pub uv_max: Option<f64>,
     #[pyo3(get, set)]
-    pub uvw_min: f64,
+    pub uv_min: f64,
     #[pyo3(get, set)]
     pub weighting: PyImageWeighting,
     #[pyo3(get, set)]
@@ -844,7 +844,7 @@ impl PyImageFromJobParams {
 
     #[new]
     #[pyo3(
-        text_signature = "(source_job_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uvw_max=None, uvw_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
+        text_signature = "(source_job_id, *, output_mode, delivery='DeliveryDestination.Acacia', delivery_format='DeliveryFormat.Tar', apply_primary_beam=True, auto_mask=3, auto_threshold=0.5, abs_threshold=0.001, channels_out=4, clean_iterations=100000, image_size=None, join_channels=True, join_polarizations=False, mgain=0.8, multiscale=False, nmiter=10, pixel_scale=None, polarization='Polarization.I', robust=-0.5, uv_max=None, uv_min=75.0, weighting='ImageWeighting.Briggs', wstack_nwlayers=None, allow_resubmit=False)"
     )]
     #[pyo3(signature = (
         source_job_id,
@@ -867,8 +867,8 @@ impl PyImageFromJobParams {
         pixel_scale = schema::image_from_job_defaults().pixel_scale,
         polarization = PyPolarization::from(schema::image_from_job_defaults().polarization),
         robust = schema::image_from_job_defaults().robust,
-        uvw_max = schema::image_from_job_defaults().uvw_max,
-        uvw_min = schema::image_from_job_defaults().uvw_min,
+        uv_max = schema::image_from_job_defaults().uv_max,
+        uv_min = schema::image_from_job_defaults().uv_min,
         weighting = PyImageWeighting::from(schema::image_from_job_defaults().weighting),
         wstack_nwlayers = schema::image_from_job_defaults().wstack_nwlayers,
         allow_resubmit = schema::image_from_job_defaults().allow_resubmit,
@@ -894,8 +894,8 @@ impl PyImageFromJobParams {
         pixel_scale: Option<f64>,
         polarization: PyPolarization,
         robust: f64,
-        uvw_max: Option<f64>,
-        uvw_min: f64,
+        uv_max: Option<f64>,
+        uv_min: f64,
         weighting: PyImageWeighting,
         wstack_nwlayers: Option<i64>,
         allow_resubmit: Option<bool>,
@@ -920,8 +920,8 @@ impl PyImageFromJobParams {
             pixel_scale,
             polarization,
             robust,
-            uvw_max,
-            uvw_min,
+            uv_max,
+            uv_min,
             weighting,
             wstack_nwlayers,
             allow_resubmit,
@@ -963,8 +963,8 @@ impl PyImageFromJobParams {
         params.pixel_scale = self.pixel_scale;
         params.polarization = self.polarization.into();
         params.robust = self.robust;
-        params.uvw_max = self.uvw_max;
-        params.uvw_min = self.uvw_min;
+        params.uv_max = self.uv_max;
+        params.uv_min = self.uv_min;
         params.weighting = self.weighting.into();
         params.wstack_nwlayers = self.wstack_nwlayers;
         params.allow_resubmit = self.allow_resubmit;
@@ -1036,8 +1036,8 @@ impl PyImagingJobParams {
             pixel_scale: params.pixel_scale,
             polarization: params.polarization.into(),
             robust: params.robust,
-            uvw_max: params.uvw_max,
-            uvw_min: params.uvw_min,
+            uv_max: params.uv_max,
+            uv_min: params.uv_min,
             weighting: params.weighting.into(),
             wstack_nwlayers: params.wstack_nwlayers,
             allow_resubmit: params.allow_resubmit,
@@ -1068,8 +1068,8 @@ impl PyImageFromJobParams {
             pixel_scale: params.pixel_scale,
             polarization: params.polarization.into(),
             robust: params.robust,
-            uvw_max: params.uvw_max,
-            uvw_min: params.uvw_min,
+            uv_max: params.uv_max,
+            uv_min: params.uv_min,
             weighting: params.weighting.into(),
             wstack_nwlayers: params.wstack_nwlayers,
             allow_resubmit: params.allow_resubmit,

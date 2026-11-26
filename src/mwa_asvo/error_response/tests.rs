@@ -3,6 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use super::*;
+use crate::mwa_asvo::api::openapi::ErrorCode;
 
 const TEST_OBS_ID: u64 = 1_384_357_952;
 
@@ -20,7 +21,7 @@ fn an_api_error_is_copied_verbatim() {
         status: 404,
         response: Box::new(ErrorResponse {
             detail: Some("detail text".to_string()),
-            error_code: "JOB_NOT_FOUND".to_string(),
+            error_code: ErrorCode::JobNotFound,
             field_errors: Some(vec![FieldError {
                 field: "job_id".to_string(),
                 message: "bad".to_string(),
@@ -48,7 +49,7 @@ fn an_api_error_without_field_errors_has_no_field_errors_key() {
         401,
         ErrorResponse {
             detail: None,
-            error_code: "AUTH_REQUIRED".to_string(),
+            error_code: ErrorCode::AuthRequired,
             field_errors: Some(vec![]),
             message: "Log in".to_string(),
             request_id: None,
@@ -85,7 +86,7 @@ fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
         message: "Bad API key".to_string(),
         response: Some(Box::new(ErrorResponse {
             detail: None,
-            error_code: "AUTH_INVALID_KEY".to_string(),
+            error_code: ErrorCode::AuthInvalidApiKey,
             field_errors: None,
             message: "Bad API key".to_string(),
             request_id: None,
@@ -95,7 +96,7 @@ fn a_failed_login_with_an_error_response_body_is_copied_verbatim() {
 
     let resp = error.error_response();
 
-    assert_eq!(resp.error_code, "AUTH_INVALID_KEY");
+    assert_eq!(resp.error_code, "AUTH_INVALID_API_KEY");
     assert_eq!(resp.message, "Bad API key");
 }
 

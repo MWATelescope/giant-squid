@@ -698,7 +698,7 @@ class DownloadJobParams:
         only_metadata: Download the metadata only, or `None` (the schema gives it no
             default).
         offset: Voltage jobs: the offset in seconds from the start GPS time of the
-            observation, from 0 to 5400, or `None`.
+            observation, from 0 to 7200, or `None`.
         duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
             `None`.
         from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
@@ -1137,13 +1137,13 @@ class ImageFromJobParams:
     @robust.setter
     def robust(self, value: builtins.float) -> None: ...
     @property
-    def uvw_max(self) -> builtins.float | None: ...
-    @uvw_max.setter
-    def uvw_max(self, value: builtins.float | None) -> None: ...
+    def uv_max(self) -> builtins.float | None: ...
+    @uv_max.setter
+    def uv_max(self, value: builtins.float | None) -> None: ...
     @property
-    def uvw_min(self) -> builtins.float: ...
-    @uvw_min.setter
-    def uvw_min(self, value: builtins.float) -> None: ...
+    def uv_min(self) -> builtins.float: ...
+    @uv_min.setter
+    def uv_min(self, value: builtins.float) -> None: ...
     @property
     def weighting(self) -> ImageWeighting: ...
     @weighting.setter
@@ -1193,8 +1193,8 @@ class ImageFromJobParams:
         pixel_scale: builtins.float | None = None,
         polarization: Polarization = Polarization.I,
         robust: builtins.float = -0.5,
-        uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float = 75.0,
+        uv_max: builtins.float | None = None,
+        uv_min: builtins.float = 75.0,
         weighting: ImageWeighting = ImageWeighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
         allow_resubmit: builtins.bool | None = False,
@@ -1259,8 +1259,8 @@ class ImagingJobParams:
             the MWA ASVO calculate it.
         polarization: The polarisation to image.
         robust: The WSClean -robust value.
-        uvw_max: The maximum uv distance to image (wavelengths).
-        uvw_min: The minimum uv distance to image (wavelengths).
+        uv_max: The maximum uv distance to image (wavelengths).
+        uv_min: The minimum uv distance to image (wavelengths).
         weighting: The WSClean weighting scheme.
         wstack_nwlayers: The number of w-stacking layers.
         allow_resubmit: Submit the job even if an identical one has
@@ -1395,13 +1395,13 @@ class ImagingJobParams:
     @robust.setter
     def robust(self, value: builtins.float) -> None: ...
     @property
-    def uvw_max(self) -> builtins.float | None: ...
-    @uvw_max.setter
-    def uvw_max(self, value: builtins.float | None) -> None: ...
+    def uv_max(self) -> builtins.float | None: ...
+    @uv_max.setter
+    def uv_max(self, value: builtins.float | None) -> None: ...
     @property
-    def uvw_min(self) -> builtins.float: ...
-    @uvw_min.setter
-    def uvw_min(self, value: builtins.float) -> None: ...
+    def uv_min(self) -> builtins.float: ...
+    @uv_min.setter
+    def uv_min(self, value: builtins.float) -> None: ...
     @property
     def weighting(self) -> ImageWeighting: ...
     @weighting.setter
@@ -1466,8 +1466,8 @@ class ImagingJobParams:
         pixel_scale: builtins.float | None = None,
         polarization: Polarization = Polarization.I,
         robust: builtins.float = -0.5,
-        uvw_max: builtins.float | None = None,
-        uvw_min: builtins.float = 75.0,
+        uv_max: builtins.float | None = None,
+        uv_min: builtins.float = 75.0,
         weighting: ImageWeighting = ImageWeighting.Briggs,
         wstack_nwlayers: builtins.int | None = None,
         allow_resubmit: builtins.bool | None = False,
@@ -1957,7 +1957,7 @@ class MwaAsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: The `offset` is not from 0 to 5400. Nothing is sent.
+            ValueError: The `offset` is not from 0 to 7200. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_preprocess_job(

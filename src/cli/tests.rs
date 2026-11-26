@@ -534,7 +534,7 @@ fn submit_image_custom_centre_is_renamed_for_the_api() {
 /// clap reads a leading '-' as a flag unless the command opts in, so
 /// `--custom-dec -26.7` used to fail with "unknown argument '-2'" - a
 /// defect for any southern declination, a negative robustness, or a
-/// negative uvw_min.
+/// negative uv_min.
 #[test]
 fn negative_values_are_accepted_in_either_form() {
     for argv in [
@@ -624,7 +624,7 @@ fn submit_image_optional_fields_are_omitted_when_unset() {
     let json = json_of(&args.to_params(crate::test_config::test_obs_id()));
 
     assert!(json.get("nwlayers").is_none());
-    assert!(json.get("uvw_max").is_none());
+    assert!(json.get("uv_max").is_none());
     assert!(json.get("wstack_nwlayers").is_none());
 }
 
@@ -755,7 +755,7 @@ fn the_deprecated_imaging_options_are_refused() {
 fn submit_image_range_errors_carry_the_librarys_message() {
     for (flag, value, expected) in [
         ("--mgain", "1.5", "must be between 0.1 and 1 (got 1.5)"),
-        ("--uvw-min", "101", "must be between 1 and 100 (got 101)"),
+        ("--uv-min", "101", "must be between 1 and 100 (got 101)"),
         ("--avg-time-res", "-1", "must be at least 0 (got -1)"),
         (
             "--image-size",
@@ -906,7 +906,7 @@ fn submit_download_sends_the_voltage_options_that_are_given() {
 fn submit_download_refuses_an_offset_or_a_channel_out_of_range() {
     for (option, value) in [
         ("--offset", "-1"),
-        ("--offset", "5401"),
+        ("--offset", "7201"),
         ("--from-channel", "256"),
         ("--duration", "-1"),
     ] {
@@ -1458,7 +1458,7 @@ fn submit_image_from_job_rejects_out_of_range_values() {
         vec!["--nmiter", "501"],
         vec!["--robust", "-2.5"],
         vec!["--pixel-scale", "9"],
-        vec!["--uvw-max", "0.5"],
+        vec!["--uv-max", "0.5"],
         vec!["--image-size", "1000"],
     ] {
         let mut argv = vec![
@@ -1504,7 +1504,7 @@ fn submit_conv_rejects_out_of_range_values() {
 #[test]
 fn submit_volt_rejects_an_offset_outside_the_observation() {
     // The "=" form. The separate form is tested below.
-    for offset in ["--offset=-1", "--offset=5401"] {
+    for offset in ["--offset=-1", "--offset=7201"] {
         let err = parse_err(&[
             "giant-squid",
             "submit-volt",
@@ -1567,7 +1567,7 @@ fn submit_volt_reads_a_negative_offset_as_a_value() {
     assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
     assert!(
         err.to_string()
-            .contains("must be between 0 and 5400 (got -1)"),
+            .contains("must be between 0 and 7200 (got -1)"),
         "{err}"
     );
 }
@@ -2668,7 +2668,7 @@ fn an_infinite_number_is_refused() {
             "submit-image",
             "--output-mode",
             "fits",
-            "--uvw-min=-inf",
+            "--uv-min=-inf",
             TEST_OBS_ID,
         ],
     ] {

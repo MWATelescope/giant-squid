@@ -126,7 +126,7 @@ fn the_imaging_file_has_two_imaging_jobs() {
             "nmiter": 10,
             "mgain": 0.8,
             "auto_mask": 3,
-            "uvw_min": 75.0,
+            "uv_min": 75.0,
             "join_polarizations": false,
             "apply_primary_beam": true,
             "multiscale": false,

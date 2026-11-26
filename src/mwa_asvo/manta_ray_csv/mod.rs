@@ -633,11 +633,11 @@ fn parse_imaging(
     if let Some(v) = row.integer::<i64>("auto_mask")? {
         params.auto_mask = v;
     }
-    if let Some(v) = row.float("uvw_min")? {
-        params.uvw_min = v;
+    if let Some(v) = row.float("uv_min")? {
+        params.uv_min = v;
     }
-    if let Some(v) = row.float("uvw_max")? {
-        params.uvw_max = Some(v);
+    if let Some(v) = row.float("uv_max")? {
+        params.uv_max = Some(v);
     }
     if let Some(v) = row.boolean("join_polarizations")? {
         params.join_polarizations = v;

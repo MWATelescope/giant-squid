@@ -13,9 +13,11 @@
 use serde::ser::{Error as _, SerializeMap};
 use thiserror::Error;
 
-use crate::mwa_asvo::api::openapi::{ErrorResponse, Status};
+use crate::mwa_asvo::api::openapi::Status;
 use crate::mwa_asvo::error_response::{ERROR_CODE_CLIENT_ERROR, ERROR_CODE_INVALID_ARGUMENT};
-use crate::mwa_asvo::{new_error_response, MwaAsvoApiError, MwaAsvoError, MwaAsvoJobId};
+use crate::mwa_asvo::{
+    new_error_response, ClientErrorResponse, MwaAsvoApiError, MwaAsvoError, MwaAsvoJobId,
+};
 use crate::obs_id::{ObsId, ObsIdError};
 use crate::ParseError;
 
@@ -48,7 +50,7 @@ pub(super) const KEY_MESSAGE: &str = "message";
 pub(super) struct JsonError {
     status: Status,
     #[serde(flatten)]
-    error: ErrorResponse,
+    error: ClientErrorResponse,
     #[serde(skip_serializing_if = "Option::is_none")]
     job_id: Option<MwaAsvoJobId>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,7 +120,7 @@ impl JsonError {
     }
 
     fn from_response(
-        error: ErrorResponse,
+        error: ClientErrorResponse,
         job_id: Option<MwaAsvoJobId>,
         obs_id: Option<ObsId>,
     ) -> Self {

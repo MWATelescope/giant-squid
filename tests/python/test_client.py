@@ -189,7 +189,7 @@ def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, h
     """A failed login with an ErrorResponse body is an AuthenticationFailed with the server's fields, in the source of
     the MwaAsvoErrorApi."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_json(
-        error_response("AUTH_INVALID_KEY", "Bad API key"), status=401
+        error_response("AUTH_INVALID_API_KEY", "Bad API key"), status=401
     )
 
     with pytest.raises(gs.MwaAsvoErrorApi) as outer:
@@ -197,7 +197,7 @@ def test_a_structured_login_error_keeps_its_kind_and_has_its_fields(host: str, h
 
     err = outer.value.source
     assert err.kind == "AuthenticationFailed"
-    assert err.error_code == "AUTH_INVALID_KEY"
+    assert err.error_code == "AUTH_INVALID_API_KEY"
     assert err.message == "Bad API key"
     assert err.detail == "detail from the mock"
     assert err.suggestion == "try again"
@@ -494,7 +494,7 @@ def test_a_job_has_every_field_of_the_job_detail(host: str, serve_jobs: Callable
 @pytest.mark.usefixtures("mock_login")
 def test_an_api_error_has_its_field_errors_and_request_id(host: str, httpserver: HTTPServer) -> None:
     """field_errors is a list of dicts, request_id a string; both are in the message."""
-    body = error_response("VALIDATION_ERROR", "Invalid parameters")
+    body = error_response("VALID_REQUEST_INVALID", "Invalid parameters")
     body["field_errors"] = [{"field": "mgain", "message": "must be at most 1"}]
     body["request_id"] = "req-1234"
     httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(body, status=422)

@@ -279,7 +279,7 @@ pub trait WscleanFields: SchemaDefaults {
     fn nmiter(&self) -> NonZeroU64;
     fn polarization(&self) -> Polarization;
     fn robust(&self) -> f64;
-    fn uvw_min(&self) -> f64;
+    fn uv_min(&self) -> f64;
     fn weighting(&self) -> ImageWeighting;
 }
 
@@ -297,7 +297,7 @@ impl_fields!(WscleanFields for [ImagingJobParams, ImageFromJobParams] {
     nmiter: NonZeroU64,
     polarization: Polarization,
     robust: f64,
-    uvw_min: f64,
+    uv_min: f64,
     weighting: ImageWeighting,
 });
 
@@ -639,12 +639,12 @@ pub struct WscleanArgs<P: WscleanFields> {
 
     /// Maximum uv distance to image, in wavelengths (upper bound on
     /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_bounds(validate::UVW_MAX))]
-    pub uvw_max: Option<f64>,
+    #[arg(long, value_parser = parse_f64_bounds(validate::UV_MAX))]
+    pub uv_max: Option<f64>,
 
     /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value = P::schema_defaults().uvw_min().to_string(), value_parser = parse_f64_bounds(validate::UVW_MIN))]
-    pub uvw_min: f64,
+    #[arg(long, default_value = P::schema_defaults().uv_min().to_string(), value_parser = parse_f64_bounds(validate::UV_MIN))]
+    pub uv_min: f64,
 
     /// WSClean weighting scheme.
     #[arg(long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<ImageWeighting>::new())]
@@ -741,8 +741,8 @@ impl_apply_to!(WscleanArgs for [ImagingJobParams, ImageFromJobParams] {
         pixel_scale,
         polarization,
         robust,
-        uvw_max,
-        uvw_min,
+        uv_max,
+        uv_min,
         weighting,
         wstack_nwlayers,
     ],
@@ -776,7 +776,7 @@ pub struct SubmitDownloadArgs {
     pub only_metadata: Option<bool>,
 
     /// Voltage observations only (required): the offset in seconds from the start GPS
-    /// time of the observation (0-5400).
+    /// time of the observation (0-7200).
     #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: Option<i64>,
 

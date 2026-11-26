@@ -265,7 +265,7 @@ def test_imaging_job_sends_the_arguments(client: gs.MwaAsvoClient, httpserver: H
             output_mode=gs.ImageOutputMode.AllFits,
             polarization=gs.Polarization.Xx,
             weighting=gs.ImageWeighting.Natural,
-            uvw_max=FREQ_RES,
+            uv_max=FREQ_RES,
             wstack_nwlayers=WSTACK_LAYERS,
             join_polarizations=True,
             allow_resubmit=True,
@@ -282,7 +282,7 @@ def test_imaging_job_sends_the_arguments(client: gs.MwaAsvoClient, httpserver: H
     assert body["output_mode"] == "all_fits"
     assert body["polarization"] == "xx"
     assert body["weighting"] == "natural"
-    assert body["uvw_max"] == FREQ_RES
+    assert body["uv_max"] == FREQ_RES
     assert body["wstack_nwlayers"] == WSTACK_LAYERS
     assert body["join_polarizations"] is True
     assert body["allow_resubmit"] is True
@@ -301,7 +301,7 @@ def test_imaging_job_uses_the_schema_defaults_when_arguments_are_left_out(
     assert body["output_mode"] == "fits"
     assert body["weighting"] == "briggs"
     assert body["apply_di_cal"] is True
-    for name in ("custom_centre_ra", "custom_centre_dec", "uvw_max", "wstack_nwlayers", "image_size", "pixel_scale"):
+    for name in ("custom_centre_ra", "custom_centre_dec", "uv_max", "wstack_nwlayers", "image_size", "pixel_scale"):
         assert name not in body
 
 
@@ -486,14 +486,14 @@ def test_voltage_job_without_channels_sends_no_channel(client: gs.MwaAsvoClient,
 def test_a_server_error_raises_mwa_asvo_api_error(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """An error reply to a submission has the server's error fields."""
     httpserver.expect_request(DOWNLOAD_PATH, method="POST").respond_with_json(
-        error_response("JOB_ALREADY_EXISTS", "An identical job exists"), status=409
+        error_response("JOB_ALREADY_SUBMITTED", "An identical job exists"), status=409
     )
 
     with pytest.raises(gs.MwaAsvoApiError) as err:
         client.submit_download_job(gs.DownloadJobParams(TEST_OBS_ID))
 
     assert err.value.kind == "Server"
-    assert err.value.error_code == "JOB_ALREADY_EXISTS"
+    assert err.value.error_code == "JOB_ALREADY_SUBMITTED"
 
 
 # Every kind of request body, made with only what it needs, so that one call shows an argument problem.
@@ -674,8 +674,8 @@ OUT_OF_RANGE = [
     (IMAGING_JOB, {"robust": -2.5}, "robust"),
     (IMAGING_JOB, {"clean_iterations": 1_000_001}, "clean_iterations"),
     (IMAGING_JOB, {"abs_threshold": 11.0}, "abs_threshold"),
-    (IMAGING_JOB, {"uvw_max": 0.5}, "uvw_max"),
-    (IMAGING_JOB, {"uvw_min": 101.0}, "uvw_min"),
+    (IMAGING_JOB, {"uv_max": 0.5}, "uv_max"),
+    (IMAGING_JOB, {"uv_min": 101.0}, "uv_min"),
     (IMAGING_JOB, {"avg_freq_res": 1281.0}, "avg_freq_res"),
     (IMAGING_JOB, {"avg_time_res": -1.0}, "avg_time_res"),
     (IMAGING_JOB, {"flag_edge_width": 641.0}, "flag_edge_width"),
@@ -745,14 +745,14 @@ def test_values_at_the_limits_are_accepted_and_sent(
     """The ends of each range are valid."""
     submitted(httpserver, path)
 
-    submit(client, job(first, mgain=1.0, nmiter=500, pixel_scale=10.0, robust=-2.0, uvw_min=100.0, auto_mask=512))
+    submit(client, job(first, mgain=1.0, nmiter=500, pixel_scale=10.0, robust=-2.0, uv_min=100.0, auto_mask=512))
 
     body = body_sent_to(httpserver, path)
     assert body["mgain"] == 1.0
     assert body["nmiter"] == 500
     assert body["pixel_scale"] == 10.0
     assert body["robust"] == -2.0
-    assert body["uvw_min"] == 100.0
+    assert body["uv_min"] == 100.0
     assert body["auto_mask"] == 512
 
 
@@ -781,11 +781,11 @@ def test_a_conversion_argument_outside_the_schema_limits_is_rejected(
     assert len(httpserver.log) == requests_before
 
 
-@pytest.mark.parametrize("offset", [-1, 5401])
+@pytest.mark.parametrize("offset", [-1, 7201])
 def test_a_voltage_offset_outside_the_observation_is_rejected(
     client: gs.MwaAsvoClient, httpserver: HTTPServer, offset: int
 ) -> None:
-    """The offset must be from 0 to 5400 seconds, and nothing is sent otherwise."""
+    """The offset must be from 0 to 7200 seconds, and nothing is sent otherwise."""
     params = gs.DownloadJobParams(TEST_OBS_ID, offset=offset, duration=VOLTAGE_DURATION)
     requests_before = len(httpserver.log)
 

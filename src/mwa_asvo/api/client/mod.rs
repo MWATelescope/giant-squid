@@ -35,9 +35,9 @@ use crate::obs_id::ObsId;
 use super::error::MwaAsvoApiError;
 use super::job_params::PreprocessJobParams;
 use super::openapi::{
-    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorResponse, ImageFromJobParams,
-    JobCancelledResponse, JobDetailResponse, JobParams, JobState, JobSubmittedResponse, JobType,
-    JobsByUserRequest, Login, SortBy, TokenResponse, UserResponse,
+    ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorCode, ErrorResponse,
+    ImageFromJobParams, JobCancelledResponse, JobDetailResponse, JobParams, JobState,
+    JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy, TokenResponse, UserResponse,
 };
 use super::validate::{self, validate_download_params, validate_image_from_job_params};
 
@@ -63,7 +63,7 @@ const CLIENT_VERSION: &str = concat!("giant-squidv", env!("CARGO_PKG_VERSION"));
 /// In particular this covers a cached token that is still unexpired locally
 /// but was minted by a different environment (e.g. dev vs test, which sign
 /// JWTs with different secrets), so the other environment rejects it.
-const AUTH_ERROR_CODES: [&str; 2] = ["AUTH_INVALID_TOKEN", "AUTH_REQUIRED"];
+const AUTH_ERROR_CODES: [ErrorCode; 2] = [ErrorCode::AuthInvalidToken, ErrorCode::AuthRequired];
 
 // The MWA ASVO API endpoints this client uses: the schema's paths. The
 // login, refresh and job list endpoints are used only here.
@@ -709,7 +709,8 @@ impl MwaAsvoClient {
 
     /// Map a non-success response body to an [`MwaAsvoApiError`], preferring the
     /// structured `ErrorResponse` shape and falling back to `BadStatus` for
-    /// anything that doesn't match it.
+    /// anything that doesn't match it, including an error code that is not
+    /// in the schema's `ErrorCode`.
     fn error_from_body(status: reqwest::StatusCode, body: String) -> MwaAsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
             Ok(err) => MwaAsvoApiError::api_error(status.as_u16(), err),
@@ -736,7 +737,7 @@ impl MwaAsvoClient {
         matches!(
             err,
             MwaAsvoApiError::Server { response, .. }
-                if AUTH_ERROR_CODES.contains(&response.error_code.as_str())
+                if AUTH_ERROR_CODES.contains(&response.error_code)
         )
     }
 

@@ -465,7 +465,7 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
             message: text,
             response,
         } => {
-            let error_code = response.as_ref().map(|r| r.error_code.clone());
+            let error_code = response.as_ref().map(|r| r.error_code.to_string());
             let mut fields = vec![
                 ("message", Field::Str(text.clone())),
                 ("error_code", Field::OptStr(error_code)),
@@ -491,7 +491,7 @@ pub(crate) fn api_error_ref(py: Python<'_>, e: &lib::MwaAsvoApiError) -> PyErr {
         lib::MwaAsvoApiError::Server { status, response } => {
             let mut fields = vec![
                 ("status", Field::Int(u64::from(*status))),
-                ("error_code", Field::Str(response.error_code.clone())),
+                ("error_code", Field::Str(response.error_code.to_string())),
                 ("message", Field::Str(response.message.clone())),
             ];
             fields.extend(reply_fields(Some(response.clone())));

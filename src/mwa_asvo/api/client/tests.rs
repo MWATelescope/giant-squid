@@ -25,7 +25,7 @@ use crate::mwa_asvo::api::job_params::{download_params, PreprocessJobParams};
 use crate::mwa_asvo::api::openapi::DeliveryDestination;
 #[cfg(feature = "bin")]
 use crate::mwa_asvo::api::openapi::JobsByUserRequest;
-use crate::mwa_asvo::api::openapi::{DownloadJobParams, ErrorResponse};
+use crate::mwa_asvo::api::openapi::{DownloadJobParams, ErrorCode, ErrorResponse};
 use crate::mwa_asvo::client_config_from_env;
 use crate::mwa_asvo::{
     JobState, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoError, MwaAsvoJobId,
@@ -36,7 +36,7 @@ use crate::test_config::{client_config, job_type};
 /// Whether `err` is an API error carrying the given machine-readable code.
 fn is_api_error(err: &MwaAsvoApiError, code: &str) -> bool {
     match err {
-        MwaAsvoApiError::Server { response, .. } => response.error_code == code,
+        MwaAsvoApiError::Server { response, .. } => response.error_code.to_string() == code,
         _ => false,
     }
 }
@@ -157,7 +157,7 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
         then.status(401)
             .header("content-type", "application/json")
             .json_body(json!({
-                "error_code": "AUTH_INVALID_KEY",
+                "error_code": "AUTH_INVALID_API_KEY",
                 "message": "Bad API key",
                 "detail": "The key was revoked",
                 "suggestion": "Make a new key in your MWA ASVO profile",
@@ -175,7 +175,7 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
             response: Some(response),
         }) => {
             assert_eq!(message, "Bad API key");
-            assert_eq!(response.error_code, "AUTH_INVALID_KEY");
+            assert_eq!(response.error_code, ErrorCode::AuthInvalidApiKey);
             assert_eq!(response.detail.as_deref(), Some("The key was revoked"));
             assert_eq!(
                 response.suggestion.as_deref(),
@@ -187,7 +187,7 @@ fn a_rejected_login_with_an_error_response_has_its_fields() {
         other => panic!("expected AuthenticationFailed, got {other:?}"),
     }
     assert!(
-        text.starts_with("Authentication with MWA ASVO failed (AUTH_INVALID_KEY): Bad API key"),
+        text.starts_with("Authentication with MWA ASVO failed (AUTH_INVALID_API_KEY): Bad API key"),
         "{text}"
     );
     assert!(text.contains("Detail: The key was revoked"), "{text}");
@@ -631,7 +631,7 @@ fn only_a_failure_that_may_pass_is_transient() {
             status,
             ErrorResponse {
                 detail: None,
-                error_code: "CODE".to_string(),
+                error_code: ErrorCode::TestError,
                 field_errors: None,
                 message: "message".to_string(),
                 request_id: None,
@@ -698,7 +698,7 @@ fn a_structured_error_body_becomes_an_api_error() {
 
     match err {
         MwaAsvoApiError::Server { response, .. } => {
-            assert_eq!(response.error_code, "JOB_INVALID_STATE");
+            assert_eq!(response.error_code, ErrorCode::JobInvalidState);
             assert_eq!(response.message, "Job is not ready");
             assert_eq!(response.suggestion.as_deref(), Some("try something else"));
         }
@@ -1991,7 +1991,7 @@ fn a_listed_job_has_every_field_of_the_job_detail() {
 #[test]
 fn an_api_error_keeps_its_field_errors_and_request_id() {
     let env = TestEnv::with_session();
-    let mut body = error_response("VALIDATION_ERROR", "Invalid parameters");
+    let mut body = error_response("VALID_REQUEST_INVALID", "Invalid parameters");
     body["field_errors"] = json!([
         { "field": "mgain", "message": "must be at most 1" },
         { "field": "robust", "message": "must be at least -2" }
@@ -2022,7 +2022,7 @@ fn an_api_error_keeps_its_field_errors_and_request_id() {
     }
     assert_eq!(
         err.to_string(),
-        "MWA ASVO returned an error (VALIDATION_ERROR): Invalid parameters\n  Detail: detail from \
+        "MWA ASVO returned an error (VALID_REQUEST_INVALID): Invalid parameters\n  Detail: detail from \
          the mock server\n  Suggestion: try something else\n  mgain: must be at most 1\n  robust: \
          must be at least -2\n  (request ID: req-1234)"
     );
@@ -2048,6 +2048,33 @@ fn an_api_error_without_details_has_the_plain_message() {
         err.to_string(),
         "MWA ASVO returned an error (JOB_INVALID_STATE): Job is not ready"
     );
+}
+
+/// An error code that is not in the schema's `ErrorCode` is not decoded as
+/// an `ErrorResponse`: the error is a `BadStatus` with the body kept, so the
+/// user still sees the server's reply.
+#[test]
+fn an_api_error_with_an_unknown_code_keeps_the_body() {
+    let body = json!({ "error_code": "NOT_A_SCHEMA_CODE", "message": "Job is not ready" });
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/list");
+        then.status(400).json_body(body.clone());
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("expected the listing to fail");
+
+    match err {
+        MwaAsvoApiError::BadStatus { status, message } => {
+            assert_eq!(status, 400);
+            let sent: serde_json::Value = serde_json::from_str(&message).expect("the body is JSON");
+            assert_eq!(sent, body);
+        }
+        other => panic!("expected BadStatus, got {other:?}"),
+    }
 }
 
 /// The server's `detail` and `suggestion` are in the message, as the server

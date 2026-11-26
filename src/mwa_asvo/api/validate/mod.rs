@@ -151,15 +151,15 @@ pub const NMITER: Bounds = Bounds::between(1.0, 500.0);
 pub const PIXEL_SCALE: Bounds = Bounds::between(10.0, 120.0);
 /// `robust`: the WSClean -robust value.
 pub const ROBUST: Bounds = Bounds::between(-2.0, 2.0);
-/// `uvw_max`: the maximum uv distance to image (wavelengths).
-pub const UVW_MAX: Bounds = Bounds::between(1.0, 5000.0);
-/// `uvw_min`: the minimum uv distance to image (wavelengths).
-pub const UVW_MIN: Bounds = Bounds::between(1.0, 100.0);
+/// `uv_max`: the maximum uv distance to image (wavelengths).
+pub const UV_MAX: Bounds = Bounds::between(1.0, 5000.0);
+/// `uv_min`: the minimum uv distance to image (wavelengths).
+pub const UV_MIN: Bounds = Bounds::between(1.0, 100.0);
 /// `wstack_nwlayers`: the number of w-stacking layers. (Both imaging bodies
 /// since schema v1.11; before, only the imaging body from an Obs ID.)
 pub const WSTACK_NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
 /// `offset` of a voltage job: seconds from the start of the observation.
-pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 5400.0);
+pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 7200.0);
 /// `duration` of a voltage job: the seconds of data to download.
 pub const VOLTAGE_DURATION: Bounds = Bounds::between(0.0, 7200.0);
 
@@ -196,8 +196,8 @@ macro_rules! shared_imaging_checks {
             ("nmiter", NMITER, Some($params.nmiter.get() as f64)),
             ("pixel_scale", PIXEL_SCALE, $params.pixel_scale),
             ("robust", ROBUST, Some($params.robust)),
-            ("uvw_max", UVW_MAX, $params.uvw_max),
-            ("uvw_min", UVW_MIN, Some($params.uvw_min)),
+            ("uv_max", UV_MAX, $params.uv_max),
+            ("uv_min", UV_MIN, Some($params.uv_min)),
             (
                 "wstack_nwlayers",
                 WSTACK_NWLAYERS,

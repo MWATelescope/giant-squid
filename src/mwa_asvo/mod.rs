@@ -39,7 +39,7 @@ pub(crate) use self::{
         ENV_GIANT_SQUID_DELIVERY_FORMAT,
     },
     error::MwaAsvoError,
-    error_response::new_error_response,
+    error_response::{new_error_response, ClientErrorResponse},
     job_fields::{job_field_names, job_field_value, parse_job_field},
     token_store::default_token_cache_path,
     types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec},

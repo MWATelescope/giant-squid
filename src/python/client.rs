@@ -98,7 +98,7 @@ impl PyMwaAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: The `offset` is not from 0 to 5400. Nothing is sent.
+    ///     ValueError: The `offset` is not from 0 to 7200. Nothing is sent.
     ///     MwaAsvoApiError: The request failed.
     fn submit_download_job(
         &self,

@@ -44,8 +44,8 @@ const SHARED_LIMITS: [(&str, Bounds); 12] = [
     ("nmiter", NMITER),
     ("pixel_scale", PIXEL_SCALE),
     ("robust", ROBUST),
-    ("uvw_max", UVW_MAX),
-    ("uvw_min", UVW_MIN),
+    ("uv_max", UV_MAX),
+    ("uv_min", UV_MIN),
     ("wstack_nwlayers", WSTACK_NWLAYERS),
 ];
 
@@ -371,7 +371,7 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
 fn an_absent_optional_field_is_not_checked() {
     let params = imaging_defaults();
 
-    assert!(params.uvw_max.is_none() && params.pixel_scale.is_none());
+    assert!(params.uv_max.is_none() && params.pixel_scale.is_none());
     validate_imaging_params(&params).expect("absent optional fields are valid");
 }
 
