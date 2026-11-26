@@ -3,7 +3,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "MWA ASVO API",
-    "version": "2.8.2"
+    "version": "2.8.3"
   },
   "definitions": {
     "APIKeyResponse": {
@@ -215,15 +215,21 @@
         "obs_id": {
           "type": "integer",
           "minimum": 1056643216.0,
-          "title": "Obs Id"
+          "title": "Obs Id",
+          "description": "The ID of the observation",
+          "x-cmd-help": "The ID of the observation"
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
+          "description": "Deliverty destination (scratch | acacia | dug)",
+          "default": "acacia",
+          "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
         "delivery_format": {
           "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
+          "description": "(tar | files) Must be tar when delivery is acacia",
+          "default": "tar",
+          "x-cmd-help": "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -235,13 +241,15 @@
             }
           ],
           "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
+          "description": "Allows users to resubmit a job even if an identical one has already completed",
+          "default": false,
+          "x-cmd-help": "Allow resubmitting a job even if an identical one has completed. Takes true, false or null"
         },
         "output": {
           "$ref": "#/definitions/OutputFormat",
           "description": "output uvfits or measurement sets.",
-          "default": "ms"
+          "default": "ms",
+          "x-cmd-help": "Output format: \"ms\" (measurement set) or \"uvfits\""
         },
         "avg_time_res": {
           "anyOf": [
@@ -254,7 +262,9 @@
             }
           ],
           "title": "Avg Time Res",
-          "default": 2.0
+          "description": "Time resolution to average to (s)",
+          "default": 2.0,
+          "x-cmd-help": "Time resolution to average to (s), or null for no time averaging"
         },
         "avg_freq_res": {
           "anyOf": [
@@ -268,7 +278,9 @@
             }
           ],
           "title": "Avg Freq Res",
-          "default": 40.0
+          "description": "Frequency resolution to average to (kHz)",
+          "default": 40.0,
+          "x-cmd-help": "Frequency resolution to average to (kHz), or null for no frequency averaging"
         },
         "flag_edge_width": {
           "anyOf": [
@@ -282,11 +294,15 @@
             }
           ],
           "title": "Flag Edge Width",
-          "default": 80.0
+          "description": "Width of frequency edge flagging (kHz)",
+          "default": 80.0,
+          "x-cmd-help": "Width of frequency edge flagging (kHz), or null for no edge flagging"
         },
         "centre": {
           "$ref": "#/definitions/PhaseCentre",
-          "default": "phase"
+          "description": "(phase | pointing | custom) Phase centre",
+          "default": "phase",
+          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de"
         },
         "custom_centre_ra": {
           "anyOf": [
@@ -299,7 +315,9 @@
               "type": "null"
             }
           ],
-          "title": "Custom Centre Ra"
+          "title": "Custom Centre Ra",
+          "description": "Custom phase centre right ascension (degrees)",
+          "x-cmd-help": "Custom phase centre right ascension (degrees). Requires --centre custom"
         },
         "custom_centre_dec": {
           "anyOf": [
@@ -312,17 +330,23 @@
               "type": "null"
             }
           ],
-          "title": "Custom Centre Dec"
+          "title": "Custom Centre Dec",
+          "description": "Custom phase centre declination (degrees)",
+          "x-cmd-help": "Custom phase centre declination (degrees). Requires --centre custom"
         },
         "apply_di_cal": {
           "type": "boolean",
           "title": "Apply Di Cal",
-          "default": false
+          "description": "Whether to apply a DI calibration solution",
+          "default": false,
+          "x-cmd-help": "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)"
         },
         "no_apply_amps": {
           "type": "boolean",
           "title": "No Apply Amps",
-          "default": false
+          "description": "Whether to skip applying amplitude calibration solutions",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying amplitude calibration solutions"
         },
         "no_rfi": {
           "anyOf": [
@@ -334,7 +358,9 @@
             }
           ],
           "title": "No Rfi",
-          "default": false
+          "description": "Whether to skip RFI flagging. Takes true, false or null",
+          "default": false,
+          "x-cmd-help": "Whether to skip RFI flagging. Takes true, false or null"
         },
         "no_geometric_delay": {
           "anyOf": [
@@ -346,7 +372,9 @@
             }
           ],
           "title": "No Geometric Delay",
-          "default": false
+          "description": "Whether to skip applying geometric delay corrections.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying geometric delay corrections. Takes true, false or null"
         },
         "no_cable_delay": {
           "anyOf": [
@@ -358,7 +386,9 @@
             }
           ],
           "title": "No Cable Delay",
-          "default": false
+          "description": "Whether to skip applying cable delay corrections",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying cable delay corrections. Takes true, false or null"
         },
         "no_digital_gains": {
           "anyOf": [
@@ -370,7 +400,9 @@
             }
           ],
           "title": "No Digital Gains",
-          "default": false
+          "description": "Whether to skip applying digital gains.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying digital gains. Takes true, false or null"
         },
         "no_flag_dc": {
           "anyOf": [
@@ -382,7 +414,9 @@
             }
           ],
           "title": "No Flag Dc",
-          "default": false
+          "description": "Whether to skip flagging the DC channel.",
+          "default": false,
+          "x-cmd-help": "Whether to skip flagging the DC channel. Takes true, false or null"
         },
         "no_passband_gains": {
           "anyOf": [
@@ -394,7 +428,9 @@
             }
           ],
           "title": "No Passband Gains",
-          "default": false
+          "description": "Whether to skip applying passband gain corrections.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying passband gain corrections. Takes true, false or null"
         }
       },
       "type": "object",
@@ -426,15 +462,21 @@
         "obs_id": {
           "type": "integer",
           "minimum": 1056643216.0,
-          "title": "Obs Id"
+          "title": "Obs Id",
+          "description": "The ID of the observation",
+          "x-cmd-help": "The ID of the observation"
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
+          "description": "Deliverty destination (scratch | acacia | dug)",
+          "default": "acacia",
+          "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
         "delivery_format": {
           "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
+          "description": "(tar | files) Must be tar when delivery is acacia",
+          "default": "tar",
+          "x-cmd-help": "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -446,8 +488,9 @@
             }
           ],
           "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
+          "description": "Allows users to resubmit a job even if an identical one has already completed",
+          "default": false,
+          "x-cmd-help": "Allow resubmitting a job even if an identical one has completed. Takes true, false or null"
         },
         "only_metadata": {
           "anyOf": [
@@ -458,20 +501,24 @@
               "type": "null"
             }
           ],
-          "title": "Only Metadata"
+          "title": "Only Metadata",
+          "description": "Only download metadata files: metafits (with PPDs for each tile) and RFI flags (if available).",
+          "x-cmd-help": "Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default). True is not valid with the voltage options (--offset, --duration, --from-channel, --to-channel)"
         },
         "offset": {
           "anyOf": [
             {
               "type": "integer",
-              "maximum": 5400.0,
+              "maximum": 7200.0,
               "minimum": 0.0
             },
             {
               "type": "null"
             }
           ],
-          "title": "Offset"
+          "title": "Offset",
+          "description": "Voltage observations only (required): the offset in seconds from the start GPS time of the observation",
+          "x-cmd-help": "Voltage observations only (required): the offset in seconds from the start GPS time of the observation"
         },
         "duration": {
           "anyOf": [
@@ -484,7 +531,9 @@
               "type": "null"
             }
           ],
-          "title": "Duration"
+          "title": "Duration",
+          "description": "Voltage observations only (required): the duration (in seconds) to download",
+          "x-cmd-help": "Voltage observations only (required): the duration (in seconds) to download"
         },
         "from_channel": {
           "anyOf": [
@@ -497,7 +546,9 @@
               "type": "null"
             }
           ],
-          "title": "From Channel"
+          "title": "From Channel",
+          "description": "Voltage observations only (optional): the 'from' receiver channel number",
+          "x-cmd-help": "Voltage observations only (optional): the 'from' receiver channel number"
         },
         "to_channel": {
           "anyOf": [
@@ -510,7 +561,9 @@
               "type": "null"
             }
           ],
-          "title": "To Channel"
+          "title": "To Channel",
+          "description": "Voltage observations only (optional): the 'to' receiver channel number",
+          "x-cmd-help": "Voltage observations only (optional): the 'to' receiver channel number"
         }
       },
       "type": "object",
@@ -519,11 +572,50 @@
       ],
       "title": "DownloadJobParams"
     },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID_TOKEN",
+        "AUTH_INVALID_API_KEY",
+        "AUTH_INVALID_CLI_VERSION",
+        "AUTH_FORBIDDEN",
+        "AUTH_USER_NOT_FOUND",
+        "AUTH_API_KEY_GEN",
+        "VALID_MISSING_FIELD",
+        "VALID_INVALID_TYPE",
+        "VALID_INVALID_VALUE",
+        "VALID_REQUEST_INVALID",
+        "VALID_OBS_NOT_FOUND",
+        "JOB_NOT_FOUND",
+        "JOB_ALREADY_SUBMITTED",
+        "JOB_ALREADY_CANCELLED",
+        "JOB_LIMIT_REACHED",
+        "JOB_INVALID_STATE",
+        "JOB_PERMISSION_DENIED",
+        "JOB_RESTAGE_RETRIES_EXCEEDED",
+        "JOB_SOURCE_JOB_NOT_FOUND",
+        "DB_CONNECTION_FAILED",
+        "DB_QUERY_FAILED",
+        "EXT_SERVICE_UNAVAILABLE",
+        "EXT_TAP_SERVICE_ERROR",
+        "EXT_STAGING_SERVICE_ERROR",
+        "EXT_SQS_SERVICE_ERROR",
+        "EXT_CALIBRATION_SERVICE_ERROR",
+        "EXT_METADATA_SERVICE_ERROR",
+        "INTERNAL_ERROR",
+        "RESOURCE_NOT_FOUND",
+        "OUTAGE_IN_PROGRESS",
+        "OBS_DATA_FORBIDDEN",
+        "TEST_ERROR"
+      ],
+      "title": "ErrorCode",
+      "description": "Enum representing error codes with their string values\n\nError codes are organized by category:\n- AUTH_*: Authentication and Authorization errrors\n- VALID_*: Validation and input errors\n- JOB_*: Job lifecycle and processing errors\n- DB_*: Database and persistent errors\n- EXT_*: External service and dependency errors\n\n- `AUTH_REQUIRED`: Authentication required to access this resource\n- `AUTH_INVALID_TOKEN`: Invalid or expired authentication token\n- `AUTH_INVALID_API_KEY`: Unable to generate new API key\n- `AUTH_INVALID_CLI_VERSION`: CLI version is incompatible with current API version\n- `AUTH_FORBIDDEN`: You do not have permission to perform this action\n- `AUTH_USER_NOT_FOUND`: User account not found\n- `AUTH_API_KEY_GEN`: Unable to generate new API key\n- `VALID_MISSING_FIELD`: Required field is missing\n- `VALID_INVALID_TYPE`: Field is not valid type\n- `VALID_INVALID_VALUE`: Field has invalid value\n- `VALID_REQUEST_INVALID`: Request validation failed\n- `VALID_OBS_NOT_FOUND`: Observation ID does not exist\n- `JOB_NOT_FOUND`: Job not found\n- `JOB_ALREADY_SUBMITTED`: This job has already been submitted\n- `JOB_ALREADY_CANCELLED`: Cannot update job state. Job is cancelled\n- `JOB_LIMIT_REACHED`: You have reached the maximum of concurrent jobs\n- `JOB_INVALID_STATE`: Job cannot be updated in current state\n- `JOB_PERMISSION_DENIED`: You do not have permission to perform this job\n- `JOB_RESTAGE_RETRIES_EXCEEDED`: Number of restage requests exceeded\n- `JOB_SOURCE_JOB_NOT_FOUND`: Source conversion job not found\n- `DB_CONNECTION_FAILED`: Service temporarily unavailable due to database connection issue\n- `DB_QUERY_FAILED`: Database query failed\n- `EXT_SERVICE_UNAVAILABLE`: External service is currently unavailable\n- `EXT_TAP_SERVICE_ERROR`: TAP service query failed\n- `EXT_STAGING_SERVICE_ERROR`: Staging web service failed\n- `EXT_SQS_SERVICE_ERROR`: AWS SQS service failed\n- `EXT_CALIBRATION_SERVICE_ERROR`: Calibration web service failed\n- `EXT_METADATA_SERVICE_ERROR`: Metadata web service failed\n- `INTERNAL_ERROR`: An unexpected error occurred\n- `RESOURCE_NOT_FOUND`: The requested resource was not found\n- `OUTAGE_IN_PROGRESS`: The portal is currently not available due to an outage or maintenance\n- `OBS_DATA_FORBIDDEN`: Contact support if you believe you should have access to this data\n- `TEST_ERROR`: test error"
+    },
     "ErrorResponse": {
       "properties": {
         "error_code": {
-          "type": "string",
-          "title": "Error Code",
+          "$ref": "#/definitions/ErrorCode",
           "description": "machine readable error code"
         },
         "message": {
@@ -687,11 +779,15 @@
       "properties": {
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
+          "description": "Deliverty destination (scratch | acacia | dug)",
+          "default": "acacia",
+          "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
         "delivery_format": {
           "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
+          "description": "(tar | files) Must be tar when delivery is acacia",
+          "default": "tar",
+          "x-cmd-help": "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -703,8 +799,9 @@
             }
           ],
           "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
+          "description": "Allows users to resubmit a job even if an identical one has already completed",
+          "default": false,
+          "x-cmd-help": "Allow resubmitting a job even if an identical one has completed. Takes true, false or null"
         },
         "image_size": {
           "anyOf": [
@@ -716,7 +813,8 @@
             }
           ],
           "description": "Image size (pixels). When None is provided, the value will be calculated automatically",
-          "x-cmd-flag": "-size"
+          "x-cmd-flag": "-size",
+          "x-cmd-help": "WSClean image size in pixels. Leave unset to let the server calculate it"
         },
         "pixel_scale": {
           "anyOf": [
@@ -731,13 +829,15 @@
           ],
           "title": "Pixel Scale",
           "description": "Pixel scale. If none is provided, this value will be calculated automatically",
-          "x-cmd-flag": "-scale"
+          "x-cmd-flag": "-scale",
+          "x-cmd-help": "Pixel scale (arcsec/pixel). Leave unset to let the server calculate it"
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
           "description": "Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
           "default": "briggs",
-          "x-cmd-flag": "-weight"
+          "x-cmd-flag": "-weight",
+          "x-cmd-help": "WSClean weighting scheme"
         },
         "robust": {
           "type": "number",
@@ -746,6 +846,7 @@
           "title": "Robust",
           "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
           "default": -0.5,
+          "x-cmd-help": "WSClean -robust (Briggs robustness) value",
           "x-cmd-value": "robust"
         },
         "clean_iterations": {
@@ -755,7 +856,8 @@
           "title": "Clean Iterations",
           "description": "Maximum number of clean iterations",
           "default": 100000,
-          "x-cmd-flag": "-niter"
+          "x-cmd-flag": "-niter",
+          "x-cmd-help": "WSClean -niter value (max clean iterations)"
         },
         "abs_threshold": {
           "anyOf": [
@@ -771,7 +873,8 @@
           "title": "Abs Threshold",
           "description": "Absolute flux threshold (in Janskys) at which the clean stops entirely.",
           "default": 0.001,
-          "x-cmd-flag": "-abs-threshold"
+          "x-cmd-flag": "-abs-threshold",
+          "x-cmd-help": "Absolute cleaning threshold (Jy), or null"
         },
         "auto_threshold": {
           "type": "number",
@@ -780,7 +883,8 @@
           "title": "Auto Threshold",
           "description": "Automated stopping criteria based on residual noise level (sigma). Highly recommended.",
           "default": 0.5,
-          "x-cmd-flag": "-auto-threshold"
+          "x-cmd-flag": "-auto-threshold",
+          "x-cmd-help": "WSClean -auto-threshold value"
         },
         "nmiter": {
           "type": "integer",
@@ -789,7 +893,8 @@
           "title": "Nmiter",
           "description": "Maximum number of major iterations (re-gridding loops).",
           "default": 10,
-          "x-cmd-flag": "-nmiter"
+          "x-cmd-flag": "-nmiter",
+          "x-cmd-help": "WSClean -nmiter value (max major cleaning iterations)"
         },
         "mgain": {
           "type": "number",
@@ -798,7 +903,8 @@
           "title": "Mgain",
           "description": "Fraction of flux subtracted per major loop cycle.",
           "default": 0.8,
-          "x-cmd-flag": "-mgain"
+          "x-cmd-flag": "-mgain",
+          "x-cmd-help": "WSClean -mgain value"
         },
         "auto_mask": {
           "type": "integer",
@@ -807,14 +913,16 @@
           "title": "Auto Mask",
           "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
-          "x-cmd-flag": "-auto-mask"
+          "x-cmd-flag": "-auto-mask",
+          "x-cmd-help": " WSClean -auto-mask value"
         },
         "apply_primary_beam": {
           "type": "boolean",
           "title": "Apply Primary Beam",
           "description": "Correct the final images post-deconvolution using a Mueller matrix",
           "default": true,
-          "x-cmd-flag": "-apply-primary-beam"
+          "x-cmd-flag": "-apply-primary-beam",
+          "x-cmd-help": "Whether to apply the primary beam correction"
         },
         "wstack_nwlayers": {
           "anyOf": [
@@ -829,25 +937,28 @@
           ],
           "title": "Wstack Nwlayers",
           "description": "Number of w-layers for w-stacking.",
-          "x-cmd-flag": "-wstack-layers"
+          "x-cmd-flag": "-wstack-layers",
+          "x-cmd-help": "Number of w-stacking layers. Leave unset to let the server decide"
         },
         "multiscale": {
           "type": "boolean",
           "title": "Multiscale",
           "description": "Enables multi-scale cleaning to better model extended sources.",
           "default": false,
-          "x-cmd-flag": "-multiscale"
+          "x-cmd-flag": "-multiscale",
+          "x-cmd-help": "Enable WSClean multiscale cleaning"
         },
-        "uvw_min": {
+        "uv_min": {
           "type": "number",
           "maximum": 100.0,
           "minimum": 1.0,
-          "title": "Uvw Min",
+          "title": "Uv Min",
           "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
           "default": 75.0,
-          "x-cmd-flag": "-minuv-l"
+          "x-cmd-flag": "-minuv-l",
+          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
         },
-        "uvw_max": {
+        "uv_max": {
           "anyOf": [
             {
               "type": "number",
@@ -858,16 +969,18 @@
               "type": "null"
             }
           ],
-          "title": "Uvw Max",
+          "title": "Uv Max",
           "description": "Filters out long baselines. Leave blank to use the array's full resolution.",
-          "x-cmd-flag": "-maxuv-l"
+          "x-cmd-flag": "-maxuv-l",
+          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
         },
         "join_polarizations": {
           "type": "boolean",
           "title": "Join Polarizations",
           "description": "Joint deconvolution across multiple polarization products",
           "default": false,
-          "x-cmd-flag": "-join-polarizations"
+          "x-cmd-flag": "-join-polarizations",
+          "x-cmd-help": "Join polarisations for cleaning"
         },
         "channels_out": {
           "type": "integer",
@@ -875,28 +988,35 @@
           "title": "Channels Out",
           "description": "Number of frequency chunks to split the band into for an image cube.",
           "default": 4,
-          "x-cmd-flag": "-channels-out"
+          "x-cmd-flag": "-channels-out",
+          "x-cmd-help": "Number of output channel groups"
         },
         "join_channels": {
           "type": "boolean",
           "title": "Join Channels",
           "description": "Only applies if channels_out > 1",
           "default": true,
-          "x-cmd-flag": "-join-channels"
+          "x-cmd-flag": "-join-channels",
+          "x-cmd-help": "Join output channel groups for cleaning"
         },
         "polarization": {
           "$ref": "#/definitions/Polarization",
-          "description": "Polarization",
+          "description": "(i | iquv | xx | yy | xy | yx | xxyy) Polarization",
           "default": "i",
-          "x-cmd-flag": "-pol"
+          "x-cmd-flag": "-pol",
+          "x-cmd-help": "Polarisation to image"
         },
         "output_mode": {
-          "$ref": "#/definitions/ImageOutputMode"
+          "$ref": "#/definitions/ImageOutputMode",
+          "description": "(fits | all_fits | all_files) fits downloads the model, image, residual and ... images. all fits downloads all products produced by WSClean. all files downloads both the converted measurement sets and all the fits artifacts produced by WSClean",
+          "x-cmd-help": "The output mode / product to request. Required"
         },
         "source_job_id": {
           "type": "integer",
           "minimum": 1.0,
-          "title": "Source Job Id"
+          "title": "Source Job Id",
+          "description": "The MWA ASVO conversion Job ID to image from",
+          "x-cmd-help": "The MWA ASVO conversion Job ID to image from. Required"
         }
       },
       "type": "object",
@@ -942,15 +1062,21 @@
         "obs_id": {
           "type": "integer",
           "minimum": 1056643216.0,
-          "title": "Obs Id"
+          "title": "Obs Id",
+          "description": "The ID of the observation",
+          "x-cmd-help": "The ID of the observation"
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "default": "acacia"
+          "description": "Deliverty destination (scratch | acacia | dug)",
+          "default": "acacia",
+          "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
         "delivery_format": {
           "$ref": "#/definitions/DeliveryFormat",
-          "default": "tar"
+          "description": "(tar | files) Must be tar when delivery is acacia",
+          "default": "tar",
+          "x-cmd-help": "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia"
         },
         "allow_resubmit": {
           "anyOf": [
@@ -962,8 +1088,9 @@
             }
           ],
           "title": "Allow Resubmit",
-          "description": "allows user to resubmit a job despite it being completed",
-          "default": false
+          "description": "Allows users to resubmit a job even if an identical one has already completed",
+          "default": false,
+          "x-cmd-help": "Allow resubmitting a job even if an identical one has completed. Takes true, false or null"
         },
         "image_size": {
           "anyOf": [
@@ -975,7 +1102,8 @@
             }
           ],
           "description": "Image size (pixels). When None is provided, the value will be calculated automatically",
-          "x-cmd-flag": "-size"
+          "x-cmd-flag": "-size",
+          "x-cmd-help": "WSClean image size in pixels. Leave unset to let the server calculate it"
         },
         "pixel_scale": {
           "anyOf": [
@@ -990,13 +1118,15 @@
           ],
           "title": "Pixel Scale",
           "description": "Pixel scale. If none is provided, this value will be calculated automatically",
-          "x-cmd-flag": "-scale"
+          "x-cmd-flag": "-scale",
+          "x-cmd-help": "Pixel scale (arcsec/pixel). Leave unset to let the server calculate it"
         },
         "weighting": {
           "$ref": "#/definitions/ImageWeighting",
           "description": "Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.",
           "default": "briggs",
-          "x-cmd-flag": "-weight"
+          "x-cmd-flag": "-weight",
+          "x-cmd-help": "WSClean weighting scheme"
         },
         "robust": {
           "type": "number",
@@ -1005,6 +1135,7 @@
           "title": "Robust",
           "description": "The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).",
           "default": -0.5,
+          "x-cmd-help": "WSClean -robust (Briggs robustness) value",
           "x-cmd-value": "robust"
         },
         "clean_iterations": {
@@ -1014,7 +1145,8 @@
           "title": "Clean Iterations",
           "description": "Maximum number of clean iterations",
           "default": 100000,
-          "x-cmd-flag": "-niter"
+          "x-cmd-flag": "-niter",
+          "x-cmd-help": "WSClean -niter value (max clean iterations)"
         },
         "abs_threshold": {
           "anyOf": [
@@ -1030,7 +1162,8 @@
           "title": "Abs Threshold",
           "description": "Absolute flux threshold (in Janskys) at which the clean stops entirely.",
           "default": 0.001,
-          "x-cmd-flag": "-abs-threshold"
+          "x-cmd-flag": "-abs-threshold",
+          "x-cmd-help": "Absolute cleaning threshold (Jy), or null"
         },
         "auto_threshold": {
           "type": "number",
@@ -1039,7 +1172,8 @@
           "title": "Auto Threshold",
           "description": "Automated stopping criteria based on residual noise level (sigma). Highly recommended.",
           "default": 0.5,
-          "x-cmd-flag": "-auto-threshold"
+          "x-cmd-flag": "-auto-threshold",
+          "x-cmd-help": "WSClean -auto-threshold value"
         },
         "nmiter": {
           "type": "integer",
@@ -1048,7 +1182,8 @@
           "title": "Nmiter",
           "description": "Maximum number of major iterations (re-gridding loops).",
           "default": 10,
-          "x-cmd-flag": "-nmiter"
+          "x-cmd-flag": "-nmiter",
+          "x-cmd-help": "WSClean -nmiter value (max major cleaning iterations)"
         },
         "mgain": {
           "type": "number",
@@ -1057,7 +1192,8 @@
           "title": "Mgain",
           "description": "Fraction of flux subtracted per major loop cycle.",
           "default": 0.8,
-          "x-cmd-flag": "-mgain"
+          "x-cmd-flag": "-mgain",
+          "x-cmd-help": "WSClean -mgain value"
         },
         "auto_mask": {
           "type": "integer",
@@ -1066,14 +1202,16 @@
           "title": "Auto Mask",
           "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
-          "x-cmd-flag": "-auto-mask"
+          "x-cmd-flag": "-auto-mask",
+          "x-cmd-help": " WSClean -auto-mask value"
         },
         "apply_primary_beam": {
           "type": "boolean",
           "title": "Apply Primary Beam",
           "description": "Correct the final images post-deconvolution using a Mueller matrix",
           "default": true,
-          "x-cmd-flag": "-apply-primary-beam"
+          "x-cmd-flag": "-apply-primary-beam",
+          "x-cmd-help": "Whether to apply the primary beam correction"
         },
         "wstack_nwlayers": {
           "anyOf": [
@@ -1088,25 +1226,28 @@
           ],
           "title": "Wstack Nwlayers",
           "description": "Number of w-layers for w-stacking.",
-          "x-cmd-flag": "-wstack-layers"
+          "x-cmd-flag": "-wstack-layers",
+          "x-cmd-help": "Number of w-stacking layers. Leave unset to let the server decide"
         },
         "multiscale": {
           "type": "boolean",
           "title": "Multiscale",
           "description": "Enables multi-scale cleaning to better model extended sources.",
           "default": false,
-          "x-cmd-flag": "-multiscale"
+          "x-cmd-flag": "-multiscale",
+          "x-cmd-help": "Enable WSClean multiscale cleaning"
         },
-        "uvw_min": {
+        "uv_min": {
           "type": "number",
           "maximum": 100.0,
           "minimum": 1.0,
-          "title": "Uvw Min",
+          "title": "Uv Min",
           "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
           "default": 75.0,
-          "x-cmd-flag": "-minuv-l"
+          "x-cmd-flag": "-minuv-l",
+          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
         },
-        "uvw_max": {
+        "uv_max": {
           "anyOf": [
             {
               "type": "number",
@@ -1117,16 +1258,18 @@
               "type": "null"
             }
           ],
-          "title": "Uvw Max",
+          "title": "Uv Max",
           "description": "Filters out long baselines. Leave blank to use the array's full resolution.",
-          "x-cmd-flag": "-maxuv-l"
+          "x-cmd-flag": "-maxuv-l",
+          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
         },
         "join_polarizations": {
           "type": "boolean",
           "title": "Join Polarizations",
           "description": "Joint deconvolution across multiple polarization products",
           "default": false,
-          "x-cmd-flag": "-join-polarizations"
+          "x-cmd-flag": "-join-polarizations",
+          "x-cmd-help": "Join polarisations for cleaning"
         },
         "channels_out": {
           "type": "integer",
@@ -1134,23 +1277,28 @@
           "title": "Channels Out",
           "description": "Number of frequency chunks to split the band into for an image cube.",
           "default": 4,
-          "x-cmd-flag": "-channels-out"
+          "x-cmd-flag": "-channels-out",
+          "x-cmd-help": "Number of output channel groups"
         },
         "join_channels": {
           "type": "boolean",
           "title": "Join Channels",
           "description": "Only applies if channels_out > 1",
           "default": true,
-          "x-cmd-flag": "-join-channels"
+          "x-cmd-flag": "-join-channels",
+          "x-cmd-help": "Join output channel groups for cleaning"
         },
         "polarization": {
           "$ref": "#/definitions/Polarization",
-          "description": "Polarization",
+          "description": "(i | iquv | xx | yy | xy | yx | xxyy) Polarization",
           "default": "i",
-          "x-cmd-flag": "-pol"
+          "x-cmd-flag": "-pol",
+          "x-cmd-help": "Polarisation to image"
         },
         "output_mode": {
-          "$ref": "#/definitions/ImageOutputMode"
+          "$ref": "#/definitions/ImageOutputMode",
+          "description": "(fits | all_fits | all_files) fits downloads the model, image, residual and ... images. all fits downloads all products produced by WSClean. all files downloads both the converted measurement sets and all the fits artifacts produced by WSClean",
+          "x-cmd-help": "The output mode / product to request. Required"
         },
         "avg_time_res": {
           "anyOf": [
@@ -1163,7 +1311,9 @@
             }
           ],
           "title": "Avg Time Res",
-          "default": 2.0
+          "description": "Time resolution to average to (s)",
+          "default": 2.0,
+          "x-cmd-help": "Time resolution to average to (s), or null for no time averaging"
         },
         "avg_freq_res": {
           "anyOf": [
@@ -1177,7 +1327,9 @@
             }
           ],
           "title": "Avg Freq Res",
-          "default": 40.0
+          "description": "Frequency resolution to average to (kHz)",
+          "default": 40.0,
+          "x-cmd-help": "Frequency resolution to average to (kHz), or null for no frequency averaging"
         },
         "flag_edge_width": {
           "anyOf": [
@@ -1191,11 +1343,15 @@
             }
           ],
           "title": "Flag Edge Width",
-          "default": 80.0
+          "description": "Width of frequency edge flagging (kHz)",
+          "default": 80.0,
+          "x-cmd-help": "Width of frequency edge flagging (kHz), or null for no edge flagging"
         },
         "centre": {
           "$ref": "#/definitions/PhaseCentre",
-          "default": "phase"
+          "description": "(phase | pointing | custom) Phase centre",
+          "default": "phase",
+          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de"
         },
         "custom_centre_ra": {
           "anyOf": [
@@ -1208,7 +1364,9 @@
               "type": "null"
             }
           ],
-          "title": "Custom Centre Ra"
+          "title": "Custom Centre Ra",
+          "description": "Custom phase centre right ascension (degrees)",
+          "x-cmd-help": "Custom phase centre right ascension (degrees). Requires --centre custom"
         },
         "custom_centre_dec": {
           "anyOf": [
@@ -1221,17 +1379,23 @@
               "type": "null"
             }
           ],
-          "title": "Custom Centre Dec"
+          "title": "Custom Centre Dec",
+          "description": "Custom phase centre declination (degrees)",
+          "x-cmd-help": "Custom phase centre declination (degrees). Requires --centre custom"
         },
         "apply_di_cal": {
           "type": "boolean",
           "title": "Apply Di Cal",
-          "default": true
+          "description": "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)",
+          "default": true,
+          "x-cmd-help": "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)"
         },
         "no_apply_amps": {
           "type": "boolean",
           "title": "No Apply Amps",
-          "default": false
+          "description": "Whether to skip applying amplitude calibration solutions",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying amplitude calibration solutions"
         },
         "no_rfi": {
           "anyOf": [
@@ -1243,7 +1407,9 @@
             }
           ],
           "title": "No Rfi",
-          "default": false
+          "description": "Whether to skip RFI flagging. Takes true, false or null",
+          "default": false,
+          "x-cmd-help": "Whether to skip RFI flagging. Takes true, false or null"
         },
         "no_geometric_delay": {
           "anyOf": [
@@ -1255,7 +1421,9 @@
             }
           ],
           "title": "No Geometric Delay",
-          "default": false
+          "description": "Whether to skip applying geometric delay corrections.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying geometric delay corrections. Takes true, false or null"
         },
         "no_cable_delay": {
           "anyOf": [
@@ -1267,7 +1435,9 @@
             }
           ],
           "title": "No Cable Delay",
-          "default": false
+          "description": "Whether to skip applying cable delay corrections",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying cable delay corrections. Takes true, false or null"
         },
         "no_digital_gains": {
           "anyOf": [
@@ -1279,7 +1449,9 @@
             }
           ],
           "title": "No Digital Gains",
-          "default": false
+          "description": "Whether to skip applying digital gains.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying digital gains. Takes true, false or null"
         },
         "no_flag_dc": {
           "anyOf": [
@@ -1291,7 +1463,9 @@
             }
           ],
           "title": "No Flag Dc",
-          "default": false
+          "description": "Whether to skip flagging the DC channel.",
+          "default": false,
+          "x-cmd-help": "Whether to skip flagging the DC channel. Takes true, false or null"
         },
         "no_passband_gains": {
           "anyOf": [
@@ -1303,7 +1477,9 @@
             }
           ],
           "title": "No Passband Gains",
-          "default": false
+          "description": "Whether to skip applying passband gain corrections.",
+          "default": false,
+          "x-cmd-help": "Whether to skip applying passband gain corrections. Takes true, false or null"
         }
       },
       "type": "object",

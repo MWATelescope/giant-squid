@@ -10,7 +10,7 @@
 /// The version of the OpenAPI specification that the MWA ASVO API's document is written in.
 pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
-pub const MWA_ASVO_API_VERSION: &str = "2.8.2";
+pub const MWA_ASVO_API_VERSION: &str = "2.8.3";
 
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
@@ -109,41 +109,58 @@ impl CancelledJobsResponse {
 ///Parameters for conversion job submission
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ConversionJobParams {
-    ///allows user to resubmit a job despite it being completed
+    ///Allows users to resubmit a job even if an identical one has already completed
     #[serde(default = "defaults::conversion_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
+    ///Whether to apply a DI calibration solution
     #[serde(default)]
     pub apply_di_cal: bool,
+    ///Frequency resolution to average to (kHz)
     #[serde(default = "defaults::conversion_job_params_avg_freq_res")]
     pub avg_freq_res: ::std::option::Option<f64>,
+    ///Time resolution to average to (s)
     #[serde(default = "defaults::conversion_job_params_avg_time_res")]
     pub avg_time_res: ::std::option::Option<f64>,
+    ///(phase | pointing | custom) Phase centre
     #[serde(default = "defaults::conversion_job_params_centre")]
     pub centre: PhaseCentre,
+    ///Custom phase centre declination (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_dec: ::std::option::Option<f64>,
+    ///Custom phase centre right ascension (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
+    ///Deliverty destination (scratch | acacia | dug)
     #[serde(default = "defaults::conversion_job_params_delivery")]
     pub delivery: DeliveryDestination,
+    ///(tar | files) Must be tar when delivery is acacia
     #[serde(default = "defaults::conversion_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
+    ///Width of frequency edge flagging (kHz)
     #[serde(default = "defaults::conversion_job_params_flag_edge_width")]
     pub flag_edge_width: ::std::option::Option<f64>,
+    ///Whether to skip applying amplitude calibration solutions
     #[serde(default)]
     pub no_apply_amps: bool,
+    ///Whether to skip applying cable delay corrections
     #[serde(default = "defaults::conversion_job_params_no_cable_delay")]
     pub no_cable_delay: ::std::option::Option<bool>,
+    ///Whether to skip applying digital gains.
     #[serde(default = "defaults::conversion_job_params_no_digital_gains")]
     pub no_digital_gains: ::std::option::Option<bool>,
+    ///Whether to skip flagging the DC channel.
     #[serde(default = "defaults::conversion_job_params_no_flag_dc")]
     pub no_flag_dc: ::std::option::Option<bool>,
+    ///Whether to skip applying geometric delay corrections.
     #[serde(default = "defaults::conversion_job_params_no_geometric_delay")]
     pub no_geometric_delay: ::std::option::Option<bool>,
+    ///Whether to skip applying passband gain corrections.
     #[serde(default = "defaults::conversion_job_params_no_passband_gains")]
     pub no_passband_gains: ::std::option::Option<bool>,
+    ///Whether to skip RFI flagging. Takes true, false or null
     #[serde(default = "defaults::conversion_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
+    ///The ID of the observation
     pub obs_id: i64,
     ///output uvfits or measurement sets.
     #[serde(default = "defaults::conversion_job_params_output")]
@@ -271,28 +288,260 @@ impl ::std::convert::TryFrom<::std::string::String> for DeliveryFormat {
 ///`DownloadJobParams`
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct DownloadJobParams {
-    ///allows user to resubmit a job despite it being completed
+    ///Allows users to resubmit a job even if an identical one has already completed
     #[serde(default = "defaults::download_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
+    ///Deliverty destination (scratch | acacia | dug)
     #[serde(default = "defaults::download_job_params_delivery")]
     pub delivery: DeliveryDestination,
+    ///(tar | files) Must be tar when delivery is acacia
     #[serde(default = "defaults::download_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
+    ///Voltage observations only (required): the duration (in seconds) to download
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub duration: ::std::option::Option<i64>,
+    ///Voltage observations only (optional): the 'from' receiver channel number
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub from_channel: ::std::option::Option<u8>,
+    ///The ID of the observation
     pub obs_id: i64,
+    ///Voltage observations only (required): the offset in seconds from the start GPS time of the observation
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub offset: ::std::option::Option<i64>,
+    ///Only download metadata files: metafits (with PPDs for each tile) and RFI flags (if available).
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub only_metadata: ::std::option::Option<bool>,
+    ///Voltage observations only (optional): the 'to' receiver channel number
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub to_channel: ::std::option::Option<u8>,
 }
 impl DownloadJobParams {
     pub fn builder() -> builder::DownloadJobParams {
         Default::default()
+    }
+}
+/**Enum representing error codes with their string values
+
+Error codes are organized by category:
+- AUTH_*: Authentication and Authorization errrors
+- VALID_*: Validation and input errors
+- JOB_*: Job lifecycle and processing errors
+- DB_*: Database and persistent errors
+- EXT_*: External service and dependency errors
+
+- `AUTH_REQUIRED`: Authentication required to access this resource
+- `AUTH_INVALID_TOKEN`: Invalid or expired authentication token
+- `AUTH_INVALID_API_KEY`: Unable to generate new API key
+- `AUTH_INVALID_CLI_VERSION`: CLI version is incompatible with current API version
+- `AUTH_FORBIDDEN`: You do not have permission to perform this action
+- `AUTH_USER_NOT_FOUND`: User account not found
+- `AUTH_API_KEY_GEN`: Unable to generate new API key
+- `VALID_MISSING_FIELD`: Required field is missing
+- `VALID_INVALID_TYPE`: Field is not valid type
+- `VALID_INVALID_VALUE`: Field has invalid value
+- `VALID_REQUEST_INVALID`: Request validation failed
+- `VALID_OBS_NOT_FOUND`: Observation ID does not exist
+- `JOB_NOT_FOUND`: Job not found
+- `JOB_ALREADY_SUBMITTED`: This job has already been submitted
+- `JOB_ALREADY_CANCELLED`: Cannot update job state. Job is cancelled
+- `JOB_LIMIT_REACHED`: You have reached the maximum of concurrent jobs
+- `JOB_INVALID_STATE`: Job cannot be updated in current state
+- `JOB_PERMISSION_DENIED`: You do not have permission to perform this job
+- `JOB_RESTAGE_RETRIES_EXCEEDED`: Number of restage requests exceeded
+- `JOB_SOURCE_JOB_NOT_FOUND`: Source conversion job not found
+- `DB_CONNECTION_FAILED`: Service temporarily unavailable due to database connection issue
+- `DB_QUERY_FAILED`: Database query failed
+- `EXT_SERVICE_UNAVAILABLE`: External service is currently unavailable
+- `EXT_TAP_SERVICE_ERROR`: TAP service query failed
+- `EXT_STAGING_SERVICE_ERROR`: Staging web service failed
+- `EXT_SQS_SERVICE_ERROR`: AWS SQS service failed
+- `EXT_CALIBRATION_SERVICE_ERROR`: Calibration web service failed
+- `EXT_METADATA_SERVICE_ERROR`: Metadata web service failed
+- `INTERNAL_ERROR`: An unexpected error occurred
+- `RESOURCE_NOT_FOUND`: The requested resource was not found
+- `OUTAGE_IN_PROGRESS`: The portal is currently not available due to an outage or maintenance
+- `OBS_DATA_FORBIDDEN`: Contact support if you believe you should have access to this data
+- `TEST_ERROR`: test error*/
+#[derive(
+    ::serde::Deserialize,
+    ::serde::Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd
+)]
+pub enum ErrorCode {
+    #[serde(rename = "AUTH_REQUIRED")]
+    AuthRequired,
+    #[serde(rename = "AUTH_INVALID_TOKEN")]
+    AuthInvalidToken,
+    #[serde(rename = "AUTH_INVALID_API_KEY")]
+    AuthInvalidApiKey,
+    #[serde(rename = "AUTH_INVALID_CLI_VERSION")]
+    AuthInvalidCliVersion,
+    #[serde(rename = "AUTH_FORBIDDEN")]
+    AuthForbidden,
+    #[serde(rename = "AUTH_USER_NOT_FOUND")]
+    AuthUserNotFound,
+    #[serde(rename = "AUTH_API_KEY_GEN")]
+    AuthApiKeyGen,
+    #[serde(rename = "VALID_MISSING_FIELD")]
+    ValidMissingField,
+    #[serde(rename = "VALID_INVALID_TYPE")]
+    ValidInvalidType,
+    #[serde(rename = "VALID_INVALID_VALUE")]
+    ValidInvalidValue,
+    #[serde(rename = "VALID_REQUEST_INVALID")]
+    ValidRequestInvalid,
+    #[serde(rename = "VALID_OBS_NOT_FOUND")]
+    ValidObsNotFound,
+    #[serde(rename = "JOB_NOT_FOUND")]
+    JobNotFound,
+    #[serde(rename = "JOB_ALREADY_SUBMITTED")]
+    JobAlreadySubmitted,
+    #[serde(rename = "JOB_ALREADY_CANCELLED")]
+    JobAlreadyCancelled,
+    #[serde(rename = "JOB_LIMIT_REACHED")]
+    JobLimitReached,
+    #[serde(rename = "JOB_INVALID_STATE")]
+    JobInvalidState,
+    #[serde(rename = "JOB_PERMISSION_DENIED")]
+    JobPermissionDenied,
+    #[serde(rename = "JOB_RESTAGE_RETRIES_EXCEEDED")]
+    JobRestageRetriesExceeded,
+    #[serde(rename = "JOB_SOURCE_JOB_NOT_FOUND")]
+    JobSourceJobNotFound,
+    #[serde(rename = "DB_CONNECTION_FAILED")]
+    DbConnectionFailed,
+    #[serde(rename = "DB_QUERY_FAILED")]
+    DbQueryFailed,
+    #[serde(rename = "EXT_SERVICE_UNAVAILABLE")]
+    ExtServiceUnavailable,
+    #[serde(rename = "EXT_TAP_SERVICE_ERROR")]
+    ExtTapServiceError,
+    #[serde(rename = "EXT_STAGING_SERVICE_ERROR")]
+    ExtStagingServiceError,
+    #[serde(rename = "EXT_SQS_SERVICE_ERROR")]
+    ExtSqsServiceError,
+    #[serde(rename = "EXT_CALIBRATION_SERVICE_ERROR")]
+    ExtCalibrationServiceError,
+    #[serde(rename = "EXT_METADATA_SERVICE_ERROR")]
+    ExtMetadataServiceError,
+    #[serde(rename = "INTERNAL_ERROR")]
+    InternalError,
+    #[serde(rename = "RESOURCE_NOT_FOUND")]
+    ResourceNotFound,
+    #[serde(rename = "OUTAGE_IN_PROGRESS")]
+    OutageInProgress,
+    #[serde(rename = "OBS_DATA_FORBIDDEN")]
+    ObsDataForbidden,
+    #[serde(rename = "TEST_ERROR")]
+    TestError,
+}
+impl ::std::fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::AuthRequired => f.write_str("AUTH_REQUIRED"),
+            Self::AuthInvalidToken => f.write_str("AUTH_INVALID_TOKEN"),
+            Self::AuthInvalidApiKey => f.write_str("AUTH_INVALID_API_KEY"),
+            Self::AuthInvalidCliVersion => f.write_str("AUTH_INVALID_CLI_VERSION"),
+            Self::AuthForbidden => f.write_str("AUTH_FORBIDDEN"),
+            Self::AuthUserNotFound => f.write_str("AUTH_USER_NOT_FOUND"),
+            Self::AuthApiKeyGen => f.write_str("AUTH_API_KEY_GEN"),
+            Self::ValidMissingField => f.write_str("VALID_MISSING_FIELD"),
+            Self::ValidInvalidType => f.write_str("VALID_INVALID_TYPE"),
+            Self::ValidInvalidValue => f.write_str("VALID_INVALID_VALUE"),
+            Self::ValidRequestInvalid => f.write_str("VALID_REQUEST_INVALID"),
+            Self::ValidObsNotFound => f.write_str("VALID_OBS_NOT_FOUND"),
+            Self::JobNotFound => f.write_str("JOB_NOT_FOUND"),
+            Self::JobAlreadySubmitted => f.write_str("JOB_ALREADY_SUBMITTED"),
+            Self::JobAlreadyCancelled => f.write_str("JOB_ALREADY_CANCELLED"),
+            Self::JobLimitReached => f.write_str("JOB_LIMIT_REACHED"),
+            Self::JobInvalidState => f.write_str("JOB_INVALID_STATE"),
+            Self::JobPermissionDenied => f.write_str("JOB_PERMISSION_DENIED"),
+            Self::JobRestageRetriesExceeded => {
+                f.write_str("JOB_RESTAGE_RETRIES_EXCEEDED")
+            }
+            Self::JobSourceJobNotFound => f.write_str("JOB_SOURCE_JOB_NOT_FOUND"),
+            Self::DbConnectionFailed => f.write_str("DB_CONNECTION_FAILED"),
+            Self::DbQueryFailed => f.write_str("DB_QUERY_FAILED"),
+            Self::ExtServiceUnavailable => f.write_str("EXT_SERVICE_UNAVAILABLE"),
+            Self::ExtTapServiceError => f.write_str("EXT_TAP_SERVICE_ERROR"),
+            Self::ExtStagingServiceError => f.write_str("EXT_STAGING_SERVICE_ERROR"),
+            Self::ExtSqsServiceError => f.write_str("EXT_SQS_SERVICE_ERROR"),
+            Self::ExtCalibrationServiceError => {
+                f.write_str("EXT_CALIBRATION_SERVICE_ERROR")
+            }
+            Self::ExtMetadataServiceError => f.write_str("EXT_METADATA_SERVICE_ERROR"),
+            Self::InternalError => f.write_str("INTERNAL_ERROR"),
+            Self::ResourceNotFound => f.write_str("RESOURCE_NOT_FOUND"),
+            Self::OutageInProgress => f.write_str("OUTAGE_IN_PROGRESS"),
+            Self::ObsDataForbidden => f.write_str("OBS_DATA_FORBIDDEN"),
+            Self::TestError => f.write_str("TEST_ERROR"),
+        }
+    }
+}
+impl ::std::str::FromStr for ErrorCode {
+    type Err = self::error::ConversionError;
+    fn from_str(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "AUTH_REQUIRED" => Ok(Self::AuthRequired),
+            "AUTH_INVALID_TOKEN" => Ok(Self::AuthInvalidToken),
+            "AUTH_INVALID_API_KEY" => Ok(Self::AuthInvalidApiKey),
+            "AUTH_INVALID_CLI_VERSION" => Ok(Self::AuthInvalidCliVersion),
+            "AUTH_FORBIDDEN" => Ok(Self::AuthForbidden),
+            "AUTH_USER_NOT_FOUND" => Ok(Self::AuthUserNotFound),
+            "AUTH_API_KEY_GEN" => Ok(Self::AuthApiKeyGen),
+            "VALID_MISSING_FIELD" => Ok(Self::ValidMissingField),
+            "VALID_INVALID_TYPE" => Ok(Self::ValidInvalidType),
+            "VALID_INVALID_VALUE" => Ok(Self::ValidInvalidValue),
+            "VALID_REQUEST_INVALID" => Ok(Self::ValidRequestInvalid),
+            "VALID_OBS_NOT_FOUND" => Ok(Self::ValidObsNotFound),
+            "JOB_NOT_FOUND" => Ok(Self::JobNotFound),
+            "JOB_ALREADY_SUBMITTED" => Ok(Self::JobAlreadySubmitted),
+            "JOB_ALREADY_CANCELLED" => Ok(Self::JobAlreadyCancelled),
+            "JOB_LIMIT_REACHED" => Ok(Self::JobLimitReached),
+            "JOB_INVALID_STATE" => Ok(Self::JobInvalidState),
+            "JOB_PERMISSION_DENIED" => Ok(Self::JobPermissionDenied),
+            "JOB_RESTAGE_RETRIES_EXCEEDED" => Ok(Self::JobRestageRetriesExceeded),
+            "JOB_SOURCE_JOB_NOT_FOUND" => Ok(Self::JobSourceJobNotFound),
+            "DB_CONNECTION_FAILED" => Ok(Self::DbConnectionFailed),
+            "DB_QUERY_FAILED" => Ok(Self::DbQueryFailed),
+            "EXT_SERVICE_UNAVAILABLE" => Ok(Self::ExtServiceUnavailable),
+            "EXT_TAP_SERVICE_ERROR" => Ok(Self::ExtTapServiceError),
+            "EXT_STAGING_SERVICE_ERROR" => Ok(Self::ExtStagingServiceError),
+            "EXT_SQS_SERVICE_ERROR" => Ok(Self::ExtSqsServiceError),
+            "EXT_CALIBRATION_SERVICE_ERROR" => Ok(Self::ExtCalibrationServiceError),
+            "EXT_METADATA_SERVICE_ERROR" => Ok(Self::ExtMetadataServiceError),
+            "INTERNAL_ERROR" => Ok(Self::InternalError),
+            "RESOURCE_NOT_FOUND" => Ok(Self::ResourceNotFound),
+            "OUTAGE_IN_PROGRESS" => Ok(Self::OutageInProgress),
+            "OBS_DATA_FORBIDDEN" => Ok(Self::ObsDataForbidden),
+            "TEST_ERROR" => Ok(Self::TestError),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ErrorCode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &str,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ErrorCode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 ///Standard error response structure for all ASVO API endpoints
@@ -302,7 +551,7 @@ pub struct ErrorResponse {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub detail: ::std::option::Option<::std::string::String>,
     ///machine readable error code
-    pub error_code: ::std::string::String,
+    pub error_code: ErrorCode,
     ///Field-specific validation errors
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub field_errors: ::std::option::Option<::std::vec::Vec<FieldError>>,
@@ -352,7 +601,7 @@ pub struct ImageFromJobParams {
     ///Absolute flux threshold (in Janskys) at which the clean stops entirely.
     #[serde(default = "defaults::image_from_job_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
-    ///allows user to resubmit a job despite it being completed
+    ///Allows users to resubmit a job even if an identical one has already completed
     #[serde(default = "defaults::image_from_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
     ///Correct the final images post-deconvolution using a Mueller matrix
@@ -370,8 +619,10 @@ pub struct ImageFromJobParams {
     ///Maximum number of clean iterations
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
+    ///Deliverty destination (scratch | acacia | dug)
     #[serde(default = "defaults::image_from_job_params_delivery")]
     pub delivery: DeliveryDestination,
+    ///(tar | files) Must be tar when delivery is acacia
     #[serde(default = "defaults::image_from_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
     ///Image size (pixels). When None is provided, the value will be calculated automatically
@@ -392,23 +643,25 @@ pub struct ImageFromJobParams {
     ///Maximum number of major iterations (re-gridding loops).
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
+    ///(fits | all_fits | all_files) fits downloads the model, image, residual and ... images. all fits downloads all products produced by WSClean. all files downloads both the converted measurement sets and all the fits artifacts produced by WSClean
     pub output_mode: ImageOutputMode,
     ///Pixel scale. If none is provided, this value will be calculated automatically
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub pixel_scale: ::std::option::Option<f64>,
-    ///Polarization
+    ///(i | iquv | xx | yy | xy | yx | xxyy) Polarization
     #[serde(default = "defaults::image_from_job_params_polarization")]
     pub polarization: Polarization,
     ///The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).
     #[serde(default = "defaults::image_from_job_params_robust")]
     pub robust: f64,
+    ///The MWA ASVO conversion Job ID to image from
     pub source_job_id: ::std::num::NonZeroU64,
     ///Filters out long baselines. Leave blank to use the array's full resolution.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub uvw_max: ::std::option::Option<f64>,
+    pub uv_max: ::std::option::Option<f64>,
     ///Filters out very short baselines (useful to suppress massive diffuse noise).
-    #[serde(default = "defaults::image_from_job_params_uvw_min")]
-    pub uvw_min: f64,
+    #[serde(default = "defaults::image_from_job_params_uv_min")]
+    pub uv_min: f64,
     ///Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::image_from_job_params_weighting")]
     pub weighting: ImageWeighting,
@@ -582,9 +835,10 @@ pub struct ImagingJobParams {
     ///Absolute flux threshold (in Janskys) at which the clean stops entirely.
     #[serde(default = "defaults::imaging_job_params_abs_threshold")]
     pub abs_threshold: ::std::option::Option<f64>,
-    ///allows user to resubmit a job despite it being completed
+    ///Allows users to resubmit a job even if an identical one has already completed
     #[serde(default = "defaults::imaging_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
+    ///Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)
     #[serde(default = "defaults::default_bool::<true>")]
     pub apply_di_cal: bool,
     ///Correct the final images post-deconvolution using a Mueller matrix
@@ -596,10 +850,13 @@ pub struct ImagingJobParams {
     ///Automated stopping criteria based on residual noise level (sigma). Highly recommended.
     #[serde(default = "defaults::imaging_job_params_auto_threshold")]
     pub auto_threshold: f64,
+    ///Frequency resolution to average to (kHz)
     #[serde(default = "defaults::imaging_job_params_avg_freq_res")]
     pub avg_freq_res: ::std::option::Option<f64>,
+    ///Time resolution to average to (s)
     #[serde(default = "defaults::imaging_job_params_avg_time_res")]
     pub avg_time_res: ::std::option::Option<f64>,
+    ///(phase | pointing | custom) Phase centre
     #[serde(default = "defaults::imaging_job_params_centre")]
     pub centre: PhaseCentre,
     ///Number of frequency chunks to split the band into for an image cube.
@@ -608,14 +865,19 @@ pub struct ImagingJobParams {
     ///Maximum number of clean iterations
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
+    ///Custom phase centre declination (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_dec: ::std::option::Option<f64>,
+    ///Custom phase centre right ascension (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
+    ///Deliverty destination (scratch | acacia | dug)
     #[serde(default = "defaults::imaging_job_params_delivery")]
     pub delivery: DeliveryDestination,
+    ///(tar | files) Must be tar when delivery is acacia
     #[serde(default = "defaults::imaging_job_params_delivery_format")]
     pub delivery_format: DeliveryFormat,
+    ///Width of frequency edge flagging (kHz)
     #[serde(default = "defaults::imaging_job_params_flag_edge_width")]
     pub flag_edge_width: ::std::option::Option<f64>,
     ///Image size (pixels). When None is provided, the value will be calculated automatically
@@ -636,26 +898,35 @@ pub struct ImagingJobParams {
     ///Maximum number of major iterations (re-gridding loops).
     #[serde(default = "defaults::default_nzu64::<::std::num::NonZeroU64, 10>")]
     pub nmiter: ::std::num::NonZeroU64,
+    ///Whether to skip applying amplitude calibration solutions
     #[serde(default)]
     pub no_apply_amps: bool,
+    ///Whether to skip applying cable delay corrections
     #[serde(default = "defaults::imaging_job_params_no_cable_delay")]
     pub no_cable_delay: ::std::option::Option<bool>,
+    ///Whether to skip applying digital gains.
     #[serde(default = "defaults::imaging_job_params_no_digital_gains")]
     pub no_digital_gains: ::std::option::Option<bool>,
+    ///Whether to skip flagging the DC channel.
     #[serde(default = "defaults::imaging_job_params_no_flag_dc")]
     pub no_flag_dc: ::std::option::Option<bool>,
+    ///Whether to skip applying geometric delay corrections.
     #[serde(default = "defaults::imaging_job_params_no_geometric_delay")]
     pub no_geometric_delay: ::std::option::Option<bool>,
+    ///Whether to skip applying passband gain corrections.
     #[serde(default = "defaults::imaging_job_params_no_passband_gains")]
     pub no_passband_gains: ::std::option::Option<bool>,
+    ///Whether to skip RFI flagging. Takes true, false or null
     #[serde(default = "defaults::imaging_job_params_no_rfi")]
     pub no_rfi: ::std::option::Option<bool>,
+    ///The ID of the observation
     pub obs_id: i64,
+    ///(fits | all_fits | all_files) fits downloads the model, image, residual and ... images. all fits downloads all products produced by WSClean. all files downloads both the converted measurement sets and all the fits artifacts produced by WSClean
     pub output_mode: ImageOutputMode,
     ///Pixel scale. If none is provided, this value will be calculated automatically
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub pixel_scale: ::std::option::Option<f64>,
-    ///Polarization
+    ///(i | iquv | xx | yy | xy | yx | xxyy) Polarization
     #[serde(default = "defaults::imaging_job_params_polarization")]
     pub polarization: Polarization,
     ///The robustness parameter for Briggs weighting (typically between `-2.0` and `2.0`).
@@ -663,10 +934,10 @@ pub struct ImagingJobParams {
     pub robust: f64,
     ///Filters out long baselines. Leave blank to use the array's full resolution.
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub uvw_max: ::std::option::Option<f64>,
+    pub uv_max: ::std::option::Option<f64>,
     ///Filters out very short baselines (useful to suppress massive diffuse noise).
-    #[serde(default = "defaults::imaging_job_params_uvw_min")]
-    pub uvw_min: f64,
+    #[serde(default = "defaults::imaging_job_params_uv_min")]
+    pub uv_min: f64,
     ///Visibility weighting scheme. Briggs offers the best balance of resolution and sensitivity.
     #[serde(default = "defaults::imaging_job_params_weighting")]
     pub weighting: ImageWeighting,
@@ -3588,7 +3859,7 @@ pub mod builder {
             ::std::option::Option<::std::string::String>,
             ::std::string::String,
         >,
-        error_code: ::std::result::Result<::std::string::String, ::std::string::String>,
+        error_code: ::std::result::Result<super::ErrorCode, ::std::string::String>,
         field_errors: ::std::result::Result<
             ::std::option::Option<::std::vec::Vec<super::FieldError>>,
             ::std::string::String,
@@ -3628,7 +3899,7 @@ pub mod builder {
         }
         pub fn error_code<T>(mut self, value: T) -> Self
         where
-            T: ::std::convert::TryInto<::std::string::String>,
+            T: ::std::convert::TryInto<super::ErrorCode>,
             T::Error: ::std::fmt::Display,
         {
             self.error_code = value
@@ -3909,11 +4180,8 @@ pub mod builder {
             ::std::num::NonZeroU64,
             ::std::string::String,
         >,
-        uvw_max: ::std::result::Result<
-            ::std::option::Option<f64>,
-            ::std::string::String,
-        >,
-        uvw_min: ::std::result::Result<f64, ::std::string::String>,
+        uv_max: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        uv_min: ::std::result::Result<f64, ::std::string::String>,
         weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
         wstack_nwlayers: ::std::result::Result<
             ::std::option::Option<i64>,
@@ -3955,8 +4223,8 @@ pub mod builder {
                 polarization: Ok(super::defaults::image_from_job_params_polarization()),
                 robust: Ok(super::defaults::image_from_job_params_robust()),
                 source_job_id: Err("no value supplied for source_job_id".to_string()),
-                uvw_max: Ok(Default::default()),
-                uvw_min: Ok(super::defaults::image_from_job_params_uvw_min()),
+                uv_max: Ok(Default::default()),
+                uv_min: Ok(super::defaults::image_from_job_params_uv_min()),
                 weighting: Ok(super::defaults::image_from_job_params_weighting()),
                 wstack_nwlayers: Ok(Default::default()),
             }
@@ -4201,28 +4469,24 @@ pub mod builder {
                 });
             self
         }
-        pub fn uvw_max<T>(mut self, value: T) -> Self
+        pub fn uv_max<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
-            self.uvw_max = value
+            self.uv_max = value
                 .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_max: {e}")
-                });
+                .map_err(|e| format!("error converting supplied value for uv_max: {e}"));
             self
         }
-        pub fn uvw_min<T>(mut self, value: T) -> Self
+        pub fn uv_min<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
-            self.uvw_min = value
+            self.uv_min = value
                 .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_min: {e}")
-                });
+                .map_err(|e| format!("error converting supplied value for uv_min: {e}"));
             self
         }
         pub fn weighting<T>(mut self, value: T) -> Self
@@ -4276,8 +4540,8 @@ pub mod builder {
                 polarization: value.polarization?,
                 robust: value.robust?,
                 source_job_id: value.source_job_id?,
-                uvw_max: value.uvw_max?,
-                uvw_min: value.uvw_min?,
+                uv_max: value.uv_max?,
+                uv_min: value.uv_min?,
                 weighting: value.weighting?,
                 wstack_nwlayers: value.wstack_nwlayers?,
             })
@@ -4306,8 +4570,8 @@ pub mod builder {
                 polarization: Ok(value.polarization),
                 robust: Ok(value.robust),
                 source_job_id: Ok(value.source_job_id),
-                uvw_max: Ok(value.uvw_max),
-                uvw_min: Ok(value.uvw_min),
+                uv_max: Ok(value.uv_max),
+                uv_min: Ok(value.uv_min),
                 weighting: Ok(value.weighting),
                 wstack_nwlayers: Ok(value.wstack_nwlayers),
             }
@@ -4406,11 +4670,8 @@ pub mod builder {
         >,
         polarization: ::std::result::Result<super::Polarization, ::std::string::String>,
         robust: ::std::result::Result<f64, ::std::string::String>,
-        uvw_max: ::std::result::Result<
-            ::std::option::Option<f64>,
-            ::std::string::String,
-        >,
-        uvw_min: ::std::result::Result<f64, ::std::string::String>,
+        uv_max: ::std::result::Result<::std::option::Option<f64>, ::std::string::String>,
+        uv_min: ::std::result::Result<f64, ::std::string::String>,
         weighting: ::std::result::Result<super::ImageWeighting, ::std::string::String>,
         wstack_nwlayers: ::std::result::Result<
             ::std::option::Option<i64>,
@@ -4468,8 +4729,8 @@ pub mod builder {
                 pixel_scale: Ok(Default::default()),
                 polarization: Ok(super::defaults::imaging_job_params_polarization()),
                 robust: Ok(super::defaults::imaging_job_params_robust()),
-                uvw_max: Ok(Default::default()),
-                uvw_min: Ok(super::defaults::imaging_job_params_uvw_min()),
+                uv_max: Ok(Default::default()),
+                uv_min: Ok(super::defaults::imaging_job_params_uv_min()),
                 weighting: Ok(super::defaults::imaging_job_params_weighting()),
                 wstack_nwlayers: Ok(Default::default()),
             }
@@ -4878,28 +5139,24 @@ pub mod builder {
                 .map_err(|e| format!("error converting supplied value for robust: {e}"));
             self
         }
-        pub fn uvw_max<T>(mut self, value: T) -> Self
+        pub fn uv_max<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<::std::option::Option<f64>>,
             T::Error: ::std::fmt::Display,
         {
-            self.uvw_max = value
+            self.uv_max = value
                 .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_max: {e}")
-                });
+                .map_err(|e| format!("error converting supplied value for uv_max: {e}"));
             self
         }
-        pub fn uvw_min<T>(mut self, value: T) -> Self
+        pub fn uv_min<T>(mut self, value: T) -> Self
         where
             T: ::std::convert::TryInto<f64>,
             T::Error: ::std::fmt::Display,
         {
-            self.uvw_min = value
+            self.uv_min = value
                 .try_into()
-                .map_err(|e| {
-                    format!("error converting supplied value for uvw_min: {e}")
-                });
+                .map_err(|e| format!("error converting supplied value for uv_min: {e}"));
             self
         }
         pub fn weighting<T>(mut self, value: T) -> Self
@@ -4967,8 +5224,8 @@ pub mod builder {
                 pixel_scale: value.pixel_scale?,
                 polarization: value.polarization?,
                 robust: value.robust?,
-                uvw_max: value.uvw_max?,
-                uvw_min: value.uvw_min?,
+                uv_max: value.uv_max?,
+                uv_min: value.uv_min?,
                 weighting: value.weighting?,
                 wstack_nwlayers: value.wstack_nwlayers?,
             })
@@ -5011,8 +5268,8 @@ pub mod builder {
                 pixel_scale: Ok(value.pixel_scale),
                 polarization: Ok(value.polarization),
                 robust: Ok(value.robust),
-                uvw_max: Ok(value.uvw_max),
-                uvw_min: Ok(value.uvw_min),
+                uv_max: Ok(value.uv_max),
+                uv_min: Ok(value.uv_min),
                 weighting: Ok(value.weighting),
                 wstack_nwlayers: Ok(value.wstack_nwlayers),
             }
@@ -10945,7 +11202,7 @@ pub mod defaults {
     pub(super) fn image_from_job_params_robust() -> f64 {
         -0.5_f64
     }
-    pub(super) fn image_from_job_params_uvw_min() -> f64 {
+    pub(super) fn image_from_job_params_uv_min() -> f64 {
         75.0_f64
     }
     pub(super) fn image_from_job_params_weighting() -> super::ImageWeighting {
@@ -11007,7 +11264,7 @@ pub mod defaults {
     pub(super) fn imaging_job_params_robust() -> f64 {
         -0.5_f64
     }
-    pub(super) fn imaging_job_params_uvw_min() -> f64 {
+    pub(super) fn imaging_job_params_uv_min() -> f64 {
         75.0_f64
     }
     pub(super) fn imaging_job_params_weighting() -> super::ImageWeighting {
