@@ -5,7 +5,7 @@ A Rust client for the MWA ASVO, with Python bindings (`mwa-giant-squid`) built f
 ## Before you hand over code
 
 Rust:
-- Run `./check.sh`. It runs `cargo fmt --check`, clippy with `-D warnings` on every feature set, and `cargo doc`. CI runs the same script.
+- Run `uv run ./check.sh`. It runs `cargo fmt --check`, clippy with `-D warnings` on every feature set, and `cargo doc`. CI runs the same script. `uv run` gives it the Python of `.venv`, which the clippy step of the Python module needs.
 - Run `cargo test`.
 
 Python:
