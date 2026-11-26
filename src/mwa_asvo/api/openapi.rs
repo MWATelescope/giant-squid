@@ -22,7 +22,7 @@ macro_rules! cmd_help_text {
     (conversion_job_params, apply_di_cal) => { "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)" };
     (conversion_job_params, avg_freq_res) => { "Frequency resolution to average to (kHz), or null for no frequency averaging" };
     (conversion_job_params, avg_time_res) => { "Time resolution to average to (s), or null for no time averaging" };
-    (conversion_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de" };
+    (conversion_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-dec" };
     (conversion_job_params, custom_centre_dec) => { "Custom phase centre declination (degrees). Requires --centre custom" };
     (conversion_job_params, custom_centre_ra) => { "Custom phase centre right ascension (degrees). Requires --centre custom" };
     (conversion_job_params, delivery) => { "Tell MWA ASVO where to deliver data" };
@@ -67,7 +67,7 @@ macro_rules! cmd_help_text {
     (image_from_job_params, robust) => { "WSClean -robust (Briggs robustness) value" };
     (image_from_job_params, source_job_id) => { "The MWA ASVO conversion Job ID to image from. Required" };
     (image_from_job_params, uv_max) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
-    (image_from_job_params, uv_min) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (image_from_job_params, uv_min) => { "Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)" };
     (image_from_job_params, weighting) => { "WSClean weighting scheme" };
     (image_from_job_params, wstack_nwlayers) => { "Number of w-stacking layers. Leave unset to let the server decide" };
     (imaging_job_params, abs_threshold) => { "Absolute cleaning threshold (Jy), or null" };
@@ -78,7 +78,7 @@ macro_rules! cmd_help_text {
     (imaging_job_params, auto_threshold) => { "WSClean -auto-threshold value" };
     (imaging_job_params, avg_freq_res) => { "Frequency resolution to average to (kHz), or null for no frequency averaging" };
     (imaging_job_params, avg_time_res) => { "Time resolution to average to (s), or null for no time averaging" };
-    (imaging_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de" };
+    (imaging_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-dec" };
     (imaging_job_params, channels_out) => { "Number of output channel groups" };
     (imaging_job_params, clean_iterations) => { "WSClean -niter value (max clean iterations)" };
     (imaging_job_params, custom_centre_dec) => { "Custom phase centre declination (degrees). Requires --centre custom" };
@@ -105,7 +105,7 @@ macro_rules! cmd_help_text {
     (imaging_job_params, polarization) => { "Polarisation to image" };
     (imaging_job_params, robust) => { "WSClean -robust (Briggs robustness) value" };
     (imaging_job_params, uv_max) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
-    (imaging_job_params, uv_min) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (imaging_job_params, uv_min) => { "Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)" };
     (imaging_job_params, weighting) => { "WSClean weighting scheme" };
     (imaging_job_params, wstack_nwlayers) => { "Number of w-stacking layers. Leave unset to let the server decide" };
 }
@@ -425,7 +425,7 @@ pub struct ConversionJobParams {
     ///Custom phase centre right ascension (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
-    ///Deliverty destination (scratch | acacia | dug)
+    ///Delivery destination (scratch | acacia | dug)
     #[serde(default = "defaults::conversion_job_params_delivery")]
     pub delivery: DeliveryDestination,
     ///(tar | files) Must be tar when delivery is acacia
@@ -586,7 +586,7 @@ pub struct DownloadJobParams {
     ///Allows users to resubmit a job even if an identical one has already completed
     #[serde(default = "defaults::download_job_params_allow_resubmit")]
     pub allow_resubmit: ::std::option::Option<bool>,
-    ///Deliverty destination (scratch | acacia | dug)
+    ///Delivery destination (scratch | acacia | dug)
     #[serde(default = "defaults::download_job_params_delivery")]
     pub delivery: DeliveryDestination,
     ///(tar | files) Must be tar when delivery is acacia
@@ -618,7 +618,7 @@ impl DownloadJobParams {
 /**Enum representing error codes with their string values
 
 Error codes are organized by category:
-- AUTH_*: Authentication and Authorization errrors
+- AUTH_*: Authentication and Authorization errors
 - VALID_*: Validation and input errors
 - JOB_*: Job lifecycle and processing errors
 - DB_*: Database and persistent errors
@@ -626,7 +626,7 @@ Error codes are organized by category:
 
 - `AUTH_REQUIRED`: Authentication required to access this resource
 - `AUTH_INVALID_TOKEN`: Invalid or expired authentication token
-- `AUTH_INVALID_API_KEY`: Unable to generate new API key
+- `AUTH_INVALID_API_KEY`: Invalid API key provided
 - `AUTH_INVALID_CLI_VERSION`: CLI version is incompatible with current API version
 - `AUTH_FORBIDDEN`: You do not have permission to perform this action
 - `AUTH_USER_NOT_FOUND`: User account not found
@@ -914,7 +914,7 @@ pub struct ImageFromJobParams {
     ///Maximum number of clean iterations
     #[serde(default = "defaults::default_u64::<i64, 100000>")]
     pub clean_iterations: i64,
-    ///Deliverty destination (scratch | acacia | dug)
+    ///Delivery destination (scratch | acacia | dug)
     #[serde(default = "defaults::image_from_job_params_delivery")]
     pub delivery: DeliveryDestination,
     ///(tar | files) Must be tar when delivery is acacia
@@ -1166,7 +1166,7 @@ pub struct ImagingJobParams {
     ///Custom phase centre right ascension (degrees)
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub custom_centre_ra: ::std::option::Option<f64>,
-    ///Deliverty destination (scratch | acacia | dug)
+    ///Delivery destination (scratch | acacia | dug)
     #[serde(default = "defaults::imaging_job_params_delivery")]
     pub delivery: DeliveryDestination,
     ///(tar | files) Must be tar when delivery is acacia

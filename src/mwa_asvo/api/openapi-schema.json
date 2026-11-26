@@ -221,7 +221,7 @@
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "description": "Deliverty destination (scratch | acacia | dug)",
+          "description": "Delivery destination (scratch | acacia | dug)",
           "default": "acacia",
           "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
@@ -302,7 +302,7 @@
           "$ref": "#/definitions/PhaseCentre",
           "description": "(phase | pointing | custom) Phase centre",
           "default": "phase",
-          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de"
+          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-dec"
         },
         "custom_centre_ra": {
           "anyOf": [
@@ -468,7 +468,7 @@
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "description": "Deliverty destination (scratch | acacia | dug)",
+          "description": "Delivery destination (scratch | acacia | dug)",
           "default": "acacia",
           "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
@@ -610,7 +610,7 @@
         "TEST_ERROR"
       ],
       "title": "ErrorCode",
-      "description": "Enum representing error codes with their string values\n\nError codes are organized by category:\n- AUTH_*: Authentication and Authorization errrors\n- VALID_*: Validation and input errors\n- JOB_*: Job lifecycle and processing errors\n- DB_*: Database and persistent errors\n- EXT_*: External service and dependency errors\n\n- `AUTH_REQUIRED`: Authentication required to access this resource\n- `AUTH_INVALID_TOKEN`: Invalid or expired authentication token\n- `AUTH_INVALID_API_KEY`: Unable to generate new API key\n- `AUTH_INVALID_CLI_VERSION`: CLI version is incompatible with current API version\n- `AUTH_FORBIDDEN`: You do not have permission to perform this action\n- `AUTH_USER_NOT_FOUND`: User account not found\n- `AUTH_API_KEY_GEN`: Unable to generate new API key\n- `VALID_MISSING_FIELD`: Required field is missing\n- `VALID_INVALID_TYPE`: Field is not valid type\n- `VALID_INVALID_VALUE`: Field has invalid value\n- `VALID_REQUEST_INVALID`: Request validation failed\n- `VALID_OBS_NOT_FOUND`: Observation ID does not exist\n- `JOB_NOT_FOUND`: Job not found\n- `JOB_ALREADY_SUBMITTED`: This job has already been submitted\n- `JOB_ALREADY_CANCELLED`: Cannot update job state. Job is cancelled\n- `JOB_LIMIT_REACHED`: You have reached the maximum of concurrent jobs\n- `JOB_INVALID_STATE`: Job cannot be updated in current state\n- `JOB_PERMISSION_DENIED`: You do not have permission to perform this job\n- `JOB_RESTAGE_RETRIES_EXCEEDED`: Number of restage requests exceeded\n- `JOB_SOURCE_JOB_NOT_FOUND`: Source conversion job not found\n- `DB_CONNECTION_FAILED`: Service temporarily unavailable due to database connection issue\n- `DB_QUERY_FAILED`: Database query failed\n- `EXT_SERVICE_UNAVAILABLE`: External service is currently unavailable\n- `EXT_TAP_SERVICE_ERROR`: TAP service query failed\n- `EXT_STAGING_SERVICE_ERROR`: Staging web service failed\n- `EXT_SQS_SERVICE_ERROR`: AWS SQS service failed\n- `EXT_CALIBRATION_SERVICE_ERROR`: Calibration web service failed\n- `EXT_METADATA_SERVICE_ERROR`: Metadata web service failed\n- `INTERNAL_ERROR`: An unexpected error occurred\n- `RESOURCE_NOT_FOUND`: The requested resource was not found\n- `OUTAGE_IN_PROGRESS`: The portal is currently not available due to an outage or maintenance\n- `OBS_DATA_FORBIDDEN`: Contact support if you believe you should have access to this data\n- `TEST_ERROR`: test error"
+      "description": "Enum representing error codes with their string values\n\nError codes are organized by category:\n- AUTH_*: Authentication and Authorization errors\n- VALID_*: Validation and input errors\n- JOB_*: Job lifecycle and processing errors\n- DB_*: Database and persistent errors\n- EXT_*: External service and dependency errors\n\n- `AUTH_REQUIRED`: Authentication required to access this resource\n- `AUTH_INVALID_TOKEN`: Invalid or expired authentication token\n- `AUTH_INVALID_API_KEY`: Invalid API key provided\n- `AUTH_INVALID_CLI_VERSION`: CLI version is incompatible with current API version\n- `AUTH_FORBIDDEN`: You do not have permission to perform this action\n- `AUTH_USER_NOT_FOUND`: User account not found\n- `AUTH_API_KEY_GEN`: Unable to generate new API key\n- `VALID_MISSING_FIELD`: Required field is missing\n- `VALID_INVALID_TYPE`: Field is not valid type\n- `VALID_INVALID_VALUE`: Field has invalid value\n- `VALID_REQUEST_INVALID`: Request validation failed\n- `VALID_OBS_NOT_FOUND`: Observation ID does not exist\n- `JOB_NOT_FOUND`: Job not found\n- `JOB_ALREADY_SUBMITTED`: This job has already been submitted\n- `JOB_ALREADY_CANCELLED`: Cannot update job state. Job is cancelled\n- `JOB_LIMIT_REACHED`: You have reached the maximum of concurrent jobs\n- `JOB_INVALID_STATE`: Job cannot be updated in current state\n- `JOB_PERMISSION_DENIED`: You do not have permission to perform this job\n- `JOB_RESTAGE_RETRIES_EXCEEDED`: Number of restage requests exceeded\n- `JOB_SOURCE_JOB_NOT_FOUND`: Source conversion job not found\n- `DB_CONNECTION_FAILED`: Service temporarily unavailable due to database connection issue\n- `DB_QUERY_FAILED`: Database query failed\n- `EXT_SERVICE_UNAVAILABLE`: External service is currently unavailable\n- `EXT_TAP_SERVICE_ERROR`: TAP service query failed\n- `EXT_STAGING_SERVICE_ERROR`: Staging web service failed\n- `EXT_SQS_SERVICE_ERROR`: AWS SQS service failed\n- `EXT_CALIBRATION_SERVICE_ERROR`: Calibration web service failed\n- `EXT_METADATA_SERVICE_ERROR`: Metadata web service failed\n- `INTERNAL_ERROR`: An unexpected error occurred\n- `RESOURCE_NOT_FOUND`: The requested resource was not found\n- `OUTAGE_IN_PROGRESS`: The portal is currently not available due to an outage or maintenance\n- `OBS_DATA_FORBIDDEN`: Contact support if you believe you should have access to this data\n- `TEST_ERROR`: test error"
     },
     "ErrorResponse": {
       "properties": {
@@ -779,7 +779,7 @@
       "properties": {
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "description": "Deliverty destination (scratch | acacia | dug)",
+          "description": "Delivery destination (scratch | acacia | dug)",
           "default": "acacia",
           "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
@@ -914,7 +914,7 @@
           "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
           "x-cmd-flag": "-auto-mask",
-          "x-cmd-help": " WSClean -auto-mask value"
+          "x-cmd-help": "WSClean -auto-mask value"
         },
         "apply_primary_beam": {
           "type": "boolean",
@@ -956,7 +956,7 @@
           "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
           "default": 75.0,
           "x-cmd-flag": "-minuv-l",
-          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
+          "x-cmd-help": "Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)"
         },
         "uv_max": {
           "anyOf": [
@@ -1068,7 +1068,7 @@
         },
         "delivery": {
           "$ref": "#/definitions/DeliveryDestination",
-          "description": "Deliverty destination (scratch | acacia | dug)",
+          "description": "Delivery destination (scratch | acacia | dug)",
           "default": "acacia",
           "x-cmd-help": "Tell MWA ASVO where to deliver data"
         },
@@ -1203,7 +1203,7 @@
           "description": "Noise threshold (sigma) above which a clean mask is automatically made.",
           "default": 3,
           "x-cmd-flag": "-auto-mask",
-          "x-cmd-help": " WSClean -auto-mask value"
+          "x-cmd-help": "WSClean -auto-mask value"
         },
         "apply_primary_beam": {
           "type": "boolean",
@@ -1245,7 +1245,7 @@
           "description": "Filters out very short baselines (useful to suppress massive diffuse noise).",
           "default": 75.0,
           "x-cmd-flag": "-minuv-l",
-          "x-cmd-help": "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)"
+          "x-cmd-help": "Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)"
         },
         "uv_max": {
           "anyOf": [
@@ -1351,7 +1351,7 @@
           "$ref": "#/definitions/PhaseCentre",
           "description": "(phase | pointing | custom) Phase centre",
           "default": "phase",
-          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de"
+          "x-cmd-help": "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-dec"
         },
         "custom_centre_ra": {
           "anyOf": [
