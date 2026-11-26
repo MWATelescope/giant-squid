@@ -167,7 +167,7 @@ def test_validate_accepts_a_body_from_a_file_and_refuses_one_that_was_changed() 
     (job,) = gs.parse_manta_ray_csv(LINE_BY_TYPE["Voltage"])
     job.params.validate()
 
-    body(job.params).offset = 6000
+    body(job.params).offset = 7201
 
     with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="offset"):
         job.params.validate()

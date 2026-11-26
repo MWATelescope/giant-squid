@@ -23,7 +23,7 @@ from .test_submit import (
 
 OTHER_OBS_ID = 1065880248
 INVALID_OBS_ID = 1
-OFFSET_TOO_LARGE = 6000
+OFFSET_TOO_LARGE = 7201
 INVALID_IMAGE_SIZE = 100
 
 # The classes that are made from an Obs ID.
