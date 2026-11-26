@@ -179,7 +179,7 @@ class ConversionJobParams:
         avg_time_res: Time resolution to average to (s), or null for no time averaging
         flag_edge_width: Width of frequency edge flagging (kHz), or null for no edge flagging
         apply_di_cal: Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)
-        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de
+        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec
         custom_centre_ra: Custom phase centre right ascension (degrees). Requires --centre custom
         custom_centre_dec: Custom phase centre declination (degrees). Requires --centre custom
         no_apply_amps: Whether to skip applying amplitude calibration solutions
@@ -1070,7 +1070,7 @@ class ImageFromJobParams:
         polarization: Polarisation to image
         robust: WSClean -robust (Briggs robustness) value
         uv_max: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
-        uv_min: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        uv_min: Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)
         weighting: WSClean weighting scheme
         wstack_nwlayers: Number of w-stacking layers. Leave unset to let the server decide
         allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null
@@ -1238,7 +1238,7 @@ class ImagingJobParams:
         avg_time_res: Time resolution to average to (s), or null for no time averaging
         channels_out: Number of output channel groups
         clean_iterations: WSClean -niter value (max clean iterations)
-        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de
+        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec
         custom_centre_dec: Custom phase centre declination (degrees). Requires --centre custom
         custom_centre_ra: Custom phase centre right ascension (degrees). Requires --centre custom
         flag_edge_width: Width of frequency edge flagging (kHz), or null for no edge flagging
@@ -1259,7 +1259,7 @@ class ImagingJobParams:
         polarization: Polarisation to image
         robust: WSClean -robust (Briggs robustness) value
         uv_max: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
-        uv_min: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        uv_min: Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested)
         weighting: WSClean weighting scheme
         wstack_nwlayers: Number of w-stacking layers. Leave unset to let the server decide
         allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null

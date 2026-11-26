@@ -433,7 +433,7 @@ Options:
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: false] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de [default: phase] [possible values: phase, pointing, custom]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
           Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
@@ -547,7 +547,7 @@ Options:
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: true] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de [default: phase] [possible values: phase, pointing, custom]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
           Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
@@ -601,7 +601,7 @@ Options:
       --uv-max <UV_MAX>
           Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
       --uv-min <UV_MIN>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 100] [default: 75]
+          Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested) [range: 1 to 100] [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
@@ -731,7 +731,7 @@ Options:
       --uv-max <UV_MAX>
           Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
       --uv-min <UV_MIN>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 100] [default: 75]
+          Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested) [range: 1 to 100] [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
