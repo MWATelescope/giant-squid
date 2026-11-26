@@ -14,3 +14,6 @@ g.patch
 # instrumented binary writes when it runs outside the script
 /coverage/
 *.profraw
+
+# Claude Code local settings
+.claude/
