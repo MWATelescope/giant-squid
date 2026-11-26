@@ -34,7 +34,9 @@ pub(crate) mod error;
 //   enum with a default variant (checked with the current typify: still so).
 // `rustfmt::skip` keeps `cargo fmt` off the file: it must stay exactly as
 // build.rs writes it, or the openapi-drift-check CI job fails.
+// `macro_use`: see the declaration of `mwa_asvo` in lib.rs.
 #[allow(dead_code, clippy::derivable_impls)]
+#[macro_use]
 #[rustfmt::skip]
 pub mod openapi;
 pub mod job_params;

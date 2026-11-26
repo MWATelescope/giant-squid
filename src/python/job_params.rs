@@ -63,20 +63,15 @@ use crate::obs_id::ObsId;
 /// job is submitted (see the submit method).
 ///
 /// Args:
-///     obs_id: The Obs ID.
-///     delivery: Where the MWA ASVO delivers the data.
-///     delivery_format: How the MWA ASVO packages the files. Must be
-///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-///     allow_resubmit: Submit the job even if an identical one has
-///         completed.
-///     only_metadata: Download the metadata only, or `None` (the schema gives it no
-///         default).
-///     offset: Voltage jobs: the offset in seconds from the start GPS time of the
-///         observation, from 0 to 7200, or `None`.
-///     duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
-///         `None`.
-///     from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
-///     to_channel: Voltage jobs: the last receiver channel number (0 to 255), or `None`.
+#[doc = concat!("    obs_id: ", cmd_help_text!(download_job_params, obs_id))]
+#[doc = concat!("    delivery: ", cmd_help_text!(download_job_params, delivery))]
+#[doc = concat!("    delivery_format: ", cmd_help_text!(download_job_params, delivery_format))]
+#[doc = concat!("    allow_resubmit: ", cmd_help_text!(download_job_params, allow_resubmit))]
+#[doc = concat!("    only_metadata: ", cmd_help_text!(download_job_params, only_metadata))]
+#[doc = concat!("    offset: ", cmd_help_text!(download_job_params, offset))]
+#[doc = concat!("    duration: ", cmd_help_text!(download_job_params, duration))]
+#[doc = concat!("    from_channel: ", cmd_help_text!(download_job_params, from_channel))]
+#[doc = concat!("    to_channel: ", cmd_help_text!(download_job_params, to_channel))]
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(name = "DownloadJobParams", module = "mwa_giant_squid")]
 pub struct PyDownloadJobParams {
@@ -207,32 +202,25 @@ impl PyDownloadJobParams {
 /// job is submitted (see the submit method).
 ///
 /// Args:
-///     obs_id: The Obs ID.
-///     delivery: Where the MWA ASVO delivers the data.
-///     delivery_format: How the MWA ASVO packages the files. Must be
-///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-///     output: The output format.
-///     avg_freq_res: The frequency resolution to average to (kHz).
-///     avg_time_res: The time resolution to average to (s).
-///     flag_edge_width: The width of the frequency edge flagging (kHz), or
-///         None for no edge flagging.
-///     apply_di_cal: Apply the DI calibration solution.
-///     centre: The phase centre mode. `PhaseCentre.Custom` needs
-///         `custom_centre_ra` and `custom_centre_dec`, and they are only
-///         allowed with it.
-///     custom_centre_ra: The custom phase centre's right ascension
-///         (degrees).
-///     custom_centre_dec: The custom phase centre's declination
-///         (degrees).
-///     no_apply_amps: Do not apply the amplitude calibration solutions.
-///     no_digital_gains: Do not apply the digital gains.
-///     no_flag_dc: Do not flag the DC channel.
-///     no_geometric_delay: Do not apply the geometric delay corrections.
-///     no_passband_gains: Do not apply the passband gain corrections.
-///     no_cable_delay: Do not apply the cable delay corrections.
-///     no_rfi: Do not flag RFI.
-///     allow_resubmit: Submit the job even if an identical one has
-///         completed.
+#[doc = concat!("    obs_id: ", cmd_help_text!(conversion_job_params, obs_id))]
+#[doc = concat!("    delivery: ", cmd_help_text!(conversion_job_params, delivery))]
+#[doc = concat!("    delivery_format: ", cmd_help_text!(conversion_job_params, delivery_format))]
+#[doc = concat!("    output: ", cmd_help_text!(conversion_job_params, output))]
+#[doc = concat!("    avg_freq_res: ", cmd_help_text!(conversion_job_params, avg_freq_res))]
+#[doc = concat!("    avg_time_res: ", cmd_help_text!(conversion_job_params, avg_time_res))]
+#[doc = concat!("    flag_edge_width: ", cmd_help_text!(conversion_job_params, flag_edge_width))]
+#[doc = concat!("    apply_di_cal: ", cmd_help_text!(conversion_job_params, apply_di_cal))]
+#[doc = concat!("    centre: ", cmd_help_text!(conversion_job_params, centre))]
+#[doc = concat!("    custom_centre_ra: ", cmd_help_text!(conversion_job_params, custom_centre_ra))]
+#[doc = concat!("    custom_centre_dec: ", cmd_help_text!(conversion_job_params, custom_centre_dec))]
+#[doc = concat!("    no_apply_amps: ", cmd_help_text!(conversion_job_params, no_apply_amps))]
+#[doc = concat!("    no_digital_gains: ", cmd_help_text!(conversion_job_params, no_digital_gains))]
+#[doc = concat!("    no_flag_dc: ", cmd_help_text!(conversion_job_params, no_flag_dc))]
+#[doc = concat!("    no_geometric_delay: ", cmd_help_text!(conversion_job_params, no_geometric_delay))]
+#[doc = concat!("    no_passband_gains: ", cmd_help_text!(conversion_job_params, no_passband_gains))]
+#[doc = concat!("    no_cable_delay: ", cmd_help_text!(conversion_job_params, no_cable_delay))]
+#[doc = concat!("    no_rfi: ", cmd_help_text!(conversion_job_params, no_rfi))]
+#[doc = concat!("    allow_resubmit: ", cmd_help_text!(conversion_job_params, allow_resubmit))]
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(name = "ConversionJobParams", module = "mwa_giant_squid")]
 pub struct PyConversionJobParams {
@@ -413,57 +401,44 @@ impl PyConversionJobParams {
 /// job is submitted (see the submit method).
 ///
 /// Args:
-///     obs_id: The Obs ID.
-///     delivery: Where the MWA ASVO delivers the data.
-///     delivery_format: How the MWA ASVO packages the files. Must be
-///         `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-///     apply_di_cal: Apply the DI calibration solution.
-///     apply_primary_beam: Apply the primary beam correction.
-///     auto_mask: The WSClean -auto-mask value.
-///     auto_threshold: The WSClean -auto-threshold value.
-///     abs_threshold: The absolute cleaning threshold (Jy).
-///     avg_freq_res: The frequency resolution to average to before
-///         imaging (kHz).
-///     avg_time_res: The time resolution to average to before imaging
-///         (s).
-///     channels_out: The number of output channel groups.
-///     clean_iterations: The WSClean -niter value.
-///     centre: Where to centre the image. `PhaseCentre.Custom` needs
-///         `custom_centre_ra` and `custom_centre_dec`, and they are only
-///         allowed with it.
-///     custom_centre_dec: The custom phase centre's declination
-///         (degrees).
-///     custom_centre_ra: The custom phase centre's right ascension
-///         (degrees).
-///     flag_edge_width: The width of the frequency edge flagging (kHz), or
-///         None for no edge flagging.
-///     image_size: The WSClean image size in pixels. Only the sizes
-///         that the MWA ASVO accepts are valid. `None` (the default) lets the
-///         MWA ASVO calculate it.
-///     join_channels: Join the output channel groups for cleaning.
-///     join_polarizations: Join the polarisations for cleaning.
-///     mgain: The WSClean -mgain value.
-///     multiscale: Use WSClean multiscale cleaning.
-///     nmiter: The WSClean -nmiter value. Must be greater than zero.
-///     no_apply_amps: Do not apply the amplitude calibration solutions.
-///     no_digital_gains: Do not apply the digital gains.
-///     no_flag_dc: Do not flag the DC channel.
-///     no_geometric_delay: Do not apply the geometric delay corrections.
-///     no_passband_gains: Do not apply the passband gain corrections.
-///     no_cable_delay: Do not apply the cable delay corrections.
-///     no_rfi: Do not flag RFI.
-///     output_mode: The products to return. Required: the schema gives it no
-///         default.
-///     pixel_scale: The pixel scale (arcsec per pixel). `None` (the default) lets
-///         the MWA ASVO calculate it.
-///     polarization: The polarisation to image.
-///     robust: The WSClean -robust value.
-///     uv_max: The maximum uv distance to image (wavelengths).
-///     uv_min: The minimum uv distance to image (wavelengths).
-///     weighting: The WSClean weighting scheme.
-///     wstack_nwlayers: The number of w-stacking layers.
-///     allow_resubmit: Submit the job even if an identical one has
-///         completed.
+#[doc = concat!("    obs_id: ", cmd_help_text!(imaging_job_params, obs_id))]
+#[doc = concat!("    output_mode: ", cmd_help_text!(imaging_job_params, output_mode))]
+#[doc = concat!("    delivery: ", cmd_help_text!(imaging_job_params, delivery))]
+#[doc = concat!("    delivery_format: ", cmd_help_text!(imaging_job_params, delivery_format))]
+#[doc = concat!("    apply_di_cal: ", cmd_help_text!(imaging_job_params, apply_di_cal))]
+#[doc = concat!("    apply_primary_beam: ", cmd_help_text!(imaging_job_params, apply_primary_beam))]
+#[doc = concat!("    auto_mask: ", cmd_help_text!(imaging_job_params, auto_mask))]
+#[doc = concat!("    auto_threshold: ", cmd_help_text!(imaging_job_params, auto_threshold))]
+#[doc = concat!("    abs_threshold: ", cmd_help_text!(imaging_job_params, abs_threshold))]
+#[doc = concat!("    avg_freq_res: ", cmd_help_text!(imaging_job_params, avg_freq_res))]
+#[doc = concat!("    avg_time_res: ", cmd_help_text!(imaging_job_params, avg_time_res))]
+#[doc = concat!("    channels_out: ", cmd_help_text!(imaging_job_params, channels_out))]
+#[doc = concat!("    clean_iterations: ", cmd_help_text!(imaging_job_params, clean_iterations))]
+#[doc = concat!("    centre: ", cmd_help_text!(imaging_job_params, centre))]
+#[doc = concat!("    custom_centre_dec: ", cmd_help_text!(imaging_job_params, custom_centre_dec))]
+#[doc = concat!("    custom_centre_ra: ", cmd_help_text!(imaging_job_params, custom_centre_ra))]
+#[doc = concat!("    flag_edge_width: ", cmd_help_text!(imaging_job_params, flag_edge_width))]
+#[doc = concat!("    image_size: ", cmd_help_text!(imaging_job_params, image_size))]
+#[doc = concat!("    join_channels: ", cmd_help_text!(imaging_job_params, join_channels))]
+#[doc = concat!("    join_polarizations: ", cmd_help_text!(imaging_job_params, join_polarizations))]
+#[doc = concat!("    mgain: ", cmd_help_text!(imaging_job_params, mgain))]
+#[doc = concat!("    multiscale: ", cmd_help_text!(imaging_job_params, multiscale))]
+#[doc = concat!("    nmiter: ", cmd_help_text!(imaging_job_params, nmiter))]
+#[doc = concat!("    no_apply_amps: ", cmd_help_text!(imaging_job_params, no_apply_amps))]
+#[doc = concat!("    no_digital_gains: ", cmd_help_text!(imaging_job_params, no_digital_gains))]
+#[doc = concat!("    no_flag_dc: ", cmd_help_text!(imaging_job_params, no_flag_dc))]
+#[doc = concat!("    no_geometric_delay: ", cmd_help_text!(imaging_job_params, no_geometric_delay))]
+#[doc = concat!("    no_passband_gains: ", cmd_help_text!(imaging_job_params, no_passband_gains))]
+#[doc = concat!("    no_cable_delay: ", cmd_help_text!(imaging_job_params, no_cable_delay))]
+#[doc = concat!("    no_rfi: ", cmd_help_text!(imaging_job_params, no_rfi))]
+#[doc = concat!("    pixel_scale: ", cmd_help_text!(imaging_job_params, pixel_scale))]
+#[doc = concat!("    polarization: ", cmd_help_text!(imaging_job_params, polarization))]
+#[doc = concat!("    robust: ", cmd_help_text!(imaging_job_params, robust))]
+#[doc = concat!("    uv_max: ", cmd_help_text!(imaging_job_params, uv_max))]
+#[doc = concat!("    uv_min: ", cmd_help_text!(imaging_job_params, uv_min))]
+#[doc = concat!("    weighting: ", cmd_help_text!(imaging_job_params, weighting))]
+#[doc = concat!("    wstack_nwlayers: ", cmd_help_text!(imaging_job_params, wstack_nwlayers))]
+#[doc = concat!("    allow_resubmit: ", cmd_help_text!(imaging_job_params, allow_resubmit))]
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(name = "ImagingJobParams", module = "mwa_giant_squid")]
 pub struct PyImagingJobParams {
@@ -762,11 +737,34 @@ impl PyImagingJobParams {
 /// (the type stubs show it). `None` is accepted by the arguments that the MWA
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
-/// The values are checked by `validate()` and when the job is submitted (see the submit method).
+/// `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
+/// values are checked by `validate()` and when the job is submitted (see the submit method).
 ///
 /// Args:
-///     source_job_id: The ID of the conversion job to image. Must be
-///         greater than zero (checked when it is set, `ValueError`).
+#[doc = concat!("    source_job_id: ", cmd_help_text!(image_from_job_params, source_job_id))]
+#[doc = concat!("    output_mode: ", cmd_help_text!(image_from_job_params, output_mode))]
+#[doc = concat!("    delivery: ", cmd_help_text!(image_from_job_params, delivery))]
+#[doc = concat!("    delivery_format: ", cmd_help_text!(image_from_job_params, delivery_format))]
+#[doc = concat!("    apply_primary_beam: ", cmd_help_text!(image_from_job_params, apply_primary_beam))]
+#[doc = concat!("    auto_mask: ", cmd_help_text!(image_from_job_params, auto_mask))]
+#[doc = concat!("    auto_threshold: ", cmd_help_text!(image_from_job_params, auto_threshold))]
+#[doc = concat!("    abs_threshold: ", cmd_help_text!(image_from_job_params, abs_threshold))]
+#[doc = concat!("    channels_out: ", cmd_help_text!(image_from_job_params, channels_out))]
+#[doc = concat!("    clean_iterations: ", cmd_help_text!(image_from_job_params, clean_iterations))]
+#[doc = concat!("    image_size: ", cmd_help_text!(image_from_job_params, image_size))]
+#[doc = concat!("    join_channels: ", cmd_help_text!(image_from_job_params, join_channels))]
+#[doc = concat!("    join_polarizations: ", cmd_help_text!(image_from_job_params, join_polarizations))]
+#[doc = concat!("    mgain: ", cmd_help_text!(image_from_job_params, mgain))]
+#[doc = concat!("    multiscale: ", cmd_help_text!(image_from_job_params, multiscale))]
+#[doc = concat!("    nmiter: ", cmd_help_text!(image_from_job_params, nmiter))]
+#[doc = concat!("    pixel_scale: ", cmd_help_text!(image_from_job_params, pixel_scale))]
+#[doc = concat!("    polarization: ", cmd_help_text!(image_from_job_params, polarization))]
+#[doc = concat!("    robust: ", cmd_help_text!(image_from_job_params, robust))]
+#[doc = concat!("    uv_max: ", cmd_help_text!(image_from_job_params, uv_max))]
+#[doc = concat!("    uv_min: ", cmd_help_text!(image_from_job_params, uv_min))]
+#[doc = concat!("    weighting: ", cmd_help_text!(image_from_job_params, weighting))]
+#[doc = concat!("    wstack_nwlayers: ", cmd_help_text!(image_from_job_params, wstack_nwlayers))]
+#[doc = concat!("    allow_resubmit: ", cmd_help_text!(image_from_job_params, allow_resubmit))]
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(name = "ImageFromJobParams", module = "mwa_giant_squid")]
 pub struct PyImageFromJobParams {

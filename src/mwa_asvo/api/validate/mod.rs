@@ -93,6 +93,17 @@ impl Bounds {
         }
     }
 
+    /// The range in words, for a help text: for example `0 to 7200`,
+    /// `at least 1` or `at most 10`.
+    pub fn range_text(&self) -> String {
+        match (self.min, self.max) {
+            (Some(min), Some(max)) => format!("{min} to {max}"),
+            (Some(min), None) => format!("at least {min}"),
+            (None, Some(max)) => format!("at most {max}"),
+            (None, None) => NO_LIMITS.to_string(),
+        }
+    }
+
     /// Check that `value`, the value of the argument `name`, is in the
     /// range.
     ///
@@ -110,6 +121,9 @@ impl Bounds {
         }
     }
 }
+
+/// [`Bounds::range_text`] of bounds with no limits.
+const NO_LIMITS: &str = "any value";
 
 // The limits below are those of the MWA ASVO OpenAPI schema. One constant
 // serves a field in every request body that has it (for example

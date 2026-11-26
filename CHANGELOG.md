@@ -191,6 +191,11 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
+* The help text of each job option of the submit commands is the MWA ASVO API's (the schema's `x-cmd-help`), and an
+  option whose value has limits shows them after it, for example `[range: 0 to 7200]`. The `Args:` of the Python
+  classes `DownloadJobParams`, `ConversionJobParams`, `ImagingJobParams` and `ImageFromJobParams` have the same texts.
+  `cargo xtask regen-openapi` writes the texts into `openapi.rs` (the `cmd_help` module and the `cmd_help_text!`
+  macro). The library has `Bounds::range_text`.
 * MWA ASVO API 2.8.3 (OpenAPI 3.1.0) is applied. `--uvw-min` and `--uvw-max` are now `--uv-min` and `--uv-max`, the
   schema's names (also the Python keywords `uv_min` and `uv_max`, the `submit-csv` keys and the `list --fields`
   fields). The voltage `--offset` is limited to 0 to 7200 seconds (was 0 to 5400). The `error_code` of an MWA ASVO

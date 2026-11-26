@@ -7,6 +7,8 @@
 //! Only [`api`] (the OpenAPI schema's types, the job arguments and their
 //! checks) and [`error_response`] are public here. Everything else is
 //! public at the crate root, and only there.
+// `#[macro_use]`: see the declaration of this module in lib.rs.
+#[macro_use]
 pub mod api;
 pub(crate) mod download;
 pub(crate) mod env;

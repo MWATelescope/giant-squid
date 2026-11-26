@@ -618,3 +618,19 @@ fn an_infinite_value_is_never_in_bounds() {
     assert!(!Bounds::at_most(100.0).contains(f64::NEG_INFINITY));
     assert!(!Bounds::between(0.0, 1.0).contains(f64::INFINITY));
 }
+
+#[test]
+fn the_range_text_names_each_limit() {
+    assert_eq!(Bounds::between(0.0, 7200.0).range_text(), "0 to 7200");
+    assert_eq!(Bounds::between(0.1, 1.0).range_text(), "0.1 to 1");
+    assert_eq!(Bounds::at_least(1.0).range_text(), "at least 1");
+    assert_eq!(Bounds::at_most(10.0).range_text(), "at most 10");
+    assert_eq!(
+        Bounds {
+            min: None,
+            max: None
+        }
+        .range_text(),
+        "any value"
+    );
+}

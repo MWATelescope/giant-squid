@@ -20,6 +20,7 @@ use crate::mwa_asvo::api::job_params::{
     conversion_defaults, conversion_params, download_defaults, download_params,
     image_from_job_defaults, image_from_job_params, imaging_defaults, imaging_params,
 };
+use crate::mwa_asvo::api::openapi::cmd_help::{self, download_job_params as download_help};
 use crate::mwa_asvo::api::openapi::{
     ConversionJobParams, DeliveryDestination, DeliveryFormat, DownloadJobParams,
     ImageFromJobParams, ImageOutputMode, ImageSizes, ImageWeighting, ImagingJobParams,
@@ -68,6 +69,19 @@ pub fn parse_i64_bounds(bounds: Bounds) -> impl Fn(&str) -> Result<i64, String> 
         }
     }
 }
+
+/// The help text `text` of an option whose value must be within `bounds`,
+/// with the range after it in the style of clap's `[default: ...]`: for
+/// example `<text> [range: 0 to 7200]`. The bounds are the library's
+/// schema limits, so the help cannot drift from the API.
+fn help_with_range(text: &str, bounds: Bounds) -> String {
+    format!("{text} [range: {}]", bounds.range_text())
+}
+
+/// The range of a receiver channel number (`from_channel`, `to_channel`):
+/// the range of its type, `u8`, which the validate tests check is the
+/// schema's limit.
+const RECEIVER_CHANNEL_RANGE: Bounds = Bounds::between(u8::MIN as f64, u8::MAX as f64);
 
 /// The word that gives a field of the request body the value `null`.
 const NULL_WORD: &str = "null";
@@ -187,6 +201,20 @@ impl_schema_defaults!(
     ImageFromJobParams => image_from_job_defaults,
 );
 
+/// Implement a help trait: each constant is the schema's command-line help
+/// text (`x-cmd-help`) of the field of that name of the schema type, from
+/// the type's module of the generated [`cmd_help`].
+macro_rules! impl_help {
+    ($trait:ident for [$($ty:ty => $module:ident),+ $(,)?] $constants:tt) => {
+        $(impl_help!(@one $trait, $ty, $module, $constants);)+
+    };
+    (@one $trait:ident, $ty:ty, $module:ident, { $($constant:ident),+ $(,)? }) => {
+        impl $trait for $ty {
+            $(const $constant: &'static str = cmd_help::$module::$constant;)+
+        }
+    };
+}
+
 /// Implement an accessor trait: each method returns that field of the
 /// schema type.
 macro_rules! impl_fields {
@@ -204,8 +232,21 @@ macro_rules! impl_fields {
     };
 }
 
+/// The help texts of the delivery options of a schema type.
+pub trait DeliveryHelp {
+    const DELIVERY: &'static str;
+    const DELIVERY_FORMAT: &'static str;
+}
+
+impl_help!(DeliveryHelp for [
+    DownloadJobParams => download_job_params,
+    ConversionJobParams => conversion_job_params,
+    ImagingJobParams => imaging_job_params,
+    ImageFromJobParams => image_from_job_params,
+] { DELIVERY, DELIVERY_FORMAT });
+
 /// The delivery fields of a schema type.
-pub trait DeliveryFields: SchemaDefaults {
+pub trait DeliveryFields: SchemaDefaults + DeliveryHelp {
     fn delivery(&self) -> DeliveryDestination;
     fn delivery_format(&self) -> DeliveryFormat;
 }
@@ -232,9 +273,36 @@ fn nullable_default<T: ToString>(default: Option<T>, name: &str) -> String {
         .to_string()
 }
 
+/// The help texts of the preprocessing options of a schema type.
+pub trait PreprocessingHelp {
+    const AVG_FREQ_RES: &'static str;
+    const AVG_TIME_RES: &'static str;
+    const FLAG_EDGE_WIDTH: &'static str;
+    const APPLY_DI_CAL: &'static str;
+    const CENTRE: &'static str;
+    const CUSTOM_CENTRE_RA: &'static str;
+    const CUSTOM_CENTRE_DEC: &'static str;
+    const NO_APPLY_AMPS: &'static str;
+    const NO_DIGITAL_GAINS: &'static str;
+    const NO_FLAG_DC: &'static str;
+    const NO_GEOMETRIC_DELAY: &'static str;
+    const NO_PASSBAND_GAINS: &'static str;
+    const NO_CABLE_DELAY: &'static str;
+    const NO_RFI: &'static str;
+}
+
+impl_help!(PreprocessingHelp for [
+    ConversionJobParams => conversion_job_params,
+    ImagingJobParams => imaging_job_params,
+] {
+    AVG_FREQ_RES, AVG_TIME_RES, FLAG_EDGE_WIDTH, APPLY_DI_CAL, CENTRE, CUSTOM_CENTRE_RA,
+    CUSTOM_CENTRE_DEC, NO_APPLY_AMPS, NO_DIGITAL_GAINS, NO_FLAG_DC, NO_GEOMETRIC_DELAY,
+    NO_PASSBAND_GAINS, NO_CABLE_DELAY, NO_RFI,
+});
+
 /// The preprocessing fields of a schema type (conversion, and imaging from an
 /// Obs ID).
-pub trait PreprocessingFields: SchemaDefaults {
+pub trait PreprocessingFields: SchemaDefaults + PreprocessingHelp {
     fn avg_freq_res(&self) -> Option<f64>;
     fn avg_time_res(&self) -> Option<f64>;
     fn flag_edge_width(&self) -> Option<f64>;
@@ -264,8 +332,41 @@ impl_fields!(PreprocessingFields for [ConversionJobParams, ImagingJobParams] {
     no_rfi: Option<bool>,
 });
 
+/// The help texts of the WSClean options of a schema type.
+pub trait WscleanHelp {
+    const APPLY_PRIMARY_BEAM: &'static str;
+    const AUTO_MASK: &'static str;
+    const AUTO_THRESHOLD: &'static str;
+    const ABS_THRESHOLD: &'static str;
+    const CHANNELS_OUT: &'static str;
+    const CLEAN_ITERATIONS: &'static str;
+    const IMAGE_SIZE: &'static str;
+    const JOIN_CHANNELS: &'static str;
+    const JOIN_POLARIZATIONS: &'static str;
+    const MGAIN: &'static str;
+    const MULTISCALE: &'static str;
+    const NMITER: &'static str;
+    const OUTPUT_MODE: &'static str;
+    const PIXEL_SCALE: &'static str;
+    const POLARIZATION: &'static str;
+    const ROBUST: &'static str;
+    const UV_MAX: &'static str;
+    const UV_MIN: &'static str;
+    const WEIGHTING: &'static str;
+    const WSTACK_NWLAYERS: &'static str;
+}
+
+impl_help!(WscleanHelp for [
+    ImagingJobParams => imaging_job_params,
+    ImageFromJobParams => image_from_job_params,
+] {
+    APPLY_PRIMARY_BEAM, AUTO_MASK, AUTO_THRESHOLD, ABS_THRESHOLD, CHANNELS_OUT, CLEAN_ITERATIONS,
+    IMAGE_SIZE, JOIN_CHANNELS, JOIN_POLARIZATIONS, MGAIN, MULTISCALE, NMITER, OUTPUT_MODE,
+    PIXEL_SCALE, POLARIZATION, ROBUST, UV_MAX, UV_MIN, WEIGHTING, WSTACK_NWLAYERS,
+});
+
 /// The WSClean fields of a schema type (both imaging bodies).
-pub trait WscleanFields: SchemaDefaults {
+pub trait WscleanFields: SchemaDefaults + WscleanHelp {
     fn apply_primary_beam(&self) -> bool;
     fn auto_mask(&self) -> i64;
     fn auto_threshold(&self) -> f64;
@@ -325,8 +426,20 @@ macro_rules! impl_apply_to {
     };
 }
 
+/// The help text of the `--allow-resubmit` option of a schema type.
+pub trait ResubmitHelp {
+    const ALLOW_RESUBMIT: &'static str;
+}
+
+impl_help!(ResubmitHelp for [
+    DownloadJobParams => download_job_params,
+    ConversionJobParams => conversion_job_params,
+    ImagingJobParams => imaging_job_params,
+    ImageFromJobParams => image_from_job_params,
+] { ALLOW_RESUBMIT });
+
 /// The `allow_resubmit` field of a schema type (every job type has it).
-pub trait ResubmitField: SchemaDefaults {
+pub trait ResubmitField: SchemaDefaults + ResubmitHelp {
     fn allow_resubmit(&self) -> Option<bool>;
 }
 
@@ -349,13 +462,10 @@ impl_fields!(ResubmitField for [
 /// adds the check that the delivery and its format agree.
 #[derive(clap::Args, Debug, Clone)]
 struct RawDeliveryArgs<P: DeliveryFields> {
-    /// Tell MWA ASVO where to deliver the data.
-    #[arg(short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]
+    #[arg(help = P::DELIVERY, short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]
     delivery: DeliveryDestination,
 
-    /// Tell MWA ASVO to deliver the data in a particular format. Must be tar
-    /// when the delivery is acacia.
-    #[arg(short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
+    #[arg(help = P::DELIVERY_FORMAT, short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     delivery_format: DeliveryFormat,
 
     #[arg(skip)]
@@ -416,20 +526,17 @@ impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
 /// The defaults are those of the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct PreprocessingArgs<P: PreprocessingFields> {
-    /// Frequency resolution to average to (kHz), or null for no frequency averaging.
-    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_FREQ_RES)))]
+    #[arg(help = help_with_range(P::AVG_FREQ_RES, validate::AVG_FREQ_RES), long, default_value = nullable_default(P::schema_defaults().avg_freq_res(), "avg_freq_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_FREQ_RES)))]
     pub avg_freq_res: Nullable<f64>,
 
-    /// Time resolution to average to (s), or null for no time averaging.
-    #[arg(long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_TIME_RES)))]
+    #[arg(help = help_with_range(P::AVG_TIME_RES, validate::AVG_TIME_RES), long, default_value = nullable_default(P::schema_defaults().avg_time_res(), "avg_time_res"), value_parser = nullable(parse_f64_bounds(validate::AVG_TIME_RES)))]
     pub avg_time_res: Nullable<f64>,
 
-    /// Width of frequency edge flagging (kHz), or null for no edge flagging.
-    #[arg(long, default_value = nullable_default(P::schema_defaults().flag_edge_width(), "flag_edge_width"), value_parser = nullable(parse_f64_bounds(validate::FLAG_EDGE_WIDTH)))]
+    #[arg(help = help_with_range(P::FLAG_EDGE_WIDTH, validate::FLAG_EDGE_WIDTH), long, default_value = nullable_default(P::schema_defaults().flag_edge_width(), "flag_edge_width"), value_parser = nullable(parse_f64_bounds(validate::FLAG_EDGE_WIDTH)))]
     pub flag_edge_width: Nullable<f64>,
 
-    /// Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time).
     #[arg(
+        help = P::APPLY_DI_CAL,
         long,
         default_value = P::schema_defaults().apply_di_cal().to_string(),
         default_missing_value = "true",
@@ -439,21 +546,17 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub apply_di_cal: bool,
 
-    /// Phase centre: "phase", "pointing", or "custom".
-    /// If "custom", also supply --custom-centre-ra and --custom-centre-dec.
-    #[arg(long, alias = "phase-center", default_value = P::schema_defaults().centre().to_string(), value_parser = SchemaEnumParser::<PhaseCentre>::new())]
+    #[arg(help = P::CENTRE, long, alias = "phase-center", default_value = P::schema_defaults().centre().to_string(), value_parser = SchemaEnumParser::<PhaseCentre>::new())]
     pub centre: PhaseCentre,
 
-    /// Custom phase centre right ascension (degrees). Requires --centre custom.
-    #[arg(long, aliases = ["phase-centre-ra", "custom-ra"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
+    #[arg(help = help_with_range(P::CUSTOM_CENTRE_RA, validate::CUSTOM_CENTRE_RA), long, aliases = ["phase-centre-ra", "custom-ra"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_RA))]
     pub custom_centre_ra: Option<f64>,
 
-    /// Custom phase centre declination (degrees). Requires --centre custom.
-    #[arg(long, aliases = ["phase-centre-dec", "custom-dec"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
+    #[arg(help = help_with_range(P::CUSTOM_CENTRE_DEC, validate::CUSTOM_CENTRE_DEC), long, aliases = ["phase-centre-dec", "custom-dec"], value_parser = parse_f64_bounds(validate::CUSTOM_CENTRE_DEC))]
     pub custom_centre_dec: Option<f64>,
 
-    /// Whether to skip applying amplitude calibration solutions.
     #[arg(
+        help = P::NO_APPLY_AMPS,
         long,
         default_value = P::schema_defaults().no_apply_amps().to_string(),
         default_missing_value = "true",
@@ -463,8 +566,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_apply_amps: bool,
 
-    /// Whether to skip applying digital gains. Takes true, false or null.
     #[arg(
+        help = P::NO_DIGITAL_GAINS,
         long,
         default_value = nullable_default(P::schema_defaults().no_digital_gains(), "no_digital_gains"),
         default_missing_value = "true",
@@ -475,8 +578,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_digital_gains: Nullable<bool>,
 
-    /// Whether to skip flagging the DC channel. Takes true, false or null.
     #[arg(
+        help = P::NO_FLAG_DC,
         long,
         default_value = nullable_default(P::schema_defaults().no_flag_dc(), "no_flag_dc"),
         default_missing_value = "true",
@@ -487,8 +590,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_flag_dc: Nullable<bool>,
 
-    /// Whether to skip applying geometric delay corrections. Takes true, false or null.
     #[arg(
+        help = P::NO_GEOMETRIC_DELAY,
         long,
         default_value = nullable_default(P::schema_defaults().no_geometric_delay(), "no_geometric_delay"),
         default_missing_value = "true",
@@ -499,8 +602,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_geometric_delay: Nullable<bool>,
 
-    /// Whether to skip applying passband gain corrections. Takes true, false or null.
     #[arg(
+        help = P::NO_PASSBAND_GAINS,
         long,
         default_value = nullable_default(P::schema_defaults().no_passband_gains(), "no_passband_gains"),
         default_missing_value = "true",
@@ -511,8 +614,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_passband_gains: Nullable<bool>,
 
-    /// Whether to skip applying cable delay corrections. Takes true, false or null.
     #[arg(
+        help = P::NO_CABLE_DELAY,
         long,
         default_value = nullable_default(P::schema_defaults().no_cable_delay(), "no_cable_delay"),
         default_missing_value = "true",
@@ -523,8 +626,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
     )]
     pub no_cable_delay: Nullable<bool>,
 
-    /// Whether to skip RFI flagging. Takes true, false or null.
     #[arg(
+        help = P::NO_RFI,
         long,
         default_value = nullable_default(P::schema_defaults().no_rfi(), "no_rfi"),
         default_missing_value = "true",
@@ -543,8 +646,8 @@ pub struct PreprocessingArgs<P: PreprocessingFields> {
 /// the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct WscleanArgs<P: WscleanFields> {
-    /// Whether to apply the primary beam correction.
     #[arg(
+        help = P::APPLY_PRIMARY_BEAM,
         long,
         default_value = P::schema_defaults().apply_primary_beam().to_string(),
         default_missing_value = "true",
@@ -554,33 +657,26 @@ pub struct WscleanArgs<P: WscleanFields> {
     )]
     pub apply_primary_beam: bool,
 
-    /// WSClean -auto-mask value.
-    #[arg(long, default_value = P::schema_defaults().auto_mask().to_string(), value_parser = parse_i64_bounds(validate::AUTO_MASK))]
+    #[arg(help = help_with_range(P::AUTO_MASK, validate::AUTO_MASK), long, default_value = P::schema_defaults().auto_mask().to_string(), value_parser = parse_i64_bounds(validate::AUTO_MASK))]
     pub auto_mask: i64,
 
-    /// WSClean -auto-threshold value.
-    #[arg(long, default_value = P::schema_defaults().auto_threshold().to_string(), value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
+    #[arg(help = help_with_range(P::AUTO_THRESHOLD, validate::AUTO_THRESHOLD), long, default_value = P::schema_defaults().auto_threshold().to_string(), value_parser = parse_f64_bounds(validate::AUTO_THRESHOLD))]
     pub auto_threshold: f64,
 
-    /// Absolute cleaning threshold (Jy), or null.
-    #[arg(long, default_value = nullable_default(P::schema_defaults().abs_threshold(), "abs_threshold"), value_parser = nullable(parse_f64_bounds(validate::ABS_THRESHOLD)))]
+    #[arg(help = help_with_range(P::ABS_THRESHOLD, validate::ABS_THRESHOLD), long, default_value = nullable_default(P::schema_defaults().abs_threshold(), "abs_threshold"), value_parser = nullable(parse_f64_bounds(validate::ABS_THRESHOLD)))]
     pub abs_threshold: Nullable<f64>,
 
-    /// Number of output channel groups.
-    #[arg(long, default_value = P::schema_defaults().channels_out().get().to_string(), value_parser = parse_channels_out)]
+    #[arg(help = help_with_range(P::CHANNELS_OUT, validate::CHANNELS_OUT), long, default_value = P::schema_defaults().channels_out().get().to_string(), value_parser = parse_channels_out)]
     pub channels_out: NonZeroU64,
 
-    /// WSClean -niter value (max clean iterations).
-    #[arg(long, default_value = P::schema_defaults().clean_iterations().to_string(), value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
+    #[arg(help = help_with_range(P::CLEAN_ITERATIONS, validate::CLEAN_ITERATIONS), long, default_value = P::schema_defaults().clean_iterations().to_string(), value_parser = parse_i64_bounds(validate::CLEAN_ITERATIONS))]
     pub clean_iterations: i64,
 
-    /// WSClean image size in pixels. Leave unset to let the server
-    /// calculate it.
-    #[arg(long, value_parser = parse_image_size)]
+    #[arg(help = P::IMAGE_SIZE, long, value_parser = parse_image_size)]
     pub image_size: Option<ImageSizes>,
 
-    /// Join output channel groups for cleaning.
     #[arg(
+        help = P::JOIN_CHANNELS,
         long,
         default_value = P::schema_defaults().join_channels().to_string(),
         default_missing_value = "true",
@@ -590,8 +686,8 @@ pub struct WscleanArgs<P: WscleanFields> {
     )]
     pub join_channels: bool,
 
-    /// Join polarisations for cleaning.
     #[arg(
+        help = P::JOIN_POLARIZATIONS,
         long,
         default_value = P::schema_defaults().join_polarizations().to_string(),
         default_missing_value = "true",
@@ -601,12 +697,11 @@ pub struct WscleanArgs<P: WscleanFields> {
     )]
     pub join_polarizations: bool,
 
-    /// WSClean -mgain value.
-    #[arg(long, default_value = P::schema_defaults().mgain().to_string(), value_parser = parse_f64_bounds(validate::MGAIN))]
+    #[arg(help = help_with_range(P::MGAIN, validate::MGAIN), long, default_value = P::schema_defaults().mgain().to_string(), value_parser = parse_f64_bounds(validate::MGAIN))]
     pub mgain: f64,
 
-    /// Enable WSClean multiscale cleaning.
     #[arg(
+        help = P::MULTISCALE,
         long,
         default_value = P::schema_defaults().multiscale().to_string(),
         default_missing_value = "true",
@@ -616,43 +711,31 @@ pub struct WscleanArgs<P: WscleanFields> {
     )]
     pub multiscale: bool,
 
-    /// WSClean -nmiter value (max major cleaning iterations).
-    #[arg(long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_nmiter)]
+    #[arg(help = help_with_range(P::NMITER, validate::NMITER), long, default_value = P::schema_defaults().nmiter().get().to_string(), value_parser = parse_nmiter)]
     pub nmiter: NonZeroU64,
 
-    /// The output mode / product to request. Required.
-    #[arg(short = 'o', long, value_parser = SchemaEnumParser::<ImageOutputMode>::new())]
+    #[arg(help = P::OUTPUT_MODE, short = 'o', long, value_parser = SchemaEnumParser::<ImageOutputMode>::new())]
     pub output_mode: ImageOutputMode,
 
-    /// Pixel scale (arcsec/pixel). Leave unset to let the server calculate
-    /// it.
-    #[arg(long, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
+    #[arg(help = help_with_range(P::PIXEL_SCALE, validate::PIXEL_SCALE), long, value_parser = parse_f64_bounds(validate::PIXEL_SCALE))]
     pub pixel_scale: Option<f64>,
 
-    /// Polarisation to image.
-    #[arg(long, default_value = P::schema_defaults().polarization().to_string(), value_parser = SchemaEnumParser::<Polarization>::new())]
+    #[arg(help = P::POLARIZATION, long, default_value = P::schema_defaults().polarization().to_string(), value_parser = SchemaEnumParser::<Polarization>::new())]
     pub polarization: Polarization,
 
-    /// WSClean -robust (Briggs robustness) value.
-    #[arg(long, default_value = P::schema_defaults().robust().to_string(), value_parser = parse_f64_bounds(validate::ROBUST))]
+    #[arg(help = help_with_range(P::ROBUST, validate::ROBUST), long, default_value = P::schema_defaults().robust().to_string(), value_parser = parse_f64_bounds(validate::ROBUST))]
     pub robust: f64,
 
-    /// Maximum uv distance to image, in wavelengths (upper bound on
-    /// the range that can be requested).
-    #[arg(long, value_parser = parse_f64_bounds(validate::UV_MAX))]
+    #[arg(help = help_with_range(P::UV_MAX, validate::UV_MAX), long, value_parser = parse_f64_bounds(validate::UV_MAX))]
     pub uv_max: Option<f64>,
 
-    /// Minimum uv distance to image, in wavelengths.
-    #[arg(long, default_value = P::schema_defaults().uv_min().to_string(), value_parser = parse_f64_bounds(validate::UV_MIN))]
+    #[arg(help = help_with_range(P::UV_MIN, validate::UV_MIN), long, default_value = P::schema_defaults().uv_min().to_string(), value_parser = parse_f64_bounds(validate::UV_MIN))]
     pub uv_min: f64,
 
-    /// WSClean weighting scheme.
-    #[arg(long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<ImageWeighting>::new())]
+    #[arg(help = P::WEIGHTING, long, default_value = P::schema_defaults().weighting().to_string(), value_parser = SchemaEnumParser::<ImageWeighting>::new())]
     pub weighting: ImageWeighting,
 
-    /// Number of w-stacking layers. Leave unset to let the server
-    /// decide.
-    #[arg(long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
+    #[arg(help = help_with_range(P::WSTACK_NWLAYERS, validate::WSTACK_NWLAYERS), long, value_parser = parse_i64_bounds(validate::WSTACK_NWLAYERS))]
     pub wstack_nwlayers: Option<i64>,
 
     #[arg(skip)]
@@ -663,9 +746,8 @@ pub struct WscleanArgs<P: WscleanFields> {
 /// default is that of the schema type `P`.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ResubmitArgs<P: ResubmitField> {
-    /// Allow resubmitting a job even if an identical one has completed.
-    /// Takes true, false or null.
     #[arg(
+        help = P::ALLOW_RESUBMIT,
         short = 'r',
         long,
         default_value = nullable_default(P::schema_defaults().allow_resubmit(), "allow_resubmit"),
@@ -762,11 +844,8 @@ pub struct SubmitDownloadArgs {
     #[command(flatten)]
     pub delivery_args: DeliveryArgs<DownloadJobParams>,
 
-    /// Download the metadata only: metafits (with PPDs for each tile) and RFI
-    /// flags (if available). Takes true or false. Leave unset to leave it out
-    /// of the request (the schema gives it no default). True is not valid with
-    /// the voltage options (--offset, --duration, --from-channel, --to-channel).
     #[arg(
+        help = download_help::ONLY_METADATA,
         long,
         default_missing_value = "true",
         num_args = 0..=1,
@@ -775,22 +854,16 @@ pub struct SubmitDownloadArgs {
     )]
     pub only_metadata: Option<bool>,
 
-    /// Voltage observations only (required): the offset in seconds from the start GPS
-    /// time of the observation (0-7200).
-    #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
+    #[arg(help = help_with_range(download_help::OFFSET, validate::VOLTAGE_OFFSET), short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: Option<i64>,
 
-    /// Voltage observations only (required): the duration (in seconds) to download
-    /// (0-7200).
-    #[arg(short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
+    #[arg(help = help_with_range(download_help::DURATION, validate::VOLTAGE_DURATION), short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
     pub duration: Option<i64>,
 
-    /// Voltage observations only (optional): the 'from' receiver channel number (0-255).
-    #[arg(long)]
+    #[arg(help = help_with_range(download_help::FROM_CHANNEL, RECEIVER_CHANNEL_RANGE), long)]
     pub from_channel: Option<u8>,
 
-    /// Voltage observations only (optional): the 'to' receiver channel number (0-255).
-    #[arg(long)]
+    #[arg(help = help_with_range(download_help::TO_CHANNEL, RECEIVER_CHANNEL_RANGE), long)]
     pub to_channel: Option<u8>,
 
     #[command(flatten)]
@@ -874,8 +947,7 @@ pub struct ConversionJobArgs {
     #[command(flatten)]
     pub delivery_args: DeliveryArgs<ConversionJobParams>,
 
-    /// Output format: "ms" (measurement set) or "uvfits".
-    #[arg(short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<OutputFormat>::new())]
+    #[arg(help = cmd_help::conversion_job_params::OUTPUT, short = 'o', long, default_value_t = conversion_defaults().output, value_parser = SchemaEnumParser::<OutputFormat>::new())]
     pub output: OutputFormat,
 
     #[command(flatten)]
@@ -932,8 +1004,7 @@ impl ImagingJobArgs {
 /// Arguments for an imaging job that starts from an existing conversion job.
 #[derive(clap::Args, Debug, Clone)]
 pub struct ImagingFromJobArgs {
-    /// The MWA ASVO conversion Job ID to image from. Required.
-    #[arg(long)]
+    #[arg(help = cmd_help::image_from_job_params::SOURCE_JOB_ID, long)]
     pub source_job_id: NonZeroU64,
 
     #[command(flatten)]
@@ -965,20 +1036,16 @@ impl ImagingFromJobArgs {
 /// MWA ASVO decides where a voltage job is delivered.
 #[derive(clap::Args, Debug, Clone)]
 pub struct VoltageJobArgs {
-    /// The offset in seconds from the start GPS time of the observation.
-    #[arg(short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
+    #[arg(help = help_with_range(download_help::OFFSET, validate::VOLTAGE_OFFSET), short, long, value_parser = parse_i64_bounds(validate::VOLTAGE_OFFSET))]
     pub offset: i64,
 
-    /// The duration (in seconds) to download.
-    #[arg(short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
+    #[arg(help = help_with_range(download_help::DURATION, validate::VOLTAGE_DURATION), short = 'u', long, value_parser = parse_i64_bounds(validate::VOLTAGE_DURATION))]
     pub duration: i64,
 
-    /// The 'from' receiver channel number (0-255).
-    #[arg(long)]
+    #[arg(help = help_with_range(download_help::FROM_CHANNEL, RECEIVER_CHANNEL_RANGE), long)]
     pub from_channel: Option<u8>,
 
-    /// The 'to' receiver channel number (0-255).
-    #[arg(long)]
+    #[arg(help = help_with_range(download_help::TO_CHANNEL, RECEIVER_CHANNEL_RANGE), long)]
     pub to_channel: Option<u8>,
 
     #[command(flatten)]

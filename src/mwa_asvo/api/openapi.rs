@@ -12,6 +12,301 @@ pub const OPENAPI_VERSION: &str = "3.1.0";
 /// The version of the MWA ASVO API that this file was generated from.
 pub const MWA_ASVO_API_VERSION: &str = "2.8.3";
 
+/// The command-line help text (the schema's `x-cmd-help`) of the field `<field>` of the
+/// request body `<type>`, as a string literal: `cmd_help_text!(imaging_job_params, uv_min)`.
+/// A string literal can be used in `concat!`, for example in a doc comment. The macro is
+/// in scope in the modules declared after this one (`#[macro_use]` on the modules
+/// above it): a `use` of it cannot be resolved in the doc attribute of a `#[pyclass]`.
+macro_rules! cmd_help_text {
+    (conversion_job_params, allow_resubmit) => { "Allow resubmitting a job even if an identical one has completed. Takes true, false or null" };
+    (conversion_job_params, apply_di_cal) => { "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)" };
+    (conversion_job_params, avg_freq_res) => { "Frequency resolution to average to (kHz), or null for no frequency averaging" };
+    (conversion_job_params, avg_time_res) => { "Time resolution to average to (s), or null for no time averaging" };
+    (conversion_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de" };
+    (conversion_job_params, custom_centre_dec) => { "Custom phase centre declination (degrees). Requires --centre custom" };
+    (conversion_job_params, custom_centre_ra) => { "Custom phase centre right ascension (degrees). Requires --centre custom" };
+    (conversion_job_params, delivery) => { "Tell MWA ASVO where to deliver data" };
+    (conversion_job_params, delivery_format) => { "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia" };
+    (conversion_job_params, flag_edge_width) => { "Width of frequency edge flagging (kHz), or null for no edge flagging" };
+    (conversion_job_params, no_apply_amps) => { "Whether to skip applying amplitude calibration solutions" };
+    (conversion_job_params, no_cable_delay) => { "Whether to skip applying cable delay corrections. Takes true, false or null" };
+    (conversion_job_params, no_digital_gains) => { "Whether to skip applying digital gains. Takes true, false or null" };
+    (conversion_job_params, no_flag_dc) => { "Whether to skip flagging the DC channel. Takes true, false or null" };
+    (conversion_job_params, no_geometric_delay) => { "Whether to skip applying geometric delay corrections. Takes true, false or null" };
+    (conversion_job_params, no_passband_gains) => { "Whether to skip applying passband gain corrections. Takes true, false or null" };
+    (conversion_job_params, no_rfi) => { "Whether to skip RFI flagging. Takes true, false or null" };
+    (conversion_job_params, obs_id) => { "The ID of the observation" };
+    (conversion_job_params, output) => { "Output format: \"ms\" (measurement set) or \"uvfits\"" };
+    (download_job_params, allow_resubmit) => { "Allow resubmitting a job even if an identical one has completed. Takes true, false or null" };
+    (download_job_params, delivery) => { "Tell MWA ASVO where to deliver data" };
+    (download_job_params, delivery_format) => { "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia" };
+    (download_job_params, duration) => { "Voltage observations only (required): the duration (in seconds) to download" };
+    (download_job_params, from_channel) => { "Voltage observations only (optional): the 'from' receiver channel number" };
+    (download_job_params, obs_id) => { "The ID of the observation" };
+    (download_job_params, offset) => { "Voltage observations only (required): the offset in seconds from the start GPS time of the observation" };
+    (download_job_params, only_metadata) => { "Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default). True is not valid with the voltage options (--offset, --duration, --from-channel, --to-channel)" };
+    (download_job_params, to_channel) => { "Voltage observations only (optional): the 'to' receiver channel number" };
+    (image_from_job_params, abs_threshold) => { "Absolute cleaning threshold (Jy), or null" };
+    (image_from_job_params, allow_resubmit) => { "Allow resubmitting a job even if an identical one has completed. Takes true, false or null" };
+    (image_from_job_params, apply_primary_beam) => { "Whether to apply the primary beam correction" };
+    (image_from_job_params, auto_mask) => { "WSClean -auto-mask value" };
+    (image_from_job_params, auto_threshold) => { "WSClean -auto-threshold value" };
+    (image_from_job_params, channels_out) => { "Number of output channel groups" };
+    (image_from_job_params, clean_iterations) => { "WSClean -niter value (max clean iterations)" };
+    (image_from_job_params, delivery) => { "Tell MWA ASVO where to deliver data" };
+    (image_from_job_params, delivery_format) => { "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia" };
+    (image_from_job_params, image_size) => { "WSClean image size in pixels. Leave unset to let the server calculate it" };
+    (image_from_job_params, join_channels) => { "Join output channel groups for cleaning" };
+    (image_from_job_params, join_polarizations) => { "Join polarisations for cleaning" };
+    (image_from_job_params, mgain) => { "WSClean -mgain value" };
+    (image_from_job_params, multiscale) => { "Enable WSClean multiscale cleaning" };
+    (image_from_job_params, nmiter) => { "WSClean -nmiter value (max major cleaning iterations)" };
+    (image_from_job_params, output_mode) => { "The output mode / product to request. Required" };
+    (image_from_job_params, pixel_scale) => { "Pixel scale (arcsec/pixel). Leave unset to let the server calculate it" };
+    (image_from_job_params, polarization) => { "Polarisation to image" };
+    (image_from_job_params, robust) => { "WSClean -robust (Briggs robustness) value" };
+    (image_from_job_params, source_job_id) => { "The MWA ASVO conversion Job ID to image from. Required" };
+    (image_from_job_params, uv_max) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (image_from_job_params, uv_min) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (image_from_job_params, weighting) => { "WSClean weighting scheme" };
+    (image_from_job_params, wstack_nwlayers) => { "Number of w-stacking layers. Leave unset to let the server decide" };
+    (imaging_job_params, abs_threshold) => { "Absolute cleaning threshold (Jy), or null" };
+    (imaging_job_params, allow_resubmit) => { "Allow resubmitting a job even if an identical one has completed. Takes true, false or null" };
+    (imaging_job_params, apply_di_cal) => { "Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)" };
+    (imaging_job_params, apply_primary_beam) => { "Whether to apply the primary beam correction" };
+    (imaging_job_params, auto_mask) => { "WSClean -auto-mask value" };
+    (imaging_job_params, auto_threshold) => { "WSClean -auto-threshold value" };
+    (imaging_job_params, avg_freq_res) => { "Frequency resolution to average to (kHz), or null for no frequency averaging" };
+    (imaging_job_params, avg_time_res) => { "Time resolution to average to (s), or null for no time averaging" };
+    (imaging_job_params, centre) => { "Phase centre: \"phase\", \"pointing\", or \"custom\". If \"custom\", also supply --custom-centre-ra and --custom-centre-de" };
+    (imaging_job_params, channels_out) => { "Number of output channel groups" };
+    (imaging_job_params, clean_iterations) => { "WSClean -niter value (max clean iterations)" };
+    (imaging_job_params, custom_centre_dec) => { "Custom phase centre declination (degrees). Requires --centre custom" };
+    (imaging_job_params, custom_centre_ra) => { "Custom phase centre right ascension (degrees). Requires --centre custom" };
+    (imaging_job_params, delivery) => { "Tell MWA ASVO where to deliver data" };
+    (imaging_job_params, delivery_format) => { "Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia" };
+    (imaging_job_params, flag_edge_width) => { "Width of frequency edge flagging (kHz), or null for no edge flagging" };
+    (imaging_job_params, image_size) => { "WSClean image size in pixels. Leave unset to let the server calculate it" };
+    (imaging_job_params, join_channels) => { "Join output channel groups for cleaning" };
+    (imaging_job_params, join_polarizations) => { "Join polarisations for cleaning" };
+    (imaging_job_params, mgain) => { "WSClean -mgain value" };
+    (imaging_job_params, multiscale) => { "Enable WSClean multiscale cleaning" };
+    (imaging_job_params, nmiter) => { "WSClean -nmiter value (max major cleaning iterations)" };
+    (imaging_job_params, no_apply_amps) => { "Whether to skip applying amplitude calibration solutions" };
+    (imaging_job_params, no_cable_delay) => { "Whether to skip applying cable delay corrections. Takes true, false or null" };
+    (imaging_job_params, no_digital_gains) => { "Whether to skip applying digital gains. Takes true, false or null" };
+    (imaging_job_params, no_flag_dc) => { "Whether to skip flagging the DC channel. Takes true, false or null" };
+    (imaging_job_params, no_geometric_delay) => { "Whether to skip applying geometric delay corrections. Takes true, false or null" };
+    (imaging_job_params, no_passband_gains) => { "Whether to skip applying passband gain corrections. Takes true, false or null" };
+    (imaging_job_params, no_rfi) => { "Whether to skip RFI flagging. Takes true, false or null" };
+    (imaging_job_params, obs_id) => { "The ID of the observation" };
+    (imaging_job_params, output_mode) => { "The output mode / product to request. Required" };
+    (imaging_job_params, pixel_scale) => { "Pixel scale (arcsec/pixel). Leave unset to let the server calculate it" };
+    (imaging_job_params, polarization) => { "Polarisation to image" };
+    (imaging_job_params, robust) => { "WSClean -robust (Briggs robustness) value" };
+    (imaging_job_params, uv_max) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (imaging_job_params, uv_min) => { "Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)" };
+    (imaging_job_params, weighting) => { "WSClean weighting scheme" };
+    (imaging_job_params, wstack_nwlayers) => { "Number of w-stacking layers. Leave unset to let the server decide" };
+}
+
+/// The command-line help texts (the schema's `x-cmd-help`) of the request bodies: one
+/// module for each body, and one constant for each field.
+pub mod cmd_help {
+    /// The help texts of the fields of `ConversionJobParams`.
+    pub mod conversion_job_params {
+        /// The help text of `allow_resubmit`.
+        pub const ALLOW_RESUBMIT: &str = cmd_help_text!(conversion_job_params, allow_resubmit);
+        /// The help text of `apply_di_cal`.
+        pub const APPLY_DI_CAL: &str = cmd_help_text!(conversion_job_params, apply_di_cal);
+        /// The help text of `avg_freq_res`.
+        pub const AVG_FREQ_RES: &str = cmd_help_text!(conversion_job_params, avg_freq_res);
+        /// The help text of `avg_time_res`.
+        pub const AVG_TIME_RES: &str = cmd_help_text!(conversion_job_params, avg_time_res);
+        /// The help text of `centre`.
+        pub const CENTRE: &str = cmd_help_text!(conversion_job_params, centre);
+        /// The help text of `custom_centre_dec`.
+        pub const CUSTOM_CENTRE_DEC: &str = cmd_help_text!(conversion_job_params, custom_centre_dec);
+        /// The help text of `custom_centre_ra`.
+        pub const CUSTOM_CENTRE_RA: &str = cmd_help_text!(conversion_job_params, custom_centre_ra);
+        /// The help text of `delivery`.
+        pub const DELIVERY: &str = cmd_help_text!(conversion_job_params, delivery);
+        /// The help text of `delivery_format`.
+        pub const DELIVERY_FORMAT: &str = cmd_help_text!(conversion_job_params, delivery_format);
+        /// The help text of `flag_edge_width`.
+        pub const FLAG_EDGE_WIDTH: &str = cmd_help_text!(conversion_job_params, flag_edge_width);
+        /// The help text of `no_apply_amps`.
+        pub const NO_APPLY_AMPS: &str = cmd_help_text!(conversion_job_params, no_apply_amps);
+        /// The help text of `no_cable_delay`.
+        pub const NO_CABLE_DELAY: &str = cmd_help_text!(conversion_job_params, no_cable_delay);
+        /// The help text of `no_digital_gains`.
+        pub const NO_DIGITAL_GAINS: &str = cmd_help_text!(conversion_job_params, no_digital_gains);
+        /// The help text of `no_flag_dc`.
+        pub const NO_FLAG_DC: &str = cmd_help_text!(conversion_job_params, no_flag_dc);
+        /// The help text of `no_geometric_delay`.
+        pub const NO_GEOMETRIC_DELAY: &str = cmd_help_text!(conversion_job_params, no_geometric_delay);
+        /// The help text of `no_passband_gains`.
+        pub const NO_PASSBAND_GAINS: &str = cmd_help_text!(conversion_job_params, no_passband_gains);
+        /// The help text of `no_rfi`.
+        pub const NO_RFI: &str = cmd_help_text!(conversion_job_params, no_rfi);
+        /// The help text of `obs_id`.
+        pub const OBS_ID: &str = cmd_help_text!(conversion_job_params, obs_id);
+        /// The help text of `output`.
+        pub const OUTPUT: &str = cmd_help_text!(conversion_job_params, output);
+    }
+    /// The help texts of the fields of `DownloadJobParams`.
+    pub mod download_job_params {
+        /// The help text of `allow_resubmit`.
+        pub const ALLOW_RESUBMIT: &str = cmd_help_text!(download_job_params, allow_resubmit);
+        /// The help text of `delivery`.
+        pub const DELIVERY: &str = cmd_help_text!(download_job_params, delivery);
+        /// The help text of `delivery_format`.
+        pub const DELIVERY_FORMAT: &str = cmd_help_text!(download_job_params, delivery_format);
+        /// The help text of `duration`.
+        pub const DURATION: &str = cmd_help_text!(download_job_params, duration);
+        /// The help text of `from_channel`.
+        pub const FROM_CHANNEL: &str = cmd_help_text!(download_job_params, from_channel);
+        /// The help text of `obs_id`.
+        pub const OBS_ID: &str = cmd_help_text!(download_job_params, obs_id);
+        /// The help text of `offset`.
+        pub const OFFSET: &str = cmd_help_text!(download_job_params, offset);
+        /// The help text of `only_metadata`.
+        pub const ONLY_METADATA: &str = cmd_help_text!(download_job_params, only_metadata);
+        /// The help text of `to_channel`.
+        pub const TO_CHANNEL: &str = cmd_help_text!(download_job_params, to_channel);
+    }
+    /// The help texts of the fields of `ImageFromJobParams`.
+    pub mod image_from_job_params {
+        /// The help text of `abs_threshold`.
+        pub const ABS_THRESHOLD: &str = cmd_help_text!(image_from_job_params, abs_threshold);
+        /// The help text of `allow_resubmit`.
+        pub const ALLOW_RESUBMIT: &str = cmd_help_text!(image_from_job_params, allow_resubmit);
+        /// The help text of `apply_primary_beam`.
+        pub const APPLY_PRIMARY_BEAM: &str = cmd_help_text!(image_from_job_params, apply_primary_beam);
+        /// The help text of `auto_mask`.
+        pub const AUTO_MASK: &str = cmd_help_text!(image_from_job_params, auto_mask);
+        /// The help text of `auto_threshold`.
+        pub const AUTO_THRESHOLD: &str = cmd_help_text!(image_from_job_params, auto_threshold);
+        /// The help text of `channels_out`.
+        pub const CHANNELS_OUT: &str = cmd_help_text!(image_from_job_params, channels_out);
+        /// The help text of `clean_iterations`.
+        pub const CLEAN_ITERATIONS: &str = cmd_help_text!(image_from_job_params, clean_iterations);
+        /// The help text of `delivery`.
+        pub const DELIVERY: &str = cmd_help_text!(image_from_job_params, delivery);
+        /// The help text of `delivery_format`.
+        pub const DELIVERY_FORMAT: &str = cmd_help_text!(image_from_job_params, delivery_format);
+        /// The help text of `image_size`.
+        pub const IMAGE_SIZE: &str = cmd_help_text!(image_from_job_params, image_size);
+        /// The help text of `join_channels`.
+        pub const JOIN_CHANNELS: &str = cmd_help_text!(image_from_job_params, join_channels);
+        /// The help text of `join_polarizations`.
+        pub const JOIN_POLARIZATIONS: &str = cmd_help_text!(image_from_job_params, join_polarizations);
+        /// The help text of `mgain`.
+        pub const MGAIN: &str = cmd_help_text!(image_from_job_params, mgain);
+        /// The help text of `multiscale`.
+        pub const MULTISCALE: &str = cmd_help_text!(image_from_job_params, multiscale);
+        /// The help text of `nmiter`.
+        pub const NMITER: &str = cmd_help_text!(image_from_job_params, nmiter);
+        /// The help text of `output_mode`.
+        pub const OUTPUT_MODE: &str = cmd_help_text!(image_from_job_params, output_mode);
+        /// The help text of `pixel_scale`.
+        pub const PIXEL_SCALE: &str = cmd_help_text!(image_from_job_params, pixel_scale);
+        /// The help text of `polarization`.
+        pub const POLARIZATION: &str = cmd_help_text!(image_from_job_params, polarization);
+        /// The help text of `robust`.
+        pub const ROBUST: &str = cmd_help_text!(image_from_job_params, robust);
+        /// The help text of `source_job_id`.
+        pub const SOURCE_JOB_ID: &str = cmd_help_text!(image_from_job_params, source_job_id);
+        /// The help text of `uv_max`.
+        pub const UV_MAX: &str = cmd_help_text!(image_from_job_params, uv_max);
+        /// The help text of `uv_min`.
+        pub const UV_MIN: &str = cmd_help_text!(image_from_job_params, uv_min);
+        /// The help text of `weighting`.
+        pub const WEIGHTING: &str = cmd_help_text!(image_from_job_params, weighting);
+        /// The help text of `wstack_nwlayers`.
+        pub const WSTACK_NWLAYERS: &str = cmd_help_text!(image_from_job_params, wstack_nwlayers);
+    }
+    /// The help texts of the fields of `ImagingJobParams`.
+    pub mod imaging_job_params {
+        /// The help text of `abs_threshold`.
+        pub const ABS_THRESHOLD: &str = cmd_help_text!(imaging_job_params, abs_threshold);
+        /// The help text of `allow_resubmit`.
+        pub const ALLOW_RESUBMIT: &str = cmd_help_text!(imaging_job_params, allow_resubmit);
+        /// The help text of `apply_di_cal`.
+        pub const APPLY_DI_CAL: &str = cmd_help_text!(imaging_job_params, apply_di_cal);
+        /// The help text of `apply_primary_beam`.
+        pub const APPLY_PRIMARY_BEAM: &str = cmd_help_text!(imaging_job_params, apply_primary_beam);
+        /// The help text of `auto_mask`.
+        pub const AUTO_MASK: &str = cmd_help_text!(imaging_job_params, auto_mask);
+        /// The help text of `auto_threshold`.
+        pub const AUTO_THRESHOLD: &str = cmd_help_text!(imaging_job_params, auto_threshold);
+        /// The help text of `avg_freq_res`.
+        pub const AVG_FREQ_RES: &str = cmd_help_text!(imaging_job_params, avg_freq_res);
+        /// The help text of `avg_time_res`.
+        pub const AVG_TIME_RES: &str = cmd_help_text!(imaging_job_params, avg_time_res);
+        /// The help text of `centre`.
+        pub const CENTRE: &str = cmd_help_text!(imaging_job_params, centre);
+        /// The help text of `channels_out`.
+        pub const CHANNELS_OUT: &str = cmd_help_text!(imaging_job_params, channels_out);
+        /// The help text of `clean_iterations`.
+        pub const CLEAN_ITERATIONS: &str = cmd_help_text!(imaging_job_params, clean_iterations);
+        /// The help text of `custom_centre_dec`.
+        pub const CUSTOM_CENTRE_DEC: &str = cmd_help_text!(imaging_job_params, custom_centre_dec);
+        /// The help text of `custom_centre_ra`.
+        pub const CUSTOM_CENTRE_RA: &str = cmd_help_text!(imaging_job_params, custom_centre_ra);
+        /// The help text of `delivery`.
+        pub const DELIVERY: &str = cmd_help_text!(imaging_job_params, delivery);
+        /// The help text of `delivery_format`.
+        pub const DELIVERY_FORMAT: &str = cmd_help_text!(imaging_job_params, delivery_format);
+        /// The help text of `flag_edge_width`.
+        pub const FLAG_EDGE_WIDTH: &str = cmd_help_text!(imaging_job_params, flag_edge_width);
+        /// The help text of `image_size`.
+        pub const IMAGE_SIZE: &str = cmd_help_text!(imaging_job_params, image_size);
+        /// The help text of `join_channels`.
+        pub const JOIN_CHANNELS: &str = cmd_help_text!(imaging_job_params, join_channels);
+        /// The help text of `join_polarizations`.
+        pub const JOIN_POLARIZATIONS: &str = cmd_help_text!(imaging_job_params, join_polarizations);
+        /// The help text of `mgain`.
+        pub const MGAIN: &str = cmd_help_text!(imaging_job_params, mgain);
+        /// The help text of `multiscale`.
+        pub const MULTISCALE: &str = cmd_help_text!(imaging_job_params, multiscale);
+        /// The help text of `nmiter`.
+        pub const NMITER: &str = cmd_help_text!(imaging_job_params, nmiter);
+        /// The help text of `no_apply_amps`.
+        pub const NO_APPLY_AMPS: &str = cmd_help_text!(imaging_job_params, no_apply_amps);
+        /// The help text of `no_cable_delay`.
+        pub const NO_CABLE_DELAY: &str = cmd_help_text!(imaging_job_params, no_cable_delay);
+        /// The help text of `no_digital_gains`.
+        pub const NO_DIGITAL_GAINS: &str = cmd_help_text!(imaging_job_params, no_digital_gains);
+        /// The help text of `no_flag_dc`.
+        pub const NO_FLAG_DC: &str = cmd_help_text!(imaging_job_params, no_flag_dc);
+        /// The help text of `no_geometric_delay`.
+        pub const NO_GEOMETRIC_DELAY: &str = cmd_help_text!(imaging_job_params, no_geometric_delay);
+        /// The help text of `no_passband_gains`.
+        pub const NO_PASSBAND_GAINS: &str = cmd_help_text!(imaging_job_params, no_passband_gains);
+        /// The help text of `no_rfi`.
+        pub const NO_RFI: &str = cmd_help_text!(imaging_job_params, no_rfi);
+        /// The help text of `obs_id`.
+        pub const OBS_ID: &str = cmd_help_text!(imaging_job_params, obs_id);
+        /// The help text of `output_mode`.
+        pub const OUTPUT_MODE: &str = cmd_help_text!(imaging_job_params, output_mode);
+        /// The help text of `pixel_scale`.
+        pub const PIXEL_SCALE: &str = cmd_help_text!(imaging_job_params, pixel_scale);
+        /// The help text of `polarization`.
+        pub const POLARIZATION: &str = cmd_help_text!(imaging_job_params, polarization);
+        /// The help text of `robust`.
+        pub const ROBUST: &str = cmd_help_text!(imaging_job_params, robust);
+        /// The help text of `uv_max`.
+        pub const UV_MAX: &str = cmd_help_text!(imaging_job_params, uv_max);
+        /// The help text of `uv_min`.
+        pub const UV_MIN: &str = cmd_help_text!(imaging_job_params, uv_min);
+        /// The help text of `weighting`.
+        pub const WEIGHTING: &str = cmd_help_text!(imaging_job_params, weighting);
+        /// The help text of `wstack_nwlayers`.
+        pub const WSTACK_NWLAYERS: &str = cmd_help_text!(imaging_job_params, wstack_nwlayers);
+    }
+}
+
 ///Response model for the /new_api_key endpoint
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug, PartialEq)]
 pub struct ApiKeyResponse {

@@ -4,6 +4,10 @@
 
 //! An alternative, efficient and easy-to-use interface for the MWA ASVO.
 
+// `#[macro_use]` here, on `mwa_asvo::api` and on `mwa_asvo::api::openapi` puts the
+// generated `cmd_help_text!` in scope in the modules declared after this one (the Python
+// module uses it in doc attributes, where a `use` of it cannot be resolved).
+#[macro_use]
 pub mod mwa_asvo;
 // The CLI definition needs clap, which only the binary feature pulls in. It
 // lives here rather than in src/bin so that tests can parse argument

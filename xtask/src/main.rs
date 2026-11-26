@@ -14,6 +14,9 @@
 //!   run `cargo fmt` or `cargo clippy --fix` on the generated file: it is
 //!   committed as prettyplease writes it.
 //!
+//! The task also writes the command-line help texts of the request bodies
+//! (the schema's `x-cmd-help`) into `openapi.rs`: see [`cmd_help_source`].
+//!
 //! The generator is here, and not in the build script of the library, so that
 //! a normal build does not need typify, schemars, syn or prettyplease.
 
@@ -79,6 +82,131 @@ fn versions_source(schema_file: &str) -> String {
     )
 }
 
+/// The schema key of the command-line help text of a field.
+const CMD_HELP_KEY: &str = "x-cmd-help";
+/// The name of the generated macro that gives a help text as a string
+/// literal.
+const CMD_HELP_MACRO: &str = "cmd_help_text";
+
+/// The help texts of one schema type.
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct TypeHelp {
+    /// The name of the type's module of help texts, for example
+    /// `image_from_job_params`.
+    module: String,
+    /// The schema name of the type, for example `ImageFromJobParams`.
+    type_name: String,
+    /// `(field, text)` for each field with a help text, in name order.
+    fields: Vec<(String, String)>,
+}
+
+/// `ImageFromJobParams` as `image_from_job_params`: the name of the module
+/// of a request body's help texts.
+fn snake_case(name: &str) -> String {
+    let mut snake = String::new();
+    for (i, c) in name.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                snake.push('_');
+            }
+            snake.push(c.to_ascii_lowercase());
+        } else {
+            snake.push(c);
+        }
+    }
+    snake
+}
+
+/// The Rust source of the command-line help texts: the `x-cmd-help` of each
+/// field of each schema type that has one, with the spaces at its start and
+/// end removed and otherwise as the schema has it.
+///
+/// The source is a macro, `cmd_help_text!(<type>, <field>)`, that gives the
+/// text as a string literal (so that it can be used in `concat!`, for
+/// example in a doc comment), and a module `cmd_help` with one module for
+/// each schema type and one constant for each field (for example
+/// `cmd_help::imaging_job_params::UV_MIN`). The types and fields are in
+/// name order, so the output does not depend on the order of the schema
+/// file.
+fn cmd_help_source(schema_file: &str) -> String {
+    let document: serde_json::Value = serde_json::from_str(schema_file)
+        .unwrap_or_else(|e| panic!("failed to parse {SCHEMA_PATH} as JSON: {e}"));
+    let definitions = document
+        .get("definitions")
+        .and_then(serde_json::Value::as_object)
+        .unwrap_or_else(|| panic!("{SCHEMA_PATH} has no definitions"));
+
+    // Each type with a help text, in module order.
+    let mut types: Vec<TypeHelp> = Vec::new();
+    for (type_name, definition) in definitions {
+        let Some(properties) = definition
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+        else {
+            continue;
+        };
+        let mut fields: Vec<(String, String)> = properties
+            .iter()
+            .filter_map(|(field, property)| {
+                property
+                    .get(CMD_HELP_KEY)
+                    .and_then(serde_json::Value::as_str)
+                    .map(|text| (field.clone(), text.trim().to_string()))
+            })
+            .collect();
+        if fields.is_empty() {
+            continue;
+        }
+        fields.sort();
+        types.push(TypeHelp {
+            module: snake_case(type_name),
+            type_name: type_name.clone(),
+            fields,
+        });
+    }
+    types.sort();
+
+    let mut source = format!(
+        "/// The command-line help text (the schema's `{CMD_HELP_KEY}`) of the field `<field>` of the\n\
+         /// request body `<type>`, as a string literal: `{CMD_HELP_MACRO}!(imaging_job_params, uv_min)`.\n\
+         /// A string literal can be used in `concat!`, for example in a doc comment. The macro is\n\
+         /// in scope in the modules declared after this one (`#[macro_use]` on the modules\n\
+         /// above it): a `use` of it cannot be resolved in the doc attribute of a `#[pyclass]`.\n\
+         macro_rules! {CMD_HELP_MACRO} {{\n"
+    );
+    for TypeHelp { module, fields, .. } in &types {
+        for (field, text) in fields {
+            source.push_str(&format!("    ({module}, {field}) => {{ {text:?} }};\n"));
+        }
+    }
+    source.push_str("}\n\n");
+
+    source.push_str(&format!(
+        "/// The command-line help texts (the schema's `{CMD_HELP_KEY}`) of the request bodies: one\n\
+         /// module for each body, and one constant for each field.\n\
+         pub mod cmd_help {{\n"
+    ));
+    for TypeHelp {
+        module,
+        type_name,
+        fields,
+    } in &types
+    {
+        source.push_str(&format!(
+            "    /// The help texts of the fields of `{type_name}`.\n    pub mod {module} {{\n"
+        ));
+        for (field, _) in fields {
+            let constant = field.to_uppercase();
+            source.push_str(&format!(
+                "        /// The help text of `{field}`.\n        pub const {constant}: &str = {CMD_HELP_MACRO}!({module}, {field});\n"
+            ));
+        }
+        source.push_str("    }\n");
+    }
+    source.push_str("}\n\n");
+    source
+}
+
 fn regen_openapi(root: &Path) {
     let content = fs::read_to_string(root.join(SCHEMA_PATH))
         .unwrap_or_else(|e| panic!("failed to read {SCHEMA_PATH}: {e}"));
@@ -122,9 +250,10 @@ fn regen_openapi(root: &Path) {
     );
 
     let versions = versions_source(&content);
+    let cmd_help = cmd_help_source(&content);
     fs::write(
         root.join(OUTPUT_PATH),
-        format!("{HEADER}{versions}{generated}"),
+        format!("{HEADER}{versions}{cmd_help}{generated}"),
     )
     .unwrap_or_else(|e| panic!("failed to write {OUTPUT_PATH}: {e}"));
 

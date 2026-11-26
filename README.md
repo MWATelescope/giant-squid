@@ -242,7 +242,8 @@ $ giant-squid submit-download 1065880128 --dry-run
 13:10:06 [INFO] [dry run] Would have submitted 1 Obs IDs to /api/v2/jobs/download. Nothing was sent.
 ```
 
-The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them.
+The defaults of the job options are those of the MWA ASVO API. Run `giant-squid <command> --help` to see them. The
+help text of each job option is also the API's, and `[range: ...]` after it gives the limits of its value.
 
 #### A Note On Delivery Options
 
@@ -301,7 +302,7 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data
+          Tell MWA ASVO where to deliver data
           
           [env: GIANT_SQUID_DELIVERY=]
           [default: acacia]
@@ -320,16 +321,16 @@ Options:
           [possible values: true, false]
 
   -o, --offset <OFFSET>
-          Voltage observations only (required): the offset in seconds from the start GPS time of the observation (0-7200)
+          Voltage observations only (required): the offset in seconds from the start GPS time of the observation [range: 0 to 7200]
 
   -u, --duration <DURATION>
-          Voltage observations only (required): the duration (in seconds) to download (0-7200)
+          Voltage observations only (required): the duration (in seconds) to download [range: 0 to 7200]
 
       --from-channel <FROM_CHANNEL>
-          Voltage observations only (optional): the 'from' receiver channel number (0-255)
+          Voltage observations only (optional): the 'from' receiver channel number [range: 0 to 255]
 
       --to-channel <TO_CHANNEL>
-          Voltage observations only (optional): the 'to' receiver channel number (0-255)
+          Voltage observations only (optional): the 'to' receiver channel number [range: 0 to 255]
 
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null
@@ -418,25 +419,25 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
+          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
   -o, --output <OUTPUT>
           Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null for no frequency averaging [default: 40]
+          Frequency resolution to average to (kHz), or null for no frequency averaging [range: 0 to 1280] [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null for no time averaging [default: 2]
+          Time resolution to average to (s), or null for no time averaging [range: at least 0] [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
+          Width of frequency edge flagging (kHz), or null for no edge flagging [range: 0 to 640] [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: false] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
-          Custom phase centre right ascension (degrees). Requires --centre custom
+          Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
-          Custom phase centre declination (degrees). Requires --centre custom
+          Custom phase centre declination (degrees). Requires --centre custom [range: -90 to 90]
       --no-apply-amps[=<NO_APPLY_AMPS>]
           Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
       --no-digital-gains[=<NO_DIGITAL_GAINS>]
@@ -534,23 +535,23 @@ Arguments:
 
 Options:
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
+          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null for no frequency averaging [default: 40]
+          Frequency resolution to average to (kHz), or null for no frequency averaging [range: 0 to 1280] [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null for no time averaging [default: 2]
+          Time resolution to average to (s), or null for no time averaging [range: at least 0] [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
+          Width of frequency edge flagging (kHz), or null for no edge flagging [range: 0 to 640] [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
           Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: true] [possible values: true, false]
       --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
+          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
-          Custom phase centre right ascension (degrees). Requires --centre custom
+          Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
       --custom-centre-dec <CUSTOM_CENTRE_DEC>
-          Custom phase centre declination (degrees). Requires --centre custom
+          Custom phase centre declination (degrees). Requires --centre custom [range: -90 to 90]
       --no-apply-amps[=<NO_APPLY_AMPS>]
           Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
       --no-digital-gains[=<NO_DIGITAL_GAINS>]
@@ -568,15 +569,15 @@ Options:
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
-          WSClean -auto-mask value [default: 3]
+          WSClean -auto-mask value [range: 2 to 512] [default: 3]
       --auto-threshold <AUTO_THRESHOLD>
-          WSClean -auto-threshold value [default: 0.5]
+          WSClean -auto-threshold value [range: 0.1 to 5] [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy), or null [default: 0.001]
+          Absolute cleaning threshold (Jy), or null [range: 0 to 10] [default: 0.001]
       --channels-out <CHANNELS_OUT>
-          Number of output channel groups [default: 4]
+          Number of output channel groups [range: at least 1] [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
-          WSClean -niter value (max clean iterations) [default: 100000]
+          WSClean -niter value (max clean iterations) [range: 0 to 1000000] [default: 100000]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels. Leave unset to let the server calculate it
       --join-channels[=<JOIN_CHANNELS>]
@@ -584,27 +585,27 @@ Options:
       --join-polarizations[=<JOIN_POLARIZATIONS>]
           Join polarisations for cleaning [default: false] [possible values: true, false]
       --mgain <MGAIN>
-          WSClean -mgain value [default: 0.8]
+          WSClean -mgain value [range: 0.1 to 1] [default: 0.8]
       --multiscale[=<MULTISCALE>]
           Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
-          WSClean -nmiter value (max major cleaning iterations) [default: 10]
+          WSClean -nmiter value (max major cleaning iterations) [range: 1 to 500] [default: 10]
   -o, --output-mode <OUTPUT_MODE>
           The output mode / product to request. Required [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it [range: 10 to 120]
       --polarization <POLARIZATION>
           Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
-          WSClean -robust (Briggs robustness) value [default: -0.5]
+          WSClean -robust (Briggs robustness) value [range: -2 to 2] [default: -0.5]
       --uv-max <UV_MAX>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
       --uv-min <UV_MIN>
-          Minimum uv distance to image, in wavelengths [default: 75]
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 100] [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
-          Number of w-stacking layers. Leave unset to let the server decide
+          Number of w-stacking layers. Leave unset to let the server decide [range: 32 to 512]
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait
@@ -692,21 +693,21 @@ Options:
       --source-job-id <SOURCE_JOB_ID>
           The MWA ASVO conversion Job ID to image from. Required
   -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver the data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
+          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
           Whether to apply the primary beam correction [default: true] [possible values: true, false]
       --auto-mask <AUTO_MASK>
-          WSClean -auto-mask value [default: 3]
+          WSClean -auto-mask value [range: 2 to 512] [default: 3]
       --auto-threshold <AUTO_THRESHOLD>
-          WSClean -auto-threshold value [default: 0.5]
+          WSClean -auto-threshold value [range: 0.1 to 5] [default: 0.5]
       --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy), or null [default: 0.001]
+          Absolute cleaning threshold (Jy), or null [range: 0 to 10] [default: 0.001]
       --channels-out <CHANNELS_OUT>
-          Number of output channel groups [default: 4]
+          Number of output channel groups [range: at least 1] [default: 4]
       --clean-iterations <CLEAN_ITERATIONS>
-          WSClean -niter value (max clean iterations) [default: 100000]
+          WSClean -niter value (max clean iterations) [range: 0 to 1000000] [default: 100000]
       --image-size <IMAGE_SIZE>
           WSClean image size in pixels. Leave unset to let the server calculate it
       --join-channels[=<JOIN_CHANNELS>]
@@ -714,27 +715,27 @@ Options:
       --join-polarizations[=<JOIN_POLARIZATIONS>]
           Join polarisations for cleaning [default: false] [possible values: true, false]
       --mgain <MGAIN>
-          WSClean -mgain value [default: 0.8]
+          WSClean -mgain value [range: 0.1 to 1] [default: 0.8]
       --multiscale[=<MULTISCALE>]
           Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
       --nmiter <NMITER>
-          WSClean -nmiter value (max major cleaning iterations) [default: 10]
+          WSClean -nmiter value (max major cleaning iterations) [range: 1 to 500] [default: 10]
   -o, --output-mode <OUTPUT_MODE>
           The output mode / product to request. Required [possible values: fits, all_fits, all_files]
       --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it [range: 10 to 120]
       --polarization <POLARIZATION>
           Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
-          WSClean -robust (Briggs robustness) value [default: -0.5]
+          WSClean -robust (Briggs robustness) value [range: -2 to 2] [default: -0.5]
       --uv-max <UV_MAX>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
       --uv-min <UV_MIN>
-          Minimum uv distance to image, in wavelengths [default: 75]
+          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 100] [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
       --wstack-nwlayers <WSTACK_NWLAYERS>
-          Number of w-stacking layers. Leave unset to let the server decide
+          Number of w-stacking layers. Leave unset to let the server decide [range: 32 to 512]
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
   -w, --wait

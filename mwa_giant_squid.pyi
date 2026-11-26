@@ -171,32 +171,25 @@ class ConversionJobParams:
     job is submitted (see the submit method).
 
     Args:
-        obs_id: The Obs ID.
-        delivery: Where the MWA ASVO delivers the data.
-        delivery_format: How the MWA ASVO packages the files. Must be
-            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-        output: The output format.
-        avg_freq_res: The frequency resolution to average to (kHz).
-        avg_time_res: The time resolution to average to (s).
-        flag_edge_width: The width of the frequency edge flagging (kHz), or
-            None for no edge flagging.
-        apply_di_cal: Apply the DI calibration solution.
-        centre: The phase centre mode. `PhaseCentre.Custom` needs
-            `custom_centre_ra` and `custom_centre_dec`, and they are only
-            allowed with it.
-        custom_centre_ra: The custom phase centre's right ascension
-            (degrees).
-        custom_centre_dec: The custom phase centre's declination
-            (degrees).
-        no_apply_amps: Do not apply the amplitude calibration solutions.
-        no_digital_gains: Do not apply the digital gains.
-        no_flag_dc: Do not flag the DC channel.
-        no_geometric_delay: Do not apply the geometric delay corrections.
-        no_passband_gains: Do not apply the passband gain corrections.
-        no_cable_delay: Do not apply the cable delay corrections.
-        no_rfi: Do not flag RFI.
-        allow_resubmit: Submit the job even if an identical one has
-            completed.
+        obs_id: The ID of the observation
+        delivery: Tell MWA ASVO where to deliver data
+        delivery_format: Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
+        output: Output format: "ms" (measurement set) or "uvfits"
+        avg_freq_res: Frequency resolution to average to (kHz), or null for no frequency averaging
+        avg_time_res: Time resolution to average to (s), or null for no time averaging
+        flag_edge_width: Width of frequency edge flagging (kHz), or null for no edge flagging
+        apply_di_cal: Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)
+        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de
+        custom_centre_ra: Custom phase centre right ascension (degrees). Requires --centre custom
+        custom_centre_dec: Custom phase centre declination (degrees). Requires --centre custom
+        no_apply_amps: Whether to skip applying amplitude calibration solutions
+        no_digital_gains: Whether to skip applying digital gains. Takes true, false or null
+        no_flag_dc: Whether to skip flagging the DC channel. Takes true, false or null
+        no_geometric_delay: Whether to skip applying geometric delay corrections. Takes true, false or null
+        no_passband_gains: Whether to skip applying passband gain corrections. Takes true, false or null
+        no_cable_delay: Whether to skip applying cable delay corrections. Takes true, false or null
+        no_rfi: Whether to skip RFI flagging. Takes true, false or null
+        allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null
     """
     @property
     def delivery(self) -> DeliveryDestination: ...
@@ -689,20 +682,15 @@ class DownloadJobParams:
     job is submitted (see the submit method).
 
     Args:
-        obs_id: The Obs ID.
-        delivery: Where the MWA ASVO delivers the data.
-        delivery_format: How the MWA ASVO packages the files. Must be
-            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-        allow_resubmit: Submit the job even if an identical one has
-            completed.
-        only_metadata: Download the metadata only, or `None` (the schema gives it no
-            default).
-        offset: Voltage jobs: the offset in seconds from the start GPS time of the
-            observation, from 0 to 7200, or `None`.
-        duration: Voltage jobs: the duration to download, in seconds, from 0 to 7200, or
-            `None`.
-        from_channel: Voltage jobs: the first receiver channel number (0 to 255), or `None`.
-        to_channel: Voltage jobs: the last receiver channel number (0 to 255), or `None`.
+        obs_id: The ID of the observation
+        delivery: Tell MWA ASVO where to deliver data
+        delivery_format: Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
+        allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null
+        only_metadata: Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default). True is not valid with the voltage options (--offset, --duration, --from-channel, --to-channel)
+        offset: Voltage observations only (required): the offset in seconds from the start GPS time of the observation
+        duration: Voltage observations only (required): the duration (in seconds) to download
+        from_channel: Voltage observations only (optional): the 'from' receiver channel number
+        to_channel: Voltage observations only (optional): the 'to' receiver channel number
     """
     @property
     def delivery(self) -> DeliveryDestination: ...
@@ -1058,11 +1046,34 @@ class ImageFromJobParams:
     (the type stubs show it). `None` is accepted by the arguments that the MWA
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
-    The values are checked by `validate()` and when the job is submitted (see the submit method).
+    `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
+    values are checked by `validate()` and when the job is submitted (see the submit method).
 
     Args:
-        source_job_id: The ID of the conversion job to image. Must be
-            greater than zero (checked when it is set, `ValueError`).
+        source_job_id: The MWA ASVO conversion Job ID to image from. Required
+        output_mode: The output mode / product to request. Required
+        delivery: Tell MWA ASVO where to deliver data
+        delivery_format: Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
+        apply_primary_beam: Whether to apply the primary beam correction
+        auto_mask: WSClean -auto-mask value
+        auto_threshold: WSClean -auto-threshold value
+        abs_threshold: Absolute cleaning threshold (Jy), or null
+        channels_out: Number of output channel groups
+        clean_iterations: WSClean -niter value (max clean iterations)
+        image_size: WSClean image size in pixels. Leave unset to let the server calculate it
+        join_channels: Join output channel groups for cleaning
+        join_polarizations: Join polarisations for cleaning
+        mgain: WSClean -mgain value
+        multiscale: Enable WSClean multiscale cleaning
+        nmiter: WSClean -nmiter value (max major cleaning iterations)
+        pixel_scale: Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+        polarization: Polarisation to image
+        robust: WSClean -robust (Briggs robustness) value
+        uv_max: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        uv_min: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        weighting: WSClean weighting scheme
+        wstack_nwlayers: Number of w-stacking layers. Leave unset to let the server decide
+        allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null
     """
     @property
     def delivery(self) -> DeliveryDestination: ...
@@ -1214,57 +1225,44 @@ class ImagingJobParams:
     job is submitted (see the submit method).
 
     Args:
-        obs_id: The Obs ID.
-        delivery: Where the MWA ASVO delivers the data.
-        delivery_format: How the MWA ASVO packages the files. Must be
-            `DeliveryFormat.Tar` when `delivery` is `DeliveryDestination.Acacia`.
-        apply_di_cal: Apply the DI calibration solution.
-        apply_primary_beam: Apply the primary beam correction.
-        auto_mask: The WSClean -auto-mask value.
-        auto_threshold: The WSClean -auto-threshold value.
-        abs_threshold: The absolute cleaning threshold (Jy).
-        avg_freq_res: The frequency resolution to average to before
-            imaging (kHz).
-        avg_time_res: The time resolution to average to before imaging
-            (s).
-        channels_out: The number of output channel groups.
-        clean_iterations: The WSClean -niter value.
-        centre: Where to centre the image. `PhaseCentre.Custom` needs
-            `custom_centre_ra` and `custom_centre_dec`, and they are only
-            allowed with it.
-        custom_centre_dec: The custom phase centre's declination
-            (degrees).
-        custom_centre_ra: The custom phase centre's right ascension
-            (degrees).
-        flag_edge_width: The width of the frequency edge flagging (kHz), or
-            None for no edge flagging.
-        image_size: The WSClean image size in pixels. Only the sizes
-            that the MWA ASVO accepts are valid. `None` (the default) lets the
-            MWA ASVO calculate it.
-        join_channels: Join the output channel groups for cleaning.
-        join_polarizations: Join the polarisations for cleaning.
-        mgain: The WSClean -mgain value.
-        multiscale: Use WSClean multiscale cleaning.
-        nmiter: The WSClean -nmiter value. Must be greater than zero.
-        no_apply_amps: Do not apply the amplitude calibration solutions.
-        no_digital_gains: Do not apply the digital gains.
-        no_flag_dc: Do not flag the DC channel.
-        no_geometric_delay: Do not apply the geometric delay corrections.
-        no_passband_gains: Do not apply the passband gain corrections.
-        no_cable_delay: Do not apply the cable delay corrections.
-        no_rfi: Do not flag RFI.
-        output_mode: The products to return. Required: the schema gives it no
-            default.
-        pixel_scale: The pixel scale (arcsec per pixel). `None` (the default) lets
-            the MWA ASVO calculate it.
-        polarization: The polarisation to image.
-        robust: The WSClean -robust value.
-        uv_max: The maximum uv distance to image (wavelengths).
-        uv_min: The minimum uv distance to image (wavelengths).
-        weighting: The WSClean weighting scheme.
-        wstack_nwlayers: The number of w-stacking layers.
-        allow_resubmit: Submit the job even if an identical one has
-            completed.
+        obs_id: The ID of the observation
+        output_mode: The output mode / product to request. Required
+        delivery: Tell MWA ASVO where to deliver data
+        delivery_format: Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
+        apply_di_cal: Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time)
+        apply_primary_beam: Whether to apply the primary beam correction
+        auto_mask: WSClean -auto-mask value
+        auto_threshold: WSClean -auto-threshold value
+        abs_threshold: Absolute cleaning threshold (Jy), or null
+        avg_freq_res: Frequency resolution to average to (kHz), or null for no frequency averaging
+        avg_time_res: Time resolution to average to (s), or null for no time averaging
+        channels_out: Number of output channel groups
+        clean_iterations: WSClean -niter value (max clean iterations)
+        centre: Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-de
+        custom_centre_dec: Custom phase centre declination (degrees). Requires --centre custom
+        custom_centre_ra: Custom phase centre right ascension (degrees). Requires --centre custom
+        flag_edge_width: Width of frequency edge flagging (kHz), or null for no edge flagging
+        image_size: WSClean image size in pixels. Leave unset to let the server calculate it
+        join_channels: Join output channel groups for cleaning
+        join_polarizations: Join polarisations for cleaning
+        mgain: WSClean -mgain value
+        multiscale: Enable WSClean multiscale cleaning
+        nmiter: WSClean -nmiter value (max major cleaning iterations)
+        no_apply_amps: Whether to skip applying amplitude calibration solutions
+        no_digital_gains: Whether to skip applying digital gains. Takes true, false or null
+        no_flag_dc: Whether to skip flagging the DC channel. Takes true, false or null
+        no_geometric_delay: Whether to skip applying geometric delay corrections. Takes true, false or null
+        no_passband_gains: Whether to skip applying passband gain corrections. Takes true, false or null
+        no_cable_delay: Whether to skip applying cable delay corrections. Takes true, false or null
+        no_rfi: Whether to skip RFI flagging. Takes true, false or null
+        pixel_scale: Pixel scale (arcsec/pixel). Leave unset to let the server calculate it
+        polarization: Polarisation to image
+        robust: WSClean -robust (Briggs robustness) value
+        uv_max: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        uv_min: Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
+        weighting: WSClean weighting scheme
+        wstack_nwlayers: Number of w-stacking layers. Leave unset to let the server decide
+        allow_resubmit: Allow resubmitting a job even if an identical one has completed. Takes true, false or null
     """
     @property
     def delivery(self) -> DeliveryDestination: ...

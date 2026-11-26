@@ -2989,3 +2989,78 @@ fn list_help_names_every_field() {
         assert!(help.contains(name.as_str()), "{name} is in the help");
     }
 }
+
+/// The help of every option of a submit command that is a field of the
+/// command's request body is the schema's `x-cmd-help` of that field, then
+/// its range when it has one (`[range: ...]`). Every field of the body that
+/// is an option has its help from the schema.
+#[test]
+fn the_help_of_a_body_option_is_the_schema_help() {
+    use clap::CommandFactory;
+
+    let schema: Value = serde_json::from_str(include_str!("../mwa_asvo/api/openapi-schema.json"))
+        .expect("the schema is JSON");
+    let commands = [
+        ("submit-download", "DownloadJobParams"),
+        ("submit-preprocess", "ConversionJobParams"),
+        ("submit-image", "ImagingJobParams"),
+        ("submit-image-from-job", "ImageFromJobParams"),
+    ];
+    let command = Args::command();
+    for (name, body) in commands {
+        let sub = command
+            .find_subcommand(name)
+            .unwrap_or_else(|| panic!("no command {name}"));
+        let properties = schema["definitions"][body]["properties"]
+            .as_object()
+            .unwrap_or_else(|| panic!("{body} is not in the schema"));
+        let mut checked = 0;
+        for arg in sub.get_arguments() {
+            let field = arg.get_id().as_str();
+            let Some(property) = properties.get(field) else {
+                continue;
+            };
+            let text = property["x-cmd-help"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{body}.{field} has no x-cmd-help"))
+                .trim();
+            let help = arg
+                .get_help()
+                .unwrap_or_else(|| panic!("{name} --{field} has no help"))
+                .to_string();
+            let rest = help.strip_prefix(text).unwrap_or_else(|| {
+                panic!("{name} --{field}: {help:?} is not the schema's {text:?}")
+            });
+            assert!(
+                rest.is_empty() || (rest.starts_with(" [range: ") && rest.ends_with(']')),
+                "{name} --{field}: {rest:?} after the schema's help"
+            );
+            checked += 1;
+        }
+        assert!(
+            checked > 0,
+            "{name} has no option that is a field of {body}"
+        );
+    }
+}
+
+/// An option with schema limits shows them in its help, from the library's
+/// bounds.
+#[test]
+fn the_help_of_a_limited_option_shows_its_range() {
+    use clap::CommandFactory;
+
+    let command = Args::command();
+    let help = |name: &str, field: &str| {
+        command
+            .find_subcommand(name)
+            .and_then(|sub| sub.get_arguments().find(|arg| arg.get_id() == field))
+            .and_then(|arg| arg.get_help())
+            .unwrap_or_else(|| panic!("{name} --{field} has no help"))
+            .to_string()
+    };
+    assert!(help("submit-download", "offset").ends_with(" [range: 0 to 7200]"));
+    assert!(help("submit-download", "from_channel").ends_with(" [range: 0 to 255]"));
+    assert!(help("submit-image", "channels_out").ends_with(" [range: at least 1]"));
+    assert!(help("submit-volt", "duration").ends_with(" [range: 0 to 7200]"));
+}
