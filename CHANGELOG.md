@@ -356,6 +356,12 @@ before you upgrade scripts.**
 * `--version` prints `giant-squid 3.0.0`. Before, it printed the name of the crate (`mwa_giant_squid`).
 * `download` fails when its files of IDs hold no Job ID or Obs ID, and when `-d`/`--download-dir` is not a
   directory. Before, the first did nothing and exited 0, and the second was accepted.
+* A command whose standard output is a pipe that closes early (for example `giant-squid list | head -1`) ends
+  without an error. Before, it panicked with `failed printing to stdout: Broken pipe` and exited with 101.
+* `download` of a Job ID and of the Obs ID of the same job downloads the job once, and logs that it does. Before,
+  the job could be downloaded twice at the same time into the same directory, which could corrupt its files.
+* A file of IDs that starts with a UTF-8 byte order mark (as Notepad and PowerShell can save it) is read. Before,
+  its first ID was refused as text that is not a number. Standard input and CSV files already accepted the mark.
 
 ### Security in 3.0.0
 

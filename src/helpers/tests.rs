@@ -78,6 +78,26 @@ fn file_of(contents: &str) -> NamedTempFile {
     file
 }
 
+/// A file saved with a byte order mark (by Notepad or PowerShell) is read as
+/// the same file without it. A mark that is not at the start is still an
+/// error.
+#[test]
+fn a_file_of_ids_that_starts_with_a_byte_order_mark_is_read() {
+    let file = file_of(&format!("{BYTE_ORDER_MARK}{OBS_ID_A}\n{JOB_ID_TEXT}\n"));
+
+    let (job_ids, obs_ids) = parse_job_ids_and_obs_ids_from_file(file.path()).expect("the file");
+
+    assert_eq!(job_ids.len(), 1);
+    let numbers: Vec<u64> = obs_ids.into_iter().map(u64::from).collect();
+    assert_eq!(numbers, [1065880128]);
+
+    let file = file_of(&format!("{OBS_ID_A}\n{BYTE_ORDER_MARK}{JOB_ID_TEXT}\n"));
+    assert!(matches!(
+        parse_job_ids_and_obs_ids_from_file(file.path()),
+        Err(ParseError::InsideFile { .. })
+    ));
+}
+
 #[test]
 fn obsids_only_returns_the_obsids_in_order() {
     let obs_ids = parse_obs_ids_only(&strings(&[OBS_ID_B, OBS_ID_A])).expect("obsids");

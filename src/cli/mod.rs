@@ -21,6 +21,23 @@ pub mod value_enums;
 #[cfg(test)]
 mod tests;
 
+/// Write `text` and a newline to standard output, as `println!` does.
+///
+/// A closed pipe is not an error: the reader (for example `head`) has ended
+/// and wants no more output. `println!` panics for a closed pipe, because
+/// Rust ignores `SIGPIPE`.
+///
+/// # Errors
+///
+/// An error of the write other than a closed pipe.
+pub(crate) fn print_line(text: impl std::fmt::Display) -> std::io::Result<()> {
+    use std::io::Write;
+    match writeln!(std::io::stdout().lock(), "{text}") {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        result => result,
+    }
+}
+
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::time::Duration;

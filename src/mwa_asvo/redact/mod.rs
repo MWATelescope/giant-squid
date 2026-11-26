@@ -42,8 +42,15 @@ const MIN_LEN_TO_SHOW_PART: usize = 16;
 /// The prefixes that start a URL in a piece of text.
 const URL_PREFIXES: [&str; 2] = ["https://", "http://"];
 
-/// The characters that end a URL in a piece of text.
-const URL_END_CHARS: [char; 5] = ['"', '\'', '<', '>', ' '];
+/// The characters, other than whitespace, that end a URL in a piece of
+/// text. Whitespace (a space, a tab, a line break) ends a URL too.
+const URL_END_CHARS: [char; 4] = ['"', '\'', '<', '>'];
+
+/// Whether `c` ends a URL in a piece of text: whitespace or one of
+/// [`URL_END_CHARS`].
+fn ends_url(c: char) -> bool {
+    c.is_whitespace() || URL_END_CHARS.contains(&c)
+}
 
 /// `url` without its secrets, for a log.
 ///
@@ -96,14 +103,14 @@ fn redact_query_value(value: &str) -> String {
 
 /// `text` with every URL in it redacted as [`redact_url`] does. A URL in
 /// the text starts with `http://` or `https://` and ends at a quote, an
-/// angle bracket or a space.
+/// angle bracket or whitespace.
 pub(crate) fn redact_urls_in_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = next_url_start(rest) {
         out.push_str(&rest[..start]);
         let tail = &rest[start..];
-        let end = tail.find(URL_END_CHARS).unwrap_or(tail.len());
+        let end = tail.find(ends_url).unwrap_or(tail.len());
         out.push_str(&redact_url(&tail[..end]));
         rest = &tail[end..];
     }

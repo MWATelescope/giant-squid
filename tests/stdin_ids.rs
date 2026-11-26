@@ -102,6 +102,53 @@ fn list_ids_for_no_job_prints_nothing_to_standard_output() {
     );
 }
 
+/// Run `cmd` with its standard output closed before it prints, as when the
+/// reader (for example `head -1`) has ended. Only standard error is kept.
+fn run_with_closed_stdout(mut cmd: Command) -> Run {
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().expect("could not run the giant-squid binary");
+    // The command logs in and gets the jobs before it prints, so the pipe is
+    // closed first.
+    drop(child.stdout.take());
+    let out = child
+        .wait_with_output()
+        .expect("could not wait for giant-squid");
+    Run {
+        success: out.status.success(),
+        code: out.status.code(),
+        stdout: String::new(),
+        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+    }
+}
+
+#[test]
+fn a_closed_standard_output_ends_the_command_without_a_panic() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![
+        job_detail(12, TEST_OBS_ID, "completed", 1),
+        job_detail(5, TEST_OBS_ID, "queued", 1),
+    ]);
+
+    for args in [
+        &["list", "--ids"][..],
+        &["list", "--json"][..],
+        &["list", "--no-colour"][..],
+    ] {
+        let mut cmd = env.command();
+        cmd.args(args);
+        let result = run_with_closed_stdout(cmd);
+
+        assert!(
+            !result.stderr.contains("panicked"),
+            "{args:?}: {}",
+            result.stderr
+        );
+        assert_eq!(result.code, Some(0), "{args:?}: {}", result.stderr);
+    }
+}
+
 #[test]
 fn list_ids_cannot_be_used_with_json() {
     let env = CliEnv::with_session();

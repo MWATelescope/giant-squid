@@ -30,6 +30,7 @@ use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, ImageFromJobParams, JobSubmittedResponse, Status,
 };
 use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
+use crate::mwa_asvo::download::ready_job_of_obs_id;
 use crate::mwa_asvo::{
     client_config_from_env, DownloadOptions, DownloadProgress, DownloadSettings, JobState,
     JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec,
@@ -44,6 +45,7 @@ use crate::{
 use super::json_output::{ArgumentError, JsonError, ReportedFailures, StatusFirst};
 use super::legacy_json::{to_legacy_json, LEGACY_JSON_WARNING};
 use super::params::{ConversionJobArgs, SubmitDownloadArgs};
+use super::print_line;
 use super::stdin_ids::resolve_ids;
 use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{
@@ -112,6 +114,31 @@ impl DownloadTarget {
             .iter()
             .map(|j| Self::Job(*j))
             .chain(obs_ids.iter().map(|o| Self::Obs(*o)))
+            .collect()
+    }
+
+    /// `targets` without each Obs ID whose job (in `jobs`) is also a Job ID
+    /// of `targets`. The two would download the same job into the same
+    /// directory at the same time. Each Obs ID that is removed is logged. An
+    /// Obs ID with no job to download is kept, so that its error is
+    /// reported.
+    fn without_same_jobs(targets: Vec<Self>, jobs: &MwaAsvoJobVec) -> Vec<Self> {
+        let job_ids: Vec<MwaAsvoJobId> = targets.iter().filter_map(|t| t.job_id()).collect();
+        targets
+            .into_iter()
+            .filter(|target| {
+                let Self::Obs(obs_id) = *target else {
+                    return true;
+                };
+                match ready_job_of_obs_id(jobs, obs_id) {
+                    Ok(job) if job_ids.contains(&job.job_id()) => {
+                        let job_id = job.job_id();
+                        info!("Obs ID {obs_id} is Job ID {job_id}, which is also given: it is downloaded once.");
+                        false
+                    }
+                    _ => true,
+                }
+            })
             .collect()
     }
 
@@ -750,7 +777,7 @@ fn obs_ids_only(
 fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyhow::Error> {
     if json {
         let line = serde_json::to_string(resp)?;
-        println!("{line}");
+        print_line(line)?;
     }
     Ok(())
 }
@@ -867,13 +894,14 @@ fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
 /// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
 /// Print the Job ID of each job, one on each line (`list --ids`). A list
 /// with no job prints nothing.
-fn print_job_ids(jobs: &MwaAsvoJobVec) {
+fn print_job_ids(jobs: &MwaAsvoJobVec) -> std::io::Result<()> {
     if jobs.0.is_empty() {
         info!("You have no jobs.");
     }
     for job in &jobs.0 {
-        println!("{}", job.job_id());
+        print_line(job.job_id())?;
     }
+    Ok(())
 }
 
 /// The Job IDs of `cancel` and `wait`, from their arguments and from
@@ -918,12 +946,12 @@ fn print_jobs(
     if legacy_json {
         warn!("{LEGACY_JSON_WARNING}");
         let legacy = to_legacy_json(&jobs)?;
-        println!("{legacy}");
+        print_line(legacy)?;
     } else if json {
         let jobs_json = jobs.json()?;
-        println!("{jobs_json}");
+        print_line(jobs_json)?;
     } else {
-        print_jobs_table(jobs, no_colour, fields);
+        print_jobs_table(jobs, no_colour, fields)?;
     }
     Ok(())
 }
@@ -1010,7 +1038,7 @@ fn run(args: Args) -> anyhow::Result<()> {
             let jobs = client.get_jobs(&filter)?;
 
             if ids {
-                print_job_ids(&jobs);
+                print_job_ids(&jobs)?;
             } else {
                 print_jobs(jobs, json, legacy_json, no_colour, &fields)?;
             }
@@ -1101,19 +1129,22 @@ fn run(args: Args) -> anyhow::Result<()> {
                     }
                 }
             } else {
-                let t: usize = job_ids.len() + obs_ids.len();
                 // One client and one job list for all the downloads: the
                 // client logs in once (the server permits only a few logins
                 // a minute), and the job list is fetched once.
                 let client = connect()?;
                 let jobs = client.get_jobs(&JobsFilter::default())?;
+                let targets = DownloadTarget::without_same_jobs(
+                    DownloadTarget::all(&job_ids, &obs_ids),
+                    &jobs,
+                );
+                let t = targets.len();
                 // A pool of its own, not rayon's global pool, which can be
                 // set only once in a process.
                 let pool = rayon::ThreadPoolBuilder::new()
                     .num_threads(concurrent_downloads)
                     .build()?;
 
-                let targets = DownloadTarget::all(&job_ids, &obs_ids);
                 let results: Vec<anyhow::Result<MwaAsvoJob>> =
                     run_in_order(&pool, &targets, DOWNLOAD_START_DELAY, |index, target| {
                         let pb = create_progress_bar(&mpb);
@@ -1455,7 +1486,7 @@ fn json_requested(args: &[std::ffi::OsString]) -> bool {
 /// pipe); the exit code is the same.
 fn print_json_error_line(line: &JsonError) {
     if let Ok(text) = serde_json::to_string(line) {
-        println!("{text}");
+        let _ = print_line(text);
     }
 }
 

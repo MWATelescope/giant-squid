@@ -90,6 +90,22 @@ fn every_url_in_a_text_is_redacted_and_the_rest_is_kept() {
     assert_eq!(redacted.matches("Signature=aB3d...").count(), 3);
 }
 
+/// A line break or a tab ends a URL, so the text after it is kept.
+#[test]
+fn whitespace_after_a_url_ends_it_and_keeps_the_rest_of_the_text() {
+    for separator in ["\n", "\r\n", "\t"] {
+        let text = format!("{}{separator}Request has expired", signed_url());
+
+        let redacted = redact_urls_in_text(&text);
+
+        assert!(!redacted.contains(SIGNATURE), "redacted: {redacted}");
+        assert!(
+            redacted.ends_with(&format!("{separator}Request has expired")),
+            "{separator:?}: {redacted}"
+        );
+    }
+}
+
 #[test]
 fn a_text_without_a_url_is_unchanged() {
     let text = "Skipping a job: no obs_id (state: completed)";

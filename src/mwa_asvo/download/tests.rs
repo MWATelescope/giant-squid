@@ -657,6 +657,46 @@ fn a_keep_tar_download_refuses_a_symlink() {
     assert_eq!(file.calls(), 0, "nothing should be fetched");
 }
 
+/// The resume of a stream-untar member refuses a symbolic link at the
+/// member's place before it reads the link's target. Here the target is
+/// larger than the member, so a resume that followed the link would start
+/// again from the beginning instead of failing.
+#[cfg(unix)]
+#[test]
+fn a_resume_refuses_a_symlink_before_it_reads_the_target() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::{resume_point, UntarCheckpoint};
+
+    /// The size of the member that the checkpoint is for.
+    const MEMBER_SIZE: u64 = 10;
+
+    let dir = TempDir::new().expect("could not create a download directory");
+    let elsewhere = TempDir::new().expect("could not create a second directory");
+    let target = elsewhere.path().join("large.dat");
+    std::fs::write(&target, vec![b'x'; 2 * MEMBER_SIZE as usize])
+        .expect("could not write the target");
+    let link = dir.path().join("member.dat");
+    std::os::unix::fs::symlink(&target, &link).expect("could not make the link");
+    let checkpoint = UntarCheckpoint {
+        unpack_path: dir.path().to_path_buf(),
+        data_pos: 0,
+        hasher: Sha1::new(),
+        out_path: Some(link.clone()),
+        size: MEMBER_SIZE,
+        done: Rc::new(RefCell::new(Default::default())),
+        done_count: 0,
+    };
+
+    let result = resume_point(&checkpoint, "[test]");
+
+    assert!(
+        matches!(&result, Err(MwaAsvoError::SymlinkInDownloadDir { path }) if *path == link),
+        "the link should be refused"
+    );
+}
+
 /// The payload used by the resume tests, and where a partial file stops.
 const RESUME_PAYLOAD: &str = "giant-squid integration test payload";
 const RESUME_SPLIT: usize = 12;
@@ -1844,6 +1884,50 @@ mod reruns {
         download(&env, &dir, |_| {}).expect("the download should succeed");
 
         assert_eq!(first.calls(), 1);
+        assert_eq!(whole.calls(), 1);
+        assert_members_written(&dir);
+    }
+
+    #[test]
+    fn a_directory_entry_that_is_on_disk_is_not_an_earlier_download() {
+        // The archive starts with `./`, which is the download directory
+        // itself, and so is always on disk.
+        let mut builder = tar::Builder::new(Vec::new());
+        let mut dir_header = tar::Header::new_gnu();
+        dir_header.set_entry_type(tar::EntryType::Directory);
+        dir_header.set_size(0);
+        dir_header.set_mode(0o755);
+        dir_header.set_cksum();
+        builder
+            .append_data(&mut dir_header, "./", std::io::empty())
+            .expect("could not add the directory entry");
+        for (name, size) in MEMBERS {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(size as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, name, member_contents(size).as_slice())
+                .expect("could not build the test tar");
+        }
+        let archive = builder.into_inner().expect("could not finish the test tar");
+        let data = data_positions(&archive);
+
+        let env = env_serving(&archive);
+        mock_window(&env, 0, &archive);
+        let rest = mock_rest(&env, data[1], &archive);
+        let whole = mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        std::fs::write(dir.path().join("unrelated.txt"), "not from the archive")
+            .expect("could not write an unrelated file");
+
+        download(&env, &dir, |_| {}).expect("the download should succeed");
+
+        assert_eq!(
+            rest.calls(),
+            0,
+            "nothing of the archive is on disk to resume from"
+        );
         assert_eq!(whole.calls(), 1);
         assert_members_written(&dir);
     }

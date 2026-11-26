@@ -10,6 +10,7 @@ use comfy_table::presets::ASCII_FULL_CONDENSED;
 use comfy_table::{Attribute, Cell, Color, LineStyle, Row, Table, TableStyle};
 use jiff::Timestamp;
 
+use super::print_line;
 use crate::mwa_asvo::{job_field_value, JobFile, JobState, JobType, MwaAsvoJob, MwaAsvoJobVec};
 
 /// The format for the "Completed" column.
@@ -62,10 +63,18 @@ pub(super) fn monochrome(no_colour: bool, no_color: Option<std::ffi::OsString>) 
 /// `NO_COLOR` (set and not empty). It has one more column for each of
 /// `fields` (names that [`crate::parse_job_field`] accepted), after the
 /// others; a cell is empty if the job does not have the field.
-pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool, fields: &[String]) {
+///
+/// # Errors
+///
+/// An error of the write to stdout. A closed pipe is not an error: the
+/// reader (for example `head`) has ended.
+pub fn print_jobs_table(
+    jobs: MwaAsvoJobVec,
+    no_colour: bool,
+    fields: &[String],
+) -> std::io::Result<()> {
     if jobs.0.is_empty() {
-        println!("You have no jobs.");
-        return;
+        return print_line("You have no jobs.");
     }
     let mut table = Table::new();
     table.load_style(JOB_TABLE_STYLE);
@@ -113,7 +122,7 @@ pub fn print_jobs_table(jobs: MwaAsvoJobVec, no_colour: bool, fields: &[String])
         table.add_row(Row::from(cells));
     }
 
-    println!("{table}");
+    print_line(table)
 }
 
 /// `cell` in the colour `colour`, if it has one.

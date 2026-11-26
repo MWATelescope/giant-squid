@@ -55,12 +55,21 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
     // Open the file.
     let mut reader = std::io::BufReader::new(std::fs::File::open(&f).map_err(io_error)?);
     let mut line = String::new();
+    let mut first_line = true;
     // For each line...
     while reader.read_line(&mut line).map_err(io_error)? > 0 {
+        // A file saved by some editors (Notepad, PowerShell) starts with a
+        // byte order mark, which is not part of the first ID.
+        let ids_text = if first_line {
+            first_line = false;
+            line.strip_prefix(BYTE_ORDER_MARK).unwrap_or(&line)
+        } else {
+            &line
+        };
         // ... split the whitespace and try to parse
         // obsids. Fail if whitespace-delimited text
         // can't be parsed into an int.
-        for text in line.split_whitespace() {
+        for text in ids_text.split_whitespace() {
             match parse_job_id_or_obs_id(text) {
                 Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
                 Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),

@@ -225,6 +225,24 @@ pub(crate) fn download_by_obs_id(
 ) -> Result<MwaAsvoJob, MwaAsvoError> {
     opts.check()?;
     debug!("Attempting to download Obs ID {obs_id}");
+    let job = ready_job_of_obs_id(jobs, obs_id)?;
+    download_job(http_client, job, opts)?;
+    Ok(job.clone())
+}
+
+/// The job in `jobs` that a download of `obs_id` downloads: its one
+/// completed job whose download links have not expired.
+///
+/// # Errors
+///
+/// [`MwaAsvoError::NoObsId`] if no job has the Obs ID,
+/// [`MwaAsvoError::JobExpired`] if every completed job of it has expired,
+/// [`MwaAsvoError::NoJobReadyForObsId`] if none is completed, and
+/// [`MwaAsvoError::TooManyObsIds`] if more than one can be downloaded.
+pub(crate) fn ready_job_of_obs_id(
+    jobs: &MwaAsvoJobVec,
+    obs_id: ObsId,
+) -> Result<&MwaAsvoJob, MwaAsvoError> {
     let mut of_obs_id = jobs.0.iter().filter(|j| j.obs_id() == obs_id).peekable();
     if of_obs_id.peek().is_none() {
         return Err(MwaAsvoError::NoObsId(obs_id));
@@ -250,10 +268,7 @@ pub(crate) fn download_by_obs_id(
             }),
             None => Err(MwaAsvoError::NoJobReadyForObsId(obs_id)),
         },
-        [job] => {
-            download_job(http_client, job, opts)?;
-            Ok((*job).clone())
-        }
+        [job] => Ok(job),
         _ => Err(MwaAsvoError::TooManyObsIds(obs_id)),
     }
 }
@@ -1117,6 +1132,20 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, M
     let (on_disk, file) = match &cp.out_path {
         None => (0, None),
         Some(path) => {
+            // The path was made from `unpack_path`, so it is below it.
+            let unpack_path = &cp.unpack_path;
+            let relative = path.strip_prefix(unpack_path).map_err(|_| {
+                MwaAsvoError::IO(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{path:?} is not below the download directory"),
+                ))
+            })?;
+            // Refuse a symbolic link before its size is read or its target
+            // is hashed. The no-follow open below refuses it too, but only
+            // after the target was read.
+            if let Some(link) = symlink_on_the_way(unpack_path, relative) {
+                return Err(MwaAsvoError::SymlinkInDownloadDir { path: link });
+            }
             let on_disk = match std::fs::metadata(path) {
                 Ok(metadata) => metadata.len(),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => 0,
@@ -1133,14 +1162,6 @@ fn resume_point(cp: &UntarCheckpoint, log_prefix: &str) -> Result<ResumePoint, M
                 hash_file_prefix(path, on_disk, &mut hasher)?;
             }
             // A resume file can name a member whose file was not created yet.
-            // The path was made from `unpack_path`, so it is below it.
-            let unpack_path = &cp.unpack_path;
-            let relative = path.strip_prefix(unpack_path).map_err(|_| {
-                MwaAsvoError::IO(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("{path:?} is not below the download directory"),
-                ))
-            })?;
             let file = open_download_root(unpack_path)?
                 .open_file(relative, WriteMode::CreateOrAppend)
                 .map_err(below_error)?;
@@ -1335,11 +1356,17 @@ fn find_files_on_disk(
 
             let out_display = out_full.display();
             debug!("{log_prefix} Already on disk: {out_display}");
+            // A directory that is on disk (for example `./`, the download
+            // directory itself) is not a sign of an earlier download: only
+            // files are.
+            if is_dir {
+                continue;
+            }
             if files_on_disk == 0 {
                 report_started(opts, job_id, log_prefix, file_info.size_bytes(), 0);
             }
             files_on_disk += 1;
-            if !is_dir && size > 0 {
+            if size > 0 {
                 // The member's data comes from its file.
                 *local.borrow_mut() = Some(LocalData {
                     start: data_pos,
@@ -1349,9 +1376,7 @@ fn find_files_on_disk(
                 copy_with_progress(entry, &mut io::sink(), opts.buffer_size, opts)?;
                 bytes_on_disk += size;
             }
-            if !is_dir {
-                stamp_done(&done, unpack_path, &out_full, size);
-            }
+            stamp_done(&done, unpack_path, &out_full, size);
         }
     }
 

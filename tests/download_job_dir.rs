@@ -125,6 +125,29 @@ fn each_job_is_downloaded_into_a_directory_named_for_the_job() {
 }
 
 #[test]
+fn a_job_given_by_its_job_id_and_its_obs_id_is_downloaded_once() {
+    let env = CliEnv::with_session();
+    env.mock_get_jobs(vec![serve_job(&env, 12345, "THE JOB")]);
+    let dir = TempDir::new().expect("a download directory");
+
+    let mut cmd = env.command();
+    cmd.args(["download", "-c", "2", "-d"])
+        .arg(dir.path())
+        .args(["12345", TEST_OBS_ID]);
+    let result = run(cmd);
+
+    assert!(result.success, "{}", result.combined());
+    let log = result.combined();
+    assert!(log.contains("it is downloaded once"), "{log}");
+    assert!(log.contains("Downloaded 1 of 1."), "{log}");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("12345").join(MEMBER))
+            .expect("the file of the job"),
+        "THE JOB"
+    );
+}
+
+#[test]
 fn no_job_subdir_downloads_into_the_download_directory_itself() {
     let env = CliEnv::with_session();
     env.mock_get_jobs(vec![serve_job(&env, 12345, "THE JOB")]);
