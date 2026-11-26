@@ -190,7 +190,7 @@ all:
 
 The voltage options (`--offset`, `--duration`, `--from-channel`,
 `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for
-an observation that has no voltages. `--offset` must be from 0 to 5400, and a
+an observation that has no voltages. `--offset` must be from 0 to 7200, and a
 negative value (`--offset -1`) is rejected with that range.
 
 The default delivery format is now `tar` for every job, whatever the

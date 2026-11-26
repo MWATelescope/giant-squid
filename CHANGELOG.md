@@ -191,6 +191,13 @@ before you upgrade scripts.**
 * Docker:
   * Updated the docker build to use a docker hardened image and a two stage build approach.
 
+* MWA ASVO API 2.8.3 (OpenAPI 3.1.0) is applied. `--uvw-min` and `--uvw-max` are now `--uv-min` and `--uv-max`, the
+  schema's names (also the Python keywords `uv_min` and `uv_max`, the `submit-csv` keys and the `list --fields`
+  fields). The voltage `--offset` is limited to 0 to 7200 seconds (was 0 to 5400). The `error_code` of an MWA ASVO
+  error is now one of the schema's `ErrorCode` values. A reply with another code is not decoded as an MWA ASVO error:
+  it is an HTTP error (`MwaAsvoApiError::BadStatus`, `HTTP_<status>` in `--json`) with the reply as its message. The
+  `--json` error lines and the `error_response()` methods use the new type `ClientErrorResponse`, which has the same
+  JSON shape as the schema's `ErrorResponse` with the code as text, so it can also hold a giant-squid code.
 * MWA ASVO API 2.8.2 (OpenAPI 3.1.0) is applied. The polarisation `xx,yy` is now `xxyy`, and the default `--polarization`
   is `i`. `--flag-edge-width` (and the Python `flag_edge_width` and the CSV key) can be `null` for no edge flagging, as
   `--avg-time-res` can. A job always has a `job_type` (Python `MwaAsvoJob.job_type` is never `None`), and the listed

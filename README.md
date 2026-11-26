@@ -220,7 +220,8 @@ already cancelled is a reply with `failed`), a download (`success`) or an error 
 
 An error that the MWA ASVO sent in this form is printed as the MWA ASVO sent it. Other errors have a giant-squid
 error code, for example `HTTP_503` (an HTTP error, with the body of the reply as the `detail`), `NETWORK_ERROR`,
-`INVALID_ARGUMENT` or `JOB_NOT_FOUND`:
+`INVALID_ARGUMENT` or `JOB_NOT_FOUND`. A reply whose `error_code` is not one of the API's error codes is an HTTP
+error of this kind (`HTTP_<status>`, with the reply as the `detail`):
 
 ```bash
 $ giant-squid submit-download 1065880128 --json
@@ -319,16 +320,16 @@ Options:
           [possible values: true, false]
 
   -o, --offset <OFFSET>
-          Voltage observations only: the offset in seconds from the start GPS time of the observation (0-5400)
+          Voltage observations only (required): the offset in seconds from the start GPS time of the observation (0-7200)
 
   -u, --duration <DURATION>
-          Voltage observations only: the duration (in seconds) to download (0-7200)
+          Voltage observations only (required): the duration (in seconds) to download (0-7200)
 
       --from-channel <FROM_CHANNEL>
-          Voltage observations only: the 'from' receiver channel number (0-255)
+          Voltage observations only (optional): the 'from' receiver channel number (0-255)
 
       --to-channel <TO_CHANNEL>
-          Voltage observations only: the 'to' receiver channel number (0-255)
+          Voltage observations only (optional): the 'to' receiver channel number (0-255)
 
   -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
           Allow resubmitting a job even if an identical one has completed. Takes true, false or null
@@ -376,7 +377,7 @@ giant-squid submit-download --only-metadata 1065880128
 ##### Voltage downloads
 
 A voltage download job gives the raw voltages of an observation. `--offset` is the offset in seconds from the start
-GPS time of the observation (0 to 5400), and `--duration` is the number of seconds to download (0 to 7200):
+GPS time of the observation (0 to 7200), and `--duration` is the number of seconds to download (0 to 7200):
 
 ```bash
 giant-squid submit-download --offset 0 --duration 8 1065880128
@@ -423,13 +424,13 @@ Options:
   -o, --output <OUTPUT>
           Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null [default: 40]
+          Frequency resolution to average to (kHz), or null for no frequency averaging [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null [default: 2]
+          Time resolution to average to (s), or null for no time averaging [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
           Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
-          Whether to apply the DI calibration solution [default: false] [possible values: true, false]
+          Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: false] [possible values: true, false]
       --centre <CENTRE>
           Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
@@ -537,13 +538,13 @@ Options:
   -f, --delivery-format <DELIVERY_FORMAT>
           Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
       --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null [default: 40]
+          Frequency resolution to average to (kHz), or null for no frequency averaging [default: 40]
       --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null [default: 2]
+          Time resolution to average to (s), or null for no time averaging [default: 2]
       --flag-edge-width <FLAG_EDGE_WIDTH>
           Width of frequency edge flagging (kHz), or null for no edge flagging [default: 80]
       --apply-di-cal[=<APPLY_DI_CAL>]
-          Whether to apply the DI calibration solution [default: true] [possible values: true, false]
+          Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: true] [possible values: true, false]
       --centre <CENTRE>
           Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
       --custom-centre-ra <CUSTOM_CENTRE_RA>
@@ -596,9 +597,9 @@ Options:
           Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
-      --uvw-max <UVW_MAX>
+      --uv-max <UV_MAX>
           Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
-      --uvw-min <UVW_MIN>
+      --uv-min <UV_MIN>
           Minimum uv distance to image, in wavelengths [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
@@ -657,8 +658,8 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--pixel-scale` | Number of arcsecs per pixel. Leave unset to let the server calculate it | 10 to 120 | none |
 | `--polarization` | Polarisation to image | one of `xx`, `yy`, `xy`, `yx`, `xxyy`, `i`, `iquv` | i |
 | `--robust` | Robustness parameter- only used if `weighting=briggs` | -2 to 2 | -0.5 |
-| `--uvw-max` | Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) | 1 to 5000 | none |
-| `--uvw-min` | Minimum uv distance to image, in wavelengths | 1 to 100 | 75 |
+| `--uv-max` | Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) | 1 to 5000 | none |
+| `--uv-min` | Minimum uv distance to image, in wavelengths | 1 to 100 | 75 |
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
 | `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag, or `true` or `false` | false |
@@ -726,9 +727,9 @@ Options:
           Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
       --robust <ROBUST>
           WSClean -robust (Briggs robustness) value [default: -0.5]
-      --uvw-max <UVW_MAX>
+      --uv-max <UV_MAX>
           Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested)
-      --uvw-min <UVW_MIN>
+      --uv-min <UV_MIN>
           Minimum uv distance to image, in wavelengths [default: 75]
       --weighting <WEIGHTING>
           WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
@@ -786,7 +787,7 @@ as in the manta-ray-client README (and the other fields of the request body of t
 | `d` | `download_type` (`vis` or `vis_meta`; required), `delivery`, `delivery_format`, `allow_resubmit` |
 | `b` | `delivery`, `delivery_format`, `allow_resubmit` |
 | `v` | `offset` and `duration` (required), `from_channel`, `to_channel`, `delivery`, `delivery_format`, `allow_resubmit` |
-| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uvw_min`, `uvw_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `polarization`, `output_mode` (required), `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
+| `i` | `avg_time_res`, `avg_freq_res`, `flag_edge_width`, `apply_di_cal`, `centre`, `phase_centre_ra`, `phase_centre_dec`, `image_size`, `pixel_scale`, `weighting`, `robust`, `clean_iterations`, `nmiter`, `mgain`, `auto_mask`, `uv_min`, `uv_max`, `join_polarizations`, `apply_primary_beam`, `multiscale`, `channels_out`, `abs_threshold`, `auto_threshold`, `wstack_nwlayers`, `join_channels`, `polarization`, `output_mode` (required), `no_apply_amps`, the six Birli flags of the conversion job (`no_rfi` and so on), `delivery`, `delivery_format`, `allow_resubmit` |
 
 How `submit-csv` works:
 
@@ -860,7 +861,7 @@ Options:
       --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
       --sort-by <SORT_BY>       The column to sort the jobs by [possible values: id, created, completed]
       --fields <FIELDS>         Add a column to the table for each of these job fields (comma separated)
-  -h, --help                    Print help
+  -h, --help                    Print help (see more with '--help')
   -V, --version                 Print version
 ```
 
