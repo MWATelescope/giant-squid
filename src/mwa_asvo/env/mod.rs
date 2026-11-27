@@ -2,19 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Settings from the environment, for the programs that want the same
-//! settings as the `giant-squid` command: the Rust command, the Python
-//! command, and any program that wishes to behave as they do.
+//! Settings from the environment, for a program that wants the settings of
+//! the `giant-squid` command.
 //!
-//! The library itself reads no environment variable. These functions are
-//! opt-in: a program calls [`client_config_from_env`] or
-//! [`DownloadSettings::from_env`], and gets an explicit
-//! [`MwaAsvoClientConfig`] or explicit download settings to pass on. A
-//! program that wants other variable names, or none, builds its own.
-//!
-//! The text of every message about a variable is here, so that every program
-//! that reads these variables says the same thing. (The Python module reads
-//! none; the Python command runs the Rust command.)
+//! The rest of the library reads no environment variable. A program calls
+//! [`client_config_from_env`] or [`DownloadSettings::from_env`] to get an
+//! [`MwaAsvoClientConfig`] or download settings, or builds its own. The
+//! messages about the variables are here, so that every program that reads
+//! them says the same thing.
 
 use std::path::Path;
 use std::time::Duration;

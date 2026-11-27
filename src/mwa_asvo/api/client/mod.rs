@@ -9,10 +9,8 @@
 //! (`login`), refreshes the access token before it expires (`refresh`,
 //! `get_valid_tokens`; the JWT `exp` claim says when), and keeps the session
 //! on disk through `crate::mwa_asvo::token_store`, so that the next process
-//! does not log in again.
-//!
-//! The client reads no environment variables: the caller supplies the host,
-//! API key, timeout and token cache path in an [`MwaAsvoClientConfig`].
+//! does not log in again. The caller supplies the host, API key, timeout and
+//! token cache path in an [`MwaAsvoClientConfig`].
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;
@@ -87,10 +85,9 @@ pub const ENDPOINT_IMAGE_FROM_JOB: &str = "/api/v2/jobs/image_from_job";
 /// that the request sends. It is not an error: the list is empty.
 const NO_JOBS_STATUS: reqwest::StatusCode = reqwest::StatusCode::NOT_FOUND;
 
-/// Everything an [`MwaAsvoClient`] needs to connect to the MWA ASVO.
-///
-/// The library reads no environment variables. A caller (such as the
-/// giant-squid CLI) finds these values and builds the config.
+/// Everything an [`MwaAsvoClient`] needs to connect to the MWA ASVO. A
+/// caller (such as the giant-squid CLI) finds these values and builds the
+/// config.
 #[derive(Clone)]
 pub struct MwaAsvoClientConfig {
     /// The MWA ASVO base URL, for example [`DEFAULT_MWA_ASVO_HOST`]. An
@@ -801,7 +798,7 @@ impl MwaAsvoClient {
     /// says; [`JobsFilter::default()`] gets the jobs that the API returns by
     /// default. Where the filter does not say otherwise, `days` is the
     /// schema's default (30 in the current schema): the library does not ask
-    /// for "all" jobs. With a date, the request has `"days": null`.
+    /// for "all" jobs.
     ///
     /// A job without a usable `obs_id` (the top-level `detail.obs_id`) is skipped
     /// with a warning, rather than failing the whole listing (see
@@ -867,10 +864,9 @@ impl MwaAsvoClient {
                 }
                 Err(e) => return Err(e),
             };
-            // Not parsed as `JobsByUserResponse` at once: since schema
-            // v1.11 its `jobs` are typed, and `normalize_job_value` must
-            // patch the server quirks into each job first. The page shape
-            // is still the schema's.
+            // Not parsed as `JobsByUserResponse` at once:
+            // `normalize_job_value` must patch the server quirks into each
+            // job first.
             let page: RawJobsPage = serde_json::from_str(&body)?;
 
             let page_len = page.jobs.len() as u64;
@@ -903,21 +899,11 @@ impl MwaAsvoClient {
         ))
     }
 
-    /// As [`Self::get_jobs`], and when the request fails in a way that may
-    /// pass (see [`MwaAsvoApiError::is_transient`]), try again after a wait
-    /// that grows (see the retry policy of the downloads). It gives up with
-    /// the last error when the failures have gone on for `retry_duration`,
-    /// and at once for any other error. A zero `retry_duration` never
-    /// retries. It is for [`Self::wait_for_jobs`], which polls the job list:
-    /// one failure should not end the wait.
-    ///
-    /// `should_stop` is asked during each wait. When it returns `true`,
-    /// the call ends with [`MwaAsvoError::Interrupted`]. `None` never stops.
-    ///
-    /// # Errors
-    ///
-    /// [`MwaAsvoError::Api`] with the error from the request, as for
-    /// [`Self::get_jobs`], and [`MwaAsvoError::Interrupted`].
+    /// [`Self::get_jobs`] for [`Self::wait_for_jobs`]: a transient error
+    /// ([`MwaAsvoApiError::is_transient`]) is retried with a growing wait for
+    /// up to `retry_duration` (zero: no retry), so that one failure does not
+    /// end a wait. `should_stop` returning `true` during a wait ends the call
+    /// with [`MwaAsvoError::Interrupted`].
     pub(crate) fn get_jobs_retrying(
         &self,
         filter: &JobsFilter,
@@ -1220,8 +1206,7 @@ impl JobsFilter {
     ///
     /// [`MwaAsvoApiError::InvalidParameter`] if both `job_ids` and `obs_ids` are
     /// given, if `days` is outside 1 to 30, or if `days` is given with
-    /// `date_from` or `date_to`: the jobs are selected by `days` or by the
-    /// dates, not by both.
+    /// `date_from` or `date_to`.
     pub fn validate(&self) -> Result<(), MwaAsvoApiError> {
         if !self.job_ids.is_empty() && !self.obs_ids.is_empty() {
             return Err(MwaAsvoApiError::InvalidParameter {

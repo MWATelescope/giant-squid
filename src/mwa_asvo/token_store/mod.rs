@@ -10,8 +10,8 @@
 //! wrote, because that has no host and no API key hash: it logs in again and
 //! replaces the file.
 //!
-//! The library reads no environment variables, so the caller supplies the
-//! cache path. [`default_token_cache_path`] gives the path mwa-cli uses,
+//! The caller supplies the cache path. [`default_token_cache_path`] gives the
+//! path mwa-cli uses,
 //! relative to a home directory that the caller finds.
 
 use std::fs;
@@ -183,10 +183,8 @@ pub fn save(path: &Path, tokens: &StoredTokens) {
     }
 }
 
-/// Write `tokens` to `path` so that the file is never half written and is
-/// never readable by other users, not even for a moment: the JSON goes to a
-/// new file in the same directory, which is created with mode 0600 (Unix),
-/// and the new file then replaces `path` in one step.
+/// The work of [`save`]: write the JSON to a new private file in the same
+/// directory, then rename it over `path`.
 fn save_inner(path: &Path, tokens: &StoredTokens) -> io::Result<()> {
     if let Some(dir) = path.parent() {
         prepare_directory(dir)?;
@@ -206,9 +204,7 @@ fn save_inner(path: &Path, tokens: &StoredTokens) -> io::Result<()> {
 }
 
 /// Make sure that the directory `dir` of the token cache exists. A directory
-/// that has to be made gets mode 0700 (Unix). A directory that is there is
-/// not changed, because the user (or mwa-cli) made it; if other users can
-/// use it, a warning says so.
+/// that is there is not changed, because the user (or mwa-cli) made it.
 fn prepare_directory(dir: &Path) -> io::Result<()> {
     if dir.as_os_str().is_empty() {
         return Ok(());
@@ -263,8 +259,8 @@ fn temporary_path(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{name}.{process}.{count}{TEMPORARY_SUFFIX}"))
 }
 
-/// Create the new file `path` with mode 0600 (Unix), write `contents` to it
-/// and make sure that they are on disk. It fails if `path` is there already.
+/// Create the new file `path` with [`TOKEN_FILE_MODE`] (Unix), write
+/// `contents` and sync it. It fails if `path` is there already.
 fn write_private_file(path: &Path, contents: &str) -> io::Result<()> {
     let mut options = fs::OpenOptions::new();
     options.write(true).create_new(true);

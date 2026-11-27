@@ -873,7 +873,8 @@ pub struct SubmitDownloadArgs {
 impl SubmitDownloadArgs {
     /// The request body for a download job for a single Obs ID. The CLI has a
     /// value for every option (its defaults are the schema's), so each field
-    /// that the options cover is set.
+    /// that the options cover is set. The `to_params` of the other job
+    /// arguments do the same.
     pub fn to_params(&self, obs_id: ObsId) -> DownloadJobParams {
         let mut params = DownloadJobParams {
             only_metadata: self.only_metadata,
@@ -958,9 +959,7 @@ pub struct ConversionJobArgs {
 }
 
 impl ConversionJobArgs {
-    /// The request body for a conversion job for a single Obs ID. The CLI has
-    /// a value for every option (its defaults are the schema's), so each
-    /// field that the options cover is set.
+    /// The request body for a conversion job for a single Obs ID.
     pub fn to_params(&self, obs_id: ObsId) -> ConversionJobParams {
         let mut params = conversion_params(obs_id);
         self.delivery_args.apply_to(&mut params);
@@ -988,9 +987,7 @@ pub struct ImagingJobArgs {
 }
 
 impl ImagingJobArgs {
-    /// The request body for an imaging job for a single Obs ID. The CLI has a
-    /// value for every option (its defaults are the schema's), so each field
-    /// that the options cover is set.
+    /// The request body for an imaging job for a single Obs ID.
     pub fn to_params(&self, obs_id: ObsId) -> ImagingJobParams {
         let mut params = imaging_params(obs_id, self.wsclean.output_mode);
         self.delivery_args.apply_to(&mut params);
@@ -1019,9 +1016,7 @@ pub struct ImagingFromJobArgs {
 
 impl ImagingFromJobArgs {
     /// The request body for an image of the conversion job
-    /// `--source-job-id`. The CLI has a value for every option (its defaults
-    /// are the schema's), so each field that the options cover is set.
-    /// The MWA ASVO takes the Obs ID from the source job.
+    /// `--source-job-id`. The MWA ASVO takes the Obs ID from the source job.
     pub fn to_params(&self) -> ImageFromJobParams {
         let mut params = image_from_job_params(self.source_job_id, self.wsclean.output_mode);
         self.delivery_args.apply_to(&mut params);

@@ -1715,9 +1715,7 @@ class JobsFilter:
 
     Args:
         days: Only the jobs from the past `days` days, from 1 to 30. Cannot
-            be given with `date_from` or `date_to`: the jobs are selected by
-            `days` or by the dates. With a date and no `days`, `days` is sent
-            as `null`.
+            be given with `date_from` or `date_to`.
         date_from: Only the jobs created at or after this time. It must have
             a time zone.
         date_to: Only the jobs created at or before this time. It must have a

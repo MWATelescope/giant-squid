@@ -218,12 +218,10 @@ fn downloaded_message(job: &MwaAsvoJob, download_dir: &str, job_subdir: bool) ->
 
 /// Submit one job per Obs ID, carrying on past failures.
 ///
-/// One bad Obs ID does not stop the run. Each failure is reported as it happens,
-/// the successes still go through, and the run ends with a summary. An
-/// error is returned when anything failed, so the exit code still signals
-/// it, but only after every Obs ID has been attempted. The error only counts
-/// the failures, because each one was already reported. With `json`, each
-/// failure is a [`JsonError`] line with the Obs ID.
+/// Each failure is reported as it happens (with `json`, as a [`JsonError`]
+/// line with the Obs ID). After every Obs ID has been attempted, the
+/// returned error only counts the failures, because each one was already
+/// reported.
 fn submit_each_obs_id<F>(
     obs_ids: &[ObsId],
     description: &str,
@@ -288,13 +286,10 @@ impl SubmitOptions {
     }
 }
 
-/// Run a submit command. First `check` (the library's check of the request
-/// body) checks the body that `build` makes, so that a bad body fails once,
-/// before any login, also with `--dry-run`: the bodies differ only in their
-/// Obs ID. Then, with `--dry-run`, report the body for each Obs ID;
-/// otherwise log in, `submit` one job per Obs ID (carrying on past failures,
-/// see [`submit_each_obs_id`]), and with `--wait`, wait for the jobs that
-/// were submitted.
+/// Run a submit command. `check` (the library's check of the request body)
+/// checks the first body that `build` makes before any login, also with
+/// `--dry-run`: the bodies differ only in their Obs ID, so a bad body fails
+/// once.
 fn run_submit<P, B, C, S>(
     submission: &Submission,
     build: B,
@@ -383,9 +378,6 @@ fn warn_deprecated(name: &str) {
 
 /// Run `submit-image-from-job`: one job, which has no Obs ID (the MWA ASVO
 /// takes it from the source job), so it does not go through [`run_submit`].
-/// The body is checked (the library's [`validate_image_from_job_params`])
-/// before any login, also with `--dry-run`. An error is returned as it is: no
-/// other job needs to be attempted, and the caller reports it.
 fn run_submit_image_from_job(
     params: &ImageFromJobParams,
     submit: &SubmitOptions,
@@ -429,10 +421,7 @@ fn run_submit_image_from_job(
 /// of them, and submit them in the order of the file.
 ///
 /// The whole file is read and checked before the login, so a mistake on any
-/// line submits nothing, also with `--dry-run`. Then, as for the other submit
-/// commands, a failed submission is reported when it happens and does not
-/// stop the others ([`submit_each_csv_job`]), and with `--wait`, the command
-/// waits for the jobs that were submitted.
+/// line submits nothing, also with `--dry-run`.
 fn run_submit_csv(submit: &SubmitOptions, allow_resubmit: bool, file: &Path) -> anyhow::Result<()> {
     let mut defaults = CsvDefaults::from_env()?;
     if allow_resubmit {
@@ -662,9 +651,8 @@ fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyho
     Ok(())
 }
 
-/// The `days` of `list`. clap refuses `--days` given with a date, so with a
-/// date `days` is only its default, which the dates replace: the jobs are
-/// selected by `days` or by the dates, not by both (the library refuses both).
+/// The `days` of `list`: `None` with a date. clap refuses `--days` with a
+/// date, so then `days` is only its default.
 pub(super) fn list_days(
     days: Option<NonZeroU64>,
     date_from: Option<Timestamp>,
@@ -679,11 +667,8 @@ pub(super) fn list_days(
 
 /// Report what a submission would have sent, for `--dry-run`.
 ///
-/// Every submit command prints the same thing: the endpoint the request
-/// would go to, and the resolved JSON body for each Obs ID. The body is
-/// built exactly as a real submission builds it, so a dry run exercises
-/// the argument-to-request mapping rather than just echoing arguments.
-/// With `json`, each is a [`DryRunSubmission`] line.
+/// The endpoint and the JSON body for each Obs ID, built as a real
+/// submission builds it (with `json`, each is a [`DryRunSubmission`] line).
 fn report_dry_run_submissions<T, F>(
     endpoint: &str,
     obs_ids: &[ObsId],
@@ -729,8 +714,7 @@ fn log_level(verbosity: u8, json: bool) -> LevelFilter {
 }
 
 /// Send all log records to stderr, so that stdout has only a command's
-/// output (the job table, `--json`), which a script can read. The
-/// `simplelog` `SimpleLogger` sent every level except `Error` to stdout.
+/// output (the job table, `--json`), which a script can read.
 ///
 /// There is one logger per process. If one is already installed (the
 /// command ran before in this process, or another program set one), it is

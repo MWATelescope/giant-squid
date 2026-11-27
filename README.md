@@ -55,10 +55,8 @@ suit users for a few reasons:
 5. One can ask `giant-squid` to print your MWA ASVO queue as JSON; this makes
    parsing the state of your jobs in another programming language much simpler.
 
-6. By default, `giant-squid` will validate the hash of the archive. You can skip
-   this check with `--skip-hash`, except when `giant-squid` resumes a download
-   or uses files that are already on disk (see
-   [Resuming Interrupted Downloads](#resuming-interrupted-downloads))
+6. By default, `giant-squid` will validate the hash of the archive. To skip this
+   check, use `--skip-hash` (see [Resuming Interrupted Downloads](#resuming-interrupted-downloads)).
 
 ---
 
@@ -193,8 +191,8 @@ if any failed.
 
 | Option | Meaning |
 |---|---|
-| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options). The deprecated `submit-volt` does not have this option |
-| `-f`, `--delivery-format` | `tar` (the default) or `files`. The deprecated `submit-volt` does not have this option |
+| `-d`, `--delivery` | Where MWA ASVO delivers the data: see [A Note On Delivery Options](#a-note-on-delivery-options) |
+| `-f`, `--delivery-format` | `tar` (the default) or `files` |
 | `-r`, `--allow-resubmit` | Submit the job even if an identical one has completed (`-r` alone is true; the value can be true, false or null): see [Resubmitting jobs](#resubmitting-jobs) |
 | `-w`, `--wait` | Do not exit until the jobs are ready for download |
 | `-n`, `--dry-run` | Do not submit. Print the request that would be sent for each Obs ID |
@@ -290,72 +288,17 @@ beamformer files. The request does not say which: the MWA ASVO finds the kind of
 and `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for an observation that has no
 voltages, and with `--only-metadata` (true).
 
-```text
-Submit MWA ASVO jobs to download MWA data
+In addition to the [options that every submit command has](#options-that-every-submit-command-has):
 
-The data can be raw visibilities, metadata, voltages or beamformer files. The MWA ASVO finds the kind of data from the observation.
+| Option | Meaning | Values | Default |
+|---|---|---|---|
+| `--only-metadata` | Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). True is not valid with the voltage options | flag, or `true` or `false` | none: left out of the request |
+| `-o`, `--offset` | Voltage observations only (required): the offset in seconds from the start GPS time of the observation | 0 to 7200 | none |
+| `-u`, `--duration` | Voltage observations only (required): the duration in seconds to download | 0 to 7200 | none |
+| `--from-channel` | Voltage observations only (optional): the 'from' receiver channel number | 0 to 255 | none |
+| `--to-channel` | Voltage observations only (optional): the 'to' receiver channel number | 0 to 255 | none |
 
-Usage: giant-squid submit-download [OPTIONS] [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...
-          The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver data
-          
-          [env: GIANT_SQUID_DELIVERY=]
-          [default: acacia]
-          [possible values: acacia, scratch, dug]
-
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia
-          
-          [env: GIANT_SQUID_DELIVERY_FORMAT=]
-          [default: tar]
-          [possible values: tar, files]
-
-      --only-metadata[=<ONLY_METADATA>]
-          Download the metadata only: metafits (with PPDs for each tile) and RFI flags (if available). Takes true or false. Leave unset to leave it out of the request (the schema gives it no default). True is not valid with the voltage options (--offset, --duration, --from-channel, --to-channel)
-          
-          [possible values: true, false]
-
-  -o, --offset <OFFSET>
-          Voltage observations only (required): the offset in seconds from the start GPS time of the observation [range: 0 to 7200]
-
-  -u, --duration <DURATION>
-          Voltage observations only (required): the duration (in seconds) to download [range: 0 to 7200]
-
-      --from-channel <FROM_CHANNEL>
-          Voltage observations only (optional): the 'from' receiver channel number [range: 0 to 255]
-
-      --to-channel <TO_CHANNEL>
-          Voltage observations only (optional): the 'to' receiver channel number [range: 0 to 255]
-
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null
-          
-          [default: false]
-
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
-```
+Run `giant-squid submit-download --help` for every option.
 
 Text files containing Obs IDs may be used too.
 
@@ -410,64 +353,7 @@ Conversion jobs refer to jobs which convert raw visibilities into either CASA me
 
 Conversion jobs use the Birli software package to preprocess MWA raw visibilities. For more information about Birli please see: [Birli on GitHub](https://github.com/MWATelescope/Birli).
 
-```text
-Submit MWA ASVO preprocessing/conversion jobs
-
-Usage: giant-squid submit-preprocess [OPTIONS] [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to be submitted. Files containing Obs IDs are also accepted
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-  -o, --output <OUTPUT>
-          Output format: "ms" (measurement set) or "uvfits" [default: ms] [possible values: ms, uvfits]
-      --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null for no frequency averaging [range: 0 to 1280] [default: 40]
-      --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null for no time averaging [range: at least 0] [default: 2]
-      --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz), or null for no edge flagging [range: 0 to 640] [default: 80]
-      --apply-di-cal[=<APPLY_DI_CAL>]
-          Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: false] [possible values: true, false]
-      --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
-      --custom-centre-ra <CUSTOM_CENTRE_RA>
-          Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
-      --custom-centre-dec <CUSTOM_CENTRE_DEC>
-          Custom phase centre declination (degrees). Requires --centre custom [range: -90 to 90]
-      --no-apply-amps[=<NO_APPLY_AMPS>]
-          Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
-      --no-digital-gains[=<NO_DIGITAL_GAINS>]
-          Whether to skip applying digital gains. Takes true, false or null [default: false]
-      --no-flag-dc[=<NO_FLAG_DC>]
-          Whether to skip flagging the DC channel. Takes true, false or null [default: false]
-      --no-geometric-delay[=<NO_GEOMETRIC_DELAY>]
-          Whether to skip applying geometric delay corrections. Takes true, false or null [default: false]
-      --no-passband-gains[=<NO_PASSBAND_GAINS>]
-          Whether to skip applying passband gain corrections. Takes true, false or null [default: false]
-      --no-cable-delay[=<NO_CABLE_DELAY>]
-          Whether to skip applying cable delay corrections. Takes true, false or null [default: false]
-      --no-rfi[=<NO_RFI>]
-          Whether to skip RFI flagging. Takes true, false or null [default: false]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
+Run `giant-squid submit-preprocess --help` for every option.
 
 To submit a conversion job for Obs ID 1065880128:
 
@@ -509,7 +395,7 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--centre` | Phase centre to use | one of `phase`, `pointing`, `custom` | phase |
 | `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
 | `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
-| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions | flag, or `true` or `false` | false |
+| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag, or `true` or `false` | false |
 | `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
 | `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
 | `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
@@ -526,102 +412,7 @@ The MWA ASVO imaging features uses the WSClean software by André Offringa to ge
 `-o`/`--output-mode` is required: the MWA ASVO API gives it no default. If you do not give `--image-size` or
 `--pixel-scale`, the MWA ASVO calculates them.
 
-```text
-Submit MWA ASVO imaging jobs
-
-Usage: giant-squid submit-image [OPTIONS] --output-mode <OUTPUT_MODE> [OBS_ID]...
-
-Arguments:
-  [OBS_ID]...  The Obs IDs to submit for imaging. Files containing Obs IDs are also accepted. All Obs IDs in one invocation share the same parameters above
-
-Options:
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-      --avg-freq-res <AVG_FREQ_RES>
-          Frequency resolution to average to (kHz), or null for no frequency averaging [range: 0 to 1280] [default: 40]
-      --avg-time-res <AVG_TIME_RES>
-          Time resolution to average to (s), or null for no time averaging [range: at least 0] [default: 2]
-      --flag-edge-width <FLAG_EDGE_WIDTH>
-          Width of frequency edge flagging (kHz), or null for no edge flagging [range: 0 to 640] [default: 80]
-      --apply-di-cal[=<APPLY_DI_CAL>]
-          Whether to apply a DI calibration solution (if no solution available, one will be requested- this may take more time) [default: true] [possible values: true, false]
-      --centre <CENTRE>
-          Phase centre: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec [default: phase] [possible values: phase, pointing, custom]
-      --custom-centre-ra <CUSTOM_CENTRE_RA>
-          Custom phase centre right ascension (degrees). Requires --centre custom [range: 0 to 359.999999]
-      --custom-centre-dec <CUSTOM_CENTRE_DEC>
-          Custom phase centre declination (degrees). Requires --centre custom [range: -90 to 90]
-      --no-apply-amps[=<NO_APPLY_AMPS>]
-          Whether to skip applying amplitude calibration solutions [default: false] [possible values: true, false]
-      --no-digital-gains[=<NO_DIGITAL_GAINS>]
-          Whether to skip applying digital gains. Takes true, false or null [default: false]
-      --no-flag-dc[=<NO_FLAG_DC>]
-          Whether to skip flagging the DC channel. Takes true, false or null [default: false]
-      --no-geometric-delay[=<NO_GEOMETRIC_DELAY>]
-          Whether to skip applying geometric delay corrections. Takes true, false or null [default: false]
-      --no-passband-gains[=<NO_PASSBAND_GAINS>]
-          Whether to skip applying passband gain corrections. Takes true, false or null [default: false]
-      --no-cable-delay[=<NO_CABLE_DELAY>]
-          Whether to skip applying cable delay corrections. Takes true, false or null [default: false]
-      --no-rfi[=<NO_RFI>]
-          Whether to skip RFI flagging. Takes true, false or null [default: false]
-      --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
-          Whether to apply the primary beam correction [default: true] [possible values: true, false]
-      --auto-mask <AUTO_MASK>
-          WSClean -auto-mask value [range: 2 to 512] [default: 3]
-      --auto-threshold <AUTO_THRESHOLD>
-          WSClean -auto-threshold value [range: 0.1 to 5] [default: 0.5]
-      --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy), or null [range: 0 to 10] [default: 0.001]
-      --channels-out <CHANNELS_OUT>
-          Number of output channel groups [range: at least 1] [default: 4]
-      --clean-iterations <CLEAN_ITERATIONS>
-          WSClean -niter value (max clean iterations) [range: 0 to 1000000] [default: 100000]
-      --image-size <IMAGE_SIZE>
-          WSClean image size in pixels. Leave unset to let the server calculate it
-      --join-channels[=<JOIN_CHANNELS>]
-          Join output channel groups for cleaning [default: true] [possible values: true, false]
-      --join-polarizations[=<JOIN_POLARIZATIONS>]
-          Join polarisations for cleaning [default: false] [possible values: true, false]
-      --mgain <MGAIN>
-          WSClean -mgain value [range: 0.1 to 1] [default: 0.8]
-      --multiscale[=<MULTISCALE>]
-          Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
-      --nmiter <NMITER>
-          WSClean -nmiter value (max major cleaning iterations) [range: 1 to 500] [default: 10]
-  -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request. Required [possible values: fits, all_fits, all_files]
-      --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it [range: 10 to 120]
-      --polarization <POLARIZATION>
-          Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
-      --robust <ROBUST>
-          WSClean -robust (Briggs robustness) value [range: -2 to 2] [default: -0.5]
-      --uv-max <UV_MAX>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
-      --uv-min <UV_MIN>
-          Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested) [range: 1 to 100] [default: 75]
-      --weighting <WEIGHTING>
-          WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
-      --wstack-nwlayers <WSTACK_NWLAYERS>
-          Number of w-stacking layers. Leave unset to let the server decide [range: 32 to 512]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
+Run `giant-squid submit-image --help` for every option.
 
 To submit an imaging job for the Obs ID 1065880128, give any conversion options as well as imaging options:
 
@@ -633,7 +424,9 @@ Imaging jobs can be delivered to Acacia, Scratch or DUG.
 
 ##### Options for imaging jobs
 
-In addition to the [options that every submit command has](#options-that-every-submit-command-has):
+In addition to the [options that every submit command has](#options-that-every-submit-command-has), `submit-image`
+takes the [options for conversion jobs](#options-for-conversion-jobs) except `--output`, with the same values and
+defaults. Only the default of `--apply-di-cal` is different:
 
 | Option | Meaning | Values | Default |
 |---|---|---|---|
@@ -642,13 +435,8 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--auto-mask` | WSClean -auto-mask value | 2 to 512 | 3 |
 | `--auto-threshold` | Relative clean threshold. Estimate noise level using a robust estimator and stop at sigma x stddev | 0.1 to 5 | 0.5 |
 | `--abs-threshold` | Absolute cleaning threshold (Jy) | 0 to 10, or null | 0.001 |
-| `--avg-freq-res` | Output frequency resolution in kHz. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 1280, or null | 40 |
-| `--avg-time-res` | Output time resolution in seconds. Must be a multiple of, or equal to, the correlator time resolution | 0 or more, or null | 2 |
 | `--channels-out` | Number of output channel groups | 1 or more | 4 |
 | `--clean-iterations` | Maximum number of clean iterations to perform | 0 to 1000000 | 100000 |
-| `--custom-centre-dec` | Declination in decimal degrees of the custom phase centre. Needs `--centre custom` | -90 to 90 | none |
-| `--custom-centre-ra` | Right ascension in decimal degrees of the custom phase centre. Needs `--centre custom` | 0 to 359.999999 | none |
-| `--flag-edge-width` | Width in kHz to flag at each coarse channel edge. Must be a multiple of, or equal to, the correlator frequency resolution | 0 to 640, or null | 80 |
 | `--image-size` | width and height in pixels of output image. Leave unset to let the server calculate it | one of `512`, `1024`, `2048`, `3072`, `4096`, `8192` | none |
 | `--join-channels` | Join output channel groups for cleaning | `true` or `false`, given as `--join-channels=false` | true |
 | `--join-polarizations` | Join polarisations for cleaning | flag, or `true` or `false` | false |
@@ -656,7 +444,6 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--multiscale` | Clean on different scales. This is a new algorithm. This parameter invokes the optimized multiscale algorithm published by Offringa & Smirnov (2017) | flag, or `true` or `false` | false |
 | `--nmiter` | WSClean -nmiter value (max major cleaning iterations) | 1 to 500 | 10 |
 | `-o`, `--output-mode` | The output mode / product to request. Required | one of `fits`, `all_fits`, `all_files` | none (required) |
-| `--centre` | Where to centre the image: "phase", "pointing", or "custom". If "custom", also supply --custom-centre-ra and --custom-centre-dec | one of `phase`, `pointing`, `custom` | phase |
 | `--pixel-scale` | Number of arcsecs per pixel. Leave unset to let the server calculate it | 10 to 120 | none |
 | `--polarization` | Polarisation to image | one of `xx`, `yy`, `xy`, `yx`, `xxyy`, `i`, `iquv` | i |
 | `--robust` | Robustness parameter- only used if `weighting=briggs` | -2 to 2 | -0.5 |
@@ -664,13 +451,6 @@ In addition to the [options that every submit command has](#options-that-every-s
 | `--uv-min` | Minimum uv distance to image, in wavelengths | 1 to 100 | 75 |
 | `--weighting` | Type of weighting to apply | one of `briggs`, `uniform`, `natural` | briggs |
 | `--wstack-nwlayers` | Number of w-stacking layers. Leave unset to let the server decide | 32 to 512 | none |
-| `--no-apply-amps` | Whether to skip applying amplitude calibration solutions. Leave at the default (false) unless you know you need this | flag, or `true` or `false` | false |
-| `--no-digital-gains` | Do not correct the digital gains | flag, or true, false or null | false |
-| `--no-flag-dc` | Do not flag the DC channel | flag, or true, false or null | false |
-| `--no-geometric-delay` | Do not correct geometric delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
-| `--no-passband-gains` | Do not correct the passband gains | flag, or true, false or null | false |
-| `--no-cable-delay` | Do not correct cable length delays (only applicable if not already applied by the correlator) | flag, or true, false or null | false |
-| `--no-rfi` | Will disable radio frequency interference (RFI) flagging | flag, or true, false or null | false |
 
 The options `--apply-di-cal`, `--apply-primary-beam` and `--join-channels` are true by default. To turn one off,
 join the value to the option with an equals sign, for example `--join-channels=false`.
@@ -685,73 +465,7 @@ step, so it takes none of the conversion options. It needs only the ID of the co
 giant-squid submit-image-from-job --source-job-id 12345 -o fits --image-size 2048 --multiscale
 ```
 
-```text
-Submit MWA ASVO imaging jobs from an existing conversion job. Unlike submit-image, this skips the conversion step and images directly from the output of a previous conversion job
-
-Usage: giant-squid submit-image-from-job [OPTIONS] --source-job-id <SOURCE_JOB_ID> --output-mode <OUTPUT_MODE>
-
-Options:
-      --source-job-id <SOURCE_JOB_ID>
-          The MWA ASVO conversion Job ID to image from. Required
-  -d, --delivery <DELIVERY>
-          Tell MWA ASVO where to deliver data [env: GIANT_SQUID_DELIVERY=] [default: acacia] [possible values: acacia, scratch, dug]
-  -f, --delivery-format <DELIVERY_FORMAT>
-          Tell MWA ASVO to deliver the data in a particular format. Must be tar when the delivery is acacia [env: GIANT_SQUID_DELIVERY_FORMAT=] [default: tar] [possible values: tar, files]
-      --apply-primary-beam[=<APPLY_PRIMARY_BEAM>]
-          Whether to apply the primary beam correction [default: true] [possible values: true, false]
-      --auto-mask <AUTO_MASK>
-          WSClean -auto-mask value [range: 2 to 512] [default: 3]
-      --auto-threshold <AUTO_THRESHOLD>
-          WSClean -auto-threshold value [range: 0.1 to 5] [default: 0.5]
-      --abs-threshold <ABS_THRESHOLD>
-          Absolute cleaning threshold (Jy), or null [range: 0 to 10] [default: 0.001]
-      --channels-out <CHANNELS_OUT>
-          Number of output channel groups [range: at least 1] [default: 4]
-      --clean-iterations <CLEAN_ITERATIONS>
-          WSClean -niter value (max clean iterations) [range: 0 to 1000000] [default: 100000]
-      --image-size <IMAGE_SIZE>
-          WSClean image size in pixels. Leave unset to let the server calculate it
-      --join-channels[=<JOIN_CHANNELS>]
-          Join output channel groups for cleaning [default: true] [possible values: true, false]
-      --join-polarizations[=<JOIN_POLARIZATIONS>]
-          Join polarisations for cleaning [default: false] [possible values: true, false]
-      --mgain <MGAIN>
-          WSClean -mgain value [range: 0.1 to 1] [default: 0.8]
-      --multiscale[=<MULTISCALE>]
-          Enable WSClean multiscale cleaning [default: false] [possible values: true, false]
-      --nmiter <NMITER>
-          WSClean -nmiter value (max major cleaning iterations) [range: 1 to 500] [default: 10]
-  -o, --output-mode <OUTPUT_MODE>
-          The output mode / product to request. Required [possible values: fits, all_fits, all_files]
-      --pixel-scale <PIXEL_SCALE>
-          Pixel scale (arcsec/pixel). Leave unset to let the server calculate it [range: 10 to 120]
-      --polarization <POLARIZATION>
-          Polarisation to image [default: i] [possible values: xx, yy, xy, yx, xxyy, i, iquv]
-      --robust <ROBUST>
-          WSClean -robust (Briggs robustness) value [range: -2 to 2] [default: -0.5]
-      --uv-max <UV_MAX>
-          Maximum uv distance to image, in wavelengths (upper bound on the range that can be requested) [range: 1 to 5000]
-      --uv-min <UV_MIN>
-          Minimum uv distance to image, in wavelengths (lower bound on the range that can be requested) [range: 1 to 100] [default: 75]
-      --weighting <WEIGHTING>
-          WSClean weighting scheme [default: briggs] [possible values: briggs, uniform, natural]
-      --wstack-nwlayers <WSTACK_NWLAYERS>
-          Number of w-stacking layers. Leave unset to let the server decide [range: 32 to 512]
-  -r, --allow-resubmit[=<ALLOW_RESUBMIT>]
-          Allow resubmitting a job even if an identical one has completed. Takes true, false or null [default: false]
-  -w, --wait
-          Do not exit giant-squid until the specified Obs IDs are ready for download
-  -n, --dry-run
-          Don't actually submit; print information on what would've happened instead
-  -j, --json
-          Print each submitted job's response from the MWA ASVO as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the obs_id. No logs are printed
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
+Run `giant-squid submit-image-from-job --help` for every option.
 
 It takes the imaging options of `submit-image` (`--apply-di-cal`, `--avg-freq-res`, `--avg-time-res`, `--custom-centre-dec`, `--custom-centre-ra`, `--flag-edge-width`, `--centre`, `--no-apply-amps`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay` and `--no-rfi` excepted), and `--source-job-id`, which is required.
 
@@ -840,32 +554,21 @@ By default, the MWA ASVO server will not allow you to submit a new job which is 
 
 ### List MWA ASVO jobs
 
-Use this command to view the state of all of your MWA ASVO jobs.
+Use this command (short name `l`) to view the state of all of your MWA ASVO jobs.
 
-```text
-List your current and recent MWA ASVO jobs
+| Option | Meaning |
+|---|---|
+| `-j`, `--json` | Print the jobs as JSON: see [List MWA ASVO jobs in JSON](#list-mwa-asvo-jobs-in-json) |
+| `--legacy-json` | Print the jobs as JSON in the format of giant-squid 2.x. Deprecated: use `--json` |
+| `--ids` | Print only the Job ID of each job, one on each line: see [Use the output of `list` as the input of other commands](#use-the-output-of-list-as-the-input-of-other-commands) |
+| `--job-states`, `--job-types` | Show only the jobs in these states, or of these types: see [Filter MWA ASVO job listing](#filter-mwa-asvo-job-listing) |
+| `--days`, `--date-from`, `--date-to` | Show only the jobs created in this time: see [Filter MWA ASVO job listing](#filter-mwa-asvo-job-listing) |
+| `--sort-by` | The column to sort the jobs by: `id`, `created` or `completed` |
+| `--fields` | Add a column for each of these job fields: see [Filter MWA ASVO job listing](#filter-mwa-asvo-job-listing) |
+| `--no-colour` | Print the table without colours. Useful when your terminal background is not black |
+| `-v`, `--verbosity` | Show more log messages. Repeat it for more. Cannot be used with `--json` or `--legacy-json` |
 
-Usage: giant-squid list [OPTIONS] [JOB_ID_OR_OBS_ID]...
-
-Arguments:
-  [JOB_ID_OR_OBS_ID]...  Job IDs or Obs IDs to filter by. Files containing Job IDs or Obs IDs are also accepted
-
-Options:
-  -j, --json                    Print the jobs as a simple JSON. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
-      --legacy-json             Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
-      --ids                     Print only the Job ID of each job, one on each line, in the order of the list, and no table. It is the input of `download`, `cancel` and `wait`, which read it on standard input when given `-`: for example `giant-squid list --job-states completed --ids | giant-squid download -`. A list with no job prints nothing
-  -v, --verbosity...            The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
-      --job-states <JOB_STATE>  Show only the jobs in these states (comma separated). The case, hyphens and underscores do not matter [possible values: preparing, queued, waitcal, staging, staged, downloading, preprocessing, imaging, delivering, completed, error, cancelled]
-      --job-types <JOB_TYPE>    Show only the jobs of these types (comma separated). The case, hyphens and underscores do not matter [possible values: conversion, visibility, metadata, voltage, cancel, beamformer, imaging]
-      --no-colour               Disables colouring of output. Useful when you have a non-black terminal background for example
-      --days <DAYS>             Only fetch jobs from the past N days (1 to 30). Cannot be used with --date-from or --date-to, which select the jobs by date instead [default: 30]
-      --date-from <DATE_FROM>   Only jobs created at or after this time: RFC 3339 (for example 2026-09-01T00:00:00Z) or a date (2026-09-01, midnight UTC)
-      --date-to <DATE_TO>       Only jobs created at or before this time: RFC 3339 or a date (midnight UTC)
-      --sort-by <SORT_BY>       The column to sort the jobs by [possible values: id, created, completed]
-      --fields <FIELDS>         Add a column to the table for each of these job fields (comma separated)
-  -h, --help                    Print help (see more with '--help')
-  -V, --version                 Print version
-```
+Run `giant-squid list --help` for every option.
 
 Example:
 ```bash
@@ -993,7 +696,7 @@ done < ready.tsv
 
 ### Wait for MWA ASVO jobs
 
-Use this command to wait until MWA ASVO jobs are ready for download. It checks your job list once a minute and
+Use this command (short name `w`) to wait until MWA ASVO jobs are ready for download. It checks your job list once a minute and
 logs a job's state when it changes. When every job is ready it prints the jobs, as `list` does (as a table, or
 as JSON with `--json`), and exits.
 
@@ -1001,22 +704,14 @@ If a check fails in a way that may pass (a network error, or a reply with an HTT
 logs a warning and tries again after a short pause that grows. It gives up when such failures have lasted 15
 minutes without one success. Any other failure, such as a refusal with a 4xx status, ends the wait at once.
 
-```text
-Wait for MWA ASVO jobs to complete, then print them
+| Option | Meaning |
+|---|---|
+| `-j`, `--json` | Print the jobs as JSON after waiting, as `list --json` does |
+| `--legacy-json` | Print the jobs as `list --legacy-json` does. Deprecated: use `--json` |
+| `--no-colour` | Print the table without colours |
+| `-v`, `--verbosity` | Show more log messages. Cannot be used with `--json` or `--legacy-json` |
 
-Usage: giant-squid wait [OPTIONS] [JOB_ID]...
-
-Arguments:
-  [JOB_ID]...  The Job IDs to wait for. Files containing Job IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is waited for), or Job IDs that spaces or lines separate. It can be used with other IDs
-
-Options:
-  -j, --json          Print the jobs as a simple JSON after waiting. An error is printed as one line of JSON (an MWA ASVO ErrorResponse), and no logs are printed
-      --legacy-json   Print the jobs as JSON in the old format of giant-squid before 3.0.0 (camelCase keys: obsid, jobId, jobType, jobState, fileUrl, ...). Deprecated: this option will be removed in a later release. Use --json
-  -v, --verbosity...  The verbosity of the program. The default is to print high-level information. Cannot be used with --json or --legacy-json
-      --no-colour     Disables colouring of output. Useful when you have a non-black terminal background for example
-  -h, --help          Print help
-  -V, --version       Print version
-```
+Run `giant-squid wait --help` for every option.
 
 Example:
 
@@ -1037,28 +732,19 @@ $ giant-squid wait 31 32
   cancelled. Waiting longer would not change that.
 - It waits for as long as it takes. Press Ctrl-C to stop.
 - Every submit command has the same wait as the `-w`, `--wait` option.
-- Log messages go to standard error. With `--json`, no log messages are printed, and an error is one line of
-  JSON: see [JSON output and errors](#json-output-and-errors).
+- For `--json`, see [JSON output and errors](#json-output-and-errors).
 
 ### Cancel MWA ASVO jobs
 
-Use this command to ask the MWA ASVO to cancel jobs.
+Use this command (short name `c`) to ask the MWA ASVO to cancel jobs.
 
-```text
-Cancel MWA ASVO jobs
+| Option | Meaning |
+|---|---|
+| `-n`, `--dry-run` | Do not cancel. Print what would be cancelled |
+| `-j`, `--json` | Print the MWA ASVO's reply to each request as one line of JSON |
+| `-v`, `--verbosity` | Show more log messages. Cannot be used with `--json` |
 
-Usage: giant-squid cancel [OPTIONS] [JOB_ID]...
-
-Arguments:
-  [JOB_ID]...  The Job IDs to be cancelled. Files containing Job IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json`. Every job in it is cancelled, so filter the list first, for example with --job-states, and check it with --dry-run. It can be used with other IDs
-
-Options:
-  -n, --dry-run       Don't actually cancel; print information on what would've happened instead
-  -j, --json          Print the MWA ASVO's reply to each cancel request as one line of JSON on stdout, and each error as an MWA ASVO ErrorResponse with the job_id. No logs are printed
-  -v, --verbosity...  The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -h, --help          Print help
-  -V, --version       Print version
-```
+Run `giant-squid cancel --help` for every option.
 
 Example:
 
@@ -1069,10 +755,8 @@ $ giant-squid cancel 31 32
 13:20:41 [INFO] Cancel requests: 2 sent, 0 failed.
 ```
 
-With `-j`, `--json`, `cancel` prints the MWA ASVO's reply to each request as one line of JSON on standard
-output (`{"status":"success","job_id":31,"message":"Job cancelled"}`), as the submit commands do. A request
-that the MWA ASVO refuses with an error prints an error line with the `job_id`: see
-[JSON output and errors](#json-output-and-errors).
+With `-j`, `--json`, each reply is one line of JSON (`{"status":"success","job_id":31,"message":"Job cancelled"}`):
+see [JSON output and errors](#json-output-and-errors).
 
 The log says "Cancel request" and not "Cancelled" because a reply from the MWA ASVO does not prove that the job
 was cancelled:
@@ -1090,40 +774,21 @@ cancel, use [`list`](#list-mwa-asvo-jobs).
 
 ### Download MWA ASVO jobs
 
-Once an MWA ASVO job is `completed`, its data is ready to be downloaded. If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do: `download` of a DUG job fails with `FILES_NOT_REACHABLE` (see below for Scratch).
+Once an MWA ASVO job is `completed`, its data is ready to be downloaded with `download` (short name `d`). If you set `--delivery=scratch` or `--delivery=dug` the data will be waiting for you on those filesystems and there is no 'downloading' to do: `download` of a DUG job fails with `FILES_NOT_REACHABLE` (see below for Scratch).
 
-```text
-Download an MWA ASVO job
+| Option | Meaning |
+|---|---|
+| `-d`, `--download-dir` | The directory to download to (default `.`). Each job goes into a directory of its own below it: see [A directory for each job](#a-directory-for-each-job) |
+| `--no-job-subdir` | Download into the download directory itself: see [A directory for each job](#a-directory-for-each-job) |
+| `-k`, `--keep-tar` | Acacia jobs only: keep the tar file, and do not untar it (alias `--keep-zip`) |
+| `-r`, `--no-resume` | Do not resume a partial download: see [Resuming Interrupted Downloads](#resuming-interrupted-downloads) |
+| `-c`, `--concurrent-downloads` | Download up to this number of jobs at the same time (default 4; 0 is the number of CPU cores): see [Download performance: Concurrent Downloads](#download-performance-concurrent-downloads) |
+| `--skip-hash` | Do not check the SHA-1 of the download: see [Resuming Interrupted Downloads](#resuming-interrupted-downloads) |
+| `-n`, `--dry-run` | Do not download. Print what would be downloaded |
+| `-j`, `--json` | Print the result of each download as one line of JSON |
+| `-v`, `--verbosity` | Show more log messages. Cannot be used with `--json` |
 
-Usage: giant-squid download [OPTIONS] [JOB_ID_OR_OBS_ID]...
-
-Arguments:
-  [JOB_ID_OR_OBS_ID]...  The Job IDs or Obs IDs to be downloaded. Files containing Job IDs or Obs IDs are also accepted. `-` reads standard input: the output of `giant-squid list --ids` or `giant-squid list --json` (every job in it is downloaded, so filter the list first, for example with --job-states), or IDs that spaces or lines separate. It can be used with other IDs
-
-Options:
-  -d, --download-dir <DOWNLOAD_DIR>
-          Which dir should downloads be written to. Each job goes into a directory of its own below it, named for the Job ID (for example `-d /data` gives `/data/12345`), unless you use --no-job-subdir [default: .]
-      --no-job-subdir
-          Download the files of every job into the download directory itself, as giant-squid did before 3.0.0, and not into a directory for each job. The files of two jobs of the same observation then share a directory. This has no effect on a Scratch job, which is moved into the download directory in its own folder
-  -k, --keep-tar
-          Acacia delivery jobs only: Don't untar the contents of your download [alias: --keep-zip]
-  -r, --no-resume
-          Do not resume a partial download: download it again from the start. A complete keep-tar file that matches the MWA ASVO hash is still skipped. Without this option, a rerun after an interruption carries on where it stopped, with or without --keep-tar
-  -c, --concurrent-downloads <CONCURRENT_DOWNLOADS>
-          Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores your machine has [default: 4]
-      --skip-hash
-          Don't verify the downloaded contents against the upstream hash. The hash is still checked when a download is resumed (after a failed attempt or from an earlier run), and when a complete --keep-tar file is already on disk
-  -n, --dry-run
-          Don't actually download; print information on what would've happened instead
-  -v, --verbosity...
-          The verbosity of the program. The default is to print high-level information. Cannot be used with --json
-  -j, --json
-          Print the result of each download as one line of JSON on stdout, in the order of the Job IDs and then the Obs IDs: status, job_id, obs_id and message for a success, status "failed" and an MWA ASVO ErrorResponse with the job_id or obs_id for a failure. No logs or progress bars are printed
-  -h, --help
-          Print help
-  -V, --version
-          Print version
-```
+Run `giant-squid download --help` for every option.
 
 To download Job ID 12345 to your current directory '.':
 
@@ -1143,17 +808,14 @@ number specified; 10-digit numbers are treated as Obs IDs. A 10-digit number bel
 
 Text files containing Job IDs or Obs IDs may be used too.
 
-With `-j`, `--json`, `download` prints the result of each download as one line of JSON on standard output,
-in the order of the Job IDs and then the Obs IDs, failures too:
+With `-j`, `--json`, `download` prints one line of JSON for each download, in the order of the Job IDs and then the
+Obs IDs (see [JSON output and errors](#json-output-and-errors)):
 
 ```bash
 $ giant-squid download --json 12345 1090008640
 {"status":"success","job_id":12345,"obs_id":1065880128,"message":"Downloaded 1.23 GiB to ./12345"}
 {"status":"failed","error_code":"JOB_NOT_READY","message":"No job for Obs ID 1090008640 is ready for download.","obs_id":1090008640}
 ```
-
-A failed download is an error line, as described in [JSON output and errors](#json-output-and-errors), with the
-`job_id` or `obs_id` that was asked for. The exit code is not zero when a download failed.
 
 #### Expired download links
 
@@ -1192,8 +854,7 @@ giant-squid download --download-dir /tmp 1065880128
 
 `download` puts the files of each job into a directory of its own below the download directory, named for the
 Job ID. The command above writes the files of the one job for Obs ID 1065880128 to `/tmp/12345`, if that is its Job
-ID, and `giant-squid download --download-dir /data 12345 12346` writes to `/data/12345` and `/data/12346`. The
-directory is made if it is not there. This way the files of two jobs of the same observation (for example, two
+ID. The directory is made if it is not there. This way the files of two jobs of the same observation (for example, two
 conversion jobs with different options) do not meet in one directory, where the second download would find the
 files of the first.
 
@@ -1203,9 +864,8 @@ To download into the download directory itself, as giant-squid before 3.0.0 did,
 giant-squid download --no-job-subdir --download-dir /tmp 12345
 ```
 
-- A Scratch job is not put in a second directory. When this host can reach it, `download` moves it into the
-  download directory in the folder that the MWA ASVO made for it (`/scratch/mwaops/asvo/12345` is moved to
-  `<download directory>/12345`).
+- A Scratch job is not put in a second directory: its folder (`/scratch/mwaops/asvo/12345`) is moved to
+  `<download directory>/12345`.
 - A download resumes from the files that are in the directory of its job. A download that an earlier version of
   giant-squid, or `--no-job-subdir`, left in the download directory itself is not found in `<download directory>/12345`:
   to carry on with it, use `--no-job-subdir` again.
@@ -1217,22 +877,12 @@ giant-squid download --no-job-subdir --download-dir /tmp 12345
 
 By default, `giant-squid` will perform stream untaring. Disable this with `--keep-tar`.
 
-The MWA ASVO provides a SHA-1 of its downloads. `giant-squid` will verify the integrity
-of your download by default. Give a `--skip-hash` to the `download` command to skip.
-`--skip-hash` skips the check only for a download that runs from start to end in one
-attempt. It does not skip the check in two cases, because then the files on disk must be
-checked:
+The MWA ASVO provides a SHA-1 of its downloads, and `giant-squid` checks it by default. `--skip-hash` skips the check,
+except in the cases in [Resuming Interrupted Downloads](#resuming-interrupted-downloads).
 
-- The download is resumed, with or without `--keep-tar`: after a failed attempt in the
-  same run, or from the files of an earlier run.
-- With `--keep-tar`, the complete tar file is already on disk. If it matches the SHA-1,
-  `giant-squid` does not download it again.
-
-Jobs which were submitted with the /scratch data delivery option behave differently
-than jobs submitted with the other data delivery options. When attempting to download
-a /scratch job, if the path of the job (eg /scratch/mwaops/asvo/12345) is reachable from
-the current host, it will be moved into the download directory (`-d`, `--download-dir`). Otherwise, the
-download of that job fails with `FILES_NOT_REACHABLE`, and the exit code is not zero.
+A /scratch job is moved into the download directory if this host can reach its path (see
+[A directory for each job](#a-directory-for-each-job)). Otherwise, the download of that job fails with
+`FILES_NOT_REACHABLE`, and the exit code is not zero.
 
 #### Download performance: Concurrent Downloads
 
@@ -1280,8 +930,11 @@ are already on disk, in the directory of the job (see
   is complete. If you change a complete file after a failed run, `giant-squid`
   does not use the resume file, and reads the files on disk again.
 
-The SHA-1 always covers the whole archive. If a download is resumed,
-`giant-squid` checks the SHA-1 even with `--skip-hash`. If the check fails,
+The SHA-1 always covers the whole archive. `--skip-hash` skips the check only
+for a download that runs from start to end in one attempt. The files on disk
+are always checked: when a download is resumed (after a failed attempt in the
+same run, or from the files of an earlier run), and when the complete
+`--keep-tar` file is already on disk. If the check of a resumed download fails,
 `giant-squid` downloads the whole archive again.
 
 Use `--no-resume` to download again from the start. A complete `--keep-tar`
@@ -1333,38 +986,28 @@ giant-squid list --job-states queued --ids | giant-squid cancel -
 giant-squid list --job-states queued,staging,preprocessing --json | giant-squid wait -
 ```
 
-What the commands read:
-
-- `list --ids`: one Job ID on each line.
-- `list --json` (also `--legacy-json`, and the output of `wait --json`): the Job IDs, which are the keys. The Obs IDs in
-  it are not used, because an Obs ID can have more than one job.
-- IDs that spaces or lines separate, as in a file. A number that is a valid Obs ID is an Obs ID, and any other number is
-  a Job ID. `cancel` and `wait` refuse an Obs ID.
-
-The table that `list` prints by default cannot be read: the error says to use `--ids` or `--json`.
+The commands read the output of `list --ids` (one Job ID on each line), of `list --json`, `list --legacy-json` or
+`wait --json` (the Job IDs, which are the keys; the Obs IDs are not used, because an Obs ID can have more than one
+job), or IDs that spaces or lines separate, as in a file. The table that `list` prints by default cannot be read: the
+error says to use `--ids` or `--json`.
 
 Things to know:
 
-- **Nothing is filtered.** The commands act on every ID that they read. `download` fails for a job that is not ready,
-  and `wait` fails for a job that has an error, was cancelled, or is not in the list, as they do for an ID that you
-  type. Filter the list first, with `--job-states`, `--job-types`, `--days`
-  and the other options of `list`. `cancel` logs `Read N Job IDs from standard input.` before it sends the
-  requests, and `--dry-run` shows what it would cancel.
-- **A repeated ID is used once.** An ID that you give more than once (in the arguments, in a file, or on standard
-  input) is used once, at its first place.
+- **Nothing is filtered.** The commands act on every ID that they read, as for an ID that you type. Filter the list
+  first, with `--job-states`, `--job-types`, `--days` and the other options of `list`. `cancel` logs
+  `Read N Job IDs from standard input.` before it sends the requests.
+- **A repeated ID is used once,** at its first place (in the arguments, in a file, or on standard input).
 - **An empty list is not an error.** `list --ids` prints nothing for a list with no job, and `list --json` prints
-  `{}`. In both cases the next command ends with exit code 0 and says that there is nothing to do, so a script (cron,
-  for example) does not fail when no job is in the state that it asks for.
-- **Only a `-` reads standard input.** A command that is given no ID and no `-` fails, also when a pipe is open on its
-  input (the error says to give `-`). `giant-squid` does not guess: a program that runs it (cron, CI, `ssh`, a
-  wrapper) can leave a pipe open on its input, and a command that read it unasked could wait for ever, or cancel jobs
-  from input that was not meant for it.
-- **A failed `list`.** The one line of JSON that `list --json` prints for an error is not a job list: the next command
-  refuses it and prints its message. But `list --ids` prints nothing for an error, as it does for an empty list, so
-  the next command does nothing and ends with exit code 0. A shell does not stop a pipe when its first command fails,
-  unless you use `set -o pipefail`. Use it in a script.
-- **The job window.** `download` and `wait` look for a job in your jobs of the past 30 days, which is the default of
-  `list`. A job that `list --date-from` shows from an earlier date is not found.
+  `{}`. The next command says that there is nothing to do and ends with exit code 0, so a script (cron, for example)
+  does not fail when no job is in the state that it asks for.
+- **Only a `-` reads standard input.** A command with no ID and no `-` fails (the error says to give `-`), also when a
+  pipe is open on its input. A program that runs `giant-squid` (cron, CI, `ssh`, a wrapper) can leave a pipe open, and
+  a command that read it unasked could wait for ever, or cancel jobs from input that was not meant for it.
+- **A failed `list`.** The next command refuses the error line of `list --json`. But `list --ids` prints nothing for an
+  error, so the next command does nothing and ends with exit code 0. Use `set -o pipefail` in a script.
+- **The job window.** `download` of an Obs ID, and `wait`, look for a job in your jobs of the past 30 days, which is
+  the default of `list`. A job that `list --date-from` shows from an earlier date is not found by its Obs ID. `download`
+  of a Job ID finds a job of any age.
 
 ## Installation
 
@@ -1463,7 +1106,6 @@ use mwa_giant_squid::{
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // The library reads no environment variables: the caller supplies everything.
     let mut config = MwaAsvoClientConfig::new(DEFAULT_MWA_ASVO_HOST, "my-api-key");
     config.token_cache_path = Some(default_token_cache_path(Path::new("/home/me")));
     let client = MwaAsvoClient::new(config)?;
@@ -1548,8 +1190,8 @@ use std::path::Path;
 use mwa_giant_squid::{MwaAsvoClient, CsvDefaults, CsvSubmitError};
 
 fn submit(client: &MwaAsvoClient) -> Result<(), CsvSubmitError> {
-    // `CsvDefaults::from_env()` gives the defaults of the `giant-squid` command (the library itself reads no
-    // environment variable). `CsvDefaults::default()` leaves the defaults of the MWA ASVO.
+    // `CsvDefaults::from_env()` gives the defaults of the `giant-squid` command.
+    // `CsvDefaults::default()` leaves the defaults of the MWA ASVO.
     let replies = client.submit_csv_file(Path::new("jobs.csv"), &CsvDefaults::default())?;
     for reply in replies {
         println!("Submitted Job ID {}", reply.job_id);
@@ -1565,9 +1207,8 @@ replies of the jobs that were submitted and the jobs that were not.
 
 ## Environment Variables
 
-These variables are read by the `giant-squid` command. The Rust library
-reads no environment variables (see
-[Using giant-squid as a Rust library](#using-giant-squid-as-a-rust-library)).
+These variables are read by the `giant-squid` command, not by the
+[Rust library](#using-giant-squid-as-a-rust-library).
 
 | Variable | Description | Default |
 |---|---|---|
@@ -1575,8 +1216,8 @@ reads no environment variables (see
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_MWA_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
 | `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, the path that mwa-cli also uses (giant-squid does not use a session that mwa-cli wrote). Without `HOME`, the session is not cached. | — |
-| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
-| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
+| `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
 | `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds, from the first failure. An attempt that downloads some bytes before it fails starts this time again. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |

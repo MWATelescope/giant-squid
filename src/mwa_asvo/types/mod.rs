@@ -86,8 +86,6 @@ impl JobFile {
 
 /// An MWA ASVO Job ID: a `NonZeroU64`, as the OpenAPI schema's `job_id` is
 /// (in `JobSubmittedResponse`, `JobDetailResponse` and the other responses).
-/// A type alias, not a newtype, because a newtype would add complexity for no
-/// gain.
 pub type MwaAsvoJobId = std::num::NonZeroU64;
 
 /// An MWA ASVO job: the schema's `JobDetailResponse`, with the job's Obs ID
@@ -217,8 +215,6 @@ impl TryFrom<JobDetailResponse> for MwaAsvoJob {
 }
 
 /// A vector of MWA ASVO jobs.
-///
-/// By using a custom type, custom methods can be easily defined and used.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MwaAsvoJobVec(pub Vec<MwaAsvoJob>);
 

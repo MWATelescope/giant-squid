@@ -179,14 +179,7 @@ or `iquv`, default `i`) is new. In a `submit-csv` imaging line, give
 **`submit-download` replaces `submit-vis`, `submit-meta`, `submit-volt` and
 `submit-bf`.** The MWA ASVO API has one endpoint for every download job, and
 it finds the kind of data from the observation, so one command submits them
-all:
-
-| Job | 2.x | 3.0.0 |
-|---|---|---|
-| Raw visibilities | `submit-vis` | `submit-download` |
-| Metadata | `submit-meta` | `submit-download --only-metadata` |
-| Voltages | `submit-volt --offset N --duration N` | `submit-download --offset N --duration N` |
-| Beamformer files | `submit-bf` | `submit-download` |
+all: see the table in [Deprecated submit commands](#deprecated-submit-commands).
 
 The voltage options (`--offset`, `--duration`, `--from-channel`,
 `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for
@@ -483,25 +476,6 @@ command where it is used for these two options:
 | `submit-volt -t N` | `submit-download --to-channel N` |
 | `list -n`, `wait -n` | `list --no-colour`, `wait --no-colour` |
 
-`-f` is now only `--delivery-format` (which the deprecated `submit-volt` does not have), and
-`-n` is now only `--dry-run`. The
+`-f` is now only `--delivery-format`, and `-n` is now only `--dry-run`. The
 other short flags did not change. `-d`, `-o` and `-r` still mean more than
 one thing, as in 2.x, so use the long names in scripts.
-
-## Commands at a glance
-
-| Command | Alias | Change |
-|---|---|---|
-| `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused; `-n` removed |
-| `download` | `d` | A directory for each job (`--no-job-subdir` for the 2.x layout); `--json` added; stream untar resumes; see [Downloading](#downloading-download) |
-| `submit-download` | `sd` | New: every download job (replaces `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf`) |
-| `submit-preprocess` | `sp` | New: a conversion job (replaces `submit-conv`); **new defaults** |
-| `submit-image` | `si` | `-p` replaced by options; Obs IDs only; `-o`/`--output-mode` required; **new defaults** |
-| `submit-image-from-job` | `sifj` | New: images a completed conversion job; `-o`/`--output-mode` required |
-| `submit-vis` | `sv` | **Deprecated**: use `submit-download`; `--json` added |
-| `submit-meta` | `sm` | **Deprecated**: use `submit-download --only-metadata`; `--json` added |
-| `submit-conv` | `sc` | **Deprecated**: use `submit-preprocess`; `-p` replaced by options; **new defaults** |
-| `submit-volt` | `st` | **Deprecated**: use `submit-download`; `--json` added; `--offset` range checked; `-f`, `-t` and the delivery options removed |
-| `submit-bf` | `sb` | **Deprecated**: use `submit-download`; `--json` added |
-| `wait` | `w` | New JSON keys (`--legacy-json` for the old ones); Obs IDs refused; `-n` removed |
-| `cancel` | `c` | New log lines; Obs IDs refused; exit code 1 when a request is refused |

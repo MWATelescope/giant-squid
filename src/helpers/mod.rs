@@ -52,11 +52,9 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
         source,
     };
 
-    // Open the file.
     let mut reader = std::io::BufReader::new(std::fs::File::open(&f).map_err(io_error)?);
     let mut line = String::new();
     let mut first_line = true;
-    // For each line...
     while reader.read_line(&mut line).map_err(io_error)? > 0 {
         // A file saved by some editors (Notepad, PowerShell) starts with a
         // byte order mark, which is not part of the first ID.
@@ -66,9 +64,6 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
         } else {
             &line
         };
-        // ... split the whitespace and try to parse
-        // obsids. Fail if whitespace-delimited text
-        // can't be parsed into an int.
         for text in ids_text.split_whitespace() {
             match parse_job_id_or_obs_id(text) {
                 Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
@@ -97,9 +92,7 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
 pub fn parse_many_job_ids_or_obs_ids(
     strings: &[String],
 ) -> Result<(Vec<MwaAsvoJobId>, Vec<ObsId>), ParseError> {
-    // Attempt to parse all arguments as ints. If they aren't 10
-    // digits long, assume they are MWA ASVO job IDs. If any argument is
-    // not an int, assume it is a file. Exit on any error.
+    // An argument that is not a number is a file of IDs.
     let mut job_ids = vec![];
     let mut obs_ids = vec![];
     for s in strings {
