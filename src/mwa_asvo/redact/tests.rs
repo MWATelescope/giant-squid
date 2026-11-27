@@ -164,3 +164,14 @@ fn the_urls_in_a_body_that_is_not_json_are_redacted() {
     assert!(!redacted.contains(SIGNATURE), "redacted: {redacted}");
     assert!(redacted.starts_with("<html>Forbidden: https://"));
 }
+
+/// A scheme in capitals is a URL too.
+#[test]
+fn a_url_with_a_scheme_in_capitals_is_redacted() {
+    let url = signed_url().replacen("https://", "HTTPS://", 1);
+
+    let redacted = redact_urls_in_text(&format!("see {url} here"));
+
+    assert!(!redacted.contains(SIGNATURE), "redacted: {redacted}");
+    assert!(redacted.ends_with(" here"), "redacted: {redacted}");
+}

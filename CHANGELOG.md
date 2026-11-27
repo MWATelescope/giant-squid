@@ -408,7 +408,15 @@ before you upgrade scripts.**
   redacted, and so is the URL of a file of a job (a signed Acacia URL): giant-squid shows the host, the path, the
   names of the query parameters and the first four characters of a long value. An error of a file download does not
   show the signed URL either. The library no longer asks `reqwest` for a log of every byte on the wire, which had the
-  cookies, the API key and the signed URLs in it.
+  cookies, the API key and the signed URLs in it. A URL whose scheme is in capitals (`HTTPS://`) is redacted too. An
+  error reply that is not an MWA ASVO `ErrorResponse` is kept in the error (`BadStatus`, `AuthenticationFailed`,
+  `HttpStatus`) with its URLs redacted, and only its first 2000 characters.
+* The text of a job (`Display` of `MwaAsvoJob`) gives the number of its files, not their signed URLs, and the Python
+  `repr` of a `JobFile` redacts its URL. `Debug` of `MwaAsvoClientConfig`, `MwaAsvoClient` and `StoredTokens` does not
+  show the API key or the tokens.
+* The login, refresh and API requests follow a redirect only to the same host and port, so that a 307 or 308 redirect
+  does not send the API key to another host. The download of a file still follows every redirect.
+* A client for an `http://` host warns that the API key and the session are sent in clear text.
 
 ### Deprecated in 3.0.0
 

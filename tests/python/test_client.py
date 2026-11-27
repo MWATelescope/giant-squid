@@ -670,3 +670,15 @@ def test_wait_for_jobs_raises_for_a_failed_job(client: gs.MwaAsvoClient, serve_j
 
     with pytest.raises(gs.MwaAsvoErrorJobFailed):
         client.wait_for_jobs([JOB_ID_FAILED], initial_delay=0, poll_interval=0)
+
+
+def test_the_repr_of_a_job_file_has_no_signed_url(client: gs.MwaAsvoClient, serve_jobs: Callable[..., None]) -> None:
+    """A signed URL works as a password, so the repr of a file redacts it."""
+    signature = "Signature=aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA"
+    product = {"files": [{"type": "acacia", "url": f"https://example.org/a.tar?{signature}", "size": 1}]}
+    serve_jobs([job_detail(JOB_ID_READY, "completed", product=product)])
+
+    job = client.get_job(JOB_ID_READY)
+
+    assert job.product is not None
+    assert signature not in repr(job.product.files[0])

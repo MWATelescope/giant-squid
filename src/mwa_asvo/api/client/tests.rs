@@ -2349,3 +2349,74 @@ fn a_listed_job_with_old_style_params_is_listed_without_params() {
     assert_eq!(jobs.0.len(), 1);
     assert_eq!(jobs.0[0].job_params, Default::default());
 }
+
+/// The `Debug` text of a config, and of a client, does not have the API key:
+/// it works as a password.
+#[test]
+fn the_debug_text_of_a_config_and_a_client_has_no_api_key() {
+    let env = TestEnv::with_session();
+    let config = client_config(&env);
+    let api_key = config.api_key.clone();
+    assert!(!api_key.is_empty());
+
+    let config_text = format!("{config:?}");
+    let client = MwaAsvoClient::new(config).expect("client should be created");
+    let client_text = format!("{client:?}");
+
+    assert!(!config_text.contains(&api_key), "{config_text}");
+    assert!(!client_text.contains(&api_key), "{client_text}");
+}
+
+/// A reply body that is not an `ErrorResponse` is kept in the error with its
+/// URLs redacted, and cut to a length: a signed URL works as a password, and
+/// a proxy can send a whole page.
+#[test]
+fn a_bad_status_body_has_its_urls_redacted_and_is_cut() {
+    let signature = "Signature=aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA";
+    let body = format!(
+        "Bad gateway for HTTPS://acacia.example.org/a.tar?{signature}\n{}",
+        "x".repeat(10_000)
+    );
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/list");
+        then.status(502).body(&body);
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("the job list should fail");
+
+    let MwaAsvoApiError::BadStatus { message, .. } = &err else {
+        panic!("expected BadStatus, got {err:?}");
+    };
+    assert!(!message.contains(signature), "{message}");
+    assert!(message.starts_with("Bad gateway for "), "{message}");
+    assert!(message.len() < body.len(), "the message should be cut");
+}
+
+/// A login that the server redirects to another host is not sent there: a
+/// 307 redirect would send the body, with the API key, again.
+#[test]
+fn a_login_is_not_redirected_to_another_host() {
+    let env = TestEnv::without_session();
+    let other = httpmock::MockServer::start();
+    let elsewhere = other.mock(|when, then| {
+        when.any_request();
+        then.status(200);
+    });
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/auth/api_login");
+        then.status(307)
+            .header("location", other.url("/api/v2/auth/api_login"));
+    });
+
+    MwaAsvoClient::new(client_config(&env)).expect_err("the login should fail");
+
+    assert_eq!(
+        elsewhere.calls(),
+        0,
+        "nothing should be sent to the other host"
+    );
+}

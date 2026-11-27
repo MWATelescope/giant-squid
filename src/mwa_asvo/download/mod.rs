@@ -14,7 +14,7 @@ use crate::helpers::{check_sha1_hash, hash_reader};
 use crate::obs_id::ObsId;
 
 use super::api::openapi::DeliveryDestination;
-use super::redact::{redact_url, redact_urls_in_text};
+use super::redact::{error_body_text, redact_url};
 use super::retry::{sleep_unless_stopped, Backoff};
 use super::types::signed_url_expiry;
 use super::{JobFile, JobState, MwaAsvoError, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec};
@@ -46,6 +46,9 @@ pub use many::{
 };
 mod no_follow;
 use no_follow::{open_for_writing, refused_a_symlink, BelowError, DownloadRoot, WriteMode};
+
+/// The most bytes of an error reply of a file server that are read.
+const MAX_ERROR_BODY_BYTES: u64 = 64 * 1024;
 
 /// The number of bytes in one MiB.
 pub const BYTES_PER_MIB: usize = 1024 * 1024;
@@ -1992,7 +1995,11 @@ fn send_checked(
     let response = req.send().map_err(reqwest::Error::without_url)?;
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().unwrap_or_default();
+        // Only the start of the reply: it is for the message, and a server
+        // can send a large one.
+        let mut bytes = Vec::new();
+        let _ = response.take(MAX_ERROR_BODY_BYTES).read_to_end(&mut bytes);
+        let body = String::from_utf8_lossy(&bytes);
         // The file server answers a URL that has expired (or whose
         // signature is not valid) with 403 and an `AccessDenied` error.
         if status == reqwest::StatusCode::FORBIDDEN && body.contains(ACCESS_DENIED_CODE) {
@@ -2004,7 +2011,7 @@ fn send_checked(
         return Err(MwaAsvoError::HttpStatus {
             job_id,
             status: status.as_u16(),
-            message: redact_urls_in_text(&body),
+            message: error_body_text(&body),
         });
     }
     Ok(response)

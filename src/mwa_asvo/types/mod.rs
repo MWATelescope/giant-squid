@@ -324,12 +324,13 @@ impl std::fmt::Display for MwaAsvoJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Job ID: {job_id}, Obs ID: {obs_id}, type: {type}, state: {state}, files: {files:?}",
+            "Job ID: {job_id}, Obs ID: {obs_id}, type: {type}, state: {state}, files: {files}",
             obs_id=self.obs_id,
             job_id=self.job_id(),
             type=self.job_type,
             state=self.job_state,
-            files=self.product.as_ref().map(|p| &p.files),
+            // The count only: a file's signed URL works as a password.
+            files=self.product.as_ref().map_or(0, |p| p.files.len()),
         )
     }
 }

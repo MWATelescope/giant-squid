@@ -26,7 +26,7 @@ use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 
 use crate::mwa_asvo::download::{download_by_job_id, download_by_obs_id};
-use crate::mwa_asvo::redact::{redact_body, redact_parsed_url};
+use crate::mwa_asvo::redact::{error_body_text, redact_body, redact_parsed_url, REDACTED};
 use crate::mwa_asvo::retry::{sleep_unless_stopped, Backoff};
 use crate::mwa_asvo::token_store::{self, StoredTokens};
 use crate::mwa_asvo::{DownloadOptions, MwaAsvoError, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec};
@@ -91,7 +91,7 @@ const NO_JOBS_STATUS: reqwest::StatusCode = reqwest::StatusCode::NOT_FOUND;
 ///
 /// The library reads no environment variables. A caller (such as the
 /// giant-squid CLI) finds these values and builds the config.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MwaAsvoClientConfig {
     /// The MWA ASVO base URL, for example [`DEFAULT_MWA_ASVO_HOST`]. An
     /// `http://` host is permitted (a local mock server or a plain-HTTP
@@ -110,6 +110,18 @@ pub struct MwaAsvoClientConfig {
     /// [`default_token_cache_path`](crate::default_token_cache_path) for
     /// the same place that the `giant-squid` command uses.
     pub token_cache_path: Option<PathBuf>,
+}
+
+/// The API key is not shown: it works as a password.
+impl std::fmt::Debug for MwaAsvoClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MwaAsvoClientConfig")
+            .field("host", &self.host)
+            .field("api_key", &REDACTED)
+            .field("api_timeout", &self.api_timeout)
+            .field("token_cache_path", &self.token_cache_path)
+            .finish()
+    }
 }
 
 impl MwaAsvoClientConfig {
@@ -132,13 +144,11 @@ impl MwaAsvoClientConfig {
 /// If the server rejects that token, [`MwaAsvoClient::reauthenticate`] compares
 /// that generation with the current one. If they differ, another thread
 /// has already logged in again, so this thread reuses the new client.
-#[derive(Debug)]
 struct Session {
     client: Client,
     generation: u64,
 }
 
-#[derive(Debug)]
 pub struct MwaAsvoClient {
     /// The `reqwest` [Client] used to interface with the MWA ASVO v2 API.
     ///
@@ -162,6 +172,16 @@ pub struct MwaAsvoClient {
     /// The HTTP client for the files of a job. It sends no access token:
     /// the files are on another host (Acacia), and their URLs are signed.
     download_client: Client,
+}
+
+/// Only the config: the HTTP clients have the session token in their
+/// headers.
+impl std::fmt::Debug for MwaAsvoClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MwaAsvoClient")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 /// A minimal view of an HTTP response - the pieces callers need once the
@@ -265,6 +285,29 @@ fn decode_jwt_exp(token: &str) -> Result<Timestamp, MwaAsvoApiError> {
     })
 }
 
+/// The most redirects that an API request follows: the default of `reqwest`.
+const MAX_API_REDIRECTS: usize = 10;
+
+/// The redirects of an API request: only to the same host and port, so that
+/// the body of a request (the API key of a login) is not sent to another
+/// host by a 307 or 308 redirect.
+fn same_host_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let first = attempt.previous().first();
+        let same_host = first.is_some_and(|first| {
+            first.host_str() == attempt.url().host_str()
+                && first.port_or_known_default() == attempt.url().port_or_known_default()
+        });
+        if !same_host {
+            attempt.stop()
+        } else if attempt.previous().len() > MAX_API_REDIRECTS {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 /// Whether HTTP requests must use TLS: always, except for an explicit
 /// `http://` host (a local mock server, or a plain-HTTP dev instance).
 fn require_tls(host: &str) -> bool {
@@ -307,6 +350,9 @@ impl MwaAsvoClient {
         } else {
             warn!("Connecting to MWA ASVO non-default host: {host}...");
         }
+        if !require_tls(host) {
+            warn!("{host} does not use TLS: the API key and the session are sent in clear text.");
+        }
 
         debug!("User Agent string: {APP_USER_AGENT}");
 
@@ -320,7 +366,8 @@ impl MwaAsvoClient {
         // token, `send_authed` re-logs-in and swaps in a new client, which
         // is why we hold on to the config below.
         let client = Self::build_authed_client(&config, &tokens.access_token)?;
-        let download_client = Self::build_plain_client(&config)?;
+        let download_client =
+            Self::build_plain_client(&config, reqwest::redirect::Policy::default())?;
 
         Ok(MwaAsvoClient {
             session: Mutex::new(Session {
@@ -360,18 +407,25 @@ impl MwaAsvoClient {
         Ok(ClientBuilder::new()
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
+            .redirect(same_host_redirects())
             .default_headers(headers)
             .timeout(config.api_timeout)
             .build()?)
     }
 
     /// Build a [Client] that sends no access token: for the login and
-    /// refresh calls, and for the files of a job. The access token must
+    /// refresh calls (with [`same_host_redirects`]: their body has the API
+    /// key or the refresh token), and for the files of a job (with
+    /// `redirects`, as the file host may redirect). The access token must
     /// not go to the host of a file (Acacia).
-    fn build_plain_client(config: &MwaAsvoClientConfig) -> Result<Client, MwaAsvoApiError> {
+    fn build_plain_client(
+        config: &MwaAsvoClientConfig,
+        redirects: reqwest::redirect::Policy,
+    ) -> Result<Client, MwaAsvoApiError> {
         Ok(ClientBuilder::new()
             .user_agent(APP_USER_AGENT)
             .https_only(require_tls(&config.host))
+            .redirect(redirects)
             .timeout(config.api_timeout)
             .build()?)
     }
@@ -456,7 +510,7 @@ impl MwaAsvoClient {
     fn get_valid_tokens(config: &MwaAsvoClientConfig) -> Result<StoredTokens, MwaAsvoApiError> {
         // A short-lived client, used only to perform the login/refresh call
         // itself (it doesn't need the auth headers).
-        let auth_client = Self::build_plain_client(config)?;
+        let auth_client = Self::build_plain_client(config, same_host_redirects())?;
 
         let cached = config
             .token_cache_path
@@ -607,7 +661,7 @@ impl MwaAsvoClient {
         }
 
         debug!("Re-authenticating with MWA ASVO after a rejected access token");
-        let auth_client = Self::build_plain_client(&self.config)?;
+        let auth_client = Self::build_plain_client(&self.config, same_host_redirects())?;
         let fresh = Self::login(&auth_client, &self.config)?;
         Self::cache_tokens(&self.config, &fresh);
         let new_client = Self::build_authed_client(&self.config, &fresh.access_token)?;
@@ -716,18 +770,19 @@ impl MwaAsvoClient {
             Ok(err) => MwaAsvoApiError::api_error(status.as_u16(), err),
             Err(_) => MwaAsvoApiError::BadStatus {
                 status: status.as_u16(),
-                message: body,
+                message: error_body_text(&body),
             },
         }
     }
 
     /// Map the body of a failed login or refresh to an
     /// [`MwaAsvoApiError::AuthenticationFailed`]: the fields of a structured
-    /// `ErrorResponse`, verbatim, or else the body as the message.
+    /// `ErrorResponse`, verbatim, or else the body as the message (see
+    /// [`error_body_text`]).
     fn auth_error_from_body(body: String) -> MwaAsvoApiError {
         match serde_json::from_str::<ErrorResponse>(&body) {
             Ok(err) => MwaAsvoApiError::authentication_failed_with(err),
-            Err(_) => MwaAsvoApiError::authentication_failed(body),
+            Err(_) => MwaAsvoApiError::authentication_failed(error_body_text(&body)),
         }
     }
 

@@ -22,6 +22,7 @@ use crate::mwa_asvo::api::openapi::{
     SortBy, Status,
 };
 use crate::mwa_asvo::api::schema_enums::for_each_schema_enum;
+use crate::mwa_asvo::redact::redact_url;
 use crate::mwa_asvo::{
     DownloadProgress, JobFile, JobProduct, JobState, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec,
 };
@@ -198,6 +199,8 @@ impl PyJobFile {
             path,
             ..
         } = &self.0;
+        // A signed URL works as a password, so it is redacted.
+        let url = url.as_deref().map(redact_url);
         format!("JobFile(type={type_}, size={size}, url={url:?}, path={path:?})")
     }
 }

@@ -21,7 +21,7 @@ use reqwest::Url;
 mod tests;
 
 /// The text that replaces a query value that the log must not show.
-const REDACTED: &str = "<redacted>";
+pub(crate) const REDACTED: &str = "<redacted>";
 
 /// The text that replaces a URL that cannot be parsed, and so cannot be
 /// redacted in parts.
@@ -120,9 +120,12 @@ pub(crate) fn redact_urls_in_text(text: &str) -> String {
 
 /// Where the first URL in `text` starts.
 fn next_url_start(text: &str) -> Option<usize> {
+    // A scheme is not case-sensitive (`HTTPS://` is a URL too). The ASCII
+    // lower case has the same byte positions as the text.
+    let lower = text.to_ascii_lowercase();
     URL_PREFIXES
         .iter()
-        .filter_map(|prefix| text.find(prefix))
+        .filter_map(|prefix| lower.find(prefix))
         .min()
 }
 
@@ -153,5 +156,20 @@ fn redact_json_urls(value: &mut serde_json::Value) {
         serde_json::Value::Array(items) => items.iter_mut().for_each(redact_json_urls),
         serde_json::Value::Object(map) => map.values_mut().for_each(redact_json_urls),
         _ => {}
+    }
+}
+
+/// The most characters of an error reply body that an error keeps. A proxy
+/// or a web server can send a whole page.
+const MAX_ERROR_BODY_CHARS: usize = 2000;
+
+/// The text of an error reply body (one that is not an MWA ASVO
+/// `ErrorResponse`), for the message of an error: its URLs redacted (as
+/// [`redact_body`] does), and at most [`MAX_ERROR_BODY_CHARS`] characters.
+pub(crate) fn error_body_text(body: &str) -> String {
+    let redacted = redact_body(body);
+    match redacted.char_indices().nth(MAX_ERROR_BODY_CHARS) {
+        Some((end, _)) => format!("{}...", &redacted[..end]),
+        None => redacted,
     }
 }

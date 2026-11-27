@@ -69,7 +69,7 @@ static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// another key (or another host) would use the session of someone else.
 /// A file without them (one from mwa-cli, or from an older giant-squid)
 /// has empty values, which never match: see [`StoredTokens::belongs_to`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct StoredTokens {
     pub access_token: String,
     pub refresh_token: String,
@@ -86,6 +86,23 @@ pub struct StoredTokens {
     /// lower-case hexadecimal. The key itself is never stored.
     #[serde(default)]
     pub api_key_sha256: String,
+}
+
+/// The tokens are not shown: they work as passwords.
+impl std::fmt::Debug for StoredTokens {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredTokens")
+            .field("access_token", &crate::mwa_asvo::redact::REDACTED)
+            .field("refresh_token", &crate::mwa_asvo::redact::REDACTED)
+            .field("access_expires_at", &self.access_expires_at)
+            .field("refresh_expires_at", &self.refresh_expires_at)
+            .field("user_id", &self.user_id)
+            .field("user_login", &self.user_login)
+            .field("user_email", &self.user_email)
+            .field("host", &self.host)
+            .field("api_key_sha256", &self.api_key_sha256)
+            .finish()
+    }
 }
 
 impl StoredTokens {

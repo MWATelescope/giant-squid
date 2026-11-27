@@ -603,3 +603,17 @@ fn all_ready_reports_a_completed_job_whose_download_links_have_expired() {
         "{err:?}"
     );
 }
+
+/// The text of a job does not have the signed URLs of its files: one works
+/// as a password for 7 days.
+#[test]
+fn the_text_of_a_job_has_no_signed_url() {
+    let signature = "Signature=aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA";
+    let url = format!("https://example.org/a.tar?Expires=1792380172&{signature}");
+    let job = completed_job_with(&[(DeliveryDestination::Acacia, Some(&url))]);
+
+    let text = job.to_string();
+
+    assert!(!text.contains(signature), "{text}");
+    assert!(text.contains("files: 1"), "{text}");
+}

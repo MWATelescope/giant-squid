@@ -225,3 +225,17 @@ fn the_file_holds_the_hash_of_the_key_and_never_the_key() {
     let back: StoredTokens = serde_json::from_str(&written).expect("the file loads again");
     assert!(back.belongs_to(HOST, KEY));
 }
+
+/// The `Debug` text of a session does not have its tokens: they work as
+/// passwords.
+#[test]
+fn the_debug_text_of_a_session_has_no_token() {
+    let mut tokens = sample_tokens();
+    tokens.access_token = "access-token-that-is-a-secret".to_string();
+    tokens.refresh_token = "refresh-token-that-is-a-secret".to_string();
+
+    let text = format!("{tokens:?}");
+
+    assert!(!text.contains(&tokens.access_token), "{text}");
+    assert!(!text.contains(&tokens.refresh_token), "{text}");
+}
