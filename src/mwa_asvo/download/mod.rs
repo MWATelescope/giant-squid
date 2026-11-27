@@ -128,8 +128,9 @@ pub struct DownloadOptions<'a> {
     /// [`MwaAsvoError::InvalidOption`](crate::MwaAsvoError::InvalidOption). See
     /// [`DEFAULT_DOWNLOAD_BUFFER_SIZE`](crate::DEFAULT_DOWNLOAD_BUFFER_SIZE).
     pub buffer_size: usize,
-    /// How long to retry transient download failures before giving up.
-    /// Zero disables retrying. See
+    /// How long to retry transient download failures before giving up, from
+    /// the first failure. An attempt that downloads some bytes before it
+    /// fails starts this time again. Zero disables retrying. See
     /// [`DEFAULT_DOWNLOAD_RETRY_DURATION`](crate::DEFAULT_DOWNLOAD_RETRY_DURATION).
     pub retry_duration: std::time::Duration,
     /// Asked between chunks of a download, and during the wait before a
@@ -373,9 +374,26 @@ fn download_job(
 
                 // When the last attempt started, for the throughput.
                 let attempt_start = Cell::new(start_time);
+                // The bytes that the last attempt wrote, which the progress
+                // events count, so that a retry after progress has the
+                // whole retry duration again.
+                let attempt_bytes = Cell::new(0_u64);
+                let counting_progress = |event: DownloadProgress| {
+                    if let DownloadProgress::Advanced { bytes } = event {
+                        attempt_bytes.set(attempt_bytes.get() + bytes);
+                    }
+                    if let Some(progress) = opts.progress {
+                        progress(event);
+                    }
+                };
+                let attempt_opts = DownloadOptions {
+                    progress: Some(&counting_progress),
+                    ..*opts
+                };
                 #[allow(clippy::result_large_err)]
                 let op = || {
                     attempt_start.set(Instant::now());
+                    attempt_bytes.set(0);
                     try_download(
                         http_client,
                         url,
@@ -383,13 +401,18 @@ fn download_job(
                         job,
                         &out_path,
                         &log_prefix,
-                        opts,
+                        &attempt_opts,
                         &mut retry_state,
                     )
                     .map_err(|e| retry_class(e, job_id))
                 };
 
-                let fetched = retry_unless_stopped(Backoff::new(opts.retry_duration), op, opts)?;
+                let fetched = retry_unless_stopped(
+                    Backoff::new(opts.retry_duration),
+                    op,
+                    || attempt_bytes.get() > 0,
+                    opts,
+                )?;
 
                 // Nothing fetched: the file was already on disk, and that
                 // was logged.
@@ -1053,6 +1076,11 @@ fn untar_stream_with_sidecar(
             let entry_path = entry.path()?.to_path_buf();
             let entry_type = entry.header().entry_type();
             let target = tar_entry_target(unpack_path, &entry_path, entry_type);
+            // Before the checkpoint: a checkpoint at this entry has no file
+            // to write, so a resume from it would skip the entry's data.
+            if let EntryTarget::ThroughLink(path) = target {
+                return Err(MwaAsvoError::SymlinkInDownloadDir { path });
+            }
 
             let size = entry.size();
             let done_count = done.borrow().stamps.len();
@@ -1099,8 +1127,10 @@ fn untar_stream_with_sidecar(
                     warn!("{log_prefix} Skipping tar entry {entry_path:?}: it would not be written inside the \
                          download directory (its path is absolute, has '..' or names no file).");
                 }
-                EntryTarget::ThroughLink(path) => {
-                    return Err(MwaAsvoError::SymlinkInDownloadDir { path });
+                EntryTarget::ThroughLink(_) => {
+                    unreachable!(
+                        "a tar entry through a symbolic link is refused before its checkpoint"
+                    )
                 }
                 EntryTarget::NotAFile => {
                     // As for `Skip`, the hash still covers the entry.
@@ -1280,7 +1310,7 @@ fn untar_checkpoint_from_disk(
 
     match find_files_on_disk(http_client, url, file_info, job_id, log_prefix, opts) {
         Ok(checkpoint) => Ok(checkpoint),
-        Err(MwaAsvoError::Interrupted) => Err(MwaAsvoError::Interrupted),
+        Err(e @ (MwaAsvoError::Interrupted | MwaAsvoError::SymlinkInDownloadDir { .. })) => Err(e),
         Err(e) => {
             warn!(
                 "{log_prefix} Could not check for files from an earlier download ({e}). \
@@ -1328,6 +1358,11 @@ fn find_files_on_disk(
             let entry = entry?;
             let entry_path = entry.path()?.to_path_buf();
             let target = tar_entry_target(unpack_path, &entry_path, entry.header().entry_type());
+            // A checkpoint at this entry would skip its data (see
+            // `untar_stream_with_sidecar`), so the link is refused here.
+            if let EntryTarget::ThroughLink(path) = target {
+                return Err(MwaAsvoError::SymlinkInDownloadDir { path });
+            }
             let size = entry.size();
             let data_pos = entry.raw_file_position();
 
@@ -1883,14 +1918,16 @@ fn stop_requested(opts: &DownloadOptions) -> bool {
 }
 
 /// Run `op`, and retry it under `backoff` while it fails with a transient
-/// error. The wait before each retry is cut into steps of at most
-/// `STOP_CHECK_INTERVAL` (see [`sleep_unless_stopped`]), and the retries end with
+/// error. After a failed attempt that made progress (`made_progress` says
+/// so), the backoff starts again: a long download gives up only after
+/// failures with no progress for the whole retry duration. The wait before
+/// each retry is cut into steps of at most `STOP_CHECK_INTERVAL` (see
+/// [`sleep_unless_stopped`]), and the retries end with
 /// [`MwaAsvoError::Interrupted`] when the caller asks the download to stop.
-/// Otherwise a stop could wait for the whole back-off interval, which grows
-/// to a minute.
 fn retry_unless_stopped<T>(
     mut backoff: Backoff,
     mut op: impl FnMut() -> Result<T, Retry<MwaAsvoError>>,
+    made_progress: impl Fn() -> bool,
     opts: &DownloadOptions,
 ) -> Result<T, MwaAsvoError> {
     loop {
@@ -1898,6 +1935,13 @@ fn retry_unless_stopped<T>(
             Ok(value) => return Ok(value),
             Err(Retry::Permanent(err)) => return Err(err),
             Err(Retry::Transient(err)) => {
+                // The bytes of an attempt that ends in a hash mismatch were
+                // wrong, so they are not progress: else a file that is wrong
+                // on the server would be fetched again for ever.
+                let mismatch = matches!(err, MwaAsvoError::HashMismatch { .. });
+                if made_progress() && !mismatch {
+                    backoff.reset();
+                }
                 let Some(wait) = backoff.next_backoff() else {
                     return Err(err);
                 };
@@ -2197,7 +2241,8 @@ fn lexically_normal(path: &Path) -> PathBuf {
 /// Move the file or directory `from` to `to`. A rename does it when both are
 /// on the same file system. Across file systems (for example from Pawsey's
 /// /scratch to a home directory), `from` is copied to `to` and then removed.
-/// If the copy fails, `from` is kept, and what was copied stays at `to`.
+/// If the copy fails, `from` is kept, and nothing is at `to` (see
+/// [`copy_then_remove`]).
 fn move_path(from: &Path, to: &Path) -> io::Result<()> {
     match fs::rename(from, to) {
         Err(e) if e.kind() == io::ErrorKind::CrossesDevices => {
@@ -2210,15 +2255,43 @@ fn move_path(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 
+/// The end of the name of the copy that [`copy_then_remove`] makes before it
+/// renames the copy to its place.
+const PARTIAL_COPY_SUFFIX: &str = ".giant-squid-partial";
+
+/// Where [`copy_then_remove`] copies to before the copy is complete: next to
+/// `to`, so that the rename to `to` stays on one file system.
+fn partial_copy_path(to: &Path) -> PathBuf {
+    let mut name = std::ffi::OsString::from(".");
+    name.push(to.file_name().unwrap_or_default());
+    name.push(PARTIAL_COPY_SUFFIX);
+    to.with_file_name(name)
+}
+
+/// Remove the file, symbolic link or directory at `path`, if one is there.
+/// A link is removed, not followed.
+fn remove_if_there(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+        Ok(metadata) if metadata.is_dir() => fs::remove_dir_all(path),
+        Ok(_) => fs::remove_file(path),
+    }
+}
+
 /// The move of [`move_path`] across file systems: copy `from` to `to`, then
 /// remove `from`.
+///
+/// The copy goes to [`partial_copy_path`] first, and is renamed to `to` when
+/// it is complete. So a copy that stops (Ctrl-C, a full disk) leaves nothing
+/// at `to`, and the next run copies again. It first removes the partial copy
+/// that the stopped run left.
 fn copy_then_remove(from: &Path, to: &Path) -> io::Result<()> {
-    copy_recursively(from, to)?;
-    if fs::symlink_metadata(from)?.is_dir() {
-        fs::remove_dir_all(from)
-    } else {
-        fs::remove_file(from)
-    }
+    let partial = partial_copy_path(to);
+    remove_if_there(&partial)?;
+    copy_recursively(from, &partial)?;
+    fs::rename(&partial, to)?;
+    remove_if_there(from)
 }
 
 /// Copy the file, symbolic link or directory `from` to `to`. A directory is
@@ -2326,10 +2399,16 @@ fn prepare_output_file(
 
     if file_size_bytes == file_info.size_bytes() {
         info!("{log_prefix} Checking downloaded file hash against provided MWA ASVO hash for {out_path:?}...");
-        if check_file_sha1_hash(out_path, mwa_asvo_hash, job_id).is_ok() {
-            return Ok(OutputTarget::AlreadyDone {
-                reason: "File exists, is the correct size and matches the MWA ASVO hash.",
-            });
+        match check_file_sha1_hash(out_path, mwa_asvo_hash, job_id) {
+            Ok(()) => {
+                return Ok(OutputTarget::AlreadyDone {
+                    reason: "File exists, is the correct size and matches the MWA ASVO hash.",
+                });
+            }
+            Err(MwaAsvoError::HashMismatch { .. }) => {}
+            // A file that cannot be read may still be complete and correct,
+            // so it is not emptied.
+            Err(e) => return Err(e),
         }
         warn!(
             "{log_prefix} File exists and is the correct size, but the hash does not match \

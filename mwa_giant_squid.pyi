@@ -277,7 +277,8 @@ class ConversionJobParams:
         methods do this before they send a request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     def __new__(
         cls,
@@ -492,8 +493,8 @@ class CsvJobParams:
         The kind of job, in words: for example `conversion`.
 
         Raises:
-            ValueError: The image size or `nmiter` of an imaging job is not
-                valid.
+            MwaAsvoApiErrorInvalidParameter: The image size or `nmiter` of an
+                imaging job is not valid.
         """
     def validate(self) -> None:
         r"""
@@ -501,7 +502,8 @@ class CsvJobParams:
         client does before it sends the request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     @typing.final
     class Conversion(CsvJobParams):
@@ -738,7 +740,8 @@ class DownloadJobParams:
         `validate_download_params`. The submit methods do this before they send a request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     def __new__(
         cls,
@@ -1180,7 +1183,8 @@ class ImageFromJobParams:
         methods do this before they send a request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     def __new__(
         cls,
@@ -1426,7 +1430,8 @@ class ImagingJobParams:
         methods do this before they send a request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     def __new__(
         cls,
@@ -1689,7 +1694,9 @@ class JobsFilter:
 
     Raises:
         ObsIdError: An Obs ID is not valid.
-        ValueError: A Job ID is 0, or `days` is outside the limits of the API.
+        ValueError: A Job ID is 0.
+        MwaAsvoApiErrorInvalidParameter: `days` is outside the limits of the
+            API.
         TypeError: `date_from` or `date_to` has no time zone.
     """
     @property
@@ -1765,9 +1772,9 @@ class JobsFilter:
         Check the filter before any request. `MwaAsvoClient.get_jobs` does this.
 
         Raises:
-            ValueError: Both `job_ids` and `obs_ids` are given, `days` is not
-                from 1 to 30, or `days` is given with `date_from` or
-                `date_to`.
+            MwaAsvoApiErrorInvalidParameter: Both `job_ids` and `obs_ids` are
+                given, `days` is not from 1 to 30, or `days` is given with
+                `date_from` or `date_to`.
         """
 
 class MwaAsvoApiError(builtins.Exception):
@@ -1917,9 +1924,11 @@ class MwaAsvoClient:
             the environment, as the `giant-squid` command does.
 
     Raises:
-        MwaAsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
-            login failed.
-        ValueError: `config.api_timeout` is not finite, or is not more than 0.
+        MwaAsvoErrorApi: The API key is empty, or the login failed. Its
+            `source` is the `MwaAsvoApiError` (kind `MissingAuthKey` or
+            `AuthenticationFailed`, for example).
+        MwaAsvoErrorInvalidOption: `config.api_timeout` is 0.
+        ValueError: `config.api_timeout` is negative or not finite.
     """
     def __new__(cls, config: MwaAsvoClientConfig) -> MwaAsvoClient: ...
     def get_jobs(self, filter: JobsFilter | None = None) -> MwaAsvoJobVec:
@@ -1934,9 +1943,10 @@ class MwaAsvoClient:
                 default window of the MWA ASVO API, not your full history.
 
         Raises:
-            ValueError: The filter is not valid: both `job_ids` and
-                `obs_ids` are given, or `days` is not from 1 to 30 or is
-                given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
+            MwaAsvoApiErrorInvalidParameter: The filter is not valid: both
+                `job_ids` and `obs_ids` are given, or `days` is not from 1 to
+                30 or is given with `date_from` or `date_to`. (See
+                `JobsFilter.validate`.)
             MwaAsvoApiError: The request failed.
         """
     def submit_download_job(self, params: DownloadJobParams) -> JobSubmittedResponse:
@@ -1955,7 +1965,8 @@ class MwaAsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: The `offset` is not from 0 to 7200. Nothing is sent.
+            MwaAsvoApiErrorInvalidParameter: The `offset` is not from 0 to
+                7200. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_preprocess_job(
@@ -1978,9 +1989,9 @@ class MwaAsvoClient:
 
         Raises:
             TypeError: `params` is not one of the three classes.
-            ValueError: A number is outside what the MWA ASVO accepts (for
-                example `avg_freq_res` above 1280). The message names the
-                argument and its limits. Nothing is sent.
+            MwaAsvoApiErrorInvalidParameter: A number is outside what the MWA
+                ASVO accepts (for example `avg_freq_res` above 1280). The
+                message names the argument and its limits. Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_image_from_job(self, params: ImageFromJobParams) -> JobSubmittedResponse:
@@ -1996,8 +2007,9 @@ class MwaAsvoClient:
             The server's reply, with the new job's ID.
 
         Raises:
-            ValueError: A number is outside what the MWA ASVO accepts. The
-                message names the argument and its limits. Nothing is sent.
+            MwaAsvoApiErrorInvalidParameter: A number is outside what the MWA
+                ASVO accepts. The message names the argument and its limits.
+                Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
     def submit_csv_file(
@@ -2063,8 +2075,8 @@ class MwaAsvoClient:
             The server's reply for each job, in the order of the jobs.
 
         Raises:
-            ValueError: The image size or `nmiter` of an imaging job is not
-                valid. Nothing is submitted.
+            MwaAsvoApiErrorInvalidParameter: The image size or `nmiter` of an
+                imaging job is not valid. Nothing is submitted.
             CsvJobsFailed: Some jobs failed. The other jobs were submitted:
                 the exception's `submitted` has their replies and its
                 `failures` has a `CsvJobFailure` for each job that failed.
@@ -2081,8 +2093,8 @@ class MwaAsvoClient:
             The server's reply.
 
         Raises:
-            ValueError: A value is outside the limits of the MWA ASVO. Nothing
-                is sent.
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits of
+                the MWA ASVO. Nothing is sent.
             MwaAsvoApiError: The request failed. (The errors of the submit
                 methods.)
         """
@@ -2130,9 +2142,11 @@ class MwaAsvoClient:
         Raises:
             MwaAsvoError: The job is missing, not ready or has no files, a
                 transfer failed, or the hash does not match.
-            MwaAsvoApiError: Getting the job list failed.
-            ValueError: `options.download_dir`, `options.buffer_size` or
-                `options.retry_duration` is not valid.
+            MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
+                `MwaAsvoApiError`.
+            MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+            ValueError: `options.download_dir` is not valid UTF-8, or
+                `options.retry_duration` is negative or not finite.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
     def download_job_from(self, jobs: MwaAsvoJobVec, job_id: builtins.int, options: DownloadOptions) -> MwaAsvoJob:
@@ -2153,8 +2167,9 @@ class MwaAsvoClient:
         Raises:
             MwaAsvoError: The job is missing from `jobs`, not ready or has no
                 files, a transfer failed, or the hash does not match.
-            ValueError: `options.download_dir`, `options.buffer_size` or
-                `options.retry_duration` is not valid.
+            MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+            ValueError: `options.download_dir` is not valid UTF-8, or
+                `options.retry_duration` is negative or not finite.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
     def download_obs(self, obs_id: builtins.int | ObsId, options: DownloadOptions) -> MwaAsvoJob:
@@ -2175,7 +2190,8 @@ class MwaAsvoClient:
             ObsIdError: `obs_id` is not a valid Obs ID.
             MwaAsvoError: No job, no ready job, or more than one ready job has
                 this Obs ID, or the download failed (see `download_job`).
-            MwaAsvoApiError: Getting the job list failed.
+            MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
+                `MwaAsvoApiError`.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
     def download_obs_from(
@@ -3095,7 +3111,8 @@ class PreprocessJobParams:
         the class that it holds. `submit_preprocess_job` does this before it sends a request.
 
         Raises:
-            ValueError: A value is outside the limits (the first that is).
+            MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+                first that is).
         """
     @typing.final
     class Conversion(PreprocessJobParams):
@@ -3370,7 +3387,8 @@ def client_config_from_env() -> MwaAsvoClientConfig:
     Raises:
         MwaAsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
             seconds of at least 1 (kind `InvalidEnvironment`).
-        MwaAsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
+        MwaAsvoErrorApi: `MWA_ASVO_API_KEY` is not set. Its `source` is the
+            `MwaAsvoApiError` (kind `MissingAuthKey`).
     """
 
 def conversion_params(obs_id: builtins.int | ObsId) -> ConversionJobParams:

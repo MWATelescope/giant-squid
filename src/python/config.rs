@@ -136,7 +136,8 @@ impl From<MwaAsvoClientConfig> for PyMwaAsvoClientConfig {
 /// Raises:
 ///     MwaAsvoError: `MWA_ASVO_API_TIMEOUT` is set but is not a whole number of
 ///         seconds of at least 1 (kind `InvalidEnvironment`).
-///     MwaAsvoApiError: `MWA_ASVO_API_KEY` is not set (kind `MissingAuthKey`).
+///     MwaAsvoErrorApi: `MWA_ASVO_API_KEY` is not set. Its `source` is the
+///         `MwaAsvoApiError` (kind `MissingAuthKey`).
 #[cfg_attr(
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")

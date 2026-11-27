@@ -55,35 +55,45 @@ const BACKOFF_RANDOMIZATION_FACTOR: f64 = 0.5;
 /// ([`MwaAsvoClient::get_jobs_retrying`](crate::MwaAsvoClient::get_jobs_retrying)).
 ///
 /// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
-/// retried for `retry_duration`. The
-/// waits start at [`BACKOFF_INITIAL_INTERVAL`] and grow by
+/// retried for `retry_duration` from the first failure. [`Self::reset`]
+/// starts that time again, for example after an attempt that made progress.
+/// The waits start at [`BACKOFF_INITIAL_INTERVAL`] and grow by
 /// [`BACKOFF_MULTIPLIER`] up to [`BACKOFF_MAX_INTERVAL`]. Zero disables
-/// retrying, which is what the test suite uses: a test that deliberately
-/// triggers a transient failure would otherwise sit in backoff for fifteen
-/// minutes.
+/// retrying, which is what the test suite uses.
 pub(crate) struct Backoff {
-    /// When the first attempt started.
-    start: Instant,
-    /// How long retries may go on, from `start`.
+    /// When the first failure since the start (or the last reset) was.
+    first_failure: Option<Instant>,
+    /// How long retries may go on, from `first_failure`.
     max_elapsed: Duration,
     /// The next wait, before the jitter.
     interval: Duration,
 }
 
 impl Backoff {
-    /// A new policy, which retries for `retry_duration` from now.
+    /// A new policy, which retries for `retry_duration` from the first
+    /// failure.
     pub(crate) fn new(retry_duration: Duration) -> Self {
         Self {
-            start: Instant::now(),
+            first_failure: None,
             max_elapsed: retry_duration,
             interval: BACKOFF_INITIAL_INTERVAL,
         }
     }
 
-    /// The wait before the next retry, or `None` to give up: the wait would
-    /// end after `max_elapsed`.
+    /// Start again, as if there had been no failure: the next failure has the
+    /// whole `retry_duration`, and the first wait.
+    pub(crate) fn reset(&mut self) {
+        self.first_failure = None;
+        self.interval = BACKOFF_INITIAL_INTERVAL;
+    }
+
+    /// The wait before the next retry, after a failure now, or `None` to give
+    /// up: the wait would end after `max_elapsed` from the first failure.
     pub(crate) fn next_backoff(&mut self) -> Option<Duration> {
-        let elapsed = self.start.elapsed();
+        let elapsed = self
+            .first_failure
+            .get_or_insert_with(Instant::now)
+            .elapsed();
         if elapsed > self.max_elapsed {
             return None;
         }

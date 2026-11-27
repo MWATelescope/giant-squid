@@ -657,6 +657,56 @@ fn a_keep_tar_download_refuses_a_symlink() {
     assert_eq!(file.calls(), 0, "nothing should be fetched");
 }
 
+/// A rerun after a refused symbolic link refuses it again. Before, the first
+/// run left a resume point at the link with no file, and the rerun skipped
+/// the member's data and reported success.
+#[cfg(unix)]
+#[test]
+fn a_rerun_after_a_refused_symlink_refuses_it_again() {
+    let env = TestEnv::with_session();
+    let name = "1065880128.metafits";
+    let tar = tar_containing(name, "METAFITS CONTENTS");
+    // The request of a resume after the member: its data starts at 512.
+    let after_member = env.server.mock(|when, then| {
+        when.method(GET)
+            .path(DOWNLOAD_PATH)
+            .header("range", "bytes=512-");
+        then.status(206).body(&tar[512..]);
+    });
+    env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(&tar);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        tar.len() as u64,
+        &sha1_hex(tar.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let elsewhere = TempDir::new().expect("could not create a second directory");
+    let target = elsewhere.path().join("victim");
+    std::fs::write(&target, "ORIGINAL").expect("could not write the target");
+    std::os::unix::fs::symlink(&target, dir.path().join(name)).expect("could not make the link");
+    let dir_path = dir.path().display().to_string();
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+
+    for run in ["first", "second"] {
+        let result = client.download_job(
+            crate::test_config::TEST_MWA_ASVO_JOB_ID,
+            &options(&dir_path),
+        );
+        assert!(
+            matches!(result, Err(MwaAsvoError::SymlinkInDownloadDir { .. })),
+            "the {run} run should refuse the link"
+        );
+    }
+    assert_eq!(after_member.calls(), 0, "no run resumes past the link");
+    assert_eq!(
+        std::fs::read_to_string(&target).expect("the target"),
+        "ORIGINAL"
+    );
+}
+
 /// The resume of a stream-untar member refuses a symbolic link at the
 /// member's place before it reads the link's target. Here the target is
 /// larger than the member, so a resume that followed the link would start
@@ -771,6 +821,50 @@ fn without_a_hash_check_a_resumed_keep_tar_file_is_still_checked() {
     assert!(
         matches!(err, MwaAsvoError::HashMismatch { .. }),
         "got {err:?}"
+    );
+}
+
+/// A complete `--keep-tar` file that cannot be read for the hash check is an
+/// error, and the file is not emptied: it may be correct. Before, the read
+/// error counted as a hash mismatch and the file was downloaded again.
+#[cfg(unix)]
+#[test]
+fn a_complete_file_that_cannot_be_read_is_not_emptied() {
+    use std::os::unix::fs::PermissionsExt;
+
+    /// Write only: the hash check cannot read the file, a download can write it.
+    const WRITE_ONLY: u32 = 0o200;
+
+    let env = TestEnv::with_session();
+    let requests = env.server.mock(|when, then| {
+        when.method(GET).path(DOWNLOAD_PATH);
+        then.status(200).body(RESUME_PAYLOAD);
+    });
+    env.mock_get_jobs(vec![ready_job_serving(
+        &env.server.url(DOWNLOAD_PATH),
+        RESUME_PAYLOAD.len() as u64,
+        &sha1_hex(RESUME_PAYLOAD.as_bytes()),
+    )]);
+    let dir = TempDir::new().expect("could not create a download directory");
+    let file = dir.path().join(DOWNLOAD_FILE);
+    std::fs::write(&file, RESUME_PAYLOAD).expect("could not seed a complete file");
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(WRITE_ONLY))
+        .expect("could not make the file write-only");
+    let dir_path = dir.path().display().to_string();
+    let mut opts = options(&dir_path);
+    opts.keep_tar = true;
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .download_job(crate::test_config::TEST_MWA_ASVO_JOB_ID, &opts)
+        .expect_err("the read error should fail the download");
+
+    assert!(matches!(err, MwaAsvoError::IO(_)), "got {err:?}");
+    assert_eq!(requests.calls(), 0, "nothing should have been fetched");
+    assert_eq!(
+        std::fs::metadata(&file).expect("the file").len(),
+        RESUME_PAYLOAD.len() as u64,
+        "the file should not be emptied"
     );
 }
 
@@ -1631,6 +1725,81 @@ mod retries {
 }
 
 // ---------------------------------------------------------------------------
+// The retry window after an attempt that made progress
+// ---------------------------------------------------------------------------
+
+mod retry_window {
+    use std::cell::Cell;
+    use std::time::Duration;
+
+    use super::options;
+    use crate::mwa_asvo::download::{retry_unless_stopped, Retry};
+    use crate::mwa_asvo::retry::Backoff;
+    use crate::mwa_asvo::MwaAsvoError;
+    use crate::test_config::job_id;
+
+    /// The retry window of these tests. The first wait (0.25 s to 0.75 s)
+    /// fits in it.
+    const RETRY_DURATION: Duration = Duration::from_millis(800);
+    /// How long each failed attempt takes. Two attempts and a wait take
+    /// longer than [`RETRY_DURATION`].
+    const ATTEMPT_TIME: Duration = Duration::from_millis(600);
+    /// The attempt that succeeds, if the retries get to it.
+    const SUCCEEDING_ATTEMPT: u32 = 3;
+
+    /// Run attempts that each take [`ATTEMPT_TIME`], make progress and fail
+    /// with `error` until the [`SUCCEEDING_ATTEMPT`]. The result and the
+    /// number of attempts.
+    fn run(error: impl Fn() -> MwaAsvoError) -> (Result<(), MwaAsvoError>, u32) {
+        let dir = std::env::temp_dir().display().to_string();
+        let opts = options(&dir);
+        let attempts = Cell::new(0);
+        let op = || {
+            attempts.set(attempts.get() + 1);
+            if attempts.get() == SUCCEEDING_ATTEMPT {
+                return Ok(());
+            }
+            std::thread::sleep(ATTEMPT_TIME);
+            Err(Retry::Transient(error()))
+        };
+
+        let result = retry_unless_stopped(Backoff::new(RETRY_DURATION), op, || true, &opts);
+        (result, attempts.get())
+    }
+
+    /// A failure after progress has the whole retry window again, so a long
+    /// download that drops is retried. Before, the window ran from the first
+    /// attempt, and the second failure gave up.
+    #[test]
+    fn a_failure_after_progress_has_the_whole_retry_window_again() {
+        let (result, attempts) = run(|| MwaAsvoError::NoUrl { job_id: job_id(1) });
+
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(attempts, SUCCEEDING_ATTEMPT);
+    }
+
+    /// A hash mismatch is not progress: the bytes were wrong. A file that is
+    /// wrong on the server is not fetched again for ever.
+    #[test]
+    fn a_hash_mismatch_does_not_start_the_retry_window_again() {
+        let mismatch = || MwaAsvoError::HashMismatch {
+            job_id: job_id(1),
+            file: "a.tar".to_string(),
+            calculated_hash: "aa".to_string(),
+            expected_hash: "bb".to_string(),
+        };
+
+        let (result, attempts) = run(mismatch);
+
+        assert!(
+            matches!(result, Err(MwaAsvoError::HashMismatch { .. })),
+            "{result:?}"
+        );
+        assert!(attempts < SUCCEEDING_ATTEMPT, "{attempts} attempts");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // A new run that carries on from the files of an earlier run
 // ---------------------------------------------------------------------------
 
@@ -1784,6 +1953,44 @@ mod reruns {
         assert_eq!(after_b.calls(), 1, "b.dat's data should come from disk");
         assert_eq!(rest.calls(), 1, "only c.dat should be fetched");
         assert_members_written(&dir);
+    }
+
+    /// A member that is a symbolic link after members that are on disk fails
+    /// the download. Before, the check of the files on disk stopped at the
+    /// link and the download skipped the member's data.
+    #[cfg(unix)]
+    #[test]
+    fn a_rerun_with_a_symlinked_member_on_disk_refuses_it() {
+        let archive = test_archive();
+        let data = data_positions(&archive);
+        let env = env_serving(&archive);
+        mock_window(&env, 0, &archive);
+        mock_window(&env, data[1] + 150_000, &archive);
+        let after_b = mock_rest(&env, data[2], &archive);
+        mock_whole(&env, &archive);
+        let dir = TempDir::new().expect("could not create a download directory");
+        let elsewhere = TempDir::new().expect("could not create a second directory");
+        let target = elsewhere.path().join("victim");
+        std::fs::write(&target, "ORIGINAL").expect("could not write the target");
+        write_members(&dir, &["a.dat", "b.dat"]);
+        std::os::unix::fs::symlink(&target, dir.path().join("c.dat"))
+            .expect("could not make the link");
+
+        let result = download(&env, &dir, |_| {});
+
+        assert!(
+            matches!(result, Err(MwaAsvoError::SymlinkInDownloadDir { .. })),
+            "the link should be refused: {result:?}"
+        );
+        assert_eq!(
+            after_b.calls(),
+            0,
+            "the download does not resume past the link"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&target).expect("the target"),
+            "ORIGINAL"
+        );
     }
 
     #[test]
@@ -2832,6 +3039,48 @@ fn a_move_by_copy_copies_everything_and_removes_the_source() {
         std::fs::read_link(to.join("link")).unwrap(),
         std::path::Path::new("a.fits")
     );
+}
+
+/// A copy that stops halfway leaves nothing at the target, so a rerun can
+/// move the files. Before, the partial copy was at the target, and every
+/// rerun failed with `DestinationExists`.
+#[cfg(unix)]
+#[test]
+fn a_move_by_copy_that_stops_halfway_does_not_block_a_rerun() {
+    use std::os::unix::fs::PermissionsExt;
+
+    use crate::mwa_asvo::download::{copy_then_remove, move_target, MoveTarget};
+
+    /// No permissions: the copy cannot read the file, and fails there.
+    const NO_ACCESS: u32 = 0o000;
+    /// The mode of the file after the test gives the access back.
+    const READ_WRITE: u32 = 0o644;
+
+    let scratch = TempDir::new().expect("could not create a directory");
+    let from = scratch.path().join("12345");
+    std::fs::create_dir_all(&from).expect("could not create the job folder");
+    std::fs::write(from.join("a.fits"), "a").expect("could not write a file");
+    let unreadable = from.join("b.fits");
+    std::fs::write(&unreadable, "b").expect("could not write a file");
+    std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(NO_ACCESS))
+        .expect("could not remove the access");
+    let dir = TempDir::new().expect("could not create a download directory");
+    let to = dir.path().join("12345");
+    let job_id = crate::test_config::job_id(12345);
+
+    copy_then_remove(&from, &to).expect_err("the copy should fail at the unreadable file");
+
+    assert_eq!(move_target(&from, &to, job_id).unwrap(), MoveTarget::Free);
+    std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(READ_WRITE))
+        .expect("could not give the access back");
+    copy_then_remove(&from, &to).expect("the rerun should copy the files");
+    assert_eq!(std::fs::read_to_string(to.join("b.fits")).unwrap(), "b");
+    assert!(!from.exists(), "the source should be removed");
+    let names: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(names, ["12345"], "no partial copy should be left");
 }
 
 /// A job list that the caller already has is used as it is: no job list

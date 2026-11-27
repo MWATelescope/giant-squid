@@ -113,7 +113,8 @@ impl PyDownloadJobParams {
     /// `validate_download_params`. The submit methods do this before they send a request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         validate::validate_download_params(&self.to_schema()).map_err(|e| api_error(py, e))
     }
@@ -282,7 +283,8 @@ impl PyConversionJobParams {
     /// methods do this before they send a request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         validate::validate_conversion_params(&self.to_schema()).map_err(|e| api_error(py, e))
     }
@@ -538,7 +540,8 @@ impl PyImagingJobParams {
     /// methods do this before they send a request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         validate::validate_imaging_params(&self.to_schema(py)?).map_err(|e| api_error(py, e))
     }
@@ -835,7 +838,8 @@ impl PyImageFromJobParams {
     /// methods do this before they send a request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         validate::validate_image_from_job_params(&self.to_schema(py)?).map_err(|e| api_error(py, e))
     }
@@ -1108,7 +1112,8 @@ impl PyPreprocessJobParams {
     /// the class that it holds. `submit_preprocess_job` does this before it sends a request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         self.to_schema(py)?.validate().map_err(|e| api_error(py, e))
     }

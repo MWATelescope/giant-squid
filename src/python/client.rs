@@ -34,9 +34,11 @@ use crate::mwa_asvo::{JobsFilter, MwaAsvoClient};
 ///         the environment, as the `giant-squid` command does.
 ///
 /// Raises:
-///     MwaAsvoApiError: The API key is empty (kind `MissingAuthKey`), or the
-///         login failed.
-///     ValueError: `config.api_timeout` is not finite, or is not more than 0.
+///     MwaAsvoErrorApi: The API key is empty, or the login failed. Its
+///         `source` is the `MwaAsvoApiError` (kind `MissingAuthKey` or
+///         `AuthenticationFailed`, for example).
+///     MwaAsvoErrorInvalidOption: `config.api_timeout` is 0.
+///     ValueError: `config.api_timeout` is negative or not finite.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(frozen, name = "MwaAsvoClient", module = "mwa_giant_squid")]
 pub struct PyMwaAsvoClient {
@@ -68,9 +70,10 @@ impl PyMwaAsvoClient {
     ///         default window of the MWA ASVO API, not your full history.
     ///
     /// Raises:
-    ///     ValueError: The filter is not valid: both `job_ids` and
-    ///         `obs_ids` are given, or `days` is not from 1 to 30 or is
-    ///         given with `date_from` or `date_to`. (See `JobsFilter.validate`.)
+    ///     MwaAsvoApiErrorInvalidParameter: The filter is not valid: both
+    ///         `job_ids` and `obs_ids` are given, or `days` is not from 1 to
+    ///         30 or is given with `date_from` or `date_to`. (See
+    ///         `JobsFilter.validate`.)
     ///     MwaAsvoApiError: The request failed.
     #[pyo3(signature = (filter=None))]
     fn get_jobs(
@@ -98,7 +101,8 @@ impl PyMwaAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: The `offset` is not from 0 to 7200. Nothing is sent.
+    ///     MwaAsvoApiErrorInvalidParameter: The `offset` is not from 0 to
+    ///         7200. Nothing is sent.
     ///     MwaAsvoApiError: The request failed.
     fn submit_download_job(
         &self,
@@ -127,9 +131,9 @@ impl PyMwaAsvoClient {
     ///
     /// Raises:
     ///     TypeError: `params` is not one of the three classes.
-    ///     ValueError: A number is outside what the MWA ASVO accepts (for
-    ///         example `avg_freq_res` above 1280). The message names the
-    ///         argument and its limits. Nothing is sent.
+    ///     MwaAsvoApiErrorInvalidParameter: A number is outside what the MWA
+    ///         ASVO accepts (for example `avg_freq_res` above 1280). The
+    ///         message names the argument and its limits. Nothing is sent.
     ///     MwaAsvoApiError: The request failed.
     fn submit_preprocess_job(
         &self,
@@ -152,8 +156,9 @@ impl PyMwaAsvoClient {
     ///     The server's reply, with the new job's ID.
     ///
     /// Raises:
-    ///     ValueError: A number is outside what the MWA ASVO accepts. The
-    ///         message names the argument and its limits. Nothing is sent.
+    ///     MwaAsvoApiErrorInvalidParameter: A number is outside what the MWA
+    ///         ASVO accepts. The message names the argument and its limits.
+    ///         Nothing is sent.
     ///     MwaAsvoApiError: The request failed.
     fn submit_image_from_job(
         &self,
@@ -235,8 +240,8 @@ impl PyMwaAsvoClient {
     ///     The server's reply for each job, in the order of the jobs.
     ///
     /// Raises:
-    ///     ValueError: The image size or `nmiter` of an imaging job is not
-    ///         valid. Nothing is submitted.
+    ///     MwaAsvoApiErrorInvalidParameter: The image size or `nmiter` of an
+    ///         imaging job is not valid. Nothing is submitted.
     ///     CsvJobsFailed: Some jobs failed. The other jobs were submitted:
     ///         the exception's `submitted` has their replies and its
     ///         `failures` has a `CsvJobFailure` for each job that failed.
@@ -297,8 +302,8 @@ impl PyMwaAsvoClient {
     ///     The server's reply.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits of the MWA ASVO. Nothing
-    ///         is sent.
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits of
+    ///         the MWA ASVO. Nothing is sent.
     ///     MwaAsvoApiError: The request failed. (The errors of the submit
     ///         methods.)
     fn submit_csv_job(
@@ -357,9 +362,11 @@ impl PyMwaAsvoClient {
     /// Raises:
     ///     MwaAsvoError: The job is missing, not ready or has no files, a
     ///         transfer failed, or the hash does not match.
-    ///     MwaAsvoApiError: Getting the job list failed.
-    ///     ValueError: `options.download_dir`, `options.buffer_size` or
-    ///         `options.retry_duration` is not valid.
+    ///     MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
+    ///         `MwaAsvoApiError`.
+    ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+    ///     ValueError: `options.download_dir` is not valid UTF-8, or
+    ///         `options.retry_duration` is negative or not finite.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_job(
         &self,
@@ -387,8 +394,9 @@ impl PyMwaAsvoClient {
     /// Raises:
     ///     MwaAsvoError: The job is missing from `jobs`, not ready or has no
     ///         files, a transfer failed, or the hash does not match.
-    ///     ValueError: `options.download_dir`, `options.buffer_size` or
-    ///         `options.retry_duration` is not valid.
+    ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+    ///     ValueError: `options.download_dir` is not valid UTF-8, or
+    ///         `options.retry_duration` is negative or not finite.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_job_from(
         &self,
@@ -421,7 +429,8 @@ impl PyMwaAsvoClient {
     ///     ObsIdError: `obs_id` is not a valid Obs ID.
     ///     MwaAsvoError: No job, no ready job, or more than one ready job has
     ///         this Obs ID, or the download failed (see `download_job`).
-    ///     MwaAsvoApiError: Getting the job list failed.
+    ///     MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
+    ///         `MwaAsvoApiError`.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_obs(
         &self,

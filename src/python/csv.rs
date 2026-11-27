@@ -439,8 +439,8 @@ impl PyCsvJobParams {
     /// The kind of job, in words: for example `conversion`.
     ///
     /// Raises:
-    ///     ValueError: The image size or `nmiter` of an imaging job is not
-    ///         valid.
+    ///     MwaAsvoApiErrorInvalidParameter: The image size or `nmiter` of an
+    ///         imaging job is not valid.
     fn description(&self, py: Python<'_>) -> PyResult<&'static str> {
         Ok(self.to_lib(py)?.description())
     }
@@ -449,7 +449,8 @@ impl PyCsvJobParams {
     /// client does before it sends the request.
     ///
     /// Raises:
-    ///     ValueError: A value is outside the limits (the first that is).
+    ///     MwaAsvoApiErrorInvalidParameter: A value is outside the limits (the
+    ///         first that is).
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         self.to_lib(py)?.validate().map_err(|e| api_error(py, e))
     }
@@ -460,7 +461,8 @@ impl PyCsvJobParams {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the image size or `nmiter` is not valid.
+    /// `MwaAsvoApiErrorInvalidParameter` if the image size or `nmiter` is not
+    /// valid.
     pub(super) fn to_lib(&self, py: Python<'_>) -> PyResult<LibCsvJobParams> {
         Ok(match self {
             Self::Conversion { params } => {
@@ -533,8 +535,8 @@ impl PyCsvJob {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the image size or `nmiter` of an imaging job is not
-    /// valid.
+    /// `MwaAsvoApiErrorInvalidParameter` if the image size or `nmiter` of an
+    /// imaging job is not valid.
     pub(super) fn to_lib(&self, py: Python<'_>) -> PyResult<CsvJob> {
         Ok(CsvJob {
             line: self.line,

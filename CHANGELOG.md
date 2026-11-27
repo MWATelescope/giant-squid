@@ -227,6 +227,10 @@ before you upgrade scripts.**
   `ParseErrorInvalidObsId`), not a Job ID.
   `giant-squid` regenerates the library's types from the schema in `tools/generate_openapi.sh`, which now also
   keeps the request and response schemas of each operation.
+* A download retries transient failures for `GIANT_SQUID_DOWNLOAD_RETRY_SECS` (`DownloadOptions::retry_duration`) from
+  the first failure, and an attempt that downloads some bytes before it fails starts that time again. Before, the time
+  ran from the start of the download, so a long download that dropped after it was not retried. An attempt that ends
+  in a hash mismatch does not start the time again.
 
 ### Added in 3.0.0
 
@@ -331,7 +335,10 @@ before you upgrade scripts.**
   ...) are in order. Before, each thread took a block of the list, and the log said `[1/20]`, `[11/20]`, `[6/20]`.
 * `download` gets the job list once for all its downloads (it got it again for each Job ID or Obs ID).
 * `download` of a reachable Scratch job moves the files across file systems too (by copy, then removal). Before, a
-  move from another file system failed.
+  move from another file system failed. The copy is made next to the download directory's job folder and renamed to
+  it when it is complete, so a copy that stops leaves nothing in the way of the next run.
+* `download --keep-tar` of a complete tar file that cannot be read for the hash check fails with the read error. Before,
+  the error counted as a hash mismatch, and the file was emptied and downloaded again.
 * `download` of Job IDs and Obs IDs together numbers the downloads from 1 to the total (`[3/4]`). Before, the Obs ID
   downloads started again from 1.
 * `download` logs in once for all its downloads. Before, each download logged in on its own, and a long list could

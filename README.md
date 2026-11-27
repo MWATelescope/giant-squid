@@ -954,7 +954,7 @@ These both take a comma-separated, case-insensitive list of the job type names a
 above. These can be provided in `TitleCase`, `UPPERCASE`, `lowercase`,
 `kebab-case`, `snake_case`, or even `SPoNgeBOb-CAse`
 
-example: show only jobs that match both of the following conditions:
+example: show only jobs that match all of the following conditions:
 
 - Obs ID is `1234567890` or `1234567891`
 - job_type is `visibility`, `metadata` or `cancel`
@@ -963,7 +963,7 @@ example: show only jobs that match both of the following conditions:
 ```bash
 giant-squid list \
    --job-types visibility,Metadata,CANCEL \
-   --job-states preprocessing, Queued \
+   --job-states preprocessing,Queued \
    1234567890 1234567891
 ```
 
@@ -976,7 +976,7 @@ but with the extra overhead of storing the tar to disk (`-k`).
 ```bash
 set -eux
 giant-squid list --json --job-types visibility --job-states completed \
-  | jq -r '.[]|[.id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
+  | jq -r '.[]|[.job_id,.product.files[0].url//"",.product.files[0].size//"",.product.files[0].sha1//""]|@tsv' \
   | tee ready.tsv
 while read -r jobid url size hash; do
    # note: it's a good idea to check you have enough disk space here using $size.
@@ -1578,7 +1578,7 @@ reads no environment variables (see
 | `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
 | `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |
-| `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
+| `GIANT_SQUID_DOWNLOAD_RETRY_SECS` | How long a download retries transient failures, in whole seconds, from the first failure. An attempt that downloads some bytes before it fails starts this time again. `0` disables retrying. | `DEFAULT_DOWNLOAD_RETRY_DURATION` in the library |
 | `CARGO_HOME` | Controls where `cargo install` places the `giant-squid` binary. | `~/.cargo` |
 
 A value of `MWA_ASVO_API_TIMEOUT`, `GIANT_SQUID_BUF_SIZE` or `GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole

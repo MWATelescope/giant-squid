@@ -1818,6 +1818,27 @@ fn legacy_json_is_the_old_output_byte_for_byte() {
     assert_eq!(output, expected);
 }
 
+/// `--legacy-json` shows a completed job whose download links have expired
+/// as `Expired`, as giant-squid 2.5.1 did. Before, it showed `Ready`.
+#[test]
+fn legacy_json_shows_an_expired_job_as_expired() {
+    /// An `Expires` in the past (2001), as a signed URL has it.
+    const EXPIRED_URL: &str = "https://example.org/a.tar?Expires=1000000000";
+
+    let mut jobs = json_sample_jobs();
+    let job = &mut jobs.0[0];
+    let files = &mut job.detail_mut().product.as_mut().expect("a product").files;
+    files[0].url = Some(EXPIRED_URL.to_string());
+    assert!(job.is_expired(), "the sample job should now be expired");
+
+    let output = super::legacy_json::to_legacy_json(&jobs).expect("serialises");
+
+    assert!(
+        output.starts_with(r#"{"101":{"obsid":1065880128,"jobId":101,"jobType":"DownloadVisibilities","jobState":"Expired","#),
+        "{output}"
+    );
+}
+
 /// `--legacy-json` names every job type as giant-squid 2.5.1 did, for the
 /// integer code that the API sends: 0 to 6. The
 /// expected text is what 2.5.1 (tag `v2.5.1`) printed for one job of each

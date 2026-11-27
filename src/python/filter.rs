@@ -45,7 +45,9 @@ use crate::mwa_asvo::JobsFilter;
 ///
 /// Raises:
 ///     ObsIdError: An Obs ID is not valid.
-///     ValueError: A Job ID is 0, or `days` is outside the limits of the API.
+///     ValueError: A Job ID is 0.
+///     MwaAsvoApiErrorInvalidParameter: `days` is outside the limits of the
+///         API.
 ///     TypeError: `date_from` or `date_to` has no time zone.
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
 #[pyclass(name = "JobsFilter", module = "mwa_giant_squid")]
@@ -203,9 +205,9 @@ impl PyJobsFilter {
     /// Check the filter before any request. `MwaAsvoClient.get_jobs` does this.
     ///
     /// Raises:
-    ///     ValueError: Both `job_ids` and `obs_ids` are given, `days` is not
-    ///         from 1 to 30, or `days` is given with `date_from` or
-    ///         `date_to`.
+    ///     MwaAsvoApiErrorInvalidParameter: Both `job_ids` and `obs_ids` are
+    ///         given, `days` is not from 1 to 30, or `days` is given with
+    ///         `date_from` or `date_to`.
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
         self.0.validate().map_err(|e| api_error(py, e))
     }

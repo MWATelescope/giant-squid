@@ -867,13 +867,19 @@ fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar:
     install_logger(level, json, Some(multiprogressbar));
 }
 
+/// The configuration of the logger: the times of the log records in local
+/// time, or in UTC when the local offset is not known.
+fn logger_config() -> simplelog::Config {
+    let mut builder = ConfigBuilder::new();
+    // An error leaves the builder at UTC.
+    let _ = builder.set_time_offset_to_local();
+    builder.build()
+}
+
 /// Install the logger (see [`init_logger`]), with `progress` if the command
 /// has progress bars.
 fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
-    let log_config = ConfigBuilder::new()
-        .set_time_offset_to_local()
-        .expect("Unable to set time offset to local in the logger")
-        .build();
+    let log_config = logger_config();
     let level = log_level(verbosity, json);
     let installed = match progress {
         None => WriteLogger::init(level, log_config, std::io::stderr()).is_ok(),
