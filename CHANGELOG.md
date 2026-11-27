@@ -397,7 +397,9 @@ before you upgrade scripts.**
 * `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and `submit-conv` still work, with the same options and
   aliases, but they will be removed in a later release. The list of commands in `--help` does not show them; the end
   of the main help lists them, with what to use instead. Each one logs a warning when it runs (no warning with
-  `--json`, which logs nothing). See [Deprecated submit commands](README.md#deprecated-submit-commands).
+  `--json`, which logs nothing). See [Deprecated submit commands](README.md#deprecated-submit-commands). NOTE:
+  `submit-conv`s `-p` / `--parameters` option is converted to individual arguments so is not directly backwards
+  compatible with giant-squid <3.0.
 
 ### Removed in 3.0.0
 
