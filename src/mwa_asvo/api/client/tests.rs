@@ -2420,3 +2420,134 @@ fn a_login_is_not_redirected_to_another_host() {
         "nothing should be sent to the other host"
     );
 }
+
+// ---------------------------------------------------------------------------
+// One job for each Obs ID (`submit_many`)
+// ---------------------------------------------------------------------------
+
+/// A second valid Obs ID, for the tests of `submit_many`.
+const OTHER_OBS_ID: &str = "1065880136";
+
+/// `with_obs_id` changes the Obs ID of a body and nothing else.
+#[test]
+fn with_obs_id_changes_only_the_obs_id() {
+    use crate::mwa_asvo::api::job_params::{conversion_params, imaging_params};
+    use crate::mwa_asvo::api::openapi::ImageOutputMode;
+    use crate::ObsIdJobParams;
+
+    let obs_id = crate::test_config::test_obs_id();
+    let other: crate::ObsId = OTHER_OBS_ID.parse().expect("the other obsid is valid");
+
+    let download = DownloadJobParams {
+        only_metadata: Some(true),
+        ..download_params(obs_id)
+    };
+    assert_eq!(
+        download.with_obs_id(other),
+        DownloadJobParams {
+            only_metadata: Some(true),
+            ..download_params(other)
+        }
+    );
+
+    let conversion = PreprocessJobParams::from(conversion_params(obs_id));
+    assert_eq!(
+        conversion.with_obs_id(other),
+        PreprocessJobParams::from(conversion_params(other))
+    );
+
+    let imaging = PreprocessJobParams::from(imaging_params(obs_id, ImageOutputMode::Fits));
+    assert_eq!(
+        imaging.with_obs_id(other),
+        PreprocessJobParams::from(imaging_params(other, ImageOutputMode::Fits))
+    );
+}
+
+/// `submit_many` submits one job for each Obs ID, in order, does not stop at
+/// a failure, and calls `on_result` with each result.
+#[test]
+fn submit_many_submits_each_obs_id_and_carries_on_past_a_failure() {
+    let env = TestEnv::with_session();
+    let refused = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/jobs/download")
+            .body_includes(TEST_OBS_ID);
+        then.status(400)
+            .header("content-type", "application/json")
+            .json_body(error_response("VALID_OBS_NOT_FOUND", "No such observation"));
+    });
+    let accepted = env.server.mock(|when, then| {
+        when.method(POST)
+            .path("/api/v2/jobs/download")
+            .body_includes(OTHER_OBS_ID);
+        then.status(200).json_body(job_submitted_response(781));
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let first = crate::test_config::test_obs_id();
+    let second: crate::ObsId = OTHER_OBS_ID.parse().expect("the other obsid is valid");
+    let mut seen = Vec::new();
+    let results = client.submit_many(&[first, second, first], download_params, |obs_id, r| {
+        seen.push((obs_id, r.is_ok()));
+    });
+
+    assert_eq!(refused.calls(), 2);
+    assert_eq!(accepted.calls(), 1);
+    assert_eq!(seen, [(first, false), (second, true), (first, false)]);
+    let obs_ids: Vec<crate::ObsId> = results.iter().map(|(obs_id, _)| *obs_id).collect();
+    assert_eq!(obs_ids, [first, second, first]);
+    assert!(
+        is_api_error(
+            results[0].1.as_ref().expect_err("refused"),
+            "VALID_OBS_NOT_FOUND"
+        ),
+        "{:?}",
+        results[0].1
+    );
+    assert_eq!(results[1].1.as_ref().expect("accepted").job_id.get(), 781);
+}
+
+/// `submit_many` sends a preprocessing body to the preprocessing endpoint,
+/// and a body outside the schema's limits is not sent.
+#[test]
+fn submit_many_sends_preprocessing_bodies_and_checks_them() {
+    use crate::mwa_asvo::api::job_params::conversion_params;
+
+    let env = TestEnv::with_session();
+    let submit = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/preprocess");
+        then.status(200).json_body(job_submitted_response(782));
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let obs_id = crate::test_config::test_obs_id();
+    let results = client.submit_many(
+        &[obs_id],
+        |o| PreprocessJobParams::from(conversion_params(o)),
+        |_, _| {},
+    );
+    assert_eq!(submit.calls(), 1);
+    assert_eq!(results[0].1.as_ref().expect("accepted").job_id.get(), 782);
+
+    let results = client.submit_many(
+        &[obs_id],
+        |o| {
+            let mut params = conversion_params(o);
+            params.avg_freq_res = Some(f64::MAX);
+            PreprocessJobParams::from(params)
+        },
+        |_, _| {},
+    );
+    assert_eq!(submit.calls(), 1, "a body outside the limits is not sent");
+    assert!(
+        matches!(
+            results[0].1,
+            Err(MwaAsvoApiError::InvalidParameter {
+                name: "avg_freq_res",
+                ..
+            })
+        ),
+        "{:?}",
+        results[0].1
+    );
+}

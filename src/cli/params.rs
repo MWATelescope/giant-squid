@@ -79,9 +79,8 @@ fn help_with_range(text: &str, bounds: Bounds) -> String {
 }
 
 /// The range of a receiver channel number (`from_channel`, `to_channel`):
-/// the range of its type, `u8`, which the validate tests check is the
-/// schema's limit.
-const RECEIVER_CHANNEL_RANGE: Bounds = Bounds::between(u8::MIN as f64, u8::MAX as f64);
+/// the library's schema limit.
+const RECEIVER_CHANNEL_RANGE: Bounds = validate::RECEIVER_CHANNEL;
 
 /// The word that gives a field of the request body the value `null`.
 const NULL_WORD: &str = "null";

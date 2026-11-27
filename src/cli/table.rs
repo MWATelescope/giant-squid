@@ -40,10 +40,10 @@ pub(super) fn job_files(job: &MwaAsvoJob) -> &[JobFile] {
         .unwrap_or_default()
 }
 
-/// The total size of the files of `job`, for a person to read (for example
-/// `117.7 MiB`).
+/// The total size of the files of `job` ([`MwaAsvoJob::total_size`]), for a
+/// person to read (for example `117.7 MiB`). A job with no product is `0 B`.
 pub(super) fn job_size_text(job: &MwaAsvoJob) -> String {
-    let bytes: u64 = job_files(job).iter().map(JobFile::size_bytes).sum();
+    let bytes = job.total_size().unwrap_or_default();
     bytesize::ByteSize(bytes).display().iec().to_string()
 }
 

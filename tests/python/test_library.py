@@ -121,5 +121,5 @@ def test_check_file_sha1_hash_raises_for_a_missing_file(tmp_path: pathlib.Path) 
 
 def test_check_file_sha1_hash_refuses_job_id_zero(hashed_file: pathlib.Path) -> None:
     """0 is not a Job ID."""
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         gs.check_file_sha1_hash(hashed_file, FILE_SHA1, 0)

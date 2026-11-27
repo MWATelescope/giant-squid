@@ -8,6 +8,8 @@
 //! Where the library uses a type of the OpenAPI schema (for example
 //! `JobState`), the Python class has the schema's name and members.
 
+use std::path::PathBuf;
+
 use jiff::Timestamp;
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
@@ -382,6 +384,34 @@ detail_pymethods!(PyMwaAsvoJob, {
     #[getter]
     fn display_state(&self) -> String {
         self.0.display_state()
+    }
+
+    /// The total size of the files of the job, in bytes: the sum of their
+    /// `size_bytes`. `None` if the job has no product yet.
+    #[getter]
+    fn total_size(&self) -> Option<u64> {
+        self.0.total_size()
+    }
+
+    /// The directory that a download of the job to `download_dir` puts the
+    /// files of the job in, as `DownloadOptions.job_subdirectory` sets it.
+    ///
+    /// For a Scratch job, it is `download_dir`: the folder of the job is
+    /// moved into it. Else, with `job_subdirectory`, it is
+    /// `download_dir/<job_id>`, and without, `download_dir`. The path is not
+    /// checked, and no directory is made.
+    ///
+    /// Args:
+    ///     download_dir: The directory of the download.
+    ///     job_subdirectory: As `DownloadOptions.job_subdirectory`.
+    ///
+    /// Returns:
+    ///     The directory, a `pathlib.Path`.
+    // The default is the default of `DownloadOptions.job_subdirectory`, as a
+    // literal for the Python signature (see `PyDownloadOptions::new`).
+    #[pyo3(signature = (download_dir, job_subdirectory=true))]
+    fn download_destination(&self, download_dir: PathBuf, job_subdirectory: bool) -> PathBuf {
+        self.0.download_destination(&download_dir, job_subdirectory)
     }
 
     fn __repr__(&self) -> String {

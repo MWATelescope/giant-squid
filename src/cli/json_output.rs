@@ -37,9 +37,7 @@ pub(super) struct ArgumentError(pub String);
 pub(super) struct ReportedFailures(pub String);
 
 /// The key of the status in a line of `--json` (the schema's name).
-pub(super) const KEY_STATUS: &str = "status";
-/// The key of the message in a line of `--json` (the schema's name).
-pub(super) const KEY_MESSAGE: &str = "message";
+pub(super) const KEY_STATUS: &str = crate::helpers::JSON_KEY_STATUS;
 
 /// One error line of `--json`: `"status": "failed"` (the schema's
 /// [`Status::Failed`], the value that the MWA ASVO's own failed replies have),

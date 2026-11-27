@@ -15,7 +15,7 @@
 //! A class holds Python values. Only the values whose Rust type cannot hold
 //! a wrong one are checked when they are set: an Obs ID is an `ObsId` (a
 //! number that is not valid raises `ObsIdError`), and `source_job_id` is not
-//! 0 (`ValueError`). The other values are checked by `validate()`, and by the
+//! 0 (`ParseErrorZeroJobId`). The other values are checked by `validate()`, and by the
 //! submit method, which turns the class into the library's request body, and
 //! a value that the schema does not allow raises `ValueError` (see
 //! `super::error::api_error`) before anything is sent.
@@ -733,7 +733,7 @@ impl PyImagingJobParams {
 /// (the type stubs show it). `None` is accepted by the arguments that the
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
-/// `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
+/// `source_job_id` must be greater than zero (checked when it is set, `ParseErrorZeroJobId`). The other
 /// values are checked by `validate()` and when the job is submitted (see the submit method).
 ///
 /// Args:
@@ -1207,7 +1207,7 @@ pub(super) fn imaging_params(
 ///     The request body.
 ///
 /// Raises:
-///     ValueError: `source_job_id` is 0.
+///     ParseErrorZeroJobId: `source_job_id` is 0.
 #[cfg_attr(
     feature = "python-stubgen",
     pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")

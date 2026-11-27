@@ -43,7 +43,7 @@ use crate::mwa_asvo::JobsFilter;
 ///
 /// Raises:
 ///     ObsIdError: An Obs ID is not valid.
-///     ValueError: A Job ID is 0.
+///     ParseErrorZeroJobId: A Job ID is 0.
 ///     MwaAsvoApiErrorInvalidParameter: `days` is outside the limits of the
 ///         API.
 ///     TypeError: `date_from` or `date_to` has no time zone.

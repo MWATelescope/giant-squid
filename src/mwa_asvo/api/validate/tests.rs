@@ -544,6 +544,19 @@ fn the_type_enforced_limits_are_still_the_schema_limits() {
     }
 }
 
+/// The receiver channel range is the schema's limit of `from_channel` and
+/// `to_channel`, and the range of their type, `u8`.
+#[test]
+fn the_receiver_channel_range_is_the_schema_limit() {
+    for channel in ["from_channel", "to_channel"] {
+        assert_matches_schema(DOWNLOAD, channel, RECEIVER_CHANNEL);
+    }
+    assert_eq!(
+        RECEIVER_CHANNEL,
+        Bounds::between(f64::from(u8::MIN), f64::from(u8::MAX))
+    );
+}
+
 #[test]
 fn the_image_sizes_are_the_schema_sizes() {
     let schema: Value = serde_json::from_str(SCHEMA).expect("the schema is JSON");

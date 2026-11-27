@@ -75,12 +75,12 @@ fn tar_containing(name: &str, contents: &str) -> String {
 /// Retries are disabled because a test that deliberately triggers a
 /// transient download failure would otherwise retry under exponential
 /// backoff for fifteen minutes.
-fn options(dir: &str) -> DownloadOptions<'_> {
+fn options<P: AsRef<std::path::Path> + ?Sized>(dir: &P) -> DownloadOptions<'_> {
     DownloadOptions {
         keep_tar: false,
         no_resume: false,
         hash: true,
-        download_dir: dir,
+        download_dir: dir.as_ref(),
         job_subdirectory: false,
         progress: None,
         download_number: 1,
@@ -89,6 +89,42 @@ fn options(dir: &str) -> DownloadOptions<'_> {
         retry_duration: std::time::Duration::ZERO,
         should_stop: None,
     }
+}
+
+/// `DownloadOptions::new` gives the defaults of the `giant-squid` command and
+/// of the Python module.
+#[test]
+fn new_download_options_have_the_command_defaults() {
+    let opts = DownloadOptions::new(std::path::Path::new("/data"));
+    assert_eq!(opts.download_dir, std::path::Path::new("/data"));
+    assert!(!opts.keep_tar);
+    assert!(!opts.no_resume);
+    assert!(opts.hash);
+    assert!(opts.job_subdirectory);
+    assert!(opts.progress.is_none());
+    assert!(opts.should_stop.is_none());
+    assert_eq!(opts.download_number, 1);
+    assert_eq!(opts.download_count, 1);
+    assert_eq!(opts.buffer_size, DEFAULT_DOWNLOAD_BUFFER_SIZE);
+    assert_eq!(opts.retry_duration, crate::DEFAULT_DOWNLOAD_RETRY_DURATION);
+}
+
+/// `DownloadManyOptions::new` gives the same defaults as
+/// `DownloadOptions::new`, and `DEFAULT_CONCURRENT_DOWNLOADS`.
+#[test]
+fn new_download_many_options_have_the_command_defaults() {
+    let many = crate::DownloadManyOptions::new(std::path::Path::new("/data"));
+    let one = DownloadOptions::new(std::path::Path::new("/data"));
+    assert_eq!(many.download_dir, one.download_dir);
+    assert_eq!(many.keep_tar, one.keep_tar);
+    assert_eq!(many.no_resume, one.no_resume);
+    assert_eq!(many.hash, one.hash);
+    assert_eq!(many.job_subdirectory, one.job_subdirectory);
+    assert_eq!(many.buffer_size, one.buffer_size);
+    assert_eq!(many.retry_duration, one.retry_duration);
+    assert_eq!(many.concurrency, crate::DEFAULT_CONCURRENT_DOWNLOADS);
+    assert!(many.progress.is_none());
+    assert!(many.should_stop.is_none());
 }
 
 /// A buffer of 0 bytes is refused before any request: the test server has
@@ -4341,12 +4377,12 @@ mod download_many {
     }
 
     /// Keep-tar downloads into `dir`, two at a time, with no retry.
-    fn options<'a>(dir: &'a str) -> DownloadManyOptions<'a> {
+    fn options<P: AsRef<std::path::Path> + ?Sized>(dir: &P) -> DownloadManyOptions<'_> {
         DownloadManyOptions {
             keep_tar: true,
             no_resume: false,
             hash: true,
-            download_dir: dir,
+            download_dir: dir.as_ref(),
             job_subdirectory: false,
             buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
             retry_duration: std::time::Duration::ZERO,

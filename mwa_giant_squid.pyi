@@ -127,6 +127,7 @@ __all__ = [
     "PreprocessJobParams",
     "SortBy",
     "Status",
+    "SubmitResult",
     "check_file_sha1_hash",
     "client_config_from_env",
     "conversion_params",
@@ -134,6 +135,7 @@ __all__ = [
     "download_params",
     "image_from_job_params",
     "imaging_params",
+    "parse_ids_from_text",
     "parse_job_ids_and_obs_ids_from_file",
     "parse_job_ids_only",
     "parse_manta_ray_csv",
@@ -1086,7 +1088,7 @@ class ImageFromJobParams:
     (the type stubs show it). `None` is accepted by the arguments that the
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
-    `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
+    `source_job_id` must be greater than zero (checked when it is set, `ParseErrorZeroJobId`). The other
     values are checked by `validate()` and when the job is submitted (see the submit method).
 
     Args:
@@ -1729,7 +1731,7 @@ class JobsFilter:
 
     Raises:
         ObsIdError: An Obs ID is not valid.
-        ValueError: A Job ID is 0.
+        ParseErrorZeroJobId: A Job ID is 0.
         MwaAsvoApiErrorInvalidParameter: `days` is outside the limits of the
             API.
         TypeError: `date_from` or `date_to` has no time zone.
@@ -2047,6 +2049,39 @@ class MwaAsvoClient:
                 Nothing is sent.
             MwaAsvoApiError: The request failed.
         """
+    def submit_many(
+        self,
+        obs_ids: typing.Sequence[builtins.int | ObsId],
+        params: DownloadJobParams | PreprocessJobParams | ConversionJobParams | ImagingJobParams,
+    ) -> builtins.list[SubmitResult]:
+        r"""
+        Submit one job for each Obs ID, in their order, as the `giant-squid
+        submit-*` commands do.
+
+        Each job has the request body `params`, with the `obs_id` of the job.
+        (The `obs_id` of `params` is not used.) A submission that fails does
+        not stop the others: every Obs ID is submitted. An Obs ID that is given
+        more than once is submitted each time.
+
+        Args:
+            obs_ids: The Obs IDs, one job each.
+            params: The request body of each job: a `DownloadJobParams`, or a
+                `PreprocessJobParams`, `ConversionJobParams` or
+                `ImagingJobParams`.
+
+        Returns:
+            A `SubmitResult` for each Obs ID, in the order of `obs_ids`, with
+            the reply or the `MwaAsvoApiError` of the submission. A body with
+            a value outside the limits of the MWA ASVO is not sent: its error
+            is `MwaAsvoApiErrorInvalidParameter`.
+
+        Raises:
+            TypeError: `params` is not one of the four classes.
+            ObsIdError: An Obs ID is not valid. Nothing is submitted.
+            MwaAsvoApiErrorInvalidParameter: The image size, `nmiter` or
+                `channels_out` of an imaging body is not valid. Nothing is
+                submitted.
+        """
     def submit_csv_file(
         self, path: builtins.str | os.PathLike | pathlib.Path, defaults: CsvDefaults | None = None
     ) -> builtins.list[JobSubmittedResponse]:
@@ -2145,7 +2180,7 @@ class MwaAsvoClient:
             The job, an `MwaAsvoJob`.
 
         Raises:
-            ValueError: `job_id` is 0.
+            ParseErrorZeroJobId: `job_id` is 0.
             OverflowError: `job_id` is negative or too large to be a Job ID.
             MwaAsvoErrorNoMwaAsvoJob: The MWA ASVO has no such job of the user.
             MwaAsvoErrorInvalidJob: The server gave a job that cannot be used.
@@ -2183,9 +2218,9 @@ class MwaAsvoClient:
             and then the Obs IDs.
 
         Raises:
-            ValueError: A Job ID or `concurrency` is 0, `options.download_dir`
-                is not valid UTF-8, or `options.retry_duration` is negative or
-                not finite.
+            ParseErrorZeroJobId: A Job ID is 0.
+            ValueError: `concurrency` is 0, or `options.retry_duration` is
+                negative or not finite.
             ObsIdError: An Obs ID is not valid.
             MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
             MwaAsvoErrorApi: Getting the job list failed. Nothing is
@@ -2220,7 +2255,8 @@ class MwaAsvoClient:
             The last job list, an `MwaAsvoJobVec`.
 
         Raises:
-            ValueError: A Job ID is 0, or a time is negative or not finite.
+            ParseErrorZeroJobId: A Job ID is 0.
+            ValueError: A time is negative or not finite.
             MwaAsvoError: A job is missing, has an error, has been cancelled,
                 or is completed but its download links have expired.
             MwaAsvoErrorApi: The job list request failed. Its `source` is the
@@ -2243,7 +2279,7 @@ class MwaAsvoClient:
             error.
 
         Raises:
-            ValueError: `job_id` is 0.
+            ParseErrorZeroJobId: `job_id` is 0.
             OverflowError: `job_id` is negative or too large to be a Job ID.
             MwaAsvoApiError: The request failed, for example because there is
                 no such job.
@@ -2274,8 +2310,7 @@ class MwaAsvoClient:
             MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
                 `MwaAsvoApiError`.
             MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
-            ValueError: `options.download_dir` is not valid UTF-8, or
-                `options.retry_duration` is negative or not finite.
+            ValueError: `options.retry_duration` is negative or not finite.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
     def download_job_from(self, jobs: MwaAsvoJobVec, job_id: builtins.int, options: DownloadOptions) -> MwaAsvoJob:
@@ -2297,8 +2332,7 @@ class MwaAsvoClient:
             MwaAsvoError: The job is missing from `jobs`, not ready or has no
                 files, a transfer failed, or the hash does not match.
             MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
-            ValueError: `options.download_dir` is not valid UTF-8, or
-                `options.retry_duration` is negative or not finite.
+            ValueError: `options.retry_duration` is negative or not finite.
             KeyboardInterrupt: Ctrl-C was pressed.
         """
     def download_obs(self, obs_id: builtins.int | ObsId, options: DownloadOptions) -> MwaAsvoJob:
@@ -2892,10 +2926,35 @@ class MwaAsvoJob:
         (for example `queued`), except that a completed job is
         `completed (ready)` or `completed (expired)`.
         """
+    @property
+    def total_size(self) -> builtins.int | None:
+        r"""
+        The total size of the files of the job, in bytes: the sum of their
+        `size_bytes`. `None` if the job has no product yet.
+        """
     def detail(self) -> JobDetailResponse:
         r"""
         The job as the API gives it: the schema's `JobDetailResponse`. Its
         `obs_id` is the number that the API gave, not checked.
+        """
+    def download_destination(
+        self, download_dir: builtins.str | os.PathLike | pathlib.Path, job_subdirectory: builtins.bool = True
+    ) -> pathlib.Path:
+        r"""
+        The directory that a download of the job to `download_dir` puts the
+        files of the job in, as `DownloadOptions.job_subdirectory` sets it.
+
+        For a Scratch job, it is `download_dir`: the folder of the job is
+        moved into it. Else, with `job_subdirectory`, it is
+        `download_dir/<job_id>`, and without, `download_dir`. The path is not
+        checked, and no directory is made.
+
+        Args:
+            download_dir: The directory of the download.
+            job_subdirectory: As `DownloadOptions.job_subdirectory`.
+
+        Returns:
+            The directory, a `pathlib.Path`.
         """
 
 @typing.final
@@ -3272,6 +3331,30 @@ class PreprocessJobParams:
         def __new__(cls, params: ImagingJobParams) -> PreprocessJobParams.Imaging: ...
 
 @typing.final
+class SubmitResult:
+    r"""
+    The result of one Obs ID of `MwaAsvoClient.submit_many`: the Obs ID, and
+    the reply of the MWA ASVO or the exception of the submission.
+    """
+    @property
+    def obs_id(self) -> ObsId:
+        r"""
+        The Obs ID of the job.
+        """
+    @property
+    def response(self) -> JobSubmittedResponse | None:
+        r"""
+        The reply of the MWA ASVO, with the new job's ID, or `None` if the
+        submission failed.
+        """
+    @property
+    def error(self) -> builtins.Exception | None:
+        r"""
+        The exception of the submission (an `MwaAsvoApiError`), or `None` if
+        it worked.
+        """
+
+@typing.final
 class DeliveryDestination(enum.Enum):
     r"""
     Where the MWA ASVO delivers a job's files: the OpenAPI schema's
@@ -3494,7 +3577,7 @@ def check_file_sha1_hash(
 
     Raises:
         MwaAsvoError: The hash does not match (kind `HashMismatch`).
-        ValueError: `job_id` is 0.
+        ParseErrorZeroJobId: `job_id` is 0.
         OSError: The file cannot be read.
     """
 
@@ -3578,7 +3661,7 @@ def image_from_job_params(source_job_id: builtins.int, output_mode: ImageOutputM
         The request body.
 
     Raises:
-        ValueError: `source_job_id` is 0.
+        ParseErrorZeroJobId: `source_job_id` is 0.
     """
 
 def imaging_params(obs_id: builtins.int | ObsId, output_mode: ImageOutputMode) -> ImagingJobParams:
@@ -3596,6 +3679,34 @@ def imaging_params(obs_id: builtins.int | ObsId, output_mode: ImageOutputMode) -
 
     Raises:
         ObsIdError: `obs_id` is not a valid Obs ID.
+    """
+
+def parse_ids_from_text(text: builtins.str) -> tuple[builtins.list[builtins.int], builtins.list[ObsId]]:
+    r"""
+    Read the Job IDs and the Obs IDs of a text: the standard input of
+    `giant-squid download -`, `cancel -` and `wait -`, or the text of a file
+    that has the same form. An ID that the text gives more than once is given
+    once, at its first place.
+
+    The text is the JSON of `giant-squid list --json` (or `--legacy-json`),
+    whose keys are the Job IDs (its Obs IDs are not used), or IDs that spaces
+    or lines separate (as `giant-squid list --ids` prints them). A number that
+    has 10 digits is an Obs ID, and any other number is a Job ID. Text with no
+    ID in it gives no ID, and is not an error.
+
+    Args:
+        text: The text.
+
+    Returns:
+        The Job IDs (in ascending order for a JSON job list, and in the order
+        of the text otherwise) and the Obs IDs (in the order of the text).
+
+    Raises:
+        ParseError: A word is not a number (kind `InsideStdin`), an ID is 0
+            (kind `ZeroJobId`), a 10-digit number is below `ObsId.MIN` (kind
+            `InvalidObsId`), the text is JSON that is not a job list (kind
+            `StdinJson`), or it is the error line of a command that failed
+            (kind `StdinFailure`, with the `message` of the error).
     """
 
 def parse_job_ids_and_obs_ids_from_file(

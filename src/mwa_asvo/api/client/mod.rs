@@ -39,6 +39,9 @@ use super::openapi::{
 };
 use super::validate::{self, validate_download_params, validate_image_from_job_params};
 
+mod submit_many;
+pub use submit_many::{ObsIdJobParams, SubmitManyResult};
+
 /// The production MWA ASVO host. Callers that do not need a different
 /// server (for example a test or development instance) use this as
 /// [`MwaAsvoClientConfig::host`].
@@ -1154,24 +1157,71 @@ fn looks_like_naive_timestamp(s: &str) -> bool {
 /// `"days": null`.
 ///
 /// The states and types are the schema's `JobState` and `JobType`.
+///
+/// # How the filter maps to the schema's `JobsByUserRequest`
+///
+/// The filter is not the request body of the schema's job list endpoint
+/// ([`JobsByUserRequest`]).
+/// It does more: it takes lists of states and types, and Job IDs and Obs IDs,
+/// and [`MwaAsvoClient::get_jobs`] gets all the pages of the list. Each field
+/// of the request body comes from the filter as follows:
+///
+/// | `JobsByUserRequest` | From the filter |
+/// |---|---|
+/// | `days` | [`days`](Self::days). `null` when the filter has a date. |
+/// | `date_from`, `date_to` | [`date_from`](Self::date_from), [`date_to`](Self::date_to). |
+/// | `sort_by` | [`sort_by`](Self::sort_by), else the schema default. |
+/// | `job_state` | The state of [`job_states`](Self::job_states) when the list has one state, else not sent. |
+/// | `job_type` | The type of [`job_types`](Self::job_types) when the list has one type, else not sent. |
+/// | `limit`, `offset` | Not in the filter. `get_jobs` uses them to get the list page by page. |
+///
+/// [`job_ids`](Self::job_ids) and [`obs_ids`](Self::obs_ids) have no field
+/// in the request body. They, and the lists of states and types, are applied
+/// to the jobs that the server sends ([`MwaAsvoJobVec::filter`]), on the
+/// client.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JobsFilter {
     /// Only the jobs from the past `days` days, from 1 to 30
     /// ([`validate::DAYS`]). `None` is the API's default.
+    ///
+    /// It is the `days` of `JobsByUserRequest`.
     pub days: Option<NonZeroU64>,
     /// Only the jobs created at or after this time.
+    ///
+    /// It is the `date_from` of `JobsByUserRequest`. With a date, the
+    /// request has `"days": null`.
     pub date_from: Option<Timestamp>,
     /// Only the jobs created at or before this time.
+    ///
+    /// It is the `date_to` of `JobsByUserRequest`. With a date, the request
+    /// has `"days": null`.
     pub date_to: Option<Timestamp>,
     /// The column to sort the jobs by, for example `id`.
+    ///
+    /// It is the `sort_by` of `JobsByUserRequest`. `None` sends the schema
+    /// default.
     pub sort_by: Option<SortBy>,
     /// Only these jobs. Cannot be combined with `obs_ids`.
+    ///
+    /// `JobsByUserRequest` has no such field: the client keeps only these
+    /// jobs of the list that the server sends.
     pub job_ids: Vec<MwaAsvoJobId>,
     /// Only the jobs for these Obs IDs. Cannot be combined with `job_ids`.
+    ///
+    /// `JobsByUserRequest` has no such field: the client keeps only the
+    /// jobs of these Obs IDs of the list that the server sends.
     pub obs_ids: Vec<ObsId>,
     /// Only the jobs of these types.
+    ///
+    /// With one type, it is the `job_type` of `JobsByUserRequest`. With more
+    /// types, the request has no `job_type`. The client always keeps only the
+    /// jobs of these types of the list that the server sends.
     pub job_types: Vec<JobType>,
     /// Only the jobs in these states.
+    ///
+    /// With one state, it is the `job_state` of `JobsByUserRequest`. With
+    /// more states, the request has no `job_state`. The client always keeps
+    /// only the jobs in these states of the list that the server sends.
     pub job_states: Vec<JobState>,
 }
 

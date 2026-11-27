@@ -600,3 +600,71 @@ fn the_text_of_a_job_has_no_signed_url() {
     assert!(!text.contains(signature), "{text}");
     assert!(text.contains("files: 1"), "{text}");
 }
+
+/// The size of each file of the jobs of the `total_size` test, in bytes.
+const FILE_SIZES: [i64; 2] = [1000, 2345];
+
+/// A completed job whose files have the sizes `sizes`.
+fn completed_job_with_sizes(sizes: &[i64]) -> MwaAsvoJob {
+    let mut job = completed_job_with(&vec![(DeliveryDestination::Acacia, None); sizes.len()]);
+    if let Some(product) = job.detail_mut().product.as_mut() {
+        for (file, size) in product.files.iter_mut().zip(sizes) {
+            file.size = *size;
+        }
+    }
+    job
+}
+
+#[test]
+fn the_total_size_is_the_sum_of_the_file_sizes() {
+    let job = completed_job_with_sizes(&FILE_SIZES);
+    assert_eq!(job.total_size(), Some(3345));
+}
+
+#[test]
+fn a_job_with_no_product_has_no_total_size() {
+    assert_eq!(job(JOB_ID_A, JobState::Queued).total_size(), None);
+}
+
+#[test]
+fn a_product_with_no_files_has_a_total_size_of_zero() {
+    assert_eq!(completed_job_with(&[]).total_size(), Some(0));
+}
+
+#[test]
+fn a_negative_file_size_counts_as_zero_in_the_total_size() {
+    let job = completed_job_with_sizes(&[-5, FILE_SIZES[0]]);
+    assert_eq!(job.total_size(), Some(1000));
+}
+
+#[test]
+fn the_download_destination_of_an_acacia_job_is_its_job_directory() {
+    let job = completed_job_with(&[(DeliveryDestination::Acacia, None)]);
+    let download_dir = std::path::Path::new("/data");
+
+    assert_eq!(
+        job.download_destination(download_dir, true),
+        download_dir.join(JOB_ID_A.to_string())
+    );
+    assert_eq!(job.download_destination(download_dir, false), download_dir);
+}
+
+#[test]
+fn the_download_destination_of_a_scratch_job_is_the_download_directory() {
+    let job = completed_job_with(&[(DeliveryDestination::Scratch, None)]);
+    let download_dir = std::path::Path::new("/data");
+
+    assert_eq!(job.download_destination(download_dir, true), download_dir);
+    assert_eq!(job.download_destination(download_dir, false), download_dir);
+}
+
+#[test]
+fn the_download_destination_of_a_job_with_no_files_is_its_job_directory() {
+    let job = job(JOB_ID_A, JobState::Queued);
+    let download_dir = std::path::Path::new("/data");
+
+    assert_eq!(
+        job.download_destination(download_dir, true),
+        download_dir.join(JOB_ID_A.to_string())
+    );
+}

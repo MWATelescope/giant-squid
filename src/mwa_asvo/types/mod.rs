@@ -183,6 +183,14 @@ impl MwaAsvoJob {
     pub fn display_state(&self) -> String {
         self.display_state_at(Timestamp::now())
     }
+
+    /// The total size of the files of the job, in bytes: the sum of their
+    /// [`JobFile::size_bytes`]. `None` if the job has no product yet. A
+    /// product with no files is `Some(0)`.
+    pub fn total_size(&self) -> Option<u64> {
+        let product = self.detail.product.as_ref()?;
+        Some(product.files.iter().map(JobFile::size_bytes).sum())
+    }
 }
 
 impl std::ops::Deref for MwaAsvoJob {

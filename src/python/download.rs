@@ -35,12 +35,12 @@
 //! pressed.
 
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use pyo3::exceptions::{PyBaseException, PyException, PyValueError};
+use pyo3::exceptions::{PyBaseException, PyException};
 use pyo3::prelude::*;
 
 use super::config::duration_from_seconds;
@@ -49,7 +49,6 @@ use super::typed::ProgressCallback;
 use super::types::{PyDownloadProgress, PyMwaAsvoJob};
 use crate::mwa_asvo::{
     DownloadManyOptions, DownloadManyResult, DownloadOptions, DownloadProgress, MwaAsvoError,
-    DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 /// The shortest time between two calls into Python for `Advanced` events,
@@ -128,6 +127,11 @@ pub struct PyDownloadOptions {
 #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pymethods)]
 #[pymethods]
 impl PyDownloadOptions {
+    // The defaults are those of the library's `DownloadOptions::new`. They are
+    // literals, because Python shows only a literal default in the signature
+    // (`help()`, `inspect.signature`). The tests pin both to the same values:
+    // `new_download_options_have_the_command_defaults` (Rust) and
+    // `test_the_options_have_the_defaults_of_the_old_arguments` (Python).
     #[new]
     #[pyo3(signature = (
         download_dir,
@@ -162,9 +166,9 @@ impl PyDownloadOptions {
             no_resume,
             hash,
             progress: progress.map(|p| p.0),
-            buffer_size: buffer_size.unwrap_or(DEFAULT_DOWNLOAD_BUFFER_SIZE),
+            buffer_size: buffer_size.unwrap_or(library_defaults().buffer_size),
             retry_duration: retry_duration
-                .unwrap_or_else(|| DEFAULT_DOWNLOAD_RETRY_DURATION.as_secs_f64()),
+                .unwrap_or_else(|| library_defaults().retry_duration.as_secs_f64()),
             download_number,
             download_count,
         }
@@ -198,6 +202,12 @@ impl PyDownloadOptions {
             self.download_count
         )
     }
+}
+
+/// The library's default download options ([`DownloadOptions::new`]), which
+/// are the defaults of the Python `DownloadOptions`. The directory is not used.
+fn library_defaults() -> DownloadOptions<'static> {
+    DownloadOptions::new(Path::new(""))
 }
 
 /// The state that the two hooks share.
@@ -380,21 +390,6 @@ impl PyDownloadResult {
     }
 }
 
-/// The text of `options.download_dir`, which the library takes as a `str`.
-///
-/// # Errors
-///
-/// `ValueError` if it is not valid UTF-8.
-fn download_dir_text(options: &PyDownloadOptions) -> PyResult<String> {
-    let download_dir = &options.download_dir;
-    download_dir
-        .to_str()
-        .map(ToString::to_string)
-        .ok_or_else(|| {
-            PyValueError::new_err(format!("download_dir={download_dir:?} is not valid UTF-8"))
-        })
-}
-
 /// As [`run_download`], for `download_many`: `options` (but its
 /// `download_number` and `download_count`) is the options of every
 /// download, and its progress callback gets the events of all of them.
@@ -411,7 +406,6 @@ pub(super) fn run_download_many<F>(
 where
     F: FnOnce(&DownloadManyOptions) -> Result<Vec<DownloadManyResult>, MwaAsvoError> + Send,
 {
-    let download_dir = download_dir_text(options)?;
     let retry_duration = duration_from_seconds("retry_duration", options.retry_duration)?;
     let hooks = Hooks::new(options.progress.as_ref().map(|p| p.clone_ref(py)));
 
@@ -422,13 +416,13 @@ where
             keep_tar: options.keep_tar,
             no_resume: options.no_resume,
             hash: options.hash,
-            download_dir: &download_dir,
             job_subdirectory: options.job_subdirectory,
             buffer_size: options.buffer_size,
             retry_duration,
             concurrency,
             progress: Some(&progress),
             should_stop: Some(&should_stop),
+            ..DownloadManyOptions::new(&options.download_dir)
         };
         let result = download(&opts);
         hooks.flush();
@@ -480,8 +474,7 @@ where
 ///
 /// # Errors
 ///
-/// `ValueError` for a `download_dir` that is not UTF-8 or a bad
-/// `retry_duration`; `MwaAsvoError` or `MwaAsvoApiError` from the download; or
+/// `ValueError` for a bad `retry_duration`; `MwaAsvoError` or `MwaAsvoApiError` from the download; or
 /// the exception from the callback or a signal handler.
 pub(super) fn run_download<F, T>(
     py: Python<'_>,
@@ -492,7 +485,6 @@ where
     F: FnOnce(&DownloadOptions) -> Result<T, MwaAsvoError> + Send,
     T: Send,
 {
-    let download_dir = download_dir_text(options)?;
     let retry_duration = duration_from_seconds("retry_duration", options.retry_duration)?;
     let hooks = Hooks::new(options.progress.as_ref().map(|p| p.clone_ref(py)));
 
@@ -503,7 +495,6 @@ where
             keep_tar: options.keep_tar,
             no_resume: options.no_resume,
             hash: options.hash,
-            download_dir: &download_dir,
             job_subdirectory: options.job_subdirectory,
             progress: Some(&progress),
             download_number: options.download_number,
@@ -511,6 +502,7 @@ where
             buffer_size: options.buffer_size,
             retry_duration,
             should_stop: Some(&should_stop),
+            ..DownloadOptions::new(&options.download_dir)
         };
         let result = download(&opts);
         // Bytes still waiting are sent before the caller sees the result.

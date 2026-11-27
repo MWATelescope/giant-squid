@@ -32,8 +32,8 @@ use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_fr
 use crate::mwa_asvo::{
     client_config_from_env, DownloadManyOptions, DownloadProgress, DownloadSettings,
     DownloadTarget, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoError, MwaAsvoJob,
-    MwaAsvoJobId, MwaAsvoJobVec, WaitOptions, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB,
-    ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
+    MwaAsvoJobId, MwaAsvoJobVec, ObsIdJobParams, WaitOptions, ENDPOINT_DOWNLOAD_JOB,
+    ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -191,52 +191,61 @@ struct DryRunCancel {
 /// directory of an Acacia download, or the Scratch path that was moved to
 /// the download directory.
 fn downloaded_message(job: &MwaAsvoJob, download_dir: &str, job_subdir: bool) -> String {
+    // The library's [`MwaAsvoJob::download_destination`]: a Scratch job is
+    // moved into the download directory, not into a directory for the job,
+    // because it is a folder of the job already.
+    let destination = job.download_destination(Path::new(download_dir), job_subdir);
+    let destination = destination.display();
     match job_files(job).first() {
         // A Scratch job that this host can reach is moved to the download
         // directory. (One that it cannot reach, or a DUG job, is an error.)
-        // It is not put in a directory for the job: it is a folder of the
-        // job already.
         Some(file) if file.type_ == DeliveryDestination::Scratch => {
             let path = file.path.as_deref().unwrap_or_default();
-            format!("Moved {path} to {download_dir}")
+            format!("Moved {path} to {destination}")
         }
         _ => {
             let size = job_size_text(job);
-            let dir = if job_subdir {
-                Path::new(download_dir)
-                    .join(job.job_id().to_string())
-                    .display()
-                    .to_string()
-            } else {
-                download_dir.to_string()
-            };
-            format!("Downloaded {size} to {dir}")
+            format!("Downloaded {size} to {destination}")
         }
     }
 }
 
-/// Submit one job per Obs ID, carrying on past failures.
+/// Submit one job per Obs ID with the library's
+/// [`MwaAsvoClient::submit_many`], which carries on past failures. `build`
+/// makes the request body of each Obs ID. The Job IDs of the jobs that were
+/// submitted are added to `job_ids`.
 ///
-/// Each failure is reported as it happens (with `json`, as a [`JsonError`]
-/// line with the Obs ID). After every Obs ID has been attempted, the
+/// Each result is reported when its request is done
+/// ([`report_obs_id_submission`]). After every Obs ID has been attempted, the
 /// returned error only counts the failures, because each one was already
 /// reported.
-fn submit_each_obs_id<F>(
+fn submit_each_obs_id<P: ObsIdJobParams>(
+    client: &MwaAsvoClient,
     obs_ids: &[ObsId],
+    build: impl Fn(ObsId) -> P,
     description: &str,
     json: bool,
-    mut submit: F,
-) -> Result<(), anyhow::Error>
-where
-    F: FnMut(&ObsId) -> Result<(), anyhow::Error>,
-{
+    job_ids: &mut Vec<MwaAsvoJobId>,
+) -> Result<(), anyhow::Error> {
     let mut failures: usize = 0;
+    // The callback cannot return an error: the first error of the output is
+    // kept, and returned after the last Obs ID.
+    let mut output_error: Option<anyhow::Error> = None;
 
-    for o in obs_ids {
-        if let Err(e) = submit(o) {
-            report_obs_id_error(&e, *o, json)?;
-            failures += 1;
-        }
+    client.submit_many(
+        obs_ids,
+        build,
+        |obs_id, result| match report_obs_id_submission(obs_id, result, json) {
+            Ok(Some(job_id)) => job_ids.push(job_id),
+            Ok(None) => failures += 1,
+            Err(e) => {
+                failures += 1;
+                output_error.get_or_insert(e);
+            }
+        },
+    );
+    if let Some(e) = output_error {
+        return Err(e);
     }
 
     let total = obs_ids.len();
@@ -248,6 +257,41 @@ where
     }
 
     Err(ReportedFailures(format!("{failures} of {total} job submissions failed")).into())
+}
+
+/// Report the result of the job of the Obs ID `obs_id`: the reply (a line
+/// with `json`) and a log record, or the error (see [`report_obs_id_error`]).
+/// A reply that cannot be printed is reported as the error of the Obs ID.
+///
+/// Returns the Job ID of a job that was submitted and reported, and `None`
+/// for a failure that was reported.
+///
+/// # Errors
+///
+/// The error of the output, if a failure cannot be reported.
+fn report_obs_id_submission(
+    obs_id: ObsId,
+    result: &Result<JobSubmittedResponse, MwaAsvoApiError>,
+    json: bool,
+) -> anyhow::Result<Option<MwaAsvoJobId>> {
+    let resp = match result {
+        Ok(resp) => resp,
+        Err(e) if json => {
+            print_json_line(&JsonError::api_error(e).with_obs_id(obs_id), true)?;
+            return Ok(None);
+        }
+        Err(e) => {
+            error!("Obs ID {obs_id}: {e}");
+            return Ok(None);
+        }
+    };
+    if let Err(e) = print_json_line(&StatusFirst(resp), json) {
+        report_obs_id_error(&e, obs_id, json)?;
+        return Ok(None);
+    }
+    let job_id = resp.job_id;
+    info!("Submitted {obs_id} as MWA ASVO Job ID {job_id}");
+    Ok(Some(job_id))
 }
 
 /// What a submit command was asked to do, for [`run_submit`].
@@ -289,17 +333,11 @@ impl SubmitOptions {
 /// checks the first body that `build` makes before any login, also with
 /// `--dry-run`: the bodies differ only in their Obs ID, so a bad body fails
 /// once.
-fn run_submit<P, B, C, S>(
-    submission: &Submission,
-    build: B,
-    check: C,
-    submit: S,
-) -> anyhow::Result<()>
+fn run_submit<P, B, C>(submission: &Submission, build: B, check: C) -> anyhow::Result<()>
 where
-    P: serde::Serialize,
+    P: serde::Serialize + ObsIdJobParams,
     B: Fn(ObsId) -> P,
     C: Fn(&P) -> Result<(), MwaAsvoApiError>,
-    S: Fn(&MwaAsvoClient, &P) -> Result<JobSubmittedResponse, MwaAsvoApiError>,
 {
     let Submission {
         obs_ids,
@@ -318,15 +356,7 @@ where
 
     let client = connect()?;
     let mut job_ids: Vec<MwaAsvoJobId> = Vec::with_capacity(obs_ids.len());
-    let outcome = submit_each_obs_id(obs_ids, description, json, |o| {
-        let params = build(*o);
-        let resp = submit(&client, &params)?;
-        print_json_line(&StatusFirst(&resp), json)?;
-        let job_id = resp.job_id;
-        info!("Submitted {o} as MWA ASVO Job ID {job_id}");
-        job_ids.push(job_id);
-        Ok(())
-    });
+    let outcome = submit_each_obs_id(&client, obs_ids, build, description, json, &mut job_ids);
     if wait {
         wait_for_submitted(&client, &job_ids, outcome)
     } else {
@@ -348,7 +378,6 @@ fn run_submit_download(
         &submit.submission(&obs_ids, ENDPOINT_DOWNLOAD_JOB, description),
         |obs_id| download.to_params(obs_id),
         validate_download_params,
-        MwaAsvoClient::submit_download_job,
     )
 }
 
@@ -364,7 +393,6 @@ fn run_submit_preprocess(
         &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "conversion"),
         |obs_id| PreprocessJobParams::from(conv.to_params(obs_id)),
         PreprocessJobParams::validate,
-        MwaAsvoClient::submit_preprocess_job,
     )
 }
 
@@ -951,18 +979,17 @@ fn run(args: Args) -> anyhow::Result<()> {
                         .clone();
                     update_progress_bar(&pb, event);
                 };
+                // Ctrl-C ends the CLI process, so `should_stop` stays `None`.
                 let opts = DownloadManyOptions {
                     keep_tar,
                     no_resume,
                     hash,
-                    download_dir: &download_dir,
                     job_subdirectory: job_subdir,
                     buffer_size,
                     retry_duration,
                     concurrency: concurrency(concurrent_downloads),
                     progress: Some(&progress),
-                    // Ctrl-C ends the CLI process.
-                    should_stop: None,
+                    ..DownloadManyOptions::new(Path::new(&download_dir))
                 };
                 let results: Vec<(DownloadTarget, anyhow::Result<MwaAsvoJob>)> = client
                     .download_many(&DownloadTarget::all(&job_ids, &obs_ids), &opts)?
@@ -1064,7 +1091,6 @@ fn run(args: Args) -> anyhow::Result<()> {
                 &submit.submission(&obs_ids, ENDPOINT_PREPROCESS_JOB, "imaging"),
                 |obs_id| PreprocessJobParams::from(image.to_params(obs_id)),
                 PreprocessJobParams::validate,
-                MwaAsvoClient::submit_preprocess_job,
             )?;
         }
 

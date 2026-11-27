@@ -176,8 +176,15 @@ pub const WSTACK_NWLAYERS: Bounds = Bounds::between(32.0, 512.0);
 pub const VOLTAGE_OFFSET: Bounds = Bounds::between(0.0, 7200.0);
 /// `duration` of a voltage job: the seconds of data to download.
 pub const VOLTAGE_DURATION: Bounds = Bounds::between(0.0, 7200.0);
+/// `from_channel` and `to_channel` of a voltage job: a receiver channel
+/// number. The schema gives a minimum of 0 and a maximum of 255. The type of
+/// the fields (`u8`) has the same range, so [`validate_download_params`] has
+/// no check for them. The CLI shows this range in its help.
+pub const RECEIVER_CHANNEL: Bounds = Bounds::between(0.0, 255.0);
 
-/// The image sizes (pixels) that the MWA ASVO accepts.
+/// The image sizes (pixels) that the MWA ASVO accepts. They are the values of
+/// the schema's `ImageSizes`, as numbers, for a check and a message. A test
+/// compares them with the schema.
 pub const IMAGE_SIZES: [i64; 6] = [512, 1024, 2048, 3072, 4096, 8192];
 
 /// Check each `(name, bounds, value)` whose value is present.

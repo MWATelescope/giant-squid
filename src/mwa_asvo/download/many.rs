@@ -5,6 +5,7 @@
 //! The download of several jobs at a time: [`MwaAsvoClient::download_many`].
 
 use std::num::NonZeroUsize;
+use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
@@ -73,7 +74,7 @@ pub struct DownloadManyOptions<'a> {
     /// As [`DownloadOptions::hash`].
     pub hash: bool,
     /// As [`DownloadOptions::download_dir`].
-    pub download_dir: &'a str,
+    pub download_dir: &'a Path,
     /// As [`DownloadOptions::job_subdirectory`].
     pub job_subdirectory: bool,
     /// As [`DownloadOptions::buffer_size`].
@@ -90,15 +91,36 @@ pub struct DownloadManyOptions<'a> {
     pub should_stop: Option<&'a (dyn Fn() -> bool + Sync)>,
 }
 
-impl DownloadManyOptions<'_> {
+impl<'a> DownloadManyOptions<'a> {
+    /// The options of downloads to `download_dir`, with the defaults of
+    /// [`DownloadOptions::new`], [`DEFAULT_CONCURRENT_DOWNLOADS`] downloads at
+    /// the same time, and no `progress` and `should_stop` callbacks.
+    ///
+    /// Change a field after the call to use a different value.
+    pub fn new(download_dir: &'a Path) -> Self {
+        let one = DownloadOptions::new(download_dir);
+        Self {
+            keep_tar: one.keep_tar,
+            no_resume: one.no_resume,
+            hash: one.hash,
+            download_dir: one.download_dir,
+            job_subdirectory: one.job_subdirectory,
+            buffer_size: one.buffer_size,
+            retry_duration: one.retry_duration,
+            concurrency: DEFAULT_CONCURRENT_DOWNLOADS,
+            progress: None,
+            should_stop: None,
+        }
+    }
+
     /// The [`DownloadOptions`] of download `number` (from 1) of `count`.
-    fn one<'a>(
-        &'a self,
+    fn one<'b>(
+        &'b self,
         number: usize,
         count: usize,
-        progress: Option<&'a dyn Fn(DownloadProgress)>,
-        should_stop: Option<&'a dyn Fn() -> bool>,
-    ) -> DownloadOptions<'a> {
+        progress: Option<&'b dyn Fn(DownloadProgress)>,
+        should_stop: Option<&'b dyn Fn() -> bool>,
+    ) -> DownloadOptions<'b> {
         DownloadOptions {
             keep_tar: self.keep_tar,
             no_resume: self.no_resume,

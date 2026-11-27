@@ -107,7 +107,7 @@ pub struct DownloadOptions<'a> {
     pub hash: bool,
     /// The directory to download to, and to move the files of a reachable
     /// Scratch job into. It must exist.
-    pub download_dir: &'a str,
+    pub download_dir: &'a Path,
     /// Download the files of a job delivered by Acacia into a directory of
     /// its own, `download_dir/<job_id>`, which is made if it is not there,
     /// and not into `download_dir` itself. The files of two jobs of the same
@@ -119,9 +119,9 @@ pub struct DownloadOptions<'a> {
     /// `download_dir` in a folder that the MWA ASVO has named for the job
     /// (for example `/scratch/mwaops/asvo/12345`).
     ///
-    /// The options have no default: set it. `true` is the layout of the
-    /// `giant-squid` command and of the Python module's default; `false` is
-    /// the layout of giant-squid 2.x, with the files in `download_dir`.
+    /// The default ([`DownloadOptions::new`]) is `true`: the layout of the
+    /// `giant-squid` command and of the Python module. `false` is the layout
+    /// of giant-squid 2.x, with the files in `download_dir`.
     pub job_subdirectory: bool,
     /// Called with each [`DownloadProgress`] event. `None` reports no
     /// progress. The library has no user interface of its own.
@@ -152,7 +152,36 @@ pub struct DownloadOptions<'a> {
     pub should_stop: Option<&'a dyn Fn() -> bool>,
 }
 
-impl DownloadOptions<'_> {
+impl<'a> DownloadOptions<'a> {
+    /// The options of a download to `download_dir`, with the defaults of the
+    /// `giant-squid` command and of the Python module:
+    ///
+    /// - `keep_tar` is `false`: the tar file is unpacked while it arrives.
+    /// - `no_resume` is `false`: a partial file is resumed.
+    /// - `hash` is `true`: the SHA-1 of the download is checked.
+    /// - `job_subdirectory` is `true`: the files go into `download_dir/<job_id>`.
+    /// - `progress` and `should_stop` are `None`.
+    /// - `download_number` and `download_count` are 1: one download.
+    /// - `buffer_size` is [`DEFAULT_DOWNLOAD_BUFFER_SIZE`].
+    /// - `retry_duration` is [`DEFAULT_DOWNLOAD_RETRY_DURATION`].
+    ///
+    /// Change a field after the call to use a different value.
+    pub fn new(download_dir: &'a Path) -> Self {
+        Self {
+            keep_tar: false,
+            no_resume: false,
+            hash: true,
+            download_dir,
+            job_subdirectory: true,
+            progress: None,
+            download_number: 1,
+            download_count: 1,
+            buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
+            retry_duration: DEFAULT_DOWNLOAD_RETRY_DURATION,
+            should_stop: None,
+        }
+    }
+
     /// Check that every option has a value that a download can use.
     ///
     /// # Errors
@@ -346,7 +375,7 @@ fn download_job(
                 let job_dir;
                 let job_opts;
                 let opts = if opts.job_subdirectory {
-                    job_dir = make_job_directory(Path::new(opts.download_dir), job_id)?;
+                    job_dir = make_job_directory(opts.download_dir, job_id)?;
                     job_opts = DownloadOptions {
                         download_dir: &job_dir,
                         job_subdirectory: false,
@@ -356,7 +385,7 @@ fn download_job(
                 } else {
                     opts
                 };
-                let out_path = Path::new(opts.download_dir).join(file_name);
+                let out_path = opts.download_dir.join(file_name);
 
                 // Shared by the attempts at this file, so that a retry
                 // carries on from what an earlier attempt wrote.
@@ -447,7 +476,7 @@ fn download_job(
                 let path = f.path.as_deref().ok_or_else(no_path)?;
                 let path_obj = Path::new(path);
                 let folder_name = path_obj.file_name().ok_or_else(no_path)?;
-                let target = Path::new(opts.download_dir).join(folder_name);
+                let target = opts.download_dir.join(folder_name);
                 let target_display = target.display();
 
                 // The target is checked first, so that nothing is replaced.
@@ -768,15 +797,44 @@ fn tar_entry_target(
     }
 }
 
+impl MwaAsvoJob {
+    /// The directory that a download of the job to `download_dir` puts the
+    /// files of the job in, with the
+    /// [`job_subdirectory`](DownloadOptions::job_subdirectory) option
+    /// `job_subdirectory`:
+    ///
+    /// - For a Scratch job (its first file is delivered to Scratch),
+    ///   `download_dir`: the folder of the job is moved into it.
+    /// - Else, with `job_subdirectory`, `download_dir/<job_id>`.
+    /// - Else, `download_dir`.
+    ///
+    /// The path is not checked, and no directory is made.
+    pub fn download_destination(&self, download_dir: &Path, job_subdirectory: bool) -> PathBuf {
+        let first_file = self.product.as_ref().and_then(|p| p.files.first());
+        let scratch = first_file.is_some_and(|f| f.type_ == DeliveryDestination::Scratch);
+        if job_subdirectory && !scratch {
+            download_dir.join(job_directory_name(self.job_id()))
+        } else {
+            download_dir.to_path_buf()
+        }
+    }
+}
+
+/// The name of the directory for the files of the job `job_id` in the
+/// download directory, with the `job_subdirectory` option: the Job ID.
+fn job_directory_name(job_id: MwaAsvoJobId) -> PathBuf {
+    PathBuf::from(job_id.to_string())
+}
+
 /// Make the directory for the files of the job `job_id` in `download_dir`
 /// (`download_dir/<job_id>`), if it is not there, and give its path. A
 /// symbolic link at its path is refused, as one inside a download is.
-fn make_job_directory(download_dir: &Path, job_id: MwaAsvoJobId) -> Result<String, MwaAsvoError> {
-    let relative = PathBuf::from(job_id.to_string());
+fn make_job_directory(download_dir: &Path, job_id: MwaAsvoJobId) -> Result<PathBuf, MwaAsvoError> {
+    let relative = job_directory_name(job_id);
     open_download_root(download_dir)?
         .create_dir_all(&relative)
         .map_err(below_error)?;
-    Ok(download_dir.join(relative).to_string_lossy().into_owned())
+    Ok(download_dir.join(relative))
 }
 
 /// Open the download directory, for making the files and directories of a tar
@@ -917,7 +975,7 @@ fn try_download_untar(
     mwa_asvo_hash: &str,
     checkpoint: &mut Option<UntarCheckpoint>,
 ) -> Result<u64, MwaAsvoError> {
-    let unpack_path = Path::new(opts.download_dir);
+    let unpack_path = opts.download_dir;
 
     let mut resume = match checkpoint.as_ref() {
         // A resumed download always checks the hash (see below), so the
@@ -1329,7 +1387,7 @@ fn find_files_on_disk(
     log_prefix: &str,
     opts: &DownloadOptions,
 ) -> Result<Option<UntarCheckpoint>, MwaAsvoError> {
-    let unpack_path = Path::new(opts.download_dir);
+    let unpack_path = opts.download_dir;
     let hasher = RefCell::new(Sha1::new());
     let local = RefCell::new(None);
     let mut reader = HashingReader {
@@ -1740,7 +1798,7 @@ fn checkpoint_from_sidecar(
     log_prefix: &str,
     opts: &DownloadOptions,
 ) -> Option<UntarCheckpoint> {
-    let unpack_path = Path::new(opts.download_dir);
+    let unpack_path = opts.download_dir;
     let path = sidecar_path(unpack_path, out_path);
     let bytes = match std::fs::read(&path) {
         Ok(bytes) => bytes,

@@ -312,3 +312,77 @@ fn a_10_digit_number_below_the_minimum_is_not_a_job_id() {
         "{err:?}"
     );
 }
+
+/// A valid Obs ID, for the tests of `parse_ids_from_text`.
+const TEXT_OBS_ID: u64 = 1065880128;
+
+#[test]
+fn parse_ids_from_text_reads_job_ids_and_obs_ids() {
+    let ids = parse_ids_from_text(&format!("101\n{TEXT_OBS_ID} 102\n")).expect("valid");
+
+    assert_eq!(
+        ids,
+        JobIdsAndObsIds {
+            job_ids: vec![
+                crate::test_config::job_id(101),
+                crate::test_config::job_id(102)
+            ],
+            obs_ids: vec![ObsId::validate(TEXT_OBS_ID).expect("a valid Obs ID")],
+        }
+    );
+}
+
+#[test]
+fn parse_ids_from_text_gives_each_id_once_at_its_first_place() {
+    let ids = parse_ids_from_text(&format!("102 {TEXT_OBS_ID} 101 102 {TEXT_OBS_ID} 101"))
+        .expect("valid");
+
+    assert_eq!(
+        ids.job_ids,
+        [
+            crate::test_config::job_id(102),
+            crate::test_config::job_id(101)
+        ]
+    );
+    assert_eq!(
+        ids.obs_ids,
+        [ObsId::validate(TEXT_OBS_ID).expect("a valid Obs ID")]
+    );
+}
+
+#[test]
+fn parse_ids_from_text_reads_the_job_ids_of_a_json_job_list() {
+    let ids = parse_ids_from_text(r#"{"20": {"id": 20}, "3": {"id": 3}}"#).expect("valid");
+
+    assert_eq!(
+        ids.job_ids,
+        [
+            crate::test_config::job_id(3),
+            crate::test_config::job_id(20)
+        ]
+    );
+    assert!(ids.obs_ids.is_empty());
+}
+
+#[test]
+fn parse_ids_from_text_refuses_the_error_line_of_a_command() {
+    let text = r#"{"status": "failed", "error_code": "AUTH", "message": "Bad key"}"#;
+
+    assert!(matches!(
+        parse_ids_from_text(text),
+        Err(ParseError::StdinFailure { message }) if message == "Bad key"
+    ));
+}
+
+#[test]
+fn parse_ids_from_text_gives_no_id_for_empty_text() {
+    assert_eq!(
+        parse_ids_from_text(" \n").expect("valid"),
+        JobIdsAndObsIds::default()
+    );
+}
+
+#[test]
+fn without_repeats_keeps_each_value_at_its_first_place() {
+    assert_eq!(without_repeats(vec![3, 1, 3, 2, 1]), [3, 1, 2]);
+}

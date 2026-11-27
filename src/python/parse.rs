@@ -168,3 +168,46 @@ pub(super) fn parse_job_ids_and_obs_ids_from_file(
 pub(super) fn parse_utc_time(py: Python<'_>, text: &str) -> PyResult<jiff::Timestamp> {
     crate::parse_utc_time(text).map_err(|e| parse_error(py, e))
 }
+
+/// Read the Job IDs and the Obs IDs of a text: the standard input of
+/// `giant-squid download -`, `cancel -` and `wait -`, or the text of a file
+/// that has the same form. An ID that the text gives more than once is given
+/// once, at its first place.
+///
+/// The text is the JSON of `giant-squid list --json` (or `--legacy-json`),
+/// whose keys are the Job IDs (its Obs IDs are not used), or IDs that spaces
+/// or lines separate (as `giant-squid list --ids` prints them). A number that
+/// has 10 digits is an Obs ID, and any other number is a Job ID. Text with no
+/// ID in it gives no ID, and is not an error.
+///
+/// Args:
+///     text: The text.
+///
+/// Returns:
+///     The Job IDs (in ascending order for a JSON job list, and in the order
+///     of the text otherwise) and the Obs IDs (in the order of the text).
+///
+/// Raises:
+///     ParseError: A word is not a number (kind `InsideStdin`), an ID is 0
+///         (kind `ZeroJobId`), a 10-digit number is below `ObsId.MIN` (kind
+///         `InvalidObsId`), the text is JSON that is not a job list (kind
+///         `StdinJson`), or it is the error line of a command that failed
+///         (kind `StdinFailure`, with the `message` of the error).
+#[cfg_attr(
+    feature = "python-stubgen",
+    pyo3_stub_gen::derive::gen_stub_pyfunction(module = "mwa_giant_squid")
+)]
+#[pyfunction]
+pub(super) fn parse_ids_from_text(
+    py: Python<'_>,
+    text: &str,
+) -> PyResult<(Vec<JobId>, Vec<PyObsId>)> {
+    crate::parse_ids_from_text(text)
+        .map(|ids| {
+            (
+                ids.job_ids.into_iter().map(JobId).collect(),
+                ids.obs_ids.into_iter().map(PyObsId).collect(),
+            )
+        })
+        .map_err(|e| parse_error(py, e))
+}

@@ -152,7 +152,7 @@ jobs = client.get_jobs(
 `get_jobs()` with no filter gets the jobs of the default window. `job_ids` and `obs_ids` cannot be given together:
 that raises `MwaAsvoApiErrorInvalidParameter`, as `JobsFilter.validate()` does. Each value of a `JobsFilter` is checked
 when you set it, as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 raises
-`ValueError`, and `days` outside 1 to 30 raises `MwaAsvoApiErrorInvalidParameter`.
+`ParseErrorZeroJobId`, and `days` outside 1 to 30 raises `MwaAsvoApiErrorInvalidParameter`.
 
 `get_job(job_id)` gets one job, of any age: the job list has only the jobs of its window. A Job ID that the MWA ASVO
 does not have raises `MwaAsvoErrorNoMwaAsvoJob`.
@@ -183,7 +183,10 @@ except ObsIdError as e:
 The functions that read IDs on the command line are also in the module: `parse_obs_ids_only`,
 `parse_job_ids_only`, `parse_many_job_ids_or_obs_ids` and `parse_job_ids_and_obs_ids_from_file` (each argument is an
 ID or the name of a file of IDs), and `parse_utc_time` (RFC 3339 or a date, as a `datetime` in UTC). A problem is a
-`ParseError`.
+`ParseError`. `parse_ids_from_text(text)` reads the IDs of a text as `giant-squid download -` reads its standard
+input: the output of `giant-squid list --ids` or `list --json`, or IDs that spaces or lines separate. It returns the
+Job IDs and the Obs IDs, each ID once, and raises `ParseErrorStdinFailure` (with the `message`) for the error line of
+a command that failed.
 
 The result is an `MwaAsvoJobVec`. It supports `len()`, indexing and iteration. Its `filter` method
 filters a list that you already have, without a request. Its `json()` method gives the jobs as JSON, an object
@@ -207,6 +210,11 @@ Notes:
   The `date_from` and `date_to` arguments must have a time zone too, or the call raises `TypeError`.
 - The files of a ready job are in `job.product.files` (a `JobProduct`). Each `JobFile` has `type` (a
   `DeliveryDestination`: `Acacia`, `Scratch` or `Dug`), `url`, `path`, `size`, `sha1` and `format`.
+  `MwaAsvoJob.total_size` is the sum of the `size_bytes` of the files (the size that `giant-squid list` shows), or
+  `None` for a job with no product yet.
+- `MwaAsvoJob.download_destination(download_dir, job_subdirectory=True)` is the directory that a download of the job
+  to `download_dir` puts its files in: `download_dir/<job_id>`, or `download_dir` with `job_subdirectory=False`. A
+  Scratch job is always `download_dir`: its folder is moved into it. It makes no directory.
 
 ## Submit jobs
 
@@ -247,7 +255,7 @@ docstring of each class gives the limits of each number.
 Each class is a plain class. Every argument is an attribute that can be read and changed, and the object can be
 submitted again after a change. Only the values whose Rust type cannot hold a wrong one are checked when they are set:
 an Obs ID is an `ObsId` (`obs_id` returns an `ObsId`, and a number that is not valid raises `ObsIdError` when the class
-is made or `obs_id` is set), and `source_job_id` is not 0 (`ValueError`, as for every Job ID). The limits of the other values are checked by
+is made or `obs_id` is set), and `source_job_id` is not 0 (`ParseErrorZeroJobId`, as for every Job ID). The limits of the other values are checked by
 `validate()` and when the job is submitted.
 
 The library's functions that make a body are in the module with the same names: `download_params(obs_id)`,
@@ -290,6 +298,24 @@ raises an exception, so do not use `status` to decide whether a call worked.
 `cancel_job` returns a `JobCancelledResponse`, which has the same attributes. The MWA ASVO answers the cancellation of a job that is already cancelled
 with a normal reply, not an error, so no exception is raised. The reason is in `message`. Any other refusal
 is an error and raises `MwaAsvoApiError`.
+
+### Submit one job for each of several Obs IDs
+
+`submit_many(obs_ids, params)` submits one job for each Obs ID, in their order, as the `giant-squid submit-*`
+commands do. Each job has the request body `params` (a `DownloadJobParams`, or a `PreprocessJobParams`,
+`ConversionJobParams` or `ImagingJobParams`) with the Obs ID of the job; the `obs_id` of `params` is not used. A
+submission that fails does not stop the others. The method returns a `SubmitResult` for each Obs ID: its `obs_id`,
+and the `response` (a `JobSubmittedResponse`), or the `error` (an `MwaAsvoApiError`) of a submission that failed. A
+body with a value outside the limits of the schema is not sent: its `error` is `MwaAsvoApiErrorInvalidParameter`.
+
+```python
+params = gs.ConversionJobParams(1065880128, avg_freq_res=80.0)
+for result in client.submit_many([1065880128, 1065880136], params):
+    if result.error is not None:
+        print(result.obs_id, result.error)
+    else:
+        print(result.obs_id, result.response.job_id)
+```
 
 ### Submit the jobs of a manta-ray-client CSV file
 
@@ -488,8 +514,8 @@ the function raises an exception, the download stops and the call raises that ex
 | `MwaAsvoApiError` | An API call failed, or an argument is outside what the MWA ASVO API allows. It has a subclass for each Rust variant: `MwaAsvoApiErrorMissingAuthKey`, `MwaAsvoApiErrorAuthenticationFailed`, `MwaAsvoApiErrorConversion`, `MwaAsvoApiErrorInvalidParameter` (an argument is outside the limits; `name` and `message`), `MwaAsvoApiErrorBadJson`, `MwaAsvoApiErrorHttp`, `MwaAsvoApiErrorServer` and `MwaAsvoApiErrorBadStatus`. For an error that the server describes, the message is the server's: its error code and message, then its detail, its suggestion, the field errors and the request ID, each on a line of its own. A reply whose error code is not one of the API's error codes (the schema's `ErrorCode`) is a `MwaAsvoApiErrorBadStatus`, with the reply as its message. |
 | `MwaAsvoError` | A job check or download failed: the job is missing or not ready, a transfer failed, or a hash does not match. It has a subclass for each Rust variant (`MwaAsvoErrorNoMwaAsvoJob`, `MwaAsvoErrorNotReady`, `MwaAsvoErrorHashMismatch`, `MwaAsvoErrorInvalidOption` and so on). `MwaAsvoErrorApi` is an API call that failed inside a check or download, as in the library: for example the login of `MwaAsvoClient(config)`, or the job list that a download gets first. Its `source` is the `MwaAsvoApiError`, which is also its `__cause__`. (A file that cannot be read or written is an `OSError`, not this.) |
 | `ObsIdError` | A number or text is not a valid Obs ID. `ObsIdErrorWrongNumDigits` and `ObsIdErrorParse` are the subclasses for its two kinds. |
-| `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A file that cannot be read is an `OSError`. |
-| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid as a Python value: a Job ID of 0, a number that is not an integer or is out of range, a negative duration. The module raises these before it sends a request. A value that the MWA ASVO does not allow is an `MwaAsvoApiErrorInvalidParameter` or an `MwaAsvoErrorInvalidOption`, not these. |
+| `ParseError` | `parse_obs_ids_only` and the other `parse_*` functions could not read IDs or a time. It has a subclass for each kind (`ParseErrorNoObsIds`, `ParseErrorJobIdsGiven`, `ParseErrorInvalidTime` and so on). A Job ID of 0, in any argument, is a `ParseErrorZeroJobId`, as in the library. A file that cannot be read is an `OSError`. |
+| `ValueError`, `TypeError`, `OverflowError` | An argument is not valid as a Python value: a number that is not an integer or is out of range, a negative duration. The module raises these before it sends a request. A value that the MWA ASVO does not allow is an `MwaAsvoApiErrorInvalidParameter` or an `MwaAsvoErrorInvalidOption`, not these. |
 | `OSError` | A file or directory cannot be read, written or made: a CSV file, or a file or directory of a download. Python gives the subclass (`FileNotFoundError`, `PermissionError`, `NotADirectoryError` and so on), with the operating system's error number, and the file name when the module knows it. |
 | `CsvSubmitError` | `submit_csv_file` did not submit every job of a file. `CsvSubmitErrorInvalid` (a line has a problem; `errors`) and `CsvSubmitErrorNoJobs` (`path`) submit nothing. `CsvSubmitErrorFailed` means that some jobs failed and the others were submitted: it has `submitted` (the replies) and `failures` (a `CsvJobFailure` for each job that was not). |
 | `CsvFileError`, `CsvError` | `read_manta_ray_csv` (`CsvFileErrorInvalid` with `errors`, `CsvFileErrorNoJobs` with `path`) or `parse_manta_ray_csv` (`CsvError` with `errors`) could not read the jobs of a file. |

@@ -32,15 +32,17 @@ mod test_config;
 // job arguments and their checks are in `mwa_asvo::api`, and the error codes
 // of `--json` in `mwa_asvo::error_response`; everything else is here.
 pub use helpers::{
-    check_file_sha1_hash, parse_job_ids_and_obs_ids_from_file, parse_job_ids_only,
-    parse_many_job_ids_or_obs_ids, parse_obs_ids_only, parse_utc_time, ParseError, OBS_ID_HINT,
+    check_file_sha1_hash, parse_ids_from_text, parse_job_ids_and_obs_ids_from_file,
+    parse_job_ids_only, parse_many_job_ids_or_obs_ids, parse_obs_ids_only, parse_utc_time,
+    JobIdsAndObsIds, ParseError, OBS_ID_HINT,
 };
 /// The jiff crate, for the dates and times in this crate's API (for example
 /// the `created` field of a job), so that a program uses the same jiff version.
 pub use jiff;
 pub use mwa_asvo::api::client::{
-    JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST,
-    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
+    JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, ObsIdJobParams, SubmitManyResult,
+    DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB,
+    ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 pub use mwa_asvo::api::error::MwaAsvoApiError;
 pub use mwa_asvo::download::{

@@ -24,15 +24,12 @@
 //! more than once (in the arguments, in a file, or on standard input) is used
 //! once, at its first place.
 
-use std::collections::HashSet;
-use std::hash::Hash;
 use std::io::Read;
 
-use super::json_output::{KEY_MESSAGE, KEY_STATUS};
+// The parsing of the text is the library's.
 use crate::helpers::{
-    parse_many_job_ids_or_obs_ids, push_job_id_or_obs_id, ParseError, BYTE_ORDER_MARK,
+    parse_ids_from_text, parse_many_job_ids_or_obs_ids, without_repeats, ParseError,
 };
-use crate::mwa_asvo::api::openapi::Status;
 use crate::mwa_asvo::MwaAsvoJobId;
 use crate::obs_id::ObsId;
 
@@ -41,102 +38,6 @@ mod tests;
 
 /// The argument that means "read standard input".
 const STDIN_ARG: &str = "-";
-
-/// What a piece of text on standard input holds. See
-/// [`parse_ids_from_text`].
-#[derive(Debug, Default, PartialEq, Eq)]
-pub(super) struct TextIds {
-    /// The Job IDs, in ascending order for a JSON list and in the order of
-    /// the text otherwise.
-    pub job_ids: Vec<MwaAsvoJobId>,
-    /// The Obs IDs, in the order of the text.
-    pub obs_ids: Vec<ObsId>,
-}
-
-/// Read the IDs that a command gets on standard input (or from a file that
-/// has the same form).
-///
-/// The text is one of two things:
-///
-/// - The JSON of `giant-squid list --json` (or `wait --json`, or
-///   `--legacy-json`): an object with one entry for each job, and the Job ID
-///   as its key. The Job IDs are the keys. The Obs IDs are not used: an Obs ID
-///   can have more than one job.
-/// - IDs that whitespace separates (one on each line, as `list --ids` prints
-///   them). As in a file, a number that is a valid Obs ID is an Obs ID, and
-///   any other number is a Job ID.
-///
-/// Text with no ID in it (`list --ids` for a list with no job prints no text,
-/// and `list --json` prints `{}`) gives no ID.
-///
-/// # Errors
-///
-/// [`ParseError`] if a word is not a number, if the text is JSON that is not
-/// a job list, or if it is the error line of a command that failed (the
-/// message of the error is in the [`ParseError`]).
-pub(super) fn parse_ids_from_text(text: &str) -> Result<TextIds, ParseError> {
-    // Some programs write the mark of a UTF-8 file at its start.
-    let text = text.strip_prefix(BYTE_ORDER_MARK).unwrap_or(text);
-    if text.trim_start().starts_with('{') {
-        return parse_job_list_json(text);
-    }
-    let mut ids = TextIds::default();
-    for word in text.split_whitespace() {
-        if !push_job_id_or_obs_id(word, &mut ids.job_ids, &mut ids.obs_ids)? {
-            return Err(ParseError::InsideStdin {
-                text: word.to_string(),
-            });
-        }
-    }
-    Ok(ids)
-}
-
-/// The Job IDs of the JSON of a job list.
-fn parse_job_list_json(text: &str) -> Result<TextIds, ParseError> {
-    let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| ParseError::StdinJson {
-            problem: e.to_string(),
-        })?;
-    let serde_json::Value::Object(entries) = value else {
-        return Err(ParseError::StdinJson {
-            problem: "it is not an object".to_string(),
-        });
-    };
-
-    // A command that failed prints one line of JSON with the error.
-    if entries.get(KEY_STATUS).and_then(serde_json::Value::as_str)
-        == Some(Status::Failed.to_string().as_str())
-    {
-        let message = entries
-            .get(KEY_MESSAGE)
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("no message");
-        return Err(ParseError::StdinFailure {
-            message: message.to_string(),
-        });
-    }
-
-    let mut job_ids = Vec::with_capacity(entries.len());
-    for (key, job) in &entries {
-        let job_id = key.parse::<u64>().ok().and_then(MwaAsvoJobId::new);
-        match job_id {
-            Some(job_id) if job.is_object() => job_ids.push(job_id),
-            _ => {
-                return Err(ParseError::StdinJson {
-                    problem: format!("the entry '{key}' is not a job with a Job ID as its key"),
-                })
-            }
-        }
-    }
-    // The keys of a JSON object are text, so they are in the order of the
-    // text, not of the numbers.
-    job_ids.sort_unstable();
-    job_ids.dedup();
-    Ok(TextIds {
-        job_ids,
-        obs_ids: Vec::new(),
-    })
-}
 
 /// The IDs of a command, from its arguments and from standard input.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -177,13 +78,6 @@ impl ResolvedIds {
             })
         }
     }
-}
-
-/// `ids` without a value that an earlier one repeats: each value stays at its
-/// first place.
-fn without_repeats<T: Copy + Eq + Hash>(ids: Vec<T>) -> Vec<T> {
-    let mut seen = HashSet::with_capacity(ids.len());
-    ids.into_iter().filter(|id| seen.insert(*id)).collect()
 }
 
 /// The IDs of a command: those of its arguments (IDs and files of IDs), and

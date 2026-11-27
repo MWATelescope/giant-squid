@@ -35,6 +35,7 @@ mod filter;
 mod job_params;
 mod obs_id;
 mod parse;
+mod submit_many;
 mod typed;
 mod types;
 
@@ -151,9 +152,11 @@ mod module {
     use super::obs_id::PyObsId;
     #[pymodule_export]
     use super::parse::{
-        parse_job_ids_and_obs_ids_from_file, parse_job_ids_only, parse_many_job_ids_or_obs_ids,
-        parse_obs_ids_only, parse_utc_time,
+        parse_ids_from_text, parse_job_ids_and_obs_ids_from_file, parse_job_ids_only,
+        parse_many_job_ids_or_obs_ids, parse_obs_ids_only, parse_utc_time,
     };
+    #[pymodule_export]
+    use super::submit_many::PySubmitResult;
     #[pymodule_export]
     use super::types::{
         PyDeliveryDestination, PyDeliveryFormat, PyDownloadProgress, PyImageOutputMode,
@@ -242,7 +245,7 @@ mod module {
     ///
     /// Raises:
     ///     MwaAsvoError: The hash does not match (kind `HashMismatch`).
-    ///     ValueError: `job_id` is 0.
+    ///     ParseErrorZeroJobId: `job_id` is 0.
     ///     OSError: The file cannot be read.
     #[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyfunction)]
     #[pyfunction]

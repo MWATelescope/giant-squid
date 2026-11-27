@@ -70,9 +70,9 @@ def test_the_source_job_id_is_not_zero() -> None:
     """The library's field is a `NonZeroU64`, so 0 raises when the value is made or set."""
     params = IMAGE_FROM_JOB(SOURCE_JOB_ID)
 
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         IMAGE_FROM_JOB(0)
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         params.source_job_id = 0
 
     assert params.source_job_id == SOURCE_JOB_ID
@@ -171,7 +171,7 @@ def test_a_helper_refuses_an_invalid_obs_id(make: Callable[[int], Any]) -> None:
 
 def test_a_helper_refuses_job_id_zero() -> None:
     """`image_from_job_params` takes a Job ID."""
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         gs.image_from_job_params(0, TEST_OUTPUT_MODE)
 
 

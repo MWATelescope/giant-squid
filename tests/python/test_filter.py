@@ -98,7 +98,7 @@ def test_days_outside_the_limits_are_refused_when_they_are_set(days: int) -> Non
 
 def test_a_job_id_of_zero_is_refused() -> None:
     """0 is not a Job ID."""
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         gs.JobsFilter(job_ids=[0])
 
 

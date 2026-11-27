@@ -179,3 +179,47 @@ def test_parse_utc_time_refuses_a_time_that_it_would_have_to_guess(text: str) ->
     with pytest.raises(gs.ParseErrorInvalidTime, match="RFC 3339") as excinfo:
         gs.parse_utc_time(text)
     assert excinfo.value.kind == "InvalidTime"
+
+
+def test_parse_ids_from_text_reads_ids_on_lines() -> None:
+    """A 10-digit number is an Obs ID, and an ID that is repeated is given once, at its first place."""
+    job_ids, obs_ids = gs.parse_ids_from_text(f"{JOB_ID}\n{OBS_ID} {OTHER_JOB_ID}\n{JOB_ID}\n{OBS_ID}\n")
+
+    assert job_ids == [JOB_ID, OTHER_JOB_ID]
+    assert obs_ids == [OBS_ID]
+    assert all(isinstance(obs_id, gs.ObsId) for obs_id in obs_ids)
+
+
+def test_parse_ids_from_text_reads_the_job_ids_of_list_json() -> None:
+    """The keys of `giant-squid list --json` are the Job IDs, in ascending order. Its Obs IDs are not used."""
+    text = f'{{"{JOB_ID}": {{"obs_id": {OBS_ID}}}, "{OTHER_JOB_ID}": {{}}}}'
+
+    assert gs.parse_ids_from_text(text) == ([OTHER_JOB_ID, JOB_ID], [])
+
+
+@pytest.mark.parametrize("text", ["", " \n\n", "{}", "﻿"])
+def test_parse_ids_from_text_gives_no_id_for_text_with_no_id(text: str) -> None:
+    assert gs.parse_ids_from_text(text) == ([], [])
+
+
+def test_parse_ids_from_text_raises_the_message_of_a_failed_command() -> None:
+    text = '{"status": "failed", "error_code": "AUTH_INVALID_API_KEY", "message": "Bad key"}'
+
+    with pytest.raises(gs.ParseErrorStdinFailure, match="Bad key") as err:
+        gs.parse_ids_from_text(text)
+
+    assert err.value.message == "Bad key"
+
+
+@pytest.mark.parametrize(
+    ("text", "error"),
+    [
+        ("12 abc", gs.ParseErrorInsideStdin),
+        ('{"abc": {}}', gs.ParseErrorStdinJson),
+        ("0", gs.ParseErrorZeroJobId),
+        (str(TEN_DIGITS_BELOW_MIN), gs.ParseErrorInvalidObsId),
+    ],
+)
+def test_parse_ids_from_text_raises_a_parse_error_for_text_that_is_not_ids(text: str, error: type[Exception]) -> None:
+    with pytest.raises(error):
+        gs.parse_ids_from_text(text)

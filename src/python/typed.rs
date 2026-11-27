@@ -132,7 +132,7 @@ impl pyo3_stub_gen::PyStubType for ResultCallback {
 
 /// An MWA ASVO Job ID ([`MwaAsvoJobId`](crate::MwaAsvoJobId), a `NonZeroU64`) as
 /// a Python `int`, as an argument or a return value. An argument that is 0
-/// raises `ValueError`.
+/// raises `ParseErrorZeroJobId`, the library's [`ParseError::ZeroJobId`](crate::ParseError::ZeroJobId).
 #[derive(Clone, Copy)]
 pub struct JobId(pub crate::MwaAsvoJobId);
 
@@ -143,7 +143,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for JobId {
         let id: u64 = obj.extract()?;
         crate::MwaAsvoJobId::new(id)
             .map(Self)
-            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("0 is not a Job ID"))
+            .ok_or_else(|| super::error::parse_error(obj.py(), crate::ParseError::ZeroJobId))
     }
 }
 

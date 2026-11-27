@@ -868,7 +868,7 @@ def test_job_id_zero_is_rejected_before_any_request(client: gs.MwaAsvoClient, ht
     """0 is not a job ID (job IDs start at 1), and nothing is sent."""
     requests_before = len(httpserver.log)
 
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
+    with pytest.raises(gs.ParseErrorZeroJobId, match="0 is not a Job ID or an Obs ID"):
         client.cancel_job(0)
 
     assert len(httpserver.log) == requests_before

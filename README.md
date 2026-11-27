@@ -870,8 +870,8 @@ giant-squid download --no-job-subdir --download-dir /tmp 12345
   giant-squid, or `--no-job-subdir`, left in the download directory itself is not found in `<download directory>/12345`:
   to carry on with it, use `--no-job-subdir` again.
 - A symbolic link where the directory of the job should be is refused, as a link inside a download is.
-- The Python module does the same by default (`job_subdirectory=True`; `False` is the layout of 2.x). A Rust program
-  sets `DownloadOptions::job_subdirectory` itself.
+- The Python module does the same by default (`job_subdirectory=True`; `False` is the layout of 2.x), and so does
+  `DownloadOptions::new` of the Rust library.
 - When you download several jobs at once (`-c`, `--concurrent-downloads`), they start in the order that you gave,
   and the log numbers them in that order (`[1/20]`, `[2/20]`, ...).
 
@@ -1101,8 +1101,7 @@ use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, MwaAsvoClient, MwaAsvoClientConfig, DownloadOptions, DownloadProgress,
-    JobsFilter, ObsId, WaitOptions, DEFAULT_MWA_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    JobsFilter, ObsId, WaitOptions, DEFAULT_MWA_ASVO_HOST,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -1139,19 +1138,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             eprint!("+{bytes} ");
         }
     };
+    // `DownloadOptions::new` has the defaults of the `giant-squid` command:
+    // for example, the files of the job go in `./<job_id>`. Change a field to
+    // use another value.
     let opts = DownloadOptions {
-        keep_tar: false,
-        no_resume: false,
-        hash: true,
-        download_dir: ".",
-        // The files of the job go in `./<job_id>`, as for the `giant-squid` command.
-        job_subdirectory: true,
         progress: Some(&progress),
-        download_number: 1,
-        download_count: 1,
-        buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
-        retry_duration: DEFAULT_DOWNLOAD_RETRY_DURATION,
-        should_stop: None,
+        ..DownloadOptions::new(Path::new("."))
     };
     client.download_job(job_id, &opts)?;
     // To download several jobs, get the job list once with `get_jobs` and

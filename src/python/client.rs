@@ -28,11 +28,13 @@ use super::error::{api_error, mwa_asvo_error};
 use super::filter::PyJobsFilter;
 use super::job_params::{PreprocessParams, PyDownloadJobParams, PyImageFromJobParams};
 use super::obs_id::ObsIdArg;
+use super::submit_many::{PySubmitResult, SubmitManyParams};
 use super::typed::{JobId, ResultCallback};
 use super::types::{PyJobCancelledResponse, PyJobSubmittedResponse, PyMwaAsvoJob, PyMwaAsvoJobVec};
 use crate::mwa_asvo::{
-    DownloadTarget, JobsFilter, MwaAsvoClient, WaitOptions, DEFAULT_CONCURRENT_DOWNLOADS,
-    DEFAULT_WAIT_INITIAL_DELAY, DEFAULT_WAIT_POLL_INTERVAL, DEFAULT_WAIT_RETRY_DURATION,
+    DownloadTarget, JobsFilter, MwaAsvoClient, ObsIdJobParams, WaitOptions,
+    DEFAULT_CONCURRENT_DOWNLOADS, DEFAULT_WAIT_INITIAL_DELAY, DEFAULT_WAIT_POLL_INTERVAL,
+    DEFAULT_WAIT_RETRY_DURATION,
 };
 
 /// A client for the MWA ASVO. It logs in when it is created.
@@ -178,6 +180,55 @@ impl PyMwaAsvoClient {
         py.detach(|| self.inner.submit_image_from_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
+    }
+
+    /// Submit one job for each Obs ID, in their order, as the `giant-squid
+    /// submit-*` commands do.
+    ///
+    /// Each job has the request body `params`, with the `obs_id` of the job.
+    /// (The `obs_id` of `params` is not used.) A submission that fails does
+    /// not stop the others: every Obs ID is submitted. An Obs ID that is given
+    /// more than once is submitted each time.
+    ///
+    /// Args:
+    ///     obs_ids: The Obs IDs, one job each.
+    ///     params: The request body of each job: a `DownloadJobParams`, or a
+    ///         `PreprocessJobParams`, `ConversionJobParams` or
+    ///         `ImagingJobParams`.
+    ///
+    /// Returns:
+    ///     A `SubmitResult` for each Obs ID, in the order of `obs_ids`, with
+    ///     the reply or the `MwaAsvoApiError` of the submission. A body with
+    ///     a value outside the limits of the MWA ASVO is not sent: its error
+    ///     is `MwaAsvoApiErrorInvalidParameter`.
+    ///
+    /// Raises:
+    ///     TypeError: `params` is not one of the four classes.
+    ///     ObsIdError: An Obs ID is not valid. Nothing is submitted.
+    ///     MwaAsvoApiErrorInvalidParameter: The image size, `nmiter` or
+    ///         `channels_out` of an imaging body is not valid. Nothing is
+    ///         submitted.
+    fn submit_many(
+        &self,
+        py: Python<'_>,
+        obs_ids: Vec<ObsIdArg>,
+        params: SubmitManyParams,
+    ) -> PyResult<Vec<PySubmitResult>> {
+        let obs_ids: Vec<_> = obs_ids.into_iter().map(|id| id.0).collect();
+        let results = py.detach(|| match &params {
+            SubmitManyParams::Download(params) => {
+                self.inner
+                    .submit_many(&obs_ids, |o| params.with_obs_id(o), |_, _| {})
+            }
+            SubmitManyParams::Preprocess(params) => {
+                self.inner
+                    .submit_many(&obs_ids, |o| params.with_obs_id(o), |_, _| {})
+            }
+        });
+        results
+            .into_iter()
+            .map(|result| PySubmitResult::from_lib(py, result))
+            .collect()
     }
 
     /// Submit the jobs of a manta-ray-client CSV file (the file that
@@ -336,7 +387,7 @@ impl PyMwaAsvoClient {
     ///     The job, an `MwaAsvoJob`.
     ///
     /// Raises:
-    ///     ValueError: `job_id` is 0.
+    ///     ParseErrorZeroJobId: `job_id` is 0.
     ///     OverflowError: `job_id` is negative or too large to be a Job ID.
     ///     MwaAsvoErrorNoMwaAsvoJob: The MWA ASVO has no such job of the user.
     ///     MwaAsvoErrorInvalidJob: The server gave a job that cannot be used.
@@ -370,9 +421,9 @@ impl PyMwaAsvoClient {
     ///     and then the Obs IDs.
     ///
     /// Raises:
-    ///     ValueError: A Job ID or `concurrency` is 0, `options.download_dir`
-    ///         is not valid UTF-8, or `options.retry_duration` is negative or
-    ///         not finite.
+    ///     ParseErrorZeroJobId: A Job ID is 0.
+    ///     ValueError: `concurrency` is 0, or `options.retry_duration` is
+    ///         negative or not finite.
     ///     ObsIdError: An Obs ID is not valid.
     ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
     ///     MwaAsvoErrorApi: Getting the job list failed. Nothing is
@@ -429,7 +480,8 @@ impl PyMwaAsvoClient {
     ///     The last job list, an `MwaAsvoJobVec`.
     ///
     /// Raises:
-    ///     ValueError: A Job ID is 0, or a time is negative or not finite.
+    ///     ParseErrorZeroJobId: A Job ID is 0.
+    ///     ValueError: A time is negative or not finite.
     ///     MwaAsvoError: A job is missing, has an error, has been cancelled,
     ///         or is completed but its download links have expired.
     ///     MwaAsvoErrorApi: The job list request failed. Its `source` is the
@@ -481,7 +533,7 @@ impl PyMwaAsvoClient {
     ///     error.
     ///
     /// Raises:
-    ///     ValueError: `job_id` is 0.
+    ///     ParseErrorZeroJobId: `job_id` is 0.
     ///     OverflowError: `job_id` is negative or too large to be a Job ID.
     ///     MwaAsvoApiError: The request failed, for example because there is
     ///         no such job.
@@ -515,8 +567,7 @@ impl PyMwaAsvoClient {
     ///     MwaAsvoErrorApi: Getting the job list failed. Its `source` is the
     ///         `MwaAsvoApiError`.
     ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
-    ///     ValueError: `options.download_dir` is not valid UTF-8, or
-    ///         `options.retry_duration` is negative or not finite.
+    ///     ValueError: `options.retry_duration` is negative or not finite.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_job(
         &self,
@@ -545,8 +596,7 @@ impl PyMwaAsvoClient {
     ///     MwaAsvoError: The job is missing from `jobs`, not ready or has no
     ///         files, a transfer failed, or the hash does not match.
     ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
-    ///     ValueError: `options.download_dir` is not valid UTF-8, or
-    ///         `options.retry_duration` is negative or not finite.
+    ///     ValueError: `options.retry_duration` is negative or not finite.
     ///     KeyboardInterrupt: Ctrl-C was pressed.
     fn download_job_from(
         &self,

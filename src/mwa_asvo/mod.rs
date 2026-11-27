@@ -28,8 +28,9 @@ pub(crate) mod wait;
 #[allow(unused_imports)]
 pub(crate) use self::{
     api::client::{
-        JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST,
-        ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
+        JobsFilter, MwaAsvoClient, MwaAsvoClientConfig, ObsIdJobParams, SubmitManyResult,
+        DEFAULT_API_TIMEOUT, DEFAULT_MWA_ASVO_HOST, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB,
+        ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
     },
     api::openapi::{DeliveryDestination, JobFile, JobProduct, JobState, JobType, SortBy},
     api::MwaAsvoApiError,

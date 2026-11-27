@@ -228,6 +228,8 @@ MWA_ASVO_JOB_MEMBERS = [
     "expires",
     "is_expired",
     "display_state",
+    "total_size",
+    "download_destination",
 ]
 
 # Why the helpers of the Rust validation module have no Python counterpart.
@@ -245,6 +247,12 @@ MANIFEST: list[Entry] = [
     done("crate::MwaAsvoClient::submit_download_job", "MwaAsvoClient.submit_download_job"),
     done("crate::MwaAsvoClient::submit_preprocess_job", "MwaAsvoClient.submit_preprocess_job"),
     done("crate::MwaAsvoClient::submit_image_from_job", "MwaAsvoClient.submit_image_from_job"),
+    done("crate::MwaAsvoClient::submit_many", "MwaAsvoClient.submit_many"),
+    done("crate::SubmitManyResult", "SubmitResult"),
+    excluded(
+        "crate::ObsIdJobParams",
+        "A Rust trait. Python `submit_many` takes one request body and gives it the Obs ID of each job.",
+    ),
     done("crate::MwaAsvoClient::submit_csv_file", "MwaAsvoClient.submit_csv_file"),
     done("crate::MwaAsvoClient::cancel_job", "MwaAsvoClient.cancel_job"),
     done("crate::MwaAsvoClient::download_job", "MwaAsvoClient.download_job"),
@@ -257,6 +265,7 @@ MANIFEST: list[Entry] = [
     done("crate::JobsFilter", "JobsFilter"),
     done("crate::JobsFilter::validate", "JobsFilter.validate"),
     done("crate::DownloadOptions", "DownloadOptions"),
+    done("crate::DownloadOptions::new", "DownloadOptions"),  # The defaults of its keyword arguments.
     excluded(
         "crate::DownloadOptions::should_stop",
         "Python stops a download with Ctrl-C (KeyboardInterrupt). The library reads no signals.",
@@ -285,6 +294,7 @@ MANIFEST: list[Entry] = [
         "crate::DownloadManyOptions",
         "Python takes a `DownloadOptions` and a `concurrency` argument, and stops the downloads with Ctrl-C.",
     ),
+    excluded("crate::DownloadManyOptions::new", "Python has no `DownloadManyOptions` (see above)."),
     done("crate::DEFAULT_CONCURRENT_DOWNLOADS", "DEFAULT_CONCURRENT_DOWNLOADS"),
     # --- The wait ---
     done("crate::MwaAsvoClient::wait_for_jobs", "MwaAsvoClient.wait_for_jobs"),
@@ -355,6 +365,8 @@ MANIFEST: list[Entry] = [
     done("crate::parse_job_ids_only", "parse_job_ids_only"),
     done("crate::parse_many_job_ids_or_obs_ids", "parse_many_job_ids_or_obs_ids"),
     done("crate::parse_job_ids_and_obs_ids_from_file", "parse_job_ids_and_obs_ids_from_file"),
+    done("crate::parse_ids_from_text", "parse_ids_from_text"),
+    excluded("crate::JobIdsAndObsIds", "Python `parse_ids_from_text` returns a tuple of the Job IDs and the Obs IDs."),
     done("crate::parse_utc_time", "parse_utc_time"),
     pending("crate::job_field_names", "job_field_names", "For `list --fields`; the Python part is a later diff."),
     pending("crate::parse_job_field", "parse_job_field", "For `list --fields`; the Python part is a later diff."),

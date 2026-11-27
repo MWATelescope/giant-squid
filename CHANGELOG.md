@@ -14,6 +14,11 @@ before you upgrade scripts.**
 
 ### Changed in 3.0.0
 
+* `DownloadOptions::download_dir` and `DownloadManyOptions::download_dir` are a `&Path`, not a `&str`, so a directory
+  whose name is not UTF-8 can be used. The Python module gives the `download_dir` of its `DownloadOptions` to the
+  library as it is, so a download no longer raises `ValueError` for a `download_dir` that is not valid UTF-8.
+* Python: a Job ID of 0, in any argument or attribute, raises `ParseErrorZeroJobId` (the library's
+  `ParseError::ZeroJobId`, with its message `0 is not a Job ID or an Obs ID`), not `ValueError`.
 * Every command except the file transfer of `download` uses version 2 of the MWA ASVO API (2.8.3, OpenAPI 3.1.0).
   The download jobs (visibility, metadata, voltage and beamformer) go to `/api/v2/jobs/download`, the conversion and
   imaging jobs to `/api/v2/jobs/preprocess`, and an image from a conversion job to `/api/v2/jobs/image_from_job`.
@@ -42,7 +47,7 @@ before you upgrade scripts.**
   observation no longer meet in one directory. Use `--no-job-subdir` for the layout of 2.x, with the files in the
   download directory itself. A download resumes from the directory of its job, so a partial download that an earlier
   version left in the download directory is not found there: use `--no-job-subdir` to carry on with it. A Scratch job
-  is not affected. The library has the option `DownloadOptions::job_subdirectory` (it has no default: set it), and
+  is not affected. The library has the option `DownloadOptions::job_subdirectory` (`true` in `DownloadOptions::new`), and
   the Python `DownloadOptions` has the field `job_subdirectory` (`True` by default). See the
   [README](README.md#a-directory-for-each-job).
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
@@ -198,6 +203,13 @@ before you upgrade scripts.**
 
 ### Added in 3.0.0
 
+* The library has `DownloadOptions::new(download_dir)` and `DownloadManyOptions::new(download_dir)`, which give the
+  defaults of the `giant-squid` command (`keep_tar` and `no_resume` `false`, `hash` and `job_subdirectory` `true`,
+  `DEFAULT_DOWNLOAD_BUFFER_SIZE`, `DEFAULT_DOWNLOAD_RETRY_DURATION`, one download, and for several downloads
+  `DEFAULT_CONCURRENT_DOWNLOADS`). The command and the Python module use them, and the Python `DownloadOptions` has
+  the same defaults.
+* The library has `validate::RECEIVER_CHANNEL`, the schema's limits of `from_channel` and `to_channel` (0 to 255),
+  which the help of the command shows.
 * `list --fields a,b,c` adds a column to the job table for each named field of the job or its parameters (for
   example `avg_time_res` or `error_text`); `--help` lists the fields. A job that does not have a field has an empty
   cell. The library has `job_field_names`, `parse_job_field` and `job_field_value`. A listed job's `job_params` are
@@ -217,6 +229,20 @@ before you upgrade scripts.**
   `DownloadManyOptions` (Python: a `DownloadOptions` and `concurrency`, default `DEFAULT_CONCURRENT_DOWNLOADS`). It
   gets the job list once, downloads a job that is given twice once, starts the downloads in their order, and gives a
   result for each (Python `DownloadResult`). The command no longer depends on `rayon`.
+* The library has `MwaAsvoClient::submit_many` (Python `MwaAsvoClient.submit_many`), the submissions of the
+  `giant-squid submit-*` commands, which now call it. It submits one job for each Obs ID, in their order, with a body
+  that a function makes for each Obs ID, does not stop at a failure, and gives a result for each Obs ID
+  (`SubmitManyResult`; Python `SubmitResult`, with `obs_id`, `response` and `error`). The trait `ObsIdJobParams` is
+  the bodies that it takes (`DownloadJobParams` and `PreprocessJobParams`), with `with_obs_id`. Python takes one body
+  and gives it the Obs ID of each job.
+* The library has `MwaAsvoJob::total_size` (Python `MwaAsvoJob.total_size`), the sum of the sizes of the files of a
+  job, which `list` and `download --json` show, and `MwaAsvoJob::download_destination` (Python
+  `MwaAsvoJob.download_destination`), the directory that a download puts the files of a job in, which
+  `download --json` shows.
+* The library has `parse_ids_from_text` (Python `parse_ids_from_text`), which reads the IDs that `download -`,
+  `cancel -` and `wait -` read on standard input (the output of `list --ids` or `list --json`, or IDs that spaces or
+  lines separate) and gives each ID once (`JobIdsAndObsIds`; Python: a tuple of the Job IDs and the Obs IDs). The
+  commands now call it.
 * `download` without `--keep-tar` (stream untar) now resumes. A retry after a failed attempt (for example, a
   dropped connection) continues from where the attempt stopped. A new run of the same command continues from the
   files that are already in the download directory: complete files are not downloaded again, and a partly
@@ -285,8 +311,9 @@ before you upgrade scripts.**
     `MwaAsvoClient(config)`, `client_config_from_env()` or a download is `MwaAsvoErrorApi`, as in the library, with
     the `MwaAsvoApiError` as its `source` and `__cause__`. A CSV file with a problem or with no job raises
     `CsvSubmitErrorInvalid` or `CsvSubmitErrorNoJobs` (`read_manta_ray_csv`: `CsvFileErrorNoJobs`), and one with jobs
-    that failed `CsvSubmitError`. A Job ID of 0, a negative duration and other values that are not valid as Python
-    values raise `ValueError`.
+    that failed `CsvSubmitError`. A Job ID of 0 raises `ParseErrorZeroJobId`, the library's `ParseError::ZeroJobId`
+    (in any argument, also an attribute of a request body or a `JobsFilter`). A negative duration and other values
+    that are not valid as Python values raise `ValueError`.
 
 ### Fixed in 3.0.0
 
