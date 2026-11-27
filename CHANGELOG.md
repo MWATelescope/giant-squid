@@ -36,8 +36,8 @@ before you upgrade scripts.**
   download directory itself. A download resumes from the directory of its job, so a partial download that an earlier
   version left in the download directory is not found there: use `--no-job-subdir` to carry on with it. A Scratch job
   is not affected (it is moved into the download directory in its own folder, which the MWA ASVO has named for the
-  job). The library has the option `DownloadOptions::job_subdirectory` (it has no default: set it), and the Python module
-  has the argument `job_subdirectory` of `download_job` and `download_obs`, which is `True` by default, as for the
+  job). The library has the option `DownloadOptions::job_subdirectory` (it has no default: set it), and the Python
+  `DownloadOptions` has the field `job_subdirectory`, which is `True` by default, as for the
   command. See the [README](README.md#a-directory-for-each-job).
 * `download` of a Scratch job that this host can reach moves its files into the download directory (`-d`,
   `--download-dir`), as for an Acacia job. Before, they went to the current directory. The move does not replace
@@ -93,8 +93,8 @@ before you upgrade scripts.**
 * Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (were "job ID", "jobid", "obsid" and
   "Obsid"). JSON keys and argument names do not change (`job_id`, `obs_id`).
 * giant-squid now authenticates against the MWA ASVO's v2 (JWT-based) login API instead of HTTP Basic Auth.
-  The resulting session is cached at `$HOME/.mwa-asvo/tokens.json` (shared with mwa-cli, so logging in with
-  either tool covers both) and is automatically refreshed when it expires, avoiding a fresh login on every
+  The resulting session is cached at `$HOME/.mwa-asvo/tokens.json` (the path that mwa-cli also uses; a session
+  that mwa-cli wrote is not used) and is automatically refreshed when it expires, avoiding a fresh login on every
   command. This is transparent to users - `MWA_ASVO_API_KEY` is still how you authenticate.
 * Every command except the file transfer of `download` uses the v2 API. The defaults and limits of the job
   options are the API's, and a value outside a limit is refused before any request is sent. The defaults of
@@ -132,14 +132,14 @@ before you upgrade scripts.**
   MWA ASVO API's default (30 days, shown in `--help`) instead of fetching your full history. `wait` and
   `download` find jobs the same way.
   `--days` cannot be used with `--date-from` or `--date-to`.
-* `list --json` and `wait --json` use the API's key names (for example `id`, `obs_id`, `product.files`) and
+* `list --json` and `wait --json` use the API's key names (for example `job_id`, `obs_id`, `product.files`) and
   have more keys. `--legacy-json` prints the old format, and is deprecated: it will be removed in a later release.
 * The job states are the MWA ASVO API's: `completed` (was `ready`), `waitcal`, `error` and the others, in lower case,
   as the API gives them. `list --job-states` takes these names (in any case), and the table, the JSON and the log
   lines of `wait` show them. In the JSON, `job_state` of a job with an error is `"error"`, and the message is only in
   `error_text` (before, it was `{"Error": "<message>"}`). `--legacy-json` still prints the 2.x values.
 * `download` and `cancel` have `-j`, `--json`, as the other commands do. `download --json` prints one line of JSON
-  for each download (`job_id`, `obs_id`, `status`, `message`); `cancel --json` prints the MWA ASVO's reply to each
+  for each download (`status`, `job_id`, `obs_id`, `message`); `cancel --json` prints the MWA ASVO's reply to each
   request.
 * With `--json`, every command prints only JSON, on standard output: no log messages and no progress bars. Each
   error is one line of JSON in the form of the MWA ASVO's error response (`error_code`, `message`, and `detail`,
@@ -164,19 +164,19 @@ before you upgrade scripts.**
   ignored without a word.
 * `list --job-types` refuses text that is not a job type, instead of matching no job.
 * The job types are the MWA ASVO API's. `list --job-types` and the table use the API's names (`conversion`,
-  `visibility`, `metadata`, `voltage`, `cancel`, `beamformer`, `imaging`), and `--json` gives the API's code (`0` to
-  `6`), or `null` for a job with no type. The 2.x names (`download_visibilities` and so on) are refused.
+  `visibility`, `metadata`, `voltage`, `cancel`, `beamformer`, `imaging`), and `--json` gives the same names. Every
+  job has a type. The 2.x names (`download_visibilities` and so on) are refused.
   `--legacy-json` still prints the 2.x names.
 * A file in `--json` is the API's `JobFile`: its `type` is `acacia`, `scratch` or `dug` (was `Acacia` and so on), and
   a key that has no value is left out (was `null`).
-* A job in `--json` is the API's `JobDetailResponse`, with one more key, `obs_id`. The Job ID is `id` (was
-  `job_id`), and a key that has no value is left out (was `null`).
+* A job in `--json` is the API's `JobDetailResponse`. The Job ID is `job_id` (was `jobId`), and a key
+  that has no value is left out (was `null`).
 * `giant-squid --version` also prints the version of the MWA ASVO API and of the OpenAPI specification that the
-  library was generated from (for example `MWA ASVO API 2.3.4`, `OpenAPI 3.1.0`). The library has them as
+  library was generated from (for example `MWA ASVO API 2.8.3`, `OpenAPI 3.1.0`). The library has them as
   `mwa_asvo::api::openapi::MWA_ASVO_API_VERSION` and `OPENAPI_VERSION`.
 * CLI: an option for a field that the MWA ASVO allows to be `null` takes the word `null` (`--avg-freq-res null`,
-  `--no-rfi=null`, `--allow-resubmit=null`): `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`,
-  `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,
+  `--no-rfi=null`, `--allow-resubmit=null`): `--avg-freq-res`, `--avg-time-res`, `--flag-edge-width`,
+  `--abs-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`,
   `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The last seven also take `true` and `false`, and
   the bare flag (`--no-rfi`, `-r`) is still `true`. `--help` shows each option's default.
 * Short flags: `-f` is only `--delivery-format` (`submit-volt --from-channel` and `--to-channel` lost `-f` and `-t`),
@@ -276,12 +276,13 @@ before you upgrade scripts.**
   imaging jobs, one per line. It reads and checks the whole file before it submits anything, and a submission that
   fails does not stop the others. A key that the job type does not have is an error. A key that a line gives twice,
   and a line that makes the same job as an earlier line, are warnings. A line that gives no delivery or delivery
-  format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set; a voltage line that gives
-  none and has none set is delivered to Scratch as files, as in manta-ray-client. See the
+  format uses `GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set, and else the schema
+  default. A voltage line is no different. See the
   [README](README.md#jobs-from-a-manta-ray-client-csv-file). The library has `MwaAsvoClient::submit_csv_file`, which
   reads a file and returns the `JobSubmittedResponse` of each job, `MwaAsvoClient::submit_csv_jobs`,
   `read_manta_ray_csv`, `parse_manta_ray_csv` and `CsvDefaults`. A file with no job is an error (`CsvFileError::NoJobs`). The Python module has `MwaAsvoClient.submit_csv_file`, which returns a list
-  of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed. A file with no job raises `ValueError`.
+  of `JobSubmittedResponse`, and the exception `CsvSubmitError` for a file with jobs that failed. A file with no job raises
+  `CsvSubmitErrorNoJobs` (`read_manta_ray_csv`: `CsvFileErrorNoJobs`).
 * `download`, `cancel` and `wait` read their IDs from standard input when an argument is `-`. The input is the
   output of the new option `list --ids` (one Job ID on each line) or of `list --json` (the Job IDs are its keys), or
   IDs that spaces or lines separate. The commands do not filter what they read: filter the list first, for example
@@ -417,6 +418,8 @@ before you upgrade scripts.**
 * The login, refresh and API requests follow a redirect only to the same host and port, so that a 307 or 308 redirect
   does not send the API key to another host. The download of a file still follows every redirect.
 * A client for an `http://` host warns that the API key and the session are sent in clear text.
+* A Scratch job is moved only when its path is a folder named for its Job ID, as the MWA ASVO makes it. Any other path
+  fails with `MwaAsvoError::InvalidJob` and is not moved, so that a bad reply cannot move another folder.
 
 ### Deprecated in 3.0.0
 
@@ -437,8 +440,8 @@ before you upgrade scripts.**
 
 * The version 1 API client, and the `-p` / `--parameters` option (see above).
 * The `expired` job state, and the library error `AsvoError::Expired`. The MWA ASVO API has no expired state. (A job whose download links have expired is found from the links: see "Changed in 3.0.0".)
-* The `Unknown` job type. A job type that the schema does not list fails the listing; a job with no type has
-  `job_type` `None`.
+* The `Unknown` job type. A job type that the schema does not list fails the listing. Every job has a
+  `job_type`.
 * Library: `Obsid::from_string`. Parse each Obs ID with `str::parse::<ObsId>()`.
 * Library: the `built_info` module (build-time information from the `built` crate), which nothing used.
 * Library: `AsvoJobMap` and `AsvoJobVec::into_map`. `MwaAsvoJobVec::json` still prints the jobs as an object keyed by
@@ -449,9 +452,9 @@ before you upgrade scripts.**
 * Tests moved into their own module: a module that has tests is a folder with `mod.rs` (the code) and `tests.rs`
   (the tests).
 * A test suite that runs offline against a mock MWA ASVO server (recorded responses are replayed), so that no
-  test submits or cancels a job or downloads data. See [docs/TESTING.md](docs/TESTING.md).
+  test submits or cancels a job or downloads data. See [docs/history/TESTING.md](docs/history/TESTING.md).
 * Tests that keep decisions from being undone by accident: only parameters of the API schema are sent, only
-  end-user endpoints are called. See [docs/TESTING.md](docs/TESTING.md).
+  end-user endpoints are called. See [docs/history/TESTING.md](docs/history/TESTING.md).
 * `tools/run_live_tests.sh` runs the opt-in live tests against the MWA ASVO test server.
 * CI checks that the generated API types and the Python type stubs are up to date, builds and tests the Python
   package on Linux and macOS, and attaches the wheels to releases.

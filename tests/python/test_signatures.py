@@ -18,8 +18,8 @@ from .test_client import SCHEMA_PATH
 # Each request body class: the schema type, the arguments that have no default (the positional one and, for the
 # imaging classes, `output_mode`, which the schema requires and gives no default), and the schema fields that the
 # class does not take as an argument.
-# The imaging `output` is not an argument: what it means is a question for the API developer, so the body sends the
-# schema default.
+# The imaging body has no `output` since MWA ASVO API 2.8.2. `{"output"}` is kept, and has no effect: the schema type
+# has no such field to remove.
 CLASSES = [
     (gs.DownloadJobParams, "DownloadJobParams", ["obs_id"], set()),
     (gs.ConversionJobParams, "ConversionJobParams", ["obs_id"], set()),

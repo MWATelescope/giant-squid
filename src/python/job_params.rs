@@ -51,12 +51,11 @@ use crate::obs_id::ObsId;
 /// The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
 /// visibility, metadata, voltage or beamformer job: the MWA ASVO finds the kind of data from the
 /// observation. Set `only_metadata` for a metadata job, and `offset`, `duration`, `from_channel`
-/// and `to_channel` for a voltage job (`only_metadata=True` with any of them is an
-/// `MwaAsvoApiErrorInvalidParameter`); the MWA ASVO refuses the voltage fields for an observation
-/// that has no voltages.
+/// and `to_channel` for a voltage job. The MWA ASVO refuses `only_metadata=True` with any of
+/// them, and the voltage fields for an observation that has no voltages.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
+/// (the type stubs show it). `None` is accepted by the arguments that the
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -196,7 +195,7 @@ impl PyDownloadJobParams {
 /// The request body of a conversion (preprocessing) job: the schema's `ConversionJobParams`.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
+/// (the type stubs show it). `None` is accepted by the arguments that the
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -363,11 +362,6 @@ impl PyConversionJobParams {
 
 impl PyConversionJobParams {
     /// The library's request body for these values.
-    ///
-    /// # Errors
-    ///
-    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size or `nmiter` is not
-    /// valid.
     pub(super) fn to_schema(&self) -> ConversionJobParams {
         let mut params = schema::conversion_params(self.obs_id);
         params.delivery = self.delivery.into();
@@ -396,7 +390,7 @@ impl PyConversionJobParams {
 /// `ImagingJobParams`.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
+/// (the type stubs show it). `None` is accepted by the arguments that the
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -680,8 +674,7 @@ impl PyImagingJobParams {
     ///
     /// # Errors
     ///
-    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size, `nmiter` or
-    /// `channels_out` is not valid.
+    /// `MwaAsvoApiErrorInvalidParameter` if the image size, `nmiter` or `channels_out` is not valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImagingJobParams> {
         let image_size = self
             .image_size
@@ -737,7 +730,7 @@ impl PyImagingJobParams {
 /// source job.
 ///
 /// Every keyword argument has the MWA ASVO's default as its default value
-/// (the type stubs show it). `None` is accepted by the arguments that the MWA
+/// (the type stubs show it). `None` is accepted by the arguments that the
 /// MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
 /// default". Each argument is also an attribute, which can be read and changed.
 /// `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
@@ -936,8 +929,7 @@ impl PyImageFromJobParams {
     ///
     /// # Errors
     ///
-    /// `ObsIdError` if the Obs ID is not valid. `ValueError` if the Job ID, image size, `nmiter` or
-    /// `channels_out` is not valid.
+    /// `MwaAsvoApiErrorInvalidParameter` if the image size, `nmiter` or `channels_out` is not valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<ImageFromJobParams> {
         let image_size = self
             .image_size
@@ -1124,7 +1116,8 @@ impl PyPreprocessJobParams {
     ///
     /// # Errors
     ///
-    /// `ValueError` if the image size or `nmiter` is not valid.
+    /// `MwaAsvoApiErrorInvalidParameter` if the image size, `nmiter` or `channels_out` of an imaging
+    /// body is not valid.
     pub(super) fn to_schema(&self, py: Python<'_>) -> PyResult<PreprocessJobParams> {
         match self {
             Self::Conversion { params } => Ok(params.borrow(py).to_schema().into()),

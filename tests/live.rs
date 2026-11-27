@@ -50,7 +50,7 @@
 //! for it ([`assert_not_a_server_error`]), so a live test fails when the API
 //! answers with a 500, with a message that says so.
 //!
-//! See docs/TESTING.md, layer 3.
+//! See docs/history/TESTING.md, layer 3.
 
 mod common;
 

@@ -318,8 +318,8 @@ impl MwaAsvoClient {
     /// Get a new client which has authenticated with the MWA ASVO v2 API,
     /// using the host, API key and timeout in `config`.
     ///
-    /// If `config.token_cache_path` is set, a cached session there (the
-    /// format is shared with mwa-cli) is reused if it's still valid,
+    /// If `config.token_cache_path` is set, a cached session there (for the
+    /// same host and API key) is reused if it's still valid,
     /// refreshed if only the access token has expired, or a fresh login is
     /// performed otherwise. This is all best-effort and silent: if the
     /// cache can't be read or written for any reason, the client just falls
@@ -803,7 +803,7 @@ impl MwaAsvoClient {
     /// schema's default (30 in the current schema): the library does not ask
     /// for "all" jobs. With a date, the request has `"days": null`.
     ///
-    /// A job without a usable obs_id in its untyped `job_params` is skipped
+    /// A job without a usable `obs_id` (the top-level `detail.obs_id`) is skipped
     /// with a warning, rather than failing the whole listing (see
     /// `MwaAsvoJob::try_from`). A job state or file type that the schema
     /// does not list fails the whole listing with a decode error.
@@ -867,7 +867,7 @@ impl MwaAsvoClient {
             };
             // Not parsed as `JobsByUserResponse` at once: since schema
             // v1.11 its `jobs` are typed, and `normalize_job_value` must
-            // patch two server quirks into each job first. The page shape
+            // patch the server quirks into each job first. The page shape
             // is still the schema's.
             let page: RawJobsPage = serde_json::from_str(&body)?;
 
@@ -1127,7 +1127,7 @@ pub(crate) fn typed_job_params(job_type: JobType, raw: Option<serde_json::Value>
 /// Patches the quirks of the real server into a raw job JSON object before it
 /// is read as a `JobDetailResponse`. The generated type cannot be fixed
 /// (regeneration overwrites it), and the API developer has been told of the
-/// first two (docs/PYTHON_BINDINGS.md): remove them when the API sends `null`
+/// first two (docs/history/PYTHON_BINDINGS.md): remove them when the API sends `null`
 /// and RFC 3339 times.
 ///
 /// 1. `completed`, `started` and `modified` are sometimes absent, not `null`.

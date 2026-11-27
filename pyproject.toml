@@ -1,5 +1,5 @@
 # The Python package `mwa-giant-squid` (`import mwa_giant_squid`), built from
-# this crate's "python" feature by maturin. See docs/PYTHON_BINDINGS.md.
+# this crate's "python" feature by maturin. See docs/history/PYTHON_BINDINGS.md.
 #
 #   uv sync                 # build the module and install it, with the dev tools
 #   uv run pytest           # run the Python tests

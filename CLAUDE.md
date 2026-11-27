@@ -1,6 +1,6 @@
 # giant-squid
 
-A Rust client for the MWA ASVO, with Python bindings (`mwa-giant-squid`) built from the `python` feature by maturin. See `docs/PYTHON_BINDINGS.md`.
+A Rust client for the MWA ASVO, with Python bindings (`mwa-giant-squid`) built from the `python` feature by maturin. See `docs/PYTHON.md`.
 
 ## Architecture
 

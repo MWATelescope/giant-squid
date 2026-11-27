@@ -5,7 +5,7 @@
 //! The `giant-squid` command: [`run_cli`] runs it.
 //!
 //! It is in the library, not in `src/bin`, so that the Python module can run
-//! the same code as the `giant-squid` program (see `docs/PYTHON_BINDINGS.md`).
+//! the same code as the `giant-squid` program (see `docs/history/PYTHON_BINDINGS.md`).
 //! The command parses its arguments with [`super::Args`] and does what they
 //! say with the library; the program and the Python launcher only call
 //! [`run_cli`].
@@ -776,8 +776,6 @@ fn install_logger(verbosity: u8, json: bool, progress: Option<&MultiProgress>) {
     }
 }
 
-/// Print `jobs` as `list` and `wait` do: as the legacy JSON of giant-squid
-/// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
 /// Print the Job ID of each job, one on each line (`list --ids`). A list
 /// with no job prints nothing.
 fn print_job_ids(jobs: &MwaAsvoJobVec) -> std::io::Result<()> {
@@ -822,6 +820,8 @@ fn log_read_from_stdin(from_stdin: bool, job_count: usize) {
     }
 }
 
+/// Print `jobs` as `list` and `wait` do: as the legacy JSON of giant-squid
+/// 2.x (`legacy_json`, with a warning), as JSON (`json`), or as a table.
 fn print_jobs(
     jobs: MwaAsvoJobVec,
     json: bool,

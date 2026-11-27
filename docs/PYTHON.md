@@ -277,11 +277,10 @@ so nothing is sent for a body with a value outside the limits of the schema. The
 example, Acacia delivers a tar only, so it does not take `delivery_format=DeliveryFormat.Files`) are the MWA ASVO's: it
 refuses such a body with a validation error.
 
-`submit_download_job` takes a `DownloadJobParams`, the library's enum of the three download bodies:
-`DownloadJobParams.Beamformer(params)`, `DownloadJobParams.Visibility(params)` or `DownloadJobParams.Voltage(params)`.
+`submit_download_job` takes a `DownloadJobParams`, the one class for every download body.
 `submit_preprocess_job` takes a `PreprocessJobParams`, the library's enum of the two preprocess bodies:
-`PreprocessJobParams.Conversion(params)` or `PreprocessJobParams.Imaging(params)`. Each method also takes one of the
-classes alone, as the same variant. Both enums have `validate()`, and the variants can be used with `match`. A
+`PreprocessJobParams.Conversion(params)` or `PreprocessJobParams.Imaging(params)`. It also takes one of the two
+classes alone, as the same variant. The enum has `validate()`, and the variants can be used with `match`. A
 `TypeError` is raised for an object that is none of these.
 
 Each submit method returns a `JobSubmittedResponse` with `job_id`, `message` and `status`. The `status`

@@ -35,8 +35,8 @@ suit users for a few reasons:
 1. By default, `giant-squid` _stream untars_ the downloads from MWA ASVO. In other
    words, rather than downloading a potentially large (> 100 GiB!) tar file and
    then untarring it yourself (thereby occupying double the space of the
-   original tar and performing a very expensive IO operation), it is possible to
-   get the files without performing an untar using `--keep-tar`
+   original tar and performing a very expensive IO operation), `giant-squid` writes
+   the files as they arrive. To keep the tar file instead, use `--keep-tar`.
 
 2. `giant-squid` resumes interrupted or failed downloads, with or without
    `--keep-tar`. If you run the download command again, it continues where it
@@ -161,7 +161,7 @@ built for:
 
 ```
 giant-squid 3.0.0
-MWA ASVO API 2.3.4
+MWA ASVO API 2.8.3
 OpenAPI 3.1.0
 ```
 
@@ -185,8 +185,9 @@ Each submit endpoint of the MWA ASVO API has its own command, and each command h
 The submit commands of giant-squid 2.x (`submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and `submit-conv`)
 still work, but they are deprecated: see [Deprecated submit commands](#deprecated-submit-commands).
 
-Every submit command except `submit-csv` takes one or more Obs IDs, or text files that hold Obs IDs. It submits one job for
-each Obs ID and carries on if one fails. It ends with a summary and a non-zero exit code if any failed.
+Every submit command except `submit-csv` and `submit-image-from-job` takes one or more Obs IDs, or text files that hold
+Obs IDs. It submits one job for each Obs ID and carries on if one fails. It ends with a summary and a non-zero exit code
+if any failed.
 
 #### Options that every submit command has
 
@@ -202,7 +203,7 @@ each Obs ID and carries on if one fails. It ends with a summary and a non-zero e
 
 #### Sending `null`
 
-The MWA ASVO allows some request fields to be `null`, and `null` is not the same as the field's default. An option for such a field takes the word `null` (in any case): `--avg-freq-res null`, `--no-rfi=null` or `--allow-resubmit=null`. The options are `--avg-freq-res`, `--avg-time-res`, `--abs-threshold`, `--clean-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The flags also take `true` and `false` (`--no-rfi=false`); the bare flag, for example `--no-rfi` or `-r`, is `true`. The MWA ASVO does not say what it does with a `null` for each field: use `--dry-run` to see the request.
+The MWA ASVO allows some request fields to be `null`, and `null` is not the same as the field's default. An option for such a field takes the word `null` (in any case): `--avg-freq-res null`, `--no-rfi=null` or `--allow-resubmit=null`. The options are `--avg-freq-res`, `--avg-time-res`, `--flag-edge-width`, `--abs-threshold`, `--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`, `--no-passband-gains`, `--no-cable-delay`, `--no-rfi` and `-r`/`--allow-resubmit`. The flags also take `true` and `false` (`--no-rfi=false`); the bare flag, for example `--no-rfi` or `-r`, is `true`. The MWA ASVO does not say what it does with a `null` for each field: use `--dry-run` to see the request.
 
 Log messages go to standard error, so standard output has only the output of the command (for example, the
 `--json` lines).
@@ -489,8 +490,8 @@ To use a custom phase centre:
 giant-squid submit-preprocess 1065880128 --centre custom --custom-centre-ra 12.5 --custom-centre-dec -26.7
 ```
 
-The two coordinates go together with `--centre custom`: `giant-squid` refuses one of them without the other, and
-refuses either of them with another `--centre`. The same holds for `submit-image`.
+The two coordinates go together with `--centre custom`. `giant-squid` does not check this: the MWA ASVO refuses one of
+them without the other, and either of them with another `--centre`. The same holds for `submit-image`.
 
 Conversion jobs can be delivered to Acacia, Scratch or DUG.
 
@@ -901,7 +902,7 @@ on stderr. It is deprecated and will be removed in a later release, so update sc
 keys.
 
 `job_type` is the MWA ASVO API's name for the job type, one of `conversion`, `visibility`, `metadata`, `voltage`,
-`cancel`, `beamformer` or `imaging`, or `null` if the server gives none. The table and `--job-types` use the same
+`cancel`, `beamformer` or `imaging`. Every job has one. The table and `--job-types` use the same
 names.
 
 `job_state` is the MWA ASVO API's value, one of `preparing`, `queued`, `waitcal`, `staging`, `staged`,
@@ -1069,7 +1070,7 @@ $ giant-squid cancel 31 32
 ```
 
 With `-j`, `--json`, `cancel` prints the MWA ASVO's reply to each request as one line of JSON on standard
-output (`{"job_id":31,"message":"Job cancelled","status":"success"}`), as the submit commands do. A request
+output (`{"status":"success","job_id":31,"message":"Job cancelled"}`), as the submit commands do. A request
 that the MWA ASVO refuses with an error prints an error line with the `job_id`: see
 [JSON output and errors](#json-output-and-errors).
 
@@ -1079,7 +1080,7 @@ was cancelled:
 - If a job is already cancelled, the MWA ASVO replies as normal, and only the message says that it did not cancel
   the job (job 32 above). Read the message of each job.
 - If the MWA ASVO refuses a request in any other way (for example, there is no such job), `giant-squid` logs
-  `Failed to cancel MWA ASVO job ID N: <reason>` and counts the request as failed. It carries on with the next
+  `Failed to cancel MWA ASVO Job ID N: <reason>` and counts the request as failed. It carries on with the next
   job. At the end, the exit code is 1 if any request failed.
 
 Like `wait`, `cancel` takes Job IDs only: an Obs ID is an error that names it, and nothing is sent.
@@ -1147,8 +1148,8 @@ in the order of the Job IDs and then the Obs IDs, failures too:
 
 ```bash
 $ giant-squid download --json 12345 1090008640
-{"job_id":12345,"obs_id":1065880128,"status":"success","message":"Downloaded 1.23 GiB to ./12345"}
-{"error_code":"JOB_NOT_READY","message":"No job for Obs ID 1090008640 is ready for download.","obs_id":1090008640}
+{"status":"success","job_id":12345,"obs_id":1065880128,"message":"Downloaded 1.23 GiB to ./12345"}
+{"status":"failed","error_code":"JOB_NOT_READY","message":"No job for Obs ID 1090008640 is ready for download.","obs_id":1090008640}
 ```
 
 A failed download is an error line, as described in [JSON output and errors](#json-output-and-errors), with the
@@ -1432,7 +1433,7 @@ command uses it, and your own Rust programs can use it too. The library:
   client. If the server rejects the session token, only one thread logs in
   again, and the other threads use the new token.
 - has one path for each item: the client, jobs, errors and downloads are at
-  the crate root (`mwa_giant_squid::MwaAsvoClient`), and the types of the MWA
+  the crate root (`mwa_giant_squid::MwaAsvoClient`), and the types of the
   MWA ASVO OpenAPI schema are in `mwa_giant_squid::mwa_asvo::api::openapi` (for
   example `JobState`).
 
@@ -1571,7 +1572,7 @@ reads no environment variables (see
 | `MWA_ASVO_API_KEY` | Your MWA ASVO API key. **Required** for all operations. | — |
 | `MWA_ASVO_HOST` | The MWA ASVO server, for example a test server. | `DEFAULT_MWA_ASVO_HOST` in the library (the production MWA ASVO) |
 | `MWA_ASVO_API_TIMEOUT` | The timeout of one API request, in whole seconds (at least 1). | `DEFAULT_API_TIMEOUT` in the library |
-| `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, shared with mwa-cli. Without `HOME`, the session is not cached. | — |
+| `HOME` | The session cache is `$HOME/.mwa-asvo/tokens.json`, the path that mwa-cli also uses (giant-squid does not use a session that mwa-cli wrote). Without `HOME`, the session is not cached. | — |
 | `GIANT_SQUID_DELIVERY` | The default of `-d`/`--delivery` on the submit commands, and the `delivery` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
 | `GIANT_SQUID_DELIVERY_FORMAT` | The default of `-f`/`--delivery-format` on the submit commands, and the `delivery_format` of the lines of a `submit-csv` file that have none. Not used by the deprecated `submit-volt`, which has no delivery options. | The schema's default for each job type |
 | `GIANT_SQUID_BUF_SIZE` | Download buffer size in whole MiB (at least 1): the amount of data held in memory before it is written to disk. | `DEFAULT_DOWNLOAD_BUFFER_SIZE` in the library |

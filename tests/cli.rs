@@ -8,7 +8,7 @@
 //! These cover what only a real process shows - `--dry-run`, environment
 //! variable defaults, filtering, JSON output on stdout, exit codes - which
 //! the in-process tests of `src/cli/tests.rs` cannot reach. Nothing is
-//! submitted to a real MWA ASVO. See docs/TESTING.md.
+//! submitted to a real MWA ASVO. See docs/history/TESTING.md.
 
 mod common;
 

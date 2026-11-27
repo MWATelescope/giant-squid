@@ -4,7 +4,7 @@
 
 //! Shared harness for the tests that run against a mock MWA ASVO.
 //!
-//! Every test here runs against a local [`MockServer`], never a real MWA
+//! Every test here runs against a local [`MockServer`], never a real
 //! MWA ASVO. The client is built from an explicit config (see
 //! `src/test_config.rs`) that points it at the mock server, with the token
 //! cache in a temporary directory, so a developer's real
@@ -16,7 +16,7 @@
 //! and via `#[path]` from `tests/common/mod.rs` for the subprocess tests in
 //! `tests/cli.rs`. It must therefore use no `crate::` items.
 //!
-//! See docs/TESTING.md for the wider plan.
+//! See docs/history/TESTING.md for the wider plan.
 
 #![allow(dead_code)]
 

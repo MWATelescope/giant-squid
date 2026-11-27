@@ -117,8 +117,8 @@ the 2.x result, give the options:
 giant-squid submit-preprocess 1065880128 --output uvfits --avg-freq-res 80
 ```
 
-There is no option for "no time averaging" in 3.0.0: give `--avg-time-res`
-the correlator's time resolution of your observation to keep it.
+For no time averaging, give `--avg-time-res null` (as for "no frequency
+averaging", `--avg-freq-res null`).
 
 The other conversion options (`--apply-di-cal`, `--centre`, `--no-rfi`,
 `--no-cable-delay`, `--no-digital-gains`, `--no-flag-dc`,
@@ -231,7 +231,7 @@ With `--json` there is no warning, because `--json` logs nothing.
 
 Every submit command has a new `--json` option, which prints the MWA ASVO's
 reply for each job as one line of JSON, for example
-`{"job_id":12345,"message":"...","status":"success"}`. Use it in scripts;
+`{"status":"success","job_id":12345,"message":"..."}`. Use it in scripts;
 see the next section. The `status` text and the `message` describe the reply; the exit code of
 `giant-squid` and the HTTP status of the MWA ASVO tell you whether a submission worked.
 
@@ -309,7 +309,7 @@ The other states have the same names, in lower case in the JSON (for
 example `queued`). `preparing` and `imaging` are new. The names are still
 case insensitive. `giant-squid list --help` lists them.
 
-**The job type names are the API's.** `--job-types` takes the names of the MWA
+**The job type names are the API's.** `--job-types` takes the names of the
 MWA ASVO API's `JobType`, the table shows them, and so does the JSON:
 
 | 2.x name | 2.x JSON | 3.0.0 name and JSON |
@@ -321,7 +321,7 @@ MWA ASVO API's `JobType`, the table shows them, and so does the JSON:
 | `cancel_job` | `CancelJob` | `cancel` |
 | `download_beamformer` | `DownloadBeamformer` | `beamformer` |
 | `imaging` | `Imaging` | `imaging` |
-| none | `Unknown` | none: `null` (the server gave no type) |
+| none | `Unknown` | removed: every job has a type |
 
 `--job-types` now refuses text that is not a job type, with an error that
 names it. This includes the 2.x names. In 2.x any other text (a misspelt name,
@@ -430,7 +430,7 @@ partial download that 2.x left in the download directory is not found there:
 use `--no-job-subdir` to carry on with it. A Scratch job is not affected.
 
 New: `-j`, `--json` prints the result of each download as one line of JSON
-(`job_id`, `obs_id`, `status`, `message`), and `cancel --json` prints the MWA
+(`status`, `job_id`, `obs_id`, `message`), and `cancel --json` prints the
 MWA ASVO's reply to each request, as the submit commands do. A failed download or
 cancel request is an error line: see [Errors with `--json`](#errors-with---json).
 
@@ -493,7 +493,7 @@ one thing, as in 2.x, so use the long names in scripts.
 | Command | Alias | Change |
 |---|---|---|
 | `list` | `l` | New option names (old ones still work), new date options, new JSON keys, unknown `--job-types` refused; `-n` removed |
-| `download` | `d` | None |
+| `download` | `d` | A directory for each job (`--no-job-subdir` for the 2.x layout); `--json` added; stream untar resumes; see [Downloading](#downloading-download) |
 | `submit-download` | `sd` | New: every download job (replaces `submit-vis`, `submit-meta`, `submit-volt` and `submit-bf`) |
 | `submit-preprocess` | `sp` | New: a conversion job (replaces `submit-conv`); **new defaults** |
 | `submit-image` | `si` | `-p` replaced by options; Obs IDs only; `-o`/`--output-mode` required; **new defaults** |

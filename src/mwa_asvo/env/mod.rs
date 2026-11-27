@@ -40,8 +40,8 @@ pub const ENV_MWA_ASVO_API_KEY: &str = "MWA_ASVO_API_KEY";
 /// Overrides the API request timeout, in whole seconds (default
 /// [`DEFAULT_API_TIMEOUT`]).
 pub const ENV_MWA_ASVO_API_TIMEOUT: &str = "MWA_ASVO_API_TIMEOUT";
-/// The home directory. The token cache (shared with mwa-cli) is kept
-/// under it. If it is not set, the session is not cached.
+/// The home directory. The token cache is kept under it, at the path that
+/// mwa-cli also uses. If it is not set, the session is not cached.
 pub const ENV_HOME: &str = "HOME";
 /// Overrides the download buffer size, in whole MiB (default
 /// [`DEFAULT_DOWNLOAD_BUFFER_SIZE`]).

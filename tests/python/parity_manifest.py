@@ -2,7 +2,7 @@
 
 Each ``Entry`` names one public item of the Rust library and says what the Python module does with it. The test in
 ``test_parity.py`` checks the manifest against the real module and against ``src/lib.rs``. The goal is that the Python
-API matches the Rust API where possible (see ``docs/PYTHON_BINDINGS.md``).
+API matches the Rust API where possible (see ``docs/history/PYTHON_BINDINGS.md``).
 
 The status of an entry:
 

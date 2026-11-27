@@ -4,10 +4,11 @@
 
 //! Local storage for MWA ASVO JWT session tokens.
 //!
-//! This file is intentionally compatible with (and shared with) mwa-cli's
-//! own token cache, so that logging in with either client makes a valid
-//! session available to the other. The location and JSON shape here
-//! (`$HOME/.mwa-asvo/tokens.json`) must stay in sync with mwa-cli's format.
+//! The file is at the same path as mwa-cli's own token cache
+//! (`$HOME/.mwa-asvo/tokens.json`), and has mwa-cli's fields and two more
+//! (see [`StoredTokens`]). giant-squid does not use a session that mwa-cli
+//! wrote, because that has no host and no API key hash: it logs in again and
+//! replaces the file.
 //!
 //! The library reads no environment variables, so the caller supplies the
 //! cache path. [`default_token_cache_path`] gives the path mwa-cli uses,
@@ -130,10 +131,11 @@ pub(crate) fn api_key_sha256(api_key: &str) -> String {
     to_hex(&Sha256::digest(api_key.as_bytes()))
 }
 
-/// Returns `<home>/.mwa-asvo/tokens.json`: the token cache that mwa-cli
-/// also uses. Pass the result as
+/// Returns `<home>/.mwa-asvo/tokens.json`: the path of mwa-cli's token
+/// cache, which giant-squid also uses. Pass the result as
 /// [`MwaAsvoClientConfig::token_cache_path`](crate::MwaAsvoClientConfig::token_cache_path)
-/// to share sessions with mwa-cli.
+/// to cache the session there. A session that mwa-cli wrote is not used
+/// (see [`StoredTokens::belongs_to`]).
 pub fn default_token_cache_path(home: &Path) -> PathBuf {
     home.join(TOKEN_CACHE_DIR).join(TOKEN_CACHE_FILE)
 }

@@ -459,7 +459,7 @@ impl_fields!(ResubmitField for [
 // the defaults of the first type used.
 
 /// The clap options of [`DeliveryArgs`], as clap reads them. [`DeliveryArgs`]
-/// adds the check that the delivery and its format agree.
+/// adds no check: the MWA ASVO checks that the delivery and its format agree.
 #[derive(clap::Args, Debug, Clone)]
 struct RawDeliveryArgs<P: DeliveryFields> {
     #[arg(help = P::DELIVERY, short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]

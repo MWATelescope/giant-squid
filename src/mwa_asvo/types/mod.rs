@@ -293,8 +293,7 @@ impl MwaAsvoJobVec {
     ///
     /// - `job_ids`: the Job ID is one of these.
     /// - `obs_ids`: the Obs ID is one of these.
-    /// - `job_types`: the job type is one of these. A job with no type does
-    ///   not match.
+    /// - `job_types`: the job type is one of these.
     /// - `states`: the job state is one of these.
     pub fn filter(
         self,

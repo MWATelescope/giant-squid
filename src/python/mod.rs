@@ -216,9 +216,9 @@ mod module {
         Ok(py.detach(|| crate::cli::run::run_cli(args)))
     }
 
-    /// The path of the token cache that mwa-cli also uses:
+    /// The path of the token cache, which mwa-cli also uses:
     /// `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
-    /// `MwaAsvoClient` to share sessions with mwa-cli.
+    /// `MwaAsvoClient`. A session that mwa-cli wrote is not used.
     ///
     /// Args:
     ///     home: The home directory.

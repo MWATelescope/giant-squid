@@ -8,7 +8,7 @@
 //! rejected tokens, and server error responses. They submit nothing to a
 //! real MWA ASVO and download nothing from Acacia. The playback tests at the
 //! end replay a recording captured from a live server, and the one recording
-//! test is `#[ignore]`d. See docs/TESTING.md.
+//! test is `#[ignore]`d. See docs/history/TESTING.md.
 
 // The tests that build a request body from a command line (and the
 // recording test, which reads its config as the CLI does) need the CLI, so

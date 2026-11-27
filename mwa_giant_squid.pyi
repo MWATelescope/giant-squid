@@ -173,7 +173,7 @@ class ConversionJobParams:
     The request body of a conversion (preprocessing) job: the schema's `ConversionJobParams`.
 
     Every keyword argument has the MWA ASVO's default as its default value
-    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    (the type stubs show it). `None` is accepted by the arguments that the
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -681,12 +681,11 @@ class DownloadJobParams:
     The request body of a download job: the schema's `DownloadJobParams`. It is the body of a
     visibility, metadata, voltage or beamformer job: the MWA ASVO finds the kind of data from the
     observation. Set `only_metadata` for a metadata job, and `offset`, `duration`, `from_channel`
-    and `to_channel` for a voltage job (`only_metadata=True` with any of them is an
-    `MwaAsvoApiErrorInvalidParameter`); the MWA ASVO refuses the voltage fields for an observation
-    that has no voltages.
+    and `to_channel` for a voltage job. The MWA ASVO refuses `only_metadata=True` with any of
+    them, and the voltage fields for an observation that has no voltages.
 
     Every keyword argument has the MWA ASVO's default as its default value
-    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    (the type stubs show it). `None` is accepted by the arguments that the
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -1084,7 +1083,7 @@ class ImageFromJobParams:
     source job.
 
     Every keyword argument has the MWA ASVO's default as its default value
-    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    (the type stubs show it). `None` is accepted by the arguments that the
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     `source_job_id` must be greater than zero (checked when it is set, `ValueError`). The other
@@ -1260,7 +1259,7 @@ class ImagingJobParams:
     `ImagingJobParams`.
 
     Every keyword argument has the MWA ASVO's default as its default value
-    (the type stubs show it). `None` is accepted by the arguments that the MWA
+    (the type stubs show it). `None` is accepted by the arguments that the
     MWA ASVO allows to be `null`, and is sent as `null`: it does not mean "use the
     default". Each argument is also an attribute, which can be read and changed.
     The Obs ID is checked when it is set (`ObsIdError`). The other values are checked by `validate()` and when the
@@ -3540,9 +3539,9 @@ def conversion_params(obs_id: builtins.int | ObsId) -> ConversionJobParams:
 
 def default_token_cache_path(home: builtins.str | os.PathLike | pathlib.Path) -> pathlib.Path:
     r"""
-    The path of the token cache that mwa-cli also uses:
+    The path of the token cache, which mwa-cli also uses:
     `<home>/.mwa-asvo/tokens.json`. Give it as the `token_cache_path` of an
-    `MwaAsvoClient` to share sessions with mwa-cli.
+    `MwaAsvoClient`. A session that mwa-cli wrote is not used.
 
     Args:
         home: The home directory.

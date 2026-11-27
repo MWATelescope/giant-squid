@@ -6,7 +6,7 @@
 //!
 //! Everything here is offline: no MWA ASVO server is contacted, no job is
 //! submitted and no environment variable is read or written. See
-//! `docs/TESTING.md` for the wider plan.
+//! `docs/history/TESTING.md` for the wider plan.
 
 use std::io::Write;
 
