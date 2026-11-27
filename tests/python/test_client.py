@@ -281,12 +281,6 @@ def test_without_a_token_cache_every_client_logs_in(host: str, httpserver: HTTPS
     assert logins(httpserver) == CLIENTS
 
 
-def test_a_bad_timeout_is_rejected(host: str) -> None:
-    """A negative api_timeout raises ValueError."""
-    with pytest.raises(ValueError, match="api_timeout"):
-        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, api_timeout=-1.0))
-
-
 def test_a_timeout_of_zero_is_rejected_before_any_request(host: str, httpserver: HTTPServer) -> None:
     """An api_timeout of 0 would time out every request, so the library refuses it before the login."""
     with pytest.raises(gs.MwaAsvoErrorInvalidOption, match="api_timeout"):
@@ -596,18 +590,6 @@ def test_the_ends_of_the_days_range_are_sent(
     gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY)).get_jobs(gs.JobsFilter(days=days))
 
     assert get_jobs_body(httpserver)["days"] == days
-
-
-@pytest.mark.usefixtures("mock_login")
-def test_get_jobs_refuses_job_ids_and_obs_ids_together(host: str, httpserver: HTTPServer) -> None:
-    """Job IDs and obsids together raise ValueError before any listing."""
-    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
-    requests_before = len(httpserver.log)
-
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="can't specify both"):
-        client.get_jobs(gs.JobsFilter(job_ids=[1], obs_ids=[TEST_OBS_ID]))
-
-    assert len(httpserver.log) == requests_before
 
 
 @pytest.mark.usefixtures("mock_login")

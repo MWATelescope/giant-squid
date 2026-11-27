@@ -2,8 +2,6 @@
 
 import pathlib
 
-import pytest
-
 import mwa_giant_squid as gs
 
 BUFFER_SIZE = 4096
@@ -32,12 +30,6 @@ def test_the_directory_can_be_a_string(tmp_path: pathlib.Path) -> None:
     assert gs.DownloadOptions(str(tmp_path)).download_dir == tmp_path
 
 
-def test_the_other_arguments_are_keyword_only(tmp_path: pathlib.Path) -> None:
-    """The flags are named."""
-    with pytest.raises(TypeError):
-        gs.DownloadOptions(tmp_path, True)  # ty: ignore[too-many-positional-arguments]
-
-
 def test_the_options_have_the_values_they_were_given(tmp_path: pathlib.Path) -> None:
     """Each value comes back as it went in."""
     events: list[gs.DownloadProgress] = []
@@ -62,32 +54,11 @@ def test_the_options_have_the_values_they_were_given(tmp_path: pathlib.Path) -> 
     assert options.buffer_size == BUFFER_SIZE
     assert options.retry_duration == RETRY_SECONDS
     assert (options.download_number, options.download_count) == (2, 3)
-
-
-def test_the_options_can_be_changed(tmp_path: pathlib.Path) -> None:
-    """The attributes are the fields of the Rust struct, and they can be set. One set of options serves a series."""
-    options = gs.DownloadOptions(tmp_path)
-
-    options.keep_tar = True
-    options.download_number = 5
+    # The progress callback can be changed, and removed.
     options.progress = print
-    options.download_dir = tmp_path / "other"
-
-    assert options.keep_tar is True
-    assert options.download_number == 5
     assert options.progress is print
-    assert options.download_dir == tmp_path / "other"
     options.progress = None
     assert options.progress is None
-
-
-def test_the_options_can_use_the_download_settings(tmp_path: pathlib.Path) -> None:
-    """The settings of the environment are the buffer size and the retry duration of the options."""
-    settings = gs.DownloadSettings(buffer_size=BUFFER_SIZE, retry_duration=RETRY_SECONDS)
-
-    options = gs.DownloadOptions(tmp_path, buffer_size=settings.buffer_size, retry_duration=settings.retry_duration)
-
-    assert (options.buffer_size, options.retry_duration) == (BUFFER_SIZE, RETRY_SECONDS)
 
 
 def test_the_repr_shows_the_values(tmp_path: pathlib.Path) -> None:

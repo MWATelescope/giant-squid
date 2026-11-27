@@ -9,7 +9,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID, TEST_OUTPUT_MODE
+from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_OBS_ID, TEST_OUTPUT_MODE
 from .test_submit import (
     CONVERSION_PATH,
     DOWNLOAD_PATH,
@@ -210,12 +210,6 @@ def test_a_preprocess_job_params_validates_what_it_holds() -> None:
         bad.validate()
 
 
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
-    """A logged-in client of the mock server."""
-    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
-
-
 def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:
     """The body that is sent is that of the class inside, the same as when the class is given alone."""
     submitted(httpserver, CONVERSION_PATH)
@@ -230,12 +224,6 @@ def test_submit_preprocess_job_takes_a_preprocess_job_params(client: gs.MwaAsvoC
     assert reply.job_id == NEW_JOB_ID
     assert wrapped == alone
     assert wrapped["obs_id"] == TEST_OBS_ID
-
-
-def test_submit_preprocess_job_refuses_another_type(client: gs.MwaAsvoClient) -> None:
-    """A download body is not a preprocess body."""
-    with pytest.raises(TypeError, match="PreprocessJobParams"):
-        client.submit_preprocess_job(gs.DownloadJobParams(TEST_OBS_ID))  # ty: ignore[invalid-argument-type]
 
 
 def test_submit_download_job_sends_a_helper_body(client: gs.MwaAsvoClient, httpserver: HTTPServer) -> None:

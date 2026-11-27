@@ -60,40 +60,6 @@ def test_an_invalid_parameter_is_an_api_error_that_is_not_a_value_error() -> Non
     assert str(error) == f"Invalid {error.name}: {error.message}"
 
 
-def test_an_invalid_job_type_name_is_an_error_with_the_text() -> None:
-    """The class of the variant has its fields."""
-    with pytest.raises(gs.MwaAsvoErrorInvalidJobType) as excinfo:
-        gs.JobType.parse_name("nonsense")
-
-    assert isinstance(excinfo.value, gs.MwaAsvoError)
-    assert excinfo.value.kind == "InvalidJobType"
-    assert excinfo.value.str == "nonsense"
-
-
-def test_an_invalid_option_is_an_error_with_the_name_of_the_option(
-    host: str, mock_login: None, tmp_path: object
-) -> None:
-    """A download option that cannot be used is `MwaAsvoErrorInvalidOption` and not `ValueError`."""
-    client = gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
-    options = gs.DownloadOptions(str(tmp_path), buffer_size=0)
-
-    with pytest.raises(gs.MwaAsvoErrorInvalidOption) as excinfo:
-        client.download_job(1, options)
-
-    assert not isinstance(excinfo.value, ValueError)
-    assert excinfo.value.kind == "InvalidOption"
-    assert excinfo.value.name == "buffer_size"
-    assert "at least" in excinfo.value.message
-
-
-def test_a_zero_api_timeout_is_an_invalid_option(host: str) -> None:
-    """The client refuses a timeout of 0 with the library's error, before any request."""
-    with pytest.raises(gs.MwaAsvoErrorInvalidOption) as excinfo:
-        gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY, api_timeout=0.0))
-
-    assert excinfo.value.name == "api_timeout"
-
-
 def test_an_api_error_in_a_check_is_wrapped_as_the_library_does(host: str, httpserver: HTTPServer) -> None:
     """`MwaAsvoErrorApi` has the `MwaAsvoApiError` as its `source` and its `__cause__`, and the same message."""
     httpserver.expect_request(LOGIN_PATH, method="POST").respond_with_data("invalid api key", status=401)

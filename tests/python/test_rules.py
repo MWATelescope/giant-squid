@@ -16,7 +16,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import GET_JOBS_PATH, IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID
+from .conftest import GET_JOBS_PATH, IMAGE_FROM_JOB, IMAGING_JOB, TEST_OBS_ID
 from .test_client import SCHEMA_PATH
 from .test_submit import (
     CONVERSION_PATH,
@@ -46,20 +46,6 @@ DELIVERY_JOBS = [
     pytest.param(IMAGING_JOB, IMAGING_PATH, (TEST_OBS_ID,), id="imaging"),
     pytest.param(IMAGE_FROM_JOB, IMAGE_FROM_JOB_PATH, (SOURCE_JOB_ID,), id="image_from_job"),
 ]
-
-
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
-    """A client that has logged in to the mock.
-
-    Args:
-        host: The mock's base URL.
-        mock_login: Serves the login.
-
-    Returns:
-        The client.
-    """
-    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 def requests_to(httpserver: HTTPServer, path: str) -> list[dict[str, Any]]:

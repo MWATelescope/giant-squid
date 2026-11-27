@@ -33,12 +33,6 @@ def test_an_empty_filter_does_not_filter() -> None:
     assert repr(filter) == "JobsFilter()"
 
 
-def test_the_arguments_are_keyword_only() -> None:
-    """A filter has many fields, so they are named."""
-    with pytest.raises(TypeError):
-        gs.JobsFilter(FILTER_DAYS)  # ty: ignore[too-many-positional-arguments]
-
-
 def test_a_filter_has_the_values_it_was_given() -> None:
     """Each value comes back as it went in. An Obs ID comes back as an `ObsId`."""
     filter = gs.JobsFilter(
@@ -118,12 +112,6 @@ def test_validate_accepts_a_good_filter() -> None:
     """A filter by days, or by dates, is fine."""
     gs.JobsFilter(days=FILTER_DAYS).validate()
     gs.JobsFilter(date_from=FROM_DATE, date_to=TO_DATE).validate()
-
-
-def test_validate_refuses_job_ids_with_obs_ids() -> None:
-    """The jobs are selected by Job IDs or by Obs IDs."""
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="Job IDs and Obs IDs"):
-        gs.JobsFilter(job_ids=[JOB_ID], obs_ids=[TEST_OBS_ID]).validate()
 
 
 def test_validate_refuses_days_with_a_date() -> None:

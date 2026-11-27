@@ -44,27 +44,12 @@ def test_a_config_has_the_defaults_of_the_library() -> None:
 
 
 def test_a_config_takes_a_timeout_and_a_cache_path(tmp_path: pathlib.Path) -> None:
-    """Both are keyword-only. A cache path comes back as a `Path`."""
+    """A cache path comes back as a `Path`."""
     config = gs.MwaAsvoClientConfig(HOST, TEST_API_KEY, api_timeout=CUSTOM_TIMEOUT, token_cache_path=str(tmp_path))
 
     assert config.api_timeout == CUSTOM_TIMEOUT
     assert config.token_cache_path == tmp_path
     assert isinstance(config.token_cache_path, pathlib.Path)
-    with pytest.raises(TypeError):
-        gs.MwaAsvoClientConfig(HOST, TEST_API_KEY, CUSTOM_TIMEOUT)  # ty: ignore[too-many-positional-arguments]
-
-
-def test_a_config_can_be_changed() -> None:
-    """The attributes are the fields of the Rust struct, and they can be set."""
-    config = gs.MwaAsvoClientConfig(HOST, TEST_API_KEY)
-
-    config.host = "http://127.0.0.1:1"
-    config.api_timeout = CUSTOM_TIMEOUT
-    config.token_cache_path = pathlib.Path("tokens.json")
-
-    assert config.host == "http://127.0.0.1:1"
-    assert config.api_timeout == CUSTOM_TIMEOUT
-    assert config.token_cache_path == pathlib.Path("tokens.json")
 
 
 def test_the_repr_does_not_show_the_api_key() -> None:

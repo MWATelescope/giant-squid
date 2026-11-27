@@ -43,25 +43,24 @@ def body(params: gs.CsvJobParams) -> Any:
     return cast(Any, params).params
 
 
-def test_defaults_have_no_values_unless_they_are_given() -> None:
-    """Every default is `None`, which leaves the default of the MWA ASVO."""
+def test_defaults_have_the_values_they_were_given() -> None:
+    """Every default is `None` unless it is given, which leaves the default of the MWA ASVO.
+
+    The attributes are the fields of the Rust struct.
+    """
     defaults = gs.CsvDefaults()
 
     assert defaults.delivery is None
     assert defaults.delivery_format is None
     assert defaults.allow_resubmit is None
 
-
-def test_defaults_have_the_values_they_were_given_and_can_be_changed() -> None:
-    """The attributes are the fields of the Rust struct. The arguments are keyword-only."""
-    defaults = gs.CsvDefaults(delivery=gs.DeliveryDestination.Scratch, allow_resubmit=True)
+    defaults = gs.CsvDefaults(
+        delivery=gs.DeliveryDestination.Scratch, delivery_format=gs.DeliveryFormat.Files, allow_resubmit=True
+    )
 
     assert defaults.delivery == gs.DeliveryDestination.Scratch
-    assert defaults.allow_resubmit is True
-    defaults.delivery_format = gs.DeliveryFormat.Files
     assert defaults.delivery_format == gs.DeliveryFormat.Files
-    with pytest.raises(TypeError):
-        gs.CsvDefaults(gs.DeliveryDestination.Scratch)  # ty: ignore[too-many-positional-arguments]
+    assert defaults.allow_resubmit is True
 
 
 def test_defaults_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:

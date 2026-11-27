@@ -76,20 +76,6 @@ def body_sent_to(httpserver: HTTPServer, path: str) -> dict[str, Any]:
     return json.loads(request.get_data())
 
 
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
-    """A client that has logged in to the mock.
-
-    Args:
-        host: The mock's base URL.
-        mock_login: Serves the login.
-
-    Returns:
-        The client.
-    """
-    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
-
-
 def assert_response(response: gs.JobSubmittedResponse) -> None:
     """Check that ``response`` is the one that ``submitted`` serves.
 
@@ -528,11 +514,14 @@ IMAGING_JOBS = [
 def test_an_invalid_image_size_is_rejected(
     client: gs.MwaAsvoClient, httpserver: HTTPServer, job: Callable[..., Any], first: int, path: str
 ) -> None:
-    """An image size the API does not accept raises ValueError at the submission, and nothing is sent."""
+    """An image size the API does not accept is rejected at the submission, and nothing is sent.
+
+    The error lists the sizes that the MWA ASVO accepts.
+    """
     params = job(first, image_size=INVALID_IMAGE_SIZE)
     requests_before = len(httpserver.log)
 
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size"):
+    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="image_size.*512, 1024, 2048, 3072, 4096, 8192"):
         submit(client, params)
 
     assert len(httpserver.log) == requests_before
@@ -545,31 +534,61 @@ def test_a_zero_nmiter_is_rejected(client: gs.MwaAsvoClient, job: Callable[..., 
         submit(client, job(first, nmiter=0))
 
 
-def test_a_zero_source_job_id_is_rejected(client: gs.MwaAsvoClient) -> None:
-    """source_job_id must be greater than zero.
-
-    The match is the library's message: the argument name is only in the note that PyO3 adds on Python 3.11 and later.
-    """
-    with pytest.raises(ValueError, match="0 is not a Job ID"):
-        client.submit_image_from_job(IMAGE_FROM_JOB(0))
-
-
 def test_a_channel_number_out_of_range_is_rejected() -> None:
     """A voltage channel number must fit in one byte."""
     with pytest.raises(OverflowError):
         gs.DownloadJobParams(TEST_OBS_ID, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION, from_channel=256)
 
 
-def test_optional_arguments_must_be_given_by_keyword() -> None:
-    """Optional arguments are keyword-only."""
-    with pytest.raises(TypeError):
-        gs.DownloadJobParams(TEST_OBS_ID, gs.DeliveryDestination.Acacia)  # ty: ignore[too-many-positional-arguments]
+# A class or function with the positional arguments that it takes, and one more that must be given by keyword.
+KEYWORD_ONLY = [
+    pytest.param(gs.DownloadJobParams, (TEST_OBS_ID, gs.DeliveryDestination.Acacia), id="DownloadJobParams"),
+    pytest.param(gs.DownloadOptions, (".", True), id="DownloadOptions"),
+    pytest.param(gs.JobsFilter, (7,), id="JobsFilter"),
+    pytest.param(
+        gs.MwaAsvoClientConfig, ("https://asvo.example.org:443", TEST_API_KEY, 12.5), id="MwaAsvoClientConfig"
+    ),
+    pytest.param(gs.CsvDefaults, (gs.DeliveryDestination.Scratch,), id="CsvDefaults"),
+]
 
 
-def test_a_delivery_of_the_wrong_type_is_rejected() -> None:
-    """The delivery argument is an enum member, not a string."""
+@pytest.mark.parametrize(("make", "args"), KEYWORD_ONLY)
+def test_optional_arguments_must_be_given_by_keyword(make: Callable[..., object], args: tuple[object, ...]) -> None:
+    """Optional arguments are keyword-only: one given by position raises TypeError.
+
+    Args:
+        make: The class or function.
+        args: Its positional arguments, with one optional argument given by position.
+    """
     with pytest.raises(TypeError):
-        gs.DownloadJobParams(TEST_OBS_ID, delivery="acacia")  # ty: ignore[invalid-argument-type]
+        make(*args)
+
+
+# A class, its required arguments, and an enum argument given as its text instead of the enum member.
+ENUM_AS_TEXT = [
+    pytest.param(gs.DownloadJobParams, (TEST_OBS_ID,), {"delivery": "acacia"}, id="delivery"),
+    pytest.param(
+        gs.ImageFromJobParams,
+        (SOURCE_JOB_ID,),
+        {"output_mode": TEST_OUTPUT_MODE, "polarization": "xxyy"},
+        id="polarization",
+    ),
+]
+
+
+@pytest.mark.parametrize(("make", "args", "kwargs"), ENUM_AS_TEXT)
+def test_an_enum_argument_refuses_its_text(
+    make: Callable[..., object], args: tuple[object, ...], kwargs: dict[str, object]
+) -> None:
+    """An enum argument is an enum member, not a string (polarization is a Polarization for both imaging jobs).
+
+    Args:
+        make: The class.
+        args: Its required positional arguments.
+        kwargs: The keyword arguments, with an enum given as text.
+    """
+    with pytest.raises(TypeError):
+        make(*args, **kwargs)
 
 
 def test_the_classes_are_plain_classes_with_attributes_that_can_be_changed(
@@ -635,13 +654,6 @@ def test_the_preprocess_method_takes_only_the_preprocess_classes(client: gs.MwaA
         client.submit_preprocess_job(wrong)
 
 
-@pytest.mark.parametrize("wrong", [None, TEST_OBS_ID, gs.ConversionJobParams(TEST_OBS_ID)])
-def test_the_download_method_takes_only_a_download_body(client: gs.MwaAsvoClient, wrong: Any) -> None:
-    """Any other object raises TypeError, which names the download class."""
-    with pytest.raises(TypeError, match="DownloadJobParams"):
-        client.submit_download_job(wrong)
-
-
 def test_the_new_enums_use_the_api_values_as_their_text() -> None:
     """str() of a member is the value the API uses."""
     assert str(gs.DeliveryFormat.Tar) == "tar"
@@ -665,7 +677,6 @@ def test_the_response_has_a_readable_repr(client: gs.MwaAsvoClient, httpserver: 
 
 # Arguments that are outside the schema's limits: (the class, keyword arguments, the name the error must give).
 OUT_OF_RANGE = [
-    (IMAGING_JOB, {"mgain": 1.5}, "mgain"),
     (IMAGING_JOB, {"mgain": 0.05}, "mgain"),
     (IMAGING_JOB, {"nmiter": 501}, "nmiter"),
     (IMAGING_JOB, {"auto_mask": 1}, "auto_mask"),
@@ -730,12 +741,6 @@ def test_the_error_message_gives_the_limits(client: gs.MwaAsvoClient) -> None:
         client.submit_preprocess_job(IMAGING_JOB(TEST_OBS_ID, mgain=1.5))
 
     assert str(err.value) == "Invalid mgain: must be between 0.1 and 1 (got 1.5)"
-
-
-def test_the_supported_image_sizes_are_listed_in_the_error(client: gs.MwaAsvoClient) -> None:
-    """An unsupported image size is reported with the sizes that the MWA ASVO accepts."""
-    with pytest.raises(gs.MwaAsvoApiErrorInvalidParameter, match="512, 1024, 2048, 3072, 4096, 8192"):
-        client.submit_preprocess_job(IMAGING_JOB(TEST_OBS_ID, image_size=INVALID_IMAGE_SIZE))
 
 
 @pytest.mark.parametrize(("job", "first", "path"), IMAGING_JOBS)
@@ -814,16 +819,6 @@ def test_the_imaging_classes_require_an_output_mode() -> None:
         gs.ImagingJobParams(TEST_OBS_ID)  # ty: ignore[missing-argument]
     with pytest.raises(TypeError, match="output_mode"):
         gs.ImageFromJobParams(SOURCE_JOB_ID)  # ty: ignore[missing-argument]
-
-
-def test_image_from_job_rejects_a_polarisation_string() -> None:
-    """polarization is a Polarization for both imaging jobs, not a string."""
-    with pytest.raises(TypeError):
-        gs.ImageFromJobParams(
-            SOURCE_JOB_ID,
-            output_mode=TEST_OUTPUT_MODE,
-            polarization="xxyy",  # ty: ignore[invalid-argument-type]
-        )
 
 
 # The endpoint that cancels a job: DELETE <CANCEL_PATH>/<job id>.

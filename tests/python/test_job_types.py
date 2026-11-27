@@ -192,10 +192,11 @@ def test_parse_name_ignores_hyphens_and_underscores() -> None:
     assert gs.JobState.parse_name("wait_cal") == gs.JobState.Waitcal
 
 
-def test_an_unknown_job_type_raises_mwa_asvo_error() -> None:
-    """The error has the kind and the text."""
-    with pytest.raises(gs.MwaAsvoError) as excinfo:
+def test_an_unknown_job_type_raises_mwa_asvo_error_invalid_job_type() -> None:
+    """The error is the class of the variant, an `MwaAsvoError`, and has the kind and the text."""
+    with pytest.raises(gs.MwaAsvoErrorInvalidJobType) as excinfo:
         gs.JobType.parse_name("nonsense")
+    assert isinstance(excinfo.value, gs.MwaAsvoError)
     assert excinfo.value.kind == "InvalidJobType"
     assert excinfo.value.str == "nonsense"
 

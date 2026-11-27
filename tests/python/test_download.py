@@ -24,7 +24,7 @@ from werkzeug import Request, Response
 
 import mwa_giant_squid as gs
 
-from .conftest import GET_JOBS_PATH, TEST_API_KEY, TEST_OBS_ID, job_detail
+from .conftest import GET_JOBS_PATH, TEST_OBS_ID, job_detail
 
 # The job that the mock says is ready, and the name its file is served and saved under.
 JOB_ID = 12345
@@ -81,20 +81,6 @@ def ready_job(httpserver: HTTPServer, size: int, sha1: str) -> dict[str, Any]:
     """
     product = {"files": [{"type": "acacia", "url": httpserver.url_for(FILE_PATH), "size": size, "sha1": sha1}]}
     return job_detail(JOB_ID, "completed", product=product)
-
-
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
-    """A client that has logged in to the mock.
-
-    Args:
-        host: The mock's base URL.
-        mock_login: Serves the login.
-
-    Returns:
-        The client.
-    """
-    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
 
 
 @pytest.fixture
@@ -220,11 +206,15 @@ def test_download_job_id_keeps_the_tar_and_checks_the_hash(
 def test_download_job_id_unpacks_the_tar_by_default(
     client: gs.MwaAsvoClient, served_tar: bytes, tmp_path: pathlib.Path
 ) -> None:
-    """Without keep_tar, the tar is unpacked into the directory while it downloads."""
+    """Without keep_tar, the tar is unpacked into the directory while it downloads.
+
+    With job_subdirectory off, the layout is that of 2.x: no directory for the job.
+    """
     client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=False))
 
     assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
     assert not (tmp_path / FILE_NAME).exists()
+    assert not (tmp_path / str(JOB_ID)).exists()
 
 
 def test_a_download_returns_the_job_it_downloaded(
@@ -232,10 +222,14 @@ def test_a_download_returns_the_job_it_downloaded(
 ) -> None:
     """download_job and download_obs return the job, so a caller learns the job ID of an obsid."""
     by_obs_id = client.download_obs(TEST_OBS_ID, gs.DownloadOptions(str(tmp_path), keep_tar=True))
+    by_job_dir = tmp_path / "by_job"
+    by_job_dir.mkdir()
+    by_job_id = client.download_job(JOB_ID, gs.DownloadOptions(by_job_dir, keep_tar=True))
 
     assert by_obs_id.job_id == JOB_ID
     assert by_obs_id.obs_id == TEST_OBS_ID
-    assert len(served_tar) > 0
+    assert by_job_id.job_id == JOB_ID
+    assert by_job_id.obs_id == TEST_OBS_ID
 
 
 def test_a_download_from_a_job_list_gets_no_job_list(
@@ -394,12 +388,19 @@ def test_ctrl_c_that_lands_in_a_log_call_still_stops_the_download(
     assert time.monotonic() - started < SIGINT_AFTER + SLOW_LOG_DELAY + MAX_STOP_TIME
 
 
-def test_a_buffer_size_of_zero_raises_value_error_before_any_request(
+def test_a_buffer_size_of_zero_is_an_invalid_option_before_any_request(
     client: gs.MwaAsvoClient, tmp_path: pathlib.Path
 ) -> None:
-    """A buffer of 0 bytes would write nothing, so the library refuses it (the server has no job list)."""
-    with pytest.raises(gs.MwaAsvoErrorInvalidOption, match="buffer_size"):
+    """A buffer of 0 bytes would write nothing, so the library refuses it (the server has no job list).
+
+    The error is `MwaAsvoErrorInvalidOption`, not `ValueError`, and it names the option.
+    """
+    with pytest.raises(gs.MwaAsvoErrorInvalidOption, match="buffer_size") as excinfo:
         client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
+    assert not isinstance(excinfo.value, ValueError)
+    assert excinfo.value.kind == "InvalidOption"
+    assert excinfo.value.name == "buffer_size"
+    assert "at least" in excinfo.value.message
     with pytest.raises(gs.MwaAsvoErrorInvalidOption, match="buffer_size"):
         client.download_obs(TEST_OBS_ID, gs.DownloadOptions(tmp_path, buffer_size=0))
 
@@ -503,26 +504,6 @@ def test_a_job_subdirectory_holds_a_kept_tar_too(
 
     assert (tmp_path / str(JOB_ID) / FILE_NAME).read_bytes() == served_tar
     assert not (tmp_path / FILE_NAME).exists()
-
-
-def test_without_a_job_subdirectory_the_files_stay_in_the_download_directory(
-    client: gs.MwaAsvoClient, served_tar: bytes, tmp_path: pathlib.Path
-) -> None:
-    """With job_subdirectory off, the layout is that of 2.x: no directory for the job."""
-    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path, job_subdirectory=False))
-
-    assert (tmp_path / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
-    assert not (tmp_path / str(JOB_ID)).exists()
-
-
-def test_the_files_go_in_a_directory_for_the_job_by_default(
-    client: gs.MwaAsvoClient, served_tar: bytes, tmp_path: pathlib.Path
-) -> None:
-    """Without job_subdirectory, the files go in download_dir/<job_id>, as for the giant-squid command."""
-    client.download_job(JOB_ID, gs.DownloadOptions(tmp_path))
-
-    assert (tmp_path / str(JOB_ID) / MEMBER_NAME).read_bytes() == MEMBER_CONTENTS
-    assert [entry.name for entry in tmp_path.iterdir()] == [str(JOB_ID)]
 
 
 def test_download_obs_uses_the_directory_of_the_job_that_it_finds(

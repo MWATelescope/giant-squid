@@ -14,7 +14,7 @@ from pytest_httpserver import HTTPServer
 
 import mwa_giant_squid as gs
 
-from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_API_KEY, TEST_OBS_ID
+from .conftest import IMAGE_FROM_JOB, IMAGING_JOB, TEST_OBS_ID
 from .test_submit import (
     CONVERSION_PATH,
     DOWNLOAD_PATH,
@@ -28,21 +28,6 @@ from .test_submit import (
     submit,
     submitted,
 )
-
-
-@pytest.fixture
-def client(host: str, mock_login: None) -> gs.MwaAsvoClient:
-    """A client that has logged in to the mock.
-
-    Args:
-        host: The mock's base URL.
-        mock_login: Serves the login.
-
-    Returns:
-        The client.
-    """
-    return gs.MwaAsvoClient(gs.MwaAsvoClientConfig(host, TEST_API_KEY))
-
 
 # A voltage job has an offset and a duration.
 VOLTAGE_JOB = partial(gs.DownloadJobParams, offset=VOLTAGE_OFFSET, duration=VOLTAGE_DURATION)

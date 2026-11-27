@@ -30,27 +30,22 @@ FILE_CONTENT = b"abc"
 FILE_SHA1 = hashlib.sha1(FILE_CONTENT).hexdigest()
 
 
-def test_the_durations_are_floats_in_seconds() -> None:
-    """A Rust `Duration` is a number of seconds."""
-    assert gs.DEFAULT_API_TIMEOUT == DEFAULT_API_TIMEOUT_SECONDS
-    assert gs.DEFAULT_DOWNLOAD_RETRY_DURATION == DEFAULT_DOWNLOAD_RETRY_SECONDS
+# The constants of the library and their values: a Rust `Duration` is a float of seconds, and the sizes are bytes.
+CONSTANTS = {
+    "DEFAULT_API_TIMEOUT": DEFAULT_API_TIMEOUT_SECONDS,
+    "DEFAULT_DOWNLOAD_RETRY_DURATION": DEFAULT_DOWNLOAD_RETRY_SECONDS,
+    "BYTES_PER_MIB": BYTES_PER_MIB,
+    "MIN_DOWNLOAD_BUFFER_SIZE": 1,
+    "DEFAULT_DOWNLOAD_BUFFER_SIZE": 100 * BYTES_PER_MIB,
+    "DEFAULT_MWA_ASVO_HOST": "https://asvo.mwatelescope.org:443",
+    "SIGNED_URL_LIFETIME_DAYS": 7,
+}
 
 
-def test_the_sizes_are_in_bytes() -> None:
-    """The buffer sizes are bytes, and the default is 100 MiB."""
-    assert gs.BYTES_PER_MIB == BYTES_PER_MIB
-    assert gs.MIN_DOWNLOAD_BUFFER_SIZE == 1
-    assert gs.DEFAULT_DOWNLOAD_BUFFER_SIZE == 100 * BYTES_PER_MIB
-
-
-def test_the_default_host_is_the_mwa_asvo() -> None:
-    """The default host is the production MWA ASVO, with its port."""
-    assert gs.DEFAULT_MWA_ASVO_HOST == "https://asvo.mwatelescope.org:443"
-
-
-def test_the_signed_url_lifetime_is_in_days() -> None:
-    """The download links last seven days."""
-    assert gs.SIGNED_URL_LIFETIME_DAYS == 7
+@pytest.mark.parametrize(("constant", "value"), CONSTANTS.items())
+def test_the_constants_have_the_values_of_the_library(constant: str, value: object) -> None:
+    """Each constant has the value of the Rust library."""
+    assert getattr(gs, constant) == value
 
 
 def test_the_obs_id_hint_names_the_list_command() -> None:
