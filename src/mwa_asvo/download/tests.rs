@@ -2983,6 +2983,28 @@ fn a_hash_mismatch_names_the_file_not_the_url() {
 /// A Scratch job that this host can reach is moved into the download
 /// directory, as an Acacia job is downloaded into it.
 #[test]
+fn a_scratch_folder_that_is_not_named_for_the_job_id_is_not_moved() {
+    let scratch = TempDir::new().expect("could not create a scratch directory");
+    let other = scratch.path().join(".ssh");
+    std::fs::create_dir(&other).expect("could not create the folder");
+    std::fs::write(other.join("id_ed25519"), "key").expect("could not write a file");
+    let env = TestEnv::with_session();
+    env.mock_get_jobs(vec![ready_job_with_file(json!({
+        "type": "scratch",
+        "path": other.display().to_string(),
+        "size": 3
+    }))]);
+
+    let err = download_fails(&env);
+
+    assert!(matches!(err, MwaAsvoError::InvalidJob { .. }), "{err:?}");
+    assert!(
+        other.join("id_ed25519").exists(),
+        "the folder should stay where it is"
+    );
+}
+
+#[test]
 fn a_reachable_scratch_job_is_moved_into_the_download_directory() {
     let scratch = TempDir::new().expect("could not create a scratch directory");
     let job_dir = scratch.path().join("12345");

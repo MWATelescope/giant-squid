@@ -468,6 +468,17 @@ fn download_job(
                             path: f.path.clone(),
                         });
                     }
+                    // The MWA ASVO puts a job's files in a folder named for
+                    // its Job ID. Any other path is not moved, so that a bad
+                    // reply cannot move another folder (`~/.ssh`, say).
+                    MoveTarget::Free if folder_name.to_str() != Some(&job_id.to_string()) => {
+                        return Err(MwaAsvoError::InvalidJob {
+                            id: job_id,
+                            problem: format!(
+                                "its Scratch path {path} is not a folder named for the Job ID, so it is not moved"
+                            ),
+                        });
+                    }
                     MoveTarget::Free => {
                         info!(
                             "{log_prefix} Files for Job are reachable from the current host. \
@@ -2364,7 +2375,7 @@ fn create_file(path: &Path) -> Result<File, MwaAsvoError> {
 /// nothing to do, or a download from an offset. The "nothing to do" case is
 /// a variant of its own, so that a caller cannot miss it.
 enum OutputTarget {
-    /// Nothing to fetch: the file is already complete and matches the MWA
+    /// Nothing to fetch: the file is already complete and matches the
     /// MWA ASVO hash.
     AlreadyDone { reason: &'static str },
 
