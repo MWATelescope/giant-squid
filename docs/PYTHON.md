@@ -154,6 +154,9 @@ that raises `MwaAsvoApiErrorInvalidParameter`, as `JobsFilter.validate()` does. 
 when you set it, as the Rust type is: an Obs ID that is not valid raises `ObsIdError`, a Job ID of 0 raises
 `ValueError`, and `days` outside 1 to 30 raises `MwaAsvoApiErrorInvalidParameter`.
 
+`get_job(job_id)` gets one job, of any age: the job list has only the jobs of its window. A Job ID that the MWA ASVO
+does not have raises `MwaAsvoErrorNoMwaAsvoJob`.
+
 ### Obs IDs
 
 An Obs ID argument takes an `int` or an `ObsId`. `ObsId` is the library's checked Obs ID (`ObsId.MIN`, the MWA ASVO's
@@ -381,22 +384,18 @@ be stopped), it is not called again, and its first exception is raised when the 
 
 ## Wait for jobs
 
-The module has no wait function. Write the loop in your own code. This lets you choose the interval and
-handle Ctrl-C and timeouts yourself. `MwaAsvoJobVec.all_ready` makes no request. It checks a list that
-you already have.
+`wait_for_jobs` waits as `giant-squid wait` does: it gets the job list until every job is ready, and returns the
+last job list. It logs the state of each job when it changes. `initial_delay`, `poll_interval` and `retry_duration`
+are in seconds (defaults `DEFAULT_WAIT_INITIAL_DELAY`, `DEFAULT_WAIT_POLL_INTERVAL` and
+`DEFAULT_WAIT_RETRY_DURATION`). Ctrl-C stops it with `KeyboardInterrupt`.
 
 ```python
-import time
-
-POLL_INTERVAL_S = 60
-
-job_ids = [reply.job_id]
-while not client.get_jobs().all_ready(job_ids):
-    time.sleep(POLL_INTERVAL_S)
+jobs = client.wait_for_jobs([reply.job_id])
 ```
 
-`all_ready` returns `False` while a job is in progress. It raises `MwaAsvoError` if a job is missing, has
-an error, was cancelled, or is completed but its download links have expired (kind `JobExpired`).
+It raises `MwaAsvoError` if a job is missing, has an error, was cancelled, or is completed but its download links
+have expired (kind `JobExpired`). To check a job list that you already have, without a request,
+`MwaAsvoJobVec.all_ready` returns `False` while a job is in progress, and raises as `wait_for_jobs` does.
 
 ## Download
 
@@ -408,9 +407,21 @@ Job ID of the Obs ID's job. `options` is a `DownloadOptions`.
 client.download_job(reply.job_id, gs.DownloadOptions("/data/mwa"))
 ```
 
-The call gets the job list first. To download several jobs, get the list once and use `download_job_from(jobs,
-job_id, options)` or `download_obs_from(jobs, obs_id, options)` for each: they find the job in your list and make
-no request for it.
+`download_job` gets the job by its Job ID, and `download_obs` gets the job list first. To download several jobs,
+use `download_many(options, job_ids=..., obs_ids=..., concurrency=None)`, as `giant-squid download` does. It gets the
+job list once, downloads a job that is given twice (also by its Job ID and its Obs ID) once, runs `concurrency`
+downloads at a time (`None` is `DEFAULT_CONCURRENT_DOWNLOADS`), and returns a `DownloadResult` for each download: its
+`job_id` or `obs_id`, and its `job`, or the `error` (an `MwaAsvoError`) of a download that failed. One failure does
+not stop the others. The progress callback of `options` gets the events of every download.
+
+```python
+for result in client.download_many(gs.DownloadOptions("/data/mwa"), job_ids=[123, 124]):
+    if result.error is not None:
+        print(result.job_id, result.error)
+```
+
+To find jobs in a job list that you have, without a request, use `download_job_from(jobs, job_id, options)` or
+`download_obs_from(jobs, obs_id, options)`.
 
 The directory must exist. The call blocks until the download ends. It releases the GIL, so other Python
 threads run during the download. One `DownloadOptions` can serve a series of downloads: set `download_number`

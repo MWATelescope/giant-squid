@@ -631,3 +631,42 @@ def test_an_obs_id_argument_is_an_int_or_an_obs_id(host: str, serve_jobs: Callab
     assert len(jobs) == len(mixed_jobs())
     assert len(jobs.filter(obs_ids=[gs.ObsId(TEST_OBS_ID)])) == len(mixed_jobs())
     assert len(jobs.filter(obs_ids=[TEST_OBS_ID])) == len(mixed_jobs())
+
+
+def test_get_job_gets_one_job_by_its_job_id(client: gs.MwaAsvoClient, serve_jobs: Callable[..., None]) -> None:
+    """`get_job` reads the job from its own endpoint."""
+    serve_jobs([job_detail(JOB_ID_READY, "completed")])
+
+    job = client.get_job(JOB_ID_READY)
+
+    assert job.job_id == JOB_ID_READY
+    assert job.job_state == gs.JobState.Completed
+
+
+def test_get_job_of_an_unknown_job_raises_no_mwa_asvo_job(
+    client: gs.MwaAsvoClient, serve_jobs: Callable[..., None]
+) -> None:
+    """A job that the MWA ASVO does not have is `MwaAsvoErrorNoMwaAsvoJob`."""
+    serve_jobs([])
+
+    with pytest.raises(gs.MwaAsvoErrorNoMwaAsvoJob):
+        client.get_job(JOB_ID_QUEUED)
+
+
+def test_wait_for_jobs_returns_the_job_list_when_the_jobs_are_ready(
+    client: gs.MwaAsvoClient, serve_jobs: Callable[..., None]
+) -> None:
+    """`wait_for_jobs` returns at once for jobs that are ready."""
+    serve_jobs([job_detail(JOB_ID_READY, "completed")])
+
+    jobs = client.wait_for_jobs([JOB_ID_READY], initial_delay=0, poll_interval=0)
+
+    assert [job.job_id for job in jobs] == [JOB_ID_READY]
+
+
+def test_wait_for_jobs_raises_for_a_failed_job(client: gs.MwaAsvoClient, serve_jobs: Callable[..., None]) -> None:
+    """A job with an error ends the wait, as in the library."""
+    serve_jobs([job_detail(JOB_ID_FAILED, "error", error_text="it failed")])
+
+    with pytest.raises(gs.MwaAsvoErrorJobFailed):
+        client.wait_for_jobs([JOB_ID_FAILED], initial_delay=0, poll_interval=0)

@@ -40,7 +40,6 @@ pub(crate) fn print_line(text: impl std::fmt::Display) -> std::io::Result<()> {
 
 use std::num::NonZeroU64;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::{ArgAction, Parser};
@@ -54,21 +53,6 @@ use params::{
     VoltageJobArgs,
 };
 use value_enums::SchemaEnumParser;
-
-/// The default number of downloads that `download` runs at the same time.
-pub const DEFAULT_CONCURRENT_DOWNLOADS: usize = 4;
-
-/// The time between two job list requests while waiting for jobs.
-pub const WAIT_POLL_INTERVAL: Duration = Duration::from_secs(60);
-
-/// How long a wait goes on trying again when the job list request fails
-/// in a way that may pass (a network error, an HTTP 5xx or 429 reply). A
-/// poll that succeeds starts the count again.
-pub const WAIT_RETRY_DURATION: Duration = Duration::from_secs(900);
-
-/// How long to wait before the first job list request of a wait, so that
-/// the user's queue is hopefully current.
-pub const WAIT_INITIAL_DELAY: Duration = Duration::from_secs(1);
 
 /// The name of the program, which `--version` prints. Without it, clap
 /// prints the name of the crate (`mwa_giant_squid`).
@@ -311,7 +295,7 @@ pub enum Args {
         no_resume: bool,
 
         /// Download up to this number of jobs concurrently. 2-4 is a good number for most users. Set this to 0 to use the number of CPU cores your machine has
-        #[arg(short = 'c', long, default_value_t = DEFAULT_CONCURRENT_DOWNLOADS)]
+        #[arg(short = 'c', long, default_value_t = crate::DEFAULT_CONCURRENT_DOWNLOADS.get())]
         concurrent_downloads: usize,
 
         /// Don't verify the downloaded contents against the upstream hash. The hash is still checked when a download is resumed (after a failed attempt or from an earlier run), and when a complete --keep-tar file is already on disk.

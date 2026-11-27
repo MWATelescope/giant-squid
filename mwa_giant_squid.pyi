@@ -14,9 +14,13 @@ import typing
 __all__ = [
     "BYTES_PER_MIB",
     "DEFAULT_API_TIMEOUT",
+    "DEFAULT_CONCURRENT_DOWNLOADS",
     "DEFAULT_DOWNLOAD_BUFFER_SIZE",
     "DEFAULT_DOWNLOAD_RETRY_DURATION",
     "DEFAULT_MWA_ASVO_HOST",
+    "DEFAULT_WAIT_INITIAL_DELAY",
+    "DEFAULT_WAIT_POLL_INTERVAL",
+    "DEFAULT_WAIT_RETRY_DURATION",
     "ENV_GIANT_SQUID_BUF_SIZE",
     "ENV_GIANT_SQUID_DELIVERY",
     "ENV_GIANT_SQUID_DELIVERY_FORMAT",
@@ -48,6 +52,7 @@ __all__ = [
     "DownloadJobParams",
     "DownloadOptions",
     "DownloadProgress",
+    "DownloadResult",
     "DownloadSettings",
     "ImageFromJobParams",
     "ImageOutputMode",
@@ -141,9 +146,13 @@ __all__ = [
 
 BYTES_PER_MIB: builtins.int = 1048576
 DEFAULT_API_TIMEOUT: builtins.float = 60.0
+DEFAULT_CONCURRENT_DOWNLOADS: builtins.int = 4
 DEFAULT_DOWNLOAD_BUFFER_SIZE: builtins.int = 104857600
 DEFAULT_DOWNLOAD_RETRY_DURATION: builtins.float = 900.0
 DEFAULT_MWA_ASVO_HOST: builtins.str = "https://asvo.mwatelescope.org:443"
+DEFAULT_WAIT_INITIAL_DELAY: builtins.float = 1.0
+DEFAULT_WAIT_POLL_INTERVAL: builtins.float = 60.0
+DEFAULT_WAIT_RETRY_DURATION: builtins.float = 900.0
 ENV_GIANT_SQUID_BUF_SIZE: builtins.str = "GIANT_SQUID_BUF_SIZE"
 ENV_GIANT_SQUID_DELIVERY: builtins.str = "GIANT_SQUID_DELIVERY"
 ENV_GIANT_SQUID_DELIVERY_FORMAT: builtins.str = "GIANT_SQUID_DELIVERY_FORMAT"
@@ -981,6 +990,35 @@ class DownloadProgress:
 
         __match_args__ = ()
         def __new__(cls) -> DownloadProgress.Finished: ...
+
+@typing.final
+class DownloadResult:
+    r"""
+    The result of one download of `MwaAsvoClient.download_many`: the Job ID or
+    the Obs ID that was asked for, and the job that was downloaded or the
+    exception of the download.
+    """
+    @property
+    def job_id(self) -> builtins.int | None:
+        r"""
+        The Job ID that was asked for, or `None` for an Obs ID.
+        """
+    @property
+    def obs_id(self) -> builtins.int | None:
+        r"""
+        The Obs ID that was asked for, or `None` for a Job ID.
+        """
+    @property
+    def job(self) -> MwaAsvoJob | None:
+        r"""
+        The job that was downloaded, or `None` if the download failed.
+        """
+    @property
+    def error(self) -> builtins.BaseException | None:
+        r"""
+        The exception of the download (an `MwaAsvoError`), or `None` if it
+        worked.
+        """
 
 @typing.final
 class DownloadSettings:
@@ -2097,6 +2135,100 @@ class MwaAsvoClient:
                 the MWA ASVO. Nothing is sent.
             MwaAsvoApiError: The request failed. (The errors of the submit
                 methods.)
+        """
+    def get_job(self, job_id: builtins.int) -> MwaAsvoJob:
+        r"""
+        Get one job by its Job ID. Unlike `get_jobs`, it finds a job of any
+        age.
+
+        Args:
+            job_id: The Job ID.
+
+        Returns:
+            The job, an `MwaAsvoJob`.
+
+        Raises:
+            ValueError: `job_id` is 0.
+            OverflowError: `job_id` is negative or too large to be a Job ID.
+            MwaAsvoErrorNoMwaAsvoJob: The MWA ASVO has no such job of the user.
+            MwaAsvoErrorInvalidJob: The server gave a job that cannot be used.
+            MwaAsvoErrorApi: The request failed. Its `source` is the
+                `MwaAsvoApiError`.
+        """
+    def download_many(
+        self,
+        options: DownloadOptions,
+        *,
+        job_ids: typing.Sequence[builtins.int] | None = None,
+        obs_ids: typing.Sequence[builtins.int | ObsId] | None = None,
+        concurrency: builtins.int | None = None,
+    ) -> builtins.list[DownloadResult]:
+        r"""
+        Download several jobs, `concurrency` at a time, as `giant-squid
+        download` does.
+
+        The job list is got once for all the downloads. A job that is given
+        more than once (also by its Job ID and its Obs ID) is downloaded once.
+        Every download runs, whatever the others do. The call blocks, and
+        Ctrl-C stops it.
+
+        Args:
+            options: How to download, and where to (a `DownloadOptions`). Its
+                `download_number` and `download_count` are not used, and its
+                progress callback gets the events of every download.
+            job_ids: The Job IDs to download.
+            obs_ids: The Obs IDs whose ready job to download.
+            concurrency: How many downloads run at the same time. `None` is
+                `DEFAULT_CONCURRENT_DOWNLOADS`.
+
+        Returns:
+            A `DownloadResult` for each download, in the order of the Job IDs
+            and then the Obs IDs.
+
+        Raises:
+            ValueError: A Job ID or `concurrency` is 0, `options.download_dir`
+                is not valid UTF-8, or `options.retry_duration` is negative or
+                not finite.
+            ObsIdError: An Obs ID is not valid.
+            MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+            MwaAsvoErrorApi: Getting the job list failed. Nothing is
+                downloaded.
+            KeyboardInterrupt: Ctrl-C was pressed.
+        """
+    def wait_for_jobs(
+        self,
+        job_ids: typing.Sequence[builtins.int],
+        *,
+        initial_delay: builtins.float | None = None,
+        poll_interval: builtins.float | None = None,
+        retry_duration: builtins.float | None = None,
+    ) -> MwaAsvoJobVec:
+        r"""
+        Wait until the jobs are ready, as `giant-squid wait` does: get the
+        job list until every job is ready (see `MwaAsvoJobVec.all_ready`).
+        The state of each job is logged the first time and when it changes.
+        The call blocks, and Ctrl-C stops it.
+
+        Args:
+            job_ids: The Job IDs.
+            initial_delay: Seconds before the first job list request. `None`
+                is `DEFAULT_WAIT_INITIAL_DELAY`.
+            poll_interval: Seconds between two job list requests. `None` is
+                `DEFAULT_WAIT_POLL_INTERVAL`.
+            retry_duration: Seconds that a failing job list request is tried
+                again, from the first failure. `None` is
+                `DEFAULT_WAIT_RETRY_DURATION`.
+
+        Returns:
+            The last job list, an `MwaAsvoJobVec`.
+
+        Raises:
+            ValueError: A Job ID is 0, or a time is negative or not finite.
+            MwaAsvoError: A job is missing, has an error, has been cancelled,
+                or is completed but its download links have expired.
+            MwaAsvoErrorApi: The job list request failed. Its `source` is the
+                `MwaAsvoApiError`.
+            KeyboardInterrupt: Ctrl-C was pressed.
         """
     def cancel_job(self, job_id: builtins.int) -> JobCancelledResponse:
         r"""

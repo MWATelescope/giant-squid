@@ -639,3 +639,45 @@ def test_all_ready_raises_job_expired_for_a_job_whose_links_expired(
 
     assert info.value.kind == "JobExpired"
     assert info.value.job_id == 102
+
+
+def test_download_many_downloads_a_job_given_twice_once(
+    client: gs.MwaAsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """A job given by its Job ID and by its Obs ID is downloaded once."""
+    results = client.download_many(
+        gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=False),
+        job_ids=[JOB_ID],
+        obs_ids=[TEST_OBS_ID],
+    )
+
+    assert [(result.job_id, result.obs_id) for result in results] == [(JOB_ID, None)]
+    assert results[0].error is None
+    assert results[0].job is not None
+    assert results[0].job.job_id == JOB_ID
+    assert (tmp_path / FILE_NAME).read_bytes() == served_tar
+
+
+def test_download_many_gives_the_error_of_a_failed_download(
+    client: gs.MwaAsvoClient, served_tar: bytes, tmp_path: pathlib.Path
+) -> None:
+    """A failed download does not stop the others: its result has the exception."""
+    unknown_obs_id = TEST_OBS_ID + 120
+
+    results = client.download_many(
+        gs.DownloadOptions(tmp_path, keep_tar=True, job_subdirectory=False),
+        job_ids=[JOB_ID],
+        obs_ids=[unknown_obs_id],
+    )
+
+    assert [(result.job_id, result.obs_id) for result in results] == [(JOB_ID, None), (None, unknown_obs_id)]
+    assert results[0].error is None
+    assert isinstance(results[1].error, gs.MwaAsvoErrorNoObsId)
+    assert results[1].job is None
+    assert (tmp_path / FILE_NAME).read_bytes() == served_tar
+
+
+def test_download_many_refuses_a_concurrency_of_zero(client: gs.MwaAsvoClient, tmp_path: pathlib.Path) -> None:
+    """At least one download must run at a time."""
+    with pytest.raises(ValueError, match="concurrency"):
+        client.download_many(gs.DownloadOptions(tmp_path), job_ids=[JOB_ID], concurrency=0)

@@ -44,7 +44,8 @@ pub use mwa_asvo::api::client::{
 };
 pub use mwa_asvo::api::error::MwaAsvoApiError;
 pub use mwa_asvo::download::{
-    DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    DownloadManyOptions, DownloadManyResult, DownloadOptions, DownloadProgress, DownloadTarget,
+    BYTES_PER_MIB, DEFAULT_CONCURRENT_DOWNLOADS, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
 };
 pub use mwa_asvo::env::{
@@ -60,4 +61,8 @@ pub use mwa_asvo::manta_ray_csv::{
 };
 pub use mwa_asvo::token_store::{default_token_cache_path, StoredTokens};
 pub use mwa_asvo::types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec, SIGNED_URL_LIFETIME_DAYS};
+pub use mwa_asvo::wait::{
+    WaitOptions, DEFAULT_WAIT_INITIAL_DELAY, DEFAULT_WAIT_POLL_INTERVAL,
+    DEFAULT_WAIT_RETRY_DURATION,
+};
 pub use obs_id::{ObsId, ObsIdError};

@@ -1283,6 +1283,56 @@ fn a_cancellation_deletes_the_job_resource() {
     assert_eq!(resp.message, "Job submitted");
 }
 
+/// `get_job` gets one job by its own endpoint, so it finds a job of any age:
+/// the job list (30 days by default) is not asked.
+#[test]
+fn get_job_gets_the_job_from_its_own_endpoint() {
+    let env = TestEnv::with_session();
+    let job = env.server.mock(|when, then| {
+        when.method(GET).path(format!("/api/v2/jobs/{TEST_JOB_ID}"));
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(job_detail(TEST_JOB_ID as i64, TEST_OBS_ID, "completed", 1));
+    });
+    let list = env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/list");
+        then.status(500);
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let got = client
+        .get_job(crate::test_config::TEST_MWA_ASVO_JOB_ID)
+        .expect("the job should be read");
+
+    assert_eq!(got.job_id().get(), TEST_JOB_ID);
+    assert_eq!(got.job_state, JobState::Completed);
+    assert_eq!(job.calls(), 1);
+    assert_eq!(list.calls(), 0, "the job list should not be asked");
+}
+
+/// A job that the MWA ASVO does not have (`JOB_NOT_FOUND`) is
+/// `NoMwaAsvoJob`, as a download of a Job ID that is not in the job list is.
+#[test]
+fn get_job_of_an_unknown_job_is_no_mwa_asvo_job() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(GET).path("/api/v2/jobs/999999");
+        then.status(404)
+            .header("content-type", "application/json")
+            .json_body(error_response("JOB_NOT_FOUND", "No such job"));
+    });
+
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+    let err = client
+        .get_job(crate::test_config::job_id(999999))
+        .expect_err("the job should not be found");
+
+    assert!(
+        matches!(err, MwaAsvoError::NoMwaAsvoJob(id) if id.get() == 999999),
+        "{err:?}"
+    );
+}
+
 #[test]
 fn a_cancellation_of_an_unknown_job_is_reported() {
     let env = TestEnv::with_session();

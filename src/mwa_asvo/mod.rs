@@ -20,6 +20,7 @@ pub(crate) mod redact;
 pub(crate) mod retry;
 pub(crate) mod token_store;
 pub(crate) mod types;
+pub(crate) mod wait;
 
 // The paths that the rest of the crate uses. Some of them only the CLI (the
 // "bin" feature) or the Python module (the "python" feature) uses, so a
@@ -33,7 +34,8 @@ pub(crate) use self::{
     api::openapi::{DeliveryDestination, JobFile, JobProduct, JobState, JobType, SortBy},
     api::MwaAsvoApiError,
     download::{
-        DownloadOptions, DownloadProgress, BYTES_PER_MIB, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+        DownloadManyOptions, DownloadManyResult, DownloadOptions, DownloadProgress, DownloadTarget,
+        BYTES_PER_MIB, DEFAULT_CONCURRENT_DOWNLOADS, DEFAULT_DOWNLOAD_BUFFER_SIZE,
         DEFAULT_DOWNLOAD_RETRY_DURATION, MIN_DOWNLOAD_BUFFER_SIZE,
     },
     env::{
@@ -45,4 +47,8 @@ pub(crate) use self::{
     job_fields::{job_field_names, job_field_value, parse_job_field},
     token_store::default_token_cache_path,
     types::{MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec},
+    wait::{
+        WaitOptions, DEFAULT_WAIT_INITIAL_DELAY, DEFAULT_WAIT_POLL_INTERVAL,
+        DEFAULT_WAIT_RETRY_DURATION,
+    },
 };

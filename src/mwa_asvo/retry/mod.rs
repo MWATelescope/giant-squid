@@ -52,7 +52,7 @@ const BACKOFF_RANDOMIZATION_FACTOR: f64 = 0.5;
 /// The retry policy: exponential backoff with jitter. A download uses it
 /// ([`DownloadOptions::retry_duration`](crate::DownloadOptions::retry_duration)),
 /// and so does the job list request of a wait
-/// ([`MwaAsvoClient::get_jobs_retrying`](crate::MwaAsvoClient::get_jobs_retrying)).
+/// ([`MwaAsvoClient::wait_for_jobs`](crate::MwaAsvoClient::wait_for_jobs)).
 ///
 /// Transient failures (a dropped connection, a 5xx, a hash mismatch) are
 /// retried for `retry_duration` from the first failure. [`Self::reset`]

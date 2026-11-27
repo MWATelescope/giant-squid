@@ -90,8 +90,29 @@ impl CliEnv {
         cmd
     }
 
-    /// Serve `POST /api/v2/jobs/list` with one page of jobs.
+    /// Serve `POST /api/v2/jobs/list` with one page of jobs, and
+    /// `GET /api/v2/jobs/{job_id}` with each of them. As the MWA ASVO does,
+    /// the `GET` of any other Job ID is a 404 `JOB_NOT_FOUND`. The mock of
+    /// the job list is returned.
     pub fn mock_get_jobs(&self, jobs: Vec<Value>) -> Mock<'_> {
+        // httpmock serves the first mock that matches, so the mock of each
+        // job comes before the one of any other Job ID.
+        for job in &jobs {
+            if let Some(job_id) = job.get("job_id") {
+                self.server.mock(|when, then| {
+                    when.method(GET).path(format!("/api/v2/jobs/{job_id}"));
+                    then.status(200)
+                        .header("content-type", "application/json")
+                        .json_body(job.clone());
+                });
+            }
+        }
+        self.server.mock(|when, then| {
+            when.method(GET).path_matches(r"^/api/v2/jobs/[0-9]+$");
+            then.status(404)
+                .header("content-type", "application/json")
+                .json_body(json!({ "error_code": "JOB_NOT_FOUND", "message": "Job not found" }));
+        });
         let total_count = jobs.len();
         self.server.mock(|when, then| {
             when.method(POST).path("/api/v2/jobs/list");

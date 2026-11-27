@@ -8,23 +8,32 @@
 //! threads run while it waits. The library client is `Send + Sync`, so one
 //! Python `MwaAsvoClient` can be used from several threads.
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::time::Duration;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use super::config::duration_from_seconds;
 use super::config::PyMwaAsvoClientConfig;
 use super::connect_python_logging;
 use super::csv::{
     csv_jobs_failed, csv_submit_error, result_object, PyCsvDefaults, PyCsvJob, PyCsvJobParams,
 };
-use super::download::{run_download, PyDownloadOptions};
+use super::download::{
+    run_download, run_download_many, run_stoppable, PyDownloadOptions, PyDownloadResult,
+};
 use super::error::{api_error, mwa_asvo_error};
 use super::filter::PyJobsFilter;
 use super::job_params::{PreprocessParams, PyDownloadJobParams, PyImageFromJobParams};
 use super::obs_id::ObsIdArg;
 use super::typed::{JobId, ResultCallback};
 use super::types::{PyJobCancelledResponse, PyJobSubmittedResponse, PyMwaAsvoJob, PyMwaAsvoJobVec};
-use crate::mwa_asvo::{JobsFilter, MwaAsvoClient};
+use crate::mwa_asvo::{
+    DownloadTarget, JobsFilter, MwaAsvoClient, WaitOptions, DEFAULT_CONCURRENT_DOWNLOADS,
+    DEFAULT_WAIT_INITIAL_DELAY, DEFAULT_WAIT_POLL_INTERVAL, DEFAULT_WAIT_RETRY_DURATION,
+};
 
 /// A client for the MWA ASVO. It logs in when it is created.
 ///
@@ -315,6 +324,147 @@ impl PyMwaAsvoClient {
         py.detach(|| self.inner.submit_csv_job(&params))
             .map(PyJobSubmittedResponse::from)
             .map_err(|e| api_error(py, e))
+    }
+
+    /// Get one job by its Job ID. Unlike `get_jobs`, it finds a job of any
+    /// age.
+    ///
+    /// Args:
+    ///     job_id: The Job ID.
+    ///
+    /// Returns:
+    ///     The job, an `MwaAsvoJob`.
+    ///
+    /// Raises:
+    ///     ValueError: `job_id` is 0.
+    ///     OverflowError: `job_id` is negative or too large to be a Job ID.
+    ///     MwaAsvoErrorNoMwaAsvoJob: The MWA ASVO has no such job of the user.
+    ///     MwaAsvoErrorInvalidJob: The server gave a job that cannot be used.
+    ///     MwaAsvoErrorApi: The request failed. Its `source` is the
+    ///         `MwaAsvoApiError`.
+    fn get_job(&self, py: Python<'_>, job_id: JobId) -> PyResult<PyMwaAsvoJob> {
+        py.detach(|| self.inner.get_job(job_id.0))
+            .map(PyMwaAsvoJob::from)
+            .map_err(|e| mwa_asvo_error(py, e))
+    }
+
+    /// Download several jobs, `concurrency` at a time, as `giant-squid
+    /// download` does.
+    ///
+    /// The job list is got once for all the downloads. A job that is given
+    /// more than once (also by its Job ID and its Obs ID) is downloaded once.
+    /// Every download runs, whatever the others do. The call blocks, and
+    /// Ctrl-C stops it.
+    ///
+    /// Args:
+    ///     options: How to download, and where to (a `DownloadOptions`). Its
+    ///         `download_number` and `download_count` are not used, and its
+    ///         progress callback gets the events of every download.
+    ///     job_ids: The Job IDs to download.
+    ///     obs_ids: The Obs IDs whose ready job to download.
+    ///     concurrency: How many downloads run at the same time. `None` is
+    ///         `DEFAULT_CONCURRENT_DOWNLOADS`.
+    ///
+    /// Returns:
+    ///     A `DownloadResult` for each download, in the order of the Job IDs
+    ///     and then the Obs IDs.
+    ///
+    /// Raises:
+    ///     ValueError: A Job ID or `concurrency` is 0, `options.download_dir`
+    ///         is not valid UTF-8, or `options.retry_duration` is negative or
+    ///         not finite.
+    ///     ObsIdError: An Obs ID is not valid.
+    ///     MwaAsvoErrorInvalidOption: `options.buffer_size` is not valid.
+    ///     MwaAsvoErrorApi: Getting the job list failed. Nothing is
+    ///         downloaded.
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    #[pyo3(signature = (options, *, job_ids=None, obs_ids=None, concurrency=None))]
+    fn download_many(
+        &self,
+        py: Python<'_>,
+        options: PyRef<'_, PyDownloadOptions>,
+        job_ids: Option<Vec<JobId>>,
+        obs_ids: Option<Vec<ObsIdArg>>,
+        concurrency: Option<usize>,
+    ) -> PyResult<Vec<PyDownloadResult>> {
+        let concurrency = concurrency.unwrap_or(DEFAULT_CONCURRENT_DOWNLOADS.get());
+        let concurrency = NonZeroUsize::new(concurrency).ok_or_else(|| {
+            PyValueError::new_err("concurrency=0 is not valid: it must be at least 1")
+        })?;
+        let job_ids: Vec<_> = job_ids
+            .unwrap_or_default()
+            .into_iter()
+            .map(|id| id.0)
+            .collect();
+        let obs_ids: Vec<_> = obs_ids
+            .unwrap_or_default()
+            .into_iter()
+            .map(|id| id.0)
+            .collect();
+        let targets = DownloadTarget::all(&job_ids, &obs_ids);
+        run_download_many(py, &options, concurrency, |opts| {
+            self.inner.download_many(&targets, opts)
+        })?
+        .into_iter()
+        .map(|result| PyDownloadResult::from_lib(py, result))
+        .collect()
+    }
+
+    /// Wait until the jobs are ready, as `giant-squid wait` does: get the
+    /// job list until every job is ready (see `MwaAsvoJobVec.all_ready`).
+    /// The state of each job is logged the first time and when it changes.
+    /// The call blocks, and Ctrl-C stops it.
+    ///
+    /// Args:
+    ///     job_ids: The Job IDs.
+    ///     initial_delay: Seconds before the first job list request. `None`
+    ///         is `DEFAULT_WAIT_INITIAL_DELAY`.
+    ///     poll_interval: Seconds between two job list requests. `None` is
+    ///         `DEFAULT_WAIT_POLL_INTERVAL`.
+    ///     retry_duration: Seconds that a failing job list request is tried
+    ///         again, from the first failure. `None` is
+    ///         `DEFAULT_WAIT_RETRY_DURATION`.
+    ///
+    /// Returns:
+    ///     The last job list, an `MwaAsvoJobVec`.
+    ///
+    /// Raises:
+    ///     ValueError: A Job ID is 0, or a time is negative or not finite.
+    ///     MwaAsvoError: A job is missing, has an error, has been cancelled,
+    ///         or is completed but its download links have expired.
+    ///     MwaAsvoErrorApi: The job list request failed. Its `source` is the
+    ///         `MwaAsvoApiError`.
+    ///     KeyboardInterrupt: Ctrl-C was pressed.
+    #[pyo3(signature = (job_ids, *, initial_delay=None, poll_interval=None, retry_duration=None))]
+    fn wait_for_jobs(
+        &self,
+        py: Python<'_>,
+        job_ids: Vec<JobId>,
+        initial_delay: Option<f64>,
+        poll_interval: Option<f64>,
+        retry_duration: Option<f64>,
+    ) -> PyResult<PyMwaAsvoJobVec> {
+        let seconds = |name, value: Option<f64>, default: Duration| {
+            value.map_or(Ok(default), |value| duration_from_seconds(name, value))
+        };
+        let initial_delay = seconds("initial_delay", initial_delay, DEFAULT_WAIT_INITIAL_DELAY)?;
+        let poll_interval = seconds("poll_interval", poll_interval, DEFAULT_WAIT_POLL_INTERVAL)?;
+        let retry_duration = seconds(
+            "retry_duration",
+            retry_duration,
+            DEFAULT_WAIT_RETRY_DURATION,
+        )?;
+        let job_ids: Vec<_> = job_ids.into_iter().map(|id| id.0).collect();
+        run_stoppable(py, |should_stop| {
+            let opts = WaitOptions {
+                initial_delay,
+                poll_interval,
+                retry_duration,
+                should_stop: Some(should_stop),
+            };
+            self.inner.wait_for_jobs(&job_ids, &opts)
+        })
+        .map(PyMwaAsvoJobVec::from)
     }
 
     /// Cancel a job.

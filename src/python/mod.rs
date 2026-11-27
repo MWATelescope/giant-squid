@@ -119,7 +119,7 @@ mod module {
         PyCsvJobParams, PyCsvRowError,
     };
     #[pymodule_export]
-    use super::download::PyDownloadOptions;
+    use super::download::{PyDownloadOptions, PyDownloadResult};
     #[pymodule_export]
     use super::error::{
         MwaAsvoApiError, MwaAsvoApiErrorAuthenticationFailed, MwaAsvoApiErrorBadJson,

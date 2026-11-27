@@ -240,6 +240,19 @@ before you upgrade scripts.**
   now read as the schema type of the job's type (conversion, imaging, ...); before, only the download keys were kept
   for every job.
 * `list` and `wait` with `NO_COLOR` set (and not empty) print the job table without colours, as `--no-colour` does.
+* The library has `MwaAsvoClient::get_job` (Python `MwaAsvoClient.get_job`), which gets one job from the schema's
+  `GET /api/v2/jobs/{job_id}`, so it finds a job of any age. A Job ID that the MWA ASVO does not have is
+  `MwaAsvoError::NoMwaAsvoJob`. `download_job` uses it, so it downloads a job that is older than the job list's
+  window (30 days by default).
+* The library has `MwaAsvoClient::wait_for_jobs` (Python `MwaAsvoClient.wait_for_jobs`), the wait of
+  `giant-squid wait` and `--wait`, which now calls it. `WaitOptions` has its times (`DEFAULT_WAIT_INITIAL_DELAY`,
+  `DEFAULT_WAIT_POLL_INTERVAL`, `DEFAULT_WAIT_RETRY_DURATION`) and a `should_stop`; Python takes the times as keyword
+  arguments, and Ctrl-C stops the wait.
+* The library has `MwaAsvoClient::download_many` (Python `MwaAsvoClient.download_many`), the downloads of
+  `giant-squid download`, which now calls it. It takes `DownloadTarget`s (Python: `job_ids` and `obs_ids`) and
+  `DownloadManyOptions` (Python: a `DownloadOptions` and `concurrency`, default `DEFAULT_CONCURRENT_DOWNLOADS`). It
+  gets the job list once, downloads a job that is given twice once, starts the downloads in their order, and gives a
+  result for each (Python `DownloadResult`). The command no longer depends on `rayon`.
 * A Python package, `mwa-giant-squid` (`import mwa_giant_squid`), built from the same code, with type stubs. It
   installs the `giant-squid` command, which is the Rust program run inside the module, so it is the same
   program as the Rust one (the same commands, options, help, messages and exit codes). The two submit methods

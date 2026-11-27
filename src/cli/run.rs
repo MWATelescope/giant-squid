@@ -11,7 +11,7 @@
 //! [`run_cli`].
 
 use std::collections::BTreeMap;
-use std::num::NonZeroU64;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 use std::thread;
@@ -30,11 +30,11 @@ use crate::mwa_asvo::api::openapi::{
     DeliveryDestination, ImageFromJobParams, JobSubmittedResponse, Status,
 };
 use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
-use crate::mwa_asvo::download::ready_job_of_obs_id;
 use crate::mwa_asvo::{
-    client_config_from_env, DownloadOptions, DownloadProgress, DownloadSettings, JobState,
-    JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoJob, MwaAsvoJobId, MwaAsvoJobVec,
-    ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
+    client_config_from_env, DownloadManyOptions, DownloadProgress, DownloadSettings,
+    DownloadTarget, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoJob, MwaAsvoJobId,
+    MwaAsvoJobVec, WaitOptions, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS,
+    ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -51,7 +51,6 @@ use super::table::{job_files, job_size_text, print_jobs_table};
 use super::{
     deprecated_command, deprecated_command_warning, Args, SubmitOptions, COMMAND_SUBMIT_BF,
     COMMAND_SUBMIT_CONV, COMMAND_SUBMIT_META, COMMAND_SUBMIT_VIS, COMMAND_SUBMIT_VOLT,
-    WAIT_INITIAL_DELAY, WAIT_POLL_INTERVAL, WAIT_RETRY_DURATION,
 };
 use crate::helpers::READ_STDIN_HINT;
 
@@ -90,86 +89,16 @@ fn update_progress_bar(pb: &ProgressBar, event: DownloadProgress) {
     }
 }
 
+/// The number of downloads at the same time for `--concurrent-downloads`:
+/// 0 is the number of CPU cores.
+fn concurrency(concurrent_downloads: usize) -> NonZeroUsize {
+    NonZeroUsize::new(concurrent_downloads)
+        .unwrap_or_else(|| thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
+}
+
 /// Log in to the MWA ASVO with the config from the environment.
 fn connect() -> anyhow::Result<MwaAsvoClient> {
     Ok(MwaAsvoClient::new(client_config_from_env()?)?)
-}
-
-/// The time between the starts of two downloads, so that the downloads start
-/// (and log) in their order: 1/20 before 2/20. It is for the display only.
-/// A download that starts when another ends waits for it too.
-const DOWNLOAD_START_DELAY: Duration = Duration::from_millis(50);
-
-/// What one download is for: a Job ID, or an Obs ID.
-#[derive(Clone, Copy)]
-enum DownloadTarget {
-    Job(MwaAsvoJobId),
-    Obs(ObsId),
-}
-
-impl DownloadTarget {
-    /// The targets of `job_ids` and then of `obs_ids`, in that order.
-    fn all(job_ids: &[MwaAsvoJobId], obs_ids: &[ObsId]) -> Vec<Self> {
-        job_ids
-            .iter()
-            .map(|j| Self::Job(*j))
-            .chain(obs_ids.iter().map(|o| Self::Obs(*o)))
-            .collect()
-    }
-
-    /// `targets` without each Obs ID whose job (in `jobs`) is also a Job ID
-    /// of `targets`. The two would download the same job into the same
-    /// directory at the same time. Each Obs ID that is removed is logged. An
-    /// Obs ID with no job to download is kept, so that its error is
-    /// reported.
-    fn without_same_jobs(targets: Vec<Self>, jobs: &MwaAsvoJobVec) -> Vec<Self> {
-        let job_ids: Vec<MwaAsvoJobId> = targets.iter().filter_map(|t| t.job_id()).collect();
-        targets
-            .into_iter()
-            .filter(|target| {
-                let Self::Obs(obs_id) = *target else {
-                    return true;
-                };
-                match ready_job_of_obs_id(jobs, obs_id) {
-                    Ok(job) if job_ids.contains(&job.job_id()) => {
-                        let job_id = job.job_id();
-                        info!("Obs ID {obs_id} is Job ID {job_id}, which is also given: it is downloaded once.");
-                        false
-                    }
-                    _ => true,
-                }
-            })
-            .collect()
-    }
-
-    /// The Job ID that was asked for, if it is one.
-    fn job_id(self) -> Option<MwaAsvoJobId> {
-        match self {
-            Self::Job(job_id) => Some(job_id),
-            Self::Obs(_) => None,
-        }
-    }
-
-    /// The Obs ID that was asked for, if it is one.
-    fn obs_id(self) -> Option<ObsId> {
-        match self {
-            Self::Job(_) => None,
-            Self::Obs(obs_id) => Some(obs_id),
-        }
-    }
-
-    /// Download the target, found in the job list `jobs`.
-    fn download(
-        self,
-        client: &MwaAsvoClient,
-        jobs: &MwaAsvoJobVec,
-        opts: &DownloadOptions,
-    ) -> anyhow::Result<MwaAsvoJob> {
-        Ok(match self {
-            Self::Job(job_id) => client.download_job_from(jobs, job_id, opts)?,
-            Self::Obs(obs_id) => client.download_obs_from(jobs, obs_id, opts)?,
-        })
-    }
 }
 
 /// The result of one successful download, for `download --json`: the keys
@@ -285,55 +214,6 @@ fn downloaded_message(job: &MwaAsvoJob, download_dir: &str, job_subdir: bool) ->
             format!("Downloaded {size} to {dir}")
         }
     }
-}
-
-/// Run `work` for each of `items` on the threads of `pool`, and give the
-/// results in the order of the items.
-///
-/// The items start in their order: a thread that is free takes the next item
-/// that has not started, and the starts are `start_delay` apart (for the
-/// display: the first log line of an item comes before the start of the
-/// next). `par_iter` would give each thread a block of the items, and the
-/// second thread would start at the middle of the list: the log of the
-/// downloads would say 1/20, 11/20, 6/20 and so on. `work` is given the
-/// index of the item, from 0.
-pub(super) fn run_in_order<T, R>(
-    pool: &rayon::ThreadPool,
-    items: &[T],
-    start_delay: Duration,
-    work: impl Fn(usize, &T) -> R + Sync,
-) -> Vec<R>
-where
-    T: Sync,
-    R: Send,
-{
-    // The index of the next item to start. It is held for the wait, so that
-    // another thread cannot start the next item before this one has.
-    let next = Mutex::new(0_usize);
-    let done: Mutex<Vec<(usize, R)>> = Mutex::new(Vec::with_capacity(items.len()));
-    pool.scope(|scope| {
-        for _ in 0..pool.current_num_threads() {
-            scope.spawn(|_| loop {
-                let index = {
-                    let mut next = next.lock().unwrap_or_else(PoisonError::into_inner);
-                    if *next >= items.len() {
-                        return;
-                    }
-                    let index = *next;
-                    *next += 1;
-                    thread::sleep(start_delay);
-                    index
-                };
-                let result = work(index, &items[index]);
-                done.lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .push((index, result));
-            });
-        }
-    });
-    let mut done = done.into_inner().unwrap_or_else(PoisonError::into_inner);
-    done.sort_by_key(|(index, _)| *index);
-    done.into_iter().map(|(_, result)| result).collect()
 }
 
 /// Submit one job per Obs ID, carrying on past failures.
@@ -962,47 +842,10 @@ fn print_jobs(
     Ok(())
 }
 
-/// Poll the job list until all of `job_ids` are ready, logging each job's
-/// state when it changes. Fails as soon as a job is missing, has an error,
-/// has been cancelled or has expired download links (see
-/// `MwaAsvoJobVec::all_ready`).
+/// Wait for `job_ids` to be ready, with the library's default times (see
+/// [`MwaAsvoClient::wait_for_jobs`]). Ctrl-C ends the CLI process.
 fn wait_loop(client: &MwaAsvoClient, job_ids: &[MwaAsvoJobId]) -> anyhow::Result<()> {
-    let job_count = job_ids.len();
-    info!("Waiting for {job_count} jobs to be ready...");
-    let mut last_state = BTreeMap::<MwaAsvoJobId, JobState>::new();
-    // Offer the MWA ASVO a kindness by waiting a moment, so that the
-    // user's queue is hopefully current.
-    std::thread::sleep(WAIT_INITIAL_DELAY);
-    loop {
-        // The default window of the API, as `list` without `--days` has.
-        let jobs = client.get_jobs_retrying(&JobsFilter::default(), WAIT_RETRY_DURATION, None)?;
-        let all_ready = jobs.all_ready(job_ids)?;
-
-        // Log if there was a change in state. `all_ready` has already
-        // checked that every job is in the list.
-        for job in job_ids
-            .iter()
-            .filter_map(|id| jobs.0.iter().find(|j| j.job_id() == *id))
-        {
-            let job_id = job.job_id();
-            let obs_id = job.obs_id();
-            let state = job.display_state();
-            let log_prefix = format!("Job ID {job_id} (Obs ID: {obs_id}):");
-            match last_state.insert(job.job_id(), job.job_state) {
-                Some(last_state) if last_state != job.job_state => {
-                    info!("{log_prefix} is {state}");
-                }
-                Some(_) => (), // State did not change from last_state
-                None => info!("{log_prefix} is {state}"), // First time just report current state
-            }
-        }
-
-        if all_ready {
-            break;
-        }
-        std::thread::sleep(WAIT_POLL_INTERVAL);
-    }
-    info!("All {job_count} MWA ASVO jobs are ready for download.");
+    client.wait_for_jobs(job_ids, &WaitOptions::default())?;
     Ok(())
 }
 
@@ -1135,49 +978,46 @@ fn run(args: Args) -> anyhow::Result<()> {
                     }
                 }
             } else {
-                // One client and one job list for all the downloads: the
-                // client logs in once (the server permits only a few logins
-                // a minute), and the job list is fetched once.
+                // One client for all the downloads: it logs in once (the
+                // server permits only a few logins a minute).
                 let client = connect()?;
-                let jobs = client.get_jobs(&JobsFilter::default())?;
-                let targets = DownloadTarget::without_same_jobs(
-                    DownloadTarget::all(&job_ids, &obs_ids),
-                    &jobs,
-                );
-                let t = targets.len();
-                // A pool of its own, not rayon's global pool, which can be
-                // set only once in a process.
-                let pool = rayon::ThreadPoolBuilder::new()
-                    .num_threads(concurrent_downloads)
-                    .build()?;
-
-                let results: Vec<anyhow::Result<MwaAsvoJob>> =
-                    run_in_order(&pool, &targets, DOWNLOAD_START_DELAY, |index, target| {
-                        let pb = create_progress_bar(&mpb);
-                        let progress = |event| update_progress_bar(&pb, event);
-                        let opts = DownloadOptions {
-                            keep_tar,
-                            no_resume,
-                            hash,
-                            download_dir: &download_dir,
-                            job_subdirectory: job_subdir,
-                            progress: Some(&progress),
-                            download_number: index + 1,
-                            download_count: t,
-                            buffer_size,
-                            retry_duration,
-                            // Ctrl-C ends the CLI process.
-                            should_stop: None,
-                        };
-                        target.download(&client, &jobs, &opts)
-                    });
+                // One progress bar for each download, made at its first event.
+                let bars = Mutex::new(BTreeMap::<usize, ProgressBar>::new());
+                let progress = |index: usize, event: DownloadProgress| {
+                    let pb = bars
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .entry(index)
+                        .or_insert_with(|| create_progress_bar(&mpb))
+                        .clone();
+                    update_progress_bar(&pb, event);
+                };
+                let opts = DownloadManyOptions {
+                    keep_tar,
+                    no_resume,
+                    hash,
+                    download_dir: &download_dir,
+                    job_subdirectory: job_subdir,
+                    buffer_size,
+                    retry_duration,
+                    concurrency: concurrency(concurrent_downloads),
+                    progress: Some(&progress),
+                    // Ctrl-C ends the CLI process.
+                    should_stop: None,
+                };
+                let results: Vec<(DownloadTarget, anyhow::Result<MwaAsvoJob>)> = client
+                    .download_many(&DownloadTarget::all(&job_ids, &obs_ids), &opts)?
+                    .into_iter()
+                    .map(|(target, result)| (target, result.map_err(anyhow::Error::from)))
+                    .collect();
+                let t = results.len();
 
                 // Every download runs to completion before anything is
                 // reported, so one failure doesn't hide the rest. Report
                 // each error, then fail the run as a whole so a script can
                 // tell something went wrong.
                 let mut failures = 0;
-                for e in results.iter().filter_map(|r| r.as_ref().err()) {
+                for e in results.iter().filter_map(|(_, r)| r.as_ref().err()) {
                     error!("{e}");
                     failures += 1;
                 }
@@ -1186,7 +1026,7 @@ fn run(args: Args) -> anyhow::Result<()> {
                 info!("Downloaded {downloaded} of {t}.");
 
                 if json {
-                    for (target, result) in targets.iter().zip(&results) {
+                    for (target, result) in &results {
                         print_download_line(*target, result, &download_dir, job_subdir)?;
                     }
                 }

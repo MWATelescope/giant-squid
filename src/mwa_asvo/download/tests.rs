@@ -4156,3 +4156,295 @@ fn an_access_denied_answer_is_an_expired_link() {
         assert!(!err.to_string().contains("Signature"), "{err}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// The order of the downloads of download_many
+// ---------------------------------------------------------------------------
+
+/// `threads` threads, as `download_many` takes them.
+fn pool_of(threads: usize) -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(threads).expect("at least one thread")
+}
+
+#[test]
+fn run_in_order_gives_the_results_in_the_order_of_the_items() {
+    use crate::mwa_asvo::download::run_in_order;
+
+    let items: Vec<usize> = (0..20).collect();
+
+    let results = run_in_order(
+        pool_of(4),
+        &items,
+        std::time::Duration::ZERO,
+        |index, item| {
+            // The later items finish first.
+            std::thread::sleep(std::time::Duration::from_millis(((20 - index) % 5) as u64));
+            (index, item * 10)
+        },
+    );
+
+    let expected: Vec<(usize, usize)> = (0..20).map(|i| (i, i * 10)).collect();
+    assert_eq!(results, expected);
+}
+
+#[test]
+fn run_in_order_runs_each_item_once() {
+    use crate::mwa_asvo::download::run_in_order;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let runs = AtomicUsize::new(0);
+    let items = vec![(); 50];
+
+    let results = run_in_order(pool_of(4), &items, std::time::Duration::ZERO, |_, ()| {
+        runs.fetch_add(1, Ordering::SeqCst);
+    });
+
+    assert_eq!(runs.load(Ordering::SeqCst), 50);
+    assert_eq!(results.len(), 50);
+}
+
+/// The first items that start are the first items of the list. With
+/// `par_iter`, four threads started at the items 0, 5, 10 and 15 of 20.
+#[test]
+fn run_in_order_starts_the_first_items_of_the_list_first() {
+    use crate::mwa_asvo::download::run_in_order;
+    use std::sync::Mutex;
+
+    let started = Mutex::new(Vec::new());
+    let items = vec![(); 20];
+
+    run_in_order(
+        pool_of(4),
+        &items,
+        std::time::Duration::ZERO,
+        |index, ()| {
+            started.lock().expect("the lock").push(index);
+            // Long enough that the first four items are all running before the
+            // fifth is taken.
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        },
+    );
+
+    let started = started.into_inner().expect("the lock");
+    let mut first_four = started[..4].to_vec();
+    first_four.sort_unstable();
+    assert_eq!(first_four, [0, 1, 2, 3], "started: {started:?}");
+}
+
+#[test]
+fn run_in_order_with_one_thread_starts_the_items_in_their_order() {
+    use crate::mwa_asvo::download::run_in_order;
+    use std::sync::Mutex;
+
+    let started = Mutex::new(Vec::new());
+    let items = vec![(); 12];
+
+    run_in_order(
+        pool_of(1),
+        &items,
+        std::time::Duration::ZERO,
+        |index, ()| {
+            started.lock().expect("the lock").push(index);
+        },
+    );
+
+    assert_eq!(
+        started.into_inner().expect("the lock"),
+        (0..12).collect::<Vec<usize>>()
+    );
+}
+
+#[test]
+fn run_in_order_never_runs_more_items_at_once_than_the_pool_has_threads() {
+    use crate::mwa_asvo::download::run_in_order;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let running = AtomicUsize::new(0);
+    let most = AtomicUsize::new(0);
+    let items = vec![(); 16];
+
+    run_in_order(pool_of(3), &items, std::time::Duration::ZERO, |_, ()| {
+        let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+        most.fetch_max(now, Ordering::SeqCst);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        running.fetch_sub(1, Ordering::SeqCst);
+    });
+
+    assert!(most.load(Ordering::SeqCst) <= 3, "at most 3 at once");
+}
+
+// ---------------------------------------------------------------------------
+// download_many
+// ---------------------------------------------------------------------------
+
+mod download_many {
+    use std::num::NonZeroUsize;
+    use std::sync::Mutex;
+
+    use httpmock::prelude::*;
+    use serde_json::Value;
+    use tempfile::TempDir;
+
+    use super::{ready_job_serving, sha1_hex, DOWNLOAD_PATH};
+    use crate::mwa_asvo::{
+        DownloadManyOptions, DownloadProgress, DownloadTarget, MwaAsvoClient, MwaAsvoError,
+        DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    };
+    use crate::obs_id::ObsId;
+    use crate::test_common::*;
+    use crate::test_config::{client_config, job_id, TEST_MWA_ASVO_JOB_ID};
+
+    /// The contents of the file of the test job.
+    const PAYLOAD: &str = "giant-squid download_many test payload";
+    /// An Obs ID that no job has.
+    const OTHER_OBS_ID: u64 = 1065880248;
+
+    /// The job that serves [`PAYLOAD`], and the mock of its file.
+    fn serve_file(env: &TestEnv) -> (Value, httpmock::Mock<'_>) {
+        let file = env.server.mock(|when, then| {
+            when.method(GET).path(DOWNLOAD_PATH);
+            then.status(200).body(PAYLOAD);
+        });
+        let job = ready_job_serving(
+            &env.server.url(DOWNLOAD_PATH),
+            PAYLOAD.len() as u64,
+            &sha1_hex(PAYLOAD.as_bytes()),
+        );
+        (job, file)
+    }
+
+    /// Keep-tar downloads into `dir`, two at a time, with no retry.
+    fn options<'a>(dir: &'a str) -> DownloadManyOptions<'a> {
+        DownloadManyOptions {
+            keep_tar: true,
+            no_resume: false,
+            hash: true,
+            download_dir: dir,
+            job_subdirectory: false,
+            buffer_size: DEFAULT_DOWNLOAD_BUFFER_SIZE,
+            retry_duration: std::time::Duration::ZERO,
+            concurrency: NonZeroUsize::new(2).expect("not zero"),
+            progress: None,
+            should_stop: None,
+        }
+    }
+
+    fn obs_id() -> ObsId {
+        TEST_OBS_ID
+            .parse::<u64>()
+            .ok()
+            .and_then(|n| ObsId::validate(n).ok())
+            .expect("a valid Obs ID")
+    }
+
+    /// A job given by its Job ID and by its Obs ID, and a repeated target,
+    /// are each downloaded once.
+    #[test]
+    fn a_job_given_more_than_once_is_downloaded_once() {
+        let env = TestEnv::with_session();
+        let (job, file) = serve_file(&env);
+        env.mock_get_jobs(vec![job]);
+        let dir = TempDir::new().expect("a download directory");
+        let dir_path = dir.path().display().to_string();
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+        let targets = [
+            DownloadTarget::Job(TEST_MWA_ASVO_JOB_ID),
+            DownloadTarget::Obs(obs_id()),
+            DownloadTarget::Job(TEST_MWA_ASVO_JOB_ID),
+        ];
+
+        let results = client
+            .download_many(&targets, &options(&dir_path))
+            .expect("the downloads run");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0, DownloadTarget::Job(TEST_MWA_ASVO_JOB_ID));
+        assert!(results[0].1.is_ok(), "{:?}", results[0].1);
+        assert_eq!(file.calls(), 1);
+    }
+
+    /// A failed download does not stop the others, and each result is at the
+    /// place of its target.
+    #[test]
+    fn a_failed_download_does_not_stop_the_others() {
+        let env = TestEnv::with_session();
+        let (job, file) = serve_file(&env);
+        env.mock_get_jobs(vec![job]);
+        let dir = TempDir::new().expect("a download directory");
+        let dir_path = dir.path().display().to_string();
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+        let other = ObsId::validate(OTHER_OBS_ID).expect("a valid Obs ID");
+        let targets = [
+            DownloadTarget::Obs(other),
+            DownloadTarget::Job(TEST_MWA_ASVO_JOB_ID),
+        ];
+
+        let results = client
+            .download_many(&targets, &options(&dir_path))
+            .expect("the downloads run");
+
+        assert_eq!(results.len(), 2);
+        assert!(
+            matches!(results[0].1, Err(MwaAsvoError::NoObsId(_))),
+            "{:?}",
+            results[0].1
+        );
+        assert!(results[1].1.is_ok(), "{:?}", results[1].1);
+        assert_eq!(file.calls(), 1);
+    }
+
+    /// A Job ID that is not in the job list (an older job) is got by its ID.
+    #[test]
+    fn a_job_that_is_not_in_the_job_list_is_got_by_its_job_id() {
+        let env = TestEnv::with_session();
+        let (job, file) = serve_file(&env);
+        // Before the job list mock, whose `GET` of any other Job ID is a 404.
+        env.server.mock(|when, then| {
+            when.method(GET).path(format!("/api/v2/jobs/{TEST_JOB_ID}"));
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(job);
+        });
+        env.mock_get_jobs(vec![]);
+        let dir = TempDir::new().expect("a download directory");
+        let dir_path = dir.path().display().to_string();
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+
+        let results = client
+            .download_many(
+                &[DownloadTarget::Job(TEST_MWA_ASVO_JOB_ID)],
+                &options(&dir_path),
+            )
+            .expect("the downloads run");
+
+        assert!(results[0].1.is_ok(), "{:?}", results[0].1);
+        assert_eq!(file.calls(), 1);
+    }
+
+    /// The progress callback is given the index of the download.
+    #[test]
+    fn the_progress_callback_is_given_the_index_of_the_download() {
+        let env = TestEnv::with_session();
+        let (job, _file) = serve_file(&env);
+        env.mock_get_jobs(vec![job]);
+        let dir = TempDir::new().expect("a download directory");
+        let dir_path = dir.path().display().to_string();
+        let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+        let indexes = Mutex::new(Vec::new());
+        let progress = |index: usize, event: DownloadProgress| {
+            if matches!(event, DownloadProgress::Started { .. }) {
+                indexes.lock().expect("the lock").push(index);
+            }
+        };
+        let opts = DownloadManyOptions {
+            progress: Some(&progress),
+            ..options(&dir_path)
+        };
+
+        client
+            .download_many(&[DownloadTarget::Job(job_id(TEST_JOB_ID))], &opts)
+            .expect("the downloads run");
+
+        assert_eq!(indexes.into_inner().expect("the lock"), [0]);
+    }
+}

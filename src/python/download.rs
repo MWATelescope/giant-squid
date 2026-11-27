@@ -34,21 +34,22 @@
 //! the download would carry on, and even finish, as if Ctrl-C had not been
 //! pressed.
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use pyo3::exceptions::{PyException, PyValueError};
+use pyo3::exceptions::{PyBaseException, PyException, PyValueError};
 use pyo3::prelude::*;
 
 use super::config::duration_from_seconds;
 use super::error::mwa_asvo_error;
 use super::typed::ProgressCallback;
-use super::types::PyDownloadProgress;
+use super::types::{PyDownloadProgress, PyMwaAsvoJob};
 use crate::mwa_asvo::{
-    DownloadOptions, DownloadProgress, MwaAsvoError, DEFAULT_DOWNLOAD_BUFFER_SIZE,
-    DEFAULT_DOWNLOAD_RETRY_DURATION,
+    DownloadManyOptions, DownloadManyResult, DownloadOptions, DownloadProgress, MwaAsvoError,
+    DEFAULT_DOWNLOAD_BUFFER_SIZE, DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
 /// The shortest time between two calls into Python for `Advanced` events,
@@ -342,6 +343,135 @@ fn take_stray_error(py: Python<'_>) -> Option<PyErr> {
     }
 }
 
+/// The result of one download of `MwaAsvoClient.download_many`: the Job ID or
+/// the Obs ID that was asked for, and the job that was downloaded or the
+/// exception of the download.
+#[cfg_attr(feature = "python-stubgen", pyo3_stub_gen::derive::gen_stub_pyclass)]
+#[pyclass(frozen, name = "DownloadResult", module = "mwa_giant_squid")]
+pub struct PyDownloadResult {
+    /// The Job ID that was asked for, or `None` for an Obs ID.
+    #[pyo3(get)]
+    job_id: Option<u64>,
+    /// The Obs ID that was asked for, or `None` for a Job ID.
+    #[pyo3(get)]
+    obs_id: Option<u64>,
+    /// The job that was downloaded, or `None` if the download failed.
+    #[pyo3(get)]
+    job: Option<Py<PyMwaAsvoJob>>,
+    /// The exception of the download (an `MwaAsvoError`), or `None` if it
+    /// worked.
+    #[pyo3(get)]
+    error: Option<Py<PyBaseException>>,
+}
+
+impl PyDownloadResult {
+    /// The Python result of one result of the library.
+    pub(super) fn from_lib(py: Python<'_>, (target, result): DownloadManyResult) -> PyResult<Self> {
+        let (job, error) = match result {
+            Ok(job) => (Some(Py::new(py, PyMwaAsvoJob::from(job))?), None),
+            Err(e) => (None, Some(mwa_asvo_error(py, e).value(py).clone().unbind())),
+        };
+        Ok(Self {
+            job_id: target.job_id().map(|id| id.get()),
+            obs_id: target.obs_id().map(u64::from),
+            job,
+            error,
+        })
+    }
+}
+
+/// The text of `options.download_dir`, which the library takes as a `str`.
+///
+/// # Errors
+///
+/// `ValueError` if it is not valid UTF-8.
+fn download_dir_text(options: &PyDownloadOptions) -> PyResult<String> {
+    let download_dir = &options.download_dir;
+    download_dir
+        .to_str()
+        .map(ToString::to_string)
+        .ok_or_else(|| {
+            PyValueError::new_err(format!("download_dir={download_dir:?} is not valid UTF-8"))
+        })
+}
+
+/// As [`run_download`], for `download_many`: `options` (but its
+/// `download_number` and `download_count`) is the options of every
+/// download, and its progress callback gets the events of all of them.
+///
+/// # Errors
+///
+/// As [`run_download`]. The error of each download is in its result.
+pub(super) fn run_download_many<F>(
+    py: Python<'_>,
+    options: &PyDownloadOptions,
+    concurrency: NonZeroUsize,
+    download: F,
+) -> PyResult<Vec<DownloadManyResult>>
+where
+    F: FnOnce(&DownloadManyOptions) -> Result<Vec<DownloadManyResult>, MwaAsvoError> + Send,
+{
+    let download_dir = download_dir_text(options)?;
+    let retry_duration = duration_from_seconds("retry_duration", options.retry_duration)?;
+    let hooks = Hooks::new(options.progress.as_ref().map(|p| p.clone_ref(py)));
+
+    let result = py.detach(|| {
+        let progress = |_index: usize, event: DownloadProgress| hooks.progress(event);
+        let should_stop = || hooks.should_stop();
+        let opts = DownloadManyOptions {
+            keep_tar: options.keep_tar,
+            no_resume: options.no_resume,
+            hash: options.hash,
+            download_dir: &download_dir,
+            job_subdirectory: options.job_subdirectory,
+            buffer_size: options.buffer_size,
+            retry_duration,
+            concurrency,
+            progress: Some(&progress),
+            should_stop: Some(&should_stop),
+        };
+        let result = download(&opts);
+        hooks.flush();
+        result
+    });
+
+    if let Some(err) = hooks.take_error() {
+        return Err(err);
+    }
+    // As in `run_download`.
+    if let Some(err) = take_stray_error(py) {
+        return Err(err);
+    }
+    result.map_err(|e| mwa_asvo_error(py, e))
+}
+
+/// Run `work` (a library call that takes a `should_stop`) with the GIL
+/// released. Its `should_stop` is `true` after Ctrl-C, as a download's is,
+/// and the exception of the signal handler is raised in place of any error.
+///
+/// # Errors
+///
+/// `MwaAsvoError` from `work`, or the exception from a signal handler.
+pub(super) fn run_stoppable<F, T>(py: Python<'_>, work: F) -> PyResult<T>
+where
+    F: FnOnce(&dyn Fn() -> bool) -> Result<T, MwaAsvoError> + Send,
+    T: Send,
+{
+    let hooks = Hooks::new(None);
+    let result = py.detach(|| {
+        let should_stop = || hooks.should_stop();
+        work(&should_stop)
+    });
+    if let Some(err) = hooks.take_error() {
+        return Err(err);
+    }
+    // As in `run_download`.
+    if let Some(err) = take_stray_error(py) {
+        return Err(err);
+    }
+    result.map_err(|e| mwa_asvo_error(py, e))
+}
+
 /// Run `download` with the options in `args`, with the GIL released.
 ///
 /// `download` is the library call (`download_job` or `download_obs`).
@@ -362,14 +492,7 @@ where
     F: FnOnce(&DownloadOptions) -> Result<T, MwaAsvoError> + Send,
     T: Send,
 {
-    let download_dir = options
-        .download_dir
-        .to_str()
-        .ok_or_else(|| {
-            let download_dir = &options.download_dir;
-            PyValueError::new_err(format!("download_dir={download_dir:?} is not valid UTF-8"))
-        })?
-        .to_string();
+    let download_dir = download_dir_text(options)?;
     let retry_duration = duration_from_seconds("retry_duration", options.retry_duration)?;
     let hooks = Hooks::new(options.progress.as_ref().map(|p| p.clone_ref(py)));
 

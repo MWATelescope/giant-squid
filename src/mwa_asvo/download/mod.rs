@@ -38,6 +38,12 @@ use sha1::digest::common::hazmat::{SerializableState, SerializedState};
 use sha1::{Digest, Sha1};
 use tar::Archive;
 
+mod many;
+#[cfg(test)]
+pub(crate) use many::run_in_order;
+pub use many::{
+    DownloadManyOptions, DownloadManyResult, DownloadTarget, DEFAULT_CONCURRENT_DOWNLOADS,
+};
 mod no_follow;
 use no_follow::{open_for_writing, refused_a_symlink, BelowError, DownloadRoot, WriteMode};
 

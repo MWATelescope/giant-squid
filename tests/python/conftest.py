@@ -3,6 +3,7 @@
 import base64
 import json
 import pathlib
+import re
 import time
 from collections.abc import Callable
 from functools import partial
@@ -31,6 +32,12 @@ IMAGE_FROM_JOB = partial(gs.ImageFromJobParams, output_mode=TEST_OUTPUT_MODE)
 # The MWA ASVO endpoints the mock serves.
 LOGIN_PATH = "/api/v2/auth/api_login"
 GET_JOBS_PATH = "/api/v2/jobs/list"
+# The path of one job is this and the Job ID.
+JOB_PATH_PREFIX = "/api/v2/jobs/"
+# The path of any one job.
+ANY_JOB_PATH = re.compile(r"^/api/v2/jobs/[0-9]+$")
+# The HTTP status of a job that the MWA ASVO does not have.
+HTTP_NOT_FOUND = 404
 
 # Token lifetimes, in seconds.
 ACCESS_TOKEN_LIFETIME = 3600
@@ -135,7 +142,9 @@ def mock_login(httpserver: HTTPServer) -> None:
 
 @pytest.fixture
 def serve_jobs(httpserver: HTTPServer) -> Callable[[list[dict[str, Any]]], None]:
-    """A function that serves one page of jobs from ``get_jobs``.
+    """A function that serves one page of jobs from ``get_jobs``, and each job from ``GET /api/v2/jobs/{job_id}``.
+
+    As the MWA ASVO does, the ``GET`` of any other Job ID is a 404 ``JOB_NOT_FOUND``.
 
     Args:
         httpserver: The pytest-httpserver server.
@@ -145,6 +154,13 @@ def serve_jobs(httpserver: HTTPServer) -> Callable[[list[dict[str, Any]]], None]
     """
 
     def serve(jobs: list[dict[str, Any]]) -> None:
+        # The server uses the first handler that matches, so the handler of each job comes before the one of any
+        # other Job ID.
+        for job in jobs:
+            httpserver.expect_request(f"{JOB_PATH_PREFIX}{job['job_id']}", method="GET").respond_with_json(job)
+        httpserver.expect_request(ANY_JOB_PATH, method="GET").respond_with_json(
+            error_response("JOB_NOT_FOUND", "Job not found"), status=HTTP_NOT_FOUND
+        )
         httpserver.expect_request(GET_JOBS_PATH, method="POST").respond_with_json(
             {"jobs": jobs, "total_count": len(jobs)}
         )

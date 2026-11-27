@@ -395,18 +395,18 @@ impl MwaAsvoClient {
     }
 
     /// Download the MWA ASVO job with the given Job ID.
-    /// Fetches the current job list, locates the job, and downloads its
-    /// files according to the supplied options. Returns the job that was
-    /// downloaded. To download several jobs, get the job list once and use
-    /// [`Self::download_job_from`].
+    /// Gets the job (see [`Self::get_job`], so a job of any age), and
+    /// downloads its files according to the supplied options. Returns the
+    /// job that was downloaded. To download several jobs of a job list that
+    /// you have, use [`Self::download_job_from`].
     pub fn download_job(
         &self,
         job_id: MwaAsvoJobId,
         opts: &DownloadOptions,
     ) -> Result<MwaAsvoJob, MwaAsvoError> {
-        opts.check()?; // before the job list request
-        let jobs = self.get_jobs(&JobsFilter::default())?;
-        self.download_job_from(&jobs, job_id, opts)
+        opts.check()?; // before the request
+        let job = self.get_job(job_id)?;
+        self.download_job_from(&MwaAsvoJobVec(vec![job]), job_id, opts)
     }
 
     /// As [`Self::download_job`], with the job looked up in `jobs` (a job
@@ -817,17 +817,12 @@ impl MwaAsvoClient {
             let page: RawJobsPage = serde_json::from_str(&body)?;
 
             let page_len = page.jobs.len() as u64;
-            for mut job_value in page.jobs {
-                normalize_job_value(&mut job_value);
-                let raw_params = job_value.get("job_params").cloned();
-
+            for job_value in page.jobs {
                 // Hard error: this is a basic structural mismatch against
                 // the schema (an item that isn't even a JobDetailResponse
                 // shape), not a content-level problem like the ones that
                 // `MwaAsvoJob::try_from` finds, which skip only that job.
-                let mut detail: JobDetailResponse =
-                    serde_json::from_value(serde_json::Value::Object(job_value))?;
-                detail.job_params = typed_job_params(detail.job_type, raw_params);
+                let detail = job_detail(job_value)?;
                 // A job that cannot be used (see `MwaAsvoJob::try_from`) is
                 // skipped, so that one bad job does not hide the others.
                 match MwaAsvoJob::try_from(detail) {
@@ -856,11 +851,8 @@ impl MwaAsvoClient {
     /// that grows (see the retry policy of the downloads). It gives up with
     /// the last error when the failures have gone on for `retry_duration`,
     /// and at once for any other error. A zero `retry_duration` never
-    /// retries. It is for a long task that polls the job list, which is the
-    /// `wait` command: one failure should not end the task. It is not public,
-    /// so [`Self::get_jobs`] is the one public way to get the job list. A
-    /// caller of the library that wants retries makes its own loop around
-    /// [`Self::get_jobs`], with [`MwaAsvoApiError::is_transient`].
+    /// retries. It is for [`Self::wait_for_jobs`], which polls the job list:
+    /// one failure should not end the wait.
     ///
     /// `should_stop` is asked during each wait. When it returns `true`,
     /// the call ends with [`MwaAsvoError::Interrupted`]. `None` never stops.
@@ -869,9 +861,6 @@ impl MwaAsvoClient {
     ///
     /// [`MwaAsvoError::Api`] with the error from the request, as for
     /// [`Self::get_jobs`], and [`MwaAsvoError::Interrupted`].
-    // Only the CLI (the "bin" feature) calls it, so a build without that
-    // feature does not use it.
-    #[cfg_attr(not(feature = "bin"), allow(dead_code))]
     pub(crate) fn get_jobs_retrying(
         &self,
         filter: &JobsFilter,
@@ -962,6 +951,34 @@ impl MwaAsvoClient {
         Ok(serde_json::from_str(&body)?)
     }
 
+    /// Get one job: the schema's `GET /api/v2/jobs/{job_id}`. Unlike
+    /// [`Self::get_jobs`], it finds a job of any age.
+    ///
+    /// # Errors
+    ///
+    /// [`MwaAsvoError::NoMwaAsvoJob`] if the MWA ASVO has no such job of the
+    /// user (`JOB_NOT_FOUND`), [`MwaAsvoError::InvalidJob`] if the job cannot
+    /// be used (see `MwaAsvoJob::try_from`), and [`MwaAsvoError::Api`] with
+    /// any other error from the request.
+    pub fn get_job(&self, job_id: MwaAsvoJobId) -> Result<MwaAsvoJob, MwaAsvoError> {
+        debug!("Getting MWA ASVO Job ID {job_id}");
+        let host = &self.config.host;
+        let body = match self
+            .send_authed(|client| client.get(format!("{host}{ENDPOINT_JOBS}/{job_id}")))
+        {
+            Ok(body) => body,
+            Err(MwaAsvoApiError::Server { response, .. })
+                if response.error_code == ErrorCode::JobNotFound =>
+            {
+                return Err(MwaAsvoError::NoMwaAsvoJob(job_id));
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let job_value = serde_json::from_str(&body).map_err(MwaAsvoApiError::from)?;
+        let detail = job_detail(job_value).map_err(MwaAsvoApiError::from)?;
+        MwaAsvoJob::try_from(detail)
+    }
+
     /// Cancel a job. The reply is the schema's `JobCancelledResponse`.
     ///
     /// The reply's `status` and `message` describe what happened, and the
@@ -989,6 +1006,26 @@ impl MwaAsvoClient {
         let resp: JobCancelledResponse = serde_json::from_str(&body)?;
         Ok(resp)
     }
+}
+
+/// A job of a reply (one job of the job list, or the reply of
+/// `GET /api/v2/jobs/{job_id}`) as the schema's `JobDetailResponse`, with the
+/// server's quirks patched (see [`normalize_job_value`]) and its `job_params`
+/// typed (see [`typed_job_params`]).
+///
+/// # Errors
+///
+/// A `serde_json` error if the value does not have the shape of a
+/// `JobDetailResponse`.
+fn job_detail(
+    mut job_value: serde_json::Map<String, serde_json::Value>,
+) -> Result<JobDetailResponse, serde_json::Error> {
+    normalize_job_value(&mut job_value);
+    let raw_params = job_value.get("job_params").cloned();
+    let mut detail: JobDetailResponse =
+        serde_json::from_value(serde_json::Value::Object(job_value))?;
+    detail.job_params = typed_job_params(detail.job_type, raw_params);
+    Ok(detail)
 }
 
 /// The `job_params` of a job as the one schema type that its `job_type` has.

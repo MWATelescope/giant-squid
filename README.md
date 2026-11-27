@@ -1425,8 +1425,9 @@ command uses it, and your own Rust programs can use it too. The library:
   crate, and it reports download progress through an optional callback.
 - returns typed errors: `MwaAsvoApiError` for MWA ASVO API calls, and
   `MwaAsvoError` for downloads and job checks.
-- does not do poll loops. To wait for jobs, your program calls
-  `MwaAsvoJobVec::all_ready` in its own loop.
+- waits for jobs with `MwaAsvoClient::wait_for_jobs`, as `giant-squid wait`
+  does. `MwaAsvoJobVec::all_ready` checks a job list that you have, with no
+  request.
 - has an `MwaAsvoClient` that is `Send + Sync`, so threads can share one
   client. If the server rejects the session token, only one thread logs in
   again, and the other threads use the new token.
@@ -1449,14 +1450,12 @@ An example:
 use std::error::Error;
 use std::num::NonZeroU64;
 use std::path::Path;
-use std::thread::sleep;
-use std::time::Duration;
 
 use mwa_giant_squid::mwa_asvo::api::job_params::download_params;
 use mwa_giant_squid::mwa_asvo::api::openapi::JobState;
 use mwa_giant_squid::{
     default_token_cache_path, MwaAsvoClient, MwaAsvoClientConfig, DownloadOptions, DownloadProgress,
-    JobsFilter, ObsId, DEFAULT_MWA_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
+    JobsFilter, ObsId, WaitOptions, DEFAULT_MWA_ASVO_HOST, DEFAULT_DOWNLOAD_BUFFER_SIZE,
     DEFAULT_DOWNLOAD_RETRY_DURATION,
 };
 
@@ -1486,10 +1485,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let resp = client.submit_download_job(&params)?;
     let job_id = resp.job_id;
 
-    // Wait for it: the library checks once, the caller loops and sleeps.
-    while !client.get_jobs(&JobsFilter::default())?.all_ready(&[job_id])? {
-        sleep(Duration::from_secs(60));
-    }
+    // Wait for it, as `giant-squid wait` does.
+    client.wait_for_jobs(&[job_id], &WaitOptions::default())?;
 
     // Download it, with an optional progress callback.
     let progress = |event: DownloadProgress| {

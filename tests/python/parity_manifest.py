@@ -241,6 +241,7 @@ MANIFEST: list[Entry] = [
     done("crate::MwaAsvoClient", "MwaAsvoClient"),
     done("crate::MwaAsvoClient::new", "MwaAsvoClient"),
     done("crate::MwaAsvoClient::get_jobs", "MwaAsvoClient.get_jobs"),
+    done("crate::MwaAsvoClient::get_job", "MwaAsvoClient.get_job"),
     done("crate::MwaAsvoClient::submit_download_job", "MwaAsvoClient.submit_download_job"),
     done("crate::MwaAsvoClient::submit_preprocess_job", "MwaAsvoClient.submit_preprocess_job"),
     done("crate::MwaAsvoClient::submit_image_from_job", "MwaAsvoClient.submit_image_from_job"),
@@ -277,6 +278,23 @@ MANIFEST: list[Entry] = [
     done("crate::DEFAULT_DOWNLOAD_RETRY_DURATION", "DEFAULT_DOWNLOAD_RETRY_DURATION"),  # Seconds, as a float.
     done("crate::DownloadSettings", "DownloadSettings"),
     done("crate::DownloadSettings::from_env", "DownloadSettings.from_env"),
+    done("crate::MwaAsvoClient::download_many", "MwaAsvoClient.download_many"),
+    done("crate::DownloadManyResult", "DownloadResult"),
+    excluded("crate::DownloadTarget", "Python takes `job_ids` and `obs_ids` arguments of `download_many`."),
+    excluded(
+        "crate::DownloadManyOptions",
+        "Python takes a `DownloadOptions` and a `concurrency` argument, and stops the downloads with Ctrl-C.",
+    ),
+    done("crate::DEFAULT_CONCURRENT_DOWNLOADS", "DEFAULT_CONCURRENT_DOWNLOADS"),
+    # --- The wait ---
+    done("crate::MwaAsvoClient::wait_for_jobs", "MwaAsvoClient.wait_for_jobs"),
+    excluded(
+        "crate::WaitOptions",
+        "Python takes the times as keyword arguments of `wait_for_jobs`, and stops a wait with Ctrl-C.",
+    ),
+    done("crate::DEFAULT_WAIT_INITIAL_DELAY", "DEFAULT_WAIT_INITIAL_DELAY"),  # Seconds, as a float.
+    done("crate::DEFAULT_WAIT_POLL_INTERVAL", "DEFAULT_WAIT_POLL_INTERVAL"),  # Seconds, as a float.
+    done("crate::DEFAULT_WAIT_RETRY_DURATION", "DEFAULT_WAIT_RETRY_DURATION"),  # Seconds, as a float.
     # --- The environment and the token cache ---
     done("crate::client_config_from_env", "client_config_from_env"),
     *[done(f"crate::{name}", name) for name in ENV_CONSTANTS],
