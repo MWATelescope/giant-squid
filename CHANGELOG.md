@@ -83,7 +83,9 @@ the Python API are in [docs/V3_LIBRARY.md](docs/V3_LIBRARY.md).
 ### Deprecated in 3.0.0
 
 * `submit-vis`, `submit-meta`, `submit-volt`, `submit-bf` and `submit-conv` still work, but each logs a warning. They
-  will be removed in a later release. See [Deprecated submit commands][m-depr].
+  will be removed in a later release. See [Deprecated submit commands][m-depr]. NOTE: `submit-conv`'s `-p` /
+  `--parameters` option is converted to individual arguments, so it is not directly backwards compatible with
+  giant-squid <3.0.
 * `--legacy-json` of `list` and `wait` prints the 2.x JSON. It will be removed in a later release.
 
 ### Removed in 3.0.0
