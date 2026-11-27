@@ -8,6 +8,11 @@ A Rust client for the MWA ASVO, with Python bindings (`mwa-giant-squid`) built f
 - The Rust CLI uses the library as much as possible. Put logic in the library, not in the CLI.
 - The Python CLI (`mwa_giant_squid_cli`) is only a wrapper of the Rust CLI. It adds no logic of its own.
 
+## Versioning
+
+- giant-squid strictly uses Semantic Versioning (https://semver.org). A breaking change to the library API, the Python API or the CLI (commands, options, output, exit codes) needs a new major version. A new feature that is backward compatible needs a new minor version. A bug fix needs a new patch version.
+- The Rust crate, the Python package and the CLI have the same version (`Cargo.toml`; `pyproject.toml` takes it from there).
+
 ## Before you hand over code
 
 Rust:
