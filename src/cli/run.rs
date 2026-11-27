@@ -32,9 +32,9 @@ use crate::mwa_asvo::api::openapi::{
 use crate::mwa_asvo::api::validate::{validate_download_params, validate_image_from_job_params};
 use crate::mwa_asvo::{
     client_config_from_env, DownloadManyOptions, DownloadProgress, DownloadSettings,
-    DownloadTarget, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoJob, MwaAsvoJobId,
-    MwaAsvoJobVec, WaitOptions, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB, ENDPOINT_JOBS,
-    ENDPOINT_PREPROCESS_JOB,
+    DownloadTarget, JobsFilter, MwaAsvoApiError, MwaAsvoClient, MwaAsvoError, MwaAsvoJob,
+    MwaAsvoJobId, MwaAsvoJobVec, WaitOptions, ENDPOINT_DOWNLOAD_JOB, ENDPOINT_IMAGE_FROM_JOB,
+    ENDPOINT_JOBS, ENDPOINT_PREPROCESS_JOB,
 };
 use crate::obs_id::ObsId;
 use crate::{
@@ -1016,14 +1016,26 @@ fn run(args: Args) -> anyhow::Result<()> {
                 // reported, so one failure doesn't hide the rest. Report
                 // each error, then fail the run as a whole so a script can
                 // tell something went wrong.
+                // A job whose download links have expired is skipped with a
+                // warning, and is not a failure: `list --job-states completed
+                // --ids | download -` lists such jobs too.
                 let mut failures = 0;
+                let mut expired = 0;
                 for e in results.iter().filter_map(|(_, r)| r.as_ref().err()) {
-                    error!("{e}");
-                    failures += 1;
+                    if matches!(e.downcast_ref(), Some(MwaAsvoError::JobExpired { .. })) {
+                        warn!("{e} It is skipped.");
+                        expired += 1;
+                    } else {
+                        error!("{e}");
+                        failures += 1;
+                    }
                 }
 
-                let downloaded = t - failures;
+                let downloaded = t - failures - expired;
                 info!("Downloaded {downloaded} of {t}.");
+                if expired > 0 {
+                    info!("Skipped {expired} jobs whose download links have expired. Resubmit them to download them.");
+                }
 
                 if json {
                     for (target, result) in &results {

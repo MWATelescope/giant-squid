@@ -676,8 +676,9 @@ fn list_shows_whether_the_download_links_of_a_completed_job_work() {
     assert!(!json.stdout.contains("(expired)"), "{}", json.stdout);
 }
 
-/// A download of a job whose links have expired fails with its own error
-/// code, the Job ID and no request for the file.
+/// A download of a job whose links have expired has its own error code, the
+/// Job ID and no request for the file. The job is skipped: it is not a
+/// failure of the command.
 #[test]
 fn download_of_a_job_whose_links_have_expired_is_a_job_expired_error() {
     let env = CliEnv::with_session();
@@ -695,7 +696,7 @@ fn download_of_a_job_whose_links_have_expired_is_a_job_expired_error() {
         .arg("102");
     let result = run(cmd);
 
-    assert_eq!(result.code, Some(1), "output: {}", result.combined());
+    assert_eq!(result.code, Some(0), "output: {}", result.combined());
     let line = result.stdout_json();
     assert_eq!(line["status"], "failed");
     assert_eq!(line["error_code"], "JOB_EXPIRED");

@@ -512,6 +512,26 @@ fn a_structured_404_from_the_job_list_is_an_empty_list() {
     assert_eq!(list.calls(), 1);
 }
 
+/// A structured 404 with another error code than `JOB_NOT_FOUND` is an error,
+/// not an empty list: a later page that fails must not cut the list short.
+#[test]
+fn a_structured_404_with_another_error_code_is_an_error() {
+    let env = TestEnv::with_session();
+    env.server.mock(|when, then| {
+        when.method(POST).path("/api/v2/jobs/list");
+        then.status(404)
+            .header("content-type", "application/json")
+            .json_body(error_response("RESOURCE_NOT_FOUND", "No such route"));
+    });
+    let client = MwaAsvoClient::new(client_config(&env)).expect("client should be created");
+
+    let err = client
+        .get_jobs(&JobsFilter::default())
+        .expect_err("another 404 is an error");
+
+    assert!(is_api_error(&err, "RESOURCE_NOT_FOUND"), "{err:?}");
+}
+
 /// A 404 from the job list that is not the MWA ASVO's `ErrorResponse` (for
 /// example from a wrong host) is still an error.
 #[test]

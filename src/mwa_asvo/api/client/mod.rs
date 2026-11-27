@@ -854,11 +854,13 @@ impl MwaAsvoClient {
             }) {
                 Ok(body) => body,
                 // The MWA ASVO's structured reply for "no job matches the
-                // filter" (see `NO_JOBS_STATUS`): there are no more jobs.
-                // Any other 404 (one that is not an `ErrorResponse`, for
-                // example from a wrong host) is still an error.
-                Err(MwaAsvoApiError::Server { status, .. })
-                    if status == NO_JOBS_STATUS.as_u16() =>
+                // filter" (see `NO_JOBS_STATUS`, with `JOB_NOT_FOUND`):
+                // there are no more jobs. Any other 404 (another error code,
+                // or a body that is not an `ErrorResponse`, for example from
+                // a wrong host) is still an error.
+                Err(MwaAsvoApiError::Server { status, response })
+                    if status == NO_JOBS_STATUS.as_u16()
+                        && response.error_code == ErrorCode::JobNotFound =>
                 {
                     debug!("No job matches the filter (HTTP {status})");
                     break;

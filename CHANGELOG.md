@@ -23,8 +23,9 @@ before you upgrade scripts.**
 * The download links of a job work for 7 days, and the job stays `completed` in the API. `giant-squid` reads the end
   of that time from the `Expires` of the signed URL. `list` and `wait` show a completed job as `completed (ready)`
   or `completed (expired)` (the JSON and `--job-states` keep the API's `completed`). `download` of a job whose links
-  have expired fails at once, with no request, with the new error `MwaAsvoError::JobExpired` (`JOB_EXPIRED` in
-  `--json`; kind `JobExpired` in Python): resubmit the job. The same error is given for the file server's
+  have expired gets the new error `MwaAsvoError::JobExpired` at once, with no request (`JOB_EXPIRED` in `--json`;
+  kind `JobExpired` in Python): resubmit the job. The command skips such a job with a warning, and does not count it
+  as a failure. The same error is given for the file server's
   `AccessDenied` answer (HTTP 403), which was an `HttpError` 403 before. `download` of an Obs ID skips a completed
   job whose links have expired when another one works, and `wait` (and `MwaAsvoJobVec::all_ready`) fails for a completed
   job whose links have expired, as it does for a cancelled job. The library has `MwaAsvoJob::expires`, `is_expired` and
@@ -216,7 +217,7 @@ before you upgrade scripts.**
   body for every download job: a metadata job sets `only_metadata`, and a voltage job sets `offset`, `duration`,
   `from_channel` and `to_channel`. The MWA ASVO finds the kind of data from the observation. The beamformer `mode`
   and `channel_range` are gone: in a CSV file `mode` is an unknown key, and `channel_range` is checked but not sent.
-  `submit-image-from-job` takes no Obs ID. A 404 `ErrorResponse` from the job list is an empty list (no job matches
+  `submit-image-from-job` takes no Obs ID. A 404 `ErrorResponse` with `JOB_NOT_FOUND` from the job list is an empty list (no job matches
   the filter). The conversion `OutputFormat` is the schema's `OutputFormat`. `list --sort-by` takes `id`, `created` or `completed`.
   `JobFile.type` is a `DeliveryDestination` (the enum `Type` is gone). A download job that does not give
   `--only-metadata` leaves `only_metadata` out of the request (the API gives it no default). The voltage

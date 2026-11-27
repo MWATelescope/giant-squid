@@ -1165,10 +1165,12 @@ its URL), so it knows without a request:
 - `list` and `wait` show a completed job as `completed (ready)` when its links work and `completed (expired)`
   when they have expired. This is only how the state is shown. The JSON keeps the API's `job_state`
   (`completed`), and `--job-states completed` still matches both.
-- `download` of a job whose links have expired fails at once, with no request for the file:
+- `download` skips a job whose links have expired, with no request for the file, and a warning:
   `The download links of Job ID 1112133 expired on 2026-10-19T03:22:52Z (they last 7 days). Resubmit the job to
   get new ones.` In `--json` the error code is `JOB_EXPIRED`. The same error is given when the file server answers
-  a download with `AccessDenied`, for example if the link has no readable `Expires`.
+  a download with `AccessDenied`, for example if the link has no readable `Expires`. A skipped job is not a
+  failure: the command can exit with 0, and `list --job-states completed --ids | giant-squid download -` downloads
+  the jobs that can be downloaded.
 - `download` of an Obs ID uses its completed job whose links work. If every completed job of the Obs ID has
   expired, it reports the one that expired last.
 - `wait` fails for a completed job whose links have expired, with the same error, as it does for a cancelled job:
