@@ -1012,29 +1012,8 @@ fn try_download_untar(
 /// `source` gives the archive from `resume.start` on. If `resume` is inside
 /// a member, the rest of that member is written first. `checkpoint` is set
 /// each time a member starts, so that it always tells a next attempt where
-/// to carry on.
-#[cfg(test)]
-fn untar_stream(
-    source: impl Read,
-    resume: ResumePoint,
-    unpack_path: &Path,
-    log_prefix: &str,
-    opts: &DownloadOptions,
-    checkpoint: &mut Option<UntarCheckpoint>,
-) -> Result<Sha1, MwaAsvoError> {
-    untar_stream_with_sidecar(
-        source,
-        resume,
-        unpack_path,
-        log_prefix,
-        opts,
-        checkpoint,
-        None,
-    )
-}
-
-/// [`untar_stream`], which also saves each checkpoint to `sidecar` (at most
-/// every [`SIDECAR_WRITE_INTERVAL`]).
+/// to carry on. With a `sidecar`, each checkpoint is also saved to it (at
+/// most every [`SIDECAR_WRITE_INTERVAL`]).
 fn untar_stream_with_sidecar(
     source: impl Read,
     resume: ResumePoint,

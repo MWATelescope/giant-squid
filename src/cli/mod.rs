@@ -42,6 +42,7 @@ use std::num::NonZeroU64;
 use std::path::PathBuf;
 
 use clap::builder::styling::{AnsiColor, Styles};
+use clap::builder::ArgPredicate;
 use clap::{ArgAction, Parser};
 use jiff::Timestamp;
 
@@ -241,7 +242,18 @@ pub enum Args {
 
         /// Only fetch jobs from the past N days (1 to 30). Cannot be used with
         /// --date-from or --date-to, which select the jobs by date instead
-        #[arg(long, default_value = list_days_default().to_string(), value_parser = parse_days, conflicts_with_all = ["date_from", "date_to"])]
+        // With a date, `days` has no default: the request then has
+        // `"days": null`, so that the dates select the jobs.
+        #[arg(
+            long,
+            default_value = list_days_default().to_string(),
+            default_value_ifs = [
+                ("date_from", ArgPredicate::IsPresent, None::<&str>),
+                ("date_to", ArgPredicate::IsPresent, None::<&str>),
+            ],
+            value_parser = parse_days,
+            conflicts_with_all = ["date_from", "date_to"],
+        )]
         days: Option<NonZeroU64>,
 
         /// Only jobs created at or after this time: RFC 3339 (for example

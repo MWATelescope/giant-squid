@@ -361,17 +361,8 @@ pub fn channels_out(value: u64) -> Result<NonZeroU64, MwaAsvoApiError> {
 /// [`MwaAsvoApiError::InvalidParameter`] if `value` is outside [`DAYS`].
 pub fn days(value: i64) -> Result<NonZeroU64, MwaAsvoApiError> {
     DAYS.check("days", value as f64)?;
-    Ok(days_in_range(value))
-}
-
-/// A `days` value that is already within [`DAYS`], as the schema's type.
-///
-/// # Panics
-///
-/// If `value` is not positive: the caller has not checked it.
-pub(crate) fn days_in_range(value: i64) -> NonZeroU64 {
     // DAYS' lower limit is 1, so a value that passed is positive.
-    NonZeroU64::new(value as u64).expect("DAYS excludes zero")
+    Ok(NonZeroU64::new(value.unsigned_abs()).expect("DAYS excludes zero"))
 }
 
 /// A `days` value of the schema's type, checked against the upper limit of

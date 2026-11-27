@@ -25,7 +25,7 @@ use clap::{Arg, Command};
 
 use crate::mwa_asvo::api::schema_enums::SchemaEnum;
 
-/// The clap value parser for a [`NamedValue`].
+/// The clap value parser for a schema enum ([`SchemaEnum`]).
 ///
 /// Use it as `value_parser = SchemaEnumParser::<DeliveryDestination>::new()`.
 pub struct SchemaEnumParser<T>(PhantomData<fn() -> T>);
@@ -51,36 +51,17 @@ impl<T> Clone for SchemaEnumParser<T> {
     }
 }
 
-/// A value that the CLI takes by name: a schema enum ([`SchemaEnum`]).
-pub trait NamedValue: Copy + Send + Sync + 'static {
-    /// The names, in the schema's order: the order of `--help` and of the
-    /// messages.
-    fn value_names() -> Vec<String>;
-
-    /// The value named `text`, where the case, spaces, hyphens and
-    /// underscores do not matter, or `None`.
-    fn from_value_name(text: &str) -> Option<Self>;
-}
-
-impl<T: SchemaEnum> NamedValue for T {
-    fn value_names() -> Vec<String> {
-        T::names()
-    }
-
-    fn from_value_name(text: &str) -> Option<Self> {
-        T::from_name(text)
-    }
-}
-
-impl<T: NamedValue> TypedValueParser for SchemaEnumParser<T> {
+/// The names are those of [`SchemaEnum::names`], in the schema's order: the
+/// order of `--help` and of the messages.
+impl<T: SchemaEnum> TypedValueParser for SchemaEnumParser<T> {
     type Value = T;
 
     fn parse_ref(&self, cmd: &Command, arg: Option<&Arg>, value: &OsStr) -> Result<T, clap::Error> {
         // The same parser that clap builds for a `FromStr` type, so the
         // kind of the error is `ValueValidation`.
         let parse = |text: &str| {
-            T::from_value_name(text).ok_or_else(|| {
-                let names = T::value_names().join(", ");
+            T::from_name(text).ok_or_else(|| {
+                let names = T::names().join(", ");
                 format!("expected one of: {names}")
             })
         };
@@ -88,9 +69,7 @@ impl<T: NamedValue> TypedValueParser for SchemaEnumParser<T> {
     }
 
     fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
-        Some(Box::new(
-            T::value_names().into_iter().map(PossibleValue::new),
-        ))
+        Some(Box::new(T::names().into_iter().map(PossibleValue::new)))
     }
 }
 

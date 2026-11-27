@@ -11,14 +11,13 @@
 //! [`run_cli`].
 
 use std::collections::BTreeMap;
-use std::num::{NonZeroU64, NonZeroUsize};
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
 use clap::Parser;
-use jiff::Timestamp;
 use log::{debug, error, info, warn};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 
@@ -636,20 +635,6 @@ fn print_json_line(resp: &impl serde::Serialize, json: bool) -> Result<(), anyho
     Ok(())
 }
 
-/// The `days` of `list`: `None` with a date. clap refuses `--days` with a
-/// date, so then `days` is only its default.
-pub(super) fn list_days(
-    days: Option<NonZeroU64>,
-    date_from: Option<Timestamp>,
-    date_to: Option<Timestamp>,
-) -> Option<NonZeroU64> {
-    if date_from.is_some() || date_to.is_some() {
-        None
-    } else {
-        days
-    }
-}
-
 /// Report what a submission would have sent, for `--dry-run`.
 ///
 /// The endpoint and the JSON body for each Obs ID, built as a real
@@ -845,7 +830,6 @@ fn run(args: Args) -> anyhow::Result<()> {
             init_logger(verbosity, json);
 
             let (job_ids, obs_ids) = parse_many_job_ids_or_obs_ids(&job_ids_or_obs_ids)?;
-            let days = list_days(days, date_from, date_to);
             let filter = JobsFilter {
                 days,
                 date_from,

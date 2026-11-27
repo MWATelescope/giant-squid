@@ -2446,7 +2446,7 @@ fn the_options_without_a_short_flag_still_have_a_long_name() {
 
 /// The jobs of `list` are selected by `--days` or by the dates: clap refuses
 /// `--days` given with a date, and a date does not conflict with the default
-/// of `--days`.
+/// of `--days`, which a date removes.
 #[test]
 fn list_days_conflicts_with_the_dates() {
     for date in [
@@ -2460,13 +2460,13 @@ fn list_days_conflicts_with_the_dates() {
             "{date:?}"
         );
 
-        // A date alone is fine, and `days` has its default.
+        // A date alone is fine, and `days` has no default.
         let args = Args::try_parse_from(["giant-squid", "list", date[0], date[1]])
             .expect("a date without --days is valid");
         let Args::List { days, .. } = args else {
             panic!("expected list");
         };
-        assert_eq!(days, Some(super::params::list_days_default()));
+        assert_eq!(days, None);
     }
 }
 
@@ -2475,14 +2475,22 @@ fn list_days_conflicts_with_the_dates() {
 /// jobs. Without a date, `days` is kept.
 #[test]
 fn list_with_a_date_has_no_days() {
-    use super::run::list_days;
-
-    let days = Some(super::params::list_days_default());
-    let time: jiff::Timestamp = "2026-09-01T00:00:00Z".parse().expect("a valid time");
-    assert_eq!(list_days(days, None, None), days);
-    assert_eq!(list_days(days, Some(time), None), None);
-    assert_eq!(list_days(days, None, Some(time)), None);
-    assert_eq!(list_days(days, Some(time), Some(time)), None);
+    let days_of = |args: &[&str]| match parse(args) {
+        Args::List { days, .. } => days,
+        other => panic!("expected List, got {other:?}"),
+    };
+    let from = ["--date-from", "2026-09-01T00:00:00Z"];
+    let to = ["--date-to", "2026-09-01T00:00:00Z"];
+    assert_eq!(
+        days_of(&["giant-squid", "list"]),
+        Some(super::params::list_days_default())
+    );
+    assert_eq!(days_of(&["giant-squid", "list", from[0], from[1]]), None);
+    assert_eq!(days_of(&["giant-squid", "list", to[0], to[1]]), None);
+    assert_eq!(
+        days_of(&["giant-squid", "list", from[0], from[1], to[0], to[1]]),
+        None
+    );
 }
 
 // ---------------------------------------------------------------------------

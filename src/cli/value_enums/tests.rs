@@ -80,7 +80,7 @@ fn check_enum<T: SchemaEnum + PartialEq + Debug>() {
     unique.sort();
     unique.dedup();
     assert_eq!(names.len(), unique.len(), "a variant twice");
-    assert_eq!(T::value_names(), names);
+    assert_eq!(T::names(), names);
 
     for variant in T::VARIANTS {
         assert_eq!(

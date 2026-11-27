@@ -1215,8 +1215,8 @@ mod retries {
     use crate::mwa_asvo::api::openapi::{DeliveryDestination, JobDetailResponse};
     use crate::mwa_asvo::download::{
         create_file, is_network_read_error, network_error, resume_point, retry_class, try_download,
-        try_download_untar, untar_stream, NetworkReader, ResumePoint, Retry, RetryState,
-        UntarCheckpoint,
+        try_download_untar, untar_stream_with_sidecar, NetworkReader, ResumePoint, Retry,
+        RetryState, UntarCheckpoint,
     };
     use crate::mwa_asvo::{JobFile, JobState, MwaAsvoError, MwaAsvoJob};
     use crate::obs_id::ObsId;
@@ -1313,13 +1313,14 @@ mod retries {
         );
         let mut checkpoint = None;
 
-        let err = untar_stream(
+        let err = untar_stream_with_sidecar(
             source,
             ResumePoint::from_start(),
             dir.path(),
             LOG_PREFIX,
             &opts,
             &mut checkpoint,
+            None,
         )
         .expect_err("the first attempt should fail");
 
@@ -1388,13 +1389,14 @@ mod retries {
         let dir_path = dir.path().display().to_string();
         let mut checkpoint = Some(checkpoint);
         let start = resume.start as usize;
-        let hasher = untar_stream(
+        let hasher = untar_stream_with_sidecar(
             &archive[start..],
             resume,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
             &mut checkpoint,
+            None,
         )
         .expect("the retry should succeed");
 
@@ -1422,13 +1424,14 @@ mod retries {
         let dir_path = dir.path().display().to_string();
         let mut checkpoint = Some(checkpoint);
         let start = resume.start as usize;
-        let hasher = untar_stream(
+        let hasher = untar_stream_with_sidecar(
             &archive[start..],
             resume,
             dir.path(),
             LOG_PREFIX,
             &options(&dir_path),
             &mut checkpoint,
+            None,
         )
         .expect("the retry should succeed");
 
@@ -2214,7 +2217,7 @@ mod unsafe_paths {
 
     use super::{options, ready_job_serving, sha1_hex, DOWNLOAD_PATH};
     use crate::mwa_asvo::download::{
-        entry_target, untar_stream, EntryTarget, ResumePoint, EARLIER_FILES_WINDOW,
+        entry_target, untar_stream_with_sidecar, EntryTarget, ResumePoint, EARLIER_FILES_WINDOW,
     };
     use crate::mwa_asvo::{MwaAsvoClient, MwaAsvoError};
     use crate::test_common::*;
@@ -2247,13 +2250,14 @@ mod unsafe_paths {
     fn unpack(archive: &[u8], unpack_dir: &std::path::Path) {
         let dir_path = unpack_dir.display().to_string();
         let mut checkpoint = None;
-        let hasher = untar_stream(
+        let hasher = untar_stream_with_sidecar(
             archive,
             ResumePoint::from_start(),
             unpack_dir,
             LOG_PREFIX,
             &options(&dir_path),
             &mut checkpoint,
+            None,
         )
         .expect("the archive should be unpacked");
         assert_eq!(hasher.finalize()[..], Sha1::digest(archive)[..]);
@@ -2263,13 +2267,14 @@ mod unsafe_paths {
     fn try_unpack(archive: &[u8], unpack_dir: &std::path::Path) -> Result<(), MwaAsvoError> {
         let dir_path = unpack_dir.display().to_string();
         let mut checkpoint = None;
-        untar_stream(
+        untar_stream_with_sidecar(
             archive,
             ResumePoint::from_start(),
             unpack_dir,
             LOG_PREFIX,
             &options(&dir_path),
             &mut checkpoint,
+            None,
         )
         .map(|_| ())
     }
