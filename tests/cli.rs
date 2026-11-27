@@ -199,7 +199,7 @@ fn a_deprecated_command_warns_and_still_runs() {
 }
 
 #[test]
-fn a_dry_run_cancellation_names_the_job_resource() {
+fn a_dry_run_cancellation_names_the_job_resource_and_contacts_no_server() {
     let env = CliEnv::with_session();
     let requests = catch_all(&env);
 
@@ -214,19 +214,6 @@ fn a_dry_run_cancellation_names_the_job_resource() {
         "output: {}",
         result.combined()
     );
-}
-
-#[test]
-fn a_dry_run_cancellation_contacts_no_server() {
-    let env = CliEnv::with_session();
-    let requests = catch_all(&env);
-
-    let mut cmd = env.command();
-    cmd.args(["cancel", "--dry-run", "12345"]);
-    let result = run(cmd);
-
-    assert!(result.success, "output: {}", result.combined());
-    assert_eq!(requests.calls(), 0);
     assert!(
         result.combined().contains("Would have cancelled"),
         "output: {}",
@@ -491,49 +478,13 @@ fn every_failure_is_listed_at_the_end() {
         output.contains("Error: 3 of 3 job submissions failed"),
         "output: {output}"
     );
-}
-
-#[test]
-fn a_server_error_on_submission_fails_the_run() {
-    let env = CliEnv::with_session();
-    env.server.mock(|when, then| {
-        when.method(POST).path("/api/v2/jobs/download");
-        then.status(400)
-            .header("content-type", "application/json")
-            .json_body(error_response("VALID_OBS_NOT_FOUND", "No such observation"));
-    });
-
-    let mut cmd = env.command();
-    cmd.args(["submit-vis", TEST_OBS_ID]);
-    let result = run(cmd);
-
-    assert!(!result.success, "the run should fail");
-    assert!(
-        result.combined().contains("No such observation"),
-        "output: {}",
-        result.combined()
-    );
+    // The server's message is shown, not only the failure count.
+    assert!(output.contains("No such observation"), "output: {output}");
 }
 
 // ---------------------------------------------------------------------------
 // Listing
 // ---------------------------------------------------------------------------
-
-#[test]
-fn list_json_prints_the_jobs_keyed_by_job_id() {
-    let env = CliEnv::with_session();
-    env.mock_get_jobs(vec![job_detail(12345, TEST_OBS_ID, "completed", 1)]);
-
-    let mut cmd = env.command();
-    cmd.args(["list", "--json"]);
-    let result = run(cmd);
-
-    assert!(result.success, "output: {}", result.combined());
-    let parsed = result.stdout_json();
-    let jobs = parsed.as_object().expect("a map keyed by job ID");
-    assert_eq!(jobs.len(), 1);
-    assert_eq!(parsed["12345"]["job_id"], 12345);
-}
 
 /// `--legacy-json` prints the old keys, while it is deprecated, and says on
 /// stderr that it is deprecated.
@@ -580,6 +531,8 @@ fn list_json_puts_only_the_json_on_stdout() {
     // The whole of stdout is one JSON document, with no log lines.
     let parsed: serde_json::Value = serde_json::from_str(result.stdout.trim())
         .unwrap_or_else(|e| panic!("stdout is not only JSON ({e}): {}", result.stdout));
+    let jobs = parsed.as_object().expect("a map keyed by job ID");
+    assert_eq!(jobs.len(), 1);
     assert_eq!(parsed["12345"]["job_id"], 12345);
     // The mock server is not the default host, so the client logs a
     // warning, but not with --json.

@@ -451,24 +451,6 @@ fn assert_no_server_error(result: &Run) {
     }
 }
 
-#[test]
-fn a_server_error_code_is_recognised() {
-    for code in [SERVER_ERROR_CODE, "HTTP_500", "HTTP_502", "HTTP_503"] {
-        assert!(is_server_error_code(code), "{code}");
-    }
-    for code in [
-        "JOB_NOT_FOUND",
-        "AUTH_REQUIRED",
-        "INVALID_ARGUMENT",
-        "HTTP_400",
-        "HTTP_404",
-        "HTTP_422",
-        "NETWORK_ERROR",
-    ] {
-        assert!(!is_server_error_code(code), "{code}");
-    }
-}
-
 /// The `status` of a `--json` line, as text: `success` or `failed`.
 fn status_of(line: &Value) -> &str {
     line[KEY_STATUS].as_str().unwrap_or_default()

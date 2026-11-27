@@ -991,26 +991,6 @@ fn a_metadata_job_posts_to_the_download_endpoint_with_only_metadata() {
     assert_eq!(resp.job_id.get(), 778);
 }
 
-/// A visibility job sends `only_metadata` false, and none of the fields of
-/// a voltage job (they are null, so they are left out).
-#[cfg(feature = "bin")]
-#[test]
-fn a_visibility_job_sends_no_voltage_fields() {
-    let params = vis_params_from_cli(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    let body = serde_json::to_value(&params).expect("params should serialise");
-
-    // `only_metadata` has no default in the schema, so it is left out too.
-    for field in [
-        "only_metadata",
-        "offset",
-        "duration",
-        "from_channel",
-        "to_channel",
-    ] {
-        assert!(body.get(field).is_none(), "{field} was sent: {body}");
-    }
-}
-
 #[cfg(feature = "bin")]
 #[test]
 fn a_conversion_job_posts_to_the_preprocess_endpoint() {

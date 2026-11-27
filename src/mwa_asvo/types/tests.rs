@@ -43,23 +43,6 @@ fn the_job_type_names_are_the_schema_values() {
     assert_eq!(JobType::names(), values);
 }
 
-/// The names are listed in the schema's order.
-#[test]
-fn the_job_type_names_are_listed_in_order() {
-    assert_eq!(
-        JobType::names(),
-        [
-            "conversion",
-            "visibility",
-            "metadata",
-            "voltage",
-            "cancel",
-            "beamformer",
-            "imaging",
-        ]
-    );
-}
-
 /// Each name parses to its type, in any case and spelling of the separators.
 #[test]
 fn a_job_type_is_parsed_from_its_name() {

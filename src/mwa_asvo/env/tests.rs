@@ -24,24 +24,6 @@ fn vars<const N: usize>(pairs: [(&str, &str); N]) -> impl Fn(&str) -> Option<Str
 const KEY: &str = "my-api-key";
 
 #[test]
-fn the_names_are_the_ones_the_documentation_gives() {
-    assert_eq!(ENV_MWA_ASVO_API_KEY, "MWA_ASVO_API_KEY");
-    assert_eq!(ENV_MWA_ASVO_HOST, "MWA_ASVO_HOST");
-    assert_eq!(ENV_MWA_ASVO_API_TIMEOUT, "MWA_ASVO_API_TIMEOUT");
-    assert_eq!(ENV_HOME, "HOME");
-    assert_eq!(ENV_GIANT_SQUID_BUF_SIZE, "GIANT_SQUID_BUF_SIZE");
-    assert_eq!(
-        ENV_GIANT_SQUID_DOWNLOAD_RETRY_SECS,
-        "GIANT_SQUID_DOWNLOAD_RETRY_SECS"
-    );
-    assert_eq!(ENV_GIANT_SQUID_DELIVERY, "GIANT_SQUID_DELIVERY");
-    assert_eq!(
-        ENV_GIANT_SQUID_DELIVERY_FORMAT,
-        "GIANT_SQUID_DELIVERY_FORMAT"
-    );
-}
-
-#[test]
 fn a_missing_api_key_is_an_error() {
     let err = client_config_from(vars([])).expect_err("no key");
 

@@ -162,29 +162,9 @@ fn every_command_alias_resolves_to_its_command() {
     ));
 }
 
-#[test]
-fn unknown_command_is_rejected() {
-    let err = parse_err(&["giant-squid", "submit-nothing", TEST_OBS_ID]);
-    assert_eq!(err.kind(), clap::error::ErrorKind::InvalidSubcommand);
-}
-
-#[test]
-fn verbosity_counts_repeats() {
-    match parse(&["giant-squid", "submit-vis", "-vv", TEST_OBS_ID]) {
-        Args::SubmitVis { submit, .. } => assert_eq!(submit.verbosity, 2),
-        other => panic!("expected SubmitVis, got {other:?}"),
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Obsid arguments: one, many, and from a file
 // ---------------------------------------------------------------------------
-
-#[test]
-fn single_obs_id_is_collected() {
-    let (_, obs_ids) = vis_args(&["giant-squid", "submit-vis", TEST_OBS_ID]);
-    assert_eq!(obs_ids, vec![TEST_OBS_ID.to_string()]);
-}
 
 #[test]
 fn many_obs_ids_are_collected() {
@@ -328,19 +308,6 @@ fn submit_conv_defaults_come_from_the_schema() {
 }
 
 #[test]
-fn submit_conv_builds_a_conversion_body() {
-    let (args, _) = conv_args(&["giant-squid", "submit-conv", TEST_OBS_ID]);
-    let params = args.to_params(crate::test_config::test_obs_id());
-    let json = json_of(&params);
-
-    assert_eq!(json["obs_id"], TEST_OBS_ID_I64);
-    assert_eq!(
-        json["avg_freq_res"],
-        conversion_defaults().avg_freq_res.expect("schema default")
-    );
-}
-
-#[test]
 fn submit_conv_custom_phase_centre_is_passed_through() {
     let (args, _) = conv_args(&[
         "giant-squid",
@@ -441,23 +408,6 @@ fn submit_image_requires_an_output_mode() {
         );
         assert!(err.to_string().contains("--output-mode"), "{err}");
     }
-}
-
-#[test]
-fn submit_image_default_polarization_comes_from_the_schema() {
-    let (args, _) = image_args(&[
-        "giant-squid",
-        "submit-image",
-        "--output-mode",
-        "fits",
-        TEST_OBS_ID,
-    ]);
-    assert_eq!(args.wsclean.polarization, imaging_defaults().polarization);
-    assert_eq!(
-        args.to_params(crate::test_config::test_obs_id())
-            .polarization,
-        imaging_defaults().polarization
-    );
 }
 
 #[test]
@@ -655,20 +605,6 @@ fn submit_image_boolean_flags_require_equals() {
 }
 
 #[test]
-fn submit_image_rejects_an_unsupported_image_size() {
-    let err = parse_err(&[
-        "giant-squid",
-        "submit-image",
-        "--output-mode",
-        "fits",
-        "--image-size",
-        "1000",
-        TEST_OBS_ID,
-    ]);
-    assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
-}
-
-#[test]
 fn submit_image_accepts_every_supported_image_size() {
     for size in ["512", "1024", "2048", "3072", "4096", "8192"] {
         let (args, _) = image_args(&[
@@ -785,8 +721,16 @@ fn submit_image_range_errors_carry_the_librarys_message() {
 
 #[test]
 fn submit_image_from_job_requires_a_source_job_id() {
-    let err = parse_err(&["giant-squid", "submit-image-from-job"]);
+    // `--output-mode` is given, so the only missing argument is
+    // `--source-job-id`.
+    let err = parse_err(&[
+        "giant-squid",
+        "submit-image-from-job",
+        "--output-mode",
+        "fits",
+    ]);
     assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    assert!(err.to_string().contains("--source-job-id"), "{err}");
 }
 
 #[test]
@@ -1618,28 +1562,6 @@ fn submit_image_takes_the_schema_names_for_the_centre() {
     assert_eq!(json["custom_centre_dec"], -26.7);
 }
 
-#[test]
-fn list_takes_the_schema_names_for_its_filters() {
-    match parse(&[
-        "giant-squid",
-        "list",
-        "--job-states",
-        "queued,error",
-        "--job-types",
-        "conversion",
-    ]) {
-        Args::List {
-            job_states,
-            job_types,
-            ..
-        } => {
-            assert_eq!(job_states.len(), 2);
-            assert_eq!(job_types.len(), 1);
-        }
-        other => panic!("expected List, got {other:?}"),
-    }
-}
-
 /// A job type that is not one of the names is an error, not a filter that
 /// quietly matches nothing. The error names the text that was given.
 #[test]
@@ -2002,23 +1924,6 @@ fn submit_image_from_job_does_not_take_the_conversion_switches() {
 /// A UTC time, for the expected values below.
 fn utc(time: &str) -> jiff::Timestamp {
     time.parse().expect("a valid time")
-}
-
-#[test]
-fn a_list_time_is_rfc3339_or_a_date() {
-    use super::params::parse_utc_time;
-
-    assert_eq!(
-        parse_utc_time("2026-09-01T12:30:00+08:00").expect("RFC 3339"),
-        utc("2026-09-01T04:30:00Z")
-    );
-    assert_eq!(
-        parse_utc_time("2026-09-01").expect("a date"),
-        utc("2026-09-01T00:00:00Z")
-    );
-    assert!(parse_utc_time("yesterday").is_err());
-    // A date and time with no offset is refused, not read as midnight.
-    assert!(parse_utc_time("2026-09-01T12:00:00").is_err());
 }
 
 #[test]

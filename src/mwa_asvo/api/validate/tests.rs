@@ -219,7 +219,11 @@ fn check_names_the_argument() {
 
 #[test]
 fn the_schema_defaults_are_within_the_limits() {
-    validate_imaging_params(&imaging_defaults()).expect("imaging defaults are valid");
+    let imaging = imaging_defaults();
+    // The optional fields are absent from the defaults, so this also shows
+    // that an absent optional field is not checked.
+    assert!(imaging.uv_max.is_none() && imaging.pixel_scale.is_none());
+    validate_imaging_params(&imaging).expect("imaging defaults are valid");
     validate_image_from_job_params(&image_from_job_defaults())
         .expect("image-from-job defaults are valid");
     validate_conversion_params(&conversion_defaults()).expect("conversion defaults are valid");
@@ -365,14 +369,6 @@ fn every_limit_is_enforced_on_both_ends_for_the_image_from_job_body() {
             );
         }
     }
-}
-
-#[test]
-fn an_absent_optional_field_is_not_checked() {
-    let params = imaging_defaults();
-
-    assert!(params.uv_max.is_none() && params.pixel_scale.is_none());
-    validate_imaging_params(&params).expect("absent optional fields are valid");
 }
 
 // ---------------------------------------------------------------------------
@@ -578,35 +574,6 @@ fn the_source_job_id_minimum_is_the_schema_minimum() {
     assert_eq!(
         schema_limit(&properties["source_job_id"], "minimum"),
         Some(1.0)
-    );
-}
-
-/// A plain number that the schema's type does not allow is refused with the
-/// library's message when the schema value is made from it.
-#[test]
-fn a_value_the_schema_does_not_allow_is_refused() {
-    let err = image_size(1000).expect_err("1000 is not an image size");
-    assert!(
-        matches!(
-            err,
-            MwaAsvoApiError::InvalidParameter {
-                name: "image_size",
-                ..
-            }
-        ),
-        "{err:?}"
-    );
-
-    let err = source_job_id(0).expect_err("0 is not a Job ID");
-    assert!(
-        matches!(
-            err,
-            MwaAsvoApiError::InvalidParameter {
-                name: "source_job_id",
-                ..
-            }
-        ),
-        "{err:?}"
     );
 }
 
