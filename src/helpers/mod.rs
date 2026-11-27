@@ -14,28 +14,34 @@ use thiserror::Error;
 use crate::mwa_asvo::{MwaAsvoError, MwaAsvoJobId};
 use crate::obs_id::ObsId;
 
-pub(crate) enum ObsIdOrJobId {
-    /// This is an Obs ID.
-    O(ObsId),
-    /// This is a Job ID.
-    J(MwaAsvoJobId),
-    /// This is 0, which is not a Job ID.
-    Zero,
-    /// This has 10 digits, so it is an Obs ID, but it is not a valid one.
-    InvalidObsId(u64),
-}
-
-pub(crate) fn parse_job_id_or_obs_id(s: &str) -> Option<ObsIdOrJobId> {
-    match s.parse::<u64>() {
-        // We successfully parsed an int. A number with 10 digits is an Obs
-        // ID (valid or not), and any other number is a Job ID.
-        Ok(i) if ObsId::has_obs_id_digits(i) => {
-            Some(ObsId::validate(i).map_or(ObsIdOrJobId::InvalidObsId(i), ObsIdOrJobId::O))
-        }
-        Ok(i) => Some(MwaAsvoJobId::new(i).map_or(ObsIdOrJobId::Zero, ObsIdOrJobId::J)),
-        // Could not parse the string as an int; we must fail.
-        Err(_) => None,
+/// Parse `text` as an Obs ID or a Job ID, and add it to `obs_ids` or
+/// `job_ids`. A number with 10 digits is an Obs ID (valid or not), and any
+/// other number is a Job ID.
+///
+/// Returns `Ok(false)` if `text` is not a number: the caller decides what
+/// that means (for example, that `text` is the name of a file).
+///
+/// # Errors
+///
+/// [`ParseError::InvalidObsId`] for a number with 10 digits that is not a
+/// valid Obs ID, and [`ParseError::ZeroJobId`] for 0.
+pub(crate) fn push_job_id_or_obs_id(
+    text: &str,
+    job_ids: &mut Vec<MwaAsvoJobId>,
+    obs_ids: &mut Vec<ObsId>,
+) -> Result<bool, ParseError> {
+    let Ok(number) = text.parse::<u64>() else {
+        return Ok(false);
+    };
+    if ObsId::has_obs_id_digits(number) {
+        let obs_id =
+            ObsId::validate(number).map_err(|_| ParseError::InvalidObsId { value: number })?;
+        obs_ids.push(obs_id);
+    } else {
+        let job_id = MwaAsvoJobId::new(number).ok_or(ParseError::ZeroJobId)?;
+        job_ids.push(job_id);
     }
+    Ok(true)
 }
 
 /// Read a file, and return two vectors of MWA ASVO Job IDs and Obs IDs. Fail if any
@@ -65,20 +71,12 @@ pub fn parse_job_ids_and_obs_ids_from_file<T: AsRef<Path>>(
             &line
         };
         for text in ids_text.split_whitespace() {
-            match parse_job_id_or_obs_id(text) {
-                Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
-                Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
-                Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
-                Some(ObsIdOrJobId::InvalidObsId(value)) => {
-                    return Err(ParseError::InvalidObsId { value })
-                }
-                // `text` could not be parsed; so we must fail.
-                None => {
-                    return Err(ParseError::InsideFile {
-                        file: f.as_ref().display().to_string(),
-                        text: text.to_string(),
-                    })
-                }
+            // A word of a file that is not a number is an error.
+            if !push_job_id_or_obs_id(text, &mut job_ids, &mut obs_ids)? {
+                return Err(ParseError::InsideFile {
+                    file: f.as_ref().display().to_string(),
+                    text: text.to_string(),
+                });
             }
         }
         line.clear();
@@ -96,20 +94,11 @@ pub fn parse_many_job_ids_or_obs_ids(
     let mut job_ids = vec![];
     let mut obs_ids = vec![];
     for s in strings {
-        match parse_job_id_or_obs_id(s) {
-            Some(ObsIdOrJobId::O(obs_id)) => obs_ids.push(obs_id),
-            Some(ObsIdOrJobId::J(job_id)) => job_ids.push(job_id),
-            Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
-            Some(ObsIdOrJobId::InvalidObsId(value)) => {
-                return Err(ParseError::InvalidObsId { value })
-            }
-            // Could not parse the string as an int; assume it is a
-            // file and unpack it.
-            None => {
-                let (mut j, mut o) = parse_job_ids_and_obs_ids_from_file(s)?;
-                job_ids.append(&mut j);
-                obs_ids.append(&mut o);
-            }
+        // An argument that is not a number is a file: unpack it.
+        if !push_job_id_or_obs_id(s, &mut job_ids, &mut obs_ids)? {
+            let (mut j, mut o) = parse_job_ids_and_obs_ids_from_file(s)?;
+            job_ids.append(&mut j);
+            obs_ids.append(&mut o);
         }
     }
 

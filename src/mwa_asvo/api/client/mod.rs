@@ -35,7 +35,7 @@ use super::job_params::PreprocessJobParams;
 use super::openapi::{
     ApiLoginRequest, ApiLoginResponse, DownloadJobParams, ErrorCode, ErrorResponse,
     ImageFromJobParams, JobCancelledResponse, JobDetailResponse, JobParams, JobState,
-    JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy, TokenResponse, UserResponse,
+    JobSubmittedResponse, JobType, JobsByUserRequest, Login, SortBy, TokenResponse,
 };
 use super::validate::{self, validate_download_params, validate_image_from_job_params};
 
@@ -457,7 +457,12 @@ impl MwaAsvoClient {
     ) -> Result<MwaAsvoJob, MwaAsvoError> {
         opts.check()?; // before the request
         let job = self.get_job(job_id)?;
-        self.download_job_from(&MwaAsvoJobVec(vec![job]), job_id, opts)
+        download_by_job_id(
+            &self.download_client,
+            &MwaAsvoJobVec(vec![job]),
+            job_id,
+            opts,
+        )
     }
 
     /// As [`Self::download_job`], with the job looked up in `jobs` (a job
@@ -469,6 +474,7 @@ impl MwaAsvoClient {
         job_id: MwaAsvoJobId,
         opts: &DownloadOptions,
     ) -> Result<MwaAsvoJob, MwaAsvoError> {
+        opts.check()?;
         download_by_job_id(&self.download_client, jobs, job_id, opts)
     }
 
@@ -485,7 +491,7 @@ impl MwaAsvoClient {
     ) -> Result<MwaAsvoJob, MwaAsvoError> {
         opts.check()?; // before the job list request
         let jobs = self.get_jobs(&JobsFilter::default())?;
-        self.download_obs_from(&jobs, obs_id, opts)
+        download_by_obs_id(&self.download_client, &jobs, obs_id, opts)
     }
 
     /// As [`Self::download_obs`], with the job looked up in `jobs` instead
@@ -496,6 +502,7 @@ impl MwaAsvoClient {
         obs_id: ObsId,
         opts: &DownloadOptions,
     ) -> Result<MwaAsvoJob, MwaAsvoError> {
+        opts.check()?;
         download_by_obs_id(&self.download_client, jobs, obs_id, opts)
     }
 
@@ -587,12 +594,30 @@ impl MwaAsvoClient {
 
         let auth: ApiLoginResponse = serde_json::from_str(&response.body)?;
 
-        let tokens =
-            Self::stored_tokens_from_auth(auth.access_token, auth.refresh_token, auth.user)?;
+        // `StoredTokens.user_id` is a u64 (it's shared with mwa-cli's token
+        // cache format), but the generated `UserResponse.id` is an i64.
+        // A negative user ID from the server would be unexpected, but
+        // let's not panic or silently wrap if it ever happened.
+        let user = auth.user;
+        let user_id = u64::try_from(user.id).map_err(|_| {
+            let negative_id = user.id;
+            MwaAsvoApiError::authentication_failed(format!(
+                "MWA ASVO returned an invalid (negative) user ID: {negative_id}"
+            ))
+        })?;
+
+        // The API response doesn't provide expiry timestamps, so each
+        // comes from the `exp` claim of its JWT.
         Ok(StoredTokens {
+            access_expires_at: decode_jwt_exp(&auth.access_token)?,
+            refresh_expires_at: decode_jwt_exp(&auth.refresh_token)?,
+            access_token: auth.access_token,
+            refresh_token: auth.refresh_token,
+            user_id,
+            user_login: user.login,
+            user_email: user.email,
             host: config.host.clone(),
             api_key_sha256: token_store::api_key_sha256(&config.api_key),
-            ..tokens
         })
     }
 
@@ -623,17 +648,13 @@ impl MwaAsvoClient {
 
         let token: TokenResponse = serde_json::from_str(&response.body)?;
 
-        let tokens = Self::stored_tokens_from_parts(
-            token.access_token,
-            token.refresh_token,
-            previous.user_id,
-            previous.user_login.clone(),
-            previous.user_email.clone(),
-        )?;
+        // As in `login`, each expiry comes from the `exp` claim of its JWT.
         Ok(StoredTokens {
-            host: previous.host.clone(),
-            api_key_sha256: previous.api_key_sha256.clone(),
-            ..tokens
+            access_expires_at: decode_jwt_exp(&token.access_token)?,
+            refresh_expires_at: decode_jwt_exp(&token.refresh_token)?,
+            access_token: token.access_token,
+            refresh_token: token.refresh_token,
+            ..previous.clone()
         })
     }
 
@@ -667,51 +688,6 @@ impl MwaAsvoClient {
         session.client = new_client;
         session.generation = session.generation.wrapping_add(1);
         Ok(())
-    }
-
-    /// Build a `StoredTokens` from a login response's pieces, decoding each
-    /// JWT's `exp` claim to determine its expiry (the API response doesn't
-    /// provide expiry timestamps directly).
-    fn stored_tokens_from_auth(
-        access_token: String,
-        refresh_token: String,
-        user: UserResponse,
-    ) -> Result<StoredTokens, MwaAsvoApiError> {
-        // `StoredTokens.user_id` is a u64 (it's shared with mwa-cli's token
-        // cache format), but the generated `UserResponse.id` is an i64.
-        // A negative user ID from the server would be unexpected, but
-        // let's not panic or silently wrap if it ever happened.
-        let user_id = u64::try_from(user.id).map_err(|_| {
-            let negative_id = user.id;
-            MwaAsvoApiError::authentication_failed(format!(
-                "MWA ASVO returned an invalid (negative) user ID: {negative_id}"
-            ))
-        })?;
-
-        Self::stored_tokens_from_parts(access_token, refresh_token, user_id, user.login, user.email)
-    }
-
-    fn stored_tokens_from_parts(
-        access_token: String,
-        refresh_token: String,
-        user_id: u64,
-        user_login: String,
-        user_email: String,
-    ) -> Result<StoredTokens, MwaAsvoApiError> {
-        let access_expires_at = decode_jwt_exp(&access_token)?;
-        let refresh_expires_at = decode_jwt_exp(&refresh_token)?;
-
-        Ok(StoredTokens {
-            access_token,
-            refresh_token,
-            access_expires_at,
-            refresh_expires_at,
-            user_id,
-            user_login,
-            user_email,
-            host: String::new(),
-            api_key_sha256: String::new(),
-        })
     }
 
     /// Send an authenticated request, retrying it once if the server

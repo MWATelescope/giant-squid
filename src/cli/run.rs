@@ -547,23 +547,8 @@ fn report_csv_result(
 /// With `json`, each is a [`DryRunSubmission`] line.
 fn report_dry_run_csv(jobs: &[CsvJob], json: bool) -> anyhow::Result<()> {
     for job in jobs {
-        let endpoint = job.params.endpoint();
-        if json {
-            print_json_line(
-                &DryRunSubmission {
-                    endpoint,
-                    obs_id: job.obs_id,
-                    params: &job.params,
-                },
-                true,
-            )?;
-            continue;
-        }
-        let body = serde_json::to_string_pretty(&job.params)?;
-        info!(
-            "[dry run] Would POST {endpoint} for Obs ID {} (line {}):\n{body}",
-            job.obs_id, job.line
-        );
+        let place = format!("Obs ID {} (line {})", job.obs_id, job.line);
+        report_dry_run_submission(job.params.endpoint(), job.obs_id, &job.params, &place, json)?;
     }
 
     info!(
@@ -681,23 +666,36 @@ where
 {
     for o in obs_ids {
         let params = build_params(*o);
-        if json {
-            print_json_line(
-                &DryRunSubmission {
-                    endpoint,
-                    obs_id: *o,
-                    params: &params,
-                },
-                true,
-            )?;
-            continue;
-        }
-        let body = serde_json::to_string_pretty(&params)?;
-        info!("[dry run] Would POST {endpoint} for Obs ID {o}:\n{body}");
+        report_dry_run_submission(endpoint, *o, &params, &format!("Obs ID {o}"), json)?;
     }
 
     let total = obs_ids.len();
     info!("[dry run] Would have submitted {total} Obs IDs to {endpoint}. Nothing was sent.");
+    Ok(())
+}
+
+/// Report what one submission would have sent, for `--dry-run`: with `json`,
+/// a [`DryRunSubmission`] line; without, a log record with the endpoint, the
+/// JSON body and `place` (the Obs ID, and the line of a CSV file).
+fn report_dry_run_submission<T: serde::Serialize>(
+    endpoint: &str,
+    obs_id: ObsId,
+    params: &T,
+    place: &str,
+    json: bool,
+) -> anyhow::Result<()> {
+    if json {
+        return print_json_line(
+            &DryRunSubmission {
+                endpoint,
+                obs_id,
+                params,
+            },
+            true,
+        );
+    }
+    let body = serde_json::to_string_pretty(params)?;
+    info!("[dry run] Would POST {endpoint} for {place}:\n{body}");
     Ok(())
 }
 
@@ -722,13 +720,6 @@ fn log_level(verbosity: u8, json: bool) -> LevelFilter {
 /// error.
 fn init_logger(verbosity: u8, json: bool) {
     install_logger(verbosity, json, None);
-}
-
-/// As [`init_logger`], for a command that shows progress bars: the logger
-/// writes through `multiprogressbar`, so that a log line does not break a
-/// bar.
-fn init_logger_with_progressbar_support(level: u8, json: bool, multiprogressbar: &MultiProgress) {
-    install_logger(level, json, Some(multiprogressbar));
 }
 
 /// The configuration of the logger: the times of the log records in local
@@ -920,9 +911,9 @@ fn run(args: Args) -> anyhow::Result<()> {
                 MultiProgress::new()
             };
 
-            // Init the logger- special case as we need to use LogWrapper to ensure log
-            // messages don't mess up the progress bars!
-            init_logger_with_progressbar_support(verbosity, json, &mpb);
+            // The logger writes through the progress bars, so that a log
+            // line does not break a bar.
+            install_logger(verbosity, json, Some(&mpb));
             if from_stdin {
                 info!(
                     "Read {} Job IDs and {} Obs IDs from standard input.",

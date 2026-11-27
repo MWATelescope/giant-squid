@@ -207,13 +207,13 @@ const MINUTE: Duration = Duration::from_secs(60);
 const MILLIS_PER_SECOND: u64 = 1000;
 
 /// Look up a single job by Job ID from the supplied list and download it.
+/// The caller checks `opts` first ([`DownloadOptions::check`]).
 pub(crate) fn download_by_job_id(
     http_client: &Client,
     jobs: &MwaAsvoJobVec,
     job_id: MwaAsvoJobId,
     opts: &DownloadOptions,
 ) -> Result<MwaAsvoJob, MwaAsvoError> {
-    opts.check()?;
     debug!("Attempting to download Job ID {job_id}");
     // A Job ID is unique. If the list ever has it twice, the first is used.
     let job = jobs
@@ -226,14 +226,14 @@ pub(crate) fn download_by_job_id(
 }
 
 /// Look up a single ready job by Obs ID from the supplied list and download it.
-/// Fails if zero, or more than one, ready jobs match the Obs ID.
+/// Fails if zero, or more than one, ready jobs match the Obs ID. The caller
+/// checks `opts` first ([`DownloadOptions::check`]).
 pub(crate) fn download_by_obs_id(
     http_client: &Client,
     jobs: &MwaAsvoJobVec,
     obs_id: ObsId,
     opts: &DownloadOptions,
 ) -> Result<MwaAsvoJob, MwaAsvoError> {
-    opts.check()?;
     debug!("Attempting to download Obs ID {obs_id}");
     let job = ready_job_of_obs_id(jobs, obs_id)?;
     download_job(http_client, job, opts)?;
@@ -2357,16 +2357,30 @@ fn copy_symlink(from: &Path, to: &Path) -> io::Result<()> {
 /// cannot be put there between a check and the open
 /// ([`MwaAsvoError::SymlinkInDownloadDir`]).
 fn create_file(path: &Path) -> Result<File, MwaAsvoError> {
-    open_for_writing(path, WriteMode::CreateOrTruncate).map_err(|source| {
+    open_output_file(path, WriteMode::CreateOrTruncate, |source| {
+        MwaAsvoError::CannotCreate {
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+/// Open the file at `path` for writing, as `mode` says. A symbolic link at
+/// `path` is refused when the file is opened
+/// ([`MwaAsvoError::SymlinkInDownloadDir`]). `other_error` makes the error
+/// of any other failure.
+fn open_output_file(
+    path: &Path,
+    mode: WriteMode,
+    other_error: impl FnOnce(io::Error) -> MwaAsvoError,
+) -> Result<File, MwaAsvoError> {
+    open_for_writing(path, mode).map_err(|source| {
         if refused_a_symlink(&source, path) {
             MwaAsvoError::SymlinkInDownloadDir {
                 path: path.to_path_buf(),
             }
         } else {
-            MwaAsvoError::CannotCreate {
-                path: path.to_path_buf(),
-                source,
-            }
+            other_error(source)
         }
     })
 }
@@ -2455,15 +2469,7 @@ fn prepare_output_file(
 
     // A partial file, and resuming is allowed: append to what's there.
     Ok(OutputTarget::Download {
-        file: open_for_writing(out_path, WriteMode::Append).map_err(|source| {
-            if refused_a_symlink(&source, out_path) {
-                MwaAsvoError::SymlinkInDownloadDir {
-                    path: out_path.clone(),
-                }
-            } else {
-                MwaAsvoError::IO(source)
-            }
-        })?,
+        file: open_output_file(out_path, WriteMode::Append, MwaAsvoError::IO)?,
         offset: file_size_bytes,
     })
 }

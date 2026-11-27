@@ -30,8 +30,7 @@ use std::io::Read;
 
 use super::json_output::{KEY_MESSAGE, KEY_STATUS};
 use crate::helpers::{
-    parse_job_id_or_obs_id, parse_many_job_ids_or_obs_ids, ObsIdOrJobId, ParseError,
-    BYTE_ORDER_MARK,
+    parse_many_job_ids_or_obs_ids, push_job_id_or_obs_id, ParseError, BYTE_ORDER_MARK,
 };
 use crate::mwa_asvo::api::openapi::Status;
 use crate::mwa_asvo::MwaAsvoJobId;
@@ -83,18 +82,10 @@ pub(super) fn parse_ids_from_text(text: &str) -> Result<TextIds, ParseError> {
     }
     let mut ids = TextIds::default();
     for word in text.split_whitespace() {
-        match parse_job_id_or_obs_id(word) {
-            Some(ObsIdOrJobId::O(obs_id)) => ids.obs_ids.push(obs_id),
-            Some(ObsIdOrJobId::J(job_id)) => ids.job_ids.push(job_id),
-            Some(ObsIdOrJobId::Zero) => return Err(ParseError::ZeroJobId),
-            Some(ObsIdOrJobId::InvalidObsId(value)) => {
-                return Err(ParseError::InvalidObsId { value })
-            }
-            None => {
-                return Err(ParseError::InsideStdin {
-                    text: word.to_string(),
-                })
-            }
+        if !push_job_id_or_obs_id(word, &mut ids.job_ids, &mut ids.obs_ids)? {
+            return Err(ParseError::InsideStdin {
+                text: word.to_string(),
+            });
         }
     }
     Ok(ids)

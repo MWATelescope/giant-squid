@@ -118,8 +118,19 @@ pub fn parse_nullable_bool(s: &str) -> Result<Nullable<bool>, String> {
 /// The clap value parser of `list --days`: an integer from 1 to 30
 /// ([`validate::DAYS`]), as the schema's type.
 pub fn parse_days(s: &str) -> Result<NonZeroU64, String> {
-    let days = parse_i64_bounds(validate::DAYS)(s)?;
-    Ok(validate::days_in_range(days))
+    parse_positive_bounds(validate::DAYS, s)
+}
+
+/// Parse `s` as an integer within `bounds`, whose lower limit is 1, as the
+/// schema's type.
+///
+/// # Panics
+///
+/// If `bounds` let a value below 1 through: the bounds are wrong.
+fn parse_positive_bounds(bounds: Bounds, s: &str) -> Result<NonZeroU64, String> {
+    let v = parse_i64_bounds(bounds)(s)?;
+    // The bounds start at 1, so `v` is positive.
+    Ok(NonZeroU64::new(v.unsigned_abs()).expect("BUG: the bounds let 0 through"))
 }
 
 /// The clap value parser of `list --fields`: one name of the library's
@@ -159,17 +170,13 @@ pub fn parse_image_size(s: &str) -> Result<ImageSizes, String> {
 /// The clap value parser of `--channels-out`: an integer within
 /// [`validate::CHANNELS_OUT`], as the schema's type.
 pub fn parse_channels_out(s: &str) -> Result<NonZeroU64, String> {
-    let v = parse_i64_bounds(validate::CHANNELS_OUT)(s)?;
-    // The bounds start at 1, so `v` is positive.
-    validate::channels_out(v.unsigned_abs()).map_err(|e| e.to_string())
+    parse_positive_bounds(validate::CHANNELS_OUT, s)
 }
 
 /// The clap value parser of `--nmiter`: an integer within
 /// [`validate::NMITER`], as the schema's type.
 pub fn parse_nmiter(s: &str) -> Result<NonZeroU64, String> {
-    let v = parse_i64_bounds(validate::NMITER)(s)?;
-    // The bounds start at 1, so `v` is positive.
-    validate::nmiter(v.unsigned_abs()).map_err(|e| e.to_string())
+    parse_positive_bounds(validate::NMITER, s)
 }
 
 /// A request body type of the OpenAPI schema, with its schema defaults. The
@@ -458,28 +465,19 @@ impl_fields!(ResubmitField for [
 // function, which all the schema types share, so every group would show
 // the defaults of the first type used.
 
-/// The clap options of [`DeliveryArgs`], as clap reads them. [`DeliveryArgs`]
-/// adds no check: the MWA ASVO checks that the delivery and its format agree.
-#[derive(clap::Args, Debug, Clone)]
-struct RawDeliveryArgs<P: DeliveryFields> {
-    #[arg(help = P::DELIVERY, short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]
-    delivery: DeliveryDestination,
-
-    #[arg(help = P::DELIVERY_FORMAT, short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
-    delivery_format: DeliveryFormat,
-
-    #[arg(skip)]
-    schema: PhantomData<fn() -> P>,
-}
-
 /// Where and how the MWA ASVO delivers a job's files. The defaults are those
 /// of the schema type `P`. The options are `--delivery` and `--delivery-format`.
 /// Which formats a delivery takes is the MWA ASVO's rule: it refuses a job
 /// whose delivery and format do not agree.
-#[derive(Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct DeliveryArgs<P: DeliveryFields> {
+    #[arg(help = P::DELIVERY, short, long, default_value = P::schema_defaults().delivery().to_string(), env = ENV_GIANT_SQUID_DELIVERY, value_parser = SchemaEnumParser::<DeliveryDestination>::new())]
     pub delivery: DeliveryDestination,
+
+    #[arg(help = P::DELIVERY_FORMAT, short = 'f', long, default_value = P::schema_defaults().delivery_format().to_string(), env = ENV_GIANT_SQUID_DELIVERY_FORMAT, value_parser = SchemaEnumParser::<DeliveryFormat>::new())]
     pub delivery_format: DeliveryFormat,
+
+    #[arg(skip)]
     schema: PhantomData<fn() -> P>,
 }
 
@@ -493,32 +491,6 @@ impl<P: DeliveryFields> DeliveryArgs<P> {
             delivery_format: defaults.delivery_format(),
             schema: PhantomData,
         }
-    }
-}
-
-impl<P: DeliveryFields> clap::Args for DeliveryArgs<P> {
-    fn augment_args(cmd: clap::Command) -> clap::Command {
-        <RawDeliveryArgs<P> as clap::Args>::augment_args(cmd)
-    }
-
-    fn augment_args_for_update(cmd: clap::Command) -> clap::Command {
-        <RawDeliveryArgs<P> as clap::Args>::augment_args_for_update(cmd)
-    }
-}
-
-impl<P: DeliveryFields> clap::FromArgMatches for DeliveryArgs<P> {
-    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
-        let raw = <RawDeliveryArgs<P> as clap::FromArgMatches>::from_arg_matches(matches)?;
-        Ok(Self {
-            delivery: raw.delivery,
-            delivery_format: raw.delivery_format,
-            schema: PhantomData,
-        })
-    }
-
-    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
-        *self = Self::from_arg_matches(matches)?;
-        Ok(())
     }
 }
 

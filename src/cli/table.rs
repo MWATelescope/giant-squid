@@ -105,11 +105,8 @@ pub fn print_jobs_table(
         let mut cells = vec![
             Cell::new(j.job_id()),
             Cell::new(j.obs_id()),
-            coloured(Cell::new(j.job_type), Some(job_type_colour(j.job_type))),
-            coloured(
-                Cell::new(job_state_text(&j, now)),
-                Some(job_state_colour(&j, now)),
-            ),
+            Cell::new(j.job_type).fg(job_type_colour(j.job_type)),
+            Cell::new(job_state_text(&j, now)).fg(job_state_colour(&j, now)),
             Cell::new(size.unwrap_or_default()),
             Cell::new(delivery.unwrap_or_default()),
             Cell::new(completed.unwrap_or_default()),
@@ -123,14 +120,6 @@ pub fn print_jobs_table(
     }
 
     print_line(table)
-}
-
-/// `cell` in the colour `colour`, if it has one.
-fn coloured(cell: Cell, colour: Option<Color>) -> Cell {
-    match colour {
-        Some(colour) => cell.fg(colour),
-        None => cell,
-    }
 }
 
 /// The colour of a job type cell.
