@@ -16,7 +16,7 @@ the MWA ASVO, please visit: [MWA ASVO wiki](https://mwatelescope.atlassian.net/w
 
 giant-squid 3.0.0 uses version 2 of the MWA ASVO API, and some options, defaults and outputs
 changed. See [docs/V3_MIGRATION.md](docs/V3_MIGRATION.md) for what to change in your commands and
-scripts.
+scripts, and [docs/V3_LIBRARY.md](docs/V3_LIBRARY.md) for the changes to the Rust library and the Python API.
 
 ---
 ## NOTE FOR HPC USERS

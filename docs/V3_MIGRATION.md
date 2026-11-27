@@ -9,6 +9,18 @@ Why the changes: giant-squid 3.0.0 uses version 2 of the MWA ASVO API. The
 job options, their names and their defaults now come from that API, so
 giant-squid, the API and its documentation use the same names everywhere.
 
+Every command except the file transfer of `download` uses version 2 of the
+MWA ASVO API (2.8.3, OpenAPI 3.1.0). A download job (visibility, metadata,
+voltage or beamformer) goes to `/api/v2/jobs/download`, a conversion or
+imaging job to `/api/v2/jobs/preprocess`, and an image from a conversion job
+to `/api/v2/jobs/image_from_job`. `giant-squid --version` prints
+`giant-squid 3.0.0` and the versions of the API and of the OpenAPI
+specification (for example `MWA ASVO API 2.8.3`, `OpenAPI 3.1.0`). In 2.x it
+printed the name of the crate (`mwa_giant_squid`).
+
+The changes to the Rust library and the Python module are in
+[V3_LIBRARY.md](V3_LIBRARY.md).
+
 ## Quick checklist
 
 1. If you submit **conversion or imaging jobs**, check the new defaults
@@ -48,6 +60,9 @@ giant-squid, the API and its documentation use the same names everywhere.
     or `submit-conv`**, plan to change it to `submit-download` or
     `submit-preprocess`. The old commands still work, but they are deprecated
     and log a warning: see [Deprecated submit commands](#deprecated-submit-commands).
+13. If a script reads the **exit code** of a submit command, `download` or
+    `cancel`, check it: they now try every ID and exit with code 1 if any
+    failed. See [Messages, errors and exit codes](#messages-errors-and-exit-codes).
 
 Your API key and environment variables need no change.
 
@@ -91,6 +106,46 @@ optional value, so you can turn them off with `--apply-primary-beam=false`.
 false). The aliases `--phase-centre-ra`, `--phase-centre-dec`, `--custom-ra`,
 `--custom-dec` and `--phase-center` work on both `submit-preprocess` and
 `submit-image`.
+
+### Option values and help
+
+An option for a field that the MWA ASVO allows to be `null` takes the word
+`null` (`--avg-freq-res null`, `--no-rfi=null`, `--allow-resubmit=null`):
+`--avg-freq-res`, `--avg-time-res`, `--flag-edge-width`, `--abs-threshold`,
+`--no-digital-gains`, `--no-flag-dc`, `--no-geometric-delay`,
+`--no-passband-gains`, `--no-cable-delay`, `--no-rfi` and
+`-r`/`--allow-resubmit`. The last seven also take `true` and `false`, and the
+bare flag (`--no-rfi`, `-r`) is still `true`.
+
+An option that takes a named value (`--delivery`, `--centre`,
+`--polarization`, `--job-states`, `--job-types` and so on) reads it in the
+same way: the case, spaces, hyphens and underscores do not matter (for
+example `--delivery ACACIA`, `--job-states WAIT-CAL`). The help
+(`[possible values: ...]`) and the message for a bad value list the values in
+the schema's order.
+
+A negative number now works in the `--option value` form, for example
+`submit-volt --offset -1` (it is then refused with its range). In 2.x, clap
+read `-1` as an unknown flag (`unexpected argument '-1'`), and only the
+`--option=value` form worked.
+
+The help text of each job option is the MWA ASVO API's (the schema's
+`x-cmd-help`). An option whose value has limits shows them after the text,
+for example `[range: 0 to 7200]`, and `--help` shows the default of each
+option. `--help` lists the allowed values of `--delivery`,
+`--delivery-format`, `--output`, `--centre`, `--output-mode`,
+`--polarization` and `--weighting`. The help of `list --job-states` and
+`--job-types` lists the names that the options take (in 2.x it listed
+`retrieving`, which is not a state). The help and clap's messages are in
+colour on a terminal (as cargo's are), not only bold. `NO_COLOR` turns the
+colours off.
+
+giant-squid checks a job only against the limits of the API schema (numbers,
+image sizes). The MWA ASVO checks the rules that are not in the schema, and
+refuses a job that breaks one with a validation error: `delivery_format`
+`files` with `delivery` `acacia`; `custom_centre_ra` and `custom_centre_dec`
+with a `centre` other than `custom`; and `only_metadata` (true) with a
+voltage option.
 
 ## Conversion jobs (`submit-preprocess`)
 
@@ -183,8 +238,11 @@ all: see the table in [Deprecated submit commands](#deprecated-submit-commands).
 
 The voltage options (`--offset`, `--duration`, `--from-channel`,
 `--to-channel`) are for a voltage observation: the MWA ASVO refuses them for
-an observation that has no voltages. `--offset` must be from 0 to 7200, and a
-negative value (`--offset -1`) is rejected with that range.
+an observation that has no voltages. `--offset` and `--duration` must be from
+0 to 7200 seconds, and a
+negative value (`--offset -1`) is rejected with that range. Without
+`--only-metadata`, the request has no `only_metadata` key (the API gives it
+no default).
 
 The default delivery format is now `tar` for every job, whatever the
 delivery: in 2.x a Scratch or DUG delivery gave individual files unless you
@@ -199,6 +257,20 @@ delivery options for a voltage job too. A voltage line of a manta-ray-client
 CSV file gives `delivery` and `delivery_format` as the other download lines
 do, and the defaults of the file apply to it.
 A beamformer job has no `mode`.
+
+**New: `submit-csv`** (short name `scsv`) submits the jobs of a
+[manta-ray-client](https://github.com/MWATelescope/manta-ray-client) CSV file
+(`mwa_client -c file.csv`): conversion, download (visibility and metadata),
+beamformer, voltage and imaging jobs, one per line. It reads and checks the
+whole file before it submits anything, and a submission that fails does not
+stop the others. A key that the job type does not have is an error (also the
+beamformer `mode`). A `channel_range` is checked but not sent. A key that a
+line gives twice, and a line that makes the same job as an earlier line, are
+warnings. A line that gives no delivery or delivery format uses
+`GIANT_SQUID_DELIVERY` and `GIANT_SQUID_DELIVERY_FORMAT`, if they are set,
+and else the schema default. A voltage line is no different. A file with no
+job is an error. See the
+[README](../README.md#jobs-from-a-manta-ray-client-csv-file).
 
 ### Deprecated submit commands
 
@@ -252,6 +324,33 @@ giant-squid submit-download --json 1065880128 | jq -r .job_id
 To keep the log lines in a file, redirect standard error:
 `giant-squid list 2> giant-squid.log`.
 
+`-v` shows all the API requests and responses, and `-vv` shows their full
+payload. The logs show no credential: see
+[Authentication and environment variables](#authentication-and-environment-variables).
+
+### Messages, errors and exit codes
+
+Messages, logs, `--help` and the docs write "Job ID" and "Obs ID" (2.x wrote
+"job ID", "jobid", "obsid" and "Obsid"). A script that searches the log
+lines for these words must change. JSON keys and argument names do not
+change (`job_id`, `obs_id`).
+
+An error that the MWA ASVO sends is shown as it sent it: its error code,
+message, `detail`, `suggestion`, field errors and request ID (also for a
+failed login). A failed job shows the MWA ASVO's `error_code` as well as its
+error text.
+
+The submit commands try every Obs ID, and log the error of each failed
+submission when it happens. If any failed, the command ends with
+`Error: M of N job submissions failed` and exit code 1. In 2.x it stopped at
+the first failure. `download` ends with `Error: M of N downloads failed` and
+exit code 1. In 2.x it exited with 0. For `cancel`, see
+[Waiting and cancelling](#waiting-and-cancelling-wait-cancel).
+
+A command whose standard output is a pipe that closes early (for example
+`giant-squid list | head -1`) ends without an error. In 2.x it panicked with
+`failed printing to stdout: Broken pipe` and exited with 101.
+
 ### Errors with `--json`
 
 With `--json`, a command prints only JSON on standard output, and nothing on
@@ -263,6 +362,11 @@ JSON in the form of the MWA ASVO's error response (`error_code`, `message`, and
 ```bash
 giant-squid submit-download --json 1065880128 | jq -r 'select(.error_code) | .message'
 ```
+
+An error from the MWA ASVO is printed as it was sent. Other errors have a
+giant-squid code, for example `HTTP_503`, `NETWORK_ERROR`,
+`INVALID_ARGUMENT`, `INVALID_ENVIRONMENT` or `JOB_EXPIRED`. A bad command
+line with `--json` is one such line too.
 
 `-v` cannot be used with `--json` (or with `--legacy-json`). With `--json`, `--dry-run` prints each
 request as one line of JSON.
@@ -278,8 +382,24 @@ The filter options have the API's names. The 2.x names still work:
 
 New options: `--date-from` and `--date-to` (a date such as `2026-09-01`,
 which is midnight UTC, or a time such as `2026-09-01T12:00:00Z`) and
-`--sort-by`. `--days` takes 1 to 30, the limits of the MWA ASVO API; other
-values are refused before any request.
+`--sort-by` (`id`, `created` or `completed`). `--days` takes 1 to 30, the
+limits of the MWA ASVO API; other values are refused before any request.
+`--days` cannot be used with `--date-from` or `--date-to`. When no job
+matches, the MWA ASVO's `JOB_NOT_FOUND` reply is an empty list.
+
+New: `--fields a,b,c` adds a column to the job table for each named field of
+the job or of its parameters (for example `avg_time_res` or `error_text`).
+`--help` lists the fields. A job that does not have a field has an empty
+cell. The parameters of a listed job are read as the schema type of its job
+type (conversion, imaging, ...), so a key that the server did not send shows
+the schema default. New: `--ids` prints one Job ID on each line, for the
+input of other commands (see [Job IDs and Obs IDs](#job-ids-and-obs-ids)).
+
+The table shows the completed date and time. Its layout and colours are as
+in 2.x. With `NO_COLOR` set (and not empty), `list` and `wait` print the
+table without colours, as `--no-colour` does. The table of `list` and `wait`
+shows a completed job as `completed (ready)` or `completed (expired)`: see
+[Expired download links](#expired-download-links).
 
 **`list` without `--days` shows the MWA ASVO's default window, not your full
 history.** In 2.x, `giant-squid list` with no `--days` fetched every job you
@@ -318,7 +438,8 @@ MWA ASVO API's `JobType`, the table shows them, and so does the JSON:
 
 `--job-types` now refuses text that is not a job type, with an error that
 names it. This includes the 2.x names. In 2.x any other text (a misspelt name,
-for example) was accepted and matched no job, so the list was empty.
+for example) was accepted and matched no job, so the list was empty. A job
+type that the schema does not list makes the listing fail.
 
 ## Waiting and cancelling (`wait`, `cancel`)
 
@@ -412,7 +533,11 @@ scripts.
 `download` takes the same Job IDs, Obs IDs and options as in 2.x
 (`--download-dir`, `--keep-tar`, `--no-resume`, `--concurrent-downloads`,
 `--skip-hash`, `--dry-run`). New: `GIANT_SQUID_DOWNLOAD_RETRY_SECS` sets how
-long a failing download is retried (default 900 s).
+long a failing download is retried (default 900 s), from the first failure.
+An attempt that downloads some bytes before it fails starts that time again,
+and an attempt that ends in a hash mismatch does not. `download` now retries
+a network error during the transfer too (2.x retried only a failed request),
+with or without `--keep-tar`.
 
 Changed: each job is downloaded into a directory of its own below
 `--download-dir`, named for the Job ID. `giant-squid download -d /data 12345`
@@ -437,13 +562,110 @@ download is complete. Do not delete it while a download is incomplete, if you
 want the next run to be fast.
 
 Changed: `--no-resume` downloads a partial file again from the start. In 2.x,
-it skipped the partial file and left it as it was. `--skip-hash` skips the SHA-1
+it skipped the partial file and left it as it was. A complete `--keep-tar`
+file that matches the SHA-1 is still not downloaded again, and a retry in the
+same run still continues its own partial file. `--skip-hash` skips the SHA-1
 check only for a download that runs from start to end in one attempt. A resumed
-download is always checked.
+download is always checked, with or without `--keep-tar`: after a failed
+attempt in the same run, or from the files of an earlier run. If the check
+fails, the whole archive is downloaded again. With `--keep-tar`, a complete
+tar file that is already on disk is checked, as in 2.x. The help of
+`--skip-hash` says this.
 
-Changed: a stream-untar download does not write a tar entry whose path is
-absolute, contains `..` or has no name. In 2.x, such an entry could be written
-outside the download directory.
+Changed: `download` of a Scratch job that this host can reach moves its files
+into the download directory (`-d`, `--download-dir`), as for an Acacia job.
+In 2.x, they went to the current directory. The move does not replace
+anything: if something is already at the target, the download fails
+(`DESTINATION_EXISTS`; `SymlinkInDownloadDir` for a symbolic link) and
+nothing changes. A directory at the target, when the Scratch folder is gone,
+is the result of an earlier download, and a second download succeeds. If the
+download directory is where the files already are, nothing is moved. A move
+to another file system is a copy, then a removal (in 2.x it failed). The copy
+is made next to the job folder in the download directory, and renamed to it
+when it is complete, so a copy that stops leaves nothing in the way of the
+next run.
+
+Changed: `download` of a DUG job, or of a Scratch job whose path this host
+cannot reach, fails (`FILES_NOT_REACHABLE`) with a non-zero exit code. In
+2.x, it logged an error and reported success.
+
+Changed: `download` fails when its files of IDs hold no Job ID or Obs ID
+(2.x did nothing and exited with 0), and when `-d`/`--download-dir` is not a
+directory (2.x accepted it).
+
+### Expired download links
+
+The download links of a job work for 7 days. The job stays `completed` in
+the API. `giant-squid` reads the end of that time from the `Expires` of the
+signed URL. The table of `list` and `wait` shows a completed job as
+`completed (ready)` or `completed (expired)`. The JSON and `--job-states`
+keep the API's `completed`.
+
+`download` of a job whose links have expired, or that the file server
+answers with `AccessDenied` (HTTP 403), fails with the error `JOB_EXPIRED`:
+submit the job again. The command skips such a job with a warning, and does
+not count it as a failure. `download` of an Obs ID skips a completed job
+whose links have expired when another one works. `wait` fails for an expired
+job, as for a cancelled job. See the
+[README](../README.md#expired-download-links).
+
+### Fixes to `download`
+
+- An ID that is given more than once is used once, at its first place. In
+  2.x, `cancel 5 5` sent two requests. `download` of a Job ID and of the Obs
+  ID of the same job downloads the job once, and logs that it does. In 2.x the
+  job could be downloaded twice at the same time into the same directory,
+  which could corrupt its files.
+- `download` starts several downloads at once in the order of the IDs, so the
+  numbers in the log (`[1/20]`, `[2/20]`, ...) are in order. In 2.x each
+  thread took a block of the list, and the log said `[1/20]`, `[11/20]`,
+  `[6/20]`. Job IDs and Obs IDs together are numbered from 1 to the total
+  (`[3/4]`); in 2.x the Obs ID downloads started again from 1.
+- `download` logs in and gets the job list once for all its downloads. In
+  2.x, each download logged in on its own (a long list could hit the
+  server's limit on logins) and got the job list again.
+- `download` no longer panics on a job file with no SHA-1 hash (`NO_HASH`), or
+  on a download URL or Scratch path that names no file. The time and speed in
+  "Completed download of ..." are for that file, not for the job so far.
+- `download --keep-tar` of a complete tar file that cannot be read for the
+  hash check fails with the read error. In 2.x, the error counted as a hash
+  mismatch, and the file was emptied and downloaded again.
+- `download --keep-tar` resume: 2.x sent the range request with a wrong
+  header, so the server sent the whole file and giant-squid appended it to
+  the partial file. A complete file was downloaded again, and the SHA-1 of a
+  resumed download covered only the new bytes. All three are fixed. If a
+  server ignores the range request, giant-squid downloads the file again from
+  the start.
+
+### Safety of the download directory
+
+A stream-untar download (without `--keep-tar`) does not write a tar entry
+whose path is absolute (for example `/home/user/.bashrc`), contains `..` (for
+example `../../.ssh/authorized_keys`) or has no name. It shows a warning for
+each such entry and unpacks the others. In 2.x, such an entry was written
+where its path pointed, so a bad archive could create or overwrite a file
+anywhere that the user can write. It also unpacks only files and
+directories: a symbolic link, a hard link or a special file in the archive is
+skipped with a warning. In 2.x it was unpacked, so a link could point outside
+the download directory. The SHA-1 check still covers the whole archive.
+
+`download` does not write through a symbolic link that is already in the
+download directory. A stream-untar entry whose file, or a directory on the
+way to it, is a symbolic link fails the download with `SymlinkInDownloadDir`
+(the entries before it are already written). A `--keep-tar` download whose
+tar file is a symbolic link (even one that points nowhere) fails in the same
+way, and nothing is fetched. The download directory itself may be a symbolic
+link. On Unix, the refusal is part of the call that opens the file
+(`O_NOFOLLOW`) and of the calls that walk down the directories of a tar
+entry (`openat`), so a link that another process puts in the place after the
+check is refused too. In 2.x the download wrote wherever the link pointed.
+See the [README](../README.md#symbolic-links-in-the-download-directory).
+
+A Scratch job is moved only when its path is a folder named for its Job ID,
+as the MWA ASVO makes it. Any other path fails with `INVALID_JOB` and is not
+moved, so that a bad reply cannot move another folder. A Scratch job folder
+with a link that points outside the folder is moved as before (the link is
+moved as a link), with a warning for each such link.
 
 ## Authentication and environment variables
 
@@ -452,11 +674,14 @@ No change to `MWA_ASVO_API_KEY`, `MWA_ASVO_HOST` (a full URL, as in 2.x),
 `GIANT_SQUID_BUF_SIZE`. `MWA_ASVO_API_TIMEOUT` is the same, except that a
 value that is not a whole number of seconds is now an error (2.x warned and
 used the default), as it already was for `GIANT_SQUID_BUF_SIZE`. A value of
-`0` is also an error, for both variables.
+`0` is also an error, for both variables. A value of the new
+`GIANT_SQUID_DOWNLOAD_RETRY_SECS` that is not a whole number is an error too.
+With `--json`, these errors are `INVALID_ENVIRONMENT`.
 
-New: giant-squid 3.0.0 logs in to the MWA ASVO with your API key and keeps
-the session in `~/.mwa-asvo/tokens.json` (the same place as `mwa-cli`), so
-that it does not log in again on every command. The file also holds the host
+New: giant-squid 3.0.0 logs in to the MWA ASVO's v2 (JWT-based) login API
+with your API key, instead of HTTP Basic Auth. It keeps the session in
+`~/.mwa-asvo/tokens.json` (the same place as `mwa-cli`), so that it does not
+log in again on every command, and refreshes the session when it expires. The file also holds the host
 and a hash of the API key (never the key itself), because a session is used
 only for the host and the API key that it was made for. A file without them,
 such as one written by `mwa-cli`, is not used: giant-squid logs in again and
@@ -464,6 +689,47 @@ replaces it. You can delete the file at any time; giant-squid logs in again
 when it needs to. The MWA ASVO allows
 only a few logins a minute, so a script that runs giant-squid very often
 works best with `HOME` set, so that the file can be used.
+
+The logs show no credential, also at trace level (`-vv`). The login and
+refresh requests and replies, which hold the API key and the tokens, are not
+logged. The other request and reply bodies are logged with the URLs in them
+redacted, and so is the URL of a file of a job (a signed Acacia URL):
+giant-squid shows the host, the path, the names of the query parameters and
+the first four characters of a long value. A URL whose scheme is in capitals
+(`HTTPS://`) is redacted too. An error of a file download does not show the
+signed URL either.
+
+The login, refresh and API requests follow a redirect only to the same host
+and port, so that a 307 or 308 redirect does not send the API key to another
+host. The download of a file still follows every redirect. If `MWA_ASVO_HOST`
+is an `http://` URL, giant-squid warns that the API key and the session are
+sent in clear text.
+
+## Job IDs and Obs IDs
+
+The smallest Obs ID is the API's minimum, 1056643216. A number with 10 digits
+is still read as an Obs ID, so a 10-digit number below the minimum is an
+error, not a Job ID. `wait` and `cancel` take Job IDs only: see
+[Waiting and cancelling](#waiting-and-cancelling-wait-cancel).
+
+New: `download`, `cancel` and `wait` read their IDs from standard input when
+an argument is `-`, and only then. The input is the output of the new option
+`list --ids` (one Job ID on each line) or of `list --json`, or IDs that
+spaces or lines separate. The commands do not filter what they read, and an
+empty list is not an error. For example:
+
+```bash
+giant-squid list --job-states completed --ids | giant-squid download -
+```
+
+See the [README](../README.md#use-the-output-of-list-as-the-input-of-other-commands).
+
+`download`, `cancel` and `wait` use an ID that is given more than once a
+single time: see [Fixes to `download`](#fixes-to-download).
+
+A file of IDs that starts with a UTF-8 byte order mark (as Notepad and
+PowerShell can save it) is read. In 2.x its first ID was refused as text that
+is not a number. Standard input and CSV files accept the mark too.
 
 ## Short flags
 
@@ -479,3 +745,7 @@ command where it is used for these two options:
 `-f` is now only `--delivery-format`, and `-n` is now only `--dry-run`. The
 other short flags did not change. `-d`, `-o` and `-r` still mean more than
 one thing, as in 2.x, so use the long names in scripts.
+
+## Docker
+
+The Docker image is built from a Docker hardened image, in a two-stage build.
